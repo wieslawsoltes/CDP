@@ -8,6 +8,7 @@
         <StackPanel Grid.Row="1" Spacing="15">
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Name="btnClickMe" Classes="primary btn" Content="Click Me" Width="100"/>
+                <Button Name="btnSendHttp" Content="Send HTTP Request" Width="150"/>
                 <TextBlock Name="txtStatus" Text="Not Clicked" VerticalAlignment="Center" Margin="10,0,0,0"/>
             </StackPanel>
             

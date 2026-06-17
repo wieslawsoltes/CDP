@@ -237,6 +237,7 @@ public class CdpSession
         _cts.Cancel();
         InspectModeEnabled = false;
         Domains.LogDomain.RemoveSession(this);
+        Domains.NetworkDomain.RemoveSession(this);
         NodeMap.Clear();
         RemoteObjects.Clear();
         HighlightOverlayManager.HideHighlight(Window);

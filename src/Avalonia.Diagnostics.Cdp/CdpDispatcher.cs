@@ -21,7 +21,8 @@ public static class CdpDispatcher
         if (action == "enable" || action == "disable")
         {
             if (domain != "DOM" && domain != "CSS" && domain != "Page" && domain != "Overlay" &&
-                domain != "Runtime" && domain != "Accessibility" && domain != "Log" && domain != "Performance")
+                domain != "Runtime" && domain != "Accessibility" && domain != "Log" && domain != "Performance" &&
+                domain != "Network")
             {
                 return new JsonObject();
             }
@@ -35,6 +36,12 @@ public static class CdpDispatcher
                 return await DomDebuggerDomain.HandleAsync(session, action, @params);
             case "Memory":
                 return await MemoryDomain.HandleAsync(session, action, @params);
+            case "Network":
+                return await NetworkDomain.HandleAsync(session, action, @params);
+            case "Sources":
+                return await SourcesDomain.HandleAsync(session, action, @params);
+            case "Application":
+                return await ApplicationDomain.HandleAsync(session, action, @params);
             case "CSS":
                 return await CssDomain.HandleAsync(session, action, @params);
             case "Input":

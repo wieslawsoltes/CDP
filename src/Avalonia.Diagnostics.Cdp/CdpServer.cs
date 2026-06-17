@@ -97,6 +97,9 @@ public static class CdpServer
         _port = port;
         _isRunning = true;
 
+        // Initialize Network diagnostic listener
+        Avalonia.Diagnostics.Cdp.Domains.NetworkDomain.Initialize();
+
         // Integrate CDP Log domain hook
         var originalSink = Avalonia.Logging.Logger.Sink;
         var cdpSink = new Avalonia.Diagnostics.Cdp.Domains.CdpLogSink();
@@ -113,6 +116,9 @@ public static class CdpServer
     {
         if (!_isRunning) return;
         _isRunning = false;
+
+        // Shutdown Network diagnostic listener
+        Avalonia.Diagnostics.Cdp.Domains.NetworkDomain.Shutdown();
 
         // Restore original log sink
         if (Avalonia.Logging.Logger.Sink is Avalonia.Diagnostics.Cdp.Domains.CompositeLogSink composite)
