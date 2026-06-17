@@ -1795,13 +1795,21 @@ public partial class MainWindow : Window
     private async void BtnReplay_Click(object? sender, RoutedEventArgs e)
     {
         RecorderTab.BtnReplay.IsEnabled = false;
+        bool wasRecording = _isRecording;
         try
         {
+            if (wasRecording)
+            {
+                await SendCommandAsync("Recorder.stop", new JsonObject());
+            }
+
             var docRes = await SendCommandAsync("DOM.getDocument", new JsonObject());
             var root = docRes["root"] as JsonObject;
             int rootNodeId = root?["nodeId"]?.GetValue<int>() ?? 1;
 
-            foreach (var step in _recordedSteps)
+            var stepsToReplay = _recordedSteps.ToList();
+
+            foreach (var step in stepsToReplay)
             {
                 if (step.Type == "click")
                 {
@@ -1983,6 +1991,17 @@ public partial class MainWindow : Window
         }
         finally
         {
+            if (wasRecording)
+            {
+                try
+                {
+                    await SendCommandAsync("Recorder.start", new JsonObject());
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error resuming recording after replay: {ex.Message}");
+                }
+            }
             RecorderTab.BtnReplay.IsEnabled = _recordedSteps.Count > 0;
         }
     }
