@@ -31,6 +31,8 @@ public partial class MainWindow : Window
     private ObservableCollection<PropertyModel> _properties = new();
     private ObservableCollection<LogModel> _logs = new();
     private ObservableCollection<CssPropertyModel> _cssProperties = new();
+    private ObservableCollection<ConsoleItemModel> _consoleHistory = new();
+    private ObservableCollection<CssPropertyModel> _computedStyles = new();
 
     private DomNodeModel? _selectedNode;
     private PropertyModel? _selectedProperty;
@@ -44,6 +46,8 @@ public partial class MainWindow : Window
         listProperties.ItemsSource = _properties;
         listLogs.ItemsSource = _logs;
         listCssProperties.ItemsSource = _cssProperties;
+        listConsole.ItemsSource = _consoleHistory;
+        listComputedStyles.ItemsSource = _computedStyles;
 
         btnRefreshTargets.Click += BtnRefreshTargets_Click;
         btnConnect.Click += BtnConnect_Click;
@@ -69,6 +73,12 @@ public partial class MainWindow : Window
         btnApplyProperty.Click += BtnApplyProperty_Click;
         btnClearLogs.Click += BtnClearLogs_Click;
         btnApplyStyleText.Click += BtnApplyStyleText_Click;
+
+        btnInspect.Click += BtnInspect_Click;
+        btnReload.Click += BtnReload_Click;
+        btnSendConsole.Click += BtnSendConsole_Click;
+        txtConsoleInput.KeyDown += TxtConsoleInput_KeyDown;
+        btnScroll.Click += BtnScroll_Click;
 
         // Populate Keys ComboBox
         cbKeys.ItemsSource = new List<string> { "Enter", "Tab", "Escape", "Space", "Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End" };
@@ -141,6 +151,8 @@ public partial class MainWindow : Window
 
             btnConnect.IsEnabled = false;
             btnDisconnect.IsEnabled = true;
+            btnInspect.IsEnabled = true;
+            btnReload.IsEnabled = true;
 
             // Start reading incoming frames
             _ = Task.Run(ReceiveLoopAsync);
@@ -192,11 +204,16 @@ public partial class MainWindow : Window
 
             btnConnect.IsEnabled = true;
             btnDisconnect.IsEnabled = false;
+            btnInspect.IsEnabled = false;
+            btnInspect.IsChecked = false;
+            btnReload.IsEnabled = false;
 
             _rootNodes.Clear();
             _attributes.Clear();
             _properties.Clear();
             _cssProperties.Clear();
+            _consoleHistory.Clear();
+            _computedStyles.Clear();
             txtSelectedNodeId.Text = "None";
             txtStyleText.Text = "";
             _selectedNode = null;
@@ -361,6 +378,30 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Console.WriteLine($"Error fetching CSS styles: {ex.Message}");
+        }
+
+        // 5. Resolve Computed Styles
+        _computedStyles.Clear();
+        try
+        {
+            var compRes = await SendCommandAsync("CSS.getComputedStyleForNode", new JsonObject { ["nodeId"] = _selectedNode.NodeId });
+            var compStyles = compRes["computedStyle"] as JsonArray;
+            if (compStyles != null)
+            {
+                foreach (var prop in compStyles)
+                {
+                    if (prop is JsonObject propObj)
+                    {
+                        string name = propObj["name"]?.GetValue<string>() ?? "";
+                        string val = propObj["value"]?.GetValue<string>() ?? "";
+                        _computedStyles.Add(new CssPropertyModel(name, val));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching computed styles: {ex.Message}");
         }
 
         // Trigger highlight if enabled
@@ -718,6 +759,194 @@ public partial class MainWindow : Window
         _logs.Clear();
     }
 
+    private async void BtnInspect_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_ws == null || _ws.State != WebSocketState.Open) return;
+        bool enabled = btnInspect.IsChecked == true;
+        try
+        {
+            await SendCommandAsync("Overlay.setInspectMode", new JsonObject
+            {
+                ["mode"] = enabled ? "searchForNode" : "none",
+                ["highlightConfig"] = new JsonObject
+                {
+                    ["contentColor"] = new JsonObject { ["r"] = 80, ["g"] = 150, ["b"] = 240, ["a"] = 0.4 },
+                    ["borderColor"] = new JsonObject { ["r"] = 80, ["g"] = 150, ["b"] = 240, ["a"] = 0.8 }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Toggle inspect mode failed: {ex.Message}");
+        }
+    }
+
+    private async void BtnReload_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_ws == null || _ws.State != WebSocketState.Open) return;
+        try
+        {
+            await SendCommandAsync("Page.reload", new JsonObject());
+            await RefreshDomTreeAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Reload failed: {ex.Message}");
+        }
+    }
+
+    private async void BtnSendConsole_Click(object? sender, RoutedEventArgs e)
+    {
+        string expr = txtConsoleInput.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(expr)) return;
+
+        txtConsoleInput.Text = "";
+
+        try
+        {
+            var res = await SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = expr,
+                ["returnByValue"] = false
+            });
+
+            var resultObj = res["result"] as JsonObject;
+            string displayResult = "";
+
+            if (resultObj != null)
+            {
+                if (resultObj.ContainsKey("description"))
+                {
+                    displayResult = resultObj["description"]?.GetValue<string>() ?? "null";
+                }
+                else if (resultObj.ContainsKey("value"))
+                {
+                    displayResult = resultObj["value"]?.ToString() ?? "null";
+                }
+                else if (resultObj["subtype"]?.GetValue<string>() == "null")
+                {
+                    displayResult = "null";
+                }
+                else
+                {
+                    displayResult = resultObj.ToJsonString();
+                }
+            }
+            else
+            {
+                displayResult = "Success";
+            }
+
+            _consoleHistory.Add(new ConsoleItemModel(expr, displayResult, false));
+        }
+        catch (Exception ex)
+        {
+            _consoleHistory.Add(new ConsoleItemModel(expr, ex.Message, true));
+        }
+
+        if (_consoleHistory.Count > 0)
+        {
+            listConsole.ScrollIntoView(_consoleHistory[^1]);
+        }
+    }
+
+    private void TxtConsoleInput_KeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Enter)
+        {
+            BtnSendConsole_Click(null, null!);
+            e.Handled = true;
+        }
+    }
+
+    private async void BtnScroll_Click(object? sender, RoutedEventArgs e)
+    {
+        double cx = 100;
+        double cy = 100;
+        if (_selectedNode != null)
+        {
+            try
+            {
+                var boxRes = await SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = _selectedNode.NodeId });
+                var model = boxRes["model"] as JsonObject;
+                var contentQuad = model?["content"] as JsonArray;
+                if (contentQuad != null && contentQuad.Count >= 8)
+                {
+                    double x1 = contentQuad[0]!.GetValue<double>();
+                    double y1 = contentQuad[1]!.GetValue<double>();
+                    double x3 = contentQuad[4]!.GetValue<double>();
+                    double y3 = contentQuad[5]!.GetValue<double>();
+                    cx = (x1 + x3) / 2;
+                    cy = (y1 + y3) / 2;
+                }
+            }
+            catch { }
+        }
+
+        if (!double.TryParse(txtScrollDeltaY.Text, out double deltaY))
+        {
+            deltaY = 100;
+        }
+
+        try
+        {
+            await SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseWheel",
+                ["x"] = cx,
+                ["y"] = cy,
+                ["deltaX"] = 0.0,
+                ["deltaY"] = deltaY
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Scroll failed: {ex.Message}");
+        }
+    }
+
+    private void SelectNodeById(int nodeId)
+    {
+        DeselectAll(_rootNodes);
+
+        var path = new List<DomNodeModel>();
+        if (FindNodePath(_rootNodes, nodeId, path))
+        {
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                path[i].IsExpanded = true;
+            }
+            path[^1].IsSelected = true;
+        }
+    }
+
+    private void DeselectAll(IEnumerable<DomNodeModel> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            node.IsSelected = false;
+            DeselectAll(node.Children);
+        }
+    }
+
+    private bool FindNodePath(IEnumerable<DomNodeModel> nodes, int nodeId, List<DomNodeModel> path)
+    {
+        foreach (var node in nodes)
+        {
+            path.Add(node);
+            if (node.NodeId == nodeId)
+            {
+                return true;
+            }
+            if (FindNodePath(node.Children, nodeId, path))
+            {
+                return true;
+            }
+            path.RemoveAt(path.Count - 1);
+        }
+        return false;
+    }
+
     private async Task ReceiveLoopAsync()
     {
         var buffer = new byte[8192];
@@ -766,6 +995,18 @@ public partial class MainWindow : Window
                             {
                                 _logs.Add(new LogModel(timestamp, level, text));
                                 if (_logs.Count > 100) _logs.RemoveAt(0);
+                            });
+                        }
+                    }
+                    else if (method == "Overlay.inspectNodeRequested" && parameters != null)
+                    {
+                        int backendNodeId = parameters["backendNodeId"]?.GetValue<int>() ?? 0;
+                        if (backendNodeId > 0)
+                        {
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                btnInspect.IsChecked = false;
+                                SelectNodeById(backendNodeId);
                             });
                         }
                     }
@@ -863,8 +1104,26 @@ public class TargetItem
     public override string ToString() => $"{Title} ({Id.Substring(0, Math.Min(8, Id.Length))})";
 }
 
-public class DomNodeModel
+public class DomNodeModel : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { _isSelected = value; OnPropertyChanged(); }
+    }
+
+    private bool _isExpanded;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set { _isExpanded = value; OnPropertyChanged(); }
+    }
+
     public int NodeId { get; }
     public string NodeName { get; }
     public string DisplayName { get; set; } = "";
@@ -937,5 +1196,20 @@ public class CssPropertyModel
     {
         Name = name;
         Value = val;
+    }
+}
+
+public class ConsoleItemModel
+{
+    public string Expression { get; }
+    public string Result { get; }
+    public bool IsError { get; }
+    public IBrush ResultBrush => IsError ? Brushes.Red : Brushes.LightGreen;
+
+    public ConsoleItemModel(string expr, string res, bool isError = false)
+    {
+        Expression = expr;
+        Result = res;
+        IsError = isError;
     }
 }
