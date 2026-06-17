@@ -22,7 +22,7 @@ public static class CdpDispatcher
         {
             if (domain != "DOM" && domain != "CSS" && domain != "Page" && domain != "Overlay" &&
                 domain != "Runtime" && domain != "Accessibility" && domain != "Log" && domain != "Performance" &&
-                domain != "Network")
+                domain != "Network" && domain != "Recorder")
             {
                 return new JsonObject();
             }
@@ -66,6 +66,8 @@ public static class CdpDispatcher
                 return await BrowserDomain.HandleAsync(session, action, @params);
             case "SystemInfo":
                 return await SystemInfoDomain.HandleAsync(session, action, @params);
+            case "Recorder":
+                return await RecorderDomain.HandleAsync(session, action, @params);
             default:
                 if (action == "enable" || action == "disable")
                 {

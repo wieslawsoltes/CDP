@@ -1,0 +1,147 @@
+using System;
+using System.Collections.Concurrent;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+
+namespace Avalonia.Diagnostics.Cdp.Domains;
+
+public static class RecorderDomain
+{
+    private static readonly ConcurrentDictionary<CdpSession, SessionRecorderState> _states = new();
+
+    public static Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
+    {
+        switch (action)
+        {
+            case "start":
+                StartRecording(session);
+                return Task.FromResult(new JsonObject());
+            case "stop":
+                StopRecording(session);
+                return Task.FromResult(new JsonObject());
+            default:
+                throw new Exception($"Method Recorder.{action} is not implemented");
+        }
+    }
+
+    public static void RemoveSession(CdpSession session)
+    {
+        StopRecording(session);
+    }
+
+    private static void StartRecording(CdpSession session)
+    {
+        if (_states.ContainsKey(session)) return;
+
+        var state = new SessionRecorderState(session);
+        if (_states.TryAdd(session, state))
+        {
+            state.Attach();
+        }
+    }
+
+    private static void StopRecording(CdpSession session)
+    {
+        if (_states.TryRemove(session, out var state))
+        {
+            state.Detach();
+        }
+    }
+}
+
+internal class SessionRecorderState
+{
+    private readonly CdpSession _session;
+    private readonly EventHandler<PointerPressedEventArgs> _pointerPressedHandler;
+    private readonly EventHandler<RoutedEventArgs> _gotFocusHandler;
+    private readonly EventHandler<RoutedEventArgs> _lostFocusHandler;
+    private readonly ConcurrentDictionary<TextBox, string> _initialTexts = new();
+
+    public SessionRecorderState(CdpSession session)
+    {
+        _session = session;
+        _pointerPressedHandler = OnPointerPressed;
+        _gotFocusHandler = OnGotFocus;
+        _lostFocusHandler = OnLostFocus;
+    }
+
+    public void Attach()
+    {
+        _session.Window.AddHandler(InputElement.PointerPressedEvent, _pointerPressedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _session.Window.AddHandler(InputElement.GotFocusEvent, _gotFocusHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _session.Window.AddHandler(InputElement.LostFocusEvent, _lostFocusHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    public void Detach()
+    {
+        _session.Window.RemoveHandler(InputElement.PointerPressedEvent, _pointerPressedHandler);
+        _session.Window.RemoveHandler(InputElement.GotFocusEvent, _gotFocusHandler);
+        _session.Window.RemoveHandler(InputElement.LostFocusEvent, _lostFocusHandler);
+        _initialTexts.Clear();
+    }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_session.InspectModeEnabled) return;
+
+        var control = e.Source as Control;
+        if (control == null) return;
+
+        string selector = SelectorEngine.GetSelector(control);
+        var pos = e.GetPosition(control);
+
+        var step = new JsonObject
+        {
+            ["type"] = "click",
+            ["target"] = "main",
+            ["selectors"] = new JsonArray { new JsonArray { selector } },
+            ["offsetX"] = pos.X,
+            ["offsetY"] = pos.Y
+        };
+
+        _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
+        {
+            ["step"] = step
+        });
+    }
+
+    private void OnGotFocus(object? sender, RoutedEventArgs e)
+    {
+        if (_session.InspectModeEnabled) return;
+
+        if (e.Source is TextBox textBox)
+        {
+            _initialTexts[textBox] = textBox.Text ?? "";
+        }
+    }
+
+    private void OnLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (_session.InspectModeEnabled) return;
+
+        if (e.Source is TextBox textBox && _initialTexts.TryRemove(textBox, out var initialText))
+        {
+            var currentText = textBox.Text ?? "";
+            if (currentText != initialText)
+            {
+                string selector = SelectorEngine.GetSelector(textBox);
+                var step = new JsonObject
+                {
+                    ["type"] = "change",
+                    ["target"] = "main",
+                    ["selectors"] = new JsonArray { new JsonArray { selector } },
+                    ["value"] = currentText
+                };
+
+                _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
+                {
+                    ["step"] = step
+                });
+            }
+        }
+    }
+}

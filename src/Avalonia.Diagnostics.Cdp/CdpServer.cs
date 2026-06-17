@@ -19,6 +19,7 @@ public static class CdpServer
     private static HttpListener? _listener;
     private static bool _isRunning;
     private static int _port = 9222;
+    public static int Port => _port;
     private static readonly ConcurrentDictionary<string, (TopLevel Window, string Title)> _windows = new();
 
     public static string Register(TopLevel window, string title)

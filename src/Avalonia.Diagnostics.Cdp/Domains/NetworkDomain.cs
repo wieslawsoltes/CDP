@@ -130,7 +130,7 @@ public static class NetworkDomain
         {
             ["requestId"] = requestId,
             ["loaderId"] = "loader-1",
-            ["documentURL"] = "http://localhost:9222/",
+            ["documentURL"] = $"http://localhost:{CdpServer.Port}/",
             ["request"] = requestObj,
             ["timestamp"] = timestamp,
             ["wallTime"] = wallTime,

@@ -176,4 +176,83 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestRecorderDomainAndSelector()
+    {
+        var button = new Button { Name = "myTestButton" };
+        var textBox = new TextBox { Name = "myTestTextBox" };
+        var panel = new StackPanel
+        {
+            Children =
+            {
+                button,
+                textBox
+            }
+        };
+        var window = new Window
+        {
+            Title = "Recorder Test Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Assert selector generation
+        string buttonSelector = SelectorEngine.GetSelector(button);
+        Assert.Equal("#myTestButton", buttonSelector);
+
+        string textBoxSelector = SelectorEngine.GetSelector(textBox);
+        Assert.Equal("#myTestTextBox", textBoxSelector);
+
+        // Assert nested selector when no Name is set
+        var anonymousButton = new Button();
+        panel.Children.Add(anonymousButton);
+        string anonSelector = SelectorEngine.GetSelector(anonymousButton);
+        Assert.Contains("StackPanel > Button", anonSelector);
+
+        // 2. Start Recording
+        var startRes = await RecorderDomain.HandleAsync(session, "start", new JsonObject());
+        Assert.NotNull(startRes);
+
+        // 3. Stop Recording
+        var stopRes = await RecorderDomain.HandleAsync(session, "stop", new JsonObject());
+        Assert.NotNull(stopRes);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestCustomCdpPort()
+    {
+        CdpServer.Start(9223);
+        try
+        {
+            Assert.Equal(9223, CdpServer.Port);
+
+            var window = new Window { Title = "Port Test Window" };
+            window.Show();
+
+            using var clientWs = new ClientWebSocket();
+            var session = new CdpSession(clientWs, window);
+
+            var getDocParams = new JsonObject { ["depth"] = -1 };
+            var docResult = await DomDomain.HandleAsync(session, "getDocument", getDocParams);
+            Assert.NotNull(docResult);
+
+            var root = docResult["root"] as JsonObject;
+            Assert.NotNull(root);
+
+            Assert.Equal("http://localhost:9223/", root["documentURL"]?.GetValue<string>());
+            Assert.Equal("http://localhost:9223/", root["baseURL"]?.GetValue<string>());
+
+            window.Close();
+        }
+        finally
+        {
+            CdpServer.Stop();
+        }
+    }
 }

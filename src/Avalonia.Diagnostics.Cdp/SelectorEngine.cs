@@ -244,4 +244,38 @@ public static class SelectorEngine
 
         return true;
     }
+
+    public static string GetSelector(Visual visual)
+    {
+        if (visual is Control c && !string.IsNullOrEmpty(c.Name))
+        {
+            return $"#{c.Name}";
+        }
+
+        var parts = new List<string>();
+        Visual? current = visual;
+        while (current != null)
+        {
+            if (current is Control ctrl && !string.IsNullOrEmpty(ctrl.Name))
+            {
+                parts.Insert(0, $"#{ctrl.Name}");
+                break;
+            }
+
+            string part = current.GetType().Name;
+            if (current is Control ctrlWithClasses)
+            {
+                var validClasses = ctrlWithClasses.Classes.Where(cls => !cls.StartsWith(":")).ToList();
+                if (validClasses.Count > 0)
+                {
+                    part += "." + string.Join(".", validClasses);
+                }
+            }
+
+            parts.Insert(0, part);
+            current = current.GetVisualParent();
+        }
+
+        return string.Join(" > ", parts);
+    }
 }
