@@ -86,4 +86,45 @@ public class AccessibilityTests
         Assert.NotNull(disableResult);
         Assert.Empty(disableResult);
     }
+
+    [AvaloniaFact]
+    public async Task TestGetAXNode()
+    {
+        var window = new Window { Title = "Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        var button = new Button { Name = "testButton" };
+        AutomationProperties.SetName(button, "MyAccessibleButton");
+
+        var stack = new StackPanel();
+        stack.Children.Add(button);
+        window.Content = stack;
+
+        // Populate NodeMap
+        int buttonNodeId = session.NodeMap.GetOrAdd(button);
+
+        // Call getAXNode handler
+        var paramsObj = new JsonObject { ["nodeId"] = buttonNodeId };
+        var result = await AccessibilityDomain.HandleAsync(session, "getAXNode", paramsObj);
+        Assert.NotNull(result);
+
+        var nodes = result["nodes"] as JsonArray;
+        Assert.NotNull(nodes);
+        Assert.NotEmpty(nodes);
+
+        // Target AXNode for the button
+        var buttonNode = nodes[0] as JsonObject;
+        Assert.NotNull(buttonNode);
+        Assert.Equal(buttonNodeId.ToString(), buttonNode["nodeId"]?.GetValue<string>());
+        Assert.Equal(buttonNodeId, buttonNode["backendDOMNodeId"]?.GetValue<int>());
+
+        var nameVal = buttonNode["name"] as JsonObject;
+        Assert.NotNull(nameVal);
+        Assert.Equal("MyAccessibleButton", nameVal["value"]?.GetValue<string>());
+
+        window.Close();
+    }
 }
