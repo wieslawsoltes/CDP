@@ -119,4 +119,95 @@ public class NewDomainTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestSchemaDomain()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var result = await SchemaDomain.HandleAsync(session, "getDomains", new JsonObject());
+        Assert.NotNull(result);
+        Assert.True(result.ContainsKey("domains"));
+        var domains = result["domains"] as JsonArray;
+        Assert.NotNull(domains);
+        Assert.Contains(domains, d => d?["name"]?.GetValue<string>() == "Schema");
+        Assert.Contains(domains, d => d?["name"]?.GetValue<string>() == "Accessibility");
+    }
+
+    [AvaloniaFact]
+    public async Task TestSystemInfoDomain()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var getFeatureResult = await SystemInfoDomain.HandleAsync(session, "getFeatureState", new JsonObject { ["featureState"] = "test-feature" });
+        Assert.NotNull(getFeatureResult);
+        Assert.True(getFeatureResult.ContainsKey("featureEnabled"));
+        Assert.False(getFeatureResult["featureEnabled"]?.GetValue<bool>());
+    }
+
+    [AvaloniaFact]
+    public async Task TestTargetDomain()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var setDiscoverResult = await TargetDomain.HandleAsync(session, "setDiscoverTargets", new JsonObject { ["discover"] = true });
+        Assert.NotNull(setDiscoverResult);
+
+        // If target exists, getTargetInfo will succeed
+        var getInfoResult = await TargetDomain.HandleAsync(session, "getTargetInfo", new JsonObject());
+        Assert.NotNull(getInfoResult);
+    }
+
+    [AvaloniaFact]
+    public async Task TestLogDomainStubs()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var startResult = await LogDomain.HandleAsync(session, "startViolationsReport", new JsonObject());
+        Assert.NotNull(startResult);
+
+        var stopResult = await LogDomain.HandleAsync(session, "stopViolationsReport", new JsonObject());
+        Assert.NotNull(stopResult);
+    }
+
+    [AvaloniaFact]
+    public async Task TestAccessibilityDomainNewMethods()
+    {
+        var window = new Window
+        {
+            Title = "A11y Test Window",
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    new Button { Content = "Click Me" }
+                }
+            }
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // Pre-populate NodeMap by fetching document or just root
+        var rootResult = await AccessibilityDomain.HandleAsync(session, "getRootAXNode", new JsonObject());
+        Assert.NotNull(rootResult);
+        Assert.True(rootResult.ContainsKey("node"));
+
+        var rootNode = rootResult["node"] as JsonObject;
+        Assert.NotNull(rootNode);
+        var rootNodeIdStr = rootNode["nodeId"]?.GetValue<string>();
+        Assert.NotNull(rootNodeIdStr);
+
+        // Fetch children
+        var getChildResult = await AccessibilityDomain.HandleAsync(session, "getChildAXNodes", new JsonObject { ["id"] = rootNodeIdStr });
+        Assert.NotNull(getChildResult);
+        Assert.True(getChildResult.ContainsKey("nodes"));
+
+        window.Close();
+    }
 }

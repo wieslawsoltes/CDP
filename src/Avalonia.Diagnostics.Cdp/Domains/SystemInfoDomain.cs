@@ -63,6 +63,12 @@ public static class SystemInfoDomain
                     };
                 }
 
+            case "getFeatureState":
+                return new JsonObject
+                {
+                    ["featureEnabled"] = false
+                };
+
             default:
                 throw new Exception($"Method SystemInfo.{action} is not implemented");
         }

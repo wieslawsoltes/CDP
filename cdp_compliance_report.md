@@ -1,17 +1,17 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-17 21:39:59 UTC
+Generated on: 2026-06-17 21:45:58 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 
 ## Summary
 
-* **Total Standard CDP Methods Supported**: 50 / 668 (7,5%)
+* **Total Standard CDP Methods Supported**: 63 / 668 (9,4%)
 * **Total Custom/Extension Methods Supported**: 53
 
 | Domain | Status / Coverage | Standard Supported | Custom Extensions | Missing Standard |
 | :--- | :--- | :--- | :--- | :--- |
-| **Accessibility** | 3/8 (37,5%) | 3 | 1 | 5 |
+| **Accessibility** | 6/8 (75,0%) | 6 | 1 | 2 |
 | **Ads** | Unsupported | 0 | 0 | 1 |
 | **Animation** | Unsupported | 0 | 0 | 10 |
 | **Application** | Custom Domain (3 actions) | 0 | 3 | 0 |
@@ -22,7 +22,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Browser** | 2/20 (10,0%) | 2 | 0 | 18 |
 | **CacheStorage** | Unsupported | 0 | 0 | 5 |
 | **Cast** | Unsupported | 0 | 0 | 6 |
-| **Console** | Unsupported | 0 | 0 | 3 |
+| **Console** | Fully Compliant | 3 | 0 | 0 |
 | **CrashReportContext** | Unsupported | 0 | 0 | 1 |
 | **Css** | Custom Domain (5 actions) | 0 | 5 | 0 |
 | **CSS** | Unsupported | 0 | 0 | 39 |
@@ -48,27 +48,27 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Inspector** | Unsupported | 0 | 0 | 2 |
 | **IO** | Unsupported | 0 | 0 | 3 |
 | **LayerTree** | Unsupported | 0 | 0 | 9 |
-| **Log** | 3/5 (60,0%) | 3 | 0 | 2 |
+| **Log** | Fully Compliant | 5 | 0 | 0 |
 | **Media** | Unsupported | 0 | 0 | 2 |
 | **Memory** | 1/11 (9,1%) | 1 | 2 | 10 |
 | **Network** | 4/41 (9,8%) | 4 | 0 | 37 |
 | **Overlay** | 5/30 (16,7%) | 5 | 0 | 25 |
 | **Page** | 10/61 (16,4%) | 10 | 0 | 51 |
-| **Performance** | 3/4 (75,0%) | 3 | 0 | 1 |
+| **Performance** | Fully Compliant | 4 | 0 | 0 |
 | **PerformanceTimeline** | Unsupported | 0 | 0 | 1 |
 | **Preload** | Unsupported | 0 | 0 | 2 |
 | **Profiler** | Unsupported | 0 | 0 | 9 |
 | **PWA** | Unsupported | 0 | 0 | 7 |
 | **Recorder** | Custom Domain (2 actions) | 0 | 2 | 0 |
 | **Runtime** | 8/23 (34,8%) | 8 | 0 | 15 |
-| **Schema** | Unsupported | 0 | 0 | 1 |
+| **Schema** | Fully Compliant | 1 | 0 | 0 |
 | **Security** | Unsupported | 0 | 0 | 5 |
 | **ServiceWorker** | Unsupported | 0 | 0 | 12 |
 | **SmartCardEmulation** | Unsupported | 0 | 0 | 12 |
 | **Sources** | Custom Domain (2 actions) | 0 | 2 | 0 |
 | **Storage** | Unsupported | 0 | 0 | 34 |
-| **SystemInfo** | 2/3 (66,7%) | 2 | 0 | 1 |
-| **Target** | 2/19 (10,5%) | 2 | 0 | 17 |
+| **SystemInfo** | Fully Compliant | 3 | 0 | 0 |
+| **Target** | 4/19 (21,1%) | 4 | 0 | 15 |
 | **Tethering** | Unsupported | 0 | 0 | 2 |
 | **Tracing** | Unsupported | 0 | 0 | 6 |
 | **WebAudio** | Unsupported | 0 | 0 | 3 |
@@ -79,9 +79,9 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Accessibility
 
-* **Standard Supported (3)**: `disable`, `enable`, `getFullAXTree`
+* **Standard Supported (6)**: `disable`, `enable`, `getAXNodeAndAncestors`, `getChildAXNodes`, `getFullAXTree`, `getRootAXNode`
 * **Custom Extensions (1)**: `getAXNode`
-* **Missing Standard (5)**: `getAXNodeAndAncestors`, `getChildAXNodes`, `getPartialAXTree`, `getRootAXNode`, `queryAXTree`
+* **Missing Standard (2)**: `getPartialAXTree`, `queryAXTree`
 
 ### Ads
 
@@ -126,7 +126,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Console
 
-* **Missing Standard (3)**: `clearMessages`, `disable`, `enable`
+* **Standard Supported (3)**: `clearMessages`, `disable`, `enable`
 
 ### CrashReportContext
 
@@ -234,8 +234,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Log
 
-* **Standard Supported (3)**: `clear`, `disable`, `enable`
-* **Missing Standard (2)**: `startViolationsReport`, `stopViolationsReport`
+* **Standard Supported (5)**: `clear`, `disable`, `enable`, `startViolationsReport`, `stopViolationsReport`
 
 ### Media
 
@@ -264,8 +263,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Performance
 
-* **Standard Supported (3)**: `disable`, `enable`, `getMetrics`
-* **Missing Standard (1)**: `setTimeDomain`
+* **Standard Supported (4)**: `disable`, `enable`, `getMetrics`, `setTimeDomain`
 
 ### PerformanceTimeline
 
@@ -294,7 +292,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Schema
 
-* **Missing Standard (1)**: `getDomains`
+* **Standard Supported (1)**: `getDomains`
 
 ### Security
 
@@ -318,13 +316,12 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### SystemInfo
 
-* **Standard Supported (2)**: `getInfo`, `getProcessInfo`
-* **Missing Standard (1)**: `getFeatureState`
+* **Standard Supported (3)**: `getFeatureState`, `getInfo`, `getProcessInfo`
 
 ### Target
 
-* **Standard Supported (2)**: `getTargets`, `setAutoAttach`
-* **Missing Standard (17)**: `activateTarget`, `attachToBrowserTarget`, `attachToTarget`, `autoAttachRelated`, `closeTarget`, `createBrowserContext`, `createTarget`, `detachFromTarget`, `disposeBrowserContext`, `exposeDevToolsProtocol`, `getBrowserContexts`, `getDevToolsTarget`, `getTargetInfo`, `openDevTools`, `sendMessageToTarget`, `setDiscoverTargets`, `setRemoteLocations`
+* **Standard Supported (4)**: `getTargetInfo`, `getTargets`, `setAutoAttach`, `setDiscoverTargets`
+* **Missing Standard (15)**: `activateTarget`, `attachToBrowserTarget`, `attachToTarget`, `autoAttachRelated`, `closeTarget`, `createBrowserContext`, `createTarget`, `detachFromTarget`, `disposeBrowserContext`, `exposeDevToolsProtocol`, `getBrowserContexts`, `getDevToolsTarget`, `openDevTools`, `sendMessageToTarget`, `setRemoteLocations`
 
 ### Tethering
 

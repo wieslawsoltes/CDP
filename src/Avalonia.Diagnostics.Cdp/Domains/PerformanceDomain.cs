@@ -16,6 +16,7 @@ public static class PerformanceDomain
         {
             case "enable":
             case "disable":
+            case "setTimeDomain":
                 return new JsonObject();
 
             case "getMetrics":

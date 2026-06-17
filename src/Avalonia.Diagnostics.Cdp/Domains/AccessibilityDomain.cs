@@ -38,14 +38,20 @@ public static class AccessibilityDomain
                 }
 
             case "getAXNode":
+            case "getAXNodeAndAncestors":
                 {
                     int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    int? backendNodeId = @params["backendNodeId"]?.GetValue<int>();
                     string? objectId = @params["objectId"]?.GetValue<string>();
 
                     Visual? targetVisual = null;
                     if (nodeId.HasValue)
                     {
                         targetVisual = session.NodeMap.GetVisual(nodeId.Value);
+                    }
+                    else if (backendNodeId.HasValue)
+                    {
+                        targetVisual = session.NodeMap.GetVisual(backendNodeId.Value);
                     }
                     else if (!string.IsNullOrEmpty(objectId))
                     {
@@ -69,6 +75,35 @@ public static class AccessibilityDomain
                     }
 
                     return new JsonObject { ["nodes"] = nodes };
+                }
+
+            case "getChildAXNodes":
+                {
+                    string? idStr = @params["id"]?.GetValue<string>();
+                    var nodes = new JsonArray();
+                    if (!string.IsNullOrEmpty(idStr) && int.TryParse(idStr, out int nodeId))
+                    {
+                        var visual = session.NodeMap.GetVisual(nodeId);
+                        if (visual != null)
+                        {
+                            foreach (var child in visual.GetVisualChildren())
+                            {
+                                var childNode = BuildAXNode(session, child);
+                                nodes.Add(childNode);
+                            }
+                        }
+                    }
+                    return new JsonObject { ["nodes"] = nodes };
+                }
+
+            case "getRootAXNode":
+                {
+                    JsonObject? node = null;
+                    if (session.Window != null)
+                    {
+                        node = BuildAXNode(session, session.Window);
+                    }
+                    return new JsonObject { ["node"] = node };
                 }
 
             default:

@@ -23,7 +23,8 @@ public static class LogDomain
                 return Task.FromResult(new JsonObject());
 
             case "clear":
-                // Client requests to clear the console logs
+            case "startViolationsReport":
+            case "stopViolationsReport":
                 return Task.FromResult(new JsonObject());
 
             default:
