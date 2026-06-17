@@ -116,15 +116,41 @@ public static class RecordingParser
             var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
             var selectorRegex = new Regex(@"const\s+(\w+)\s*=\s*await\s+page\.waitForSelector\('([^']+)'\);", RegexOptions.Compiled);
-            var clickRegex = new Regex(@"await\s+(\w+)\.click\(.*?\);", RegexOptions.Compiled);
+            var clickRegex = new Regex(@"await\s+(\w+)\.click\((.*?)\);", RegexOptions.Compiled);
             var typeRegex = new Regex(@"await\s+(\w+)\.type\('([^']*)'\);", RegexOptions.Compiled);
             var viewportRegex = new Regex(@"await\s+page\.setViewport\(\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}\);", RegexOptions.Compiled);
             var gotoRegex = new Regex(@"await\s+page\.goto\('([^']+)'\);", RegexOptions.Compiled);
             var keypressRegex = new Regex(@"await\s+page\.keyboard\.press\('([^']+)'\);", RegexOptions.Compiled);
             var dragRegex = new Regex(@"await\s+(\w+)\.dragTo\((\w+)\);", RegexOptions.Compiled);
+            var keyDownRegex = new Regex(@"await\s+page\.keyboard\.down\('([^']+)'\);", RegexOptions.Compiled);
+            var keyUpRegex = new Regex(@"await\s+page\.keyboard\.up\('([^']+)'\);", RegexOptions.Compiled);
+
+            int currentModifiers = 0;
 
             foreach (var line in lines)
             {
+                var kdMatch = keyDownRegex.Match(line);
+                if (kdMatch.Success)
+                {
+                    string modKey = kdMatch.Groups[1].Value.ToLowerInvariant();
+                    if (modKey == "alt") currentModifiers |= 1;
+                    else if (modKey == "control") currentModifiers |= 2;
+                    else if (modKey == "shift") currentModifiers |= 4;
+                    else if (modKey == "meta") currentModifiers |= 8;
+                    continue;
+                }
+
+                var kuMatch = keyUpRegex.Match(line);
+                if (kuMatch.Success)
+                {
+                    string modKey = kuMatch.Groups[1].Value.ToLowerInvariant();
+                    if (modKey == "alt") currentModifiers &= ~1;
+                    else if (modKey == "control") currentModifiers &= ~2;
+                    else if (modKey == "shift") currentModifiers &= ~4;
+                    else if (modKey == "meta") currentModifiers &= ~8;
+                    continue;
+                }
+
                 var vpMatch = viewportRegex.Match(line);
                 if (vpMatch.Success)
                 {
@@ -154,7 +180,8 @@ public static class RecordingParser
                     steps.Add(new ParsedStep
                     {
                         Type = "keydown",
-                        Key = kpMatch.Groups[1].Value
+                        Key = kpMatch.Groups[1].Value,
+                        Modifiers = currentModifiers
                     });
                     continue;
                 }
@@ -181,7 +208,8 @@ public static class RecordingParser
                         {
                             Type = "dragAndDrop",
                             Selector = srcSelector,
-                            TargetSelector = tgtSelector
+                            TargetSelector = tgtSelector,
+                            Modifiers = currentModifiers
                         });
                     }
                     continue;
@@ -191,6 +219,17 @@ public static class RecordingParser
                 if (clickMatch.Success)
                 {
                     string varName = clickMatch.Groups[1].Value;
+                    string optionsStr = clickMatch.Groups[2].Value;
+
+                    string button = "left";
+                    int clickCount = 1;
+
+                    var buttonMatch = Regex.Match(optionsStr, @"button:\s*['""](\w+)['""]");
+                    if (buttonMatch.Success) button = buttonMatch.Groups[1].Value;
+
+                    var countMatch = Regex.Match(optionsStr, @"clickCount:\s*(\d+)");
+                    if (countMatch.Success) clickCount = int.Parse(countMatch.Groups[1].Value);
+
                     if (varToSelector.TryGetValue(varName, out string? selector))
                     {
                         steps.Add(new ParsedStep
@@ -198,7 +237,10 @@ public static class RecordingParser
                             Type = "click",
                             Selector = selector,
                             OffsetX = 0,
-                            OffsetY = 0
+                            OffsetY = 0,
+                            Button = button,
+                            ClickCount = clickCount,
+                            Modifiers = currentModifiers
                         });
                     }
                     continue;
