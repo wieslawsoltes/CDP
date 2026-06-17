@@ -16,6 +16,14 @@ public class ParsedStep
     public double Height { get; set; }
     public string Url { get; set; } = "";
     public string Key { get; set; } = "";
+    
+    // Extended attributes for full pointer/keyboard inputs
+    public string Button { get; set; } = "left";
+    public int ClickCount { get; set; } = 1;
+    public int Modifiers { get; set; } = 0;
+    public string TargetSelector { get; set; } = "";
+    public double TargetOffsetX { get; set; }
+    public double TargetOffsetY { get; set; }
 }
 
 public static class RecordingParser
@@ -47,6 +55,11 @@ public static class RecordingParser
                     double height = stepObj["height"]?.GetValue<double>() ?? 0;
                     string url = stepObj["url"]?.GetValue<string>() ?? "";
                     string keyVal = stepObj["key"]?.GetValue<string>() ?? "";
+                    string button = stepObj["button"]?.GetValue<string>() ?? "left";
+                    int clickCount = stepObj["clickCount"]?.GetValue<int>() ?? 1;
+                    int modifiers = stepObj["modifiers"]?.GetValue<int>() ?? 0;
+                    double targetOffsetX = stepObj["targetOffsetX"]?.GetValue<double>() ?? 0;
+                    double targetOffsetY = stepObj["targetOffsetY"]?.GetValue<double>() ?? 0;
 
                     string selector = "";
                     var selectorsArr = stepObj["selectors"] as JsonArray;
@@ -56,6 +69,17 @@ public static class RecordingParser
                         if (firstGroup != null && firstGroup.Count > 0)
                         {
                             selector = firstGroup[0]?.GetValue<string>() ?? "";
+                        }
+                    }
+
+                    string targetSelector = "";
+                    var targetSelectorsArr = stepObj["targetSelectors"] as JsonArray;
+                    if (targetSelectorsArr != null && targetSelectorsArr.Count > 0)
+                    {
+                        var firstGroup = targetSelectorsArr[0] as JsonArray;
+                        if (firstGroup != null && firstGroup.Count > 0)
+                        {
+                            targetSelector = firstGroup[0]?.GetValue<string>() ?? "";
                         }
                     }
 
@@ -69,7 +93,13 @@ public static class RecordingParser
                         Width = width,
                         Height = height,
                         Url = url,
-                        Key = keyVal
+                        Key = keyVal,
+                        Button = button,
+                        ClickCount = clickCount,
+                        Modifiers = modifiers,
+                        TargetSelector = targetSelector,
+                        TargetOffsetX = targetOffsetX,
+                        TargetOffsetY = targetOffsetY
                     });
                 }
             }
@@ -86,11 +116,12 @@ public static class RecordingParser
             var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
             var selectorRegex = new Regex(@"const\s+(\w+)\s*=\s*await\s+page\.waitForSelector\('([^']+)'\);", RegexOptions.Compiled);
-            var clickRegex = new Regex(@"await\s+(\w+)\.click\(\);", RegexOptions.Compiled);
+            var clickRegex = new Regex(@"await\s+(\w+)\.click\(.*?\);", RegexOptions.Compiled);
             var typeRegex = new Regex(@"await\s+(\w+)\.type\('([^']*)'\);", RegexOptions.Compiled);
             var viewportRegex = new Regex(@"await\s+page\.setViewport\(\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}\);", RegexOptions.Compiled);
             var gotoRegex = new Regex(@"await\s+page\.goto\('([^']+)'\);", RegexOptions.Compiled);
             var keypressRegex = new Regex(@"await\s+page\.keyboard\.press\('([^']+)'\);", RegexOptions.Compiled);
+            var dragRegex = new Regex(@"await\s+(\w+)\.dragTo\((\w+)\);", RegexOptions.Compiled);
 
             foreach (var line in lines)
             {
@@ -134,6 +165,25 @@ public static class RecordingParser
                     string varName = selMatch.Groups[1].Value;
                     string selector = selMatch.Groups[2].Value;
                     varToSelector[varName] = selector;
+                    continue;
+                }
+
+                var dragMatch = dragRegex.Match(line);
+                if (dragMatch.Success)
+                {
+                    string sourceVar = dragMatch.Groups[1].Value;
+                    string targetVar = dragMatch.Groups[2].Value;
+
+                    if (varToSelector.TryGetValue(sourceVar, out string? srcSelector) &&
+                        varToSelector.TryGetValue(targetVar, out string? tgtSelector))
+                    {
+                        steps.Add(new ParsedStep
+                        {
+                            Type = "dragAndDrop",
+                            Selector = srcSelector,
+                            TargetSelector = tgtSelector
+                        });
+                    }
                     continue;
                 }
 
