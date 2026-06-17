@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private ObservableCollection<AttributeModel> _attributes = new();
     private ObservableCollection<PropertyModel> _properties = new();
     private ObservableCollection<LogModel> _logs = new();
+    private ObservableCollection<CssPropertyModel> _cssProperties = new();
 
     private DomNodeModel? _selectedNode;
     private PropertyModel? _selectedProperty;
@@ -42,6 +43,7 @@ public partial class MainWindow : Window
         listAttributes.ItemsSource = _attributes;
         listProperties.ItemsSource = _properties;
         listLogs.ItemsSource = _logs;
+        listCssProperties.ItemsSource = _cssProperties;
 
         btnRefreshTargets.Click += BtnRefreshTargets_Click;
         btnConnect.Click += BtnConnect_Click;
@@ -66,6 +68,7 @@ public partial class MainWindow : Window
         listProperties.SelectionChanged += ListProperties_SelectionChanged;
         btnApplyProperty.Click += BtnApplyProperty_Click;
         btnClearLogs.Click += BtnClearLogs_Click;
+        btnApplyStyleText.Click += BtnApplyStyleText_Click;
 
         // Populate Keys ComboBox
         cbKeys.ItemsSource = new List<string> { "Enter", "Tab", "Escape", "Space", "Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End" };
@@ -193,7 +196,9 @@ public partial class MainWindow : Window
             _rootNodes.Clear();
             _attributes.Clear();
             _properties.Clear();
+            _cssProperties.Clear();
             txtSelectedNodeId.Text = "None";
+            txtStyleText.Text = "";
             _selectedNode = null;
             _selectedProperty = null;
             lblSelectedProperty.Text = "None";
@@ -269,6 +274,7 @@ public partial class MainWindow : Window
             txtSelectedNodeId.Text = "None";
             _attributes.Clear();
             _properties.Clear();
+            _cssProperties.Clear();
             return;
         }
 
@@ -323,6 +329,38 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Console.WriteLine($"Error fetching properties: {ex.Message}");
+        }
+
+        // 4. Resolve CSS Styles
+        _cssProperties.Clear();
+        txtStyleText.Text = "";
+        try
+        {
+            var cssRes = await SendCommandAsync("CSS.getMatchedStylesForNode", new JsonObject { ["nodeId"] = _selectedNode.NodeId });
+            var inlineStyle = cssRes["inlineStyle"] as JsonObject;
+            if (inlineStyle != null)
+            {
+                var cssProps = inlineStyle["cssProperties"] as JsonArray;
+                if (cssProps != null)
+                {
+                    var fullStyleBuilder = new StringBuilder();
+                    foreach (var prop in cssProps)
+                    {
+                        if (prop is JsonObject propObj)
+                        {
+                            string name = propObj["name"]?.GetValue<string>() ?? "";
+                            string val = propObj["value"]?.GetValue<string>() ?? "";
+                            _cssProperties.Add(new CssPropertyModel(name, val));
+                            fullStyleBuilder.Append($"{name}: {val}; ");
+                        }
+                    }
+                    txtStyleText.Text = fullStyleBuilder.ToString().Trim();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching CSS styles: {ex.Message}");
         }
 
         // Trigger highlight if enabled
@@ -773,6 +811,40 @@ public partial class MainWindow : Window
 
         return response["result"] as JsonObject ?? new JsonObject();
     }
+
+    private async void BtnApplyStyleText_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_selectedNode == null) return;
+        string styleText = txtStyleText.Text ?? "";
+
+        try
+        {
+            var edits = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["styleSheetId"] = _selectedNode.NodeId.ToString(),
+                    ["range"] = new JsonObject
+                    {
+                        ["startLine"] = 0,
+                        ["startColumn"] = 0,
+                        ["endLine"] = 0,
+                        ["endColumn"] = 0
+                    },
+                    ["text"] = styleText
+                }
+            };
+
+            await SendCommandAsync("CSS.setStyleTexts", new JsonObject { ["edits"] = edits });
+
+            // Reload node info and properties/styles
+            TreeDom_SelectionChanged(null, null!);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Apply style text failed: {ex.Message}");
+        }
+    }
 }
 
 public class TargetItem
@@ -853,5 +925,17 @@ public class LogModel
         Timestamp = ts;
         Level = level;
         Text = text;
+    }
+}
+
+public class CssPropertyModel
+{
+    public string Name { get; }
+    public string Value { get; set; }
+
+    public CssPropertyModel(string name, string val)
+    {
+        Name = name;
+        Value = val;
     }
 }

@@ -275,6 +275,31 @@
                                 </StackPanel>
                             </Grid>
                         </TabItem>
+
+                        <!-- CSS Styles Tab -->
+                        <TabItem Header="CSS Styles">
+                            <Grid RowDefinitions="*, Auto" Margin="0,10,0,0">
+                                <ListBox Name="listCssProperties" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="*, Auto">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <TextBlock Text="{Binding Name}" Foreground="#FF4081" FontWeight="SemiBold"/>
+                                                    <TextBlock Text=":" Foreground="#888888"/>
+                                                    <TextBlock Text="{Binding Value}" Foreground="#E0E0E0"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <StackPanel Grid.Row="1" Spacing="8" Margin="0,10,0,0">
+                                    <TextBlock Text="Edit Style Text:" Foreground="#888888" FontSize="11"/>
+                                    <TextBox Name="txtStyleText" Watermark="e.g. width: 200px; height: 100px;"/>
+                                    <Button Name="btnApplyStyleText" Content="Apply Style Text" Background="#2E7D32" Foreground="White" HorizontalAlignment="Right"/>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
                     </TabControl>
                 </Border>
             </Grid>
