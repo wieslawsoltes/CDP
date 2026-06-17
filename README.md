@@ -162,15 +162,58 @@ Sample projects are provided in the repository to demonstrate the CDP capabiliti
 - **CdpInspectorApp**: A custom modular inspector app styled like Chrome DevTools, which connects to the sample app. It also starts its own CDP server on port `9223` for self-inspection.
 
 ### 1. Manual Testing with Chrome DevTools
+
+You can connect standard Google Chrome (or any Chromium-based browser like Microsoft Edge, Brave, or Opera) directly to your running Avalonia application to inspect and debug it.
+
+#### Target Discovery Setup
+
 1. Start the sample application:
    ```bash
    dotnet run --project samples/CdpSampleApp
    ```
 2. Open Google Chrome and navigate to `chrome://inspect`.
-3. Under **Devices**, click **Configure...** and verify that `localhost:9222` is listed.
-4. You will see **Avalonia CDP Inspector Sample** listed as a target under **Remote Target**.
-5. Click **inspect** to open the Chrome DevTools window.
-6. Now you can walk through the visual tree in the **Elements** panel, hover over elements to highlight them in the Avalonia app, view computed properties in the **Computed** panel, and capture screenshots.
+3. Ensure the **Discover network targets** checkbox is enabled.
+4. Click **Configure...** next to "Discover network targets".
+5. Add the target addresses for the applications you want to debug:
+   - `localhost:9222` (default port for `CdpSampleApp`)
+   - `localhost:9223` (default port for `CdpInspectorApp` client self-inspection)
+6. Click **Done**.
+7. Under the **Remote Target** section, you will see your running Avalonia application listed (e.g., **Avalonia CDP Inspector Sample**).
+8. Click the **inspect** link next to the target. This will launch a standard Chrome DevTools window connected directly to the Avalonia process.
+
+#### Direct Connection via WebSocket URL
+
+For automated tools, scripts, or manual debugging where auto-discovery is not preferred:
+1. Make an HTTP GET request to the target discovery endpoint: `http://localhost:9222/json` (or `http://localhost:9223/json`).
+2. The response will return a JSON list of available window targets, including a `devtoolsFrontendUrl` property.
+3. Construct or copy the URL:
+   ```
+   devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=localhost:9222/devtools/page/<Target-ID>
+   ```
+   *Note: Due to security restrictions in modern browsers, direct navigation to `devtools://` links via the address bar may be blocked. The `chrome://inspect` page remains the recommended and most reliable way to launch the DevTools frontend.*
+
+#### CORS & Preflight Support
+
+Standard Chrome DevTools requires Cross-Origin Resource Sharing (CORS) headers and preflight handling to retrieve target details from a local web server. The built-in `CdpServer` has full support for this:
+- Outbound responses automatically include the `Access-Control-Allow-Origin: *` header.
+- Correctly handles HTTP `OPTIONS` preflight requests, returning a `200 OK` status with the correct CORS headers.
+- No special browser flags (such as disabling web security) are needed to discover or connect to targets.
+
+#### Available DevTools Features
+
+Once connected, you can use the following standard panels:
+- **Elements**: 
+  - Walk the Avalonia visual tree structured as HTML elements (e.g., `<Window>`, `<Grid>`, `<Button>`, `<TextBlock>`).
+  - View control names, types, and classes as element attributes.
+  - Hovering over elements in the tree highlights them in real-time in the running Avalonia application, drawing overlay margins, paddings, and content bounds.
+  - Select an element in the tree, then open the **Console** and use the `$0` reference variable to run runtime C# expression evaluation on that specific control instance.
+- **Computed Styles**:
+  - Check the **Computed** panel in the Styles sidebar to inspect active layout and visual properties (such as `width`, `height`, `margin`, `padding`, `background`, `foreground`, `opacity`, `visibility`).
+  - Edit inline style properties to dynamically alter control attributes at runtime.
+- **Console**:
+  - Execute C# runtime statements and query visual properties using the `Runtime` domain.
+- **Screenshots**:
+  - Capture high-DPI screenshots of individual visual components or the main window using DevTools' device toolbar or screenshot shortcuts.
 
 ### 2. Testing with CdpInspectorApp
 1. Start both the sample application and the inspector:
