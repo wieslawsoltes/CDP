@@ -74,10 +74,26 @@ public class NetworkViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(ICdpService.IsConnected))
         {
-            if (!_cdpService.IsConnected)
+            if (_cdpService.IsConnected)
+            {
+                _ = InitializeDomainAsync();
+            }
+            else
             {
                 ClearData();
             }
+        }
+    }
+
+    private async Task InitializeDomainAsync()
+    {
+        try
+        {
+            await _cdpService.SendCommandAsync("Network.enable");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error enabling Network domain: {ex.Message}");
         }
     }
 

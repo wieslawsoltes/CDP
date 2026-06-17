@@ -22,7 +22,13 @@ public class ConsoleViewModel : ViewModelBase
     public string ConsoleInputText
     {
         get => _consoleInputText;
-        set => RaiseAndSetIfChanged(ref _consoleInputText, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _consoleInputText, value))
+            {
+                ((RelayCommand)EvaluateCommand).RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public ICommand ClearLogsCommand { get; }
