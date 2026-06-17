@@ -3,40 +3,72 @@
              x:Class="CdpInspectorApp.Views.ElementsView"
              x:CompileBindings="False">
     <Grid ColumnDefinitions="*, 4, 1.2*">
-        <!-- DOM Tree (Left Side) -->
-        <Grid RowDefinitions="Auto, *, Auto" Margin="10">
-            <!-- Search -->
-            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
-                <TextBox Name="txtSearch" Text="{Binding Elements.SearchQuery, Mode=TwoWay}" Watermark="Search by tag, ID, class, or text content..." Height="28" VerticalContentAlignment="Center"/>
-                <Button Name="btnSearch" Command="{Binding Elements.SearchCommand}" Grid.Column="1" Content="Search" Margin="5,0,0,0" Padding="10,0" Height="28"/>
-            </Grid>
+        <!-- Left Side (DOM / Accessibility Trees) -->
+        <TabControl Margin="10" Padding="0,5,0,0">
+            <!-- DOM Tree Tab -->
+            <TabItem Header="DOM Tree">
+                <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
+                    <!-- Search -->
+                    <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                        <TextBox Name="txtSearch" Text="{Binding Elements.SearchQuery, Mode=TwoWay}" Watermark="Search by tag, ID, class, or text content..." Height="28" VerticalContentAlignment="Center"/>
+                        <Button Name="btnSearch" Command="{Binding Elements.SearchCommand}" Grid.Column="1" Content="Search" Margin="5,0,0,0" Padding="10,0" Height="28"/>
+                    </Grid>
 
-            <!-- treeDom -->
-            <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
-                <TreeView Name="treeDom" ItemsSource="{Binding Elements.RootNodes}" SelectedItem="{Binding Elements.SelectedNode, Mode=TwoWay}">
-                    <TreeView.ItemTemplate>
-                        <TreeDataTemplate ItemsSource="{Binding Children}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="{Binding DisplayName}" Foreground="{Binding ForegroundBrush}" FontSize="12"/>
-                            </StackPanel>
-                        </TreeDataTemplate>
-                    </TreeView.ItemTemplate>
-                </TreeView>
-            </Border>
+                    <!-- treeDom -->
+                    <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
+                        <TreeView Name="treeDom" ItemsSource="{Binding Elements.RootNodes}" SelectedItem="{Binding Elements.SelectedNode, Mode=TwoWay}">
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="{Binding ForegroundBrush}" FontSize="12"/>
+                                    </StackPanel>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </Border>
 
-            <!-- Actions Footer -->
-            <Grid Grid.Row="2" ColumnDefinitions="Auto, *, Auto" Margin="0,8,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                    <TextBlock Text="Inspected:" Foreground="#9aa0a6" FontSize="11"/>
-                    <TextBlock Name="txtSelectedNodeId" Text="{Binding Elements.SelectedNodeIdText}" FontWeight="Bold" Foreground="#8ab4f8" FontSize="11"/>
-                </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Button Name="btnFocus" Command="{Binding Elements.FocusSelectedNodeCommand}" Content="Scroll Into View" Height="28" Padding="10,0"/>
-                    <CheckBox Name="chkHighlight" IsChecked="{Binding Elements.IsHighlightActive, Mode=TwoWay}" IsEnabled="{Binding Connection.IsConnected}" Content="Inspect Highlight" FontSize="11" Margin="5,0" VerticalAlignment="Center"/>
-                    <Button Name="btnDeleteControl" Command="{Binding Elements.DeleteSelectedNodeCommand}" Content="Delete Element" Height="28" Padding="10,0" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c"/>
-                </StackPanel>
-            </Grid>
-        </Grid>
+                    <!-- Actions Footer -->
+                    <Grid Grid.Row="2" ColumnDefinitions="Auto, *, Auto" Margin="0,8,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <TextBlock Text="Inspected:" Foreground="#9aa0a6" FontSize="11"/>
+                            <TextBlock Name="txtSelectedNodeId" Text="{Binding Elements.SelectedNodeIdText}" FontWeight="Bold" Foreground="#8ab4f8" FontSize="11"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                            <Button Name="btnFocus" Command="{Binding Elements.FocusSelectedNodeCommand}" Content="Scroll Into View" Height="28" Padding="10,0"/>
+                            <CheckBox Name="chkHighlight" IsChecked="{Binding Elements.IsHighlightActive, Mode=TwoWay}" IsEnabled="{Binding Connection.IsConnected}" Content="Inspect Highlight" FontSize="11" Margin="5,0" VerticalAlignment="Center"/>
+                            <Button Name="btnDeleteControl" Command="{Binding Elements.DeleteSelectedNodeCommand}" Content="Delete Element" Height="28" Padding="10,0" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- Accessibility Tree Tab -->
+            <TabItem Header="Accessibility Tree">
+                <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
+                    <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                        <TextBlock Text="AX Tree represents the automation hierarchy resolved via CDP" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
+                        <Button Name="btnRefreshAxTree" Command="{Binding Elements.RefreshAxTreeCommand}" Grid.Column="1" Content="Refresh" Padding="10,0" Height="28"/>
+                    </Grid>
+
+                    <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
+                        <TreeView Name="treeAx" ItemsSource="{Binding Elements.AxRootNodes}" SelectedItem="{Binding Elements.SelectedAxNode, Mode=TwoWay}">
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="{Binding ForegroundBrush}" FontSize="12"/>
+                                    </StackPanel>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </Border>
+                    
+                    <!-- Footer -->
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <TextBlock Text="Selecting an AX node automatically highlights and selects its DOM element." Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
 
         <!-- Splitter -->
         <GridSplitter Grid.Column="1" Background="#3c4043"/>
@@ -157,6 +189,108 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                </TabItem>
+
+                <!-- Accessibility subtab -->
+                <TabItem Header="Accessibility">
+                    <ScrollViewer Margin="0,5,0,0">
+                        <StackPanel Spacing="10" Margin="5">
+                            <TextBlock Text="Accessibility Properties" FontWeight="SemiBold" Foreground="#9aa0a6" FontSize="12" Margin="0,0,0,5"/>
+                            
+                            <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" Margin="5">
+                                <!-- Role -->
+                                <TextBlock Text="Role:" Foreground="#9aa0a6" FontSize="11" Margin="0,4" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Elements.AxRoleText}" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="12" Margin="10,4" VerticalAlignment="Center"/>
+                                
+                                <!-- Name -->
+                                <TextBlock Grid.Row="1" Text="Name:" Foreground="#9aa0a6" FontSize="11" Margin="0,4" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Elements.AxNameText}" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="12" Margin="10,4" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                
+                                <!-- Description -->
+                                <TextBlock Grid.Row="2" Text="Description:" Foreground="#9aa0a6" FontSize="11" Margin="0,4" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Elements.AxDescriptionText}" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="12" Margin="10,4" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                
+                                <!-- Ignored -->
+                                <TextBlock Grid.Row="3" Text="Ignored:" Foreground="#9aa0a6" FontSize="11" Margin="0,4" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Elements.AxIgnoredText}" Foreground="#f28b82" FontWeight="SemiBold" FontSize="12" Margin="10,4" VerticalAlignment="Center"/>
+                                
+                                <!-- Parent ID -->
+                                <TextBlock Grid.Row="4" Text="Parent AX ID:" Foreground="#9aa0a6" FontSize="11" Margin="0,4" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Elements.AxParentIdText}" Foreground="#8ab4f8" FontWeight="SemiBold" FontSize="12" Margin="10,4" VerticalAlignment="Center"/>
+                                
+                                <!-- Child IDs -->
+                                <TextBlock Grid.Row="5" Text="Child AX IDs:" Foreground="#9aa0a6" FontSize="11" Margin="0,4" VerticalAlignment="Top"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Elements.AxChildIdsText}" Foreground="#8ab4f8" FontWeight="SemiBold" FontSize="12" Margin="10,4" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Layout subtab -->
+                <TabItem Header="Layout">
+                    <ScrollViewer Margin="0,5,0,0">
+                        <StackPanel Spacing="15" Margin="5">
+                            <!-- Box Model Visualizer -->
+                            <TextBlock Text="Box Model" FontWeight="SemiBold" Foreground="#9aa0a6" FontSize="12" Margin="0,0,0,5"/>
+                            
+                            <!-- Box Model Diagram -->
+                            <Border Background="#3c4043" BorderBrush="#d58512" BorderThickness="1" Padding="12" CornerRadius="4">
+                                <Grid RowDefinitions="Auto, *">
+                                    <TextBlock Text="margin" Foreground="#d58512" FontSize="9" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                    <TextBlock Text="{Binding Elements.LayoutMargin}" Foreground="#d58512" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,10"/>
+                                    
+                                    <Border Grid.Row="1" Background="#323639" BorderBrush="#e3b505" BorderThickness="1" Padding="12" CornerRadius="4">
+                                        <Grid RowDefinitions="Auto, *">
+                                            <TextBlock Text="border" Foreground="#e3b505" FontSize="9" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                            <TextBlock Text="{Binding Elements.LayoutBorderThickness}" Foreground="#e3b505" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,10"/>
+                                            
+                                            <Border Grid.Row="1" Background="#282c2f" BorderBrush="#5d9e5d" BorderThickness="1" Padding="12" CornerRadius="4">
+                                                <Grid RowDefinitions="Auto, *">
+                                                    <TextBlock Text="padding" Foreground="#5d9e5d" FontSize="9" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                                    <TextBlock Text="{Binding Elements.LayoutPadding}" Foreground="#5d9e5d" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,10"/>
+                                                    
+                                                    <Border Grid.Row="1" Background="#202124" BorderBrush="#8ab4f8" BorderThickness="1" Padding="12" CornerRadius="4" MinWidth="80" MinHeight="40">
+                                                        <Grid RowDefinitions="Auto, *">
+                                                            <TextBlock Text="content" Foreground="#8ab4f8" FontSize="9" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                                            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,4,0,4">
+                                                                <TextBlock Text="{Binding Elements.LayoutWidth}" Foreground="#e8eaed" FontSize="11" FontWeight="Bold"/>
+                                                                <TextBlock Text=" × " Foreground="#9aa0a6" FontSize="11"/>
+                                                                <TextBlock Text="{Binding Elements.LayoutHeight}" Foreground="#e8eaed" FontSize="11" FontWeight="Bold"/>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <Separator Background="#3c4043"/>
+
+                            <!-- Layout Properties Grid -->
+                            <TextBlock Text="Layout Properties" FontWeight="SemiBold" Foreground="#9aa0a6" FontSize="12" Margin="0,5,0,5"/>
+                            <Grid ColumnDefinitions="*, *" RowDefinitions="Auto, Auto, Auto" Margin="5">
+                                <!-- Bounds -->
+                                <StackPanel Margin="0,5">
+                                    <TextBlock Text="Bounds (Actual size/pos):" Foreground="#9aa0a6" FontSize="11"/>
+                                    <TextBlock Text="{Binding Elements.LayoutBounds}" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="12"/>
+                                </StackPanel>
+                                
+                                <!-- Horizontal Alignment -->
+                                <StackPanel Grid.Column="1" Margin="0,5">
+                                    <TextBlock Text="Horizontal Alignment:" Foreground="#9aa0a6" FontSize="11"/>
+                                    <TextBlock Text="{Binding Elements.LayoutHorizontalAlignment}" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="12"/>
+                                </StackPanel>
+                                
+                                <!-- Vertical Alignment -->
+                                <StackPanel Grid.Row="1" Margin="0,5">
+                                    <TextBlock Text="Vertical Alignment:" Foreground="#9aa0a6" FontSize="11"/>
+                                    <TextBlock Text="{Binding Elements.LayoutVerticalAlignment}" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="12"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
                 </TabItem>
             </TabControl>
         </Grid>
