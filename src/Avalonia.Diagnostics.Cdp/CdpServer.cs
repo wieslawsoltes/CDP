@@ -108,7 +108,19 @@ public static class CdpServer
 
         _listener = new HttpListener();
         _listener.Prefixes.Add($"http://localhost:{port}/");
-        _listener.Start();
+        _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+
+        try
+        {
+            _listener.Start();
+        }
+        catch (HttpListenerException)
+        {
+            try { _listener.Close(); } catch { }
+            _listener = new HttpListener();
+            _listener.Prefixes.Add($"http://localhost:{port}/");
+            _listener.Start();
+        }
 
         Task.Run(ListenLoopAsync);
     }
