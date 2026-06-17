@@ -4,9 +4,11 @@ using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp.Domains;
 using Avalonia.Headless.XUnit;
+using Avalonia.Styling;
 using Xunit;
 using Avalonia.VisualTree;
 
@@ -597,6 +599,45 @@ public class CdpChromeFeatureTests
         Assert.True(contentResult.ContainsKey("content"));
         var content = contentResult["content"]?.GetValue<string>() ?? "";
         Assert.Contains("public class TestAppBuilder", content);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestEmulationThemeAndLocale()
+    {
+        var window = new Window { Title = "Emulation Test Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Test setEmulatedColorSchemeOverride
+        var colorSchemeParams = new JsonObject { ["colorScheme"] = "dark" };
+        var res1 = await EmulationDomain.HandleAsync(session, "setEmulatedColorSchemeOverride", colorSchemeParams);
+        Assert.NotNull(res1);
+        Assert.Equal(ThemeVariant.Dark, Application.Current!.RequestedThemeVariant);
+
+        // 2. Test setEmulatedMedia
+        var mediaParams = new JsonObject
+        {
+            ["features"] = new JsonArray
+            {
+                new JsonObject { ["name"] = "prefers-color-scheme", ["value"] = "light" }
+            }
+        };
+        var res2 = await EmulationDomain.HandleAsync(session, "setEmulatedMedia", mediaParams);
+        Assert.NotNull(res2);
+        Assert.Equal(ThemeVariant.Light, Application.Current!.RequestedThemeVariant);
+
+        // 3. Test setLocaleOverride
+        var localeParams = new JsonObject { ["locale"] = "de-DE" };
+        var res3 = await EmulationDomain.HandleAsync(session, "setLocaleOverride", localeParams);
+        Assert.NotNull(res3);
+        Assert.Equal("de-DE", System.Globalization.CultureInfo.CurrentCulture.Name);
+
+        // Restore defaults
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Default;
 
         window.Close();
     }
