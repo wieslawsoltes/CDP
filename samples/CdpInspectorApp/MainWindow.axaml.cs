@@ -1834,28 +1834,33 @@ public partial class MainWindow : Window
                             await SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
                             await Task.Delay(100);
 
-                            var pressParams = new JsonObject
+                            int clickCount = step.ClickCount > 0 ? step.ClickCount : 1;
+                            for (int c = 1; c <= clickCount; c++)
                             {
-                                ["type"] = "mousePressed",
-                                ["x"] = centerX,
-                                ["y"] = centerY,
-                                ["button"] = step.Button,
-                                ["clickCount"] = step.ClickCount,
-                                ["modifiers"] = step.Modifiers
-                            };
-                            await SendCommandAsync("Input.dispatchMouseEvent", pressParams);
-                            await Task.Delay(50);
+                                var pressParams = new JsonObject
+                                {
+                                    ["type"] = "mousePressed",
+                                    ["x"] = centerX,
+                                    ["y"] = centerY,
+                                    ["button"] = step.Button,
+                                    ["clickCount"] = c,
+                                    ["modifiers"] = step.Modifiers
+                                };
+                                await SendCommandAsync("Input.dispatchMouseEvent", pressParams);
+                                await Task.Delay(50);
 
-                            var releaseParams = new JsonObject
-                            {
-                                ["type"] = "mouseReleased",
-                                ["x"] = centerX,
-                                ["y"] = centerY,
-                                ["button"] = step.Button,
-                                ["clickCount"] = step.ClickCount,
-                                ["modifiers"] = step.Modifiers
-                            };
-                            await SendCommandAsync("Input.dispatchMouseEvent", releaseParams);
+                                var releaseParams = new JsonObject
+                                {
+                                    ["type"] = "mouseReleased",
+                                    ["x"] = centerX,
+                                    ["y"] = centerY,
+                                    ["button"] = step.Button,
+                                    ["clickCount"] = c,
+                                    ["modifiers"] = step.Modifiers
+                                };
+                                await SendCommandAsync("Input.dispatchMouseEvent", releaseParams);
+                                if (c < clickCount) await Task.Delay(50);
+                            }
                             await Task.Delay(300);
                         }
                     }
@@ -2056,13 +2061,53 @@ public partial class MainWindow : Window
                 {
                     ["title"] = $"Recording {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
                     ["steps"] = new JsonArray(
-                        _recordedSteps.Select(s => new JsonObject
-                        {
-                            ["type"] = s.Type,
-                            ["selectors"] = new JsonArray { new JsonArray { s.Selector } },
-                            ["value"] = s.Value,
-                            ["offsetX"] = s.OffsetX,
-                            ["offsetY"] = s.OffsetY
+                        _recordedSteps.Select(s => {
+                            var stepObj = new JsonObject
+                            {
+                                ["type"] = s.Type
+                            };
+                            
+                            if (s.Type == "setViewport")
+                            {
+                                stepObj["width"] = s.Width;
+                                stepObj["height"] = s.Height;
+                            }
+                            else if (s.Type == "navigate")
+                            {
+                                stepObj["url"] = s.Url;
+                            }
+                            else if (s.Type == "keydown")
+                            {
+                                stepObj["key"] = s.Key;
+                                if (s.Modifiers > 0) stepObj["modifiers"] = s.Modifiers;
+                            }
+                            else if (s.Type == "dragAndDrop")
+                            {
+                                stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };
+                                stepObj["targetSelectors"] = new JsonArray { new JsonArray { s.TargetSelector } };
+                                stepObj["offsetX"] = s.OffsetX;
+                                stepObj["offsetY"] = s.OffsetY;
+                                stepObj["targetOffsetX"] = s.TargetOffsetX;
+                                stepObj["targetOffsetY"] = s.TargetOffsetY;
+                                if (s.Modifiers > 0) stepObj["modifiers"] = s.Modifiers;
+                            }
+                            else // click, change
+                            {
+                                stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };
+                                if (s.Type == "change")
+                                {
+                                    stepObj["value"] = s.Value;
+                                }
+                                else if (s.Type == "click")
+                                {
+                                    stepObj["offsetX"] = s.OffsetX;
+                                    stepObj["offsetY"] = s.OffsetY;
+                                    stepObj["button"] = s.Button;
+                                    stepObj["clickCount"] = s.ClickCount;
+                                    if (s.Modifiers > 0) stepObj["modifiers"] = s.Modifiers;
+                                }
+                            }
+                            return (JsonNode)stepObj;
                         }).ToArray()
                     )
                 };

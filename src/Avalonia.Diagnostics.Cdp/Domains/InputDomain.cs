@@ -140,9 +140,9 @@ public static class InputDomain
                 };
             }
 
-            if (eventType == RawPointerEventType.LeftButtonDown) modifiers |= RawInputModifiers.LeftMouseButton;
-            if (eventType == RawPointerEventType.RightButtonDown) modifiers |= RawInputModifiers.RightMouseButton;
-            if (eventType == RawPointerEventType.MiddleButtonDown) modifiers |= RawInputModifiers.MiddleMouseButton;
+            if (eventType == RawPointerEventType.LeftButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "left")) modifiers |= RawInputModifiers.LeftMouseButton;
+            if (eventType == RawPointerEventType.RightButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "right")) modifiers |= RawInputModifiers.RightMouseButton;
+            if (eventType == RawPointerEventType.MiddleButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "middle")) modifiers |= RawInputModifiers.MiddleMouseButton;
 
             var args = (RawPointerEventArgs)Activator.CreateInstance(
                 typeof(RawPointerEventArgs),
