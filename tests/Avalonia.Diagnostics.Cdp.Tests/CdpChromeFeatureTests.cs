@@ -255,4 +255,61 @@ public class CdpChromeFeatureTests
             CdpServer.Stop();
         }
     }
+
+    [Fact]
+    public void TestRecordingParser()
+    {
+        // 1. JSON parse test
+        string jsonContent = @"
+        {
+          ""title"": ""Test Recording"",
+          ""steps"": [
+            {
+              ""type"": ""click"",
+              ""selectors"": [[""#btnClickMe""]],
+              ""offsetX"": 10,
+              ""offsetY"": 20
+            },
+            {
+              ""type"": ""change"",
+              ""selectors"": [[""#txtInput""]],
+              ""value"": ""Hello World""
+            }
+          ]
+        }";
+
+        var jsonSteps = RecordingParser.Parse(jsonContent);
+        Assert.Equal(2, jsonSteps.Count);
+        Assert.Equal("click", jsonSteps[0].Type);
+        Assert.Equal("#btnClickMe", jsonSteps[0].Selector);
+        Assert.Equal(10, jsonSteps[0].OffsetX);
+        Assert.Equal(20, jsonSteps[0].OffsetY);
+
+        Assert.Equal("change", jsonSteps[1].Type);
+        Assert.Equal("#txtInput", jsonSteps[1].Selector);
+        Assert.Equal("Hello World", jsonSteps[1].Value);
+
+        // 2. Puppeteer JS parse test
+        string jsContent = @"
+        const puppeteer = require('puppeteer');
+        (async () => {
+          const browser = await puppeteer.launch({ headless: false });
+          const page = await browser.newPage();
+          await page.goto('http://localhost:9222/');
+          const element_0 = await page.waitForSelector('#btnClickMe');
+          await element_0.click();
+          const element_1 = await page.waitForSelector('#txtInput');
+          await element_1.type('Avalonia CDP Automation!');
+          await browser.close();
+        })();";
+
+        var jsSteps = RecordingParser.Parse(jsContent);
+        Assert.Equal(2, jsSteps.Count);
+        Assert.Equal("click", jsSteps[0].Type);
+        Assert.Equal("#btnClickMe", jsSteps[0].Selector);
+
+        Assert.Equal("change", jsSteps[1].Type);
+        Assert.Equal("#txtInput", jsSteps[1].Selector);
+        Assert.Equal("Avalonia CDP Automation!", jsSteps[1].Value);
+    }
 }

@@ -9,6 +9,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -18,6 +19,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CdpInspectorApp.Views;
+using Avalonia.Diagnostics.Cdp;
 
 namespace CdpInspectorApp;
 
@@ -121,6 +123,7 @@ public partial class MainWindow : Window
         RecorderTab.BtnToggleRecord.Click += BtnToggleRecord_Click;
         RecorderTab.BtnReplay.Click += BtnReplay_Click;
         RecorderTab.BtnClear.Click += BtnClear_Click;
+        RecorderTab.BtnLoad.Click += BtnLoad_Click;
         RecorderTab.BtnExportPuppeteer.Click += BtnExportPuppeteer_Click;
         RecorderTab.BtnExportJson.Click += BtnExportJson_Click;
 
@@ -1844,6 +1847,78 @@ public partial class MainWindow : Window
         {
             Console.WriteLine($"Error exporting JSON: {ex.Message}");
         }
+    }
+
+    private async void BtnLoad_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Load Recording",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("JSON/Puppeteer Recordings")
+                    {
+                        Patterns = new[] { "*.json", "*.js" }
+                    }
+                }
+            });
+
+            if (files == null || files.Count == 0) return;
+
+            var file = files[0];
+            await using var stream = await file.OpenReadAsync();
+            using var reader = new StreamReader(stream);
+            string content = await reader.ReadToEndAsync();
+
+            if (string.IsNullOrWhiteSpace(content)) return;
+
+            _recordedSteps.Clear();
+
+            var parsedSteps = RecordingParser.Parse(content);
+            foreach (var step in parsedSteps)
+            {
+                _recordedSteps.Add(new RecordedStepModel
+                {
+                    Type = step.Type,
+                    Selector = step.Selector,
+                    Value = step.Value,
+                    OffsetX = step.OffsetX,
+                    OffsetY = step.OffsetY
+                });
+            }
+
+            UpdateGeneratedCode();
+            RecorderTab.BtnReplay.IsEnabled = _recordedSteps.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading script: {ex.Message}");
+        }
+    }
+
+    public void LoadScriptContent(string content)
+    {
+        _recordedSteps.Clear();
+        var parsedSteps = RecordingParser.Parse(content);
+        foreach (var step in parsedSteps)
+        {
+            _recordedSteps.Add(new RecordedStepModel
+            {
+                Type = step.Type,
+                Selector = step.Selector,
+                Value = step.Value,
+                OffsetX = step.OffsetX,
+                OffsetY = step.OffsetY
+            });
+        }
+        UpdateGeneratedCode();
+        RecorderTab.BtnReplay.IsEnabled = _recordedSteps.Count > 0;
     }
 
     private async void BtnCollectGarbage_Click(object? sender, RoutedEventArgs e)
