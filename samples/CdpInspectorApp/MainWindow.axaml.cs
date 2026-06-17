@@ -34,6 +34,9 @@ public partial class MainWindow : Window
     private ObservableCollection<ConsoleItemModel> _consoleHistory = new();
     private ObservableCollection<CssPropertyModel> _computedStyles = new();
     private ObservableCollection<EventListenerModel> _eventListeners = new();
+    private ObservableCollection<NetworkRequestModel> _networkRequests = new();
+    private ObservableCollection<ResourceEntryModel> _resources = new();
+    private ObservableCollection<ControlCountModel> _liveControls = new();
 
     private DomNodeModel? _selectedNode;
     private PropertyModel? _selectedProperty;
@@ -50,6 +53,9 @@ public partial class MainWindow : Window
         listConsole.ItemsSource = _consoleHistory;
         listComputedStyles.ItemsSource = _computedStyles;
         listEventListeners.ItemsSource = _eventListeners;
+        lstNetworkRequests.ItemsSource = _networkRequests;
+        lstApplicationResources.ItemsSource = _resources;
+        lstLiveControls.ItemsSource = _liveControls;
 
         btnRefreshTargets.Click += BtnRefreshTargets_Click;
         btnConnect.Click += BtnConnect_Click;
@@ -82,6 +88,15 @@ public partial class MainWindow : Window
         btnSendConsole.Click += BtnSendConsole_Click;
         txtConsoleInput.KeyDown += TxtConsoleInput_KeyDown;
         btnScroll.Click += BtnScroll_Click;
+
+        btnClearNetwork.Click += BtnClearNetwork_Click;
+        lstNetworkRequests.SelectionChanged += LstNetworkRequests_SelectionChanged;
+        btnRefreshResources.Click += BtnRefreshResources_Click;
+        btnAddResource.Click += BtnAddResource_Click;
+        btnSaveResource.Click += BtnSaveResource_Click;
+        lstApplicationResources.SelectionChanged += LstApplicationResources_SelectionChanged;
+        treeWorkspaceFiles.SelectionChanged += TreeWorkspaceFiles_SelectionChanged;
+        btnCollectGarbage.Click += BtnCollectGarbage_Click;
 
         // Populate Keys ComboBox
         cbKeys.ItemsSource = new List<string> { "Enter", "Tab", "Escape", "Space", "Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End" };
@@ -166,9 +181,28 @@ public partial class MainWindow : Window
             await SendCommandAsync("Log.enable", new JsonObject());
             await SendCommandAsync("Performance.enable", new JsonObject());
             await SendCommandAsync("Memory.enable", new JsonObject());
+            await SendCommandAsync("Network.enable", new JsonObject());
 
             // Build initial tree
             await RefreshDomTreeAsync();
+
+            // Query workspace files
+            try
+            {
+                var sourcesRes = await SendCommandAsync("Sources.getWorkspaceFiles", new JsonObject());
+                var files = sourcesRes["files"] as JsonArray;
+                if (files != null)
+                {
+                    LoadWorkspaceFiles(files);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Sources failed: {ex.Message}");
+            }
+
+            // Query application resources
+            BtnRefreshResources_Click(null, null!);
         }
         catch (Exception ex)
         {
@@ -218,6 +252,17 @@ public partial class MainWindow : Window
             _cssProperties.Clear();
             _consoleHistory.Clear();
             _computedStyles.Clear();
+            _networkRequests.Clear();
+            _resources.Clear();
+            _liveControls.Clear();
+            _memoryHistory.Clear();
+            canvasMemoryChart.Children.Clear();
+            lblNetUrl.Text = "Select a request";
+            txtNetReqHeaders.Text = "";
+            txtNetResHeaders.Text = "";
+            txtNetBody.Text = "";
+            lblSourceFileName.Text = "Select a file from workspace";
+            txtSourceContent.Text = "";
             _eventListeners.Clear();
             lblPerfDocuments.Text = "--";
             txtSelectedNodeId.Text = "None";
@@ -641,7 +686,13 @@ public partial class MainWindow : Window
                     string name = m?["name"]?.GetValue<string>() ?? "";
                     double val = m?["value"]?.GetValue<double>() ?? 0;
                     if (name == "Nodes") lblPerfNodes.Text = val.ToString("0");
-                    else if (name == "JSHeapUsedSize") lblPerfMemory.Text = $"{(val / 1024 / 1024):F2} MB";
+                    else if (name == "JSHeapUsedSize")
+                    {
+                        lblPerfMemory.Text = $"{(val / 1024 / 1024):F2} MB";
+                        _memoryHistory.Add(val / 1024 / 1024);
+                        if (_memoryHistory.Count > 30) _memoryHistory.RemoveAt(0);
+                        RenderMemoryChart();
+                    }
                     else if (name == "JSHeapTotalSize") lblPerfGc.Text = $"{(val / 1024 / 1024):F2} MB";
                 }
             }
@@ -668,6 +719,30 @@ public partial class MainWindow : Window
 
             var infoRes = await SendCommandAsync("SystemInfo.getInfo", new JsonObject());
             lblPerfOs.Text = $"{infoRes["modelName"]?.GetValue<string>()} {infoRes["modelVersion"]?.GetValue<string>()}";
+
+            // Query live visual controls
+            try
+            {
+                var liveRes = await SendCommandAsync("Memory.getLiveControls", new JsonObject());
+                var controls = liveRes["controls"] as JsonArray;
+                if (controls != null)
+                {
+                    _liveControls.Clear();
+                    foreach (var cNode in controls)
+                    {
+                        if (cNode is JsonObject cObj)
+                        {
+                            string type = cObj["type"]?.GetValue<string>() ?? "";
+                            int count = cObj["count"]?.GetValue<int>() ?? 0;
+                            _liveControls.Add(new ControlCountModel { Type = type, Count = count });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Live controls failed: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
@@ -1071,6 +1146,87 @@ public partial class MainWindow : Window
                             });
                         }
                     }
+                    else if (method == "Network.requestWillBeSent" && parameters != null)
+                    {
+                        string requestId = parameters["requestId"]?.GetValue<string>() ?? "";
+                        var request = parameters["request"] as JsonObject;
+                        if (request != null && !string.IsNullOrEmpty(requestId))
+                        {
+                            string url = request["url"]?.GetValue<string>() ?? "";
+                            string reqMethod = request["method"]?.GetValue<string>() ?? "GET";
+                            
+                            var reqHeaders = request["headers"] as JsonObject;
+                            var sbHeaders = new StringBuilder();
+                            if (reqHeaders != null)
+                            {
+                                foreach (var header in reqHeaders)
+                                {
+                                    sbHeaders.AppendLine($"{header.Key}: {header.Value}");
+                                }
+                            }
+
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                var existing = _networkRequests.FirstOrDefault(r => r.RequestId == requestId);
+                                if (existing == null)
+                                {
+                                    _networkRequests.Add(new NetworkRequestModel
+                                    {
+                                        RequestId = requestId,
+                                        Url = url,
+                                        Method = reqMethod,
+                                        Status = "Pending",
+                                        Time = "--",
+                                        RequestHeaders = sbHeaders.ToString()
+                                    });
+                                    if (_networkRequests.Count > 100) _networkRequests.RemoveAt(0);
+                                }
+                            });
+                        }
+                    }
+                    else if (method == "Network.responseReceived" && parameters != null)
+                    {
+                        string requestId = parameters["requestId"]?.GetValue<string>() ?? "";
+                        var response = parameters["response"] as JsonObject;
+                        if (response != null && !string.IsNullOrEmpty(requestId))
+                        {
+                            int status = response["status"]?.GetValue<int>() ?? 200;
+                            string statusText = response["statusText"]?.GetValue<string>() ?? "OK";
+                            
+                            var resHeaders = response["headers"] as JsonObject;
+                            var sbHeaders = new StringBuilder();
+                            if (resHeaders != null)
+                            {
+                                foreach (var header in resHeaders)
+                                {
+                                    sbHeaders.AppendLine($"{header.Key}: {header.Value}");
+                                }
+                            }
+
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                var existing = _networkRequests.FirstOrDefault(r => r.RequestId == requestId);
+                                if (existing != null)
+                                {
+                                    existing.Status = $"{status} {statusText}";
+                                    existing.ResponseHeaders = sbHeaders.ToString();
+                                }
+                            });
+                        }
+                    }
+                    else if (method == "Network.loadingFinished" && parameters != null)
+                    {
+                        string requestId = parameters["requestId"]?.GetValue<string>() ?? "";
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            var existing = _networkRequests.FirstOrDefault(r => r.RequestId == requestId);
+                            if (existing != null)
+                            {
+                                existing.Time = "Finished";
+                                _ = FetchResponseBodyAsync(existing);
+                            }
+                        });
+                    }
                     else if (method == "Overlay.inspectNodeRequested" && parameters != null)
                     {
                         int backendNodeId = parameters["backendNodeId"]?.GetValue<int>() ?? 0;
@@ -1299,5 +1455,346 @@ public class EventListenerModel
         Type = type;
         HandlerName = handlerName;
         UseCapture = useCapture;
+    }
+}
+
+public class NetworkRequestModel : System.ComponentModel.INotifyPropertyChanged
+{
+    private string _status = "Pending";
+    private string _time = "--";
+    private string _responseHeaders = "";
+    private string _responseBody = "";
+
+    public string RequestId { get; set; } = "";
+    public string Url { get; set; } = "";
+    public string Method { get; set; } = "";
+    public string Type { get; set; } = "XHR";
+    public string RequestHeaders { get; set; } = "";
+
+    public string Status
+    {
+        get => _status;
+        set { _status = value; OnPropertyChanged(nameof(Status)); }
+    }
+
+    public string Time
+    {
+        get => _time;
+        set { _time = value; OnPropertyChanged(nameof(Time)); }
+    }
+
+    public string ResponseHeaders
+    {
+        get => _responseHeaders;
+        set { _responseHeaders = value; OnPropertyChanged(nameof(ResponseHeaders)); }
+    }
+
+    public string ResponseBody
+    {
+        get => _responseBody;
+        set { _responseBody = value; OnPropertyChanged(nameof(ResponseBody)); }
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+}
+
+public class WorkspaceFileNode
+{
+    public string Name { get; set; } = "";
+    public string Path { get; set; } = "";
+    public bool IsDirectory { get; set; }
+    public ObservableCollection<WorkspaceFileNode> Children { get; } = new();
+}
+
+public class ResourceEntryModel : System.ComponentModel.INotifyPropertyChanged
+{
+    private string _value = "";
+    public string Key { get; set; } = "";
+    public string Type { get; set; } = "";
+
+    public string Value
+    {
+        get => _value;
+        set { _value = value; OnPropertyChanged(nameof(Value)); }
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+}
+
+public class ControlCountModel
+{
+    public string Type { get; set; } = "";
+    public int Count { get; set; }
+}
+
+public partial class MainWindow : Window
+{
+    private readonly List<double> _memoryHistory = new();
+
+    private void RenderMemoryChart()
+    {
+        canvasMemoryChart.Children.Clear();
+        if (_memoryHistory.Count < 2) return;
+
+        double max = _memoryHistory.Max();
+        double min = _memoryHistory.Min();
+        if (max == min) max += 1.0;
+
+        double width = canvasMemoryChart.Bounds.Width;
+        double height = canvasMemoryChart.Bounds.Height;
+        if (width <= 0) width = 300;
+        if (height <= 0) height = 140;
+
+        double stepX = width / (_memoryHistory.Count - 1);
+        var points = new List<Avalonia.Point>();
+
+        for (int i = 0; i < _memoryHistory.Count; i++)
+        {
+            double val = _memoryHistory[i];
+            double pct = (val - min) / (max - min);
+            double x = i * stepX;
+            double y = height - (pct * (height - 30) + 15);
+            points.Add(new Avalonia.Point(x, y));
+        }
+
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            var line = new Avalonia.Controls.Shapes.Line
+            {
+                StartPoint = points[i],
+                EndPoint = points[i + 1],
+                Stroke = Brushes.DodgerBlue,
+                StrokeThickness = 2
+            };
+            canvasMemoryChart.Children.Add(line);
+        }
+    }
+
+    private void BtnClearNetwork_Click(object? sender, RoutedEventArgs e)
+    {
+        _networkRequests.Clear();
+        lblNetUrl.Text = "Select a request";
+        txtNetReqHeaders.Text = "";
+        txtNetResHeaders.Text = "";
+        txtNetBody.Text = "";
+    }
+
+    private void LstNetworkRequests_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var selected = lstNetworkRequests.SelectedItem as NetworkRequestModel;
+        if (selected != null)
+        {
+            lblNetUrl.Text = selected.Url;
+            txtNetReqHeaders.Text = selected.RequestHeaders;
+            txtNetResHeaders.Text = selected.ResponseHeaders;
+            txtNetBody.Text = selected.ResponseBody;
+        }
+        else
+        {
+            lblNetUrl.Text = "Select a request";
+            txtNetReqHeaders.Text = "";
+            txtNetResHeaders.Text = "";
+            txtNetBody.Text = "";
+        }
+    }
+
+    private async Task FetchResponseBodyAsync(NetworkRequestModel req)
+    {
+        try
+        {
+            var p = new JsonObject { ["requestId"] = req.RequestId };
+            var response = await SendCommandAsync("Network.getResponseBody", p);
+            var result = response["result"] as JsonObject;
+            if (result != null)
+            {
+                string body = result["body"]?.GetValue<string>() ?? "";
+                Dispatcher.UIThread.Post(() =>
+                {
+                    req.ResponseBody = body;
+                    var selected = lstNetworkRequests.SelectedItem as NetworkRequestModel;
+                    if (selected == req)
+                    {
+                        txtNetBody.Text = body;
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching response body: {ex.Message}");
+        }
+    }
+
+    private void LoadWorkspaceFiles(JsonArray filesArray)
+    {
+        var root = new WorkspaceFileNode { Name = "Workspace", Path = "", IsDirectory = true };
+        foreach (var fileNode in filesArray)
+        {
+            if (fileNode is not JsonObject fileObj) continue;
+            string relPath = fileObj["path"]?.GetValue<string>() ?? "";
+            string name = fileObj["name"]?.GetValue<string>() ?? "";
+            
+            string[] parts = relPath.Split('/');
+            var current = root;
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string part = parts[i];
+                bool isLast = (i == parts.Length - 1);
+                
+                var existing = current.Children.FirstOrDefault(c => c.Name == part);
+                if (existing == null)
+                {
+                    var newNode = new WorkspaceFileNode
+                    {
+                        Name = part,
+                        Path = string.Join('/', parts, 0, i + 1),
+                        IsDirectory = !isLast
+                    };
+                    current.Children.Add(newNode);
+                    current = newNode;
+                }
+                else
+                {
+                    current = existing;
+                }
+            }
+        }
+        
+        treeWorkspaceFiles.ItemsSource = root.Children;
+    }
+
+    private async void TreeWorkspaceFiles_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var selected = treeWorkspaceFiles.SelectedItem as WorkspaceFileNode;
+        if (selected != null && !selected.IsDirectory)
+        {
+            lblSourceFileName.Text = selected.Name;
+            txtSourceContent.Text = "Loading content...";
+            try
+            {
+                var p = new JsonObject { ["path"] = selected.Path };
+                var response = await SendCommandAsync("Sources.getFileContent", p);
+                var result = response["result"] as JsonObject;
+                if (result != null)
+                {
+                    string content = result["content"]?.GetValue<string>() ?? "";
+                    txtSourceContent.Text = content;
+                }
+            }
+            catch (Exception ex)
+            {
+                txtSourceContent.Text = $"Error loading file: {ex.Message}";
+            }
+        }
+        else
+        {
+            lblSourceFileName.Text = "Select a file from workspace";
+            txtSourceContent.Text = "";
+        }
+    }
+
+    private async void BtnRefreshResources_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var response = await SendCommandAsync("Application.getResources", new JsonObject());
+            var result = response["result"] as JsonObject;
+            if (result != null)
+            {
+                var resources = result["resources"] as JsonArray;
+                if (resources != null)
+                {
+                    _resources.Clear();
+                    foreach (var resNode in resources)
+                    {
+                        if (resNode is JsonObject resObj)
+                        {
+                            _resources.Add(new ResourceEntryModel
+                            {
+                                Key = resObj["key"]?.GetValue<string>() ?? "",
+                                Type = resObj["type"]?.GetValue<string>() ?? "",
+                                Value = resObj["value"]?.GetValue<string>() ?? ""
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing resources: {ex.Message}");
+        }
+    }
+
+    private void LstApplicationResources_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var selected = lstApplicationResources.SelectedItem as ResourceEntryModel;
+        if (selected != null)
+        {
+            txtResourceKey.Text = selected.Key;
+            txtResourceValue.Text = selected.Value;
+        }
+    }
+
+    private void BtnAddResource_Click(object? sender, RoutedEventArgs e)
+    {
+        txtResourceKey.Text = "NewKey";
+        txtResourceValue.Text = "";
+        txtResourceKey.Focus();
+    }
+
+    private async void BtnSaveResource_Click(object? sender, RoutedEventArgs e)
+    {
+        string key = txtResourceKey.Text?.Trim() ?? "";
+        string val = txtResourceValue.Text ?? "";
+        if (string.IsNullOrEmpty(key)) return;
+
+        try
+        {
+            var p = new JsonObject
+            {
+                ["key"] = key,
+                ["value"] = val
+            };
+            await SendCommandAsync("Application.setResource", p);
+            BtnRefreshResources_Click(null, null!);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving resource: {ex.Message}");
+        }
+    }
+
+    private async void BtnDeleteResource_Click(object? sender, RoutedEventArgs e)
+    {
+        var btn = sender as Button;
+        string key = btn?.Tag as string ?? "";
+        if (string.IsNullOrEmpty(key)) return;
+
+        try
+        {
+            var p = new JsonObject { ["key"] = key };
+            await SendCommandAsync("Application.deleteResource", p);
+            BtnRefreshResources_Click(null, null!);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting resource: {ex.Message}");
+        }
+    }
+
+    private async void BtnCollectGarbage_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await SendCommandAsync("Memory.collectGarbage", new JsonObject());
+            BtnRefreshMetrics_Click(null, null!);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error collecting garbage: {ex.Message}");
+        }
     }
 }

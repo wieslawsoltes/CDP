@@ -221,35 +221,142 @@
 
                         <!-- Performance Tab -->
                         <TabItem Header="Performance">
+                            <ScrollViewer Margin="0,10,0,0">
+                                <Grid RowDefinitions="Auto, *, Auto, *" ColumnDefinitions="*, *" Margin="0,0,10,0">
+                                    <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10" Margin="0,0,0,15">
+                                        <Button Name="btnRefreshMetrics" Content="Query Metrics" Classes="accent"/>
+                                        <Button Name="btnCollectGarbage" Content="Collect Garbage" Background="#2E7D32" Foreground="White"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Metrics Info -->
+                                    <StackPanel Grid.Row="1" Spacing="15" Margin="0,0,20,0">
+                                        <TextBlock Text="Diagnostics Info" FontSize="14" FontWeight="Bold"/>
+                                        <Grid ColumnDefinitions="150, *">
+                                            <TextBlock Text="Visual Nodes:" Foreground="#888888"/>
+                                            <TextBlock Name="lblPerfNodes" Grid.Column="1" Text="--" FontWeight="Bold"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="150, *">
+                                            <TextBlock Text="Documents (Targets):" Foreground="#888888"/>
+                                            <TextBlock Name="lblPerfDocuments" Grid.Column="1" Text="--" FontWeight="Bold"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="150, *">
+                                            <TextBlock Text="Memory Working Set:" Foreground="#888888"/>
+                                            <TextBlock Name="lblPerfMemory" Grid.Column="1" Text="--" FontWeight="Bold"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="150, *">
+                                            <TextBlock Text="GC Total Memory:" Foreground="#888888"/>
+                                            <TextBlock Name="lblPerfGc" Grid.Column="1" Text="--" FontWeight="Bold"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="150, *">
+                                            <TextBlock Text="System OS:" Foreground="#888888"/>
+                                            <TextBlock Name="lblPerfOs" Grid.Column="1" Text="--" TextWrapping="Wrap"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="150, *">
+                                            <TextBlock Text="Process PID:" Foreground="#888888"/>
+                                            <TextBlock Name="lblPerfPid" Grid.Column="1" Text="--" FontWeight="Bold"/>
+                                        </Grid>
+                                        <Button Name="btnCloseTarget" Content="Close Target Window (Kill App)" Background="#C62828" Foreground="White" HorizontalAlignment="Left" Margin="0,20,0,0"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Memory Working Set Chart -->
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Spacing="10">
+                                        <TextBlock Text="Memory Usage History" FontSize="14" FontWeight="Bold"/>
+                                        <Border Background="#1e1e1e" BorderBrush="#333333" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+                                            <Canvas Name="canvasMemoryChart" Height="140" Background="#1e1e1e"/>
+                                        </Border>
+                                    </StackPanel>
+                                    
+                                    <!-- Live Visual Controls Counts -->
+                                    <Grid Grid.Row="3" Grid.ColumnSpan="2" RowDefinitions="Auto, *" Margin="0,20,0,0">
+                                        <TextBlock Text="Live Visual Controls in Memory" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
+                                        <ListBox Name="lstLiveControls" MaxHeight="250" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid ColumnDefinitions="*, 100">
+                                                        <TextBlock Text="{Binding Type}" FontWeight="Bold" Margin="5"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" Margin="5"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Grid>
+                                </Grid>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Network Tab -->
+                        <TabItem Header="Network">
                             <Grid RowDefinitions="Auto, *" Margin="0,10,0,0">
-                                <Button Name="btnRefreshMetrics" Content="Query Metrics" Classes="accent" Margin="0,0,0,10"/>
-                                <StackPanel Grid.Row="1" Spacing="15">
-                                    <Grid ColumnDefinitions="150, *">
-                                        <TextBlock Text="Visual Nodes:" Foreground="#888888"/>
-                                        <TextBlock Name="lblPerfNodes" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="150, *">
-                                        <TextBlock Text="Documents (Targets):" Foreground="#888888"/>
-                                        <TextBlock Name="lblPerfDocuments" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="150, *">
-                                        <TextBlock Text="Memory Working Set:" Foreground="#888888"/>
-                                        <TextBlock Name="lblPerfMemory" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="150, *">
-                                        <TextBlock Text="GC Total Memory:" Foreground="#888888"/>
-                                        <TextBlock Name="lblPerfGc" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="150, *">
-                                        <TextBlock Text="System OS:" Foreground="#888888"/>
-                                        <TextBlock Name="lblPerfOs" Grid.Column="1" Text="--" TextWrapping="Wrap"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="150, *">
-                                        <TextBlock Text="Process PID:" Foreground="#888888"/>
-                                        <TextBlock Name="lblPerfPid" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                    </Grid>
-                                    <Button Name="btnCloseTarget" Content="Close Target Window (Kill App)" Background="#C62828" Foreground="White" HorizontalAlignment="Left" Margin="0,20,0,0"/>
+                                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
+                                    <Button Name="btnClearNetwork" Content="Clear Logs"/>
                                 </StackPanel>
+                                <Grid Grid.Row="1" ColumnDefinitions="*, 350">
+                                    <!-- Requests Table -->
+                                    <ListBox Name="lstNetworkRequests" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ColumnDefinitions="*, 80, 80, 80, 80" Margin="2">
+                                                    <TextBlock Text="{Binding Url}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="5,0"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Method}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#E0A75E"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Status}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#A5D6A7"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding Type}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#888888"/>
+                                                    <TextBlock Grid.Column="4" Text="{Binding Time}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#55C2FF"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    
+                                    <!-- Request Details Side Panel -->
+                                    <Border Grid.Column="1" BorderBrush="#252525" BorderThickness="1,0,0,0" Margin="10,0,0,0" Padding="10,0,0,0">
+                                        <ScrollViewer>
+                                            <StackPanel Spacing="15">
+                                                <TextBlock Text="Request Details" FontSize="15" FontWeight="Bold"/>
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="URL:" Foreground="#888888" FontSize="11"/>
+                                                    <TextBlock Name="lblNetUrl" Text="Select a request" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <StackPanel Spacing="5">
+                                                    <TextBlock Text="Headers:" Foreground="#888888" FontSize="11"/>
+                                                    <TextBlock Text="Request Headers" FontWeight="Bold" FontSize="12"/>
+                                                    <TextBox Name="txtNetReqHeaders" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" FontSize="11" Background="#0C0C0C" BorderBrush="#252525"/>
+                                                    <TextBlock Text="Response Headers" FontWeight="Bold" FontSize="12" Margin="0,5,0,0"/>
+                                                    <TextBox Name="txtNetResHeaders" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" FontSize="11" Background="#0C0C0C" BorderBrush="#252525"/>
+                                                </StackPanel>
+                                                <StackPanel Spacing="5">
+                                                    <TextBlock Text="Response Preview:" Foreground="#888888" FontSize="11"/>
+                                                    <TextBox Name="txtNetBody" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="150" FontSize="11" Background="#0C0C0C" BorderBrush="#252525"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </TabItem>
+
+                        <!-- Sources Tab -->
+                        <TabItem Header="Sources">
+                            <Grid ColumnDefinitions="250, *" Margin="0,10,0,0">
+                                <!-- Workspace File Explorer TreeView -->
+                                <Border BorderBrush="#252525" BorderThickness="0,0,1,0" Padding="0,0,10,0">
+                                    <Grid RowDefinitions="Auto, *">
+                                        <TextBlock Text="Workspace Files" FontSize="14" FontWeight="Bold" Margin="0,0,0,5"/>
+                                        <TreeView Name="treeWorkspaceFiles" Grid.Row="1" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
+                                            <TreeView.ItemTemplate>
+                                                <TreeDataTemplate ItemsSource="{Binding Children}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </TreeDataTemplate>
+                                            </TreeView.ItemTemplate>
+                                        </TreeView>
+                                    </Grid>
+                                </Border>
+                                
+                                <!-- File Content Viewer -->
+                                <Grid Grid.Column="1" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                                    <TextBlock Name="lblSourceFileName" Text="Select a file from workspace" FontSize="14" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBox Name="txtSourceContent" Grid.Row="1" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" IsReadOnly="True" AcceptsReturn="True" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" Background="#0C0C0C" BorderBrush="#252525"/>
+                                </Grid>
                             </Grid>
                         </TabItem>
                     </TabControl>
@@ -388,6 +495,45 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
+                        </TabItem>
+
+                        <!-- Application Tab -->
+                        <TabItem Header="Application">
+                            <Grid RowDefinitions="*, Auto" Margin="0,10,0,0">
+                                <Grid RowDefinitions="Auto, *">
+                                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
+                                        <Button Name="btnRefreshResources" Content="Refresh Resources"/>
+                                        <Button Name="btnAddResource" Content="Add Resource" Classes="accent"/>
+                                    </StackPanel>
+                                    <ListBox Name="lstApplicationResources" Grid.Row="1" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4" MaxHeight="300">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ColumnDefinitions="*, *, Auto">
+                                                    <TextBlock Text="{Binding Key}" FontWeight="Bold" Margin="5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Value}" TextTrimming="CharacterEllipsis" Margin="5" VerticalAlignment="Center" Foreground="#888888"/>
+                                                    <Button Grid.Column="2" Name="btnDeleteResource" Content="Delete" Tag="{Binding Key}" Click="BtnDeleteResource_Click" Background="#C62828" Foreground="White" Margin="5,0" FontSize="10"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+                                
+                                <!-- Edit/Add Resource Panel -->
+                                <Border Grid.Row="1" BorderBrush="#252525" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Edit / Add Resource" FontWeight="Bold" FontSize="12"/>
+                                        <Grid ColumnDefinitions="75, *">
+                                            <TextBlock Text="Key:" VerticalAlignment="Center" FontSize="11"/>
+                                            <TextBox Name="txtResourceKey" Grid.Column="1" Background="#0C0C0C" BorderBrush="#252525" FontSize="11"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="75, *">
+                                            <TextBlock Text="Value:" VerticalAlignment="Center" FontSize="11"/>
+                                            <TextBox Name="txtResourceValue" Grid.Column="1" Background="#0C0C0C" BorderBrush="#252525" FontSize="11"/>
+                                        </Grid>
+                                        <Button Name="btnSaveResource" Content="Save / Update" Classes="accent" HorizontalAlignment="Right" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
                         </TabItem>
                     </TabControl>
                 </Border>
