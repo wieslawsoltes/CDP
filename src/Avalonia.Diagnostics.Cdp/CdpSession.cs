@@ -172,6 +172,7 @@ public class CdpSession
     private void Cleanup()
     {
         _cts.Cancel();
+        Domains.LogDomain.RemoveSession(this);
         NodeMap.Clear();
         RemoteObjects.Clear();
         HighlightOverlayManager.HideHighlight(Window);
