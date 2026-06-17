@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
@@ -17,6 +18,121 @@ public static class PageDomain
             case "enable":
             case "disable":
                 return new JsonObject();
+
+            case "getResourceTree":
+                {
+                    var port = CdpServer.Port;
+                    var workspaceRoot = FindWorkspaceRoot();
+                    var host = $"127.0.0.1:{port}";
+                    
+                    var frame = new JsonObject
+                    {
+                        ["id"] = "main-frame-id",
+                        ["loaderId"] = "main-loader-id",
+                        ["url"] = $"http://{host}/",
+                        ["domainAndRegistry"] = "127.0.0.1",
+                        ["securityOrigin"] = $"http://{host}",
+                        ["mimeType"] = "text/html"
+                    };
+
+                    var resourcesArray = new JsonArray();
+
+                    try
+                    {
+                        var files = Directory.GetFiles(workspaceRoot, "*.*", SearchOption.AllDirectories);
+                        foreach (var file in files)
+                        {
+                            if (ShouldExclude(file)) continue;
+
+                            var ext = Path.GetExtension(file).ToLowerInvariant();
+                            if (ext == ".cs" || ext == ".axaml" || ext == ".md" || ext == ".json" || ext == ".csproj")
+                            {
+                                var relativePath = Path.GetRelativePath(workspaceRoot, file).Replace('\\', '/');
+                                var url = $"http://{host}/workspace/{relativePath}";
+                                var type = ext switch
+                                {
+                                    ".cs" => "Script",
+                                    ".axaml" => "Document",
+                                    ".md" => "Document",
+                                    ".json" => "Document",
+                                    _ => "Other"
+                                };
+                                var mimeType = ext switch
+                                {
+                                    ".cs" => "text/x-csharp",
+                                    ".axaml" => "text/xml",
+                                    ".md" => "text/markdown",
+                                    ".json" => "application/json",
+                                    _ => "text/plain"
+                                };
+
+                                resourcesArray.Add(new JsonObject
+                                {
+                                    ["url"] = url,
+                                    ["type"] = type,
+                                    ["mimeType"] = mimeType
+                                });
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error scanning workspace files: {ex}");
+                    }
+
+                    var frameTree = new JsonObject
+                    {
+                        ["frame"] = frame,
+                        ["resources"] = resourcesArray
+                    };
+
+                    return new JsonObject { ["frameTree"] = frameTree };
+                }
+
+            case "getResourceContent":
+                {
+                    string url = @params["url"]?.GetValue<string>() ?? "";
+                    var port = CdpServer.Port;
+                    var prefix = $"http://127.0.0.1:{port}/workspace/";
+                    var prefixLocalhost = $"http://localhost:{port}/workspace/";
+
+                    string relativePath = "";
+                    if (url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        relativePath = url.Substring(prefix.Length);
+                    }
+                    else if (url.StartsWith(prefixLocalhost, StringComparison.OrdinalIgnoreCase))
+                    {
+                        relativePath = url.Substring(prefixLocalhost.Length);
+                    }
+                    else
+                    {
+                        throw new Exception($"Invalid resource URL: {url}");
+                    }
+
+                    relativePath = Uri.UnescapeDataString(relativePath);
+
+                    var workspaceRoot = FindWorkspaceRoot();
+                    var absolutePath = Path.GetFullPath(Path.Combine(workspaceRoot, relativePath));
+
+                    if (!absolutePath.StartsWith(workspaceRoot, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new Exception("Access denied: path traversal detected");
+                    }
+
+                    if (!File.Exists(absolutePath))
+                    {
+                        throw new FileNotFoundException($"File not found: {relativePath}");
+                    }
+
+                    var content = await File.ReadAllTextAsync(absolutePath);
+
+                    return new JsonObject
+                    {
+                        ["content"] = content,
+                        ["base64Encoded"] = false
+                    };
+                }
 
             case "captureScreenshot":
                 {
@@ -92,5 +208,28 @@ public static class PageDomain
             
             return Convert.ToBase64String(ms.ToArray());
         });
+    }
+
+    private static string FindWorkspaceRoot()
+    {
+        var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (dir != null)
+        {
+            if (dir.GetFiles("*.sln").Any() || dir.GetFiles("*.slnx").Any() || dir.GetDirectories(".git").Any())
+            {
+                return dir.FullName;
+            }
+            dir = dir.Parent;
+        }
+        return Directory.GetCurrentDirectory();
+    }
+
+    private static bool ShouldExclude(string path)
+    {
+        var segments = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return segments.Any(s => s.Equals("bin", StringComparison.OrdinalIgnoreCase)
+                              || s.Equals("obj", StringComparison.OrdinalIgnoreCase)
+                              || s.Equals(".git", StringComparison.OrdinalIgnoreCase)
+                              || s.Equals("node_modules", StringComparison.OrdinalIgnoreCase));
     }
 }

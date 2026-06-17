@@ -17,6 +17,18 @@ public static class RuntimeDomain
         switch (action)
         {
             case "enable":
+                {
+                    var context = new JsonObject
+                    {
+                        ["id"] = 1,
+                        ["origin"] = $"http://127.0.0.1:{CdpServer.Port}/",
+                        ["name"] = "top",
+                        ["uniqueId"] = "1"
+                    };
+                    var contextParams = new JsonObject { ["context"] = context };
+                    _ = session.SendEventAsync("Runtime.executionContextCreated", contextParams);
+                    return new JsonObject();
+                }
             case "disable":
                 return new JsonObject();
 

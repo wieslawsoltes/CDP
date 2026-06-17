@@ -20,7 +20,10 @@ public static class DomDomain
         switch (action)
         {
             case "enable":
+                session.StartObservingVisualTree();
+                return new JsonObject();
             case "disable":
+                session.StopObservingVisualTree();
                 return new JsonObject();
 
             case "getDocument":
@@ -431,7 +434,7 @@ public static class DomDomain
         return sb.ToString();
     }
 
-    private static string? GetControlTextOrContent(Control control)
+    internal static string? GetControlTextOrContent(Control control)
     {
         if (control is TextBlock textBlock) return textBlock.Text;
         if (control is TextBox textBox) return textBox.Text;

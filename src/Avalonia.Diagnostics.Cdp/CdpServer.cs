@@ -21,6 +21,10 @@ public static class CdpServer
     private static int _port = 9222;
     public static int Port => _port;
     private static readonly ConcurrentDictionary<string, (TopLevel Window, string Title)> _windows = new();
+    private static System.IO.TextWriter? _originalOut;
+    private static System.IO.TextWriter? _originalError;
+    private static ConsoleRedirector? _redirectedOut;
+    private static ConsoleRedirector? _redirectedError;
 
     public static string Register(TopLevel window, string title)
     {
@@ -106,6 +110,14 @@ public static class CdpServer
         var cdpSink = new Avalonia.Diagnostics.Cdp.Domains.CdpLogSink();
         Avalonia.Logging.Logger.Sink = new Avalonia.Diagnostics.Cdp.Domains.CompositeLogSink(originalSink, cdpSink);
 
+        // Intercept Console stdout and stderr
+        _originalOut = Console.Out;
+        _originalError = Console.Error;
+        _redirectedOut = new ConsoleRedirector(_originalOut, "Information");
+        _redirectedError = new ConsoleRedirector(_originalError, "Error");
+        Console.SetOut(_redirectedOut);
+        Console.SetError(_redirectedError);
+
         _listener = new HttpListener();
         _listener.Prefixes.Add($"http://localhost:{port}/");
         _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
@@ -129,6 +141,20 @@ public static class CdpServer
     {
         if (!_isRunning) return;
         _isRunning = false;
+
+        // Restore Console redirectors
+        if (_originalOut != null)
+        {
+            Console.SetOut(_originalOut);
+            _originalOut = null;
+        }
+        if (_originalError != null)
+        {
+            Console.SetError(_originalError);
+            _originalError = null;
+        }
+        _redirectedOut = null;
+        _redirectedError = null;
 
         // Shutdown Network diagnostic listener
         Avalonia.Diagnostics.Cdp.Domains.NetworkDomain.Shutdown();
@@ -272,5 +298,88 @@ public static class CdpServer
         response.ContentLength64 = bytes.Length;
         response.OutputStream.Write(bytes, 0, bytes.Length);
         response.Close();
+    }
+}
+
+public class ConsoleRedirector : System.IO.TextWriter
+{
+    private readonly System.IO.TextWriter _original;
+    private readonly string _level;
+    private readonly System.Text.StringBuilder _buffer = new();
+    
+    [ThreadStatic]
+    private static bool _isRedirecting;
+
+    public ConsoleRedirector(System.IO.TextWriter original, string level)
+    {
+        _original = original;
+        _level = level;
+    }
+
+    public override System.Text.Encoding Encoding => _original.Encoding;
+
+    public override void Write(char value)
+    {
+        _original.Write(value);
+        if (_isRedirecting) return;
+        
+        _isRedirecting = true;
+        try
+        {
+            lock (_buffer)
+            {
+                if (value == '\n')
+                {
+                    var line = _buffer.ToString().TrimEnd('\r');
+                    _buffer.Clear();
+                    Broadcast(line);
+                }
+                else
+                {
+                    _buffer.Append(value);
+                }
+            }
+        }
+        finally
+        {
+            _isRedirecting = false;
+        }
+    }
+
+    public override void Write(string? value)
+    {
+        _original.Write(value);
+        if (value == null || _isRedirecting) return;
+        
+        _isRedirecting = true;
+        try
+        {
+            lock (_buffer)
+            {
+                int index;
+                int start = 0;
+                while ((index = value.IndexOf('\n', start)) >= 0)
+                {
+                    _buffer.Append(value.Substring(start, index - start));
+                    var line = _buffer.ToString().TrimEnd('\r');
+                    _buffer.Clear();
+                    Broadcast(line);
+                    start = index + 1;
+                }
+                if (start < value.Length)
+                {
+                    _buffer.Append(value.Substring(start));
+                }
+            }
+        }
+        finally
+        {
+            _isRedirecting = false;
+        }
+    }
+
+    private void Broadcast(string line)
+    {
+        Avalonia.Diagnostics.Cdp.Domains.LogDomain.BroadcastLog("Console", _level, line);
     }
 }

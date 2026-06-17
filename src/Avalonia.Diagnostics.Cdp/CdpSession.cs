@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Specialized;
 using System.IO;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -12,6 +14,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace Avalonia.Diagnostics.Cdp;
 
@@ -338,6 +341,7 @@ public class CdpSession
     {
         _cts.Cancel();
         StopScreencast();
+        StopObservingVisualTree();
         InspectModeEnabled = false;
         Domains.LogDomain.RemoveSession(this);
         Domains.NetworkDomain.RemoveSession(this);
@@ -346,5 +350,290 @@ public class CdpSession
         RemoteObjects.Clear();
         HighlightOverlayManager.HideHighlight(Window);
         _sendSemaphore.Dispose();
+    }
+
+    private readonly ConcurrentDictionary<Visual, NotifyCollectionChangedEventHandler> _collectionHandlers = new();
+    private readonly ConcurrentDictionary<Visual, EventHandler<AvaloniaPropertyChangedEventArgs>> _propertyHandlers = new();
+    private readonly ConcurrentDictionary<Control, NotifyCollectionChangedEventHandler> _classesHandlers = new();
+
+    public void StartObservingVisualTree()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(StartObservingVisualTree);
+            return;
+        }
+        StopObservingVisualTree();
+        SubscribeToVisual(Window);
+    }
+
+    public void StopObservingVisualTree()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(StopObservingVisualTree);
+            return;
+        }
+        foreach (var pair in _collectionHandlers)
+        {
+            if (GetVisualChildrenObservable(pair.Key) is INotifyCollectionChanged notify)
+            {
+                try { notify.CollectionChanged -= pair.Value; } catch { }
+            }
+        }
+        _collectionHandlers.Clear();
+
+        foreach (var pair in _propertyHandlers)
+        {
+            try { pair.Key.PropertyChanged -= pair.Value; } catch { }
+        }
+        _propertyHandlers.Clear();
+
+        foreach (var pair in _classesHandlers)
+        {
+            if (pair.Key.Classes is INotifyCollectionChanged classesNotify)
+            {
+                try { classesNotify.CollectionChanged -= pair.Value; } catch { }
+            }
+        }
+        _classesHandlers.Clear();
+    }
+
+    private void SubscribeToVisual(Visual visual)
+    {
+        if (visual == null || visual is HighlightAdorner) return;
+
+        if (!_propertyHandlers.ContainsKey(visual))
+        {
+            EventHandler<AvaloniaPropertyChangedEventArgs> propHandler = (s, e) => OnAvaloniaPropertyChanged(s, e);
+            visual.PropertyChanged += propHandler;
+            _propertyHandlers[visual] = propHandler;
+        }
+
+        if (GetVisualChildrenObservable(visual) is INotifyCollectionChanged notify)
+        {
+            if (!_collectionHandlers.ContainsKey(visual))
+            {
+                NotifyCollectionChangedEventHandler colHandler = (s, e) => OnVisualChildrenChanged(visual, e);
+                notify.CollectionChanged += colHandler;
+                _collectionHandlers[visual] = colHandler;
+            }
+        }
+
+        if (visual is Control control)
+        {
+            if (control.Classes is INotifyCollectionChanged classesNotify)
+            {
+                if (!_classesHandlers.ContainsKey(control))
+                {
+                    NotifyCollectionChangedEventHandler classesHandler = (s, e) =>
+                    {
+                        var nodeId = NodeMap.GetOrAdd(control);
+                        if (nodeId == 0) return;
+
+                        if (control.Classes.Count == 0)
+                        {
+                            _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "class" });
+                        }
+                        else
+                        {
+                            _ = SendEventAsync("DOM.attributeModified", new JsonObject
+                            {
+                                ["nodeId"] = nodeId,
+                                ["name"] = "class",
+                                ["value"] = string.Join(" ", control.Classes)
+                            });
+                        }
+                    };
+                    classesNotify.CollectionChanged += classesHandler;
+                    _classesHandlers[control] = classesHandler;
+                }
+            }
+        }
+
+        foreach (var child in visual.GetVisualChildren())
+        {
+            if (child is not HighlightAdorner)
+            {
+                SubscribeToVisual(child);
+            }
+        }
+    }
+
+    private void UnsubscribeFromVisual(Visual visual)
+    {
+        if (visual == null) return;
+
+        foreach (var child in visual.GetVisualChildren())
+        {
+            UnsubscribeFromVisual(child);
+        }
+
+        if (_collectionHandlers.TryRemove(visual, out var colHandler))
+        {
+            if (GetVisualChildrenObservable(visual) is INotifyCollectionChanged notify)
+            {
+                try { notify.CollectionChanged -= colHandler; } catch { }
+            }
+        }
+
+        if (_propertyHandlers.TryRemove(visual, out var propHandler))
+        {
+            try { visual.PropertyChanged -= propHandler; } catch { }
+        }
+
+        if (visual is Control control && _classesHandlers.TryRemove(control, out var classesHandler))
+        {
+            if (control.Classes is INotifyCollectionChanged classesNotify)
+            {
+                try { classesNotify.CollectionChanged -= classesHandler; } catch { }
+            }
+        }
+    }
+
+    private void OnVisualChildrenChanged(Visual parent, NotifyCollectionChangedEventArgs e)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnVisualChildrenChanged(parent, e));
+            return;
+        }
+
+        var parentNodeId = NodeMap.GetOrAdd(parent);
+        if (parentNodeId == 0) return;
+
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                if (e.NewItems != null)
+                {
+                    foreach (var item in e.NewItems)
+                    {
+                        if (item is Visual child && child is not HighlightAdorner)
+                        {
+                            var visualChildren = parent.GetVisualChildren().Where(c => c is not HighlightAdorner).ToList();
+                            int childIndex = visualChildren.IndexOf(child);
+                            int previousNodeId = 0;
+                            if (childIndex > 0)
+                            {
+                                var prevSibling = visualChildren[childIndex - 1];
+                                previousNodeId = NodeMap.GetOrAdd(prevSibling);
+                            }
+
+                            SubscribeToVisual(child);
+                            var nodeJson = Domains.DomDomain.BuildDomNode(child, this, 1, 1);
+
+                            _ = SendEventAsync("DOM.childNodeInserted", new JsonObject
+                            {
+                                ["parentNodeId"] = parentNodeId,
+                                ["previousNodeId"] = previousNodeId,
+                                ["node"] = nodeJson
+                            });
+                        }
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Remove:
+                if (e.OldItems != null)
+                {
+                    foreach (var item in e.OldItems)
+                    {
+                        if (item is Visual child)
+                        {
+                            var nodeId = NodeMap.GetOrAdd(child);
+                            UnsubscribeFromVisual(child);
+
+                            if (nodeId != 0)
+                            {
+                                _ = SendEventAsync("DOM.childNodeRemoved", new JsonObject
+                                {
+                                    ["parentNodeId"] = parentNodeId,
+                                    ["nodeId"] = nodeId
+                                });
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Reset:
+                _ = SendEventAsync("DOM.documentUpdated", new JsonObject());
+                break;
+        }
+    }
+
+    private void OnAvaloniaPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (sender is not Visual visual) return;
+        
+        var propName = e.Property.Name;
+        if (propName == "Name" || propName == "Classes" || propName == "IsEnabled" || propName == "IsVisible" || propName == "Bounds" || propName == "Text" || propName == "Content")
+        {
+            var nodeId = NodeMap.GetOrAdd(visual);
+            if (nodeId == 0) return;
+
+            if (propName == "Name")
+            {
+                var name = (sender as Control)?.Name;
+                if (string.IsNullOrEmpty(name))
+                {
+                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "name" });
+                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "id" });
+                }
+                else
+                {
+                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "name", ["value"] = name });
+                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "id", ["value"] = name });
+                }
+            }
+            else if (propName == "Classes")
+            {
+                var classes = (sender as Control)?.Classes;
+                if (classes == null || classes.Count == 0)
+                {
+                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "class" });
+                }
+                else
+                {
+                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "class", ["value"] = string.Join(" ", classes) });
+                }
+            }
+            else if (propName == "IsEnabled")
+            {
+                var isEnabled = (sender as Control)?.IsEnabled ?? true;
+                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "isenabled", ["value"] = isEnabled.ToString().ToLowerInvariant() });
+            }
+            else if (propName == "IsVisible")
+            {
+                var isVisible = (sender as Control)?.IsVisible ?? true;
+                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "isvisible", ["value"] = isVisible.ToString().ToLowerInvariant() });
+            }
+            else if (propName == "Bounds")
+            {
+                var bounds = (sender as Control)?.Bounds ?? default;
+                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "bounds", ["value"] = $"{bounds.X},{bounds.Y},{bounds.Width},{bounds.Height}" });
+            }
+            else if (propName == "Text" || propName == "Content")
+            {
+                var text = (sender is Control ctrl) ? Domains.DomDomain.GetControlTextOrContent(ctrl) : null;
+                if (string.IsNullOrEmpty(text))
+                {
+                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "text" });
+                }
+                else
+                {
+                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "text", ["value"] = text });
+                }
+            }
+        }
+    }
+
+    private static readonly System.Reflection.PropertyInfo? VisualChildrenProperty = 
+        typeof(Visual).GetProperty("VisualChildren", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+
+    private static INotifyCollectionChanged? GetVisualChildrenObservable(Visual visual)
+    {
+        return VisualChildrenProperty?.GetValue(visual) as INotifyCollectionChanged;
     }
 }
