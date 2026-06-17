@@ -462,4 +462,27 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencast()
+    {
+        var window = new Window { Title = "Screencast Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Start Screencast
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", new JsonObject());
+        Assert.NotNull(startResult);
+
+        // 2. Acknowledge a frame (simulating browser behavior)
+        session.AcknowledgeScreencastFrame(1);
+
+        // 3. Stop Screencast
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
+
+        window.Close();
+    }
 }
