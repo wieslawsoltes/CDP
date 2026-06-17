@@ -2,472 +2,292 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="CdpInspectorApp.MainWindow"
         x:CompileBindings="False"
-        Title="Avalonia CDP Inspector Client" Width="1200" Height="750"
+        Title="Avalonia CDP Inspector Client - Chrome Parity" Width="1280" Height="800"
         WindowStartupLocation="CenterScreen"
         RequestedThemeVariant="Dark">
     <Window.Styles>
-        <Style Selector="TextBlock.panel-header">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
+        <!-- TabControl Panels styling matching Chrome DevTools tabs bar -->
+        <Style Selector="TabControl">
+            <Setter Property="Background" Value="#202124"/>
         </Style>
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Foreground" Value="#9aa0a6"/>
+            <Setter Property="Padding" Value="16,8"/>
+        </Style>
+        <Style Selector="TabItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#e8eaed"/>
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Foreground" Value="#8ab4f8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TabItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#8ab4f8"/>
+        </Style>
+
+        <!-- Borders and Card styles matching Chrome DevTools lines/margins -->
         <Style Selector="Border.panel-card">
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="BorderBrush" Value="#2A2A2A"/>
+            <Setter Property="Background" Value="#292a2d"/>
+            <Setter Property="BorderBrush" Value="#3c4043"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="15"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="8"/>
+        </Style>
+
+        <!-- TextBlocks -->
+        <Style Selector="TextBlock.panel-header">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#e8eaed"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <!-- Form fields and list boxes with Chrome DevTools Dark colors -->
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#202124"/>
+            <Setter Property="BorderBrush" Value="#3c4043"/>
+            <Setter Property="Foreground" Value="#e8eaed"/>
+            <Setter Property="CaretBrush" Value="#e8eaed"/>
+            <Setter Property="SelectionBrush" Value="#3f5f8f"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="#292a2d"/>
+            <Setter Property="BorderBrush" Value="#3c4043"/>
+            <Setter Property="Foreground" Value="#e8eaed"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TreeView">
+            <Setter Property="Background" Value="#292a2d"/>
+            <Setter Property="BorderBrush" Value="#3c4043"/>
+            <Setter Property="Foreground" Value="#e8eaed"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TreeViewItem">
+            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+        </Style>
+
+        <!-- Chrome styled buttons -->
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#35363a"/>
+            <Setter Property="Foreground" Value="#e8eaed"/>
+            <Setter Property="BorderBrush" Value="#3c4043"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="CornerRadius" Value="3"/>
+        </Style>
+        <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#494c50"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="BorderBrush" Value="#494c50"/>
+        </Style>
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="#1a73e8"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="BorderBrush" Value="#1a73e8"/>
+        </Style>
+        <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1557b0"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="BorderBrush" Value="#1557b0"/>
+        </Style>
+        <Style Selector="ToggleButton">
+            <Setter Property="Background" Value="#35363a"/>
+            <Setter Property="Foreground" Value="#e8eaed"/>
+            <Setter Property="BorderBrush" Value="#3c4043"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="CornerRadius" Value="3"/>
         </Style>
     </Window.Styles>
 
     <Grid RowDefinitions="Auto, *">
-        <!-- Top Connection Bar -->
-        <Border Grid.Row="0" Background="#161616" BorderBrush="#252525" BorderThickness="0,0,0,1" Padding="15,10">
+        <!-- Connection and Targets Toolbar -->
+        <Border Grid.Row="0" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="15,8">
             <Grid ColumnDefinitions="Auto, *, Auto, Auto, Auto, Auto, Auto, Auto">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Ellipse Width="10" Height="10" Fill="#00A2FF"/>
-                    <TextBlock Text="AVALONIA CDP INSPECTOR" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" LetterSpacing="1.2"/>
+                    <Ellipse Width="8" Height="8" Fill="#8ab4f8"/>
+                    <TextBlock Text="AVALONIA DEVTOOLS" FontSize="13" FontWeight="Bold" Foreground="#ffffff" VerticalAlignment="Center" LetterSpacing="1.1"/>
                 </StackPanel>
 
                 <Grid Grid.Column="1" ColumnDefinitions="Auto, *" Margin="25,0,15,0">
-                    <TextBlock Text="Target Host:" VerticalAlignment="Center" Foreground="#888888" Margin="0,0,10,0"/>
-                    <TextBox Name="txtHost" Grid.Column="1" Text="http://localhost:9222" Watermark="e.g. http://localhost:9222" Width="200" HorizontalAlignment="Left" Height="30" VerticalContentAlignment="Center"/>
+                    <TextBlock Text="Host:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,10,0"/>
+                    <TextBox Name="txtHost" Grid.Column="1" Text="http://localhost:9222" Watermark="e.g. http://localhost:9222" Width="180" HorizontalAlignment="Left" Height="28" VerticalContentAlignment="Center"/>
                 </Grid>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
-                    <Button Name="btnRefreshTargets" Content="Scan Targets" Classes="accent" Padding="12,5" CornerRadius="4"/>
-                    <ComboBox Name="cbTargets" Width="300" PlaceholderText="Select a target window..."/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Name="btnRefreshTargets" Content="Scan Targets" Classes="accent" Height="28" Padding="12,0" VerticalAlignment="Center"/>
+                    <ComboBox Name="cbTargets" Width="280" PlaceholderText="Select target window..." Height="28" Background="#202124" BorderBrush="#3c4043"/>
                 </StackPanel>
 
-                <Button Name="btnConnect" Grid.Column="3" Content="Connect" Background="#2E7D32" Foreground="White" Margin="10,0,0,0" Padding="15,6" CornerRadius="4"/>
-                <Button Name="btnDisconnect" Grid.Column="4" Content="Disconnect" Background="#C62828" Foreground="White" Margin="8,0,0,0" Padding="15,6" CornerRadius="4" IsEnabled="False"/>
-                <ToggleButton Name="btnInspect" Grid.Column="5" Content="Inspect" Background="#E65100" Foreground="White" Margin="10,0,0,0" Padding="15,6" CornerRadius="4" IsEnabled="False"/>
-                <Button Name="btnReload" Grid.Column="6" Content="Reload" Background="#4A148C" Foreground="White" Margin="8,0,0,0" Padding="15,6" CornerRadius="4" IsEnabled="False"/>
-                <TextBlock Name="txtConnectionStatus" Grid.Column="7" Text="Disconnected" Foreground="#FF5555" FontWeight="SemiBold" VerticalAlignment="Center" Margin="15,0,0,0"/>
+                <Button Name="btnConnect" Grid.Column="3" Content="Connect" Background="#1b5e20" Foreground="White" BorderBrush="#1b5e20" Margin="10,0,0,0" Height="28" Padding="15,0" VerticalAlignment="Center"/>
+                <Button Name="btnDisconnect" Grid.Column="4" Content="Disconnect" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Margin="8,0,0,0" Height="28" Padding="15,0" IsEnabled="False" VerticalAlignment="Center"/>
+                <ToggleButton Name="btnInspect" Grid.Column="5" Content="Select Element" Background="#e65100" Foreground="White" BorderBrush="#e65100" Margin="10,0,0,0" Height="28" Padding="15,0" IsEnabled="False" VerticalAlignment="Center"/>
+                <Button Name="btnReload" Grid.Column="6" Content="Reload" Background="#4a148c" Foreground="White" BorderBrush="#4a148c" Margin="8,0,0,0" Height="28" Padding="15,0" IsEnabled="False" VerticalAlignment="Center"/>
+                <TextBlock Name="txtConnectionStatus" Grid.Column="7" Text="Disconnected" Foreground="#f28b82" FontWeight="SemiBold" VerticalAlignment="Center" Margin="15,0,0,0"/>
             </Grid>
         </Border>
 
-        <!-- Main Workspace -->
-        <Grid Grid.Row="1" ColumnDefinitions="*, 4, 1.3*, 4, *" Background="#121212" Margin="10">
-            
-            <!-- Left Column: DOM Visual Tree -->
-            <Grid Grid.Column="0" RowDefinitions="Auto, Auto, *">
-                <TextBlock Text="DOM Visual Tree" Classes="panel-header"/>
-                
-                <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
-                    <TextBox Name="txtSearch" Watermark="Search tree by tag, ID, text..." Height="32" VerticalContentAlignment="Center"/>
-                    <Button Name="btnSearch" Grid.Column="1" Content="Search" Margin="5,0,0,0" Padding="10,0"/>
-                </Grid>
+        <!-- DevTools Panels TabControl -->
+        <Grid Grid.Row="1" Background="#202124">
+            <TabControl Padding="0" Margin="0">
 
-                <Border Grid.Row="2" Classes="panel-card">
-                    <TreeView Name="treeDom">
-                        <TreeView.Styles>
-                            <Style Selector="TreeViewItem">
-                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
-                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                            </Style>
-                        </TreeView.Styles>
-                        <TreeView.ItemTemplate>
-                            <TreeDataTemplate ItemsSource="{Binding Children}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <TextBlock Text="{Binding DisplayName}" Foreground="{Binding ForegroundBrush}" FontSize="12.5"/>
-                                </StackPanel>
-                            </TreeDataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
-                </Border>
-            </Grid>
-
-            <!-- Column Splitter 1 -->
-            <GridSplitter Grid.Column="1" Background="Transparent"/>
-
-            <!-- Middle Column: Actions, Console & Screenshots -->
-            <Grid Grid.Column="2" RowDefinitions="Auto, *">
-                <TextBlock Text="Control &amp; Monitoring Workspace" Classes="panel-header"/>
-
-                <Border Grid.Row="1" Classes="panel-card">
-                    <TabControl Padding="0,10,0,0">
-                        <!-- Simulation Tab -->
-                        <TabItem Header="Simulate Actions">
-                            <ScrollViewer Margin="0,10,0,0">
-                                <StackPanel Spacing="15">
-                                    <!-- Selection Indicator -->
-                                    <Border Background="#2C2C2C" CornerRadius="6" Padding="10">
-                                        <StackPanel Orientation="Horizontal" Spacing="5">
-                                            <TextBlock Text="Selected Node ID:" Foreground="#888888"/>
-                                            <TextBlock Name="txtSelectedNodeId" Text="None" FontWeight="Bold" Foreground="#00A2FF"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Focus and Highlight -->
-                                    <StackPanel Orientation="Horizontal" Spacing="15">
-                                        <Button Name="btnFocus" Content="Focus Control" Padding="12,8" Background="#1976D2" Foreground="White" CornerRadius="4" Width="130" HorizontalContentAlignment="Center"/>
-                                        <Button Name="btnDeleteControl" Content="Delete Control" Padding="12,8" Background="#C62828" Foreground="White" CornerRadius="4" Width="130" HorizontalContentAlignment="Center"/>
-                                        <CheckBox Name="chkHighlight" Content="Highlight Overlay" VerticalAlignment="Center"/>
-                                    </StackPanel>
-
-                                    <!-- Mouse Actions -->
-                                    <StackPanel Spacing="5">
-                                        <TextBlock Text="Mouse Events" FontWeight="SemiBold" Foreground="#888888"/>
-                                        <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <Button Name="btnClick" Content="Click Center" Padding="12,8" Background="#43A047" Foreground="White" CornerRadius="4"/>
-                                            <TextBlock Text="(Simulates mouse press + release at center coordinates)" VerticalAlignment="Center" Foreground="#666666" FontSize="11"/>
-                                        </StackPanel>
-                                    </StackPanel>
-
-                                    <!-- Mouse Wheel / Scroll Simulation -->
-                                    <StackPanel Spacing="5">
-                                        <TextBlock Text="Mouse Wheel / Scroll" FontWeight="SemiBold" Foreground="#888888"/>
-                                        <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <TextBlock Text="Delta Y:" VerticalAlignment="Center" Foreground="#888888"/>
-                                            <TextBox Name="txtScrollDeltaY" Text="100" Width="80" Height="30" VerticalContentAlignment="Center"/>
-                                            <Button Name="btnScroll" Content="Scroll" Padding="15,6" Background="#0288D1" Foreground="White" CornerRadius="4"/>
-                                            <TextBlock Text="(Simulates mouseWheel event on target window)" VerticalAlignment="Center" Foreground="#666666" FontSize="11"/>
-                                        </StackPanel>
-                                    </StackPanel>
-
-                                    <!-- Text Input Simulation -->
-                                    <StackPanel Spacing="5">
-                                        <TextBlock Text="Simulate Keyboard / Text Input" FontWeight="SemiBold" Foreground="#888888"/>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBox Name="txtInputSim" Watermark="Type text to insert..."/>
-                                            <Button Name="btnSendText" Grid.Column="1" Content="Send Text" Margin="5,0,0,0" Padding="12,8" Background="#8E24AA" Foreground="White" CornerRadius="4"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- Specific Key Press -->
-                                    <StackPanel Spacing="5">
-                                        <TextBlock Text="Simulate Keystroke" FontWeight="SemiBold" Foreground="#888888"/>
-                                        <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <ComboBox Name="cbKeys" Width="150" PlaceholderText="Select Key..."/>
-                                            <Button Name="btnSendKey" Content="Press Key" Padding="12,8" Background="#D81B60" Foreground="White" CornerRadius="4"/>
-                                        </StackPanel>
-                                    </StackPanel>
-
-                                    <Separator Background="#2A2A2A"/>
-
-                                    <!-- Emulation Overrides -->
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Text="Emulation Overrides" FontWeight="SemiBold" Foreground="#888888"/>
-                                        <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <TextBlock Text="Width:" VerticalAlignment="Center" Foreground="#888888"/>
-                                            <TextBox Name="txtWidth" Text="800" Width="60"/>
-                                            <TextBlock Text="Height:" VerticalAlignment="Center" Foreground="#888888"/>
-                                            <TextBox Name="txtHeight" Text="600" Width="60"/>
-                                            <Button Name="btnResize" Content="Resize Window" Padding="10,6" Background="#5E35B1" Foreground="White" CornerRadius="4"/>
-                                            <Button Name="btnResizeReset" Content="Reset" Padding="10,6" CornerRadius="4"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </TabItem>
-
-                        <!-- Screenshot Tab -->
-                        <TabItem Header="Screenshot">
-                            <Grid RowDefinitions="Auto, *">
-                                <Button Name="btnCaptureScreenshot" Content="Capture View" Classes="accent" Margin="0,10,0,10"/>
-                                <Border Grid.Row="1" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
-                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                                        <Image Name="imgScreenshot" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="10"/>
-                                    </ScrollViewer>
-                                </Border>
+                <!-- 1. ELEMENTS PANEL -->
+                <TabItem Header="Elements">
+                    <Grid ColumnDefinitions="*, 4, 1.2*">
+                        <!-- DOM Tree (Left Side) -->
+                        <Grid RowDefinitions="Auto, *, Auto" Margin="10">
+                            <!-- Search -->
+                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                                <TextBox Name="txtSearch" Watermark="Search by tag, ID, class, or text content..." Height="28" VerticalContentAlignment="Center"/>
+                                <Button Name="btnSearch" Grid.Column="1" Content="Search" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                             </Grid>
-                        </TabItem>
 
-                        <!-- Log tab -->
-                        <TabItem Header="Console Logs">
-                            <Grid RowDefinitions="*, Auto" Margin="0,10,0,0">
-                                <ListBox Name="listLogs" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ColumnDefinitions="Auto, Auto, *">
-                                                <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Foreground="#555555" Width="90"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" Width="70" Margin="10,0"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding Text}" Foreground="#CCCCCC" TextWrapping="Wrap"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                                <Button Name="btnClearLogs" Grid.Row="1" Content="Clear Logs" Margin="0,10,0,0" HorizontalAlignment="Right"/>
-                            </Grid>
-                        </TabItem>
-
-                        <!-- C# Console Tab -->
-                        <TabItem Header="C# Console">
-                            <Grid RowDefinitions="*, Auto" Margin="0,10,0,0">
-                                <ListBox Name="listConsole" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Margin="2">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="❯ " Foreground="#00A2FF" FontWeight="Bold"/>
-                                                    <TextBlock Text="{Binding Expression}" Foreground="#E0E0E0" TextWrapping="Wrap"/>
-                                                </StackPanel>
-                                                <StackPanel Orientation="Horizontal" Margin="15,2,0,0">
-                                                    <TextBlock Text="value: " Foreground="#888888" FontSize="11" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBrush}" TextWrapping="Wrap" FontSize="13"/>
-                                                </StackPanel>
+                            <!-- treeDom -->
+                            <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
+                                <TreeView Name="treeDom">
+                                    <TreeView.ItemTemplate>
+                                        <TreeDataTemplate ItemsSource="{Binding Children}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding DisplayName}" Foreground="{Binding ForegroundBrush}" FontSize="12"/>
                                             </StackPanel>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                                <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,10,0,0">
-                                    <TextBox Name="txtConsoleInput" Watermark="Enter C# expression (e.g. $0.Width = 300)..." Height="32" VerticalContentAlignment="Center"/>
-                                    <Button Name="btnSendConsole" Grid.Column="1" Content="Run" Margin="5,0,0,0" Padding="15,0" Background="#00A2FF" Foreground="White" CornerRadius="4"/>
-                                </Grid>
-                            </Grid>
-                        </TabItem>
+                                        </TreeDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
+                            </Border>
 
-                        <!-- Performance Tab -->
-                        <TabItem Header="Performance">
-                            <ScrollViewer Margin="0,10,0,0">
-                                <Grid RowDefinitions="Auto, *, Auto, *" ColumnDefinitions="*, *" Margin="0,0,10,0">
-                                    <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10" Margin="0,0,0,15">
-                                        <Button Name="btnRefreshMetrics" Content="Query Metrics" Classes="accent"/>
-                                        <Button Name="btnCollectGarbage" Content="Collect Garbage" Background="#2E7D32" Foreground="White"/>
-                                    </StackPanel>
-                                    
-                                    <!-- Metrics Info -->
-                                    <StackPanel Grid.Row="1" Spacing="15" Margin="0,0,20,0">
-                                        <TextBlock Text="Diagnostics Info" FontSize="14" FontWeight="Bold"/>
-                                        <Grid ColumnDefinitions="150, *">
-                                            <TextBlock Text="Visual Nodes:" Foreground="#888888"/>
-                                            <TextBlock Name="lblPerfNodes" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="150, *">
-                                            <TextBlock Text="Documents (Targets):" Foreground="#888888"/>
-                                            <TextBlock Name="lblPerfDocuments" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="150, *">
-                                            <TextBlock Text="Memory Working Set:" Foreground="#888888"/>
-                                            <TextBlock Name="lblPerfMemory" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="150, *">
-                                            <TextBlock Text="GC Total Memory:" Foreground="#888888"/>
-                                            <TextBlock Name="lblPerfGc" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="150, *">
-                                            <TextBlock Text="System OS:" Foreground="#888888"/>
-                                            <TextBlock Name="lblPerfOs" Grid.Column="1" Text="--" TextWrapping="Wrap"/>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="150, *">
-                                            <TextBlock Text="Process PID:" Foreground="#888888"/>
-                                            <TextBlock Name="lblPerfPid" Grid.Column="1" Text="--" FontWeight="Bold"/>
-                                        </Grid>
-                                        <Button Name="btnCloseTarget" Content="Close Target Window (Kill App)" Background="#C62828" Foreground="White" HorizontalAlignment="Left" Margin="0,20,0,0"/>
-                                    </StackPanel>
-                                    
-                                    <!-- Memory Working Set Chart -->
-                                    <StackPanel Grid.Row="1" Grid.Column="1" Spacing="10">
-                                        <TextBlock Text="Memory Usage History" FontSize="14" FontWeight="Bold"/>
-                                        <Border Background="#1e1e1e" BorderBrush="#333333" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
-                                            <Canvas Name="canvasMemoryChart" Height="140" Background="#1e1e1e"/>
-                                        </Border>
-                                    </StackPanel>
-                                    
-                                    <!-- Live Visual Controls Counts -->
-                                    <Grid Grid.Row="3" Grid.ColumnSpan="2" RowDefinitions="Auto, *" Margin="0,20,0,0">
-                                        <TextBlock Text="Live Visual Controls in Memory" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
-                                        <ListBox Name="lstLiveControls" MaxHeight="250" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid ColumnDefinitions="*, 100">
-                                                        <TextBlock Text="{Binding Type}" FontWeight="Bold" Margin="5"/>
-                                                        <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" Margin="5"/>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                    </Grid>
-                                </Grid>
-                            </ScrollViewer>
-                        </TabItem>
-
-                        <!-- Network Tab -->
-                        <TabItem Header="Network">
-                            <Grid RowDefinitions="Auto, *" Margin="0,10,0,0">
-                                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
-                                    <Button Name="btnClearNetwork" Content="Clear Logs"/>
+                            <!-- Actions Footer -->
+                            <Grid Grid.Row="2" ColumnDefinitions="Auto, *, Auto" Margin="0,8,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                    <TextBlock Text="Inspected:" Foreground="#9aa0a6" FontSize="11"/>
+                                    <TextBlock Name="txtSelectedNodeId" Text="None" FontWeight="Bold" Foreground="#8ab4f8" FontSize="11"/>
                                 </StackPanel>
-                                <Grid Grid.Row="1" ColumnDefinitions="*, 350">
-                                    <!-- Requests Table -->
-                                    <ListBox Name="lstNetworkRequests" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid ColumnDefinitions="*, 80, 80, 80, 80" Margin="2">
-                                                    <TextBlock Text="{Binding Url}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="5,0"/>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Method}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#E0A75E"/>
-                                                    <TextBlock Grid.Column="2" Text="{Binding Status}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#A5D6A7"/>
-                                                    <TextBlock Grid.Column="3" Text="{Binding Type}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#888888"/>
-                                                    <TextBlock Grid.Column="4" Text="{Binding Time}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#55C2FF"/>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                                    <Button Name="btnFocus" Content="Scroll Into View" Height="28" Padding="10,0"/>
+                                    <CheckBox Name="chkHighlight" Content="Inspect Highlight" FontSize="11" Margin="5,0" VerticalAlignment="Center"/>
+                                    <Button Name="btnDeleteControl" Content="Delete Element" Height="28" Padding="10,0" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c"/>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+
+                        <!-- Splitter -->
+                        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                        <!-- Styles & Attributes sidebar (Right Side) -->
+                        <Grid Grid.Column="2" Margin="10">
+                            <TabControl Padding="0,5,0,0">
+                                <!-- Styles subtab -->
+                                <TabItem Header="Styles">
+                                    <TabControl Padding="0,5,0,0" Margin="0,5,0,0">
+                                        <TabItem Header="Inline styles">
+                                            <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
+                                                <ListBox Name="listCssProperties">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid ColumnDefinitions="*, Auto">
+                                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                    <TextBlock Text="{Binding Name}" Foreground="#f28b82" FontWeight="SemiBold" FontSize="12"/>
+                                                                    <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
+                                                                    <TextBlock Text="{Binding Value}" Foreground="#e8eaed" FontSize="12"/>
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                                <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
+                                                    <TextBox Name="txtStyleText" Watermark="Add style rule (e.g. background: red)..." Height="28" VerticalContentAlignment="Center"/>
+                                                    <Button Name="btnApplyStyleText" Grid.Column="1" Content="Apply" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                                                 </Grid>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                    
-                                    <!-- Request Details Side Panel -->
-                                    <Border Grid.Column="1" BorderBrush="#252525" BorderThickness="1,0,0,0" Margin="10,0,0,0" Padding="10,0,0,0">
-                                        <ScrollViewer>
-                                            <StackPanel Spacing="15">
-                                                <TextBlock Text="Request Details" FontSize="15" FontWeight="Bold"/>
-                                                <StackPanel Spacing="3">
-                                                    <TextBlock Text="URL:" Foreground="#888888" FontSize="11"/>
-                                                    <TextBlock Name="lblNetUrl" Text="Select a request" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                                <StackPanel Spacing="5">
-                                                    <TextBlock Text="Headers:" Foreground="#888888" FontSize="11"/>
-                                                    <TextBlock Text="Request Headers" FontWeight="Bold" FontSize="12"/>
-                                                    <TextBox Name="txtNetReqHeaders" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" FontSize="11" Background="#0C0C0C" BorderBrush="#252525"/>
-                                                    <TextBlock Text="Response Headers" FontWeight="Bold" FontSize="12" Margin="0,5,0,0"/>
-                                                    <TextBox Name="txtNetResHeaders" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" FontSize="11" Background="#0C0C0C" BorderBrush="#252525"/>
-                                                </StackPanel>
-                                                <StackPanel Spacing="5">
-                                                    <TextBlock Text="Response Preview:" Foreground="#888888" FontSize="11"/>
-                                                    <TextBox Name="txtNetBody" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="150" FontSize="11" Background="#0C0C0C" BorderBrush="#252525"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Grid>
-                            </Grid>
-                        </TabItem>
-
-                        <!-- Sources Tab -->
-                        <TabItem Header="Sources">
-                            <Grid ColumnDefinitions="250, *" Margin="0,10,0,0">
-                                <!-- Workspace File Explorer TreeView -->
-                                <Border BorderBrush="#252525" BorderThickness="0,0,1,0" Padding="0,0,10,0">
-                                    <Grid RowDefinitions="Auto, *">
-                                        <TextBlock Text="Workspace Files" FontSize="14" FontWeight="Bold" Margin="0,0,0,5"/>
-                                        <TreeView Name="treeWorkspaceFiles" Grid.Row="1" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
-                                            <TreeView.ItemTemplate>
-                                                <TreeDataTemplate ItemsSource="{Binding Children}">
-                                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </TreeDataTemplate>
-                                            </TreeView.ItemTemplate>
-                                        </TreeView>
-                                    </Grid>
-                                </Border>
-                                
-                                <!-- File Content Viewer -->
-                                <Grid Grid.Column="1" RowDefinitions="Auto, *" Margin="10,0,0,0">
-                                    <TextBlock Name="lblSourceFileName" Text="Select a file from workspace" FontSize="14" FontWeight="Bold" Margin="0,0,0,5"/>
-                                    <TextBox Name="txtSourceContent" Grid.Row="1" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" IsReadOnly="True" AcceptsReturn="True" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" Background="#0C0C0C" BorderBrush="#252525"/>
-                                </Grid>
-                            </Grid>
-                        </TabItem>
-                    </TabControl>
-                </Border>
-            </Grid>
-
-            <!-- Column Splitter 2 -->
-            <GridSplitter Grid.Column="3" Background="Transparent"/>
-
-            <!-- Right Column: Styles & Attributes Editor -->
-            <Grid Grid.Column="4" RowDefinitions="Auto, *">
-                <TextBlock Text="Inspection Properties" Classes="panel-header"/>
-
-                <Border Grid.Row="1" Classes="panel-card">
-                    <TabControl Padding="0,10,0,0">
-                        <!-- Attributes Tab -->
-                        <TabItem Header="Attributes">
-                            <Grid RowDefinitions="*, Auto" Margin="0,10,0,0">
-                                <ListBox Name="listAttributes" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ColumnDefinitions="*, Auto">
-                                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                                    <TextBlock Text="{Binding Name}" Foreground="#E0A75E" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="=" Foreground="#888888"/>
-                                                    <TextBlock Text="{Binding Value}" Foreground="#A5D6A7"/>
-                                                </StackPanel>
                                             </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                                        </TabItem>
+                                        <TabItem Header="Computed rules">
+                                            <ListBox Name="listComputedStyles" Margin="0,5,0,0">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid ColumnDefinitions="*, Auto">
+                                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                <TextBlock Text="{Binding Name}" Foreground="#81c995" FontWeight="SemiBold" FontSize="12"/>
+                                                                <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
+                                                                <TextBlock Text="{Binding Value}" Foreground="#e8eaed" FontSize="12"/>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </TabItem>
+                                    </TabControl>
+                                </TabItem>
 
-                                <StackPanel Grid.Row="1" Spacing="8" Margin="0,10,0,0">
-                                    <Grid ColumnDefinitions="*, *">
-                                        <TextBox Name="txtAttrName" Watermark="Name" Height="30" VerticalContentAlignment="Center"/>
-                                        <TextBox Name="txtAttrValue" Grid.Column="1" Watermark="Value" Margin="5,0,0,0" Height="30" VerticalContentAlignment="Center"/>
-                                    </Grid>
-                                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
-                                        <Button Name="btnDeleteAttr" Content="Delete" Background="#C62828" Foreground="White"/>
-                                        <Button Name="btnApplyAttr" Content="Set / Add" Background="#2E7D32" Foreground="White"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Grid>
-                        </TabItem>
-
-                        <!-- CLR Properties Tab -->
-                        <TabItem Header="C# Properties">
-                            <Grid RowDefinitions="*, Auto" Margin="0,10,0,0">
-                                <ListBox Name="listProperties" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ColumnDefinitions="*, Auto">
-                                                <StackPanel Spacing="2">
-                                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                                        <TextBlock Text="{Binding Name}" Foreground="#90CAF9" FontWeight="SemiBold"/>
-                                                        <TextBlock Text=":" Foreground="#888888"/>
-                                                        <TextBlock Text="{Binding Value}" Foreground="#CCCCCC" TextWrapping="Wrap"/>
-                                                    </StackPanel>
-                                                    <TextBlock Text="{Binding Type, StringFormat='({0})'}" Foreground="#555555" FontSize="10"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-
-                                <StackPanel Grid.Row="1" Spacing="8" Margin="0,10,0,0">
-                                    <Grid ColumnDefinitions="Auto, *">
-                                        <TextBlock Text="Selected:" VerticalAlignment="Center" Foreground="#888888" Margin="0,0,10,0"/>
-                                        <TextBlock Name="lblSelectedProperty" Grid.Column="1" Text="None" FontWeight="Bold" Foreground="#90CAF9" VerticalAlignment="Center"/>
-                                    </Grid>
-                                    <TextBox Name="txtPropertyValue" Watermark="Enter new property value..."/>
-                                    <Button Name="btnApplyProperty" Content="Mutate Property" Background="#2E7D32" Foreground="White" HorizontalAlignment="Right"/>
-                                </StackPanel>
-                            </Grid>
-                        </TabItem>
-
-                        <!-- CSS Styles Tab -->
-                        <TabItem Header="CSS Styles">
-                            <TabControl Padding="0,5,0,0" Margin="0,5,0,0">
-                                <TabItem Header="Inline">
+                                <!-- Attributes subtab -->
+                                <TabItem Header="Attributes">
                                     <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
-                                        <ListBox Name="listCssProperties" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4">
+                                        <ListBox Name="listAttributes">
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
                                                     <Grid ColumnDefinitions="*, Auto">
                                                         <StackPanel Orientation="Horizontal" Spacing="5">
-                                                            <TextBlock Text="{Binding Name}" Foreground="#FF4081" FontWeight="SemiBold"/>
-                                                            <TextBlock Text=":" Foreground="#888888"/>
-                                                            <TextBlock Text="{Binding Value}" Foreground="#E0E0E0"/>
+                                                            <TextBlock Text="{Binding Name}" Foreground="#fdd663" FontWeight="SemiBold" FontSize="12"/>
+                                                            <TextBlock Text="=" Foreground="#9aa0a6" FontSize="12"/>
+                                                            <TextBlock Text="{Binding Value}" Foreground="#81c995" FontSize="12"/>
                                                         </StackPanel>
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
-        
-                                        <StackPanel Grid.Row="1" Spacing="8" Margin="0,10,0,0">
-                                            <TextBlock Text="Edit Style Text:" Foreground="#888888" FontSize="11"/>
-                                            <TextBox Name="txtStyleText" Watermark="e.g. width: 200px; height: 100px;"/>
-                                            <Button Name="btnApplyStyleText" Content="Apply Style Text" Background="#2E7D32" Foreground="White" HorizontalAlignment="Right"/>
-                                        </StackPanel>
+                                        <Grid Grid.Row="1" ColumnDefinitions="*, *, Auto, Auto" Margin="0,8,0,0">
+                                            <TextBox Name="txtAttrName" Watermark="Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox Grid.Column="1" Name="txtAttrValue" Watermark="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                                            <Button Grid.Column="2" Name="btnApplyAttr" Content="Apply" Padding="10,0" Height="28" Margin="0,0,4,0"/>
+                                            <Button Grid.Column="3" Name="btnDeleteAttr" Content="Delete" Padding="10,0" Height="28"/>
+                                        </Grid>
                                     </Grid>
                                 </TabItem>
-                                <TabItem Header="Computed">
-                                    <ListBox Name="listComputedStyles" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4" Margin="0,5,0,0">
+
+                                <!-- Properties subtab -->
+                                <TabItem Header="Properties">
+                                    <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
+                                        <ListBox Name="listProperties">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid ColumnDefinitions="*, Auto">
+                                                        <StackPanel Spacing="2">
+                                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                <TextBlock Text="{Binding Name}" Foreground="#8ab4f8" FontWeight="SemiBold" FontSize="12"/>
+                                                                <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
+                                                                <TextBlock Text="{Binding Value}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Type, StringFormat='({0})'}" Foreground="#9aa0a6" FontSize="10"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, *, Auto" Margin="0,8,0,0">
+                                            <TextBlock Text="Selected:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,5,0" FontSize="11"/>
+                                            <TextBlock Name="lblSelectedProperty" Text="None" FontWeight="Bold" Foreground="#8ab4f8" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"/>
+                                            <TextBox Grid.Column="2" Name="txtPropertyValue" Watermark="Value..." Height="28" VerticalContentAlignment="Center"/>
+                                            <Button Grid.Column="3" Name="btnApplyProperty" Content="Set" Margin="5,0,0,0" Padding="10,0" Height="28"/>
+                                        </Grid>
+                                    </Grid>
+                                </TabItem>
+
+                                <!-- Event Listeners subtab -->
+                                <TabItem Header="Event Listeners">
+                                    <ListBox Name="listEventListeners" Margin="0,5,0,0">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid ColumnDefinitions="*, Auto">
-                                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                                        <TextBlock Text="{Binding Name}" Foreground="#00E676" FontWeight="SemiBold"/>
-                                                        <TextBlock Text=":" Foreground="#888888"/>
-                                                        <TextBlock Text="{Binding Value}" Foreground="#E0E0E0"/>
+                                                    <StackPanel Spacing="2" Margin="2">
+                                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                                            <TextBlock Text="{Binding Type}" Foreground="#fdd663" FontWeight="SemiBold" FontSize="12"/>
+                                                            <TextBlock Text="➔" Foreground="#9aa0a6" FontSize="12"/>
+                                                            <TextBlock Text="{Binding HandlerName}" Foreground="#81c995" FontSize="12"/>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding CaptureText, StringFormat='(Capture: {0})'}" Foreground="#9aa0a6" FontSize="10"/>
                                                     </StackPanel>
                                                 </Grid>
                                             </DataTemplate>
@@ -475,69 +295,339 @@
                                     </ListBox>
                                 </TabItem>
                             </TabControl>
-                        </TabItem>
+                        </Grid>
+                    </Grid>
+                </TabItem>
 
-                        <!-- Event Listeners Tab -->
-                        <TabItem Header="Event Listeners">
-                            <ListBox Name="listEventListeners" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4" Margin="0,10,0,0">
+                <!-- 2. CONSOLE PANEL -->
+                <TabItem Header="Console">
+                    <Grid RowDefinitions="*, Auto" Margin="10">
+                        <Grid RowDefinitions="Auto, *">
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
+                                <Button Name="btnClearLogs" Content="Clear Console"/>
+                                <TextBlock Text="Broadcasting diagnostics traces and C# script logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
+                            </StackPanel>
+
+                            <!-- Logs Console List -->
+                            <ListBox Name="listLogs" Grid.Row="1">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <StackPanel Spacing="2" Margin="2">
-                                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                                    <TextBlock Text="{Binding Type}" Foreground="#E0A75E" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="➔" Foreground="#888888"/>
-                                                    <TextBlock Text="{Binding HandlerName}" Foreground="#A5D6A7"/>
-                                                </StackPanel>
-                                                <TextBlock Text="{Binding CaptureText, StringFormat='(Capture: {0})'}" Foreground="#555555" FontSize="10"/>
-                                            </StackPanel>
+                                        <Grid ColumnDefinitions="Auto, Auto, *">
+                                            <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Foreground="#9aa0a6" Width="90" FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" Width="70" Margin="10,0" FontSize="12"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Text}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                        </TabItem>
+                        </Grid>
 
-                        <!-- Application Tab -->
-                        <TabItem Header="Application">
-                            <Grid RowDefinitions="*, Auto" Margin="0,10,0,0">
-                                <Grid RowDefinitions="Auto, *">
-                                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
-                                        <Button Name="btnRefreshResources" Content="Refresh Resources"/>
-                                        <Button Name="btnAddResource" Content="Add Resource" Classes="accent"/>
-                                    </StackPanel>
-                                    <ListBox Name="lstApplicationResources" Grid.Row="1" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4" MaxHeight="300">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid ColumnDefinitions="*, *, Auto">
-                                                    <TextBlock Text="{Binding Key}" FontWeight="Bold" Margin="5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Value}" TextTrimming="CharacterEllipsis" Margin="5" VerticalAlignment="Center" Foreground="#888888"/>
-                                                    <Button Grid.Column="2" Name="btnDeleteResource" Content="Delete" Tag="{Binding Key}" Click="BtnDeleteResource_Click" Background="#C62828" Foreground="White" Margin="5,0" FontSize="10"/>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </Grid>
-                                
-                                <!-- Edit/Add Resource Panel -->
-                                <Border Grid.Row="1" BorderBrush="#252525" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Edit / Add Resource" FontWeight="Bold" FontSize="12"/>
-                                        <Grid ColumnDefinitions="75, *">
-                                            <TextBlock Text="Key:" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox Name="txtResourceKey" Grid.Column="1" Background="#0C0C0C" BorderBrush="#252525" FontSize="11"/>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="75, *">
-                                            <TextBlock Text="Value:" VerticalAlignment="Center" FontSize="11"/>
-                                            <TextBox Name="txtResourceValue" Grid.Column="1" Background="#0C0C0C" BorderBrush="#252525" FontSize="11"/>
-                                        </Grid>
-                                        <Button Name="btnSaveResource" Content="Save / Update" Classes="accent" HorizontalAlignment="Right" FontSize="11"/>
-                                    </StackPanel>
-                                </Border>
+                        <!-- Script Evaluator input -->
+                        <Grid Grid.Row="1" RowDefinitions="Auto, Auto" Margin="0,10,0,0">
+                            <!-- Evaluations history -->
+                            <ListBox Name="listConsole" MaxHeight="120" Margin="0,0,0,8" Background="#202124" BorderBrush="#3c4043">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="2">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="❯ " Foreground="#8ab4f8" FontWeight="Bold" FontSize="12"/>
+                                                <TextBlock Text="{Binding Expression}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="15,2,0,0">
+                                                <TextBlock Text="value: " Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBrush}" TextWrapping="Wrap" FontSize="12"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            
+                            <Grid ColumnDefinitions="*, Auto">
+                                <TextBox Name="txtConsoleInput" Watermark="Enter C# Interactive command (use inspected $0 variable)..." Height="28" VerticalContentAlignment="Center"/>
+                                <Button Name="btnSendConsole" Grid.Column="1" Content="Evaluate" Margin="5,0,0,0" Padding="15,0" Height="28" Classes="accent"/>
                             </Grid>
-                        </TabItem>
-                    </TabControl>
-                </Border>
-            </Grid>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- 3. SOURCES PANEL -->
+                <TabItem Header="Sources">
+                    <Grid ColumnDefinitions="260, 4, *" Margin="10">
+                        <!-- Left Workspace navigator -->
+                        <Grid RowDefinitions="Auto, *">
+                            <TextBlock Text="Workspace Navigator" Classes="panel-header"/>
+                            <TreeView Name="treeWorkspaceFiles" Grid.Row="1">
+                                <TreeView.ItemTemplate>
+                                    <TreeDataTemplate ItemsSource="{Binding Children}">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
+                                        </StackPanel>
+                                    </TreeDataTemplate>
+                                </TreeView.ItemTemplate>
+                            </TreeView>
+                        </Grid>
+
+                        <!-- Splitter -->
+                        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                        <!-- Code Viewer -->
+                        <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                            <TextBlock Name="lblSourceFileName" Text="Select a file from workspace" Classes="panel-header"/>
+                            <TextBox Name="txtSourceContent" Grid.Row="1" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" IsReadOnly="True" AcceptsReturn="True" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- 4. NETWORK PANEL -->
+                <TabItem Header="Network">
+                    <Grid RowDefinitions="Auto, *" Margin="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
+                            <Button Name="btnClearNetwork" Content="Clear Network Log"/>
+                            <TextBlock Text="Captures outbound HTTP requests from HttpClient instances" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
+                        </StackPanel>
+
+                        <Grid Grid.Row="1" ColumnDefinitions="*, 4, 380">
+                            <!-- List -->
+                            <ListBox Name="lstNetworkRequests">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="*, 80, 80, 80, 80" Margin="2">
+                                            <TextBlock Text="{Binding Url}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="5,0" FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Method}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#fdd663" FontSize="12"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Status}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#81c995" FontSize="12"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding Type}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="12"/>
+                                            <TextBlock Grid.Column="4" Text="{Binding Time}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#8ab4f8" FontSize="12"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                            <!-- Details drawer -->
+                            <Border Grid.Column="2" BorderBrush="#3c4043" BorderThickness="1,0,0,0" Margin="10,0,0,0" Padding="10,0,0,0">
+                                <ScrollViewer>
+                                    <StackPanel Spacing="15">
+                                        <TextBlock Text="Headers &amp; Content Preview" FontSize="14" FontWeight="Bold" Foreground="#e8eaed"/>
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="Request URL:" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBlock Name="lblNetUrl" Text="Select a request to inspect" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        </StackPanel>
+                                        <StackPanel Spacing="5">
+                                            <TextBlock Text="Request Headers:" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Name="txtNetReqHeaders" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="100" FontSize="11"/>
+                                            <TextBlock Text="Response Headers:" Foreground="#9aa0a6" FontSize="11" Margin="0,5,0,0"/>
+                                            <TextBox Name="txtNetResHeaders" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="100" FontSize="11"/>
+                                        </StackPanel>
+                                        <StackPanel Spacing="5">
+                                            <TextBlock Text="Response Body Preview:" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Name="txtNetBody" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="150" FontSize="11"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- 5. PERFORMANCE PANEL -->
+                <TabItem Header="Performance">
+                    <Grid ColumnDefinitions="*, 4, *" RowDefinitions="*, 4, *" Margin="10">
+                        <!-- Stats (Top Left) -->
+                        <Grid Grid.Row="0" Grid.Column="0" RowDefinitions="Auto, *" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
+                                <Button Name="btnRefreshMetrics" Content="Refresh Metrics" Classes="accent"/>
+                                <Button Name="btnCollectGarbage" Content="Collect Garbage" Background="#2e7d32" Foreground="White" BorderBrush="#2e7d32"/>
+                            </StackPanel>
+                            <ScrollViewer Grid.Row="1">
+                                <StackPanel Spacing="12" Margin="0,5,0,0">
+                                    <TextBlock Text="Diagnostics Info" FontSize="14" FontWeight="Bold" Foreground="#e8eaed" Margin="0,0,0,5"/>
+                                    <Grid ColumnDefinitions="150, *">
+                                        <TextBlock Text="Visual Nodes:" Foreground="#9aa0a6"/>
+                                        <TextBlock Name="lblPerfNodes" Grid.Column="1" Text="--" FontWeight="Bold" Foreground="#e8eaed"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="150, *">
+                                        <TextBlock Text="Target Windows:" Foreground="#9aa0a6"/>
+                                        <TextBlock Name="lblPerfDocuments" Grid.Column="1" Text="--" FontWeight="Bold" Foreground="#e8eaed"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="150, *">
+                                        <TextBlock Text="Working Set Size:" Foreground="#9aa0a6"/>
+                                        <TextBlock Name="lblPerfMemory" Grid.Column="1" Text="--" FontWeight="Bold" Foreground="#e8eaed"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="150, *">
+                                        <TextBlock Text="GC Total Memory:" Foreground="#9aa0a6"/>
+                                        <TextBlock Name="lblPerfGc" Grid.Column="1" Text="--" FontWeight="Bold" Foreground="#e8eaed"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="150, *">
+                                        <TextBlock Text="Process PID:" Foreground="#9aa0a6"/>
+                                        <TextBlock Name="lblPerfPid" Grid.Column="1" Text="--" FontWeight="Bold" Foreground="#e8eaed"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="150, *">
+                                        <TextBlock Text="Operating System:" Foreground="#9aa0a6"/>
+                                        <TextBlock Name="lblPerfOs" Grid.Column="1" Text="--" TextWrapping="Wrap" Foreground="#e8eaed"/>
+                                    </Grid>
+                                    <Button Name="btnCloseTarget" Content="Kill Target App" Background="#c5221f" Foreground="White" BorderBrush="#c5221f" Margin="0,15,0,0"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <!-- Chart (Top Right) -->
+                        <Grid Grid.Row="0" Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                            <TextBlock Text="Memory Usage Timeline (MB)" Classes="panel-header"/>
+                            <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
+                                <Canvas Name="canvasMemoryChart" Height="140" Background="#292a2d"/>
+                            </Border>
+                        </Grid>
+
+                        <GridSplitter Grid.Row="1" Grid.ColumnSpan="3" Background="#3c4043"/>
+
+                        <!-- Visual Leaks counts (Bottom Half) -->
+                        <Grid Grid.Row="2" Grid.ColumnSpan="3" RowDefinitions="Auto, *" Margin="0,10,0,0">
+                            <TextBlock Text="Live Control Type Counts in Memory" Classes="panel-header"/>
+                            <ListBox Name="lstLiveControls" Grid.Row="1">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="*, 100">
+                                            <TextBlock Text="{Binding Type}" FontWeight="Bold" Margin="5" FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" Margin="5" FontSize="12"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- 6. APPLICATION PANEL -->
+                <TabItem Header="Application">
+                    <Grid ColumnDefinitions="250, 4, *" Margin="10">
+                        <!-- Sidebar tree -->
+                        <Grid RowDefinitions="Auto, *">
+                            <TextBlock Text="Application Data" Classes="panel-header"/>
+                            <TreeView Name="treeAppNav" Grid.Row="1">
+                                <TreeView.ItemTemplate>
+                                    <TreeDataTemplate ItemsSource="{Binding Children}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
+                                        </StackPanel>
+                                    </TreeDataTemplate>
+                                </TreeView.ItemTemplate>
+                            </TreeView>
+                        </Grid>
+
+                        <!-- Splitter -->
+                        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                        <!-- Editor -->
+                        <Grid Name="gridResourceEditor" Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0" IsVisible="False">
+                            <Grid ColumnDefinitions="*, Auto">
+                                <TextBlock Text="Global Application Resources" Classes="panel-header"/>
+                                <Button Grid.Column="1" Name="btnRefreshResources" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
+                            </Grid>
+                            
+                            <ListBox Name="lstApplicationResources" Grid.Row="1">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="*, *, Auto">
+                                            <TextBlock Text="{Binding Key}" FontWeight="Bold" Margin="5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}" TextTrimming="CharacterEllipsis" Margin="5" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="12"/>
+                                            <Button Grid.Column="2" Name="btnDeleteResource" Content="Delete" Tag="{Binding Key}" Click="BtnDeleteResource_Click" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Margin="5,0" Padding="8,2" FontSize="10"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <!-- Modifier Panel -->
+                            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                                <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
+                                    <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Global Resource Entry" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
+                                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtResourceKey" Watermark="Resource Key Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtResourceValue" Watermark="Value (Hex Color, Brush, Double...)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                                    <Button Grid.Row="1" Grid.Column="2" Name="btnSaveResource" Content="Save Resource" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
+                                    <Button Grid.Row="1" Grid.Column="3" Name="btnAddResource" Content="Add New" Height="28" Padding="12,0"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- 7. SIMULATION PANEL (Device, Input, Screenshot) -->
+                <TabItem Header="Simulation">
+                    <Grid ColumnDefinitions="*, 4, *" Margin="10">
+                        <!-- Left: Input & Interaction Simulation -->
+                        <Grid RowDefinitions="Auto, *" Margin="0,0,10,0">
+                            <TextBlock Text="Input &amp; Interaction Simulation" Classes="panel-header"/>
+                            <Border Classes="panel-card" Grid.Row="1">
+                                <ScrollViewer>
+                                    <StackPanel Spacing="15">
+                                        <!-- Mouse Click -->
+                                        <StackPanel Spacing="5">
+                                            <TextBlock Text="Mouse Events" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <Button Name="btnClick" Content="Click Element Center" Classes="accent"/>
+                                                <TextBlock Text="(Simulates click at center of selected element)" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        
+                                        <!-- Scroll -->
+                                        <StackPanel Spacing="5">
+                                            <TextBlock Text="Scroll / Mouse Wheel" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <TextBlock Text="Delta Y:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Name="txtScrollDeltaY" Text="100" Width="80" Height="28" VerticalContentAlignment="Center"/>
+                                                <Button Name="btnScroll" Content="Scroll"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        
+                                        <!-- Keyboard Input -->
+                                        <StackPanel Spacing="5">
+                                            <TextBlock Text="Keyboard Input" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
+                                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                                                <TextBox Name="txtInputSim" Watermark="Type text to insert..." Height="28" VerticalContentAlignment="Center"/>
+                                                <Button Name="btnSendText" Grid.Column="1" Content="Insert Text" Margin="5,0,0,0"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*, Auto">
+                                                <ComboBox Name="cbKeys" PlaceholderText="Select Key..." Height="28" HorizontalAlignment="Stretch"/>
+                                                <Button Name="btnSendKey" Grid.Column="1" Content="Press Key" Margin="5,0,0,0"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                        
+                        <!-- Splitter -->
+                        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+                        
+                        <!-- Right: Device Emulation & Screenshot -->
+                        <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                            <TextBlock Text="Device Emulation &amp; Screenshot" Classes="panel-header"/>
+                            <Border Classes="panel-card" Grid.Row="1">
+                                <Grid RowDefinitions="Auto, *">
+                                    <!-- Emulation Controls -->
+                                    <StackPanel Spacing="10" Grid.Row="0" Margin="0,0,0,10">
+                                        <Grid ColumnDefinitions="*, *, Auto, Auto">
+                                            <TextBox Name="txtWidth" Text="1024" Watermark="Width" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                                            <TextBox Grid.Column="1" Name="txtHeight" Text="768" Watermark="Height" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                                            <Button Grid.Column="2" Name="btnResize" Content="Apply Size" Classes="accent" Height="28" Margin="0,0,5,0"/>
+                                            <Button Grid.Column="3" Name="btnResizeReset" Content="Reset" Height="28"/>
+                                        </Grid>
+                                        <Button Name="btnCaptureScreenshot" Content="Capture Screenshot" HorizontalAlignment="Stretch" Height="28"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Screenshot display -->
+                                    <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                            <Image Name="imgScreenshot" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+            </TabControl>
         </Grid>
     </Grid>
 </Window>

@@ -101,6 +101,19 @@ public partial class MainWindow : Window
         // Populate Keys ComboBox
         cbKeys.ItemsSource = new List<string> { "Enter", "Tab", "Escape", "Space", "Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End" };
 
+        // Populate Application navigation tree
+        var appRoot = new AppNavNode("Application");
+        var resNode = new AppNavNode("Global Resources");
+        appRoot.Children.Add(resNode);
+        appRoot.Children.Add(new AppNavNode("Preferences & Themes"));
+        
+        var appNavItems = new ObservableCollection<AppNavNode> { appRoot };
+        treeAppNav.ItemsSource = appNavItems;
+        appRoot.IsExpanded = true;
+        resNode.IsSelected = true;
+
+        treeAppNav.SelectionChanged += TreeAppNav_SelectionChanged;
+
         // Scan targets on load
         Dispatcher.UIThread.Post(() => BtnRefreshTargets_Click(null, null!));
     }
@@ -1796,5 +1809,47 @@ public partial class MainWindow : Window
         {
             Console.WriteLine($"Error collecting garbage: {ex.Message}");
         }
+    }
+
+    private void TreeAppNav_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var selected = treeAppNav.SelectedItem as AppNavNode;
+        if (selected != null && selected.Name == "Global Resources")
+        {
+            gridResourceEditor.IsVisible = true;
+        }
+        else
+        {
+            gridResourceEditor.IsVisible = false;
+        }
+    }
+}
+
+public class AppNavNode : System.ComponentModel.INotifyPropertyChanged
+{
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { _isSelected = value; OnPropertyChanged(); }
+    }
+
+    private bool _isExpanded;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set { _isExpanded = value; OnPropertyChanged(); }
+    }
+
+    public string Name { get; set; } = "";
+    public ObservableCollection<AppNavNode> Children { get; } = new();
+
+    public AppNavNode(string name)
+    {
+        Name = name;
     }
 }
