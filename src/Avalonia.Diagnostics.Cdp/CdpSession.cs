@@ -19,6 +19,7 @@ public class CdpSession
 {
     private readonly WebSocket _webSocket;
     private readonly CancellationTokenSource _cts = new();
+    private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
 
     public TopLevel Window { get; }
     public NodeMap NodeMap { get; } = new();
@@ -229,7 +230,18 @@ public class CdpSession
     {
         if (_webSocket.State != WebSocketState.Open) return;
         var bytes = Encoding.UTF8.GetBytes(node.ToJsonString());
-        await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        await _sendSemaphore.WaitAsync();
+        try
+        {
+            if (_webSocket.State == WebSocketState.Open)
+            {
+                await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+        }
+        finally
+        {
+            _sendSemaphore.Release();
+        }
     }
 
     private bool _screencastEnabled;
@@ -333,5 +345,6 @@ public class CdpSession
         NodeMap.Clear();
         RemoteObjects.Clear();
         HighlightOverlayManager.HideHighlight(Window);
+        _sendSemaphore.Dispose();
     }
 }
