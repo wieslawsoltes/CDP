@@ -22,6 +22,10 @@ public static class CdpDispatcher
         {
             case "DOM":
                 return await DomDomain.HandleAsync(session, action, @params);
+            case "DOMDebugger":
+                return await DomDebuggerDomain.HandleAsync(session, action, @params);
+            case "Memory":
+                return await MemoryDomain.HandleAsync(session, action, @params);
             case "CSS":
                 return await CssDomain.HandleAsync(session, action, @params);
             case "Input":
