@@ -1627,6 +1627,11 @@ public partial class MainWindow : Window
         double height = stepJson["height"]?.GetValue<double>() ?? 0;
         string url = stepJson["url"]?.GetValue<string>() ?? "";
         string keyVal = stepJson["key"]?.GetValue<string>() ?? "";
+        string button = stepJson["button"]?.GetValue<string>() ?? "left";
+        int clickCount = stepJson["clickCount"]?.GetValue<int>() ?? 1;
+        int modifiers = stepJson["modifiers"]?.GetValue<int>() ?? 0;
+        double targetOffsetX = stepJson["targetOffsetX"]?.GetValue<double>() ?? 0;
+        double targetOffsetY = stepJson["targetOffsetY"]?.GetValue<double>() ?? 0;
         
         string selector = "";
         var selectorsArr = stepJson["selectors"] as JsonArray;
@@ -1636,6 +1641,17 @@ public partial class MainWindow : Window
             if (firstSelectorGroup != null && firstSelectorGroup.Count > 0)
             {
                 selector = firstSelectorGroup[0]?.GetValue<string>() ?? "";
+            }
+        }
+
+        string targetSelector = "";
+        var targetSelectorsArr = stepJson["targetSelectors"] as JsonArray;
+        if (targetSelectorsArr != null && targetSelectorsArr.Count > 0)
+        {
+            var firstGroup = targetSelectorsArr[0] as JsonArray;
+            if (firstGroup != null && firstGroup.Count > 0)
+            {
+                targetSelector = firstGroup[0]?.GetValue<string>() ?? "";
             }
         }
 
@@ -1649,7 +1665,13 @@ public partial class MainWindow : Window
             Width = width,
             Height = height,
             Url = url,
-            Key = keyVal
+            Key = keyVal,
+            Button = button,
+            ClickCount = clickCount,
+            Modifiers = modifiers,
+            TargetSelector = targetSelector,
+            TargetOffsetX = targetOffsetX,
+            TargetOffsetY = targetOffsetY
         };
 
         _recordedSteps.Add(model);
@@ -1693,9 +1715,22 @@ public partial class MainWindow : Window
         {
             if (step.Type == "click")
             {
+                var options = new List<string>();
+                if (step.Button != "left") options.Add($"button: '{step.Button}'");
+                if (step.ClickCount > 1) options.Add($"clickCount: {step.ClickCount}");
+                string optStr = options.Count > 0 ? $"{{ {string.Join(", ", options)} }}" : "";
+
                 sb.AppendLine($"  // Click on element");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
+                }
                 sb.AppendLine($"  const element_{_recordedSteps.IndexOf(step)} = await page.waitForSelector('{step.Selector}');");
-                sb.AppendLine($"  await element_{_recordedSteps.IndexOf(step)}.click();");
+                sb.AppendLine($"  await element_{_recordedSteps.IndexOf(step)}.click({optStr});");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
+                }
             }
             else if (step.Type == "change")
             {
@@ -1713,7 +1748,30 @@ public partial class MainWindow : Window
             }
             else if (step.Type == "keydown")
             {
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
+                }
                 sb.AppendLine($"  await page.keyboard.press('{step.Key}');");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
+                }
+            }
+            else if (step.Type == "dragAndDrop")
+            {
+                sb.AppendLine($"  // Drag and drop");
+                sb.AppendLine($"  const source_{_recordedSteps.IndexOf(step)} = await page.waitForSelector('{step.Selector}');");
+                sb.AppendLine($"  const target_{_recordedSteps.IndexOf(step)} = await page.waitForSelector('{step.TargetSelector}');");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
+                }
+                sb.AppendLine($"  await source_{_recordedSteps.IndexOf(step)}.dragTo(target_{_recordedSteps.IndexOf(step)});");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
+                }
             }
             sb.AppendLine();
         }
@@ -1724,16 +1782,34 @@ public partial class MainWindow : Window
         RecorderTab.TxtGeneratedCode.Text = sb.ToString();
     }
 
+    private static List<string> GetModifiersList(int modifiers)
+    {
+        var list = new List<string>();
+        if ((modifiers & 1) != 0) list.Add("Alt");
+        if ((modifiers & 2) != 0) list.Add("Control");
+        if ((modifiers & 4) != 0) list.Add("Shift");
+        if ((modifiers & 8) != 0) list.Add("Meta");
+        return list;
+    }
+
     private async void BtnReplay_Click(object? sender, RoutedEventArgs e)
     {
         RecorderTab.BtnReplay.IsEnabled = false;
+        bool wasRecording = _isRecording;
         try
         {
+            if (wasRecording)
+            {
+                await SendCommandAsync("Recorder.stop", new JsonObject());
+            }
+
             var docRes = await SendCommandAsync("DOM.getDocument", new JsonObject());
             var root = docRes["root"] as JsonObject;
             int rootNodeId = root?["nodeId"]?.GetValue<int>() ?? 1;
 
-            foreach (var step in _recordedSteps)
+            var stepsToReplay = _recordedSteps.ToList();
+
+            foreach (var step in stepsToReplay)
             {
                 if (step.Type == "click")
                 {
@@ -1758,26 +1834,33 @@ public partial class MainWindow : Window
                             await SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
                             await Task.Delay(100);
 
-                            var pressParams = new JsonObject
+                            int clickCount = step.ClickCount > 0 ? step.ClickCount : 1;
+                            for (int c = 1; c <= clickCount; c++)
                             {
-                                ["type"] = "mousePressed",
-                                ["x"] = centerX,
-                                ["y"] = centerY,
-                                ["button"] = "left",
-                                ["clickCount"] = 1
-                            };
-                            await SendCommandAsync("Input.dispatchMouseEvent", pressParams);
-                            await Task.Delay(50);
+                                var pressParams = new JsonObject
+                                {
+                                    ["type"] = "mousePressed",
+                                    ["x"] = centerX,
+                                    ["y"] = centerY,
+                                    ["button"] = step.Button,
+                                    ["clickCount"] = c,
+                                    ["modifiers"] = step.Modifiers
+                                };
+                                await SendCommandAsync("Input.dispatchMouseEvent", pressParams);
+                                await Task.Delay(50);
 
-                            var releaseParams = new JsonObject
-                            {
-                                ["type"] = "mouseReleased",
-                                ["x"] = centerX,
-                                ["y"] = centerY,
-                                ["button"] = "left",
-                                ["clickCount"] = 1
-                            };
-                            await SendCommandAsync("Input.dispatchMouseEvent", releaseParams);
+                                var releaseParams = new JsonObject
+                                {
+                                    ["type"] = "mouseReleased",
+                                    ["x"] = centerX,
+                                    ["y"] = centerY,
+                                    ["button"] = step.Button,
+                                    ["clickCount"] = c,
+                                    ["modifiers"] = step.Modifiers
+                                };
+                                await SendCommandAsync("Input.dispatchMouseEvent", releaseParams);
+                                if (c < clickCount) await Task.Delay(50);
+                            }
                             await Task.Delay(300);
                         }
                     }
@@ -1820,16 +1903,90 @@ public partial class MainWindow : Window
                     await SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
                     {
                         ["type"] = "rawKeyDown",
-                        ["key"] = step.Key
+                        ["key"] = step.Key,
+                        ["modifiers"] = step.Modifiers
                     });
                     await Task.Delay(50);
 
                     await SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
                     {
                         ["type"] = "keyUp",
-                        ["key"] = step.Key
+                        ["key"] = step.Key,
+                        ["modifiers"] = step.Modifiers
                     });
                     await Task.Delay(150);
+                }
+                else if (step.Type == "dragAndDrop")
+                {
+                    var sourceQParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = step.Selector };
+                    var sourceQRes = await SendCommandAsync("DOM.querySelector", sourceQParams);
+                    int sourceNodeId = sourceQRes["nodeId"]?.GetValue<int>() ?? 0;
+
+                    var targetQParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = step.TargetSelector };
+                    var targetQRes = await SendCommandAsync("DOM.querySelector", targetQParams);
+                    int targetNodeId = targetQRes["nodeId"]?.GetValue<int>() ?? 0;
+
+                    if (sourceNodeId > 0 && targetNodeId > 0)
+                    {
+                        var srcBoxRes = await SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = sourceNodeId });
+                        var srcModel = srcBoxRes["model"] as JsonObject;
+                        var srcContent = srcModel?["content"] as JsonArray;
+
+                        var tgtBoxRes = await SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = targetNodeId });
+                        var tgtModel = tgtBoxRes["model"] as JsonObject;
+                        var tgtContent = tgtModel?["content"] as JsonArray;
+
+                        if (srcContent != null && srcContent.Count >= 8 && tgtContent != null && tgtContent.Count >= 8)
+                        {
+                            double srcX = srcContent[0]!.GetValue<double>() + (srcContent[4]!.GetValue<double>() - srcContent[0]!.GetValue<double>()) / 2.0;
+                            double srcY = srcContent[1]!.GetValue<double>() + (srcContent[5]!.GetValue<double>() - srcContent[1]!.GetValue<double>()) / 2.0;
+
+                            double tgtX = tgtContent[0]!.GetValue<double>() + (tgtContent[4]!.GetValue<double>() - tgtContent[0]!.GetValue<double>()) / 2.0;
+                            double tgtY = tgtContent[1]!.GetValue<double>() + (tgtContent[5]!.GetValue<double>() - tgtContent[1]!.GetValue<double>()) / 2.0;
+
+                            await SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                            {
+                                ["type"] = "mouseMoved",
+                                ["x"] = srcX,
+                                ["y"] = srcY,
+                                ["button"] = "none",
+                                ["modifiers"] = step.Modifiers
+                            });
+                            await Task.Delay(100);
+
+                            await SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                            {
+                                ["type"] = "mousePressed",
+                                ["x"] = srcX,
+                                ["y"] = srcY,
+                                ["button"] = "left",
+                                ["clickCount"] = 1,
+                                ["modifiers"] = step.Modifiers
+                            });
+                            await Task.Delay(200);
+
+                            await SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                            {
+                                ["type"] = "mouseMoved",
+                                ["x"] = tgtX,
+                                ["y"] = tgtY,
+                                ["button"] = "left",
+                                ["modifiers"] = step.Modifiers
+                            });
+                            await Task.Delay(200);
+
+                            await SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                            {
+                                ["type"] = "mouseReleased",
+                                ["x"] = tgtX,
+                                ["y"] = tgtY,
+                                ["button"] = "left",
+                                ["clickCount"] = 1,
+                                ["modifiers"] = step.Modifiers
+                            });
+                            await Task.Delay(300);
+                        }
+                    }
                 }
             }
         }
@@ -1839,6 +1996,17 @@ public partial class MainWindow : Window
         }
         finally
         {
+            if (wasRecording)
+            {
+                try
+                {
+                    await SendCommandAsync("Recorder.start", new JsonObject());
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error resuming recording after replay: {ex.Message}");
+                }
+            }
             RecorderTab.BtnReplay.IsEnabled = _recordedSteps.Count > 0;
         }
     }
@@ -1893,13 +2061,53 @@ public partial class MainWindow : Window
                 {
                     ["title"] = $"Recording {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
                     ["steps"] = new JsonArray(
-                        _recordedSteps.Select(s => new JsonObject
-                        {
-                            ["type"] = s.Type,
-                            ["selectors"] = new JsonArray { new JsonArray { s.Selector } },
-                            ["value"] = s.Value,
-                            ["offsetX"] = s.OffsetX,
-                            ["offsetY"] = s.OffsetY
+                        _recordedSteps.Select(s => {
+                            var stepObj = new JsonObject
+                            {
+                                ["type"] = s.Type
+                            };
+                            
+                            if (s.Type == "setViewport")
+                            {
+                                stepObj["width"] = s.Width;
+                                stepObj["height"] = s.Height;
+                            }
+                            else if (s.Type == "navigate")
+                            {
+                                stepObj["url"] = s.Url;
+                            }
+                            else if (s.Type == "keydown")
+                            {
+                                stepObj["key"] = s.Key;
+                                if (s.Modifiers > 0) stepObj["modifiers"] = s.Modifiers;
+                            }
+                            else if (s.Type == "dragAndDrop")
+                            {
+                                stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };
+                                stepObj["targetSelectors"] = new JsonArray { new JsonArray { s.TargetSelector } };
+                                stepObj["offsetX"] = s.OffsetX;
+                                stepObj["offsetY"] = s.OffsetY;
+                                stepObj["targetOffsetX"] = s.TargetOffsetX;
+                                stepObj["targetOffsetY"] = s.TargetOffsetY;
+                                if (s.Modifiers > 0) stepObj["modifiers"] = s.Modifiers;
+                            }
+                            else // click, change
+                            {
+                                stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };
+                                if (s.Type == "change")
+                                {
+                                    stepObj["value"] = s.Value;
+                                }
+                                else if (s.Type == "click")
+                                {
+                                    stepObj["offsetX"] = s.OffsetX;
+                                    stepObj["offsetY"] = s.OffsetY;
+                                    stepObj["button"] = s.Button;
+                                    stepObj["clickCount"] = s.ClickCount;
+                                    if (s.Modifiers > 0) stepObj["modifiers"] = s.Modifiers;
+                                }
+                            }
+                            return (JsonNode)stepObj;
                         }).ToArray()
                     )
                 };
@@ -1958,7 +2166,13 @@ public partial class MainWindow : Window
                     Width = step.Width,
                     Height = step.Height,
                     Url = step.Url,
-                    Key = step.Key
+                    Key = step.Key,
+                    Button = step.Button,
+                    ClickCount = step.ClickCount,
+                    Modifiers = step.Modifiers,
+                    TargetSelector = step.TargetSelector,
+                    TargetOffsetX = step.TargetOffsetX,
+                    TargetOffsetY = step.TargetOffsetY
                 });
             }
 
@@ -1987,7 +2201,13 @@ public partial class MainWindow : Window
                 Width = step.Width,
                 Height = step.Height,
                 Url = step.Url,
-                Key = step.Key
+                Key = step.Key,
+                Button = step.Button,
+                ClickCount = step.ClickCount,
+                Modifiers = step.Modifiers,
+                TargetSelector = step.TargetSelector,
+                TargetOffsetX = step.TargetOffsetX,
+                TargetOffsetY = step.TargetOffsetY
             });
         }
         UpdateGeneratedCode();
@@ -2260,6 +2480,12 @@ public class RecordedStepModel
     public double Height { get; set; }
     public string Url { get; set; } = "";
     public string Key { get; set; } = "";
+    public string Button { get; set; } = "left";
+    public int ClickCount { get; set; } = 1;
+    public int Modifiers { get; set; } = 0;
+    public string TargetSelector { get; set; } = "";
+    public double TargetOffsetX { get; set; }
+    public double TargetOffsetY { get; set; }
 
     public string SelectorDisplay
     {
@@ -2268,6 +2494,7 @@ public class RecordedStepModel
             if (Type == "setViewport") return "Viewport";
             if (Type == "navigate") return "Navigation";
             if (Type == "keydown") return "Keyboard";
+            if (Type == "dragAndDrop") return $"Drag: {Selector} -> {TargetSelector}";
             return string.IsNullOrEmpty(Selector) ? "Window" : Selector;
         }
     }
@@ -2276,12 +2503,39 @@ public class RecordedStepModel
     {
         get
         {
-            if (Type == "click") return $"Coordinates: x={OffsetX:0.0}, y={OffsetY:0.0}";
+            if (Type == "click")
+            {
+                var details = $"Coordinates: x={OffsetX:0.0}, y={OffsetY:0.0}";
+                if (Button != "left" || ClickCount > 1) details += $" | Button: {Button} | Clicks: {ClickCount}";
+                if (Modifiers > 0) details += $" | Modifiers: {GetModifiersString(Modifiers)}";
+                return details;
+            }
             if (Type == "change") return $"Value: \"{Value}\"";
             if (Type == "setViewport") return $"Dimensions: {Width}x{Height}";
             if (Type == "navigate") return $"Url: \"{Url}\"";
-            if (Type == "keydown") return $"Key: \"{Key}\"";
+            if (Type == "keydown")
+            {
+                var details = $"Key: \"{Key}\"";
+                if (Modifiers > 0) details += $" | Modifiers: {GetModifiersString(Modifiers)}";
+                return details;
+            }
+            if (Type == "dragAndDrop")
+            {
+                var details = $"From: x={OffsetX:0.0}, y={OffsetY:0.0} | To: x={TargetOffsetX:0.0}, y={TargetOffsetY:0.0}";
+                if (Modifiers > 0) details += $" | Modifiers: {GetModifiersString(Modifiers)}";
+                return details;
+            }
             return "";
         }
+    }
+
+    private static string GetModifiersString(int modifiers)
+    {
+        var list = new List<string>();
+        if ((modifiers & 1) != 0) list.Add("Alt");
+        if ((modifiers & 2) != 0) list.Add("Ctrl");
+        if ((modifiers & 4) != 0) list.Add("Shift");
+        if ((modifiers & 8) != 0) list.Add("Meta");
+        return string.Join("+", list);
     }
 }
