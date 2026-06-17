@@ -10,6 +10,8 @@ public class HighlightAdorner : Control
 {
     private readonly Visual _adornedVisual;
 
+    public Visual AdornedVisual => _adornedVisual;
+
     public HighlightAdorner(Visual adornedVisual)
     {
         _adornedVisual = adornedVisual;
