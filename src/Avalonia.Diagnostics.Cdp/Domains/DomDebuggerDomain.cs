@@ -33,6 +33,24 @@ public static class DomDebuggerDomain
         }
     }
 
+    private static string MapEventName(string avaloniaName)
+    {
+        return avaloniaName switch
+        {
+            "Click" => "click",
+            "PointerPressed" => "mousedown",
+            "PointerReleased" => "mouseup",
+            "PointerMoved" => "mousemove",
+            "PointerEnter" => "mouseenter",
+            "PointerLeave" => "mouseleave",
+            "PointerWheelChanged" => "wheel",
+            "KeyDown" => "keydown",
+            "KeyUp" => "keyup",
+            "TextInput" => "input",
+            _ => avaloniaName.ToLowerInvariant()
+        };
+    }
+
     private static JsonArray GetListeners(CdpSession session, object target)
     {
         var array = new JsonArray();
@@ -51,7 +69,7 @@ public static class DomDebuggerDomain
             var list = entry.Value as IEnumerable;
             if (list == null) continue;
 
-            string eventName = routedEvent.Name;
+            string eventName = MapEventName(routedEvent.Name);
 
             foreach (var sub in list)
             {
@@ -69,11 +87,17 @@ public static class DomDebuggerDomain
                 string targetClassName = handlerDelegate?.Target?.GetType().Name ?? "Static";
                 string displayString = $"{targetClassName}.{handlerName}";
 
+                string objectId = handlerDelegate != null ? session.RegisterObject(handlerDelegate) : "";
                 var handlerObject = new JsonObject
                 {
                     ["type"] = "function",
+                    ["className"] = "Function",
                     ["description"] = displayString
                 };
+                if (!string.IsNullOrEmpty(objectId))
+                {
+                    handlerObject["objectId"] = objectId;
+                }
 
                 var listener = new JsonObject
                 {

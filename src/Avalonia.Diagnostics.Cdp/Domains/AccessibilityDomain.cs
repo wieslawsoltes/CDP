@@ -37,6 +37,40 @@ public static class AccessibilityDomain
                     return new JsonObject { ["nodes"] = nodes };
                 }
 
+            case "getAXNode":
+                {
+                    int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    string? objectId = @params["objectId"]?.GetValue<string>();
+
+                    Visual? targetVisual = null;
+                    if (nodeId.HasValue)
+                    {
+                        targetVisual = session.NodeMap.GetVisual(nodeId.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(objectId))
+                    {
+                        var obj = session.GetObject(objectId);
+                        if (obj is Visual v)
+                        {
+                            targetVisual = v;
+                        }
+                    }
+
+                    var nodes = new JsonArray();
+                    if (targetVisual != null)
+                    {
+                        var current = targetVisual;
+                        while (current != null)
+                        {
+                            var axNode = BuildAXNode(session, current);
+                            nodes.Add(axNode);
+                            current = current.GetVisualParent();
+                        }
+                    }
+
+                    return new JsonObject { ["nodes"] = nodes };
+                }
+
             default:
                 throw new Exception($"Method Accessibility.{action} is not implemented");
         }
@@ -53,7 +87,8 @@ public static class AccessibilityDomain
 
     private static JsonObject BuildAXNode(CdpSession session, Visual visual)
     {
-        string nodeId = session.NodeMap.GetOrAdd(visual).ToString();
+        int visualNodeId = session.NodeMap.GetOrAdd(visual);
+        string nodeId = visualNodeId.ToString();
 
         // ignored: Set to true if the control's AutomationProperties.GetAccessibilityView(control) is None.
         var accessibilityView = AutomationProperties.GetAccessibilityView(visual);
@@ -116,7 +151,8 @@ public static class AccessibilityDomain
         {
             ["nodeId"] = nodeId,
             ["ignored"] = ignored,
-            ["role"] = roleJson
+            ["role"] = roleJson,
+            ["backendDOMNodeId"] = visualNodeId
         };
 
         if (nameJson != null)

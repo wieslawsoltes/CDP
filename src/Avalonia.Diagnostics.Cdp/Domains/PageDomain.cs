@@ -25,6 +25,25 @@ public static class PageDomain
                     return new JsonObject { ["data"] = data };
                 }
 
+            case "startScreencast":
+                {
+                    session.StartScreencast();
+                    return new JsonObject();
+                }
+
+            case "stopScreencast":
+                {
+                    session.StopScreencast();
+                    return new JsonObject();
+                }
+
+            case "screencastFrameAck":
+                {
+                    int sessionId = @params["sessionId"]?.GetValue<int>() ?? 0;
+                    session.AcknowledgeScreencastFrame(sessionId);
+                    return new JsonObject();
+                }
+
             case "reload":
                 {
                     await Dispatcher.UIThread.InvokeAsync(() =>

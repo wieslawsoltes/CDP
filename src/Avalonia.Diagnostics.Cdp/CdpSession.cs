@@ -19,6 +19,7 @@ public class CdpSession
 {
     private readonly WebSocket _webSocket;
     private readonly CancellationTokenSource _cts = new();
+    private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
 
     public TopLevel Window { get; }
     public NodeMap NodeMap { get; } = new();
@@ -229,12 +230,114 @@ public class CdpSession
     {
         if (_webSocket.State != WebSocketState.Open) return;
         var bytes = Encoding.UTF8.GetBytes(node.ToJsonString());
-        await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        await _sendSemaphore.WaitAsync();
+        try
+        {
+            if (_webSocket.State == WebSocketState.Open)
+            {
+                await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+        }
+        finally
+        {
+            _sendSemaphore.Release();
+        }
+    }
+
+    private bool _screencastEnabled;
+    private int _lastScreencastFrameId;
+    private volatile int _ackedFrameId;
+
+    public void StartScreencast()
+    {
+        if (_screencastEnabled) return;
+        _screencastEnabled = true;
+        _lastScreencastFrameId = 0;
+        _ackedFrameId = 0;
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                while (_screencastEnabled && !_cts.IsCancellationRequested && _webSocket.State == WebSocketState.Open)
+                {
+                    if (_lastScreencastFrameId > _ackedFrameId)
+                    {
+                        await Task.Delay(50);
+                        continue;
+                    }
+
+                    string base64Data = "";
+                    double width = 0;
+                    double height = 0;
+                    
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        try
+                        {
+                            var scale = Window.RenderScaling;
+                            width = Window.Bounds.Width;
+                            height = Window.Bounds.Height;
+                            int pixelWidth = Math.Max(1, (int)(width * scale));
+                            int pixelHeight = Math.Max(1, (int)(height * scale));
+
+                            using var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize(pixelWidth, pixelHeight), new Vector(96 * scale, 96 * scale));
+                            bitmap.Render(Window);
+
+                            using var ms = new MemoryStream();
+                            bitmap.Save(ms);
+                            base64Data = Convert.ToBase64String(ms.ToArray());
+                        }
+                        catch { }
+                    });
+
+                    if (string.IsNullOrEmpty(base64Data))
+                    {
+                        await Task.Delay(100);
+                        continue;
+                    }
+
+                    var currentFrameId = ++_lastScreencastFrameId;
+
+                    var metadata = new JsonObject
+                    {
+                        ["deviceWidth"] = width,
+                        ["deviceHeight"] = height,
+                        ["offsetTop"] = 0,
+                        ["pageScaleFactor"] = 1,
+                        ["scrollX"] = 0,
+                        ["scrollY"] = 0,
+                        ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    };
+
+                    await SendEventAsync("Page.screencastFrame", new JsonObject
+                    {
+                        ["data"] = base64Data,
+                        ["metadata"] = metadata,
+                        ["sessionId"] = currentFrameId
+                    });
+
+                    await Task.Delay(100);
+                }
+            }
+            catch { }
+        });
+    }
+
+    public void StopScreencast()
+    {
+        _screencastEnabled = false;
+    }
+
+    public void AcknowledgeScreencastFrame(int sessionId)
+    {
+        _ackedFrameId = Math.Max(_ackedFrameId, sessionId);
     }
 
     private void Cleanup()
     {
         _cts.Cancel();
+        StopScreencast();
         InspectModeEnabled = false;
         Domains.LogDomain.RemoveSession(this);
         Domains.NetworkDomain.RemoveSession(this);
@@ -242,5 +345,6 @@ public class CdpSession
         NodeMap.Clear();
         RemoteObjects.Clear();
         HighlightOverlayManager.HideHighlight(Window);
+        _sendSemaphore.Dispose();
     }
 }
