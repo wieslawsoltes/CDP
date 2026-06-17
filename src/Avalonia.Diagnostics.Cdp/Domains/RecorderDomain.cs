@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -6,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -72,8 +74,8 @@ internal class SessionRecorderState
     public void Attach()
     {
         _session.Window.AddHandler(InputElement.PointerPressedEvent, _pointerPressedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
-        _session.Window.AddHandler(InputElement.GotFocusEvent, _gotFocusHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
-        _session.Window.AddHandler(InputElement.LostFocusEvent, _lostFocusHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _session.Window.AddHandler(InputElement.GotFocusEvent, _gotFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+        _session.Window.AddHandler(InputElement.LostFocusEvent, _lostFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     public void Detach()
@@ -109,11 +111,27 @@ internal class SessionRecorderState
         });
     }
 
+    private static TextBox? FindTextBox(object? source)
+    {
+        if (source is TextBox tb) return tb;
+        if (source is Visual visual)
+        {
+            Visual? current = visual.GetVisualParent();
+            while (current != null)
+            {
+                if (current is TextBox textBox) return textBox;
+                current = current.GetVisualParent();
+            }
+        }
+        return null;
+    }
+
     private void OnGotFocus(object? sender, RoutedEventArgs e)
     {
         if (_session.InspectModeEnabled) return;
 
-        if (e.Source is TextBox textBox)
+        var textBox = FindTextBox(e.Source);
+        if (textBox != null)
         {
             _initialTexts[textBox] = textBox.Text ?? "";
         }
@@ -123,24 +141,28 @@ internal class SessionRecorderState
     {
         if (_session.InspectModeEnabled) return;
 
-        if (e.Source is TextBox textBox && _initialTexts.TryRemove(textBox, out var initialText))
+        var textBox = FindTextBox(e.Source);
+        if (textBox != null)
         {
-            var currentText = textBox.Text ?? "";
-            if (currentText != initialText)
+            if (_initialTexts.TryRemove(textBox, out var initialText))
             {
-                string selector = SelectorEngine.GetSelector(textBox);
-                var step = new JsonObject
+                var currentText = textBox.Text ?? "";
+                if (currentText != initialText)
                 {
-                    ["type"] = "change",
-                    ["target"] = "main",
-                    ["selectors"] = new JsonArray { new JsonArray { selector } },
-                    ["value"] = currentText
-                };
+                    string selector = SelectorEngine.GetSelector(textBox);
+                    var step = new JsonObject
+                    {
+                        ["type"] = "change",
+                        ["target"] = "main",
+                        ["selectors"] = new JsonArray { new JsonArray { selector } },
+                        ["value"] = currentText
+                    };
 
-                _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
-                {
-                    ["step"] = step
-                });
+                    _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
+                    {
+                        ["step"] = step
+                    });
+                }
             }
         }
     }

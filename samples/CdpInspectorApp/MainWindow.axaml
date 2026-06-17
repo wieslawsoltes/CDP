@@ -50,7 +50,7 @@
                 </TabItem>
 
                 <!-- Recorder Panel -->
-                <TabItem Header="Recorder">
+                <TabItem Name="TabRecorder" Header="Recorder">
                     <views:RecorderView Name="RecorderTab"/>
                 </TabItem>
             </TabControl>

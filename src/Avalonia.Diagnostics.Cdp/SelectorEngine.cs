@@ -247,21 +247,27 @@ public static class SelectorEngine
 
     public static string GetSelector(Visual visual)
     {
-        if (visual is Control c && !string.IsNullOrEmpty(c.Name))
+        if (visual is Control c && !string.IsNullOrEmpty(c.Name) && !c.Name.StartsWith("PART_"))
         {
             return $"#{c.Name}";
         }
 
-        var parts = new List<string>();
+        // Walk up to find if there is any named ancestor (ignoring PART_ names)
         Visual? current = visual;
         while (current != null)
         {
-            if (current is Control ctrl && !string.IsNullOrEmpty(ctrl.Name))
+            if (current is Control ctrl && !string.IsNullOrEmpty(ctrl.Name) && !ctrl.Name.StartsWith("PART_"))
             {
-                parts.Insert(0, $"#{ctrl.Name}");
-                break;
+                return $"#{ctrl.Name}";
             }
+            current = current.GetVisualParent();
+        }
 
+        // Fallback to structural path if no named ancestor is found
+        var parts = new List<string>();
+        current = visual;
+        while (current != null)
+        {
             string part = current.GetType().Name;
             if (current is Control ctrlWithClasses)
             {
