@@ -127,3 +127,14 @@ To trigger replaying, the agent finds coordinates of the `#btnReplay` button usi
 - **Fast Execution**: The complete sequence—spawning two GUI processes, connecting them, recording inputs, exporting code, loading code, and replaying inputs—executes in **under 10 seconds**.
 - **No Brittle Bounding Boxes**: The selector engine resolves dynamic visual layouts, avoiding the coordinate offsets that break image-based or static coordinate testing.
 - **AI Agent Native**: Standardizes target interactions under a unified JSON-RPC protocol, allowing large language models and coding agents to test software natively.
+
+---
+
+## Architectural Guidelines for Coding Agents
+
+When refactoring, modifying, or extending the inspector client (`CdpInspectorApp`), coding agents must adhere strictly to **MVVM** and **SOLID** principles:
+1. **Decoupled Code-Behind**: `MainWindow.axaml.cs` and other view files must remain thin. They should only contain view initialization code and delegation for platform-specific API calls (like file pickers).
+2. **Central Infrastructure Service**: Direct CDP network calls, loops, and connection lifecycles must be delegated to a reusable service class (implementing `ICdpService`).
+3. **Domain-Specific ViewModels**: Specific tab panels (Elements, Console, Network, Recorder, etc.) must have their own independent ViewModels inheriting from `ViewModelBase` to isolate concerns.
+4. **Data-Binding & Commands**: All UI values, lists, states, and action triggers must be bound using standard XAML data-bindings (`{Binding ...}`) and `ICommand` interfaces rather than manually manipulating UI control properties in code-behind.
+5. **No Control Renaming**: Keep XAML control names (`Name` attributes) unchanged to prevent breaking selectors in E2E automation/testing verifier scripts.

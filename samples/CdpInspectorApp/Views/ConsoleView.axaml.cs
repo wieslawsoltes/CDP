@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using CdpInspectorApp.ViewModels;
 
 namespace CdpInspectorApp.Views;
 
@@ -13,5 +14,16 @@ public partial class ConsoleView : UserControl
     public ConsoleView()
     {
         InitializeComponent();
+        txtConsoleInput.KeyDown += (sender, e) =>
+        {
+            if (e.Key == Avalonia.Input.Key.Enter)
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    vm.Console.EvaluateCommand.Execute(null);
+                    e.Handled = true;
+                }
+            }
+        };
     }
 }

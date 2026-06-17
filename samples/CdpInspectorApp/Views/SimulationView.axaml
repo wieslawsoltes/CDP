@@ -4,7 +4,7 @@
              x:CompileBindings="False">
     <Grid ColumnDefinitions="*, 4, *" Margin="10">
         <!-- Left: Input & Interaction Simulation -->
-        <Grid RowDefinitions="Auto, *" Margin="0,0,10,0">
+        <Grid RowDefinitions="Auto, *">
             <TextBlock Text="Input &amp; Interaction Simulation" Classes="panel-header"/>
             <Border Classes="panel-card" Grid.Row="1">
                 <ScrollViewer>
@@ -13,7 +13,7 @@
                         <StackPanel Spacing="5">
                             <TextBlock Text="Mouse Events" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button Name="btnClick" Content="Click Element Center" Classes="accent"/>
+                                <Button Name="btnClick" Command="{Binding Simulation.ClickCommand}" Content="Click Element Center" Classes="accent"/>
                                 <TextBlock Text="(Simulates click at center of selected element)" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
                             </StackPanel>
                         </StackPanel>
@@ -23,8 +23,8 @@
                             <TextBlock Text="Scroll / Mouse Wheel" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <TextBlock Text="Delta Y:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                                <TextBox Name="txtScrollDeltaY" Text="100" Width="80" Height="28" VerticalContentAlignment="Center"/>
-                                <Button Name="btnScroll" Content="Scroll"/>
+                                <TextBox Name="txtScrollDeltaY" Text="{Binding Simulation.ScrollDeltaYText, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center"/>
+                                <Button Name="btnScroll" Command="{Binding Simulation.ScrollCommand}" Content="Scroll"/>
                             </StackPanel>
                         </StackPanel>
                         
@@ -32,12 +32,12 @@
                         <StackPanel Spacing="5">
                             <TextBlock Text="Keyboard Input" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
                             <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
-                                <TextBox Name="txtInputSim" Watermark="Type text to insert..." Height="28" VerticalContentAlignment="Center"/>
-                                <Button Name="btnSendText" Grid.Column="1" Content="Insert Text" Margin="5,0,0,0"/>
+                                <TextBox Name="txtInputSim" Text="{Binding Simulation.InputSimText, Mode=TwoWay}" Watermark="Type text to insert..." Height="28" VerticalContentAlignment="Center"/>
+                                <Button Name="btnSendText" Command="{Binding Simulation.SendTextCommand}" Grid.Column="1" Content="Insert Text" Margin="5,0,0,0"/>
                             </Grid>
                             <Grid ColumnDefinitions="*, Auto">
-                                <ComboBox Name="cbKeys" PlaceholderText="Select Key..." Height="28" HorizontalAlignment="Stretch"/>
-                                <Button Name="btnSendKey" Grid.Column="1" Content="Press Key" Margin="5,0,0,0"/>
+                                <ComboBox Name="cbKeys" ItemsSource="{Binding Simulation.KeysList}" SelectedItem="{Binding Simulation.SelectedKey, Mode=TwoWay}" PlaceholderText="Select Key..." Height="28" HorizontalAlignment="Stretch"/>
+                                <Button Name="btnSendKey" Command="{Binding Simulation.SendKeyCommand}" Grid.Column="1" Content="Press Key" Margin="5,0,0,0"/>
                             </Grid>
                         </StackPanel>
                     </StackPanel>
@@ -56,18 +56,18 @@
                     <!-- Emulation Controls -->
                     <StackPanel Spacing="10" Grid.Row="0" Margin="0,0,0,10">
                         <Grid ColumnDefinitions="*, *, Auto, Auto">
-                            <TextBox Name="txtWidth" Text="1024" Watermark="Width" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                            <TextBox Grid.Column="1" Name="txtHeight" Text="768" Watermark="Height" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                            <Button Grid.Column="2" Name="btnResize" Content="Apply Size" Classes="accent" Height="28" Margin="0,0,5,0"/>
-                            <Button Grid.Column="3" Name="btnResizeReset" Content="Reset" Height="28"/>
+                            <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" Watermark="Width" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox Grid.Column="1" Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" Watermark="Height" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                            <Button Grid.Column="2" Name="btnResize" Command="{Binding Simulation.ResizeCommand}" Content="Apply Size" Classes="accent" Height="28" Margin="0,0,5,0"/>
+                            <Button Grid.Column="3" Name="btnResizeReset" Command="{Binding Simulation.ResizeResetCommand}" Content="Reset" Height="28"/>
                         </Grid>
-                        <Button Name="btnCaptureScreenshot" Content="Capture Screenshot" HorizontalAlignment="Stretch" Height="28"/>
+                        <Button Name="btnCaptureScreenshot" Command="{Binding Simulation.CaptureScreenshotCommand}" Content="Capture Screenshot" HorizontalAlignment="Stretch" Height="28"/>
                     </StackPanel>
                     
                     <!-- Screenshot display -->
                     <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                            <Image Name="imgScreenshot" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </ScrollViewer>
                     </Border>
                 </Grid>

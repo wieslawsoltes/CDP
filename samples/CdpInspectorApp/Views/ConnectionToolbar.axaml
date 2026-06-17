@@ -11,19 +11,19 @@
 
             <Grid Grid.Column="1" ColumnDefinitions="Auto, *" Margin="25,0,15,0">
                 <TextBlock Text="Host:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,10,0"/>
-                <TextBox Name="txtHost" Grid.Column="1" Text="http://localhost:9222" Watermark="e.g. http://localhost:9222" Width="180" HorizontalAlignment="Left" Height="28" VerticalContentAlignment="Center"/>
+                <TextBox Name="txtHost" Grid.Column="1" Text="{Binding Connection.HostAddress, Mode=TwoWay}" Watermark="e.g. http://localhost:9222" Width="180" HorizontalAlignment="Left" Height="28" VerticalContentAlignment="Center"/>
             </Grid>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                <Button Name="btnRefreshTargets" Content="Scan Targets" Classes="accent" Height="28" Padding="12,0" VerticalAlignment="Center"/>
-                <ComboBox Name="cbTargets" Width="280" PlaceholderText="Select target window..." Height="28" Background="#202124" BorderBrush="#3c4043"/>
+                <Button Name="btnRefreshTargets" Command="{Binding Connection.RefreshTargetsCommand}" Content="Scan Targets" Classes="accent" Height="28" Padding="12,0" VerticalAlignment="Center"/>
+                <ComboBox Name="cbTargets" ItemsSource="{Binding Connection.Targets}" SelectedItem="{Binding Connection.SelectedTarget, Mode=TwoWay}" Width="280" PlaceholderText="Select target window..." Height="28" Background="#202124" BorderBrush="#3c4043"/>
             </StackPanel>
 
-            <Button Name="btnConnect" Grid.Column="3" Content="Connect" Background="#1b5e20" Foreground="White" BorderBrush="#1b5e20" Margin="10,0,0,0" Height="28" Padding="15,0" VerticalAlignment="Center"/>
-            <Button Name="btnDisconnect" Grid.Column="4" Content="Disconnect" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Margin="8,0,0,0" Height="28" Padding="15,0" IsEnabled="False" VerticalAlignment="Center"/>
-            <ToggleButton Name="btnInspect" Grid.Column="5" Content="Select Element" Background="#e65100" Foreground="White" BorderBrush="#e65100" Margin="10,0,0,0" Height="28" Padding="15,0" IsEnabled="False" VerticalAlignment="Center"/>
-            <Button Name="btnReload" Grid.Column="6" Content="Reload" Background="#4a148c" Foreground="White" BorderBrush="#4a148c" Margin="8,0,0,0" Height="28" Padding="15,0" IsEnabled="False" VerticalAlignment="Center"/>
-            <TextBlock Name="txtConnectionStatus" Grid.Column="7" Text="Disconnected" Foreground="#f28b82" FontWeight="SemiBold" VerticalAlignment="Center" Margin="15,0,0,0"/>
+            <Button Name="btnConnect" Command="{Binding Connection.ConnectCommand}" Grid.Column="3" Content="Connect" Background="#1b5e20" Foreground="White" BorderBrush="#1b5e20" Margin="10,0,0,0" Height="28" Padding="15,0" VerticalAlignment="Center"/>
+            <Button Name="btnDisconnect" Command="{Binding Connection.DisconnectCommand}" Grid.Column="4" Content="Disconnect" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Margin="8,0,0,0" Height="28" Padding="15,0" VerticalAlignment="Center"/>
+            <ToggleButton Name="btnInspect" IsChecked="{Binding Connection.IsInspectModeActive, Mode=TwoWay}" IsEnabled="{Binding Connection.IsConnected}" Grid.Column="5" Content="Select Element" Background="#e65100" Foreground="White" BorderBrush="#e65100" Margin="10,0,0,0" Height="28" Padding="15,0" VerticalAlignment="Center"/>
+            <Button Name="btnReload" Command="{Binding Connection.ReloadCommand}" Grid.Column="6" Content="Reload" Background="#4a148c" Foreground="White" BorderBrush="#4a148c" Margin="8,0,0,0" Height="28" Padding="15,0" VerticalAlignment="Center"/>
+            <TextBlock Name="txtConnectionStatus" Grid.Column="7" Text="{Binding Connection.ConnectionStatusText}" Foreground="{Binding Connection.ConnectionStatusBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="15,0,0,0"/>
         </Grid>
     </Border>
 </UserControl>

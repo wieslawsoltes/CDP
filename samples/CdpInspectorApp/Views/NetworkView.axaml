@@ -4,13 +4,13 @@
              x:CompileBindings="False">
     <Grid RowDefinitions="Auto, *" Margin="10">
         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
-            <Button Name="btnClearNetwork" Content="Clear Network Log"/>
+            <Button Name="btnClearNetwork" Command="{Binding Network.ClearNetworkCommand}" Content="Clear Network Log"/>
             <TextBlock Text="Captures outbound HTTP requests from HttpClient instances" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
         </StackPanel>
 
         <Grid Grid.Row="1" ColumnDefinitions="*, 4, 380">
             <!-- List -->
-            <ListBox Name="lstNetworkRequests">
+            <ListBox Name="lstNetworkRequests" ItemsSource="{Binding Network.NetworkRequests}" SelectedItem="{Binding Network.SelectedRequest, Mode=TwoWay}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid ColumnDefinitions="*, 80, 80, 80, 80" Margin="2">
@@ -33,17 +33,17 @@
                         <TextBlock Text="Headers &amp; Content Preview" FontSize="14" FontWeight="Bold" Foreground="#e8eaed"/>
                         <StackPanel Spacing="3">
                             <TextBlock Text="Request URL:" Foreground="#9aa0a6" FontSize="11"/>
-                            <TextBlock Name="lblNetUrl" Text="Select a request to inspect" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                            <TextBlock Name="lblNetUrl" Text="{Binding Network.SelectedUrl}" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Foreground="#e8eaed"/>
                         </StackPanel>
                         <StackPanel Spacing="5">
                             <TextBlock Text="Request Headers:" Foreground="#9aa0a6" FontSize="11"/>
-                            <TextBox Name="txtNetReqHeaders" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="100" FontSize="11"/>
+                            <TextBox Name="txtNetReqHeaders" Text="{Binding Network.SelectedRequestHeaders}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="100" FontSize="11"/>
                             <TextBlock Text="Response Headers:" Foreground="#9aa0a6" FontSize="11" Margin="0,5,0,0"/>
-                            <TextBox Name="txtNetResHeaders" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="100" FontSize="11"/>
+                            <TextBox Name="txtNetResHeaders" Text="{Binding Network.SelectedResponseHeaders}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="100" FontSize="11"/>
                         </StackPanel>
                         <StackPanel Spacing="5">
                             <TextBlock Text="Response Body Preview:" Foreground="#9aa0a6" FontSize="11"/>
-                            <TextBox Name="txtNetBody" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="150" FontSize="11"/>
+                            <TextBox Name="txtNetBody" Text="{Binding Network.SelectedResponseBody}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="150" FontSize="11"/>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
