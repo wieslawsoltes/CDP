@@ -198,12 +198,81 @@ public static class RuntimeDomain
             {
                 if (current == null) return null;
 
-                if (part.EndsWith("()"))
+                if (part.Contains('(') && part.EndsWith(')'))
                 {
-                    var methodName = part.Substring(0, part.Length - 2);
-                    var method = current.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase, null, Type.EmptyTypes, null);
-                    if (method == null) throw new Exception($"Parameterless method '{methodName}' not found");
-                    current = method.Invoke(current, null);
+                    int opIndex = part.IndexOf('(');
+                    var methodName = part.Substring(0, opIndex).Trim();
+                    var argStr = part.Substring(opIndex + 1, part.Length - opIndex - 2).Trim();
+
+                    // Resolve arguments
+                    object?[] methodArgs;
+                    Type[] argTypes;
+
+                    if (string.IsNullOrEmpty(argStr))
+                    {
+                        methodArgs = Array.Empty<object?>();
+                        argTypes = Type.EmptyTypes;
+                    }
+                    else
+                    {
+                        // Clean quotes if it is a string literal
+                        if ((argStr.StartsWith("\"") && argStr.EndsWith("\"")) || (argStr.StartsWith("'") && argStr.EndsWith("'")))
+                        {
+                            var unescaped = argStr.Substring(1, argStr.Length - 2)
+                                .Replace("\\\"", "\"")
+                                .Replace("\\n", "\n")
+                                .Replace("\\r", "\r")
+                                .Replace("\\t", "\t");
+                            methodArgs = new object?[] { unescaped };
+                            argTypes = new Type[] { typeof(string) };
+                        }
+                        else if (int.TryParse(argStr, out int intVal))
+                        {
+                            methodArgs = new object?[] { intVal };
+                            argTypes = new Type[] { typeof(int) };
+                        }
+                        else if (double.TryParse(argStr, System.Globalization.NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleVal))
+                        {
+                            methodArgs = new object?[] { doubleVal };
+                            argTypes = new Type[] { typeof(double) };
+                        }
+                        else if (bool.TryParse(argStr, out bool boolVal))
+                        {
+                            methodArgs = new object?[] { boolVal };
+                            argTypes = new Type[] { typeof(bool) };
+                        }
+                        else
+                        {
+                            // Fallback as raw string
+                            methodArgs = new object?[] { argStr };
+                            argTypes = new Type[] { typeof(string) };
+                        }
+                    }
+
+                    var method = current.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.IgnoreCase, null, argTypes, null);
+                    if (method == null)
+                    {
+                        // Try to find any method with name and correct number of parameters
+                        var methods = current.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.IgnoreCase)
+                            .Where(m => m.Name.Equals(methodName, StringComparison.OrdinalIgnoreCase) && m.GetParameters().Length == methodArgs.Length)
+                            .ToArray();
+                        if (methods.Length > 0)
+                        {
+                            method = methods[0];
+                            // Try to convert args
+                            var parameters = method.GetParameters();
+                            for (int idx = 0; idx < parameters.Length; idx++)
+                            {
+                                if (methodArgs[idx] != null)
+                                {
+                                    methodArgs[idx] = ConvertValue(methodArgs[idx]!.ToString()!, parameters[idx].ParameterType);
+                                }
+                            }
+                        }
+                    }
+
+                    if (method == null) throw new Exception($"Method '{methodName}' with {methodArgs.Length} arguments not found on {current.GetType().Name}");
+                    current = method.Invoke(current, methodArgs);
                 }
                 else
                 {

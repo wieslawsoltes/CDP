@@ -48,6 +48,11 @@
                 <TabItem Header="Simulation">
                     <views:SimulationView Name="SimulationTab"/>
                 </TabItem>
+
+                <!-- Recorder Panel -->
+                <TabItem Name="TabRecorder" Header="Recorder">
+                    <views:RecorderView Name="RecorderTab"/>
+                </TabItem>
             </TabControl>
         </Grid>
     </Grid>

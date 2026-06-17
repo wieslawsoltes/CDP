@@ -1,0 +1,130 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpInspectorApp.Views.RecorderView"
+             x:CompileBindings="False">
+    <Grid ColumnDefinitions="*, 4, *" Margin="10">
+        <!-- Steps List (Left Side) -->
+        <Grid Grid.Column="0" RowDefinitions="Auto, *" Margin="0,0,10,0">
+            <!-- Recorder Toolbar -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,12">
+                <Button Name="btnToggleRecord" Content="Start Recording" Background="#c5221f" Foreground="White" BorderBrush="#c5221f"/>
+                <Button Name="btnReplay" Content="Replay" Background="#0f9d58" Foreground="White" BorderBrush="#0f9d58" IsEnabled="False"/>
+                <Button Name="btnClear" Content="Clear" Background="#3c4043" Foreground="White" BorderBrush="#3c4043"/>
+            </StackPanel>
+            
+            <Grid Grid.Row="1" RowDefinitions="Auto, *">
+                <TextBlock Text="Recorded Steps" Classes="panel-header" Margin="0,0,0,8" Foreground="#e8eaed" FontSize="14" FontWeight="Bold"/>
+                <ListBox Name="lstRecordedSteps" Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="4" Padding="10" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                <Grid RowDefinitions="Auto, Auto">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Border Background="#3c4043" CornerRadius="2" Padding="4,2">
+                                            <TextBlock Text="{Binding Type}" FontSize="10" FontWeight="Bold" Foreground="#e8eaed"/>
+                                        </Border>
+                                        <TextBlock Text="{Binding SelectorDisplay}" FontWeight="SemiBold" Foreground="#e8eaed" FontSize="12"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="1" Text="{Binding DetailDisplay}" FontSize="11" Foreground="#9aa0a6" Margin="0,4,0,0"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+        
+        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+        
+        <!-- Right Side Tab Control -->
+        <TabControl Grid.Column="2" Margin="10,0,0,0" Padding="0">
+            <!-- Tab 1: Puppeteer Script -->
+            <TabItem Header="Puppeteer Script">
+                <Grid RowDefinitions="Auto, *" Margin="0,10,0,0">
+                    <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,12">
+                        <TextBlock Text="Generated Puppeteer Script" VerticalAlignment="Center" Foreground="#e8eaed" FontSize="13" FontWeight="SemiBold"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Name="btnLoad" Content="Load Recording" Classes="accent"/>
+                            <Button Name="btnExportPuppeteer" Content="Export Script" Classes="accent"/>
+                            <Button Name="btnExportJson" Content="Export JSON" Classes="accent"/>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="10">
+                        <TextBox Name="txtGeneratedCode" 
+                                 Background="Transparent" 
+                                 BorderThickness="0" 
+                                 Foreground="#e8eaed" 
+                                 FontFamily="Courier New,Consolas,Monospace" 
+                                 FontSize="12" 
+                                 IsReadOnly="True" 
+                                 AcceptsReturn="True" 
+                                 TextWrapping="NoWrap"/>
+                    </Border>
+                </Grid>
+            </TabItem>
+            
+            <!-- Tab 2: Recording Guide -->
+            <TabItem Header="Recording Guide">
+                <ScrollViewer Margin="0,10,0,0">
+                    <StackPanel Spacing="16" Margin="0,0,10,0">
+                        <TextBlock Text="Chrome DevTools Protocol Recording Guide" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8"/>
+                        
+                        <TextBlock Text="The CDP Recorder captures your interactions with the target application and generates a fully compliant Puppeteer script in real time. It supports the following features:" TextWrapping="Wrap" Foreground="#9aa0a6" FontSize="12"/>
+
+                        <!-- Cards for supported features -->
+                        <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="12">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Background="#1a73e8" CornerRadius="2" Padding="4,2">
+                                        <TextBlock Text="STATE" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                    <TextBlock Text="Viewport &amp; Navigation" FontWeight="Bold" Foreground="#e8eaed" FontSize="13"/>
+                                </StackPanel>
+                                <TextBlock Text="• setViewport: Dynamically captures the window width/height at start." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="• navigate: Captures the entry URL when starting. Generates page.goto(url)." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="12">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Background="#0f9d58" CornerRadius="2" Padding="4,2">
+                                        <TextBlock Text="MOUSE" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                    <TextBlock Text="Click Actions" FontWeight="Bold" Foreground="#e8eaed" FontSize="13"/>
+                                </StackPanel>
+                                <TextBlock Text="• click: Records left clicks on UI elements using precise hierarchical CSS selectors." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="• Replayer locates elements at runtime via DOM querySelector and dispatches coordinate-based clicks to their center coordinates." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="12">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Background="#f4b400" CornerRadius="2" Padding="4,2">
+                                        <TextBlock Text="KEYBOARD" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                    <TextBlock Text="Text Inputs &amp; Special Keys" FontWeight="Bold" Foreground="#e8eaed" FontSize="13"/>
+                                </StackPanel>
+                                <TextBlock Text="• change: Consolidates text entry into a single step on focus loss (generating page.type(selector, text))." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="• keydown: Captures non-character control/navigation keys (Enter, Escape, Tab, Backspace, Delete, Arrows) and replays them via Input.dispatchKeyEvent (generating page.keyboard.press(key))." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="12">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="How to Use" FontWeight="Bold" Foreground="#e8eaed" FontSize="13"/>
+                                <TextBlock Text="1. Launch the target application (CdpSampleApp) and make sure it has CDP enabled." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="2. Click 'Start Recording' and interact with the target application." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="3. Click 'Stop Recording' to view the generated script." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="4. Click 'Replay' to simulate the recorded actions, or click 'Export Script'/'Export JSON' to save the recording." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                                <TextBlock Text="5. Use 'Load Recording' to import previously recorded JS/JSON scenarios." Foreground="#9aa0a6" FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

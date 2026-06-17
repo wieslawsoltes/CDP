@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -220,15 +221,39 @@ public static class InputDomain
         });
     }
 
+    private static TextBox? FindFocusedTextBox(Visual parent)
+    {
+        if (parent is TextBox tb && (tb.IsFocused || tb.IsKeyboardFocusWithin)) return tb;
+
+        foreach (var child in parent.GetVisualChildren())
+        {
+            var found = FindFocusedTextBox(child);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     private static async Task DispatchTextInputAsync(CdpSession session, string text)
     {
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            // Direct mutation fallback for headless/background execution
+            var focusedTextBox = FindFocusedTextBox(session.Window);
+            if (focusedTextBox != null)
+            {
+                focusedTextBox.Text = text;
+                return;
+            }
+
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var inputHandler = GetInputHandler(session.Window);
             var keyboardDevice = GetKeyboardDevice();
             var inputRoot = session.Window as IInputRoot;
-            if (inputHandler == null || keyboardDevice == null || inputRoot == null || string.IsNullOrEmpty(text)) return;
+
+            if (inputHandler == null || keyboardDevice == null || inputRoot == null || string.IsNullOrEmpty(text))
+            {
+                return;
+            }
 
             var textArgs = (RawTextInputEventArgs)Activator.CreateInstance(
                 typeof(RawTextInputEventArgs),

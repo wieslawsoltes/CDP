@@ -277,8 +277,8 @@ public static class DomDomain
             ["nodeValue"] = "",
             ["childNodeCount"] = 1,
             ["children"] = children,
-            ["documentURL"] = "http://localhost:9222/",
-            ["baseURL"] = "http://localhost:9222/"
+            ["documentURL"] = $"http://localhost:{CdpServer.Port}/",
+            ["baseURL"] = $"http://localhost:{CdpServer.Port}/"
         };
     }
 

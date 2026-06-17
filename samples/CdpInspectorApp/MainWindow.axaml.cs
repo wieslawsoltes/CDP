@@ -7,15 +7,19 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CdpInspectorApp.Views;
+using Avalonia.Diagnostics.Cdp;
 
 namespace CdpInspectorApp;
 
@@ -38,6 +42,8 @@ public partial class MainWindow : Window
     private ObservableCollection<NetworkRequestModel> _networkRequests = new();
     private ObservableCollection<ResourceEntryModel> _resources = new();
     private ObservableCollection<ControlCountModel> _liveControls = new();
+    private readonly ObservableCollection<RecordedStepModel> _recordedSteps = new();
+    private bool _isRecording;
 
     private DomNodeModel? _selectedNode;
     private PropertyModel? _selectedProperty;
@@ -111,6 +117,15 @@ public partial class MainWindow : Window
 
         // Sources panel
         SourcesTab.TreeWorkspaceFiles.SelectionChanged += TreeWorkspaceFiles_SelectionChanged;
+
+        // Recorder panel
+        RecorderTab.LstRecordedSteps.ItemsSource = _recordedSteps;
+        RecorderTab.BtnToggleRecord.Click += BtnToggleRecord_Click;
+        RecorderTab.BtnReplay.Click += BtnReplay_Click;
+        RecorderTab.BtnClear.Click += BtnClear_Click;
+        RecorderTab.BtnLoad.Click += BtnLoad_Click;
+        RecorderTab.BtnExportPuppeteer.Click += BtnExportPuppeteer_Click;
+        RecorderTab.BtnExportJson.Click += BtnExportJson_Click;
 
         // Populate Keys ComboBox in Simulation view
         SimulationTab.CbKeys.ItemsSource = new List<string> { "Enter", "Tab", "Escape", "Space", "Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End" };
@@ -1140,7 +1155,7 @@ public partial class MainWindow : Window
                 if (result.MessageType == WebSocketMessageType.Close) break;
 
                 var jsonStr = Encoding.UTF8.GetString(ms.ToArray());
-                var node = JsonNode.Parse(jsonStr) as JsonObject;
+                var node = JsonNode.Parse(jsonStr, null, new JsonDocumentOptions { MaxDepth = 1024 }) as JsonObject;
                 if (node == null) continue;
 
                 if (node.ContainsKey("id"))
@@ -1170,6 +1185,17 @@ public partial class MainWindow : Window
                             {
                                 _logs.Add(new LogModel(timestamp, level, text));
                                 if (_logs.Count > 100) _logs.RemoveAt(0);
+                            });
+                        }
+                    }
+                    else if (method == "Recorder.stepAdded" && parameters != null)
+                    {
+                        var step = parameters["step"] as JsonObject;
+                        if (step != null)
+                        {
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                AddRecordedStep(step);
                             });
                         }
                     }
@@ -1564,6 +1590,410 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void BtnToggleRecord_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!_isRecording)
+            {
+                await SendCommandAsync("Recorder.start", new JsonObject());
+                _isRecording = true;
+                RecorderTab.BtnToggleRecord.Content = "Stop Recording";
+                RecorderTab.BtnToggleRecord.Background = Brushes.DarkGray;
+                RecorderTab.BtnToggleRecord.BorderBrush = Brushes.DarkGray;
+            }
+            else
+            {
+                await SendCommandAsync("Recorder.stop", new JsonObject());
+                _isRecording = false;
+                RecorderTab.BtnToggleRecord.Content = "Start Recording";
+                RecorderTab.BtnToggleRecord.Background = new SolidColorBrush(Color.Parse("#c5221f"));
+                RecorderTab.BtnToggleRecord.BorderBrush = new SolidColorBrush(Color.Parse("#c5221f"));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error toggling recording: {ex.Message}");
+        }
+    }
+
+    private void AddRecordedStep(JsonObject stepJson)
+    {
+        string type = stepJson["type"]?.GetValue<string>() ?? "";
+        string value = stepJson["value"]?.GetValue<string>() ?? "";
+        double offsetX = stepJson["offsetX"]?.GetValue<double>() ?? 0;
+        double offsetY = stepJson["offsetY"]?.GetValue<double>() ?? 0;
+        double width = stepJson["width"]?.GetValue<double>() ?? 0;
+        double height = stepJson["height"]?.GetValue<double>() ?? 0;
+        string url = stepJson["url"]?.GetValue<string>() ?? "";
+        string keyVal = stepJson["key"]?.GetValue<string>() ?? "";
+        
+        string selector = "";
+        var selectorsArr = stepJson["selectors"] as JsonArray;
+        if (selectorsArr != null && selectorsArr.Count > 0)
+        {
+            var firstSelectorGroup = selectorsArr[0] as JsonArray;
+            if (firstSelectorGroup != null && firstSelectorGroup.Count > 0)
+            {
+                selector = firstSelectorGroup[0]?.GetValue<string>() ?? "";
+            }
+        }
+
+        var model = new RecordedStepModel
+        {
+            Type = type,
+            Selector = selector,
+            Value = value,
+            OffsetX = offsetX,
+            OffsetY = offsetY,
+            Width = width,
+            Height = height,
+            Url = url,
+            Key = keyVal
+        };
+
+        _recordedSteps.Add(model);
+        RecorderTab.BtnReplay.IsEnabled = _recordedSteps.Count > 0;
+
+        UpdateGeneratedCode();
+    }
+
+    private void UpdateGeneratedCode()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("const puppeteer = require('puppeteer');");
+        sb.AppendLine();
+        sb.AppendLine("(async () => {");
+        sb.AppendLine("  const browser = await puppeteer.launch({ headless: false });");
+        sb.AppendLine("  const page = await browser.newPage();");
+
+        bool hasViewportStep = _recordedSteps.Any(s => s.Type == "setViewport");
+        bool hasNavigateStep = _recordedSteps.Any(s => s.Type == "navigate");
+
+        if (!hasViewportStep)
+        {
+            sb.AppendLine("  await page.setViewport({ width: 800, height: 600 });");
+        }
+        if (!hasNavigateStep)
+        {
+            string host = Toolbar.TxtHost.Text?.Trim() ?? "http://localhost:9222";
+            if (!host.StartsWith("http://") && !host.StartsWith("https://"))
+            {
+                host = "http://" + host;
+            }
+            if (!host.EndsWith("/"))
+            {
+                host += "/";
+            }
+            sb.AppendLine($"  await page.goto('{host}');");
+        }
+        sb.AppendLine();
+
+        foreach (var step in _recordedSteps)
+        {
+            if (step.Type == "click")
+            {
+                sb.AppendLine($"  // Click on element");
+                sb.AppendLine($"  const element_{_recordedSteps.IndexOf(step)} = await page.waitForSelector('{step.Selector}');");
+                sb.AppendLine($"  await element_{_recordedSteps.IndexOf(step)}.click();");
+            }
+            else if (step.Type == "change")
+            {
+                sb.AppendLine($"  // Type text in element");
+                sb.AppendLine($"  const element_{_recordedSteps.IndexOf(step)} = await page.waitForSelector('{step.Selector}');");
+                sb.AppendLine($"  await element_{_recordedSteps.IndexOf(step)}.type('{step.Value}');");
+            }
+            else if (step.Type == "setViewport")
+            {
+                sb.AppendLine($"  await page.setViewport({{ width: {step.Width}, height: {step.Height} }});");
+            }
+            else if (step.Type == "navigate")
+            {
+                sb.AppendLine($"  await page.goto('{step.Url}');");
+            }
+            else if (step.Type == "keydown")
+            {
+                sb.AppendLine($"  await page.keyboard.press('{step.Key}');");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("  await browser.close();");
+        sb.AppendLine("})();");
+
+        RecorderTab.TxtGeneratedCode.Text = sb.ToString();
+    }
+
+    private async void BtnReplay_Click(object? sender, RoutedEventArgs e)
+    {
+        RecorderTab.BtnReplay.IsEnabled = false;
+        try
+        {
+            var docRes = await SendCommandAsync("DOM.getDocument", new JsonObject());
+            var root = docRes["root"] as JsonObject;
+            int rootNodeId = root?["nodeId"]?.GetValue<int>() ?? 1;
+
+            foreach (var step in _recordedSteps)
+            {
+                if (step.Type == "click")
+                {
+                    var qParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = step.Selector };
+                    var qRes = await SendCommandAsync("DOM.querySelector", qParams);
+                    int nodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+                    if (nodeId > 0)
+                    {
+                        var boxRes = await SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+                        var model = boxRes["model"] as JsonObject;
+                        var content = model?["content"] as JsonArray;
+                        if (content != null && content.Count >= 8)
+                        {
+                            double x1 = content[0]!.GetValue<double>();
+                            double y1 = content[1]!.GetValue<double>();
+                            double x2 = content[4]!.GetValue<double>();
+                            double y2 = content[5]!.GetValue<double>();
+                            
+                            double centerX = x1 + (x2 - x1) / 2.0;
+                            double centerY = y1 + (y2 - y1) / 2.0;
+
+                            await SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                            await Task.Delay(100);
+
+                            var pressParams = new JsonObject
+                            {
+                                ["type"] = "mousePressed",
+                                ["x"] = centerX,
+                                ["y"] = centerY,
+                                ["button"] = "left",
+                                ["clickCount"] = 1
+                            };
+                            await SendCommandAsync("Input.dispatchMouseEvent", pressParams);
+                            await Task.Delay(50);
+
+                            var releaseParams = new JsonObject
+                            {
+                                ["type"] = "mouseReleased",
+                                ["x"] = centerX,
+                                ["y"] = centerY,
+                                ["button"] = "left",
+                                ["clickCount"] = 1
+                            };
+                            await SendCommandAsync("Input.dispatchMouseEvent", releaseParams);
+                            await Task.Delay(300);
+                        }
+                    }
+                }
+                else if (step.Type == "change")
+                {
+                    var qParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = step.Selector };
+                    var qRes = await SendCommandAsync("DOM.querySelector", qParams);
+                    int nodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+                    if (nodeId > 0)
+                    {
+                        await SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                        await Task.Delay(100);
+
+                        await SendCommandAsync("Input.insertText", new JsonObject { ["text"] = step.Value });
+                        await Task.Delay(300);
+                    }
+                }
+                else if (step.Type == "setViewport")
+                {
+                    await SendCommandAsync("Emulation.setDeviceMetricsOverride", new JsonObject
+                    {
+                        ["width"] = (int)step.Width,
+                        ["height"] = (int)step.Height,
+                        ["deviceScaleFactor"] = 1,
+                        ["mobile"] = false
+                    });
+                    await Task.Delay(300);
+                }
+                else if (step.Type == "navigate")
+                {
+                    await SendCommandAsync("Page.navigate", new JsonObject
+                    {
+                        ["url"] = step.Url
+                    });
+                    await Task.Delay(300);
+                }
+                else if (step.Type == "keydown")
+                {
+                    await SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
+                    {
+                        ["type"] = "rawKeyDown",
+                        ["key"] = step.Key
+                    });
+                    await Task.Delay(50);
+
+                    await SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
+                    {
+                        ["type"] = "keyUp",
+                        ["key"] = step.Key
+                    });
+                    await Task.Delay(150);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error replaying steps: {ex.Message}");
+        }
+        finally
+        {
+            RecorderTab.BtnReplay.IsEnabled = _recordedSteps.Count > 0;
+        }
+    }
+
+    private void BtnClear_Click(object? sender, RoutedEventArgs e)
+    {
+        _recordedSteps.Clear();
+        RecorderTab.BtnReplay.IsEnabled = false;
+        UpdateGeneratedCode();
+    }
+
+    private async void BtnExportPuppeteer_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save Puppeteer Script",
+                DefaultExtension = "js",
+                SuggestedFileName = "recording.js"
+            });
+            if (file != null)
+            {
+                await using var stream = await file.OpenWriteAsync();
+                await using var writer = new StreamWriter(stream);
+                await writer.WriteAsync(RecorderTab.TxtGeneratedCode.Text);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error exporting Puppeteer script: {ex.Message}");
+        }
+    }
+
+    private async void BtnExportJson_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save JSON Recording",
+                DefaultExtension = "json",
+                SuggestedFileName = "recording.json"
+            });
+            if (file != null)
+            {
+                var json = new JsonObject
+                {
+                    ["title"] = $"Recording {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+                    ["steps"] = new JsonArray(
+                        _recordedSteps.Select(s => new JsonObject
+                        {
+                            ["type"] = s.Type,
+                            ["selectors"] = new JsonArray { new JsonArray { s.Selector } },
+                            ["value"] = s.Value,
+                            ["offsetX"] = s.OffsetX,
+                            ["offsetY"] = s.OffsetY
+                        }).ToArray()
+                    )
+                };
+                await using var stream = await file.OpenWriteAsync();
+                await using var writer = new StreamWriter(stream);
+                await writer.WriteAsync(json.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error exporting JSON: {ex.Message}");
+        }
+    }
+
+    private async void BtnLoad_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Load Recording",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("JSON/Puppeteer Recordings")
+                    {
+                        Patterns = new[] { "*.json", "*.js" }
+                    }
+                }
+            });
+
+            if (files == null || files.Count == 0) return;
+
+            var file = files[0];
+            await using var stream = await file.OpenReadAsync();
+            using var reader = new StreamReader(stream);
+            string content = await reader.ReadToEndAsync();
+
+            if (string.IsNullOrWhiteSpace(content)) return;
+
+            _recordedSteps.Clear();
+
+            var parsedSteps = RecordingParser.Parse(content);
+            foreach (var step in parsedSteps)
+            {
+                _recordedSteps.Add(new RecordedStepModel
+                {
+                    Type = step.Type,
+                    Selector = step.Selector,
+                    Value = step.Value,
+                    OffsetX = step.OffsetX,
+                    OffsetY = step.OffsetY,
+                    Width = step.Width,
+                    Height = step.Height,
+                    Url = step.Url,
+                    Key = step.Key
+                });
+            }
+
+            UpdateGeneratedCode();
+            RecorderTab.BtnReplay.IsEnabled = _recordedSteps.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading script: {ex.Message}");
+        }
+    }
+
+    public void LoadScriptContent(string content)
+    {
+        _recordedSteps.Clear();
+        var parsedSteps = RecordingParser.Parse(content);
+        foreach (var step in parsedSteps)
+        {
+            _recordedSteps.Add(new RecordedStepModel
+            {
+                Type = step.Type,
+                Selector = step.Selector,
+                Value = step.Value,
+                OffsetX = step.OffsetX,
+                OffsetY = step.OffsetY,
+                Width = step.Width,
+                Height = step.Height,
+                Url = step.Url,
+                Key = step.Key
+            });
+        }
+        UpdateGeneratedCode();
+        RecorderTab.BtnReplay.IsEnabled = _recordedSteps.Count > 0;
+    }
+
     private async void BtnCollectGarbage_Click(object? sender, RoutedEventArgs e)
     {
         try
@@ -1816,5 +2246,42 @@ public class AppNavNode : System.ComponentModel.INotifyPropertyChanged
     public AppNavNode(string name)
     {
         Name = name;
+    }
+}
+
+public class RecordedStepModel
+{
+    public string Type { get; set; } = "";
+    public string Selector { get; set; } = "";
+    public string Value { get; set; } = "";
+    public double OffsetX { get; set; }
+    public double OffsetY { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public string Url { get; set; } = "";
+    public string Key { get; set; } = "";
+
+    public string SelectorDisplay
+    {
+        get
+        {
+            if (Type == "setViewport") return "Viewport";
+            if (Type == "navigate") return "Navigation";
+            if (Type == "keydown") return "Keyboard";
+            return string.IsNullOrEmpty(Selector) ? "Window" : Selector;
+        }
+    }
+
+    public string DetailDisplay
+    {
+        get
+        {
+            if (Type == "click") return $"Coordinates: x={OffsetX:0.0}, y={OffsetY:0.0}";
+            if (Type == "change") return $"Value: \"{Value}\"";
+            if (Type == "setViewport") return $"Dimensions: {Width}x{Height}";
+            if (Type == "navigate") return $"Url: \"{Url}\"";
+            if (Type == "keydown") return $"Key: \"{Key}\"";
+            return "";
+        }
     }
 }

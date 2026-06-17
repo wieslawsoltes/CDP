@@ -176,4 +176,177 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestRecorderDomainAndSelector()
+    {
+        var button = new Button { Name = "myTestButton" };
+        var textBox = new TextBox { Name = "myTestTextBox" };
+        var panel = new StackPanel
+        {
+            Children =
+            {
+                button,
+                textBox
+            }
+        };
+        var window = new Window
+        {
+            Title = "Recorder Test Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Assert selector generation
+        string buttonSelector = SelectorEngine.GetSelector(button);
+        Assert.Equal("#myTestButton", buttonSelector);
+
+        string textBoxSelector = SelectorEngine.GetSelector(textBox);
+        Assert.Equal("#myTestTextBox", textBoxSelector);
+
+        // Assert nested selector when no Name is set
+        var anonymousButton = new Button();
+        panel.Children.Add(anonymousButton);
+        string anonSelector = SelectorEngine.GetSelector(anonymousButton);
+        Assert.Contains("StackPanel > Button", anonSelector);
+
+        // 2. Start Recording
+        var startRes = await RecorderDomain.HandleAsync(session, "start", new JsonObject());
+        Assert.NotNull(startRes);
+
+        // 3. Stop Recording
+        var stopRes = await RecorderDomain.HandleAsync(session, "stop", new JsonObject());
+        Assert.NotNull(stopRes);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestCustomCdpPort()
+    {
+        CdpServer.Start(9223);
+        try
+        {
+            Assert.Equal(9223, CdpServer.Port);
+
+            var window = new Window { Title = "Port Test Window" };
+            window.Show();
+
+            using var clientWs = new ClientWebSocket();
+            var session = new CdpSession(clientWs, window);
+
+            var getDocParams = new JsonObject { ["depth"] = -1 };
+            var docResult = await DomDomain.HandleAsync(session, "getDocument", getDocParams);
+            Assert.NotNull(docResult);
+
+            var root = docResult["root"] as JsonObject;
+            Assert.NotNull(root);
+
+            Assert.Equal("http://localhost:9223/", root["documentURL"]?.GetValue<string>());
+            Assert.Equal("http://localhost:9223/", root["baseURL"]?.GetValue<string>());
+
+            window.Close();
+        }
+        finally
+        {
+            CdpServer.Stop();
+        }
+    }
+
+    [Fact]
+    public void TestRecordingParser()
+    {
+        // 1. JSON parse test
+        string jsonContent = @"
+        {
+          ""title"": ""Test Recording"",
+          ""steps"": [
+            {
+              ""type"": ""setViewport"",
+              ""width"": 1024,
+              ""height"": 768
+            },
+            {
+              ""type"": ""navigate"",
+              ""url"": ""http://localhost:9222/home""
+            },
+            {
+              ""type"": ""click"",
+              ""selectors"": [[""#btnClickMe""]],
+              ""offsetX"": 10,
+              ""offsetY"": 20
+            },
+            {
+              ""type"": ""change"",
+              ""selectors"": [[""#txtInput""]],
+              ""value"": ""Hello World""
+            },
+            {
+              ""type"": ""keydown"",
+              ""key"": ""Enter""
+            }
+          ]
+        }";
+
+        var jsonSteps = RecordingParser.Parse(jsonContent);
+        Assert.Equal(5, jsonSteps.Count);
+
+        Assert.Equal("setViewport", jsonSteps[0].Type);
+        Assert.Equal(1024, jsonSteps[0].Width);
+        Assert.Equal(768, jsonSteps[0].Height);
+
+        Assert.Equal("navigate", jsonSteps[1].Type);
+        Assert.Equal("http://localhost:9222/home", jsonSteps[1].Url);
+
+        Assert.Equal("click", jsonSteps[2].Type);
+        Assert.Equal("#btnClickMe", jsonSteps[2].Selector);
+        Assert.Equal(10, jsonSteps[2].OffsetX);
+        Assert.Equal(20, jsonSteps[2].OffsetY);
+
+        Assert.Equal("change", jsonSteps[3].Type);
+        Assert.Equal("#txtInput", jsonSteps[3].Selector);
+        Assert.Equal("Hello World", jsonSteps[3].Value);
+
+        Assert.Equal("keydown", jsonSteps[4].Type);
+        Assert.Equal("Enter", jsonSteps[4].Key);
+
+        // 2. Puppeteer JS parse test
+        string jsContent = @"
+        const puppeteer = require('puppeteer');
+        (async () => {
+          const browser = await puppeteer.launch({ headless: false });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 1200, height: 900 });
+          await page.goto('http://localhost:9222/dashboard');
+          const element_0 = await page.waitForSelector('#btnClickMe');
+          await element_0.click();
+          const element_1 = await page.waitForSelector('#txtInput');
+          await element_1.type('Avalonia CDP Automation!');
+          await page.keyboard.press('Tab');
+          await browser.close();
+        })();";
+
+        var jsSteps = RecordingParser.Parse(jsContent);
+        Assert.Equal(5, jsSteps.Count);
+
+        Assert.Equal("setViewport", jsSteps[0].Type);
+        Assert.Equal(1200, jsSteps[0].Width);
+        Assert.Equal(900, jsSteps[0].Height);
+
+        Assert.Equal("navigate", jsSteps[1].Type);
+        Assert.Equal("http://localhost:9222/dashboard", jsSteps[1].Url);
+
+        Assert.Equal("click", jsSteps[2].Type);
+        Assert.Equal("#btnClickMe", jsSteps[2].Selector);
+
+        Assert.Equal("change", jsSteps[3].Type);
+        Assert.Equal("#txtInput", jsSteps[3].Selector);
+        Assert.Equal("Avalonia CDP Automation!", jsSteps[3].Value);
+
+        Assert.Equal("keydown", jsSteps[4].Type);
+        Assert.Equal("Tab", jsSteps[4].Key);
+    }
 }
