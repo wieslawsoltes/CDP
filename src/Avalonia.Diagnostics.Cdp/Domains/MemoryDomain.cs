@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -27,8 +28,46 @@ public static class MemoryDomain
                     };
                 }
 
+            case "getLiveControls":
+                return await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    var counts = new Dictionary<string, int>();
+                    foreach (var win in CdpServer.GetWindows())
+                    {
+                        CountControlTypes(win.Window, counts);
+                    }
+                    
+                    var array = new JsonArray();
+                    foreach (var pair in counts)
+                    {
+                        array.Add(new JsonObject
+                        {
+                            ["type"] = pair.Key,
+                            ["count"] = pair.Value
+                        });
+                    }
+                    return new JsonObject { ["controls"] = array };
+                });
+
+            case "collectGarbage":
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                return new JsonObject();
+
             default:
                 throw new Exception($"Method Memory.{action} is not implemented");
+        }
+    }
+
+    private static void CountControlTypes(Visual visual, Dictionary<string, int> counts)
+    {
+        string typeName = visual.GetType().Name;
+        counts[typeName] = counts.TryGetValue(typeName, out int c) ? c + 1 : 1;
+        
+        foreach (var child in visual.GetVisualChildren())
+        {
+            CountControlTypes(child, counts);
         }
     }
 
