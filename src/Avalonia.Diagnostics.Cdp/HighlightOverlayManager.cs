@@ -48,7 +48,7 @@ public static class HighlightOverlayManager
 
         HideHighlightInternal(window);
 
-        var adornerLayer = AdornerLayer.GetAdornerLayer(visual);
+        var adornerLayer = AdornerLayer.GetAdornerLayer(window);
         if (adornerLayer != null)
         {
             var adorner = new HighlightAdorner(visual);
@@ -61,14 +61,14 @@ public static class HighlightOverlayManager
     {
         if (_activeAdorners.TryRemove(window, out var adorner))
         {
-            var adornerLayer = AdornerLayer.GetAdornerLayer(adorner);
+            var adornerLayer = AdornerLayer.GetAdornerLayer(window);
             if (adornerLayer != null)
             {
                 adornerLayer.Children.Remove(adorner);
             }
             else
             {
-                var winAdornerLayer = AdornerLayer.GetAdornerLayer(window);
+                var winAdornerLayer = AdornerLayer.GetAdornerLayer(adorner);
                 winAdornerLayer?.Children.Remove(adorner);
             }
         }
