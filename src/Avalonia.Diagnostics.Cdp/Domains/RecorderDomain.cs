@@ -61,6 +61,7 @@ internal class SessionRecorderState
     private readonly EventHandler<PointerPressedEventArgs> _pointerPressedHandler;
     private readonly EventHandler<RoutedEventArgs> _gotFocusHandler;
     private readonly EventHandler<RoutedEventArgs> _lostFocusHandler;
+    private readonly EventHandler<KeyEventArgs> _keyDownHandler;
     private readonly ConcurrentDictionary<TextBox, string> _initialTexts = new();
 
     public SessionRecorderState(CdpSession session)
@@ -69,6 +70,7 @@ internal class SessionRecorderState
         _pointerPressedHandler = OnPointerPressed;
         _gotFocusHandler = OnGotFocus;
         _lostFocusHandler = OnLostFocus;
+        _keyDownHandler = OnKeyDown;
     }
 
     public void Attach()
@@ -76,6 +78,29 @@ internal class SessionRecorderState
         _session.Window.AddHandler(InputElement.PointerPressedEvent, _pointerPressedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
         _session.Window.AddHandler(InputElement.GotFocusEvent, _gotFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
         _session.Window.AddHandler(InputElement.LostFocusEvent, _lostFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+        _session.Window.AddHandler(InputElement.KeyDownEvent, _keyDownHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        // Emit initial viewport size
+        var size = _session.Window.ClientSize;
+        _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
+        {
+            ["step"] = new JsonObject
+            {
+                ["type"] = "setViewport",
+                ["width"] = size.Width,
+                ["height"] = size.Height
+            }
+        });
+
+        // Emit initial navigation step
+        _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
+        {
+            ["step"] = new JsonObject
+            {
+                ["type"] = "navigate",
+                ["url"] = $"http://localhost:{CdpServer.Port}/"
+            }
+        });
     }
 
     public void Detach()
@@ -83,7 +108,31 @@ internal class SessionRecorderState
         _session.Window.RemoveHandler(InputElement.PointerPressedEvent, _pointerPressedHandler);
         _session.Window.RemoveHandler(InputElement.GotFocusEvent, _gotFocusHandler);
         _session.Window.RemoveHandler(InputElement.LostFocusEvent, _lostFocusHandler);
+        _session.Window.RemoveHandler(InputElement.KeyDownEvent, _keyDownHandler);
         _initialTexts.Clear();
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_session.InspectModeEnabled) return;
+
+        var key = e.Key;
+        if (key == Key.Enter || key == Key.Escape || key == Key.Tab ||
+            key == Key.Back || key == Key.Delete ||
+            key == Key.Left || key == Key.Right || key == Key.Up || key == Key.Down)
+        {
+            var step = new JsonObject
+            {
+                ["type"] = "keydown",
+                ["target"] = "main",
+                ["key"] = key.ToString()
+            };
+
+            _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
+            {
+                ["step"] = step
+            });
+        }
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)

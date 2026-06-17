@@ -12,6 +12,10 @@ public class ParsedStep
     public string Value { get; set; } = "";
     public double OffsetX { get; set; }
     public double OffsetY { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public string Url { get; set; } = "";
+    public string Key { get; set; } = "";
 }
 
 public static class RecordingParser
@@ -39,6 +43,10 @@ public static class RecordingParser
                     string value = stepObj["value"]?.GetValue<string>() ?? "";
                     double offsetX = stepObj["offsetX"]?.GetValue<double>() ?? 0;
                     double offsetY = stepObj["offsetY"]?.GetValue<double>() ?? 0;
+                    double width = stepObj["width"]?.GetValue<double>() ?? 0;
+                    double height = stepObj["height"]?.GetValue<double>() ?? 0;
+                    string url = stepObj["url"]?.GetValue<string>() ?? "";
+                    string keyVal = stepObj["key"]?.GetValue<string>() ?? "";
 
                     string selector = "";
                     var selectorsArr = stepObj["selectors"] as JsonArray;
@@ -57,7 +65,11 @@ public static class RecordingParser
                         Selector = selector,
                         Value = value,
                         OffsetX = offsetX,
-                        OffsetY = offsetY
+                        OffsetY = offsetY,
+                        Width = width,
+                        Height = height,
+                        Url = url,
+                        Key = keyVal
                     });
                 }
             }
@@ -76,9 +88,46 @@ public static class RecordingParser
             var selectorRegex = new Regex(@"const\s+(\w+)\s*=\s*await\s+page\.waitForSelector\('([^']+)'\);", RegexOptions.Compiled);
             var clickRegex = new Regex(@"await\s+(\w+)\.click\(\);", RegexOptions.Compiled);
             var typeRegex = new Regex(@"await\s+(\w+)\.type\('([^']*)'\);", RegexOptions.Compiled);
+            var viewportRegex = new Regex(@"await\s+page\.setViewport\(\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}\);", RegexOptions.Compiled);
+            var gotoRegex = new Regex(@"await\s+page\.goto\('([^']+)'\);", RegexOptions.Compiled);
+            var keypressRegex = new Regex(@"await\s+page\.keyboard\.press\('([^']+)'\);", RegexOptions.Compiled);
 
             foreach (var line in lines)
             {
+                var vpMatch = viewportRegex.Match(line);
+                if (vpMatch.Success)
+                {
+                    steps.Add(new ParsedStep
+                    {
+                        Type = "setViewport",
+                        Width = double.Parse(vpMatch.Groups[1].Value),
+                        Height = double.Parse(vpMatch.Groups[2].Value)
+                    });
+                    continue;
+                }
+
+                var gotoMatch = gotoRegex.Match(line);
+                if (gotoMatch.Success)
+                {
+                    steps.Add(new ParsedStep
+                    {
+                        Type = "navigate",
+                        Url = gotoMatch.Groups[1].Value
+                    });
+                    continue;
+                }
+
+                var kpMatch = keypressRegex.Match(line);
+                if (kpMatch.Success)
+                {
+                    steps.Add(new ParsedStep
+                    {
+                        Type = "keydown",
+                        Key = kpMatch.Groups[1].Value
+                    });
+                    continue;
+                }
+
                 var selMatch = selectorRegex.Match(line);
                 if (selMatch.Success)
                 {
