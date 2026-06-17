@@ -17,6 +17,7 @@ public class HighlightAdorner : Control
         _adornedVisual = adornedVisual;
         AdornerLayer.SetAdornedElement(this, adornedVisual);
         IsHitTestVisible = false;
+        ClipToBounds = false;
     }
 
     public override void Render(DrawingContext context)
@@ -47,7 +48,18 @@ public class HighlightAdorner : Control
         double tooltipX = 0;
         double tooltipY = -text.Height - 6;
 
-        if (tooltipY + _adornedVisual.Bounds.Y < 0)
+        double windowY = 500; // default to a safe value to draw above if not attached
+        var topLevel = TopLevel.GetTopLevel(_adornedVisual);
+        if (topLevel != null)
+        {
+            var p = _adornedVisual.TranslatePoint(new Point(0, 0), topLevel);
+            if (p.HasValue)
+            {
+                windowY = p.Value.Y;
+            }
+        }
+
+        if (tooltipY + windowY < 0)
         {
             tooltipY = 6;
         }
