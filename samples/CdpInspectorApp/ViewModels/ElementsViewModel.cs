@@ -16,6 +16,7 @@ public class ElementsViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
     private ObservableCollection<DomNodeModel> _rootNodes = new();
+    private ObservableCollection<AxNodeModel> _axRootNodes = new();
     private ObservableCollection<AttributeModel> _attributes = new();
     private ObservableCollection<PropertyModel> _properties = new();
     private ObservableCollection<CssPropertyModel> _cssProperties = new();
@@ -23,6 +24,7 @@ public class ElementsViewModel : ViewModelBase
     private ObservableCollection<EventListenerModel> _eventListeners = new();
 
     private DomNodeModel? _selectedNode;
+    private AxNodeModel? _selectedAxNode;
     private PropertyModel? _selectedProperty;
 
     private string _selectedNodeIdText = "None";
@@ -34,7 +36,26 @@ public class ElementsViewModel : ViewModelBase
     private bool _isHighlightActive;
     private string _searchQuery = "";
 
+    // Accessibility Details
+    private string _axRoleText = "None";
+    private string _axNameText = "None";
+    private string _axDescriptionText = "None";
+    private string _axIgnoredText = "False";
+    private string _axParentIdText = "None";
+    private string _axChildIdsText = "None";
+
+    // Layout Details
+    private string _layoutMargin = "0,0,0,0";
+    private string _layoutPadding = "0,0,0,0";
+    private string _layoutBorderThickness = "0,0,0,0";
+    private string _layoutWidth = "Auto";
+    private string _layoutHeight = "Auto";
+    private string _layoutBounds = "0,0,0,0";
+    private string _layoutHorizontalAlignment = "Stretch";
+    private string _layoutVerticalAlignment = "Stretch";
+
     public ObservableCollection<DomNodeModel> RootNodes => _rootNodes;
+    public ObservableCollection<AxNodeModel> AxRootNodes => _axRootNodes;
     public ObservableCollection<AttributeModel> Attributes => _attributes;
     public ObservableCollection<PropertyModel> Properties => _properties;
     public ObservableCollection<CssPropertyModel> CssProperties => _cssProperties;
@@ -49,6 +70,21 @@ public class ElementsViewModel : ViewModelBase
             if (RaiseAndSetIfChanged(ref _selectedNode, value))
             {
                 _ = HandleNodeSelectionChangedAsync();
+            }
+        }
+    }
+
+    public AxNodeModel? SelectedAxNode
+    {
+        get => _selectedAxNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedAxNode, value))
+            {
+                if (_selectedAxNode != null && _selectedAxNode.BackendDOMNodeId.HasValue)
+                {
+                    SelectNodeById(_selectedAxNode.BackendDOMNodeId.Value);
+                }
             }
         }
     }
@@ -121,6 +157,80 @@ public class ElementsViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _searchQuery, value);
     }
 
+    // Accessibility properties
+    public string AxRoleText
+    {
+        get => _axRoleText;
+        set => RaiseAndSetIfChanged(ref _axRoleText, value);
+    }
+    public string AxNameText
+    {
+        get => _axNameText;
+        set => RaiseAndSetIfChanged(ref _axNameText, value);
+    }
+    public string AxDescriptionText
+    {
+        get => _axDescriptionText;
+        set => RaiseAndSetIfChanged(ref _axDescriptionText, value);
+    }
+    public string AxIgnoredText
+    {
+        get => _axIgnoredText;
+        set => RaiseAndSetIfChanged(ref _axIgnoredText, value);
+    }
+    public string AxParentIdText
+    {
+        get => _axParentIdText;
+        set => RaiseAndSetIfChanged(ref _axParentIdText, value);
+    }
+    public string AxChildIdsText
+    {
+        get => _axChildIdsText;
+        set => RaiseAndSetIfChanged(ref _axChildIdsText, value);
+    }
+
+    // Layout properties
+    public string LayoutMargin
+    {
+        get => _layoutMargin;
+        set => RaiseAndSetIfChanged(ref _layoutMargin, value);
+    }
+    public string LayoutPadding
+    {
+        get => _layoutPadding;
+        set => RaiseAndSetIfChanged(ref _layoutPadding, value);
+    }
+    public string LayoutBorderThickness
+    {
+        get => _layoutBorderThickness;
+        set => RaiseAndSetIfChanged(ref _layoutBorderThickness, value);
+    }
+    public string LayoutWidth
+    {
+        get => _layoutWidth;
+        set => RaiseAndSetIfChanged(ref _layoutWidth, value);
+    }
+    public string LayoutHeight
+    {
+        get => _layoutHeight;
+        set => RaiseAndSetIfChanged(ref _layoutHeight, value);
+    }
+    public string LayoutBounds
+    {
+        get => _layoutBounds;
+        set => RaiseAndSetIfChanged(ref _layoutBounds, value);
+    }
+    public string LayoutHorizontalAlignment
+    {
+        get => _layoutHorizontalAlignment;
+        set => RaiseAndSetIfChanged(ref _layoutHorizontalAlignment, value);
+    }
+    public string LayoutVerticalAlignment
+    {
+        get => _layoutVerticalAlignment;
+        set => RaiseAndSetIfChanged(ref _layoutVerticalAlignment, value);
+    }
+
     public ICommand FocusSelectedNodeCommand { get; }
     public ICommand DeleteSelectedNodeCommand { get; }
     public ICommand ApplyAttributeCommand { get; }
@@ -128,6 +238,7 @@ public class ElementsViewModel : ViewModelBase
     public ICommand ApplyPropertyCommand { get; }
     public ICommand ApplyStyleTextCommand { get; }
     public ICommand SearchCommand { get; }
+    public ICommand RefreshAxTreeCommand { get; }
 
     public ElementsViewModel(ICdpService cdpService)
     {
@@ -142,6 +253,7 @@ public class ElementsViewModel : ViewModelBase
         ApplyPropertyCommand = new RelayCommand(async () => await ApplyPropertyAsync(), () => SelectedNode != null && SelectedProperty != null);
         ApplyStyleTextCommand = new RelayCommand(async () => await ApplyStyleTextAsync(), () => SelectedNode != null);
         SearchCommand = new RelayCommand(async () => await PerformSearchAsync());
+        RefreshAxTreeCommand = new RelayCommand(async () => await RefreshAxTreeAsync());
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -181,11 +293,13 @@ public class ElementsViewModel : ViewModelBase
             await _cdpService.SendCommandAsync("DOM.enable");
             await _cdpService.SendCommandAsync("CSS.enable");
             await _cdpService.SendCommandAsync("DOMDebugger.enable");
+            await _cdpService.SendCommandAsync("Accessibility.enable");
             await RefreshDomTreeAsync();
+            await RefreshAxTreeAsync();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling DOM/CSS domains: {ex.Message}");
+            Console.WriteLine($"Error enabling DOM/CSS/AX domains: {ex.Message}");
         }
     }
 
@@ -194,6 +308,7 @@ public class ElementsViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             RootNodes.Clear();
+            AxRootNodes.Clear();
             Attributes.Clear();
             Properties.Clear();
             CssProperties.Clear();
@@ -203,6 +318,8 @@ public class ElementsViewModel : ViewModelBase
             SelectedProperty = null;
             SelectedNodeIdText = "None";
             StyleTextInputText = "";
+            ClearAxDetails();
+            ResetLayoutInfo();
         });
     }
 
@@ -423,6 +540,80 @@ public class ElementsViewModel : ViewModelBase
         catch (Exception ex)
         {
             Console.WriteLine($"Error fetching CSS styles: {ex.Message}");
+        }
+
+        // 5. Fetch Accessibility details for the selected node
+        ClearAxDetails();
+        try
+        {
+            var axRes = await _cdpService.SendCommandAsync("Accessibility.getAXNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var axNodes = axRes["nodes"] as JsonArray;
+            if (axNodes != null && axNodes.Count > 0)
+            {
+                var matchedNode = axNodes.FirstOrDefault(n => n?["backendDOMNodeId"]?.GetValue<int>() == SelectedNode.NodeId) as JsonObject;
+                if (matchedNode == null)
+                {
+                    matchedNode = axNodes[0] as JsonObject;
+                }
+
+                if (matchedNode != null)
+                {
+                    var roleObj = matchedNode["role"] as JsonObject;
+                    AxRoleText = roleObj?["value"]?.GetValue<string>() ?? "Unknown";
+                    
+                    var nameObj = matchedNode["name"] as JsonObject;
+                    AxNameText = nameObj?["value"]?.GetValue<string>() ?? "None";
+
+                    var descObj = matchedNode["description"] as JsonObject;
+                    AxDescriptionText = descObj?["value"]?.GetValue<string>() ?? "None";
+
+                    AxIgnoredText = (matchedNode["ignored"]?.GetValue<bool>() ?? false) ? "True" : "False";
+                    AxParentIdText = matchedNode["parentId"]?.GetValue<string>() ?? "None";
+
+                    var childIds = matchedNode["childIds"] as JsonArray;
+                    if (childIds != null && childIds.Count > 0)
+                    {
+                        AxChildIdsText = string.Join(", ", childIds.Select(c => c?.GetValue<string>() ?? ""));
+                    }
+                    else
+                    {
+                        AxChildIdsText = "None";
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching AX details: {ex.Message}");
+        }
+
+        // 6. Populate Layout info from properties list
+        ResetLayoutInfo();
+        if (SelectedNode != null)
+        {
+            var marginProp = Properties.FirstOrDefault(p => p.Name.Equals("Margin", StringComparison.OrdinalIgnoreCase));
+            if (marginProp != null) LayoutMargin = marginProp.Value;
+
+            var paddingProp = Properties.FirstOrDefault(p => p.Name.Equals("Padding", StringComparison.OrdinalIgnoreCase));
+            if (paddingProp != null) LayoutPadding = paddingProp.Value;
+
+            var borderProp = Properties.FirstOrDefault(p => p.Name.Equals("BorderThickness", StringComparison.OrdinalIgnoreCase));
+            if (borderProp != null) LayoutBorderThickness = borderProp.Value;
+
+            var widthProp = Properties.FirstOrDefault(p => p.Name.Equals("Width", StringComparison.OrdinalIgnoreCase));
+            if (widthProp != null) LayoutWidth = widthProp.Value;
+
+            var heightProp = Properties.FirstOrDefault(p => p.Name.Equals("Height", StringComparison.OrdinalIgnoreCase));
+            if (heightProp != null) LayoutHeight = heightProp.Value;
+
+            var boundsProp = Properties.FirstOrDefault(p => p.Name.Equals("Bounds", StringComparison.OrdinalIgnoreCase));
+            if (boundsProp != null) LayoutBounds = boundsProp.Value;
+
+            var haProp = Properties.FirstOrDefault(p => p.Name.Equals("HorizontalAlignment", StringComparison.OrdinalIgnoreCase));
+            if (haProp != null) LayoutHorizontalAlignment = haProp.Value;
+
+            var vaProp = Properties.FirstOrDefault(p => p.Name.Equals("VerticalAlignment", StringComparison.OrdinalIgnoreCase));
+            if (vaProp != null) LayoutVerticalAlignment = vaProp.Value;
         }
 
         // Update highlight if enabled
@@ -711,5 +902,123 @@ public class ElementsViewModel : ViewModelBase
             path.RemoveAt(path.Count - 1);
         }
         return false;
+    }
+
+    public async Task RefreshAxTreeAsync()
+    {
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Accessibility.getFullAXTree");
+            var nodes = response["nodes"] as JsonArray;
+            if (nodes == null) return;
+
+            var nodesMap = new Dictionary<string, AxNodeModel>();
+            var rootList = new List<AxNodeModel>();
+            var parents = new Dictionary<string, string>();
+
+            foreach (var node in nodes)
+            {
+                if (node is JsonObject nodeObj)
+                {
+                    string nodeId = nodeObj["nodeId"]?.GetValue<string>() ?? "";
+                    var roleObj = nodeObj["role"] as JsonObject;
+                    string role = roleObj?["value"]?.GetValue<string>() ?? "Unknown";
+                    var nameObj = nodeObj["name"] as JsonObject;
+                    string name = nameObj?["value"]?.GetValue<string>() ?? "";
+                    bool ignored = nodeObj["ignored"]?.GetValue<bool>() ?? false;
+                    int? backendDomNodeId = nodeObj["backendDOMNodeId"]?.GetValue<int>();
+
+                    var model = new AxNodeModel(nodeId, role, name, ignored, backendDomNodeId);
+                    nodesMap[nodeId] = model;
+
+                    var childIds = nodeObj["childIds"] as JsonArray;
+                    if (childIds != null)
+                    {
+                        foreach (var childIdNode in childIds)
+                        {
+                            string childId = childIdNode?.GetValue<string>() ?? "";
+                            if (!string.IsNullOrEmpty(childId))
+                            {
+                                parents[childId] = nodeId;
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (var kvp in nodesMap)
+            {
+                string nodeId = kvp.Key;
+                var nodeModel = kvp.Value;
+
+                if (parents.TryGetValue(nodeId, out string? parentId) && parentId != null && nodesMap.TryGetValue(parentId, out var parentModel))
+                {
+                    parentModel.Children.Add(nodeModel);
+                }
+                else
+                {
+                    rootList.Add(nodeModel);
+                }
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                _axRootNodes.Clear();
+                foreach (var root in rootList)
+                {
+                    _axRootNodes.Add(root);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing AX tree: {ex.Message}");
+        }
+    }
+
+    private void ClearAxDetails()
+    {
+        AxRoleText = "None";
+        AxNameText = "None";
+        AxDescriptionText = "None";
+        AxIgnoredText = "False";
+        AxParentIdText = "None";
+        AxChildIdsText = "None";
+    }
+
+    private void ResetLayoutInfo()
+    {
+        LayoutMargin = "0,0,0,0";
+        LayoutPadding = "0,0,0,0";
+        LayoutBorderThickness = "0,0,0,0";
+        LayoutWidth = "Auto";
+        LayoutHeight = "Auto";
+        LayoutBounds = "0,0,0,0";
+        LayoutHorizontalAlignment = "Stretch";
+        LayoutVerticalAlignment = "Stretch";
+    }
+
+    public void SelectAxNodeById(string nodeId)
+    {
+        foreach (var root in AxRootNodes)
+        {
+            var found = FindAxNode(root, nodeId);
+            if (found != null)
+            {
+                found.IsSelected = true;
+                break;
+            }
+        }
+    }
+
+    private AxNodeModel? FindAxNode(AxNodeModel current, string nodeId)
+    {
+        if (current.NodeId == nodeId) return current;
+        foreach (var child in current.Children)
+        {
+            var found = FindAxNode(child, nodeId);
+            if (found != null) return found;
+        }
+        return null;
     }
 }

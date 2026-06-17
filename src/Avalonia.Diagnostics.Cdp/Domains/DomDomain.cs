@@ -455,6 +455,20 @@ public static class DomDomain
         return null;
     }
 
+    private static Thickness GetThicknessProperty(Visual visual, string propertyName)
+    {
+        var prop = visual.GetType().GetProperty(propertyName);
+        if (prop != null)
+        {
+            var val = prop.GetValue(visual);
+            if (val is Thickness thickness)
+            {
+                return thickness;
+            }
+        }
+        return default;
+    }
+
     private static JsonObject GetBoxModel(CdpSession session, Visual visual)
     {
         double x = 0, y = 0, w = 0, h = 0;
@@ -482,10 +496,33 @@ public static class DomDomain
             h = visual.Bounds.Height;
         }
 
-        var contentQuad = new JsonArray { x, y, x + w, y, x + w, y + h, x, y + h };
-        var paddingQuad = new JsonArray { x, y, x + w, y, x + w, y + h, x, y + h };
+        var margin = GetThicknessProperty(visual, "Margin");
+        var border = GetThicknessProperty(visual, "BorderThickness");
+        var padding = GetThicknessProperty(visual, "Padding");
+
+        // Border box matches the control's Bounds
         var borderQuad = new JsonArray { x, y, x + w, y, x + w, y + h, x, y + h };
-        var marginQuad = new JsonArray { x, y, x + w, y, x + w, y + h, x, y + h };
+
+        // Margin box extends outwards from the border box
+        double ml = x - margin.Left;
+        double mt = y - margin.Top;
+        double mr = x + w + margin.Right;
+        double mb = y + h + margin.Bottom;
+        var marginQuad = new JsonArray { ml, mt, mr, mt, mr, mb, ml, mb };
+
+        // Padding box sits inside the border box
+        double pl = x + border.Left;
+        double pt = y + border.Top;
+        double pr = x + w - border.Right;
+        double pb = y + h - border.Bottom;
+        var paddingQuad = new JsonArray { pl, pt, pr, pt, pr, pb, pl, pb };
+
+        // Content box sits inside the padding box
+        double cl = pl + padding.Left;
+        double ct = pt + padding.Top;
+        double cr = pr - padding.Right;
+        double cb = pb - padding.Bottom;
+        var contentQuad = new JsonArray { cl, ct, cr, ct, cr, cb, cl, cb };
 
         return new JsonObject
         {
