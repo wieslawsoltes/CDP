@@ -16,6 +16,7 @@ public class HighlightAdorner : Control
     {
         _adornedVisual = adornedVisual;
         AdornerLayer.SetAdornedElement(this, adornedVisual);
+        IsHitTestVisible = false;
     }
 
     public override void Render(DrawingContext context)
