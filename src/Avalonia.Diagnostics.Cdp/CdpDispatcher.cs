@@ -34,6 +34,18 @@ public static class CdpDispatcher
                 return await RuntimeDomain.HandleAsync(session, action, @params);
             case "Target":
                 return await TargetDomain.HandleAsync(session, action, @params);
+            case "Accessibility":
+                return await AccessibilityDomain.HandleAsync(session, action, @params);
+            case "Emulation":
+                return await EmulationDomain.HandleAsync(session, action, @params);
+            case "Log":
+                return await LogDomain.HandleAsync(session, action, @params);
+            case "Performance":
+                return await PerformanceDomain.HandleAsync(session, action, @params);
+            case "Browser":
+                return await BrowserDomain.HandleAsync(session, action, @params);
+            case "SystemInfo":
+                return await SystemInfoDomain.HandleAsync(session, action, @params);
             default:
                 if (action == "enable" || action == "disable")
                 {
