@@ -18,6 +18,15 @@ public static class CdpDispatcher
         var domain = method.Substring(0, dotIndex);
         var action = method.Substring(dotIndex + 1);
 
+        if (action == "enable" || action == "disable")
+        {
+            if (domain != "DOM" && domain != "CSS" && domain != "Page" && domain != "Overlay" &&
+                domain != "Runtime" && domain != "Accessibility" && domain != "Log" && domain != "Performance")
+            {
+                return new JsonObject();
+            }
+        }
+
         switch (domain)
         {
             case "DOM":
