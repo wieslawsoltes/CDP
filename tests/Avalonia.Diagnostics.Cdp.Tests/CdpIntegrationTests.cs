@@ -430,4 +430,91 @@ public class CdpIntegrationTests
             window.Close();
         }
     }
+
+    [AvaloniaFact]
+    public void TestDOMDebuggerAndMemoryDomains()
+    {
+        var button = new Button { Name = "inspectBtn" };
+        button.Click += (s, e) => { }; // Register click event handler
+        var window = new Window { Title = "Event Debugger Test Window", Content = button };
+        window.Show();
+        var id = CdpServer.Register(window, "Debugger Window");
+        int port = GetFreePort() + 3;
+
+        try
+        {
+            CdpServer.Start(port);
+
+            var clientTask = Task.Run(async () =>
+            {
+                using var ws = new ClientWebSocket();
+                var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
+                await ws.ConnectAsync(uri, CancellationToken.None);
+
+                // 1. Get Document
+                var docRes = await SendJsonAndReceiveAsync(ws, "DOM.getDocument", new JsonObject());
+                
+                // 2. Query Selector for Button
+                var qRes = await SendJsonAndReceiveAsync(ws, "DOM.querySelector", new JsonObject
+                {
+                    ["nodeId"] = 1,
+                    ["selector"] = "ContentPresenter > Button"
+                });
+                var btnNodeId = qRes["result"]?["nodeId"]?.GetValue<int>() ?? 0;
+                Assert.True(btnNodeId > 1);
+
+                // 3. Resolve Node to get objectId
+                var resolveRes = await SendJsonAndReceiveAsync(ws, "DOM.resolveNode", new JsonObject { ["nodeId"] = btnNodeId });
+                var objectId = resolveRes["result"]?["object"]?["objectId"]?.GetValue<string>() ?? "";
+                Assert.NotEmpty(objectId);
+
+                // 4. Get Event Listeners
+                var listenersRes = await SendJsonAndReceiveAsync(ws, "DOMDebugger.getEventListeners", new JsonObject { ["objectId"] = objectId });
+                var listeners = listenersRes["result"]?["listeners"] as JsonArray;
+                Assert.NotNull(listeners);
+                Assert.NotEmpty(listeners); // Button Click handler should be returned
+                var clickListener = listeners.FirstOrDefault(l => l?["type"]?.GetValue<string>() == "Click");
+                Assert.NotNull(clickListener);
+                var handlerDesc = clickListener["handler"]?["description"]?.GetValue<string>() ?? "";
+                Assert.Contains("TestDOMDebuggerAndMemoryDomains", handlerDesc); // Target className or handler details should match
+
+                // 5. Get DOM Counters (Memory)
+                var countersRes = await SendJsonAndReceiveAsync(ws, "Memory.getDOMCounters", new JsonObject());
+                Assert.True(countersRes["result"]?["documents"]?.GetValue<int>() >= 1);
+                Assert.True(countersRes["result"]?["nodes"]?.GetValue<int>() > 1);
+
+                // 6. Remove Node
+                var removeRes = await SendJsonAndReceiveAsync(ws, "DOM.removeNode", new JsonObject { ["nodeId"] = btnNodeId });
+                Assert.NotNull(removeRes);
+                Assert.False(removeRes.ContainsKey("error"));
+
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
+            });
+
+            while (!clientTask.IsCompleted)
+            {
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            clientTask.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            CdpServer.Stop();
+            window.Close();
+        }
+    }
+
+    private static async Task<JsonObject> SendJsonAndReceiveAsync(WebSocket ws, string method, JsonObject parameters)
+    {
+        var request = new JsonObject
+        {
+            ["id"] = 100,
+            ["method"] = method,
+            ["params"] = parameters
+        };
+        await SendJsonAsync(ws, request);
+        return await ReceiveJsonAsync(ws);
+    }
 }
