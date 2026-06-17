@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CdpSampleApp.MainWindow"
+        Title="Avalonia CDP Inspector Sample" Width="550" Height="450">
+    <Grid Margin="20" RowDefinitions="Auto, *">
+        <TextBlock Classes="header" Text="Avalonia CDP Inspector Sample" FontSize="20" FontWeight="Bold" Margin="0,0,0,20"/>
+        
+        <StackPanel Grid.Row="1" Spacing="15">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Name="btnClickMe" Classes="primary btn" Content="Click Me" Width="100"/>
+                <TextBlock Name="txtStatus" Text="Not Clicked" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            </StackPanel>
+            
+            <TextBox Name="txtInput" Watermark="Type text here..." Width="300" HorizontalAlignment="Left"/>
+            
+            <CheckBox Name="chkToggle" Content="Enable Option"/>
+            
+            <Slider Name="sliderValue" Minimum="0" Maximum="100" Value="50" Width="300" HorizontalAlignment="Left"/>
+            
+            <TextBlock Name="txtSliderVal" Text="{Binding #sliderValue.Value, StringFormat='Slider Value: {0:0}'}"/>
+        </StackPanel>
+    </Grid>
+</Window>
