@@ -306,4 +306,128 @@ public class CdpIntegrationTests
             window.Close();
         }
     }
+
+    [AvaloniaFact]
+    public void TestExtendedCdpFeatures()
+    {
+        var button = new Button { Name = "testBtn" };
+        var window = new Window { Title = "Extended Features Test Window", Content = button };
+        window.Show();
+        var id = CdpServer.Register(window, "Extended Features Window");
+        int port = GetFreePort() + 2;
+
+        try
+        {
+            CdpServer.Start(port);
+
+            var clientTask = Task.Run(async () =>
+            {
+                using var ws = new ClientWebSocket();
+                var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
+                await ws.ConnectAsync(uri, CancellationToken.None);
+
+                // 1. Get Document
+                var request = new JsonObject
+                {
+                    ["id"] = 1,
+                    ["method"] = "DOM.getDocument",
+                    ["params"] = new JsonObject()
+                };
+                await SendJsonAsync(ws, request);
+                var response = await ReceiveJsonAsync(ws);
+                Assert.Equal(1, response["id"]?.GetValue<int>());
+
+                // 2. Query Selector for Button
+                var qRequest = new JsonObject
+                {
+                    ["id"] = 2,
+                    ["method"] = "DOM.querySelector",
+                    ["params"] = new JsonObject
+                    {
+                        ["nodeId"] = 1,
+                        ["selector"] = "ContentPresenter > Button"
+                    }
+                };
+                await SendJsonAsync(ws, qRequest);
+                var qResponse = await ReceiveJsonAsync(ws);
+                var btnNodeId = qResponse["result"]?["nodeId"]?.GetValue<int>() ?? 0;
+                Assert.True(btnNodeId > 1);
+
+                // 3. Test CSS.getComputedStyleForNode
+                var compRequest = new JsonObject
+                {
+                    ["id"] = 3,
+                    ["method"] = "CSS.getComputedStyleForNode",
+                    ["params"] = new JsonObject { ["nodeId"] = btnNodeId }
+                };
+                await SendJsonAsync(ws, compRequest);
+                var compResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(3, compResponse["id"]?.GetValue<int>());
+                var computedStyles = compResponse["result"]?["computedStyle"] as JsonArray;
+                Assert.NotNull(computedStyles);
+                var widthProp = computedStyles.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "width");
+                Assert.NotNull(widthProp);
+
+                // 4. Test Overlay.setInspectMode
+                var setInspectModeRequest = new JsonObject
+                {
+                    ["id"] = 4,
+                    ["method"] = "Overlay.setInspectMode",
+                    ["params"] = new JsonObject
+                    {
+                        ["mode"] = "searchForNode",
+                        ["highlightConfig"] = new JsonObject()
+                    }
+                };
+                await SendJsonAsync(ws, setInspectModeRequest);
+                var setInspectModeResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(4, setInspectModeResponse["id"]?.GetValue<int>());
+
+                // 5. Test Page.reload
+                var reloadRequest = new JsonObject
+                {
+                    ["id"] = 5,
+                    ["method"] = "Page.reload",
+                    ["params"] = new JsonObject()
+                };
+                await SendJsonAsync(ws, reloadRequest);
+                var reloadResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(5, reloadResponse["id"]?.GetValue<int>());
+
+                // 6. Test Input.dispatchMouseEvent (mouseWheel)
+                var scrollRequest = new JsonObject
+                {
+                    ["id"] = 6,
+                    ["method"] = "Input.dispatchMouseEvent",
+                    ["params"] = new JsonObject
+                    {
+                        ["type"] = "mouseWheel",
+                        ["x"] = 10,
+                        ["y"] = 10,
+                        ["button"] = "none",
+                        ["deltaX"] = 0,
+                        ["deltaY"] = 100
+                    }
+                };
+                await SendJsonAsync(ws, scrollRequest);
+                var scrollResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(6, scrollResponse["id"]?.GetValue<int>());
+
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
+            });
+
+            while (!clientTask.IsCompleted)
+            {
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            clientTask.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            CdpServer.Stop();
+            window.Close();
+        }
+    }
 }

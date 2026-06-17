@@ -26,6 +26,16 @@ public static class PageDomain
                 }
 
             case "reload":
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        session.Window.InvalidateMeasure();
+                        session.Window.InvalidateArrange();
+                        session.Window.InvalidateVisual();
+                    });
+                    return new JsonObject();
+                }
+
             case "navigate":
                 return new JsonObject();
 

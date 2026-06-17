@@ -14,6 +14,13 @@ public static class OverlayDomain
             case "disable":
                 return new JsonObject();
 
+            case "setInspectMode":
+                {
+                    string mode = @params["mode"]?.GetValue<string>() ?? "none";
+                    session.InspectModeEnabled = (mode == "searchForNode");
+                    return new JsonObject();
+                }
+
             case "highlightNode":
                 {
                     int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;

@@ -7,7 +7,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 
 namespace Avalonia.Diagnostics.Cdp;
@@ -22,6 +25,66 @@ public class CdpSession
     public ConcurrentDictionary<string, object> RemoteObjects { get; } = new();
     public int InspectedNodeId { get; set; } = 0;
     private int _nextObjectId = 1;
+
+    private bool _inspectModeEnabled;
+    public bool InspectModeEnabled
+    {
+        get => _inspectModeEnabled;
+        set
+        {
+            if (_inspectModeEnabled != value)
+            {
+                _inspectModeEnabled = value;
+                UpdateInspectModeHandlers();
+            }
+        }
+    }
+
+    private void UpdateInspectModeHandlers()
+    {
+        if (_inspectModeEnabled)
+        {
+            Window.AddHandler(InputElement.PointerMovedEvent, OnInspectPointerMoved, RoutingStrategies.Tunnel);
+            Window.AddHandler(InputElement.PointerPressedEvent, OnInspectPointerPressed, RoutingStrategies.Tunnel);
+        }
+        else
+        {
+            Window.RemoveHandler(InputElement.PointerMovedEvent, OnInspectPointerMoved);
+            Window.RemoveHandler(InputElement.PointerPressedEvent, OnInspectPointerPressed);
+            HighlightOverlayManager.HideHighlight(Window);
+        }
+    }
+
+    private void OnInspectPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_inspectModeEnabled) return;
+        var pos = e.GetPosition(Window);
+        var hit = Window.InputHitTest(pos);
+        if (hit is Visual visual)
+        {
+            HighlightOverlayManager.ShowHighlight(Window, visual);
+        }
+        else
+        {
+            HighlightOverlayManager.HideHighlight(Window);
+        }
+    }
+
+    private async void OnInspectPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!_inspectModeEnabled) return;
+        e.Handled = true;
+        var pos = e.GetPosition(Window);
+        var hit = Window.InputHitTest(pos);
+        if (hit is Visual visual)
+        {
+            var nodeId = NodeMap.GetOrAdd(visual);
+            await SendEventAsync("Overlay.inspectNodeRequested", new JsonObject
+            {
+                ["backendNodeId"] = nodeId
+            });
+        }
+    }
 
     public CdpSession(WebSocket webSocket, TopLevel window)
     {
@@ -172,6 +235,7 @@ public class CdpSession
     private void Cleanup()
     {
         _cts.Cancel();
+        InspectModeEnabled = false;
         Domains.LogDomain.RemoveSession(this);
         NodeMap.Clear();
         RemoteObjects.Clear();
