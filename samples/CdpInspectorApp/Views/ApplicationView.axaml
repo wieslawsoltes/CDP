@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpInspectorApp.Views.ApplicationView"
+             x:CompileBindings="False">
+    <Grid ColumnDefinitions="250, 4, *" Margin="10">
+        <!-- Sidebar tree -->
+        <Grid RowDefinitions="Auto, *">
+            <TextBlock Text="Application Data" Classes="panel-header"/>
+            <TreeView Name="treeAppNav" Grid.Row="1">
+                <TreeView.ItemTemplate>
+                    <TreeDataTemplate ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                    </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+        </Grid>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+        <!-- Editor -->
+        <Grid Name="gridResourceEditor" Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0" IsVisible="False">
+            <Grid ColumnDefinitions="*, Auto">
+                <TextBlock Text="Global Application Resources" Classes="panel-header"/>
+                <Button Grid.Column="1" Name="btnRefreshResources" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
+            </Grid>
+            
+            <ListBox Name="lstApplicationResources" Grid.Row="1">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="*, *, Auto">
+                            <TextBlock Text="{Binding Key}" FontWeight="Bold" Margin="5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value}" TextTrimming="CharacterEllipsis" Margin="5" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="12"/>
+                            <Button Grid.Column="2" Name="btnDeleteResource" Content="Delete" Tag="{Binding Key}" Click="BtnDeleteResource_Click" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Margin="5,0" Padding="8,2" FontSize="10"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Modifier Panel -->
+            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
+                    <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Global Resource Entry" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
+                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtResourceKey" Watermark="Resource Key Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtResourceValue" Watermark="Value (Hex Color, Brush, Double...)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <Button Grid.Row="1" Grid.Column="2" Name="btnSaveResource" Content="Save Resource" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
+                    <Button Grid.Row="1" Grid.Column="3" Name="btnAddResource" Content="Add New" Height="28" Padding="12,0"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
