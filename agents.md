@@ -132,9 +132,17 @@ To trigger replaying, the agent finds coordinates of the `#btnReplay` button usi
 
 ## Architectural Guidelines for Coding Agents
 
-When refactoring, modifying, or extending the inspector client (`CdpInspectorApp`), coding agents must adhere strictly to **MVVM** and **SOLID** principles:
-1. **Decoupled Code-Behind**: `MainWindow.axaml.cs` and other view files must remain thin. They should only contain view initialization code and delegation for platform-specific API calls (like file pickers).
-2. **Central Infrastructure Service**: Direct CDP network calls, loops, and connection lifecycles must be delegated to a reusable service class (implementing `ICdpService`).
-3. **Domain-Specific ViewModels**: Specific tab panels (Elements, Console, Network, Recorder, etc.) must have their own independent ViewModels inheriting from `ViewModelBase` to isolate concerns.
-4. **Data-Binding & Commands**: All UI values, lists, states, and action triggers must be bound using standard XAML data-bindings (`{Binding ...}`) and `ICommand` interfaces rather than manually manipulating UI control properties in code-behind.
-5. **No Control Renaming**: Keep XAML control names (`Name` attributes) unchanged to prevent breaking selectors in E2E automation/testing verifier scripts.
+When refactoring, modifying, or extending the codebase, coding agents must adhere to the following strict architectural guidelines:
+
+### 1. Inspector Client (`CdpInspectorApp`) Architecture (MVVM & SOLID)
+- **Decoupled Code-Behind**: `MainWindow.axaml.cs` and other view files must remain thin. They should only contain view initialization code and delegation for platform-specific API calls (like file pickers).
+- **Central Infrastructure Service**: Direct CDP network calls, loops, and connection lifecycles must be delegated to a reusable service class (implementing `ICdpService`).
+- **Domain-Specific ViewModels**: Specific tab panels (Elements, Console, Network, Recorder, etc.) must have their own independent ViewModels inheriting from `ViewModelBase` to isolate concerns.
+- **Data-Binding & Commands**: All UI values, lists, states, and action triggers must be bound using standard XAML data-bindings (`{Binding ...}`) and `ICommand` interfaces rather than manually manipulating UI control properties in code-behind.
+- **No Control Renaming**: Keep XAML control names (`Name` attributes) unchanged to prevent breaking selectors in E2E automation/testing verifier scripts.
+
+### 2. Core Library (`Avalonia.Diagnostics.Cdp`) and Test Code Guidelines
+- **SOLID Compliance**: All core library classes and unit/integration tests must strictly follow **SOLID** design principles (Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, and Dependency Inversion). Avoid monolithic classes and tight coupling.
+- **YAGNI (You Aren't Gonna Need It)**: Do not write speculative, forward-looking code or add unused extension hooks. Build only the concrete features requested to keep the codebase simple and maintainable.
+- **Modern & High-Performance .NET APIs**: Leverage modern .NET capabilities for performance-critical logic. Use `Span<T>`, `ReadOnlySpan<T>`, `Memory<T>`, `ValueTask`, `ArrayPool<T>`, and non-allocating string/JSON parsing APIs where appropriate. Focus on minimizing heap allocations.
+- **Focus on Quality & Performance**: Always prioritize write-time code cleanliness, readability, and run-time efficiency. Ensure hot paths (such as WebSocket dispatching, diagnostics observers, and visual tree traversal) are optimized, thread-safe, and free from memory leaks.
