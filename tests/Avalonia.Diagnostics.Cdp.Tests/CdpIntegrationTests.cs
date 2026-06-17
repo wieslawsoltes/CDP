@@ -473,7 +473,7 @@ public class CdpIntegrationTests
                 var listeners = listenersRes["result"]?["listeners"] as JsonArray;
                 Assert.NotNull(listeners);
                 Assert.NotEmpty(listeners); // Button Click handler should be returned
-                var clickListener = listeners.FirstOrDefault(l => l?["type"]?.GetValue<string>() == "Click");
+                var clickListener = listeners.FirstOrDefault(l => string.Equals(l?["type"]?.GetValue<string>(), "click", StringComparison.OrdinalIgnoreCase));
                 Assert.NotNull(clickListener);
                 var handlerDesc = clickListener["handler"]?["description"]?.GetValue<string>() ?? "";
                 Assert.Contains("TestDOMDebuggerAndMemoryDomains", handlerDesc); // Target className or handler details should match

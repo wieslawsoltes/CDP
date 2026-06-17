@@ -94,6 +94,7 @@ public static class DomDomain
                     var remoteObj = new JsonObject
                     {
                         ["type"] = "object",
+                        ["subtype"] = "node",
                         ["className"] = visual.GetType().FullName,
                         ["description"] = $"{visual.GetType().Name} (ID={nodeId})",
                         ["objectId"] = objectId

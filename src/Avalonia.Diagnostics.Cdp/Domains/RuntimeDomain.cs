@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Threading;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
@@ -65,32 +66,36 @@ public static class RuntimeDomain
                         throw new Exception($"Object with ID {objectId} not found");
                     }
 
-                    var propertiesJson = new JsonArray();
-                    var props = target.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                    foreach (var prop in props)
+                    var propertiesJson = await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        try
+                        var list = new JsonArray();
+                        var props = target.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        foreach (var prop in props)
                         {
-                            if (prop.GetIndexParameters().Length > 0) continue;
-
-                            object? val = null;
-                            if (prop.CanRead)
+                            try
                             {
-                                val = prop.GetValue(target);
+                                if (prop.GetIndexParameters().Length > 0) continue;
+
+                                object? val = null;
+                                if (prop.CanRead)
+                                {
+                                    val = prop.GetValue(target);
+                                }
+
+                                var propDesc = new JsonObject
+                                {
+                                    ["name"] = prop.Name,
+                                    ["value"] = CreateRemoteObject(session, val),
+                                    ["writable"] = prop.CanWrite,
+                                    ["configurable"] = true,
+                                    ["enumerable"] = true
+                                };
+                                list.Add(propDesc);
                             }
-
-                            var propDesc = new JsonObject
-                            {
-                                ["name"] = prop.Name,
-                                ["value"] = CreateRemoteObject(session, val),
-                                ["writable"] = prop.CanWrite,
-                                ["configurable"] = true,
-                                ["enumerable"] = true
-                            };
-                            propertiesJson.Add(propDesc);
+                            catch { }
                         }
-                        catch { }
-                    }
+                        return list;
+                    });
 
                     return new JsonObject { ["result"] = propertiesJson };
                 }
@@ -339,13 +344,20 @@ public static class RuntimeDomain
         }
 
         var objectId = session.RegisterObject(obj);
-        return new JsonObject
+        var result = new JsonObject
         {
             ["type"] = "object",
             ["className"] = type.FullName,
             ["description"] = $"{type.Name} ({obj})",
             ["objectId"] = objectId
         };
+
+        if (obj is Visual)
+        {
+            result["subtype"] = "node";
+        }
+
+        return result;
     }
 
     private static object? ConvertValue(string val, Type targetType)

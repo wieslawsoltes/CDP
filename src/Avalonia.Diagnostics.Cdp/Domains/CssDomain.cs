@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -30,7 +31,7 @@ public static class CssDomain
                     {
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
-                    var styles = GetComputedStyles(visual);
+                    var styles = await Dispatcher.UIThread.InvokeAsync(() => GetComputedStyles(visual));
                     return new JsonObject { ["computedStyle"] = styles };
                 }
 
@@ -42,7 +43,7 @@ public static class CssDomain
                     {
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
-                    var inlineStyle = GetInlineStyle(visual, nodeId);
+                    var inlineStyle = await Dispatcher.UIThread.InvokeAsync(() => GetInlineStyle(visual, nodeId));
                     return new JsonObject
                     {
                         ["inlineStyle"] = inlineStyle,
@@ -56,32 +57,31 @@ public static class CssDomain
             case "setStyleTexts":
                 {
                     var edits = @params["edits"] as JsonArray;
-                    var styles = new JsonArray();
-                    if (edits != null)
+                    var styles = await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        foreach (var editNode in edits)
+                        var list = new JsonArray();
+                        if (edits != null)
                         {
-                            if (editNode is JsonObject edit)
+                            foreach (var editNode in edits)
                             {
-                                string text = edit["text"]?.GetValue<string>() ?? "";
-                                // The stylesheet or node id is often tracked, we can parse it from stylesheet or fallback
-                                // Let's look up the node being edited
-                                // In CDP, stylesheetId matches styleSheetId, or we can look up the currently active node
-                                // For simplicity, we can pass nodeId or retrieve the element
-                                // Let's support editing via reflection
-                                var sheetId = edit["styleSheetId"]?.GetValue<string>() ?? "";
-                                if (int.TryParse(sheetId, out int nodeId))
+                                if (editNode is JsonObject edit)
                                 {
-                                    var visual = session.NodeMap.GetVisual(nodeId);
-                                    if (visual is Control control)
+                                    string text = edit["text"]?.GetValue<string>() ?? "";
+                                    var sheetId = edit["styleSheetId"]?.GetValue<string>() ?? "";
+                                    if (int.TryParse(sheetId, out int nodeId))
                                     {
-                                        ApplyStyleText(control, text);
-                                        styles.Add(GetInlineStyle(control, nodeId));
+                                        var visual = session.NodeMap.GetVisual(nodeId);
+                                        if (visual is Control control)
+                                        {
+                                            ApplyStyleText(control, text);
+                                            list.Add(GetInlineStyle(control, nodeId));
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
+                        return list;
+                    });
                     return new JsonObject { ["styles"] = styles };
                 }
 
@@ -171,11 +171,13 @@ public static class CssDomain
             }
         }
 
+        var cssText = string.Join(" ", cssProperties.Cast<JsonObject>().Select(p => p["text"]?.GetValue<string>() ?? ""));
         return new JsonObject
         {
             ["styleSheetId"] = nodeId.ToString(), // Map styleSheetId to nodeId for simple lookup in edits
             ["cssProperties"] = cssProperties,
             ["shorthandEntries"] = new JsonArray(),
+            ["cssText"] = cssText,
             ["range"] = new JsonObject
             {
                 ["startLine"] = 0,
