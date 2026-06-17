@@ -1938,11 +1938,11 @@ public partial class MainWindow : Window
 
                         if (srcContent != null && srcContent.Count >= 8 && tgtContent != null && tgtContent.Count >= 8)
                         {
-                            double srcX = srcContent[0]!.GetValue<double>() + (srcContent[4]!.GetValue<double>() - srcContent[0]!.GetValue<double>()) / 2.0;
-                            double srcY = srcContent[1]!.GetValue<double>() + (srcContent[5]!.GetValue<double>() - srcContent[1]!.GetValue<double>()) / 2.0;
+                            double srcX = (step.OffsetX != 0.0 || step.OffsetY != 0.0) ? srcContent[0]!.GetValue<double>() + step.OffsetX : srcContent[0]!.GetValue<double>() + (srcContent[4]!.GetValue<double>() - srcContent[0]!.GetValue<double>()) / 2.0;
+                            double srcY = (step.OffsetX != 0.0 || step.OffsetY != 0.0) ? srcContent[1]!.GetValue<double>() + step.OffsetY : srcContent[1]!.GetValue<double>() + (srcContent[5]!.GetValue<double>() - srcContent[1]!.GetValue<double>()) / 2.0;
 
-                            double tgtX = tgtContent[0]!.GetValue<double>() + (tgtContent[4]!.GetValue<double>() - tgtContent[0]!.GetValue<double>()) / 2.0;
-                            double tgtY = tgtContent[1]!.GetValue<double>() + (tgtContent[5]!.GetValue<double>() - tgtContent[1]!.GetValue<double>()) / 2.0;
+                            double tgtX = (step.TargetOffsetX != 0.0 || step.TargetOffsetY != 0.0) ? tgtContent[0]!.GetValue<double>() + step.TargetOffsetX : tgtContent[0]!.GetValue<double>() + (tgtContent[4]!.GetValue<double>() - tgtContent[0]!.GetValue<double>()) / 2.0;
+                            double tgtY = (step.TargetOffsetX != 0.0 || step.TargetOffsetY != 0.0) ? tgtContent[1]!.GetValue<double>() + step.TargetOffsetY : tgtContent[1]!.GetValue<double>() + (tgtContent[5]!.GetValue<double>() - tgtContent[1]!.GetValue<double>()) / 2.0;
 
                             await SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
                             {

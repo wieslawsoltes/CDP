@@ -195,8 +195,30 @@ internal class SessionRecorderState
 
         if (startControl == null) return;
 
-        var endControl = e.Source as Control;
-        if (endControl == null) return;
+        var releasePos = e.GetPosition(_session.Window);
+        var hitControl = _session.Window.InputHitTest(releasePos) as Control;
+        var endControl = hitControl ?? (e.Source as Control);
+
+        if (endControl != null)
+        {
+            if (endControl == startControl || IsDescendantOf(endControl, startControl))
+            {
+                var current = endControl as Visual;
+                while (current != null)
+                {
+                    if (current != startControl && !IsDescendantOf(current, startControl))
+                    {
+                        if (current is Control parentControl)
+                        {
+                            endControl = parentControl;
+                            break;
+                        }
+                    }
+                    current = current.GetVisualParent();
+                }
+            }
+        }
+        if (endControl == null) endControl = startControl;
 
         int modifiers = 0;
         if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)) modifiers |= 1;
@@ -316,5 +338,16 @@ internal class SessionRecorderState
                 }
             }
         }
+    }
+
+    private static bool IsDescendantOf(Visual? visual, Visual target)
+    {
+        var parent = visual?.GetVisualParent();
+        while (parent != null)
+        {
+            if (parent == target) return true;
+            parent = parent.GetVisualParent();
+        }
+        return false;
     }
 }

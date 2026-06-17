@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp.Domains;
 using Avalonia.Headless.XUnit;
 using Xunit;
+using Avalonia.VisualTree;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -381,5 +382,54 @@ public class CdpChromeFeatureTests
 
         Assert.Equal("keydown", jsSteps[5].Type);
         Assert.Equal("Tab", jsSteps[5].Key);
+    }
+
+    [AvaloniaFact]
+    public void TestRecorderDragAndDropTargetResolution()
+    {
+        var thumb = new Button { Name = "thumb" };
+        var track = new Border { Name = "myTrack", Child = thumb };
+        var slider = new StackPanel { Name = "mySlider", Children = { track } };
+        var window = new Window
+        {
+            Title = "Drag Test Window",
+            Content = slider
+        };
+        window.Show();
+
+        var startControl = thumb;
+        var endControl = thumb;
+
+        var current = endControl as Avalonia.Visual;
+        Control? resolvedTarget = null;
+        while (current != null)
+        {
+            bool isDescendant = false;
+            var parent = current.GetVisualParent();
+            while (parent != null)
+            {
+                if (parent == startControl)
+                {
+                    isDescendant = true;
+                    break;
+                }
+                parent = parent.GetVisualParent();
+            }
+
+            if (current != startControl && !isDescendant)
+            {
+                if (current is Control parentControl)
+                {
+                    resolvedTarget = parentControl;
+                    break;
+                }
+            }
+            current = current.GetVisualParent();
+        }
+
+        Assert.NotNull(resolvedTarget);
+        Assert.Equal("myTrack", resolvedTarget.Name);
+
+        window.Close();
     }
 }
