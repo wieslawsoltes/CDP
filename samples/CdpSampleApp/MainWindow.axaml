@@ -2,23 +2,69 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="CdpSampleApp.MainWindow"
         Title="Avalonia CDP Inspector Sample" Width="550" Height="450">
-    <Grid Margin="20" RowDefinitions="Auto, *">
-        <TextBlock Classes="header" Text="Avalonia CDP Inspector Sample" FontSize="20" FontWeight="Bold" Margin="0,0,0,20"/>
+    <Grid Margin="10" RowDefinitions="Auto, *">
+        <TextBlock Classes="header" Text="Avalonia CDP Inspector Sample" FontSize="20" FontWeight="Bold" Margin="10,0,10,10"/>
         
-        <StackPanel Grid.Row="1" Spacing="15">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Name="btnClickMe" Classes="primary btn" Content="Click Me" Width="100"/>
-                <Button Name="btnSendHttp" Content="Send HTTP Request" Width="150"/>
-                <TextBlock Name="txtStatus" Text="Not Clicked" VerticalAlignment="Center" Margin="10,0,0,0"/>
-            </StackPanel>
+        <TabControl Name="tabContainer" Grid.Row="1">
+            <!-- 1. Home Page (Existing controls) -->
+            <TabItem Header="Home" Name="tabHome">
+                <ScrollViewer Margin="10">
+                    <StackPanel Spacing="15">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Name="btnClickMe" Content="Click Me" Width="100"/>
+                            <Button Name="btnSendHttp" Content="Send HTTP Request" Width="150"/>
+                            <TextBlock Name="txtStatus" Text="Not Clicked" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                        </StackPanel>
+                        
+                        <TextBox Name="txtInput" Watermark="Type text here..." Width="300" HorizontalAlignment="Left"/>
+                        
+                        <CheckBox Name="chkToggle" Content="Enable Option"/>
+                        
+                        <Slider Name="sliderValue" Minimum="0" Maximum="100" Value="50" Width="300" HorizontalAlignment="Left"/>
+                        
+                        <TextBlock Name="txtSliderVal" Text="{Binding #sliderValue.Value, StringFormat='Slider Value: {0:0}'}"/>
+                        
+                        <!-- More controls to satisfy 'add more control but keep existing ones' -->
+                        <TextBlock Text="Additional Controls:" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <RadioButton Name="rbOption1" Content="Option 1" IsChecked="True"/>
+                            <RadioButton Name="rbOption2" Content="Option 2"/>
+                        </StackPanel>
+                        <ProgressBar Name="progressVal" Value="{Binding #sliderValue.Value}" Minimum="0" Maximum="100" Height="15" Width="300" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             
-            <TextBox Name="txtInput" Watermark="Type text here..." Width="300" HorizontalAlignment="Left"/>
+            <!-- 2. Scroll Page -->
+            <TabItem Header="Scroll Test" Name="tabScroll">
+                <Grid RowDefinitions="Auto, *">
+                    <TextBlock Text="Use mouse wheel or simulation to scroll the container below:" Margin="10,5" FontSize="11" Foreground="#9aa0a6"/>
+                    <ScrollViewer Name="scrollContainer" Grid.Row="1" Background="#202124" Margin="10" Height="250">
+                        <StackPanel Spacing="10" Margin="15">
+                            <TextBlock Text="Scroll Start" FontSize="14" FontWeight="Bold" Foreground="#8ab4f8"/>
+                            <Button Name="scrollBtn1" Content="Scroll Button 1"/>
+                            <Button Name="scrollBtn2" Content="Scroll Button 2"/>
+                            <TextBox Name="scrollTxt1" Watermark="Scroll Textbox 1" Width="200" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Middle of Scroll Area" FontSize="14" FontWeight="Bold" Foreground="#8ab4f8" Margin="0,30"/>
+                            <Button Name="scrollBtn3" Content="Scroll Button 3"/>
+                            <CheckBox Name="scrollChk1" Content="Scroll Checkbox 1"/>
+                            <Slider Name="scrollSlider1" Width="200" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Scroll End" FontSize="14" FontWeight="Bold" Foreground="#8ab4f8" Margin="0,30,0,0"/>
+                            <Button Name="scrollBtn4" Content="Scroll Button 4"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
             
-            <CheckBox Name="chkToggle" Content="Enable Option"/>
-            
-            <Slider Name="sliderValue" Minimum="0" Maximum="100" Value="50" Width="300" HorizontalAlignment="Left"/>
-            
-            <TextBlock Name="txtSliderVal" Text="{Binding #sliderValue.Value, StringFormat='Slider Value: {0:0}'}"/>
-        </StackPanel>
+            <!-- 3. About Page (Navigation test target) -->
+            <TabItem Header="About" Name="tabAbout">
+                <StackPanel Spacing="15" Margin="20">
+                    <TextBlock Text="About This App" FontSize="18" FontWeight="Bold" Foreground="#8ab4f8"/>
+                    <TextBlock Text="This is a CDP sample target application designed for end-to-end testing, visual self-inspection, and layout verifications." TextWrapping="Wrap"/>
+                    <TextBlock Text="Use the URL navigation 'http://localhost:9222/about' to reach this page programmatically." TextWrapping="Wrap" FontStyle="Italic" Foreground="#9aa0a6"/>
+                    <Button Name="btnGoBack" Content="Back to Home" Width="120" Margin="0,20,0,0"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>

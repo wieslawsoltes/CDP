@@ -1,3 +1,4 @@
+using System;
 using System.Net.Http;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -23,6 +24,31 @@ public partial class MainWindow : Window
         if (btnHttp != null)
         {
             btnHttp.Click += ButtonHttp_Click;
+        }
+
+        var btnBack = this.FindControl<Button>("btnGoBack");
+        if (btnBack != null)
+        {
+            btnBack.Click += (s, e) => Navigate("/");
+        }
+    }
+
+    public void Navigate(string url)
+    {
+        var tabs = this.FindControl<TabControl>("tabContainer");
+        if (tabs == null) return;
+
+        if (url.EndsWith("/about", StringComparison.OrdinalIgnoreCase))
+        {
+            tabs.SelectedIndex = 2; // About tab
+        }
+        else if (url.EndsWith("/scroll", StringComparison.OrdinalIgnoreCase))
+        {
+            tabs.SelectedIndex = 1; // Scroll tab
+        }
+        else
+        {
+            tabs.SelectedIndex = 0; // Home tab
         }
     }
 
