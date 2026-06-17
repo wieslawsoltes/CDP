@@ -171,6 +171,61 @@ public static class DomDomain
                     return new JsonObject();
                 }
 
+            case "performSearch":
+                {
+                    string query = @params["query"]?.GetValue<string>() ?? "";
+                    var results = new List<int>();
+
+                    try
+                    {
+                        var matches = SelectorEngine.QuerySelectorAll(session.Window, query);
+                        foreach (var match in matches)
+                        {
+                            results.Add(session.NodeMap.GetOrAdd(match));
+                        }
+                    }
+                    catch { }
+
+                    if (results.Count == 0)
+                    {
+                        SearchVisualTree(session.Window, query, session, results);
+                    }
+
+                    string searchId = Guid.NewGuid().ToString();
+                    _searchResults[searchId] = results;
+
+                    return new JsonObject
+                    {
+                        ["searchId"] = searchId,
+                        ["resultCount"] = results.Count
+                    };
+                }
+
+            case "getSearchResults":
+                {
+                    string searchId = @params["searchId"]?.GetValue<string>() ?? "";
+                    int fromIndex = @params["fromIndex"]?.GetValue<int>() ?? 0;
+                    int toIndex = @params["toIndex"]?.GetValue<int>() ?? 0;
+
+                    var nodeIds = new JsonArray();
+                    if (_searchResults.TryGetValue(searchId, out var results))
+                    {
+                        for (int i = fromIndex; i < Math.Min(toIndex, results.Count); i++)
+                        {
+                            nodeIds.Add(results[i]);
+                        }
+                    }
+
+                    return new JsonObject { ["nodeIds"] = nodeIds };
+                }
+
+            case "discardSearchResults":
+                {
+                    string searchId = @params["searchId"]?.GetValue<string>() ?? "";
+                    _searchResults.TryRemove(searchId, out _);
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method DOM.{action} is not implemented");
         }
@@ -447,6 +502,43 @@ public static class DomDomain
         else
         {
             CssDomain.SetControlProperty(control, name, value);
+        }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<int>> _searchResults = new();
+
+    private static void SearchVisualTree(Visual parent, string query, CdpSession session, List<int> results)
+    {
+        bool isMatch = false;
+        string typeName = parent.GetType().Name;
+        if (typeName.Contains(query, StringComparison.OrdinalIgnoreCase))
+        {
+            isMatch = true;
+        }
+        else if (parent is Control c)
+        {
+            if (!string.IsNullOrEmpty(c.Name) && c.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
+            else if (c is TextBlock tb && !string.IsNullOrEmpty(tb.Text) && tb.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
+            else if (c is ContentControl cc && cc.Content is string s && s.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
+        }
+
+        if (isMatch)
+        {
+            results.Add(session.NodeMap.GetOrAdd(parent));
+        }
+
+        foreach (var child in parent.GetVisualChildren())
+        {
+            SearchVisualTree(child, query, session, results);
         }
     }
 }
