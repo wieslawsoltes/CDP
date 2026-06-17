@@ -265,6 +265,15 @@ public class CdpChromeFeatureTests
           ""title"": ""Test Recording"",
           ""steps"": [
             {
+              ""type"": ""setViewport"",
+              ""width"": 1024,
+              ""height"": 768
+            },
+            {
+              ""type"": ""navigate"",
+              ""url"": ""http://localhost:9222/home""
+            },
+            {
               ""type"": ""click"",
               ""selectors"": [[""#btnClickMe""]],
               ""offsetX"": 10,
@@ -274,20 +283,35 @@ public class CdpChromeFeatureTests
               ""type"": ""change"",
               ""selectors"": [[""#txtInput""]],
               ""value"": ""Hello World""
+            },
+            {
+              ""type"": ""keydown"",
+              ""key"": ""Enter""
             }
           ]
         }";
 
         var jsonSteps = RecordingParser.Parse(jsonContent);
-        Assert.Equal(2, jsonSteps.Count);
-        Assert.Equal("click", jsonSteps[0].Type);
-        Assert.Equal("#btnClickMe", jsonSteps[0].Selector);
-        Assert.Equal(10, jsonSteps[0].OffsetX);
-        Assert.Equal(20, jsonSteps[0].OffsetY);
+        Assert.Equal(5, jsonSteps.Count);
 
-        Assert.Equal("change", jsonSteps[1].Type);
-        Assert.Equal("#txtInput", jsonSteps[1].Selector);
-        Assert.Equal("Hello World", jsonSteps[1].Value);
+        Assert.Equal("setViewport", jsonSteps[0].Type);
+        Assert.Equal(1024, jsonSteps[0].Width);
+        Assert.Equal(768, jsonSteps[0].Height);
+
+        Assert.Equal("navigate", jsonSteps[1].Type);
+        Assert.Equal("http://localhost:9222/home", jsonSteps[1].Url);
+
+        Assert.Equal("click", jsonSteps[2].Type);
+        Assert.Equal("#btnClickMe", jsonSteps[2].Selector);
+        Assert.Equal(10, jsonSteps[2].OffsetX);
+        Assert.Equal(20, jsonSteps[2].OffsetY);
+
+        Assert.Equal("change", jsonSteps[3].Type);
+        Assert.Equal("#txtInput", jsonSteps[3].Selector);
+        Assert.Equal("Hello World", jsonSteps[3].Value);
+
+        Assert.Equal("keydown", jsonSteps[4].Type);
+        Assert.Equal("Enter", jsonSteps[4].Key);
 
         // 2. Puppeteer JS parse test
         string jsContent = @"
@@ -295,21 +319,34 @@ public class CdpChromeFeatureTests
         (async () => {
           const browser = await puppeteer.launch({ headless: false });
           const page = await browser.newPage();
-          await page.goto('http://localhost:9222/');
+          await page.setViewport({ width: 1200, height: 900 });
+          await page.goto('http://localhost:9222/dashboard');
           const element_0 = await page.waitForSelector('#btnClickMe');
           await element_0.click();
           const element_1 = await page.waitForSelector('#txtInput');
           await element_1.type('Avalonia CDP Automation!');
+          await page.keyboard.press('Tab');
           await browser.close();
         })();";
 
         var jsSteps = RecordingParser.Parse(jsContent);
-        Assert.Equal(2, jsSteps.Count);
-        Assert.Equal("click", jsSteps[0].Type);
-        Assert.Equal("#btnClickMe", jsSteps[0].Selector);
+        Assert.Equal(5, jsSteps.Count);
 
-        Assert.Equal("change", jsSteps[1].Type);
-        Assert.Equal("#txtInput", jsSteps[1].Selector);
-        Assert.Equal("Avalonia CDP Automation!", jsSteps[1].Value);
+        Assert.Equal("setViewport", jsSteps[0].Type);
+        Assert.Equal(1200, jsSteps[0].Width);
+        Assert.Equal(900, jsSteps[0].Height);
+
+        Assert.Equal("navigate", jsSteps[1].Type);
+        Assert.Equal("http://localhost:9222/dashboard", jsSteps[1].Url);
+
+        Assert.Equal("click", jsSteps[2].Type);
+        Assert.Equal("#btnClickMe", jsSteps[2].Selector);
+
+        Assert.Equal("change", jsSteps[3].Type);
+        Assert.Equal("#txtInput", jsSteps[3].Selector);
+        Assert.Equal("Avalonia CDP Automation!", jsSteps[3].Value);
+
+        Assert.Equal("keydown", jsSteps[4].Type);
+        Assert.Equal("Tab", jsSteps[4].Key);
     }
 }
