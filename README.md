@@ -13,8 +13,13 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 - **Input Domain**: Simulates low-level input events (mouse movement, clicks, mouse wheel scrolls, text entry, and keyboard events) by converting CDP events to Avalonia raw inputs.
 - **Page Domain**: Supports high-DPI screenshot capture of the application window or individual elements.
 - **Overlay Domain**: Renders element highlights, padding/margin borders, and size tooltips directly onto the window's `AdornerLayer`.
-- **Runtime Domain**: Allows executing expressions and invoking functions on Avalonia control instances via Reflection.
+- **Runtime Domain**: Allows executing expressions and invoking functions on Avalonia control instances via Reflection, including parameterized method calls.
 - **Target Domain**: Dispatches multiple windows as separate debuggable page targets.
+- **Network Domain**: Intercepts outbound `HttpClient` requests and response bodies with smart caching and stream detection.
+- **Sources Domain**: Navigates active workspace directory trees and serves source code files safely under relative path boundaries.
+- **Application Domain**: Exposes live querying and mutation of global resources under `Application.Current.Resources`.
+- **Memory Domain**: Computes live visual control type allocations and triggers garbage collections.
+- **Recorder Domain**: Intercepts pointer and focus interactions to record, export (JSON/Puppeteer), load, and replay visual test scenarios.
 
 ---
 
@@ -137,13 +142,26 @@ The following methods are supported across the core CDP domains:
 | | `callFunctionOn` | Executes helper functions on a mapped remote object. |
 | | `getProperties` | Reflects and lists all C# properties/fields on a remote object. |
 | **Target** | `getTargets` | Lists all active windows as debuggable page targets. |
+| **Network** | `enable` / `disable` | Enables/disables outbound HTTP request monitoring. |
+| | `getResponseBody` | Retrieves the body payload of a completed HTTP request. |
+| **Sources** | `getWorkspaceFiles` | Recursively returns relative file paths under the active workspace. |
+| | `getFileContent` | Retrieves the text content of a source file within workspace boundaries. |
+| **Application** | `getResources` | Lists global resources in the `Application.Current.Resources` registry. |
+| | `setResource` | Registers or mutates a key-value global resource brush. |
+| | `deleteResource` | Deletes a global resource by key. |
+| **Memory** | `getLiveControls` | Computes live control allocations by class type. |
+| | `collectGarbage` | Triggers a full garbage collection in the CLR. |
+| **Recorder** | `start` / `stop` | Starts/stops intercepting user events for automation script recording. |
 
 ---
 
-## Running the Sample App
+## Running the Sample App and Inspector
 
-A sample project is provided in the repository to test the CDP capabilities manually.
+Sample projects are provided in the repository to demonstrate the CDP capabilities:
+- **CdpSampleApp**: A simple target application listening on port `9222`.
+- **CdpInspectorApp**: A custom modular inspector app styled like Chrome DevTools, which connects to the sample app. It also starts its own CDP server on port `9223` for self-inspection.
 
+### 1. Manual Testing with Chrome DevTools
 1. Start the sample application:
    ```bash
    dotnet run --project samples/CdpSampleApp
@@ -152,11 +170,27 @@ A sample project is provided in the repository to test the CDP capabilities manu
 3. Under **Devices**, click **Configure...** and verify that `localhost:9222` is listed.
 4. You will see **Avalonia CDP Inspector Sample** listed as a target under **Remote Target**.
 5. Click **inspect** to open the Chrome DevTools window.
-6. Now you can:
-   - Walk through the visual tree in the **Elements** panel.
-   - Hover over elements in the DevTools to highlight them inside the Avalonia app window.
-   - View computed properties in the **Computed** styles panel.
-   - Interact with the app (click buttons, write text) and verify inputs are registered.
+6. Now you can walk through the visual tree in the **Elements** panel, hover over elements to highlight them in the Avalonia app, view computed properties in the **Computed** panel, and capture screenshots.
+
+### 2. Testing with CdpInspectorApp
+1. Start both the sample application and the inspector:
+   ```bash
+   dotnet run --project samples/CdpSampleApp &
+   dotnet run --project samples/CdpInspectorApp
+   ```
+2. Click **Scan Targets** inside the inspector, select `CdpSampleApp (localhost:9222)`, and click **Connect**.
+3. Explore the redesigned Chrome DevTools dark mode panels (Elements, Console, Sources, Network, Performance, Application, and Simulation).
+4. Record user interactions by clicking the **Recorder** tab, clicking **Start Recording**, performing clicks and text typing on the sample app, and stopping the recording. You can save/export the Puppeteer scripts, load them back, and click **Replay** to replay them.
+
+---
+
+## CDP Self-Inspection & Agentic Testing
+
+Enabling CDP inside the `CdpInspectorApp` client itself on port `9223` allows AI coding agents and programmatic control scripts to fully inspect, command, and verify both the client and the target concurrently. 
+
+This enables automated integration scenarios (e.g. commanding the inspector to connect to a target, starting a recording, clicking and typing elements on the target, stopping the recording, and verifying the generated Puppeteer automation code on the inspector's UI) to run headlessly in under 10 seconds.
+
+For full architectural details, sequence diagrams, and agent recipes, see the [Agent-Driven CDP Self-Inspection & Multi-App Testing Guide](file:///Users/wieslawsoltes/GitHub/CDP/agents.md).
 
 ---
 
