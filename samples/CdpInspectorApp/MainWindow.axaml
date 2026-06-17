@@ -103,6 +103,7 @@
                                     <!-- Focus and Highlight -->
                                     <StackPanel Orientation="Horizontal" Spacing="15">
                                         <Button Name="btnFocus" Content="Focus Control" Padding="12,8" Background="#1976D2" Foreground="White" CornerRadius="4" Width="130" HorizontalContentAlignment="Center"/>
+                                        <Button Name="btnDeleteControl" Content="Delete Control" Padding="12,8" Background="#C62828" Foreground="White" CornerRadius="4" Width="130" HorizontalContentAlignment="Center"/>
                                         <CheckBox Name="chkHighlight" Content="Highlight Overlay" VerticalAlignment="Center"/>
                                     </StackPanel>
 
@@ -226,6 +227,10 @@
                                     <Grid ColumnDefinitions="150, *">
                                         <TextBlock Text="Visual Nodes:" Foreground="#888888"/>
                                         <TextBlock Name="lblPerfNodes" Grid.Column="1" Text="--" FontWeight="Bold"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="150, *">
+                                        <TextBlock Text="Documents (Targets):" Foreground="#888888"/>
+                                        <TextBlock Name="lblPerfDocuments" Grid.Column="1" Text="--" FontWeight="Bold"/>
                                     </Grid>
                                     <Grid ColumnDefinitions="150, *">
                                         <TextBlock Text="Memory Working Set:" Foreground="#888888"/>
@@ -363,6 +368,26 @@
                                     </ListBox>
                                 </TabItem>
                             </TabControl>
+                        </TabItem>
+
+                        <!-- Event Listeners Tab -->
+                        <TabItem Header="Event Listeners">
+                            <ListBox Name="listEventListeners" Background="#0C0C0C" BorderBrush="#252525" BorderThickness="1" CornerRadius="4" Margin="0,10,0,0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2" Margin="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <TextBlock Text="{Binding Type}" Foreground="#E0A75E" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="➔" Foreground="#888888"/>
+                                                    <TextBlock Text="{Binding HandlerName}" Foreground="#A5D6A7"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding CaptureText, StringFormat='(Capture: {0})'}" Foreground="#555555" FontSize="10"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                         </TabItem>
                     </TabControl>
                 </Border>

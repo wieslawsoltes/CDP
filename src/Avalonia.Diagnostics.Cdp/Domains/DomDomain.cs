@@ -9,6 +9,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using Avalonia.Threading;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -168,6 +169,36 @@ public static class DomDomain
                             control.Name = null;
                         }
                     }
+                    return new JsonObject();
+                }
+ 
+            case "removeNode":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var visual = session.NodeMap.GetVisual(nodeId);
+                        if (visual is Control control)
+                        {
+                            var parent = control.Parent;
+                            if (parent is Panel panel)
+                            {
+                                panel.Children.Remove(control);
+                            }
+                            else if (parent is ContentControl contentControl)
+                            {
+                                if (contentControl.Content == control) contentControl.Content = null;
+                            }
+                            else if (parent is Decorator decorator)
+                            {
+                                if (decorator.Child == control) decorator.Child = null;
+                            }
+                            else if (control.Parent == null && visual.GetVisualParent() is Panel visualPanel)
+                            {
+                                visualPanel.Children.Remove(control);
+                            }
+                        }
+                    });
                     return new JsonObject();
                 }
 

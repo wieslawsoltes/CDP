@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private ObservableCollection<CssPropertyModel> _cssProperties = new();
     private ObservableCollection<ConsoleItemModel> _consoleHistory = new();
     private ObservableCollection<CssPropertyModel> _computedStyles = new();
+    private ObservableCollection<EventListenerModel> _eventListeners = new();
 
     private DomNodeModel? _selectedNode;
     private PropertyModel? _selectedProperty;
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
         listCssProperties.ItemsSource = _cssProperties;
         listConsole.ItemsSource = _consoleHistory;
         listComputedStyles.ItemsSource = _computedStyles;
+        listEventListeners.ItemsSource = _eventListeners;
 
         btnRefreshTargets.Click += BtnRefreshTargets_Click;
         btnConnect.Click += BtnConnect_Click;
@@ -75,6 +77,7 @@ public partial class MainWindow : Window
         btnApplyStyleText.Click += BtnApplyStyleText_Click;
 
         btnInspect.Click += BtnInspect_Click;
+        btnDeleteControl.Click += BtnDeleteControl_Click;
         btnReload.Click += BtnReload_Click;
         btnSendConsole.Click += BtnSendConsole_Click;
         txtConsoleInput.KeyDown += TxtConsoleInput_KeyDown;
@@ -162,6 +165,7 @@ public partial class MainWindow : Window
             await SendCommandAsync("CSS.enable", new JsonObject());
             await SendCommandAsync("Log.enable", new JsonObject());
             await SendCommandAsync("Performance.enable", new JsonObject());
+            await SendCommandAsync("Memory.enable", new JsonObject());
 
             // Build initial tree
             await RefreshDomTreeAsync();
@@ -214,6 +218,8 @@ public partial class MainWindow : Window
             _cssProperties.Clear();
             _consoleHistory.Clear();
             _computedStyles.Clear();
+            _eventListeners.Clear();
+            lblPerfDocuments.Text = "--";
             txtSelectedNodeId.Text = "None";
             txtStyleText.Text = "";
             _selectedNode = null;
@@ -340,6 +346,33 @@ public partial class MainWindow : Window
                     {
                         _properties.Add(p);
                     }
+                }
+
+                // 3b. Resolve Event Listeners
+                _eventListeners.Clear();
+                try
+                {
+                    var listenersRes = await SendCommandAsync("DOMDebugger.getEventListeners", new JsonObject { ["objectId"] = objectId });
+                    var listeners = listenersRes["listeners"] as JsonArray;
+                    if (listeners != null)
+                    {
+                        foreach (var listener in listeners)
+                        {
+                            if (listener is JsonObject listenerObj)
+                            {
+                                string typeName = listenerObj["type"]?.GetValue<string>() ?? "";
+                                bool useCapture = listenerObj["useCapture"]?.GetValue<bool>() ?? false;
+                                var handler = listenerObj["handler"] as JsonObject;
+                                string handlerName = handler?["description"]?.GetValue<string>() ?? "Anonymous";
+
+                                _eventListeners.Add(new EventListenerModel(typeName, handlerName, useCapture));
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error fetching event listeners: {ex.Message}");
                 }
             }
         }
@@ -613,6 +646,17 @@ public partial class MainWindow : Window
                 }
             }
 
+            try
+            {
+                var memRes = await SendCommandAsync("Memory.getDOMCounters", new JsonObject());
+                int docs = memRes["documents"]?.GetValue<int>() ?? 0;
+                lblPerfDocuments.Text = docs.ToString();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Memory counters failed: {ex.Message}");
+            }
+
             var sysRes = await SendCommandAsync("SystemInfo.getProcessInfo", new JsonObject());
             var processInfo = sysRes["processInfo"] as JsonArray;
             if (processInfo != null && processInfo.Count > 0)
@@ -757,6 +801,35 @@ public partial class MainWindow : Window
     private void BtnClearLogs_Click(object? sender, RoutedEventArgs e)
     {
         _logs.Clear();
+    }
+
+    private async void BtnDeleteControl_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_selectedNode == null) return;
+        try
+        {
+            await SendCommandAsync("DOM.removeNode", new JsonObject
+            {
+                ["nodeId"] = _selectedNode.NodeId
+            });
+
+            // Clear selection and refresh tree
+            _selectedNode = null;
+            txtSelectedNodeId.Text = "None";
+            _attributes.Clear();
+            _properties.Clear();
+            _cssProperties.Clear();
+            _computedStyles.Clear();
+            _eventListeners.Clear();
+            lblSelectedProperty.Text = "None";
+            txtPropertyValue.Text = "";
+
+            await RefreshDomTreeAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Delete control failed: {ex.Message}");
+        }
     }
 
     private async void BtnInspect_Click(object? sender, RoutedEventArgs e)
@@ -1211,5 +1284,20 @@ public class ConsoleItemModel
         Expression = expr;
         Result = res;
         IsError = isError;
+    }
+}
+
+public class EventListenerModel
+{
+    public string Type { get; }
+    public string HandlerName { get; }
+    public bool UseCapture { get; }
+    public string CaptureText => UseCapture ? "Capture" : "Bubble";
+
+    public EventListenerModel(string type, string handlerName, bool useCapture)
+    {
+        Type = type;
+        HandlerName = handlerName;
+        UseCapture = useCapture;
     }
 }
