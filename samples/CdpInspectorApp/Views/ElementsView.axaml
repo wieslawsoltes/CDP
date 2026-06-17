@@ -1,0 +1,164 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpInspectorApp.Views.ElementsView"
+             x:CompileBindings="False">
+    <Grid ColumnDefinitions="*, 4, 1.2*">
+        <!-- DOM Tree (Left Side) -->
+        <Grid RowDefinitions="Auto, *, Auto" Margin="10">
+            <!-- Search -->
+            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                <TextBox Name="txtSearch" Watermark="Search by tag, ID, class, or text content..." Height="28" VerticalContentAlignment="Center"/>
+                <Button Name="btnSearch" Grid.Column="1" Content="Search" Margin="5,0,0,0" Padding="10,0" Height="28"/>
+            </Grid>
+
+            <!-- treeDom -->
+            <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
+                <TreeView Name="treeDom">
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding DisplayName}" Foreground="{Binding ForegroundBrush}" FontSize="12"/>
+                            </StackPanel>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </Border>
+
+            <!-- Actions Footer -->
+            <Grid Grid.Row="2" ColumnDefinitions="Auto, *, Auto" Margin="0,8,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                    <TextBlock Text="Inspected:" Foreground="#9aa0a6" FontSize="11"/>
+                    <TextBlock Name="txtSelectedNodeId" Text="None" FontWeight="Bold" Foreground="#8ab4f8" FontSize="11"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Name="btnFocus" Content="Scroll Into View" Height="28" Padding="10,0"/>
+                    <CheckBox Name="chkHighlight" Content="Inspect Highlight" FontSize="11" Margin="5,0" VerticalAlignment="Center"/>
+                    <Button Name="btnDeleteControl" Content="Delete Element" Height="28" Padding="10,0" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+        <!-- Styles & Attributes sidebar (Right Side) -->
+        <Grid Grid.Column="2" Margin="10">
+            <TabControl Padding="0,5,0,0">
+                <!-- Styles subtab -->
+                <TabItem Header="Styles">
+                    <TabControl Padding="0,5,0,0" Margin="0,5,0,0">
+                        <TabItem Header="Inline styles">
+                            <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
+                                <ListBox Name="listCssProperties">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="*, Auto">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <TextBlock Text="{Binding Name}" Foreground="#f28b82" FontWeight="SemiBold" FontSize="12"/>
+                                                    <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
+                                                    <TextBlock Text="{Binding Value}" Foreground="#e8eaed" FontSize="12"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
+                                    <TextBox Name="txtStyleText" Watermark="Add style rule (e.g. background: red)..." Height="28" VerticalContentAlignment="Center"/>
+                                    <Button Name="btnApplyStyleText" Grid.Column="1" Content="Apply" Margin="5,0,0,0" Padding="10,0" Height="28"/>
+                                </Grid>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Computed rules">
+                            <ListBox Name="listComputedStyles" Margin="0,5,0,0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <TextBlock Text="{Binding Name}" Foreground="#81c995" FontWeight="SemiBold" FontSize="12"/>
+                                                <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
+                                                <TextBlock Text="{Binding Value}" Foreground="#e8eaed" FontSize="12"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </TabItem>
+                    </TabControl>
+                </TabItem>
+
+                <!-- Attributes subtab -->
+                <TabItem Header="Attributes">
+                    <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
+                        <ListBox Name="listAttributes">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*, Auto">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <TextBlock Text="{Binding Name}" Foreground="#fdd663" FontWeight="SemiBold" FontSize="12"/>
+                                            <TextBlock Text="=" Foreground="#9aa0a6" FontSize="12"/>
+                                            <TextBlock Text="{Binding Value}" Foreground="#81c995" FontSize="12"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Grid Grid.Row="1" ColumnDefinitions="*, *, Auto, Auto" Margin="0,8,0,0">
+                            <TextBox Name="txtAttrName" Watermark="Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Grid.Column="1" Name="txtAttrValue" Watermark="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                            <Button Grid.Column="2" Name="btnApplyAttr" Content="Apply" Padding="10,0" Height="28" Margin="0,0,4,0"/>
+                            <Button Grid.Column="3" Name="btnDeleteAttr" Content="Delete" Padding="10,0" Height="28"/>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- Properties subtab -->
+                <TabItem Header="Properties">
+                    <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
+                        <ListBox Name="listProperties">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*, Auto">
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <TextBlock Text="{Binding Name}" Foreground="#8ab4f8" FontWeight="SemiBold" FontSize="12"/>
+                                                <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
+                                                <TextBlock Text="{Binding Value}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Type, StringFormat='({0})'}" Foreground="#9aa0a6" FontSize="10"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, *, Auto" Margin="0,8,0,0">
+                            <TextBlock Text="Selected:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,5,0" FontSize="11"/>
+                            <TextBlock Name="lblSelectedProperty" Text="None" FontWeight="Bold" Foreground="#8ab4f8" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"/>
+                            <TextBox Grid.Column="2" Name="txtPropertyValue" Watermark="Value..." Height="28" VerticalContentAlignment="Center"/>
+                            <Button Grid.Column="3" Name="btnApplyProperty" Content="Set" Margin="5,0,0,0" Padding="10,0" Height="28"/>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <!-- Event Listeners subtab -->
+                <TabItem Header="Event Listeners">
+                    <ListBox Name="listEventListeners" Margin="0,5,0,0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <StackPanel Spacing="2" Margin="2">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <TextBlock Text="{Binding Type}" Foreground="#fdd663" FontWeight="SemiBold" FontSize="12"/>
+                                            <TextBlock Text="➔" Foreground="#9aa0a6" FontSize="12"/>
+                                            <TextBlock Text="{Binding HandlerName}" Foreground="#81c995" FontSize="12"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding CaptureText, StringFormat='(Capture: {0})'}" Foreground="#9aa0a6" FontSize="10"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</UserControl>
