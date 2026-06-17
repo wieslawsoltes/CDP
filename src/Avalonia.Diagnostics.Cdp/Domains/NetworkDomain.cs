@@ -2,9 +2,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
@@ -14,6 +17,7 @@ public static class NetworkDomain
     private static readonly ConcurrentDictionary<CdpSession, bool> _enabledSessions = new();
     private static readonly ConcurrentDictionary<string, string> _responseBodies = new();
     private static readonly ConcurrentDictionary<HttpRequestMessage, string> _requestIds = new();
+    private static readonly ConcurrentBag<IDisposable> _listenerSubscriptions = new();
     private static int _nextRequestId = 0;
     private static IDisposable? _diagnosticSubscription;
 
@@ -33,9 +37,37 @@ public static class NetworkDomain
     {
         _diagnosticSubscription?.Dispose();
         _diagnosticSubscription = null;
+
+        while (_listenerSubscriptions.TryTake(out var sub))
+        {
+            try
+            {
+                sub.Dispose();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
         _enabledSessions.Clear();
         _responseBodies.Clear();
         _requestIds.Clear();
+    }
+
+    public static void RegisterListenerSubscription(IDisposable subscription)
+    {
+        _listenerSubscriptions.Add(subscription);
+    }
+
+    public static void CacheResponseBody(string requestId, string body)
+    {
+        _responseBodies[requestId] = body;
+    }
+
+    public static void BroadcastNetworkEvent(string method, JsonObject @params)
+    {
+        BroadcastEvent(method, @params);
     }
 
     public static void RemoveSession(CdpSession session)
@@ -145,31 +177,9 @@ public static class NetworkDomain
 
             BroadcastEvent("Network.responseReceived", responseParams);
 
-            // Buffer and cache body asynchronously to not block, then fire finished
             if (response.Content != null)
             {
-                var content = response.Content;
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await content.LoadIntoBufferAsync();
-                        string body = await content.ReadAsStringAsync();
-                        _responseBodies[requestId] = body;
-                    }
-                    catch (Exception ex)
-                    {
-                        _responseBodies[requestId] = $"Error reading body: {ex.Message}";
-                    }
-
-                    var finishedParams = new JsonObject
-                    {
-                        ["requestId"] = requestId,
-                        ["timestamp"] = (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0,
-                        ["encodedDataLength"] = content.Headers.ContentLength ?? 0
-                    };
-                    BroadcastEvent("Network.loadingFinished", finishedParams);
-                });
+                response.Content = new InterceptingHttpContent(response.Content, requestId);
             }
             else
             {
@@ -247,7 +257,229 @@ public class NetworkDiagnosticObserver : IObserver<DiagnosticListener>
     {
         if (listener.Name == "HttpHandlerDiagnosticListener")
         {
-            listener.Subscribe(new HttpKeyValueObserver());
+            var sub = listener.Subscribe(new HttpKeyValueObserver());
+            NetworkDomain.RegisterListenerSubscription(sub);
+        }
+    }
+}
+
+internal class InterceptingHttpContent : HttpContent
+{
+    private readonly HttpContent _inner;
+    private readonly string _requestId;
+    private readonly MemoryStream _buffer = new();
+    private bool _captured;
+    private bool _limitExceeded;
+    private const int MaxCaptureLength = 5 * 1024 * 1024; // 5 MB
+
+    public InterceptingHttpContent(HttpContent inner, string requestId)
+    {
+        _inner = inner;
+        _requestId = requestId;
+
+        // Copy headers
+        foreach (var header in inner.Headers)
+        {
+            Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+
+        // If it's a known streaming content type, mark as limit exceeded immediately so we don't buffer
+        var mediaType = inner.Headers.ContentType?.MediaType;
+        if (mediaType != null && IsStreamingMediaType(mediaType))
+        {
+            _limitExceeded = true;
+        }
+    }
+
+    private static bool IsStreamingMediaType(string mediaType)
+    {
+        return mediaType switch
+        {
+            "text/event-stream" => true,
+            "application/x-ndjson" => true,
+            "application/json-seq" => true,
+            "application/grpc" => true,
+            "application/grpc+proto" => true,
+            "multipart/x-mixed-replace" => true,
+            "application/octet-stream" => true,
+            _ => false
+        };
+    }
+
+    public void TrackData(ReadOnlySpan<byte> data)
+    {
+        if (_limitExceeded) return;
+
+        lock (_buffer)
+        {
+            if (_buffer.Length + data.Length > MaxCaptureLength)
+            {
+                _limitExceeded = true;
+                _buffer.SetLength(0); // Free buffer memory
+                return;
+            }
+            _buffer.Write(data);
+        }
+    }
+
+    public void OnComplete()
+    {
+        lock (_buffer)
+        {
+            if (_captured) return;
+            _captured = true;
+
+            long contentLength = _inner.Headers.ContentLength ?? 0;
+            if (!_limitExceeded && _buffer.Length > 0)
+            {
+                try
+                {
+                    var bytes = _buffer.ToArray();
+                    string body = Encoding.UTF8.GetString(bytes);
+                    NetworkDomain.CacheResponseBody(_requestId, body);
+                    contentLength = bytes.Length;
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
+
+            var finishedParams = new JsonObject
+            {
+                ["requestId"] = _requestId,
+                ["timestamp"] = (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0,
+                ["encodedDataLength"] = contentLength
+            };
+            NetworkDomain.BroadcastNetworkEvent("Network.loadingFinished", finishedParams);
+        }
+    }
+
+    protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+    {
+        return SerializeToStreamAsync(stream, context, CancellationToken.None);
+    }
+
+    protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+    {
+        using var trackingStream = new TrackingStream(stream, this);
+        await _inner.CopyToAsync(trackingStream, context, cancellationToken).ConfigureAwait(false);
+        OnComplete();
+    }
+
+    protected override Task<Stream> CreateContentReadStreamAsync()
+    {
+        return CreateContentReadStreamAsync(CancellationToken.None);
+    }
+
+    protected override async Task<Stream> CreateContentReadStreamAsync(CancellationToken cancellationToken)
+    {
+        var stream = await _inner.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        return new TrackingStream(stream, this);
+    }
+
+    protected override bool TryComputeLength(out long length)
+    {
+        length = _inner.Headers.ContentLength ?? 0;
+        return _inner.Headers.ContentLength.HasValue;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _inner.Dispose();
+            _buffer.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+}
+
+internal class TrackingStream : Stream
+{
+    private readonly Stream _inner;
+    private readonly InterceptingHttpContent _parent;
+    private bool _completed;
+
+    public TrackingStream(Stream inner, InterceptingHttpContent parent)
+    {
+        _inner = inner;
+        _parent = parent;
+    }
+
+    public override bool CanRead => _inner.CanRead;
+    public override bool CanSeek => _inner.CanSeek;
+    public override bool CanWrite => false;
+    public override long Length => _inner.Length;
+    public override long Position
+    {
+        get => _inner.Position;
+        set => _inner.Position = value;
+    }
+
+    public override void Flush() => _inner.Flush();
+    public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+    public override void SetLength(long value) => _inner.SetLength(value);
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        int read = _inner.Read(buffer, offset, count);
+        if (read > 0)
+        {
+            _parent.TrackData(new ReadOnlySpan<byte>(buffer, offset, read));
+        }
+        else if (read == 0)
+        {
+            Complete();
+        }
+        return read;
+    }
+
+    public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+    {
+        int read = await _inner.ReadAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
+        if (read > 0)
+        {
+            _parent.TrackData(new ReadOnlySpan<byte>(buffer, offset, read));
+        }
+        else if (read == 0)
+        {
+            Complete();
+        }
+        return read;
+    }
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        int read = await _inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+        if (read > 0)
+        {
+            _parent.TrackData(buffer.Span.Slice(0, read));
+        }
+        else if (read == 0)
+        {
+            Complete();
+        }
+        return read;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _inner.Dispose();
+            Complete();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void Complete()
+    {
+        if (!_completed)
+        {
+            _completed = true;
+            _parent.OnComplete();
         }
     }
 }

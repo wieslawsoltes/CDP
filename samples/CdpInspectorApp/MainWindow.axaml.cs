@@ -1385,7 +1385,7 @@ public partial class MainWindow : Window
         {
             var p = new JsonObject { ["requestId"] = req.RequestId };
             var response = await SendCommandAsync("Network.getResponseBody", p);
-            var result = response["result"] as JsonObject;
+            var result = response;
             if (result != null)
             {
                 string body = result["body"]?.GetValue<string>() ?? "";
@@ -1455,7 +1455,7 @@ public partial class MainWindow : Window
             {
                 var p = new JsonObject { ["path"] = selected.Path };
                 var response = await SendCommandAsync("Sources.getFileContent", p);
-                var result = response["result"] as JsonObject;
+                var result = response;
                 if (result != null)
                 {
                     string content = result["content"]?.GetValue<string>() ?? "";
@@ -1479,7 +1479,7 @@ public partial class MainWindow : Window
         try
         {
             var response = await SendCommandAsync("Application.getResources", new JsonObject());
-            var result = response["result"] as JsonObject;
+            var result = response;
             if (result != null)
             {
                 var resources = result["resources"] as JsonArray;

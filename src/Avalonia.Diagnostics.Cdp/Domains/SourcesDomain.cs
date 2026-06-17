@@ -24,7 +24,8 @@ public static class SourcesDomain
                     string relPath = @params["path"]?.GetValue<string>() ?? "";
                     string root = GetWorkspaceRoot();
                     string fullPath = Path.GetFullPath(Path.Combine(root, relPath));
-                    if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                    string relative = Path.GetRelativePath(root, fullPath);
+                    if (relative.StartsWith("..") || Path.IsPathRooted(relative))
                     {
                         throw new Exception("Access denied: path is outside workspace root.");
                     }
