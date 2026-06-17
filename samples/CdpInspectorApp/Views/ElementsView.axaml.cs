@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 
 namespace CdpInspectorApp.Views;
@@ -34,5 +35,37 @@ public partial class ElementsView : UserControl
     public ElementsView()
     {
         InitializeComponent();
+        treeDom.SelectionChanged += (s, e) => ScrollSelectedIntoView();
+    }
+
+    private void ScrollSelectedIntoView()
+    {
+        var selected = treeDom.SelectedItem;
+        if (selected == null) return;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var item = FindTreeViewItem(treeDom, selected);
+            if (item != null)
+            {
+                item.BringIntoView();
+            }
+        }, Avalonia.Threading.DispatcherPriority.Background);
+    }
+
+    private TreeViewItem? FindTreeViewItem(Visual parent, object item)
+    {
+        if (parent is TreeViewItem tvi && tvi.DataContext == item)
+        {
+            return tvi;
+        }
+
+        foreach (var child in Avalonia.VisualTree.VisualExtensions.GetVisualChildren(parent))
+        {
+            var result = FindTreeViewItem(child, item);
+            if (result != null) return result;
+        }
+
+        return null;
     }
 }

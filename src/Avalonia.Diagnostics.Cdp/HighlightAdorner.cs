@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -15,18 +16,28 @@ public class HighlightAdorner : Control
     public HighlightAdorner(Visual adornedVisual)
     {
         _adornedVisual = adornedVisual;
-        AdornerLayer.SetAdornedElement(this, adornedVisual);
         IsHitTestVisible = false;
         ClipToBounds = false;
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
     }
 
     public override void Render(DrawingContext context)
     {
+        var topLevel = TopLevel.GetTopLevel(_adornedVisual);
+        if (topLevel == null) return;
+
         double w = _adornedVisual.Bounds.Width;
         double h = _adornedVisual.Bounds.Height;
         if (w <= 0 || h <= 0) return;
 
-        var bounds = new Rect(0, 0, w, h);
+        var pStart = _adornedVisual.TranslatePoint(new Point(0, 0), topLevel);
+        if (!pStart.HasValue) return;
+
+        double x = pStart.Value.X;
+        double y = pStart.Value.Y;
+
+        var bounds = new Rect(x, y, w, h);
 
         // Content box: blue semi-transparent fill
         var contentBrush = new SolidColorBrush(Color.FromArgb(64, 120, 170, 240));
@@ -44,24 +55,13 @@ public class HighlightAdorner : Control
             Brushes.White
         );
 
-        // Position tooltip above the element, or inside if too close to the top
-        double tooltipX = 0;
-        double tooltipY = -text.Height - 6;
+        // Position tooltip above the element, or inside/below if too close to the top
+        double tooltipX = x;
+        double tooltipY = y - text.Height - 6;
 
-        double windowY = 500; // default to a safe value to draw above if not attached
-        var topLevel = TopLevel.GetTopLevel(_adornedVisual);
-        if (topLevel != null)
+        if (tooltipY < 0)
         {
-            var p = _adornedVisual.TranslatePoint(new Point(0, 0), topLevel);
-            if (p.HasValue)
-            {
-                windowY = p.Value.Y;
-            }
-        }
-
-        if (tooltipY + windowY < 0)
-        {
-            tooltipY = 6;
+            tooltipY = y + h + 6; // Draw below the element if there is no space above
         }
 
         var textRect = new Rect(tooltipX, tooltipY - 2, text.Width + 8, text.Height + 4);
