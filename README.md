@@ -175,8 +175,12 @@ You can connect standard Google Chrome (or any Chromium-based browser like Micro
 3. Ensure the **Discover network targets** checkbox is enabled.
 4. Click **Configure...** next to "Discover network targets".
 5. Add the target addresses for the applications you want to debug:
-   - `localhost:9222` (default port for `CdpSampleApp`)
-   - `localhost:9223` (default port for `CdpInspectorApp` client self-inspection)
+   - `127.0.0.1:9222` (default port for `CdpSampleApp`)
+   - `127.0.0.1:9223` (default port for `CdpInspectorApp` client self-inspection)
+   
+   > [!IMPORTANT]
+   > On macOS, `localhost` may resolve first to the IPv6 loopback address (`::1`). Since Chrome's target discovery daemon has known compatibility issues with IPv6 loopback discovery, you should explicitly use the IPv4 loopback IP address `127.0.0.1` instead of `localhost` in the discovery settings.
+
 6. Click **Done**.
 7. Under the **Remote Target** section, you will see your running Avalonia application listed (e.g., **Avalonia CDP Inspector Sample**).
 8. Click the **inspect** link next to the target. This will launch a standard Chrome DevTools window connected directly to the Avalonia process.
@@ -184,11 +188,11 @@ You can connect standard Google Chrome (or any Chromium-based browser like Micro
 #### Direct Connection via WebSocket URL
 
 For automated tools, scripts, or manual debugging where auto-discovery is not preferred:
-1. Make an HTTP GET request to the target discovery endpoint: `http://localhost:9222/json` (or `http://localhost:9223/json`).
+1. Make an HTTP GET request to the target discovery endpoint: `http://127.0.0.1:9222/json` (or `http://127.0.0.1:9223/json`).
 2. The response will return a JSON list of available window targets, including a `devtoolsFrontendUrl` property.
 3. Construct or copy the URL:
    ```
-   devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=localhost:9222/devtools/page/<Target-ID>
+   devtools://devtools/bundled/inspector.html?ws=127.0.0.1:9222/devtools/page/<Target-ID>
    ```
    *Note: Due to security restrictions in modern browsers, direct navigation to `devtools://` links via the address bar may be blocked. The `chrome://inspect` page remains the recommended and most reliable way to launch the DevTools frontend.*
 

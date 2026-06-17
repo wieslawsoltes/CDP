@@ -215,6 +215,12 @@ public static class CdpServer
             }
 
             var urlPath = request.Url?.AbsolutePath ?? "";
+            var host = request.Url?.Authority;
+            if (string.IsNullOrEmpty(host))
+            {
+                host = $"localhost:{_port}";
+            }
+
             if (urlPath == "/json/version")
             {
                 var versionJson = new JsonObject
@@ -222,7 +228,7 @@ public static class CdpServer
                     ["Browser"] = "Avalonia/11.3.12",
                     ["Protocol-Version"] = "1.3",
                     ["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-                    ["webSocketDebuggerUrl"] = $"ws://localhost:{_port}/devtools/browser"
+                    ["webSocketDebuggerUrl"] = $"ws://{host}/devtools/browser"
                 };
                 SendJsonResponse(response, versionJson);
             }
@@ -234,12 +240,12 @@ public static class CdpServer
                     list.Add(new JsonObject
                     {
                         ["description"] = "",
-                        ["devtoolsFrontendUrl"] = $"devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=localhost:{_port}/devtools/page/{win.Id}",
+                        ["devtoolsFrontendUrl"] = $"devtools://devtools/bundled/inspector.html?ws={host}/devtools/page/{win.Id}",
                         ["id"] = win.Id,
                         ["title"] = win.Title,
                         ["type"] = "page",
-                        ["url"] = $"http://localhost:{_port}/",
-                        ["webSocketDebuggerUrl"] = $"ws://localhost:{_port}/devtools/page/{win.Id}"
+                        ["url"] = $"http://{host}/",
+                        ["webSocketDebuggerUrl"] = $"ws://{host}/devtools/page/{win.Id}"
                     });
                 }
                 SendJsonResponse(response, list);
