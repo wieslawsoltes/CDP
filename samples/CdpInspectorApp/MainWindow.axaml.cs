@@ -1623,6 +1623,10 @@ public partial class MainWindow : Window
         string value = stepJson["value"]?.GetValue<string>() ?? "";
         double offsetX = stepJson["offsetX"]?.GetValue<double>() ?? 0;
         double offsetY = stepJson["offsetY"]?.GetValue<double>() ?? 0;
+        double width = stepJson["width"]?.GetValue<double>() ?? 0;
+        double height = stepJson["height"]?.GetValue<double>() ?? 0;
+        string url = stepJson["url"]?.GetValue<string>() ?? "";
+        string keyVal = stepJson["key"]?.GetValue<string>() ?? "";
         
         string selector = "";
         var selectorsArr = stepJson["selectors"] as JsonArray;
@@ -1641,7 +1645,11 @@ public partial class MainWindow : Window
             Selector = selector,
             Value = value,
             OffsetX = offsetX,
-            OffsetY = offsetY
+            OffsetY = offsetY,
+            Width = width,
+            Height = height,
+            Url = url,
+            Key = keyVal
         };
 
         _recordedSteps.Add(model);
@@ -1658,17 +1666,27 @@ public partial class MainWindow : Window
         sb.AppendLine("(async () => {");
         sb.AppendLine("  const browser = await puppeteer.launch({ headless: false });");
         sb.AppendLine("  const page = await browser.newPage();");
-        sb.AppendLine("  await page.setViewport({ width: 800, height: 600 });");
-        string host = Toolbar.TxtHost.Text?.Trim() ?? "http://localhost:9222";
-        if (!host.StartsWith("http://") && !host.StartsWith("https://"))
+
+        bool hasViewportStep = _recordedSteps.Any(s => s.Type == "setViewport");
+        bool hasNavigateStep = _recordedSteps.Any(s => s.Type == "navigate");
+
+        if (!hasViewportStep)
         {
-            host = "http://" + host;
+            sb.AppendLine("  await page.setViewport({ width: 800, height: 600 });");
         }
-        if (!host.EndsWith("/"))
+        if (!hasNavigateStep)
         {
-            host += "/";
+            string host = Toolbar.TxtHost.Text?.Trim() ?? "http://localhost:9222";
+            if (!host.StartsWith("http://") && !host.StartsWith("https://"))
+            {
+                host = "http://" + host;
+            }
+            if (!host.EndsWith("/"))
+            {
+                host += "/";
+            }
+            sb.AppendLine($"  await page.goto('{host}');");
         }
-        sb.AppendLine($"  await page.goto('{host}');");
         sb.AppendLine();
 
         foreach (var step in _recordedSteps)
@@ -1684,6 +1702,18 @@ public partial class MainWindow : Window
                 sb.AppendLine($"  // Type text in element");
                 sb.AppendLine($"  const element_{_recordedSteps.IndexOf(step)} = await page.waitForSelector('{step.Selector}');");
                 sb.AppendLine($"  await element_{_recordedSteps.IndexOf(step)}.type('{step.Value}');");
+            }
+            else if (step.Type == "setViewport")
+            {
+                sb.AppendLine($"  await page.setViewport({{ width: {step.Width}, height: {step.Height} }});");
+            }
+            else if (step.Type == "navigate")
+            {
+                sb.AppendLine($"  await page.goto('{step.Url}');");
+            }
+            else if (step.Type == "keydown")
+            {
+                sb.AppendLine($"  await page.keyboard.press('{step.Key}');");
             }
             sb.AppendLine();
         }
@@ -1765,6 +1795,41 @@ public partial class MainWindow : Window
                         await SendCommandAsync("Input.insertText", new JsonObject { ["text"] = step.Value });
                         await Task.Delay(300);
                     }
+                }
+                else if (step.Type == "setViewport")
+                {
+                    await SendCommandAsync("Emulation.setDeviceMetricsOverride", new JsonObject
+                    {
+                        ["width"] = (int)step.Width,
+                        ["height"] = (int)step.Height,
+                        ["deviceScaleFactor"] = 1,
+                        ["mobile"] = false
+                    });
+                    await Task.Delay(300);
+                }
+                else if (step.Type == "navigate")
+                {
+                    await SendCommandAsync("Page.navigate", new JsonObject
+                    {
+                        ["url"] = step.Url
+                    });
+                    await Task.Delay(300);
+                }
+                else if (step.Type == "keydown")
+                {
+                    await SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
+                    {
+                        ["type"] = "rawKeyDown",
+                        ["key"] = step.Key
+                    });
+                    await Task.Delay(50);
+
+                    await SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
+                    {
+                        ["type"] = "keyUp",
+                        ["key"] = step.Key
+                    });
+                    await Task.Delay(150);
                 }
             }
         }
@@ -1889,7 +1954,11 @@ public partial class MainWindow : Window
                     Selector = step.Selector,
                     Value = step.Value,
                     OffsetX = step.OffsetX,
-                    OffsetY = step.OffsetY
+                    OffsetY = step.OffsetY,
+                    Width = step.Width,
+                    Height = step.Height,
+                    Url = step.Url,
+                    Key = step.Key
                 });
             }
 
@@ -1914,7 +1983,11 @@ public partial class MainWindow : Window
                 Selector = step.Selector,
                 Value = step.Value,
                 OffsetX = step.OffsetX,
-                OffsetY = step.OffsetY
+                OffsetY = step.OffsetY,
+                Width = step.Width,
+                Height = step.Height,
+                Url = step.Url,
+                Key = step.Key
             });
         }
         UpdateGeneratedCode();
@@ -2183,8 +2256,21 @@ public class RecordedStepModel
     public string Value { get; set; } = "";
     public double OffsetX { get; set; }
     public double OffsetY { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public string Url { get; set; } = "";
+    public string Key { get; set; } = "";
 
-    public string SelectorDisplay => string.IsNullOrEmpty(Selector) ? "Window" : Selector;
+    public string SelectorDisplay
+    {
+        get
+        {
+            if (Type == "setViewport") return "Viewport";
+            if (Type == "navigate") return "Navigation";
+            if (Type == "keydown") return "Keyboard";
+            return string.IsNullOrEmpty(Selector) ? "Window" : Selector;
+        }
+    }
 
     public string DetailDisplay
     {
@@ -2192,6 +2278,9 @@ public class RecordedStepModel
         {
             if (Type == "click") return $"Coordinates: x={OffsetX:0.0}, y={OffsetY:0.0}";
             if (Type == "change") return $"Value: \"{Value}\"";
+            if (Type == "setViewport") return $"Dimensions: {Width}x{Height}";
+            if (Type == "navigate") return $"Url: \"{Url}\"";
+            if (Type == "keydown") return $"Key: \"{Key}\"";
             return "";
         }
     }
