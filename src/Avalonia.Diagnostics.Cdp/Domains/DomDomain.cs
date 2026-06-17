@@ -285,7 +285,7 @@ public static class DomDomain
     public static JsonObject BuildDomNode(Visual visual, CdpSession session, int currentDepth, int maxDepth)
     {
         int nodeId = session.NodeMap.GetOrAdd(visual);
-        var visualChildren = visual.GetVisualChildren().ToList();
+        var visualChildren = visual.GetVisualChildren().Where(c => !(c is HighlightAdorner)).ToList();
         var childrenJson = new JsonArray();
 
         bool recursive = maxDepth == -1 || currentDepth < maxDepth;
@@ -376,6 +376,7 @@ public static class DomDomain
         var nodesJson = new JsonArray();
         foreach (var child in visual.GetVisualChildren())
         {
+            if (child is HighlightAdorner) continue;
             nodesJson.Add(BuildDomNode(child, session, 1, depth));
         }
 
@@ -411,7 +412,7 @@ public static class DomDomain
             }
         }
 
-        var children = visual.GetVisualChildren().ToList();
+        var children = visual.GetVisualChildren().Where(c => !(c is HighlightAdorner)).ToList();
         if (children.Count > 0)
         {
             sb.Append(">");
@@ -569,6 +570,7 @@ public static class DomDomain
 
         foreach (var child in parent.GetVisualChildren())
         {
+            if (child is HighlightAdorner) continue;
             SearchVisualTree(child, query, session, results);
         }
     }

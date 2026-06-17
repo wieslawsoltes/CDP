@@ -37,7 +37,19 @@ public static class PageDomain
                 }
 
             case "navigate":
-                return new JsonObject();
+                {
+                    string url = @params["url"]?.GetValue<string>() ?? "";
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var windowType = session.Window.GetType();
+                        var navigateMethod = windowType.GetMethod("Navigate", new[] { typeof(string) });
+                        if (navigateMethod != null)
+                        {
+                            navigateMethod.Invoke(session.Window, new object[] { url });
+                        }
+                    });
+                    return new JsonObject();
+                }
 
             default:
                 throw new Exception($"Method Page.{action} is not implemented");

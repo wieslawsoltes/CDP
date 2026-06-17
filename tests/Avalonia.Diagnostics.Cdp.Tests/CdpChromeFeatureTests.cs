@@ -432,4 +432,34 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public void TestHighlightOverlayCreationAndRemoval()
+    {
+        var button = new Button { Name = "testButton" };
+        var window = new Window
+        {
+            Title = "Highlight Test Window",
+            Content = button
+        };
+        window.Show();
+
+        // 1. Show Highlight
+        HighlightOverlayManager.ShowHighlight(window, button);
+
+        var adornerLayer = Avalonia.Controls.Primitives.AdornerLayer.GetAdornerLayer(button);
+        Assert.NotNull(adornerLayer);
+
+        var adorner = adornerLayer.Children.FirstOrDefault(c => c is HighlightAdorner);
+        Assert.NotNull(adorner);
+        Assert.Equal(button, ((HighlightAdorner)adorner).AdornedVisual);
+
+        // 2. Hide Highlight
+        HighlightOverlayManager.HideHighlight(window);
+
+        var adornerAfterHide = adornerLayer.Children.FirstOrDefault(c => c is HighlightAdorner);
+        Assert.Null(adornerAfterHide);
+
+        window.Close();
+    }
 }

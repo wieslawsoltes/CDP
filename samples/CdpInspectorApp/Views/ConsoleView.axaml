@@ -5,12 +5,12 @@
     <Grid RowDefinitions="*, Auto" Margin="10">
         <Grid RowDefinitions="Auto, *">
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
-                <Button Name="btnClearLogs" Content="Clear Console"/>
+                <Button Name="btnClearLogs" Command="{Binding Console.ClearLogsCommand}" Content="Clear Console"/>
                 <TextBlock Text="Broadcasting diagnostics traces and C# script logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
             </StackPanel>
 
             <!-- Logs Console List -->
-            <ListBox Name="listLogs" Grid.Row="1">
+            <ListBox Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid ColumnDefinitions="Auto, Auto, *">
@@ -26,7 +26,7 @@
         <!-- Script Evaluator input -->
         <Grid Grid.Row="1" RowDefinitions="Auto, Auto" Margin="0,10,0,0">
             <!-- Evaluations history -->
-            <ListBox Name="listConsole" MaxHeight="120" Margin="0,0,0,8" Background="#202124" BorderBrush="#3c4043">
+            <ListBox Name="listConsole" ItemsSource="{Binding Console.ConsoleHistory}" MaxHeight="120" Margin="0,0,0,8" Background="#202124" BorderBrush="#3c4043">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="2">
@@ -44,8 +44,8 @@
             </ListBox>
             
             <Grid ColumnDefinitions="*, Auto">
-                <TextBox Name="txtConsoleInput" Watermark="Enter C# Interactive command (use inspected $0 variable)..." Height="28" VerticalContentAlignment="Center"/>
-                <Button Name="btnSendConsole" Grid.Column="1" Content="Evaluate" Margin="5,0,0,0" Padding="15,0" Height="28" Classes="accent"/>
+                <TextBox Name="txtConsoleInput" Text="{Binding Console.ConsoleInputText, Mode=TwoWay}" Watermark="Enter C# Interactive command (use inspected $0 variable)..." Height="28" VerticalContentAlignment="Center"/>
+                <Button Name="btnSendConsole" Command="{Binding Console.EvaluateCommand}" Grid.Column="1" Content="Evaluate" Margin="5,0,0,0" Padding="15,0" Height="28" Classes="accent"/>
             </Grid>
         </Grid>
     </Grid>
