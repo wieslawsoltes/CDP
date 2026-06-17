@@ -20,6 +20,10 @@ public static class NetworkDomain
     private static readonly ConcurrentBag<IDisposable> _listenerSubscriptions = new();
     private static int _nextRequestId = 0;
     private static IDisposable? _diagnosticSubscription;
+    private static bool _offline = false;
+    private static double _latency = 0;
+    private static double _downloadThroughput = -1;
+    private static double _uploadThroughput = -1;
 
     public static void Initialize()
     {
@@ -99,6 +103,15 @@ public static class NetworkDomain
                         });
                     }
                     throw new Exception($"Response body for request ID {requestId} not found in cache.");
+                }
+
+            case "emulateNetworkConditions":
+                {
+                    _offline = @params["offline"]?.GetValue<bool>() ?? false;
+                    _latency = @params["latency"]?.GetValue<double>() ?? 0;
+                    _downloadThroughput = @params["downloadThroughput"]?.GetValue<double>() ?? -1;
+                    _uploadThroughput = @params["uploadThroughput"]?.GetValue<double>() ?? -1;
+                    return Task.FromResult(new JsonObject());
                 }
 
             default:

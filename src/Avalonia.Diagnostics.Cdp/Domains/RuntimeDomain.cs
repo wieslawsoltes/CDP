@@ -120,6 +120,7 @@ public static class RuntimeDomain
                 }
 
             case "releaseObjectGroup":
+            case "discardConsoleEntries":
                 {
                     return new JsonObject();
                 }

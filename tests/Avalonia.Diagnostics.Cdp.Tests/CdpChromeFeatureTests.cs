@@ -641,6 +641,33 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestNetworkAndRuntimeClearingAndThrottling()
+    {
+        var window = new Window { Title = "Console & Network Override Test Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Test Runtime.discardConsoleEntries
+        var discardRes = await RuntimeDomain.HandleAsync(session, "discardConsoleEntries", new JsonObject());
+        Assert.NotNull(discardRes);
+
+        // 2. Test Network.emulateNetworkConditions
+        var conditions = new JsonObject
+        {
+            ["offline"] = true,
+            ["latency"] = 150.0,
+            ["downloadThroughput"] = 102400.0,
+            ["uploadThroughput"] = 51200.0
+        };
+        var emulateRes = await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
+        Assert.NotNull(emulateRes);
+
+        window.Close();
+    }
 }
 
 public class FakeWebSocket : System.Net.WebSockets.WebSocket
