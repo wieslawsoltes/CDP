@@ -192,6 +192,16 @@ public static class CdpServer
                 return;
             }
 
+            if (request.HttpMethod == "OPTIONS")
+            {
+                response.Headers.Add("Access-Control-Allow-Origin", "*");
+                response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+                response.StatusCode = 200;
+                response.Close();
+                return;
+            }
+
             var urlPath = request.Url?.AbsolutePath ?? "";
             if (urlPath == "/json/version")
             {
@@ -239,6 +249,7 @@ public static class CdpServer
     private static void SendJsonResponse(HttpListenerResponse response, JsonNode json)
     {
         var bytes = Encoding.UTF8.GetBytes(json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        response.Headers.Add("Access-Control-Allow-Origin", "*");
         response.ContentType = "application/json; charset=utf-8";
         response.ContentLength64 = bytes.Length;
         response.OutputStream.Write(bytes, 0, bytes.Length);
