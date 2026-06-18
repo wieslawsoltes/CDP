@@ -786,52 +786,52 @@ public static class DomDomain
     public static JsonArray BuildAttributes(Visual visual)
     {
         var attributes = new JsonArray();
-        attributes.Add("type");
+        attributes.Add("Type");
         attributes.Add(visual.GetType().FullName ?? visual.GetType().Name);
 
         if (visual is Control control)
         {
             if (!string.IsNullOrEmpty(control.Name))
             {
-                attributes.Add("name");
+                attributes.Add("Name");
                 attributes.Add(control.Name);
-                attributes.Add("id");
+                attributes.Add("Id");
                 attributes.Add(control.Name);
             }
 
             if (control.Classes.Count > 0)
             {
-                attributes.Add("class");
+                attributes.Add("Class");
                 attributes.Add(string.Join(" ", control.Classes));
             }
 
             string? text = GetControlTextOrContent(control);
             if (!string.IsNullOrEmpty(text))
             {
-                attributes.Add("text");
+                attributes.Add("Text");
                 attributes.Add(text);
             }
 
-            attributes.Add("bounds");
+            attributes.Add("Bounds");
             attributes.Add($"{control.Bounds.X},{control.Bounds.Y},{control.Bounds.Width},{control.Bounds.Height}");
             
-            attributes.Add("isenabled");
+            attributes.Add("IsEnabled");
             attributes.Add(control.IsEnabled.ToString().ToLowerInvariant());
             
-            attributes.Add("isvisible");
+            attributes.Add("IsVisible");
             attributes.Add(control.IsVisible.ToString().ToLowerInvariant());
 
             var automationName = control.GetValue(AutomationProperties.NameProperty);
             if (!string.IsNullOrEmpty(automationName))
             {
-                attributes.Add("accessibility-name");
+                attributes.Add("AccessibilityName");
                 attributes.Add(automationName);
             }
             
             var automationHelp = control.GetValue(AutomationProperties.HelpTextProperty);
             if (!string.IsNullOrEmpty(automationHelp))
             {
-                attributes.Add("accessibility-help");
+                attributes.Add("AccessibilityHelp");
                 attributes.Add(automationHelp);
             }
         }
