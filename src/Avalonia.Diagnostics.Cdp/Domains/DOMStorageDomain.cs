@@ -7,13 +7,14 @@ namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class DOMStorageDomain
 {
-    private static readonly ConcurrentDictionary<(string origin, bool isLocal), ConcurrentDictionary<string, string>> _stores = new();
+    private static readonly ConcurrentDictionary<(string origin, bool isLocal, string targetId), ConcurrentDictionary<string, string>> _stores = new();
 
-    private static ConcurrentDictionary<string, string> GetStore(JsonObject? storageId)
+    private static ConcurrentDictionary<string, string> GetStore(CdpSession session, JsonObject? storageId)
     {
         bool isLocal = storageId?["isLocalStorage"]?.GetValue<bool>() ?? true;
         string origin = storageId?["securityOrigin"]?.GetValue<string>() ?? "default";
-        return _stores.GetOrAdd((origin, isLocal), _ => new ConcurrentDictionary<string, string>());
+        string targetId = isLocal ? "" : (session.Window?.GetHashCode().ToString() ?? "default");
+        return _stores.GetOrAdd((origin, isLocal, targetId), _ => new ConcurrentDictionary<string, string>());
     }
 
     public static Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
@@ -28,7 +29,7 @@ public static class DOMStorageDomain
 
             case "clear":
                 {
-                    var store = GetStore(storageId);
+                    var store = GetStore(session, storageId);
                     store.Clear();
                     return Task.FromResult(new JsonObject());
                 }
@@ -38,7 +39,7 @@ public static class DOMStorageDomain
                     string key = @params["key"]?.GetValue<string>() ?? "";
                     if (!string.IsNullOrEmpty(key))
                     {
-                        var store = GetStore(storageId);
+                        var store = GetStore(session, storageId);
                         store.TryRemove(key, out _);
                     }
                     return Task.FromResult(new JsonObject());
@@ -50,7 +51,7 @@ public static class DOMStorageDomain
                     string value = @params["value"]?.GetValue<string>() ?? "";
                     if (!string.IsNullOrEmpty(key))
                     {
-                        var store = GetStore(storageId);
+                        var store = GetStore(session, storageId);
                         store[key] = value;
                     }
                     return Task.FromResult(new JsonObject());
@@ -58,7 +59,7 @@ public static class DOMStorageDomain
 
             case "getDOMStorageItems":
                 {
-                    var store = GetStore(storageId);
+                    var store = GetStore(session, storageId);
                     var entries = new JsonArray();
                     foreach (var pair in store)
                     {
