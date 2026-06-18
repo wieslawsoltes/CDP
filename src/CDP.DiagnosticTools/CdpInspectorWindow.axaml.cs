@@ -45,4 +45,12 @@ public partial class CdpInspectorWindow : Window
             }
         });
     }
+
+    public void LoadScriptContent(string content)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Recorder.LoadScriptContent(content);
+        }
+    }
 }
