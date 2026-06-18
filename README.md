@@ -4,6 +4,13 @@ This library implements server-side support for the **Chrome DevTools Protocol (
 
 By embedding a lightweight HTTP and WebSocket server inside an Avalonia application, it enables automated testing, live inspection, selector querying, layout highlighting, input simulation, and runtime scripting from standard browser automation tools (like **Playwright**, **Puppeteer**, **Chrome DevTools**, and **AI Coding Agents**).
 
+## NuGet Packages
+
+| Package Name | Target | Version | Downloads |
+| :--- | :--- | :--- | :--- |
+| **CDP.Avalonia** | Core Library | [![NuGet](https://img.shields.io/nuget/v/CDP.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Avalonia/) |
+| **CDP.Inspector** | .NET Global Tool | [![NuGet](https://img.shields.io/nuget/v/CDP.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector/) |
+
 ---
 
 ## Features
@@ -57,12 +64,17 @@ All interactions with Avalonia UI visual elements are thread-safe, marshalling o
 
 ### 1. Add Reference
 
-Add a reference to the `Avalonia.Diagnostics.Cdp` project (or package) in your main Avalonia application.
+Add the NuGet package reference `CDP.Avalonia` to your main Avalonia application:
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="path/to/Avalonia.Diagnostics.Cdp.csproj" />
+  <PackageReference Include="CDP.Avalonia" Version="1.0.0" />
 </ItemGroup>
+```
+
+Or install it via the .NET CLI:
+```bash
+dotnet add package CDP.Avalonia
 ```
 
 ### 2. Start the Server
@@ -220,12 +232,33 @@ Once connected, you can use the following standard panels:
   - Capture high-DPI screenshots of individual visual components or the main window using DevTools' device toolbar or screenshot shortcuts.
 
 ### 2. Testing with CdpInspectorApp
+
+The inspector app can be run in three ways:
+
+#### A. Install as a .NET Tool (Recommended)
+You can install the inspector globally on your machine:
+```bash
+dotnet tool install -g CDP.Inspector
+```
+Once installed, launch it directly from your terminal:
+```bash
+cdp-inspector
+```
+
+#### B. Download Single-File Executables
+Pre-compiled, self-contained single-file binaries are available under the [Releases](https://github.com/wieslawsoltes/CDP/releases) section for:
+- **Windows** (`cdp-inspector-win-x64.zip`)
+- **Linux** (`cdp-inspector-linux-x64.tar.gz`)
+- **macOS** (Apple Silicon `cdp-inspector-osx-arm64.tar.gz` and Intel `cdp-inspector-osx-x64.tar.gz`)
+
+#### C. Run from Source
+If running from source in the cloned repository:
 1. Start both the sample application and the inspector:
    ```bash
    dotnet run --project samples/CdpSampleApp &
    dotnet run --project samples/CdpInspectorApp
    ```
-2. Click **Scan Targets** inside the inspector, select `CdpSampleApp (localhost:9222)`, and click **Connect**.
+2. Click **Scan Targets** inside the inspector, select `CdpSampleApp (127.0.0.1:9222)`, and click **Connect**.
 3. Explore the redesigned Chrome DevTools dark mode panels (Elements, Console, Sources, Network, Performance, Application, and Simulation).
 4. Record user interactions by clicking the **Recorder** tab, clicking **Start Recording**, performing clicks and text typing on the sample app, and stopping the recording. You can save/export the Puppeteer scripts, load them back, and click **Replay** to replay them.
 
@@ -237,7 +270,7 @@ Enabling CDP inside the `CdpInspectorApp` client itself on port `9223` allows AI
 
 This enables automated integration scenarios (e.g. commanding the inspector to connect to a target, starting a recording, clicking and typing elements on the target, stopping the recording, and verifying the generated Puppeteer automation code on the inspector's UI) to run headlessly in under 10 seconds.
 
-For full architectural details, sequence diagrams, and agent recipes, see the [Agent-Driven CDP Self-Inspection & Multi-App Testing Guide](file:///Users/wieslawsoltes/GitHub/CDP/agents.md).
+For full architectural details, sequence diagrams, and agent recipes, see the [Agent-Driven CDP Self-Inspection & Multi-App Testing Guide](agents.md).
 
 ---
 
