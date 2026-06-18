@@ -35,6 +35,10 @@ public class ElementsViewModel : ViewModelBase
     private string _styleTextInputText = "";
     private bool _isHighlightActive;
     private string _searchQuery = "";
+    private string _axSearchQuery = "";
+    private System.Collections.Generic.List<AxNodeModel> _axSearchResults = new();
+    private int _axSearchIndex = -1;
+    private string _lastAxSearchQuery = "";
     private bool _showVisualTree = false;
 
     // Accessibility Details
@@ -63,14 +67,21 @@ public class ElementsViewModel : ViewModelBase
     public ObservableCollection<CssPropertyModel> ComputedStyles => _computedStyles;
     public ObservableCollection<EventListenerModel> EventListeners => _eventListeners;
 
+    private bool _isSelectingProgrammatically;
+
     public DomNodeModel? SelectedNode
     {
         get => _selectedNode;
         set
         {
+            if (_isSelectingProgrammatically && value == null)
+            {
+                return;
+            }
             if (RaiseAndSetIfChanged(ref _selectedNode, value))
             {
                 _ = HandleNodeSelectionChangedAsync();
+                SyncAxSelectionFromDom();
             }
         }
     }
@@ -80,12 +91,13 @@ public class ElementsViewModel : ViewModelBase
         get => _selectedAxNode;
         set
         {
+            if (_isSelectingProgrammatically && value == null)
+            {
+                return;
+            }
             if (RaiseAndSetIfChanged(ref _selectedAxNode, value))
             {
-                if (_selectedAxNode != null && _selectedAxNode.BackendDOMNodeId.HasValue)
-                {
-                    SelectNodeById(_selectedAxNode.BackendDOMNodeId.Value);
-                }
+                SyncDomSelectionFromAx();
             }
         }
     }
@@ -156,6 +168,12 @@ public class ElementsViewModel : ViewModelBase
     {
         get => _searchQuery;
         set => RaiseAndSetIfChanged(ref _searchQuery, value);
+    }
+
+    public string AxSearchQuery
+    {
+        get => _axSearchQuery;
+        set => RaiseAndSetIfChanged(ref _axSearchQuery, value);
     }
 
     // Accessibility properties
@@ -233,6 +251,30 @@ public class ElementsViewModel : ViewModelBase
             }
         }
     }
+
+    private int _selectedTreeTabIndex = 0;
+    public int SelectedTreeTabIndex
+    {
+        get => _selectedTreeTabIndex;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedTreeTabIndex, value))
+            {
+                if (_selectedTreeTabIndex == 1)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await RefreshAxTreeAsync();
+                        Dispatcher.UIThread.Post(() => SyncAxSelectionFromDom());
+                    });
+                }
+                else
+                {
+                    SyncDomSelectionFromAx();
+                }
+            }
+        }
+    }
     public string LayoutHorizontalAlignment
     {
         get => _layoutHorizontalAlignment;
@@ -251,6 +293,7 @@ public class ElementsViewModel : ViewModelBase
     public ICommand ApplyPropertyCommand { get; }
     public ICommand ApplyStyleTextCommand { get; }
     public ICommand SearchCommand { get; }
+    public ICommand AxSearchCommand { get; }
     public ICommand RefreshAxTreeCommand { get; }
 
     public ElementsViewModel(ICdpService cdpService)
@@ -266,6 +309,7 @@ public class ElementsViewModel : ViewModelBase
         ApplyPropertyCommand = new RelayCommand(async () => await ApplyPropertyAsync(), () => SelectedNode != null && SelectedProperty != null);
         ApplyStyleTextCommand = new RelayCommand(async () => await ApplyStyleTextAsync(), () => SelectedNode != null);
         SearchCommand = new RelayCommand(async () => await PerformSearchAsync());
+        AxSearchCommand = new RelayCommand(async () => await PerformAxSearchAsync());
         RefreshAxTreeCommand = new RelayCommand(async () => await RefreshAxTreeAsync());
     }
 
@@ -293,7 +337,14 @@ public class ElementsViewModel : ViewModelBase
             {
                 Dispatcher.UIThread.Post(() =>
                 {
-                    SelectNodeById(backendNodeId);
+                    if (SelectedTreeTabIndex == 1)
+                    {
+                        SelectAxNodeByBackendDomId(backendNodeId);
+                    }
+                    else
+                    {
+                        SelectNodeById(backendNodeId);
+                    }
                 });
             }
         }
@@ -402,7 +453,8 @@ public class ElementsViewModel : ViewModelBase
 
     private async Task HandleNodeSelectionChangedAsync()
     {
-        if (SelectedNode == null)
+        var node = SelectedNode;
+        if (node == null)
         {
             SelectedNodeIdText = "None";
             Attributes.Clear();
@@ -414,7 +466,7 @@ public class ElementsViewModel : ViewModelBase
             return;
         }
 
-        SelectedNodeIdText = SelectedNode.NodeId.ToString();
+        SelectedNodeIdText = node.NodeId.ToString();
         ((RelayCommand)FocusSelectedNodeCommand).RaiseCanExecuteChanged();
         ((RelayCommand)DeleteSelectedNodeCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ApplyAttributeCommand).RaiseCanExecuteChanged();
@@ -423,7 +475,7 @@ public class ElementsViewModel : ViewModelBase
 
         // 1. Load Attributes
         Attributes.Clear();
-        foreach (var attr in SelectedNode.AttributesList)
+        foreach (var attr in node.AttributesList)
         {
             Attributes.Add(attr);
         }
@@ -431,9 +483,11 @@ public class ElementsViewModel : ViewModelBase
         // 2. Select Node in CDP
         try
         {
-            await _cdpService.SendCommandAsync("DOM.setInspectedNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            await _cdpService.SendCommandAsync("DOM.setInspectedNode", new JsonObject { ["nodeId"] = node.NodeId });
         }
         catch { }
+
+        if (SelectedNode != node) return;
 
         // 3. Resolve Node properties
         Properties.Clear();
@@ -441,13 +495,17 @@ public class ElementsViewModel : ViewModelBase
 
         try
         {
-            var resolveRes = await _cdpService.SendCommandAsync("DOM.resolveNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var resolveRes = await _cdpService.SendCommandAsync("DOM.resolveNode", new JsonObject { ["nodeId"] = node.NodeId });
+            if (SelectedNode != node) return;
+
             var obj = resolveRes["object"] as JsonObject;
             string objectId = obj?["objectId"]?.GetValue<string>() ?? "";
             
             if (!string.IsNullOrEmpty(objectId))
             {
                 var propsRes = await _cdpService.SendCommandAsync("Runtime.getProperties", new JsonObject { ["objectId"] = objectId });
+                if (SelectedNode != node) return;
+
                 var results = propsRes["result"] as JsonArray;
                 if (results != null)
                 {
@@ -473,6 +531,8 @@ public class ElementsViewModel : ViewModelBase
                 try
                 {
                     var listenersRes = await _cdpService.SendCommandAsync("DOMDebugger.getEventListeners", new JsonObject { ["objectId"] = objectId });
+                    if (SelectedNode != node) return;
+
                     var listeners = listenersRes["listeners"] as JsonArray;
                     if (listeners != null)
                     {
@@ -501,6 +561,8 @@ public class ElementsViewModel : ViewModelBase
             Console.WriteLine($"Error fetching properties: {ex.Message}");
         }
 
+        if (SelectedNode != node) return;
+
         // 4. Resolve CSS Styles & Computed Styles
         CssProperties.Clear();
         ComputedStyles.Clear();
@@ -508,7 +570,9 @@ public class ElementsViewModel : ViewModelBase
 
         try
         {
-            var cssRes = await _cdpService.SendCommandAsync("CSS.getMatchedStylesForNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var cssRes = await _cdpService.SendCommandAsync("CSS.getMatchedStylesForNode", new JsonObject { ["nodeId"] = node.NodeId });
+            if (SelectedNode != node) return;
+
             var inlineStyle = cssRes["inlineStyle"] as JsonObject;
             if (inlineStyle != null)
             {
@@ -531,7 +595,9 @@ public class ElementsViewModel : ViewModelBase
             }
 
             // Fetch Computed styles
-            var compRes = await _cdpService.SendCommandAsync("CSS.getComputedStyleForNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var compRes = await _cdpService.SendCommandAsync("CSS.getComputedStyleForNode", new JsonObject { ["nodeId"] = node.NodeId });
+            if (SelectedNode != node) return;
+
             var compStyles = compRes["computedStyle"] as JsonArray;
             if (compStyles != null)
             {
@@ -555,15 +621,19 @@ public class ElementsViewModel : ViewModelBase
             Console.WriteLine($"Error fetching CSS styles: {ex.Message}");
         }
 
+        if (SelectedNode != node) return;
+
         // 5. Fetch Accessibility details for the selected node
         ClearAxDetails();
         try
         {
-            var axRes = await _cdpService.SendCommandAsync("Accessibility.getAXNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var axRes = await _cdpService.SendCommandAsync("Accessibility.getAXNode", new JsonObject { ["nodeId"] = node.NodeId });
+            if (SelectedNode != node) return;
+
             var axNodes = axRes["nodes"] as JsonArray;
             if (axNodes != null && axNodes.Count > 0)
             {
-                var matchedNode = axNodes.FirstOrDefault(n => n?["backendDOMNodeId"]?.GetValue<int>() == SelectedNode.NodeId) as JsonObject;
+                var matchedNode = axNodes.FirstOrDefault(n => n?["backendDOMNodeId"]?.GetValue<int>() == node.NodeId) as JsonObject;
                 if (matchedNode == null)
                 {
                     matchedNode = axNodes[0] as JsonObject;
@@ -600,9 +670,11 @@ public class ElementsViewModel : ViewModelBase
             Console.WriteLine($"Error fetching AX details: {ex.Message}");
         }
 
+        if (SelectedNode != node) return;
+
         // 6. Populate Layout info from properties list
         ResetLayoutInfo();
-        if (SelectedNode != null)
+        if (node != null)
         {
             var marginProp = Properties.FirstOrDefault(p => p.Name.Equals("Margin", StringComparison.OrdinalIgnoreCase));
             if (marginProp != null) LayoutMargin = marginProp.Value;
@@ -874,19 +946,106 @@ public class ElementsViewModel : ViewModelBase
         }
     }
 
+    private async Task PerformAxSearchAsync()
+    {
+        if (string.IsNullOrEmpty(AxSearchQuery)) return;
+
+        if (AxSearchQuery != _lastAxSearchQuery)
+        {
+            _axSearchResults.Clear();
+            FindMatchingAxNodes(AxRootNodes, AxSearchQuery, _axSearchResults);
+            _axSearchIndex = _axSearchResults.Count > 0 ? 0 : -1;
+            _lastAxSearchQuery = AxSearchQuery;
+        }
+        else if (_axSearchResults.Count > 0)
+        {
+            _axSearchIndex = (_axSearchIndex + 1) % _axSearchResults.Count;
+        }
+
+        if (_axSearchIndex >= 0 && _axSearchIndex < _axSearchResults.Count)
+        {
+            var match = _axSearchResults[_axSearchIndex];
+            SelectAxNodeById(match.NodeId);
+        }
+        await Task.CompletedTask;
+    }
+
+    private void FindMatchingAxNodes(IEnumerable<AxNodeModel> nodes, string query, List<AxNodeModel> matches)
+    {
+        foreach (var node in nodes)
+        {
+            if ((node.Role != null && node.Role.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                (node.Name != null && node.Name.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            {
+                matches.Add(node);
+            }
+            FindMatchingAxNodes(node.Children, query, matches);
+        }
+    }
+
+    public void SelectAxNodeById(string nodeId)
+    {
+        _isSelectingProgrammatically = true;
+        try
+        {
+            DeselectAllAx(AxRootNodes);
+
+            var path = new List<AxNodeModel>();
+            if (FindAxNodePathById(AxRootNodes, nodeId, path))
+            {
+                for (int i = 0; i < path.Count - 1; i++)
+                {
+                    path[i].IsExpanded = true;
+                }
+                path[^1].IsSelected = true;
+                SelectedAxNode = path[^1];
+            }
+        }
+        finally
+        {
+            Dispatcher.UIThread.Post(() => _isSelectingProgrammatically = false);
+        }
+    }
+
+    private bool FindAxNodePathById(IEnumerable<AxNodeModel> nodes, string nodeId, List<AxNodeModel> path)
+    {
+        foreach (var node in nodes)
+        {
+            path.Add(node);
+            if (node.NodeId == nodeId)
+            {
+                return true;
+            }
+            if (FindAxNodePathById(node.Children, nodeId, path))
+            {
+                return true;
+            }
+            path.RemoveAt(path.Count - 1);
+        }
+        return false;
+    }
+
     public void SelectNodeById(int nodeId)
     {
-        DeselectAll(RootNodes);
-
-        var path = new List<DomNodeModel>();
-        if (FindNodePath(RootNodes, nodeId, path))
+        _isSelectingProgrammatically = true;
+        try
         {
-            for (int i = 0; i < path.Count - 1; i++)
+            DeselectAll(RootNodes);
+
+            var path = new List<DomNodeModel>();
+            if (FindNodePath(RootNodes, nodeId, path))
             {
-                path[i].IsExpanded = true;
+                for (int i = 0; i < path.Count - 1; i++)
+                {
+                    path[i].IsExpanded = true;
+                }
+                path[^1].IsSelected = true;
+                SelectedNode = path[^1];
             }
-            path[^1].IsSelected = true;
-            SelectedNode = path[^1];
+        }
+        finally
+        {
+            Dispatcher.UIThread.Post(() => _isSelectingProgrammatically = false);
         }
     }
 
@@ -1011,27 +1170,87 @@ public class ElementsViewModel : ViewModelBase
         LayoutVerticalAlignment = "Stretch";
     }
 
-    public void SelectAxNodeById(string nodeId)
+
+
+    private bool _isSyncingSelection = false;
+
+    private void SyncAxSelectionFromDom()
     {
-        foreach (var root in AxRootNodes)
+        if (_isSyncingSelection || SelectedNode == null) return;
+        _isSyncingSelection = true;
+        try
         {
-            var found = FindAxNode(root, nodeId);
-            if (found != null)
-            {
-                found.IsSelected = true;
-                break;
-            }
+            SelectAxNodeByBackendDomId(SelectedNode.NodeId);
+        }
+        finally
+        {
+            _isSyncingSelection = false;
         }
     }
 
-    private AxNodeModel? FindAxNode(AxNodeModel current, string nodeId)
+    private void SyncDomSelectionFromAx()
     {
-        if (current.NodeId == nodeId) return current;
-        foreach (var child in current.Children)
+        if (_isSyncingSelection || SelectedAxNode == null || !SelectedAxNode.BackendDOMNodeId.HasValue) return;
+        _isSyncingSelection = true;
+        try
         {
-            var found = FindAxNode(child, nodeId);
-            if (found != null) return found;
+            SelectNodeById(SelectedAxNode.BackendDOMNodeId.Value);
         }
-        return null;
+        finally
+        {
+            _isSyncingSelection = false;
+        }
+    }
+
+    public void SelectAxNodeByBackendDomId(int backendDomId)
+    {
+        _isSelectingProgrammatically = true;
+        try
+        {
+            DeselectAllAx(AxRootNodes);
+
+            var path = new List<AxNodeModel>();
+            if (FindAxNodePathByBackendDomId(AxRootNodes, backendDomId, path))
+            {
+                for (int i = 0; i < path.Count - 1; i++)
+                {
+                    path[i].IsExpanded = true;
+                }
+                path[^1].IsSelected = true;
+                _selectedAxNode = path[^1];
+                OnPropertyChanged(nameof(SelectedAxNode));
+            }
+        }
+        finally
+        {
+            Dispatcher.UIThread.Post(() => _isSelectingProgrammatically = false);
+        }
+    }
+
+    private void DeselectAllAx(IEnumerable<AxNodeModel> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            node.IsSelected = false;
+            DeselectAllAx(node.Children);
+        }
+    }
+
+    private bool FindAxNodePathByBackendDomId(IEnumerable<AxNodeModel> nodes, int backendDomId, List<AxNodeModel> path)
+    {
+        foreach (var node in nodes)
+        {
+            path.Add(node);
+            if (node.BackendDOMNodeId == backendDomId)
+            {
+                return true;
+            }
+            if (FindAxNodePathByBackendDomId(node.Children, backendDomId, path))
+            {
+                return true;
+            }
+            path.RemoveAt(path.Count - 1);
+        }
+        return false;
     }
 }
