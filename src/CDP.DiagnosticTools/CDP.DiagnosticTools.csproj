@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>CDP.DiagnosticTools</PackageId>
+    <Title>CDP.DiagnosticTools</Title>
+    <Description>In-process CDP diagnostic inspector tool integration for Avalonia UI applications.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj" />
+    <ProjectReference Include="../CDP.Inspector.Shared/CDP.Inspector.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>
