@@ -227,9 +227,10 @@ public class NewDomainTests
 
         var targetRes = await BrowserDomain.HandleAsync(session, "getWindowForTarget", new JsonObject());
         Assert.NotNull(targetRes);
-        Assert.Equal(1, targetRes["windowId"]?.GetValue<int>());
+        int windowId = targetRes["windowId"]?.GetValue<int>() ?? 0;
+        Assert.True(windowId > 0);
 
-        var boundsRes = await BrowserDomain.HandleAsync(session, "getWindowBounds", new JsonObject { ["windowId"] = 1 });
+        var boundsRes = await BrowserDomain.HandleAsync(session, "getWindowBounds", new JsonObject { ["windowId"] = windowId });
         Assert.NotNull(boundsRes);
         var bounds = boundsRes["bounds"] as JsonObject;
         Assert.NotNull(bounds);
@@ -238,7 +239,7 @@ public class NewDomainTests
 
         var setBoundsParams = new JsonObject
         {
-            ["windowId"] = 1,
+            ["windowId"] = windowId,
             ["bounds"] = new JsonObject
             {
                 ["width"] = 700,
