@@ -1,0 +1,1024 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
+using System.Windows.Input;
+using Avalonia.Threading;
+using CdpInspectorApp.Models;
+using CdpInspectorApp.Services;
+
+namespace CdpInspectorApp.ViewModels;
+
+public class ElementsViewModel : ViewModelBase
+{
+    private readonly ICdpService _cdpService;
+    private ObservableCollection<DomNodeModel> _rootNodes = new();
+    private ObservableCollection<AxNodeModel> _axRootNodes = new();
+    private ObservableCollection<AttributeModel> _attributes = new();
+    private ObservableCollection<PropertyModel> _properties = new();
+    private ObservableCollection<CssPropertyModel> _cssProperties = new();
+    private ObservableCollection<CssPropertyModel> _computedStyles = new();
+    private ObservableCollection<EventListenerModel> _eventListeners = new();
+
+    private DomNodeModel? _selectedNode;
+    private AxNodeModel? _selectedAxNode;
+    private PropertyModel? _selectedProperty;
+
+    private string _selectedNodeIdText = "None";
+    private string _selectedPropertyNameText = "None";
+    private string _propertyValueInputText = "";
+    private string _attributeNameInputText = "";
+    private string _attributeValueInputText = "";
+    private string _styleTextInputText = "";
+    private bool _isHighlightActive;
+    private string _searchQuery = "";
+
+    // Accessibility Details
+    private string _axRoleText = "None";
+    private string _axNameText = "None";
+    private string _axDescriptionText = "None";
+    private string _axIgnoredText = "False";
+    private string _axParentIdText = "None";
+    private string _axChildIdsText = "None";
+
+    // Layout Details
+    private string _layoutMargin = "0,0,0,0";
+    private string _layoutPadding = "0,0,0,0";
+    private string _layoutBorderThickness = "0,0,0,0";
+    private string _layoutWidth = "Auto";
+    private string _layoutHeight = "Auto";
+    private string _layoutBounds = "0,0,0,0";
+    private string _layoutHorizontalAlignment = "Stretch";
+    private string _layoutVerticalAlignment = "Stretch";
+
+    public ObservableCollection<DomNodeModel> RootNodes => _rootNodes;
+    public ObservableCollection<AxNodeModel> AxRootNodes => _axRootNodes;
+    public ObservableCollection<AttributeModel> Attributes => _attributes;
+    public ObservableCollection<PropertyModel> Properties => _properties;
+    public ObservableCollection<CssPropertyModel> CssProperties => _cssProperties;
+    public ObservableCollection<CssPropertyModel> ComputedStyles => _computedStyles;
+    public ObservableCollection<EventListenerModel> EventListeners => _eventListeners;
+
+    public DomNodeModel? SelectedNode
+    {
+        get => _selectedNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedNode, value))
+            {
+                _ = HandleNodeSelectionChangedAsync();
+            }
+        }
+    }
+
+    public AxNodeModel? SelectedAxNode
+    {
+        get => _selectedAxNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedAxNode, value))
+            {
+                if (_selectedAxNode != null && _selectedAxNode.BackendDOMNodeId.HasValue)
+                {
+                    SelectNodeById(_selectedAxNode.BackendDOMNodeId.Value);
+                }
+            }
+        }
+    }
+
+    public PropertyModel? SelectedProperty
+    {
+        get => _selectedProperty;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedProperty, value))
+            {
+                SelectedPropertyNameText = _selectedProperty?.Name ?? "None";
+                PropertyValueInputText = _selectedProperty?.Value ?? "";
+                ((RelayCommand)ApplyPropertyCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string SelectedNodeIdText
+    {
+        get => _selectedNodeIdText;
+        private set => RaiseAndSetIfChanged(ref _selectedNodeIdText, value);
+    }
+
+    public string SelectedPropertyNameText
+    {
+        get => _selectedPropertyNameText;
+        private set => RaiseAndSetIfChanged(ref _selectedPropertyNameText, value);
+    }
+
+    public string PropertyValueInputText
+    {
+        get => _propertyValueInputText;
+        set => RaiseAndSetIfChanged(ref _propertyValueInputText, value);
+    }
+
+    public string AttributeNameInputText
+    {
+        get => _attributeNameInputText;
+        set => RaiseAndSetIfChanged(ref _attributeNameInputText, value);
+    }
+
+    public string AttributeValueInputText
+    {
+        get => _attributeValueInputText;
+        set => RaiseAndSetIfChanged(ref _attributeValueInputText, value);
+    }
+
+    public string StyleTextInputText
+    {
+        get => _styleTextInputText;
+        set => RaiseAndSetIfChanged(ref _styleTextInputText, value);
+    }
+
+    public bool IsHighlightActive
+    {
+        get => _isHighlightActive;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isHighlightActive, value))
+            {
+                _ = ToggleHighlightAsync();
+            }
+        }
+    }
+
+    public string SearchQuery
+    {
+        get => _searchQuery;
+        set => RaiseAndSetIfChanged(ref _searchQuery, value);
+    }
+
+    // Accessibility properties
+    public string AxRoleText
+    {
+        get => _axRoleText;
+        set => RaiseAndSetIfChanged(ref _axRoleText, value);
+    }
+    public string AxNameText
+    {
+        get => _axNameText;
+        set => RaiseAndSetIfChanged(ref _axNameText, value);
+    }
+    public string AxDescriptionText
+    {
+        get => _axDescriptionText;
+        set => RaiseAndSetIfChanged(ref _axDescriptionText, value);
+    }
+    public string AxIgnoredText
+    {
+        get => _axIgnoredText;
+        set => RaiseAndSetIfChanged(ref _axIgnoredText, value);
+    }
+    public string AxParentIdText
+    {
+        get => _axParentIdText;
+        set => RaiseAndSetIfChanged(ref _axParentIdText, value);
+    }
+    public string AxChildIdsText
+    {
+        get => _axChildIdsText;
+        set => RaiseAndSetIfChanged(ref _axChildIdsText, value);
+    }
+
+    // Layout properties
+    public string LayoutMargin
+    {
+        get => _layoutMargin;
+        set => RaiseAndSetIfChanged(ref _layoutMargin, value);
+    }
+    public string LayoutPadding
+    {
+        get => _layoutPadding;
+        set => RaiseAndSetIfChanged(ref _layoutPadding, value);
+    }
+    public string LayoutBorderThickness
+    {
+        get => _layoutBorderThickness;
+        set => RaiseAndSetIfChanged(ref _layoutBorderThickness, value);
+    }
+    public string LayoutWidth
+    {
+        get => _layoutWidth;
+        set => RaiseAndSetIfChanged(ref _layoutWidth, value);
+    }
+    public string LayoutHeight
+    {
+        get => _layoutHeight;
+        set => RaiseAndSetIfChanged(ref _layoutHeight, value);
+    }
+    public string LayoutBounds
+    {
+        get => _layoutBounds;
+        set => RaiseAndSetIfChanged(ref _layoutBounds, value);
+    }
+    public string LayoutHorizontalAlignment
+    {
+        get => _layoutHorizontalAlignment;
+        set => RaiseAndSetIfChanged(ref _layoutHorizontalAlignment, value);
+    }
+    public string LayoutVerticalAlignment
+    {
+        get => _layoutVerticalAlignment;
+        set => RaiseAndSetIfChanged(ref _layoutVerticalAlignment, value);
+    }
+
+    public ICommand FocusSelectedNodeCommand { get; }
+    public ICommand DeleteSelectedNodeCommand { get; }
+    public ICommand ApplyAttributeCommand { get; }
+    public ICommand DeleteAttributeCommand { get; }
+    public ICommand ApplyPropertyCommand { get; }
+    public ICommand ApplyStyleTextCommand { get; }
+    public ICommand SearchCommand { get; }
+    public ICommand RefreshAxTreeCommand { get; }
+
+    public ElementsViewModel(ICdpService cdpService)
+    {
+        _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
+        _cdpService.PropertyChanged += CdpService_PropertyChanged;
+        _cdpService.EventReceived += CdpService_EventReceived;
+
+        FocusSelectedNodeCommand = new RelayCommand(async () => await FocusSelectedNodeAsync(), () => SelectedNode != null);
+        DeleteSelectedNodeCommand = new RelayCommand(async () => await DeleteSelectedNodeAsync(), () => SelectedNode != null);
+        ApplyAttributeCommand = new RelayCommand(async () => await ApplyAttributeAsync(), () => SelectedNode != null);
+        DeleteAttributeCommand = new RelayCommand(async () => await DeleteAttributeAsync(), () => SelectedNode != null);
+        ApplyPropertyCommand = new RelayCommand(async () => await ApplyPropertyAsync(), () => SelectedNode != null && SelectedProperty != null);
+        ApplyStyleTextCommand = new RelayCommand(async () => await ApplyStyleTextAsync(), () => SelectedNode != null);
+        SearchCommand = new RelayCommand(async () => await PerformSearchAsync());
+        RefreshAxTreeCommand = new RelayCommand(async () => await RefreshAxTreeAsync());
+    }
+
+    private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ICdpService.IsConnected))
+        {
+            if (_cdpService.IsConnected)
+            {
+                _ = InitializeDomainAsync();
+            }
+            else
+            {
+                ClearData();
+            }
+        }
+    }
+
+    private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
+    {
+        if (e.Method == "Overlay.inspectNodeRequested")
+        {
+            int backendNodeId = e.Params["backendNodeId"]?.GetValue<int>() ?? 0;
+            if (backendNodeId > 0)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    SelectNodeById(backendNodeId);
+                });
+            }
+        }
+    }
+
+    private async Task InitializeDomainAsync()
+    {
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.enable");
+            await _cdpService.SendCommandAsync("CSS.enable");
+            await _cdpService.SendCommandAsync("DOMDebugger.enable");
+            await _cdpService.SendCommandAsync("Accessibility.enable");
+            await RefreshDomTreeAsync();
+            await RefreshAxTreeAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error enabling DOM/CSS/AX domains: {ex.Message}");
+        }
+    }
+
+    private void ClearData()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            RootNodes.Clear();
+            AxRootNodes.Clear();
+            Attributes.Clear();
+            Properties.Clear();
+            CssProperties.Clear();
+            ComputedStyles.Clear();
+            EventListeners.Clear();
+            SelectedNode = null;
+            SelectedProperty = null;
+            SelectedNodeIdText = "None";
+            StyleTextInputText = "";
+            ClearAxDetails();
+            ResetLayoutInfo();
+        });
+    }
+
+    public async Task RefreshDomTreeAsync()
+    {
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("DOM.getDocument");
+            var root = response["root"] as JsonObject;
+            if (root == null) return;
+
+            var rootModel = BuildModel(root);
+            Dispatcher.UIThread.Post(() =>
+            {
+                RootNodes.Clear();
+                RootNodes.Add(rootModel);
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing DOM tree: {ex.Message}");
+        }
+    }
+
+    private DomNodeModel BuildModel(JsonObject nodeJson)
+    {
+        int nodeId = nodeJson["nodeId"]?.GetValue<int>() ?? 0;
+        string nodeName = nodeJson["nodeName"]?.GetValue<string>() ?? "";
+        
+        var model = new DomNodeModel(nodeId, nodeName);
+
+        // Attributes
+        var attrsNode = nodeJson["attributes"] as JsonArray;
+        if (attrsNode != null)
+        {
+            for (int i = 0; i < attrsNode.Count; i += 2)
+            {
+                string name = attrsNode[i]?.GetValue<string>() ?? "";
+                string val = attrsNode[i + 1]?.GetValue<string>() ?? "";
+                model.AttributesList.Add(new AttributeModel(name, val));
+            }
+        }
+
+        // Children
+        var childrenNode = nodeJson["children"] as JsonArray;
+        if (childrenNode != null)
+        {
+            foreach (var child in childrenNode)
+            {
+                if (child is JsonObject childObj)
+                {
+                    model.Children.Add(BuildModel(childObj));
+                }
+            }
+        }
+
+        // Setup display name
+        string display = nodeName;
+        var idAttr = model.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase));
+        if (idAttr != null) display += $"#{idAttr.Value}";
+        var classAttr = model.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase));
+        if (classAttr != null) display += $".{classAttr.Value.Split(' ').FirstOrDefault()}";
+        model.DisplayName = display;
+
+        return model;
+    }
+
+    private async Task HandleNodeSelectionChangedAsync()
+    {
+        if (SelectedNode == null)
+        {
+            SelectedNodeIdText = "None";
+            Attributes.Clear();
+            Properties.Clear();
+            CssProperties.Clear();
+            ComputedStyles.Clear();
+            EventListeners.Clear();
+            StyleTextInputText = "";
+            return;
+        }
+
+        SelectedNodeIdText = SelectedNode.NodeId.ToString();
+        ((RelayCommand)FocusSelectedNodeCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)DeleteSelectedNodeCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)ApplyAttributeCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)DeleteAttributeCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)ApplyStyleTextCommand).RaiseCanExecuteChanged();
+
+        // 1. Load Attributes
+        Attributes.Clear();
+        foreach (var attr in SelectedNode.AttributesList)
+        {
+            Attributes.Add(attr);
+        }
+
+        // 2. Select Node in CDP
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.setInspectedNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+        }
+        catch { }
+
+        // 3. Resolve Node properties
+        Properties.Clear();
+        SelectedProperty = null;
+
+        try
+        {
+            var resolveRes = await _cdpService.SendCommandAsync("DOM.resolveNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var obj = resolveRes["object"] as JsonObject;
+            string objectId = obj?["objectId"]?.GetValue<string>() ?? "";
+            
+            if (!string.IsNullOrEmpty(objectId))
+            {
+                var propsRes = await _cdpService.SendCommandAsync("Runtime.getProperties", new JsonObject { ["objectId"] = objectId });
+                var results = propsRes["result"] as JsonArray;
+                if (results != null)
+                {
+                    var sorted = results
+                        .Select(p => {
+                            string name = p?["name"]?.GetValue<string>() ?? "";
+                            var valObj = p?["value"] as JsonObject;
+                            string val = valObj?["value"]?.ToString() ?? valObj?["description"]?.GetValue<string>() ?? "null";
+                            string type = valObj?["type"]?.GetValue<string>() ?? "object";
+                            return new PropertyModel(name, val, type);
+                        })
+                        .OrderBy(p => p.Name)
+                        .ToList();
+
+                    foreach (var p in sorted)
+                    {
+                        Properties.Add(p);
+                    }
+                }
+
+                // 3b. Resolve Event Listeners
+                EventListeners.Clear();
+                try
+                {
+                    var listenersRes = await _cdpService.SendCommandAsync("DOMDebugger.getEventListeners", new JsonObject { ["objectId"] = objectId });
+                    var listeners = listenersRes["listeners"] as JsonArray;
+                    if (listeners != null)
+                    {
+                        foreach (var listener in listeners)
+                        {
+                            if (listener is JsonObject listenerObj)
+                            {
+                                string typeName = listenerObj["type"]?.GetValue<string>() ?? "";
+                                bool useCapture = listenerObj["useCapture"]?.GetValue<bool>() ?? false;
+                                var handler = listenerObj["handler"] as JsonObject;
+                                string handlerName = handler?["description"]?.GetValue<string>() ?? "Anonymous";
+
+                                EventListeners.Add(new EventListenerModel(typeName, handlerName, useCapture));
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error fetching event listeners: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching properties: {ex.Message}");
+        }
+
+        // 4. Resolve CSS Styles & Computed Styles
+        CssProperties.Clear();
+        ComputedStyles.Clear();
+        StyleTextInputText = "";
+
+        try
+        {
+            var cssRes = await _cdpService.SendCommandAsync("CSS.getMatchedStylesForNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var inlineStyle = cssRes["inlineStyle"] as JsonObject;
+            if (inlineStyle != null)
+            {
+                var cssProps = inlineStyle["cssProperties"] as JsonArray;
+                if (cssProps != null)
+                {
+                    var fullStyleBuilder = new StringBuilder();
+                    foreach (var prop in cssProps)
+                    {
+                        if (prop is JsonObject propObj)
+                        {
+                            string name = propObj["name"]?.GetValue<string>() ?? "";
+                            string val = propObj["value"]?.GetValue<string>() ?? "";
+                            CssProperties.Add(new CssPropertyModel(name, val));
+                            fullStyleBuilder.Append($"{name}: {val}; ");
+                        }
+                    }
+                    StyleTextInputText = fullStyleBuilder.ToString().Trim();
+                }
+            }
+
+            // Fetch Computed styles
+            var compRes = await _cdpService.SendCommandAsync("CSS.getComputedStyleForNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var compStyles = compRes["computedStyle"] as JsonArray;
+            if (compStyles != null)
+            {
+                var sortedStyles = compStyles
+                    .Select(s => {
+                        string name = s?["name"]?.GetValue<string>() ?? "";
+                        string val = s?["value"]?.GetValue<string>() ?? "";
+                        return new CssPropertyModel(name, val);
+                    })
+                    .OrderBy(s => s.Name)
+                    .ToList();
+
+                foreach (var s in sortedStyles)
+                {
+                    ComputedStyles.Add(s);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching CSS styles: {ex.Message}");
+        }
+
+        // 5. Fetch Accessibility details for the selected node
+        ClearAxDetails();
+        try
+        {
+            var axRes = await _cdpService.SendCommandAsync("Accessibility.getAXNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var axNodes = axRes["nodes"] as JsonArray;
+            if (axNodes != null && axNodes.Count > 0)
+            {
+                var matchedNode = axNodes.FirstOrDefault(n => n?["backendDOMNodeId"]?.GetValue<int>() == SelectedNode.NodeId) as JsonObject;
+                if (matchedNode == null)
+                {
+                    matchedNode = axNodes[0] as JsonObject;
+                }
+
+                if (matchedNode != null)
+                {
+                    var roleObj = matchedNode["role"] as JsonObject;
+                    AxRoleText = roleObj?["value"]?.GetValue<string>() ?? "Unknown";
+                    
+                    var nameObj = matchedNode["name"] as JsonObject;
+                    AxNameText = nameObj?["value"]?.GetValue<string>() ?? "None";
+
+                    var descObj = matchedNode["description"] as JsonObject;
+                    AxDescriptionText = descObj?["value"]?.GetValue<string>() ?? "None";
+
+                    AxIgnoredText = (matchedNode["ignored"]?.GetValue<bool>() ?? false) ? "True" : "False";
+                    AxParentIdText = matchedNode["parentId"]?.GetValue<string>() ?? "None";
+
+                    var childIds = matchedNode["childIds"] as JsonArray;
+                    if (childIds != null && childIds.Count > 0)
+                    {
+                        AxChildIdsText = string.Join(", ", childIds.Select(c => c?.GetValue<string>() ?? ""));
+                    }
+                    else
+                    {
+                        AxChildIdsText = "None";
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching AX details: {ex.Message}");
+        }
+
+        // 6. Populate Layout info from properties list
+        ResetLayoutInfo();
+        if (SelectedNode != null)
+        {
+            var marginProp = Properties.FirstOrDefault(p => p.Name.Equals("Margin", StringComparison.OrdinalIgnoreCase));
+            if (marginProp != null) LayoutMargin = marginProp.Value;
+
+            var paddingProp = Properties.FirstOrDefault(p => p.Name.Equals("Padding", StringComparison.OrdinalIgnoreCase));
+            if (paddingProp != null) LayoutPadding = paddingProp.Value;
+
+            var borderProp = Properties.FirstOrDefault(p => p.Name.Equals("BorderThickness", StringComparison.OrdinalIgnoreCase));
+            if (borderProp != null) LayoutBorderThickness = borderProp.Value;
+
+            var widthProp = Properties.FirstOrDefault(p => p.Name.Equals("Width", StringComparison.OrdinalIgnoreCase));
+            if (widthProp != null) LayoutWidth = widthProp.Value;
+
+            var heightProp = Properties.FirstOrDefault(p => p.Name.Equals("Height", StringComparison.OrdinalIgnoreCase));
+            if (heightProp != null) LayoutHeight = heightProp.Value;
+
+            var boundsProp = Properties.FirstOrDefault(p => p.Name.Equals("Bounds", StringComparison.OrdinalIgnoreCase));
+            if (boundsProp != null) LayoutBounds = boundsProp.Value;
+
+            var haProp = Properties.FirstOrDefault(p => p.Name.Equals("HorizontalAlignment", StringComparison.OrdinalIgnoreCase));
+            if (haProp != null) LayoutHorizontalAlignment = haProp.Value;
+
+            var vaProp = Properties.FirstOrDefault(p => p.Name.Equals("VerticalAlignment", StringComparison.OrdinalIgnoreCase));
+            if (vaProp != null) LayoutVerticalAlignment = vaProp.Value;
+        }
+
+        // Update highlight if enabled
+        if (IsHighlightActive)
+        {
+            _ = TriggerHighlightAsync();
+        }
+    }
+
+    private async Task FocusSelectedNodeAsync()
+    {
+        if (SelectedNode == null) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error focusing node: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteSelectedNodeAsync()
+    {
+        if (SelectedNode == null) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.removeNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            await RefreshDomTreeAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting node: {ex.Message}");
+        }
+    }
+
+    private async Task ApplyAttributeAsync()
+    {
+        if (SelectedNode == null || string.IsNullOrEmpty(AttributeNameInputText)) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.setAttributeValue", new JsonObject
+            {
+                ["nodeId"] = SelectedNode.NodeId,
+                ["name"] = AttributeNameInputText,
+                ["value"] = AttributeValueInputText
+            });
+
+            // Update local attribute list
+            var existing = SelectedNode.AttributesList.FirstOrDefault(a => a.Name.Equals(AttributeNameInputText, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                existing.Value = AttributeValueInputText;
+            }
+            else
+            {
+                SelectedNode.AttributesList.Add(new AttributeModel(AttributeNameInputText, AttributeValueInputText));
+            }
+
+            // Re-trigger selection load to update displays
+            await HandleNodeSelectionChangedAsync();
+            AttributeNameInputText = "";
+            AttributeValueInputText = "";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error applying attribute: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteAttributeAsync()
+    {
+        if (SelectedNode == null || string.IsNullOrEmpty(AttributeNameInputText)) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.removeAttribute", new JsonObject
+            {
+                ["nodeId"] = SelectedNode.NodeId,
+                ["name"] = AttributeNameInputText
+            });
+
+            var existing = SelectedNode.AttributesList.FirstOrDefault(a => a.Name.Equals(AttributeNameInputText, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                SelectedNode.AttributesList.Remove(existing);
+            }
+
+            await HandleNodeSelectionChangedAsync();
+            AttributeNameInputText = "";
+            AttributeValueInputText = "";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting attribute: {ex.Message}");
+        }
+    }
+
+    private async Task ApplyPropertyAsync()
+    {
+        if (SelectedNode == null || SelectedProperty == null) return;
+        try
+        {
+            var resolveRes = await _cdpService.SendCommandAsync("DOM.resolveNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var obj = resolveRes["object"] as JsonObject;
+            string objectId = obj?["objectId"]?.GetValue<string>() ?? "";
+            
+            if (!string.IsNullOrEmpty(objectId))
+            {
+                string rawValue = PropertyValueInputText;
+                JsonNode parsedValue;
+                if (SelectedProperty.Type == "number" && double.TryParse(rawValue, out double dVal))
+                {
+                    parsedValue = JsonValue.Create(dVal);
+                }
+                else if (SelectedProperty.Type == "boolean" && bool.TryParse(rawValue, out bool bVal))
+                {
+                    parsedValue = JsonValue.Create(bVal);
+                }
+                else
+                {
+                    parsedValue = JsonValue.Create(rawValue);
+                }
+
+                await _cdpService.SendCommandAsync("Runtime.callFunctionOn", new JsonObject
+                {
+                    ["objectId"] = objectId,
+                    ["functionDeclaration"] = $"function(val) {{ this.{SelectedProperty.Name} = val; }}",
+                    ["arguments"] = new JsonArray { new JsonObject { ["value"] = parsedValue } }
+                });
+
+                await HandleNodeSelectionChangedAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error applying property: {ex.Message}");
+        }
+    }
+
+    private async Task ApplyStyleTextAsync()
+    {
+        if (SelectedNode == null) return;
+        try
+        {
+            var edits = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["styleSheetId"] = SelectedNode.NodeId.ToString(),
+                    ["range"] = new JsonObject
+                    {
+                        ["startLine"] = 0,
+                        ["startColumn"] = 0,
+                        ["endLine"] = 0,
+                        ["endColumn"] = 0
+                    },
+                    ["text"] = StyleTextInputText ?? ""
+                }
+            };
+
+            await _cdpService.SendCommandAsync("CSS.setStyleTexts", new JsonObject { ["edits"] = edits });
+            await HandleNodeSelectionChangedAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error applying style texts: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleHighlightAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            if (IsHighlightActive)
+            {
+                await TriggerHighlightAsync();
+            }
+            else
+            {
+                await _cdpService.SendCommandAsync("DOM.hideHighlight");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error toggling highlight: {ex.Message}");
+        }
+    }
+
+    private async Task TriggerHighlightAsync()
+    {
+        if (!_cdpService.IsConnected || SelectedNode == null) return;
+        try
+        {
+            var highlightParams = new JsonObject
+            {
+                ["nodeId"] = SelectedNode.NodeId,
+                ["highlightConfig"] = new JsonObject
+                {
+                    ["showInfo"] = true,
+                    ["contentColor"] = new JsonObject { ["r"] = 111, ["g"] = 168, ["b"] = 220, ["a"] = 0.4 }
+                }
+            };
+            await _cdpService.SendCommandAsync("DOM.highlightNode", highlightParams);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Highlight error: {ex.Message}");
+        }
+    }
+
+    private async Task PerformSearchAsync()
+    {
+        if (!_cdpService.IsConnected || string.IsNullOrEmpty(SearchQuery)) return;
+        try
+        {
+            var searchParams = new JsonObject { ["query"] = SearchQuery };
+            var searchRes = await _cdpService.SendCommandAsync("DOM.performSearch", searchParams);
+            string searchId = searchRes["searchId"]?.GetValue<string>() ?? "";
+            int resultCount = searchRes["resultCount"]?.GetValue<int>() ?? 0;
+
+            if (!string.IsNullOrEmpty(searchId) && resultCount > 0)
+            {
+                var getResParams = new JsonObject
+                {
+                    ["searchId"] = searchId,
+                    ["fromIndex"] = 0,
+                    ["toIndex"] = resultCount
+                };
+                var getRes = await _cdpService.SendCommandAsync("DOM.getSearchResults", getResParams);
+                var nodeIds = getRes["nodeIds"] as JsonArray;
+                if (nodeIds != null && nodeIds.Count > 0)
+                {
+                    int firstNodeId = nodeIds[0]?.GetValue<int>() ?? 0;
+                    if (firstNodeId > 0)
+                    {
+                        SelectNodeById(firstNodeId);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Search error: {ex.Message}");
+        }
+    }
+
+    public void SelectNodeById(int nodeId)
+    {
+        DeselectAll(RootNodes);
+
+        var path = new List<DomNodeModel>();
+        if (FindNodePath(RootNodes, nodeId, path))
+        {
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                path[i].IsExpanded = true;
+            }
+            path[^1].IsSelected = true;
+            SelectedNode = path[^1];
+        }
+    }
+
+    private void DeselectAll(IEnumerable<DomNodeModel> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            node.IsSelected = false;
+            DeselectAll(node.Children);
+        }
+    }
+
+    private bool FindNodePath(IEnumerable<DomNodeModel> nodes, int nodeId, List<DomNodeModel> path)
+    {
+        foreach (var node in nodes)
+        {
+            path.Add(node);
+            if (node.NodeId == nodeId)
+            {
+                return true;
+            }
+            if (FindNodePath(node.Children, nodeId, path))
+            {
+                return true;
+            }
+            path.RemoveAt(path.Count - 1);
+        }
+        return false;
+    }
+
+    public async Task RefreshAxTreeAsync()
+    {
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Accessibility.getFullAXTree");
+            var nodes = response["nodes"] as JsonArray;
+            if (nodes == null) return;
+
+            var nodesMap = new Dictionary<string, AxNodeModel>();
+            var rootList = new List<AxNodeModel>();
+            var parents = new Dictionary<string, string>();
+
+            foreach (var node in nodes)
+            {
+                if (node is JsonObject nodeObj)
+                {
+                    string nodeId = nodeObj["nodeId"]?.GetValue<string>() ?? "";
+                    var roleObj = nodeObj["role"] as JsonObject;
+                    string role = roleObj?["value"]?.GetValue<string>() ?? "Unknown";
+                    var nameObj = nodeObj["name"] as JsonObject;
+                    string name = nameObj?["value"]?.GetValue<string>() ?? "";
+                    bool ignored = nodeObj["ignored"]?.GetValue<bool>() ?? false;
+                    int? backendDomNodeId = nodeObj["backendDOMNodeId"]?.GetValue<int>();
+
+                    var model = new AxNodeModel(nodeId, role, name, ignored, backendDomNodeId);
+                    nodesMap[nodeId] = model;
+
+                    var childIds = nodeObj["childIds"] as JsonArray;
+                    if (childIds != null)
+                    {
+                        foreach (var childIdNode in childIds)
+                        {
+                            string childId = childIdNode?.GetValue<string>() ?? "";
+                            if (!string.IsNullOrEmpty(childId))
+                            {
+                                parents[childId] = nodeId;
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (var kvp in nodesMap)
+            {
+                string nodeId = kvp.Key;
+                var nodeModel = kvp.Value;
+
+                if (parents.TryGetValue(nodeId, out string? parentId) && parentId != null && nodesMap.TryGetValue(parentId, out var parentModel))
+                {
+                    parentModel.Children.Add(nodeModel);
+                }
+                else
+                {
+                    rootList.Add(nodeModel);
+                }
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                _axRootNodes.Clear();
+                foreach (var root in rootList)
+                {
+                    _axRootNodes.Add(root);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing AX tree: {ex.Message}");
+        }
+    }
+
+    private void ClearAxDetails()
+    {
+        AxRoleText = "None";
+        AxNameText = "None";
+        AxDescriptionText = "None";
+        AxIgnoredText = "False";
+        AxParentIdText = "None";
+        AxChildIdsText = "None";
+    }
+
+    private void ResetLayoutInfo()
+    {
+        LayoutMargin = "0,0,0,0";
+        LayoutPadding = "0,0,0,0";
+        LayoutBorderThickness = "0,0,0,0";
+        LayoutWidth = "Auto";
+        LayoutHeight = "Auto";
+        LayoutBounds = "0,0,0,0";
+        LayoutHorizontalAlignment = "Stretch";
+        LayoutVerticalAlignment = "Stretch";
+    }
+
+    public void SelectAxNodeById(string nodeId)
+    {
+        foreach (var root in AxRootNodes)
+        {
+            var found = FindAxNode(root, nodeId);
+            if (found != null)
+            {
+                found.IsSelected = true;
+                break;
+            }
+        }
+    }
+
+    private AxNodeModel? FindAxNode(AxNodeModel current, string nodeId)
+    {
+        if (current.NodeId == nodeId) return current;
+        foreach (var child in current.Children)
+        {
+            var found = FindAxNode(child, nodeId);
+            if (found != null) return found;
+        }
+        return null;
+    }
+}

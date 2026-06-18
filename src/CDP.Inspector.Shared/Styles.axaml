@@ -1,0 +1,102 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- TabControl Panels styling matching Chrome DevTools tabs bar -->
+    <Style Selector="TabControl">
+        <Setter Property="Background" Value="#202124"/>
+    </Style>
+    <Style Selector="TabItem">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Foreground" Value="#9aa0a6"/>
+        <Setter Property="Padding" Value="16,8"/>
+    </Style>
+    <Style Selector="TabItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="#e8eaed"/>
+    </Style>
+    <Style Selector="TabItem:selected">
+        <Setter Property="Foreground" Value="#8ab4f8"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="TabItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="#8ab4f8"/>
+    </Style>
+
+    <!-- Borders and Card styles matching Chrome DevTools lines/margins -->
+    <Style Selector="Border.panel-card">
+        <Setter Property="Background" Value="#292a2d"/>
+        <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Padding" Value="8"/>
+    </Style>
+
+    <!-- TextBlocks -->
+    <Style Selector="TextBlock.panel-header">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#e8eaed"/>
+        <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+
+    <!-- Form fields and list boxes with Chrome DevTools Dark colors -->
+    <Style Selector="TextBox">
+        <Setter Property="Background" Value="#202124"/>
+        <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Setter Property="Foreground" Value="#e8eaed"/>
+        <Setter Property="CaretBrush" Value="#e8eaed"/>
+        <Setter Property="SelectionBrush" Value="#3f5f8f"/>
+        <Setter Property="CornerRadius" Value="2"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="ListBox">
+        <Setter Property="Background" Value="#292a2d"/>
+        <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Setter Property="Foreground" Value="#e8eaed"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="TreeView">
+        <Setter Property="Background" Value="#292a2d"/>
+        <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Setter Property="Foreground" Value="#e8eaed"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="TreeViewItem">
+        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+    </Style>
+
+    <!-- Chrome styled buttons -->
+    <Style Selector="Button">
+        <Setter Property="Background" Value="#35363a"/>
+        <Setter Property="Foreground" Value="#e8eaed"/>
+        <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="12,5"/>
+        <Setter Property="CornerRadius" Value="3"/>
+    </Style>
+    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#494c50"/>
+        <Setter Property="Foreground" Value="#ffffff"/>
+        <Setter Property="BorderBrush" Value="#494c50"/>
+    </Style>
+    <Style Selector="Button.accent">
+        <Setter Property="Background" Value="#1a73e8"/>
+        <Setter Property="Foreground" Value="#ffffff"/>
+        <Setter Property="BorderBrush" Value="#1a73e8"/>
+    </Style>
+    <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#1557b0"/>
+        <Setter Property="Foreground" Value="#ffffff"/>
+        <Setter Property="BorderBrush" Value="#1557b0"/>
+    </Style>
+    <Style Selector="ToggleButton">
+        <Setter Property="Background" Value="#35363a"/>
+        <Setter Property="Foreground" Value="#e8eaed"/>
+        <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="12,5"/>
+        <Setter Property="CornerRadius" Value="3"/>
+    </Style>
+
+</Styles>

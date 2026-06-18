@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpInspectorApp.Views.ConsoleView"
+             x:CompileBindings="False">
+    <Grid RowDefinitions="*, Auto" Margin="10">
+        <Grid RowDefinitions="Auto, *">
+            <!-- Filter Toolbar -->
+            <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Name="btnClearLogs" Command="{Binding Console.ClearLogsCommand}" Content="Clear Console"/>
+                    <StackPanel Orientation="Horizontal" Spacing="2" Background="#292a2d" Margin="5,0,0,0">
+                        <ToggleButton Content="All" IsChecked="{Binding Console.FilterAll, Mode=TwoWay}" Padding="8,4" FontSize="11"/>
+                        <ToggleButton Content="Error" IsChecked="{Binding Console.FilterError, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#f28b82"/>
+                        <ToggleButton Content="Warning" IsChecked="{Binding Console.FilterWarning, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#fdd663"/>
+                        <ToggleButton Content="Info" IsChecked="{Binding Console.FilterInfo, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#81c995"/>
+                        <ToggleButton Content="Verbose" IsChecked="{Binding Console.FilterVerbose, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#9aa0a6"/>
+                    </StackPanel>
+                </StackPanel>
+                
+                <TextBox Grid.Column="1" Text="{Binding Console.FilterQuery, Mode=TwoWay}" PlaceholderText="Filter log entries..." Height="28" Margin="10,0" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
+            </Grid>
+
+            <!-- Logs Console List -->
+            <ListBox Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="Auto, Auto, *">
+                            <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Foreground="#9aa0a6" Width="90" FontSize="12"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" Width="70" Margin="10,0" FontSize="12"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Text}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <!-- Script Evaluator input -->
+        <Grid Grid.Row="1" RowDefinitions="Auto, Auto" Margin="0,10,0,0">
+            <!-- Evaluations history -->
+            <ListBox Name="listConsole" ItemsSource="{Binding Console.ConsoleHistory}" MaxHeight="120" Margin="0,0,0,8" Background="#202124" BorderBrush="#3c4043">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="2">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="❯ " Foreground="#8ab4f8" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock Text="{Binding Expression}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="15,2,0,0">
+                                <TextBlock Text="value: " Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBrush}" TextWrapping="Wrap" FontSize="12"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            
+            <Grid ColumnDefinitions="*, Auto">
+                <TextBox Name="txtConsoleInput" Text="{Binding Console.ConsoleInputText, Mode=TwoWay}" PlaceholderText="Enter C# Interactive command (use inspected $0 variable)..." Height="28" VerticalContentAlignment="Center"/>
+                <Button Name="btnSendConsole" Command="{Binding Console.EvaluateCommand}" Grid.Column="1" Content="Evaluate" Margin="5,0,0,0" Padding="15,0" Height="28" Classes="accent"/>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
