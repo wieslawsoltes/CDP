@@ -933,13 +933,13 @@ public class CdpSession
                 var name = (sender as Control)?.Name;
                 if (string.IsNullOrEmpty(name))
                 {
-                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "name" });
-                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "id" });
+                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Name" });
+                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Id" });
                 }
                 else
                 {
-                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "name", ["value"] = name });
-                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "id", ["value"] = name });
+                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Name", ["value"] = name });
+                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Id", ["value"] = name });
                 }
             }
             else if (propName == "Classes")
@@ -947,38 +947,38 @@ public class CdpSession
                 var classes = (sender as Control)?.Classes;
                 if (classes == null || classes.Count == 0)
                 {
-                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "class" });
+                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Class" });
                 }
                 else
                 {
-                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "class", ["value"] = string.Join(" ", classes) });
+                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Class", ["value"] = string.Join(" ", classes) });
                 }
             }
             else if (propName == "IsEnabled")
             {
                 var isEnabled = (sender as Control)?.IsEnabled ?? true;
-                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "isenabled", ["value"] = isEnabled.ToString().ToLowerInvariant() });
+                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "IsEnabled", ["value"] = isEnabled.ToString().ToLowerInvariant() });
             }
             else if (propName == "IsVisible")
             {
                 var isVisible = (sender as Control)?.IsVisible ?? true;
-                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "isvisible", ["value"] = isVisible.ToString().ToLowerInvariant() });
+                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "IsVisible", ["value"] = isVisible.ToString().ToLowerInvariant() });
             }
             else if (propName == "Bounds")
             {
                 var bounds = (sender as Control)?.Bounds ?? default;
-                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "bounds", ["value"] = $"{bounds.X},{bounds.Y},{bounds.Width},{bounds.Height}" });
+                _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Bounds", ["value"] = $"{bounds.X},{bounds.Y},{bounds.Width},{bounds.Height}" });
             }
             else if (propName == "Text" || propName == "Content")
             {
                 var text = (sender is Control ctrl) ? Domains.DomDomain.GetControlTextOrContent(ctrl) : null;
                 if (string.IsNullOrEmpty(text))
                 {
-                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "text" });
+                    _ = SendEventAsync("DOM.removeAttribute", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Text" });
                 }
                 else
                 {
-                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "text", ["value"] = text });
+                    _ = SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Text", ["value"] = text });
                 }
             }
         }
