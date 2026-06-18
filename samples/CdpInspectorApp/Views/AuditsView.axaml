@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpInspectorApp.Views.AuditsView"
+             x:CompileBindings="False">
+    <Grid RowDefinitions="Auto, Auto, *" Margin="10">
+        <!-- 1. Top toolbar -->
+        <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,15">
+            <StackPanel Spacing="3">
+                <TextBlock Text="Lighthouse visual diagnostics &amp; audits" FontSize="16" FontWeight="Bold" Foreground="#e8eaed"/>
+                <TextBlock Text="Analyzes window controls, visual tree nesting, and layouts for compliance." Foreground="#9aa0a6" FontSize="11"/>
+            </StackPanel>
+            <Button Grid.Column="1" Name="btnRunAudits" Command="{Binding Audits.RunAuditsCommand}" Content="Run Diagnostics Audits" Classes="accent" Height="30" Padding="15,0"/>
+        </Grid>
+
+        <!-- 2. Score Gauges Row -->
+        <Border Grid.Row="1" Classes="panel-card" Margin="0,0,0,15" Padding="20,15">
+            <Grid ColumnDefinitions="*, *, *">
+                <!-- Accessibility Gauge -->
+                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                    <Border Width="84" Height="84" CornerRadius="42" BorderThickness="6" BorderBrush="{Binding Audits.A11yBrush}" Background="#202124" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Audits.AccessibilityScore}" FontWeight="Bold" FontSize="22" Foreground="{Binding Audits.A11yBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Accessibility" FontWeight="SemiBold" FontSize="13" Foreground="#e8eaed" HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Best Practices Gauge -->
+                <StackPanel Grid.Column="1" Spacing="10" HorizontalAlignment="Center">
+                    <Border Width="84" Height="84" CornerRadius="42" BorderThickness="6" BorderBrush="{Binding Audits.BestPracticesBrush}" Background="#202124" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Audits.BestPracticesScore}" FontWeight="Bold" FontSize="22" Foreground="{Binding Audits.BestPracticesBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Best Practices" FontWeight="SemiBold" FontSize="13" Foreground="#e8eaed" HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Layout Gauge -->
+                <StackPanel Grid.Column="2" Spacing="10" HorizontalAlignment="Center">
+                    <Border Width="84" Height="84" CornerRadius="42" BorderThickness="6" BorderBrush="{Binding Audits.LayoutBrush}" Background="#202124" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Audits.LayoutScore}" FontWeight="Bold" FontSize="22" Foreground="{Binding Audits.LayoutBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Layout" FontWeight="SemiBold" FontSize="13" Foreground="#e8eaed" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 3. Issues & Recommendations Grid -->
+        <Grid Grid.Row="2" ColumnDefinitions="*, 4, 380">
+            <!-- Left Pane (Issues List) -->
+            <Border Classes="panel-card" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <TextBlock Text="DIAGNOSTIC RECOMMENDATIONS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
+                    
+                    <ListBox Name="lstIssues" Grid.Row="1" ItemsSource="{Binding Audits.Issues}" SelectedItem="{Binding Audits.SelectedIssue, Mode=TwoWay}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="Auto, *" Margin="3">
+                                    <Border Background="{Binding CategoryBrush}" CornerRadius="3" Padding="6,3" Height="22" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Category}" Foreground="Black" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding Message}" TextWrapping="Wrap" Margin="10,0,0,0" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+            <!-- Right Pane (Issue Inspection details) -->
+            <Border Grid.Column="2" Classes="panel-card" Margin="10,0,0,0">
+                <Grid>
+                    <!-- Issue Detail Card -->
+                    <Grid RowDefinitions="Auto, *, Auto" IsVisible="{Binding Audits.SelectedIssue, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Issue Details" FontSize="15" FontWeight="Bold" Foreground="#e8eaed"/>
+                            <Separator Background="#3c4043"/>
+                        </StackPanel>
+                        
+                        <ScrollViewer Grid.Row="1" Margin="0,10">
+                            <StackPanel Spacing="15">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Category:" Foreground="#9aa0a6" FontSize="11"/>
+                                    <TextBlock Text="{Binding Audits.SelectedIssue.Category}" FontWeight="Bold" Foreground="#8ab4f8" FontSize="13"/>
+                                </StackPanel>
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Violating Control Type:" Foreground="#9aa0a6" FontSize="11"/>
+                                    <TextBlock Text="{Binding Audits.SelectedIssue.ControlType}" FontWeight="Bold" Foreground="#e8eaed" FontSize="13"/>
+                                </StackPanel>
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Diagnostic Message:" Foreground="#9aa0a6" FontSize="11"/>
+                                    <TextBlock Text="{Binding Audits.SelectedIssue.Message}" TextWrapping="Wrap" Foreground="#e8eaed" FontSize="12" LineHeight="16"/>
+                                </StackPanel>
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Target DOM Node ID:" Foreground="#9aa0a6" FontSize="11"/>
+                                    <TextBlock Text="{Binding Audits.SelectedIssue.NodeId, StringFormat='Node #{0}'}" Foreground="#81c995" FontWeight="Bold" FontSize="12"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Action footer -->
+                        <Button Grid.Row="2" Name="btnInspectIssue" Command="{Binding Audits.InspectIssueCommand}" Content="Reveal Element in Elements Panel" Classes="accent" HorizontalAlignment="Stretch" Height="32"/>
+                    </Grid>
+
+                    <!-- Empty state -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" IsVisible="{Binding Audits.SelectedIssue, Converter={x:Static ObjectConverters.IsNull}}">
+                        <TextBlock Text="No recommendation selected" Foreground="#9aa0a6" FontSize="13" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Select a diagnostic item to reveal inspector options." Foreground="#5f6368" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
