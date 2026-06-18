@@ -16,11 +16,21 @@ public static class AuditsDomain
         {
             case "enable":
             case "disable":
-            case "checkFormsIssues":
                 return new JsonObject();
 
+            case "checkFormsIssues":
+                return new JsonObject
+                {
+                    ["formIssues"] = new JsonArray()
+                };
+
             case "getEncodedResponse":
-                return new JsonObject { ["body"] = "" };
+                return new JsonObject
+                {
+                    ["body"] = "",
+                    ["originalSize"] = 0,
+                    ["encodedSize"] = 0
+                };
 
             case "runDiagnostics":
                 {
