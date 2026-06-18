@@ -356,7 +356,7 @@ public class CdpSession
         _sendSemaphore.Dispose();
     }
 
-    private readonly ConcurrentDictionary<Visual, NotifyCollectionChangedEventHandler> _collectionHandlers = new();
+    private readonly ConcurrentDictionary<Visual, (INotifyCollectionChanged Observable, NotifyCollectionChangedEventHandler Handler)> _collectionHandlers = new();
     private readonly ConcurrentDictionary<Visual, EventHandler<AvaloniaPropertyChangedEventArgs>> _propertyHandlers = new();
     private readonly ConcurrentDictionary<Control, NotifyCollectionChangedEventHandler> _classesHandlers = new();
 
@@ -398,10 +398,7 @@ public class CdpSession
         }
         foreach (var pair in _collectionHandlers)
         {
-            if (GetChildrenObservable(pair.Key) is INotifyCollectionChanged notify)
-            {
-                try { notify.CollectionChanged -= pair.Value; } catch { }
-            }
+            try { pair.Value.Observable.CollectionChanged -= pair.Value.Handler; } catch { }
         }
         _collectionHandlers.Clear();
 
@@ -438,7 +435,7 @@ public class CdpSession
             {
                 NotifyCollectionChangedEventHandler colHandler = (s, e) => OnVisualChildrenChanged(visual, e);
                 notify.CollectionChanged += colHandler;
-                _collectionHandlers[visual] = colHandler;
+                _collectionHandlers[visual] = (notify, colHandler);
             }
         }
 
@@ -488,12 +485,9 @@ public class CdpSession
             UnsubscribeFromVisual(child);
         }
 
-        if (_collectionHandlers.TryRemove(visual, out var colHandler))
+        if (_collectionHandlers.TryRemove(visual, out var entry))
         {
-            if (GetChildrenObservable(visual) is INotifyCollectionChanged notify)
-            {
-                try { notify.CollectionChanged -= colHandler; } catch { }
-            }
+            try { entry.Observable.CollectionChanged -= entry.Handler; } catch { }
         }
 
         if (_propertyHandlers.TryRemove(visual, out var propHandler))
@@ -541,7 +535,7 @@ public class CdpSession
                             var childNode = Domains.DomDomain.BuildDomNode(child, this, 1, 1);
                             _ = SendEventAsync("DOM.childNodeInserted", new JsonObject
                             {
-                                ["parentId"] = parentNodeId,
+                                ["parentNodeId"] = parentNodeId,
                                 ["previousNodeId"] = previousNodeId,
                                 ["node"] = childNode
                             });
@@ -563,7 +557,7 @@ public class CdpSession
                             {
                                 _ = SendEventAsync("DOM.childNodeRemoved", new JsonObject
                                 {
-                                    ["parentId"] = parentNodeId,
+                                    ["parentNodeId"] = parentNodeId,
                                     ["nodeId"] = childNodeId
                                 });
                                 UnsubscribeFromVisual(child);

@@ -512,12 +512,16 @@ public class CdpChromeFeatureTests
         var insertedMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
         Assert.NotNull(insertedMsg);
         Assert.Contains("myNewBtn", insertedMsg);
+        Assert.Contains("parentNodeId", insertedMsg);
+        Assert.DoesNotContain("parentId", insertedMsg);
 
         panel.Children.Remove(button);
         await Task.Delay(100);
 
         var removedMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeRemoved"));
         Assert.NotNull(removedMsg);
+        Assert.Contains("parentNodeId", removedMsg);
+        Assert.DoesNotContain("parentId", removedMsg);
 
         session.StopObservingVisualTree();
         window.Close();
