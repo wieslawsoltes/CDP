@@ -236,7 +236,7 @@ public class NewDomainTests
         Assert.NotNull(bounds);
         Assert.Equal(600, bounds["width"]?.GetValue<int>());
         Assert.Equal(400, bounds["height"]?.GetValue<int>());
-
+ 
         var setBoundsParams = new JsonObject
         {
             ["windowId"] = windowId,

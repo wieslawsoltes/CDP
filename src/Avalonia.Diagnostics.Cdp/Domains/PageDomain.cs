@@ -81,6 +81,7 @@ public static class PageDomain
 
                     var workspaceRoot = FindWorkspaceRoot();
                     var absolutePath = Path.GetFullPath(Path.Combine(workspaceRoot, relativePath));
+
                     var relative = Path.GetRelativePath(workspaceRoot, absolutePath);
                     if (relative.StartsWith("..") || Path.IsPathRooted(relative))
                     {

@@ -185,9 +185,18 @@ public class CdpProtocolComplianceTests
             sb.AppendLine();
         }
 
-        var reportPath = Path.Combine(repoRoot, "cdp_compliance_report.md");
-        await File.WriteAllTextAsync(reportPath, sb.ToString());
-        Console.WriteLine($"Compliance report generated successfully at: {reportPath}");
+        if (string.Equals(Environment.GetEnvironmentVariable("GENERATE_CDP_REPORT"), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            var reportPath = Path.Combine(repoRoot, "cdp_compliance_report.md");
+            await File.WriteAllTextAsync(reportPath, sb.ToString());
+            Console.WriteLine($"Compliance report generated successfully at: {reportPath}");
+        }
+        else
+        {
+            var tempReportPath = Path.Combine(Path.GetTempPath(), "cdp_compliance_report.md");
+            await File.WriteAllTextAsync(tempReportPath, sb.ToString());
+            Console.WriteLine($"Compliance report generated in temp directory: {tempReportPath}");
+        }
     }
 
     private string FindRepositoryRoot()

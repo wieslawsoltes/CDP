@@ -21,10 +21,57 @@ public static class CdpServer
     private static int _port = 9222;
     public static int Port => _port;
     private static readonly ConcurrentDictionary<string, (TopLevel Window, string Title)> _windows = new();
+    private static readonly ConcurrentDictionary<CdpSession, byte> _sessions = new();
     private static System.IO.TextWriter? _originalOut;
     private static System.IO.TextWriter? _originalError;
     private static ConsoleRedirector? _redirectedOut;
     private static ConsoleRedirector? _redirectedError;
+
+    public static void AddSession(CdpSession session)
+    {
+        _sessions[session] = 0;
+    }
+
+    public static void RemoveSession(CdpSession session)
+    {
+        _sessions.TryRemove(session, out _);
+    }
+
+    private static void NotifyTargetCreated(string targetId, string title)
+    {
+        foreach (var session in _sessions.Keys)
+        {
+            if (session.DiscoverTargetsEnabled)
+            {
+                _ = session.SendEventAsync("Target.targetCreated", new JsonObject
+                {
+                    ["targetInfo"] = new JsonObject
+                    {
+                        ["targetId"] = targetId,
+                        ["type"] = "page",
+                        ["title"] = title,
+                        ["url"] = $"http://localhost:{_port}/",
+                        ["attached"] = true,
+                        ["browserContextId"] = "1"
+                    }
+                });
+            }
+        }
+    }
+
+    private static void NotifyTargetDestroyed(string targetId)
+    {
+        foreach (var session in _sessions.Keys)
+        {
+            if (session.DiscoverTargetsEnabled)
+            {
+                _ = session.SendEventAsync("Target.targetDestroyed", new JsonObject
+                {
+                    ["targetId"] = targetId
+                });
+            }
+        }
+    }
 
     public static string Register(TopLevel window, string title)
     {
@@ -35,6 +82,7 @@ public static class CdpServer
 
         var id = Guid.NewGuid().ToString();
         _windows[id] = (window, title);
+        NotifyTargetCreated(id, title);
         return id;
     }
 
@@ -44,6 +92,7 @@ public static class CdpServer
         if (key != null)
         {
             _windows.TryRemove(key, out _);
+            NotifyTargetDestroyed(key);
         }
     }
 
@@ -71,6 +120,7 @@ public static class CdpServer
                     var title = win.Title ?? "Avalonia Window";
                     _windows[id] = (win, title);
                     active[win] = (id, title);
+                    NotifyTargetCreated(id, title);
                 }
             }
         }

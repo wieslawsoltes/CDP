@@ -28,6 +28,7 @@ public class CdpSession
     public NodeMap NodeMap { get; } = new();
     public ConcurrentDictionary<string, object> RemoteObjects { get; } = new();
     public int InspectedNodeId { get; set; } = 0;
+    public bool DiscoverTargetsEnabled { get; set; }
     private int _nextObjectId = 1;
 
     private bool _inspectModeEnabled;
@@ -113,6 +114,7 @@ public class CdpSession
         var buffer = new byte[8192];
         try
         {
+            CdpServer.AddSession(this);
             while (_webSocket.State == WebSocketState.Open && !_cts.IsCancellationRequested)
             {
                 using var ms = new MemoryStream();
@@ -339,6 +341,7 @@ public class CdpSession
 
     private void Cleanup()
     {
+        CdpServer.RemoveSession(this);
         _cts.Cancel();
         StopScreencast();
         StopObservingVisualTree();

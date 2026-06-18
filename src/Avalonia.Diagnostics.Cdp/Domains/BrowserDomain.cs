@@ -167,8 +167,7 @@ public static class BrowserDomain
                      }
                      return new JsonObject();
                  }
-
-            case "getBrowserCommandLine":
+             case "getBrowserCommandLine":
                 {
                     var args = new JsonArray();
                     foreach (var arg in Environment.GetCommandLineArgs())
