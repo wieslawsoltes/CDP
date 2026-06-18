@@ -1,11 +1,14 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:CdpInspectorApp.Views;assembly=CDP.Inspector.Shared"
-        x:Class="CdpInspectorApp.MainWindow"
-        x:CompileBindings="False"
-        Title="Avalonia CDP Inspector Client - Chrome Parity" Width="1280" Height="800"
-        WindowStartupLocation="CenterScreen"
+        x:Class="Avalonia.CdpInspectorWindow"
+        Title="In-Process CDP Inspector" Width="1280" Height="800"
+        WindowStartupLocation="CenterOwner"
         RequestedThemeVariant="Dark">
+
+    <Window.Styles>
+        <StyleInclude Source="avares://CDP.Inspector.Shared/Styles.axaml"/>
+    </Window.Styles>
 
     <views:MainView Name="MainViewControl"/>
 </Window>

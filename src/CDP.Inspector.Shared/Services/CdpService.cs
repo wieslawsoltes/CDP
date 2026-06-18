@@ -133,7 +133,10 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                     await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                 }
             }
-            catch { }
+            catch (Exception)
+            {
+                // Ignore errors during close
+            }
             finally
             {
                 _ws.Dispose();
@@ -195,7 +198,10 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                     ms.Write(buffer, 0, result.Count);
                 } while (!result.EndOfMessage);
 
-                if (result.MessageType == WebSocketMessageType.Close) break;
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    break;
+                }
 
                 var jsonStr = Encoding.UTF8.GetString(ms.ToArray());
                 var node = JsonNode.Parse(jsonStr, null, new JsonDocumentOptions { MaxDepth = 1024 }) as JsonObject;
@@ -219,7 +225,10 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 }
             }
         }
-        catch { }
+        catch (Exception)
+        {
+            // Ignore socket receive exceptions
+        }
         finally
         {
             if (IsConnected)

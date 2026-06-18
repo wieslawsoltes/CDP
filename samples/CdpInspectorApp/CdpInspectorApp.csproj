@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Avalonia.Diagnostics.Cdp\Avalonia.Diagnostics.Cdp.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Inspector.Shared\CDP.Inspector.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -102,7 +102,9 @@ public static class InputDomain
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var inputHandler = GetInputHandler(session.Window);
             var mouseDevice = GetMouseDevice();
-            var inputRoot = session.Window as IInputRoot;
+            var inputRoot = typeof(TopLevel)
+                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                ?.GetValue(session.Window) as IInputRoot;
             if (inputHandler == null || mouseDevice == null || inputRoot == null) return;
 
             var modifiers = RawInputModifiers.None;

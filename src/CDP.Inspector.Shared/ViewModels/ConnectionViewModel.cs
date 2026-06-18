@@ -12,7 +12,7 @@ namespace CdpInspectorApp.ViewModels;
 public class ConnectionViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
-    private string _hostAddress = "http://localhost:9222";
+    private string _hostAddress = "http://127.0.0.1:9222";
     private ObservableCollection<TargetItem> _targets = new();
     private TargetItem? _selectedTarget;
     private bool _isInspectModeActive;
@@ -126,6 +126,11 @@ public class ConnectionViewModel : ViewModelBase
         catch (Exception ex)
         {
             Console.WriteLine($"Connect error: {ex.Message}");
+            try
+            {
+                System.IO.File.WriteAllText("connect_error.txt", ex.ToString());
+            }
+            catch {}
         }
     }
 
