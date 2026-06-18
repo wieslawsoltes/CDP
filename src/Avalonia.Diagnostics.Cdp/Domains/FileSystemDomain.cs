@@ -12,7 +12,15 @@ public static class FileSystemDomain
         {
             case "getDirectory":
                 {
-                    return Task.FromResult(new JsonObject());
+                    return Task.FromResult(new JsonObject
+                    {
+                        ["directory"] = new JsonObject
+                        {
+                            ["name"] = "root",
+                            ["nestedDirectories"] = new JsonArray(),
+                            ["nestedFiles"] = new JsonArray()
+                        }
+                    });
                 }
 
             default:

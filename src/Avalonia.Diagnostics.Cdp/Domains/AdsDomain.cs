@@ -14,7 +14,15 @@ public static class AdsDomain
                 {
                     return Task.FromResult(new JsonObject
                     {
-                        ["pubsubMetrics"] = new JsonArray()
+                        ["metrics"] = new JsonObject
+                        {
+                            ["viewportAdDensityByArea"] = 0,
+                            ["averageViewportAdDensityByArea"] = 0.0,
+                            ["viewportAdCount"] = 0,
+                            ["averageViewportAdCount"] = 0.0,
+                            ["totalAdCpuTime"] = 0.0,
+                            ["totalAdNetworkBytes"] = 0.0
+                        }
                     });
                 }
 

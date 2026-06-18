@@ -489,17 +489,20 @@ public class NewDomainTests
         
         var adsRes = await AdsDomain.HandleAsync(session, "getAdMetrics", new JsonObject());
         Assert.NotNull(adsRes);
-        Assert.NotNull(adsRes["pubsubMetrics"]);
+        Assert.NotNull(adsRes["metrics"]);
 
         Assert.NotNull(await AutofillDomain.HandleAsync(session, "enable", new JsonObject()));
         Assert.NotNull(await BackgroundServiceDomain.HandleAsync(session, "startObserving", new JsonObject()));
         Assert.NotNull(await CastDomain.HandleAsync(session, "enable", new JsonObject()));
         Assert.NotNull(await DeviceAccessDomain.HandleAsync(session, "enable", new JsonObject()));
-        Assert.NotNull(await FileSystemDomain.HandleAsync(session, "getDirectory", new JsonObject()));
+        
+        var fileSystemRes = await FileSystemDomain.HandleAsync(session, "getDirectory", new JsonObject());
+        Assert.NotNull(fileSystemRes);
+        Assert.NotNull(fileSystemRes["directory"]);
 
         var crashRes = await CrashReportContextDomain.HandleAsync(session, "getEntries", new JsonObject());
         Assert.NotNull(crashRes);
-        Assert.NotNull(crashRes["reportContexts"]);
+        Assert.NotNull(crashRes["entries"]);
 
         Assert.NotNull(await PerformanceTimelineDomain.HandleAsync(session, "enable", new JsonObject()));
     }

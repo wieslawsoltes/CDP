@@ -1,6 +1,6 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-18 08:04:00 UTC
+Generated on: 2026-06-18 08:29:11 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 

@@ -14,7 +14,7 @@ public static class CrashReportContextDomain
                 {
                     return Task.FromResult(new JsonObject
                     {
-                        ["reportContexts"] = new JsonArray()
+                        ["entries"] = new JsonArray()
                     });
                 }
 
