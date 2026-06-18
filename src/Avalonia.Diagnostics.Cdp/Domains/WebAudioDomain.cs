@@ -20,7 +20,13 @@ public static class WebAudioDomain
                 {
                     return Task.FromResult(new JsonObject
                     {
-                        ["realtimeData"] = new JsonObject()
+                        ["realtimeData"] = new JsonObject
+                        {
+                            ["currentTime"] = 0.0,
+                            ["renderCapacity"] = 0.0,
+                            ["callbackIntervalMean"] = 0.0,
+                            ["callbackIntervalVariance"] = 0.0
+                        }
                     });
                 }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -12,9 +13,18 @@ namespace CdpInspectorApp.ViewModels;
 public class ConsoleViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
+    private readonly List<LogModel> _allLogs = new();
     private ObservableCollection<LogModel> _logs = new();
     private ObservableCollection<ConsoleItemModel> _consoleHistory = new();
     private string _consoleInputText = "";
+
+    // Filters
+    private bool _filterAll = true;
+    private bool _filterError;
+    private bool _filterWarning;
+    private bool _filterInfo;
+    private bool _filterVerbose;
+    private string _filterQuery = "";
 
     public ObservableCollection<LogModel> Logs => _logs;
     public ObservableCollection<ConsoleItemModel> ConsoleHistory => _consoleHistory;
@@ -27,6 +37,93 @@ public class ConsoleViewModel : ViewModelBase
             if (RaiseAndSetIfChanged(ref _consoleInputText, value))
             {
                 ((RelayCommand)EvaluateCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool FilterAll
+    {
+        get => _filterAll;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterAll, value))
+            {
+                if (value)
+                {
+                    _filterError = false;
+                    _filterWarning = false;
+                    _filterInfo = false;
+                    _filterVerbose = false;
+                    OnPropertyChanged(nameof(FilterError));
+                    OnPropertyChanged(nameof(FilterWarning));
+                    OnPropertyChanged(nameof(FilterInfo));
+                    OnPropertyChanged(nameof(FilterVerbose));
+                }
+                RebuildFilteredLogs();
+            }
+        }
+    }
+
+    public bool FilterError
+    {
+        get => _filterError;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterError, value))
+            {
+                if (value) FilterAll = false;
+                RebuildFilteredLogs();
+            }
+        }
+    }
+
+    public bool FilterWarning
+    {
+        get => _filterWarning;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterWarning, value))
+            {
+                if (value) FilterAll = false;
+                RebuildFilteredLogs();
+            }
+        }
+    }
+
+    public bool FilterInfo
+    {
+        get => _filterInfo;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterInfo, value))
+            {
+                if (value) FilterAll = false;
+                RebuildFilteredLogs();
+            }
+        }
+    }
+
+    public bool FilterVerbose
+    {
+        get => _filterVerbose;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterVerbose, value))
+            {
+                if (value) FilterAll = false;
+                RebuildFilteredLogs();
+            }
+        }
+    }
+
+    public string FilterQuery
+    {
+        get => _filterQuery;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterQuery, value))
+            {
+                RebuildFilteredLogs();
             }
         }
     }
@@ -74,8 +171,15 @@ public class ConsoleViewModel : ViewModelBase
 
                 Dispatcher.UIThread.Post(() =>
                 {
-                    Logs.Add(new LogModel(timestamp, level, text));
-                    if (Logs.Count > 100) Logs.RemoveAt(0);
+                    var log = new LogModel(timestamp, level, text);
+                    _allLogs.Add(log);
+                    if (_allLogs.Count > 500) _allLogs.RemoveAt(0);
+
+                    if (MatchesFilter(log))
+                    {
+                        Logs.Add(log);
+                        if (Logs.Count > 100) Logs.RemoveAt(0);
+                    }
                 });
             }
         }
@@ -93,10 +197,52 @@ public class ConsoleViewModel : ViewModelBase
         }
     }
 
+    private void RebuildFilteredLogs()
+    {
+        if (!_filterAll && !_filterError && !_filterWarning && !_filterInfo && !_filterVerbose)
+        {
+            _filterAll = true;
+            OnPropertyChanged(nameof(FilterAll));
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            Logs.Clear();
+            foreach (var log in _allLogs)
+            {
+                if (MatchesFilter(log))
+                {
+                    Logs.Add(log);
+                }
+            }
+        });
+    }
+
+    private bool MatchesFilter(LogModel log)
+    {
+        if (!_filterAll)
+        {
+            string lvl = log.Level.ToLowerInvariant();
+            if (lvl.Contains("err") && !_filterError) return false;
+            if (lvl.Contains("warn") && !_filterWarning) return false;
+            if ((lvl.Contains("info") || lvl.Contains("log")) && !_filterInfo) return false;
+            if (lvl.Contains("verb") && !_filterVerbose) return false;
+        }
+
+        if (!string.IsNullOrEmpty(FilterQuery))
+        {
+            if (!log.Text.Contains(FilterQuery, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        return true;
+    }
+
     private void ClearData()
     {
         Dispatcher.UIThread.Post(() =>
         {
+            _allLogs.Clear();
             Logs.Clear();
             ConsoleHistory.Clear();
             ConsoleInputText = "";
@@ -105,6 +251,7 @@ public class ConsoleViewModel : ViewModelBase
 
     private void ClearLogs()
     {
+        _allLogs.Clear();
         Logs.Clear();
     }
 

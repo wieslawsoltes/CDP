@@ -10,12 +10,29 @@ public static class DOMSnapshotDomain
     {
         switch (action)
         {
-            case "captureSnapshot":
             case "disable":
             case "enable":
-            case "getSnapshot":
                 {
                     return Task.FromResult(new JsonObject());
+                }
+
+            case "getSnapshot":
+                {
+                    return Task.FromResult(new JsonObject
+                    {
+                        ["domNodes"] = new JsonArray(),
+                        ["layoutTreeNodes"] = new JsonArray(),
+                        ["computedStyles"] = new JsonArray()
+                    });
+                }
+
+            case "captureSnapshot":
+                {
+                    return Task.FromResult(new JsonObject
+                    {
+                        ["documents"] = new JsonArray(),
+                        ["strings"] = new JsonArray()
+                    });
                 }
 
             default:

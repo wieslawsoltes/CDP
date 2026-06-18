@@ -528,4 +528,159 @@ public class NewDomainTests
 
         Assert.NotNull(await TetheringDomain.HandleAsync(session, "bind", new JsonObject()));
     }
+
+    [AvaloniaFact]
+    public async Task TestChromeDevToolsParityFeatures()
+    {
+        var window = new Avalonia.Controls.Window
+        {
+            Title = "Audits Test Window",
+            Content = new Avalonia.Controls.StackPanel
+            {
+                Children =
+                {
+                    new Avalonia.Controls.Button { Content = "Test Button" },
+                    new Avalonia.Controls.Button() // invalid button with no content (A11y violation!)
+                }
+            }
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Test DOMStorage backend implementation
+        JsonObject CreateStorageId() => new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["isLocalStorage"] = true
+        };
+
+        // Set
+        await DOMStorageDomain.HandleAsync(session, "setDOMStorageItem", new JsonObject
+        {
+            ["storageId"] = CreateStorageId(),
+            ["key"] = "testKey",
+            ["value"] = "testValue"
+        });
+
+        // Get
+        var itemsRes = await DOMStorageDomain.HandleAsync(session, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateStorageId()
+        });
+        Assert.NotNull(itemsRes);
+        var entries = itemsRes["entries"] as JsonArray;
+        Assert.NotNull(entries);
+        Assert.Contains(entries, e => e?[0]?.GetValue<string>() == "testKey" && e?[1]?.GetValue<string>() == "testValue");
+
+        // Remove
+        await DOMStorageDomain.HandleAsync(session, "removeDOMStorageItem", new JsonObject
+        {
+            ["storageId"] = CreateStorageId(),
+            ["key"] = "testKey"
+        });
+        
+        // Verify removed
+        var itemsRes2 = await DOMStorageDomain.HandleAsync(session, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateStorageId()
+        });
+        var entries2 = itemsRes2["entries"] as JsonArray;
+        Assert.NotNull(entries2);
+        Assert.Empty(entries2);
+
+        // 2. Test Audits runDiagnostics
+        var auditsRes = await AuditsDomain.HandleAsync(session, "runDiagnostics", new JsonObject());
+        Assert.NotNull(auditsRes);
+        Assert.True(auditsRes.ContainsKey("accessibilityScore"));
+        Assert.True(auditsRes.ContainsKey("bestPracticesScore"));
+        Assert.True(auditsRes.ContainsKey("layoutScore"));
+        var issues = auditsRes["issues"] as JsonArray;
+        Assert.NotNull(issues);
+        Assert.Contains(issues, i => i?["category"]?.GetValue<string>() == "Accessibility" && i?["message"]?.GetValue<string>().Contains("missing an accessible name") == true);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestDOMStorageSessionIsolation()
+    {
+        var window1 = new Avalonia.Controls.Window { Title = "Window 1" };
+        var window2 = new Avalonia.Controls.Window { Title = "Window 2" };
+        window1.Show();
+        window2.Show();
+
+        using var clientWs1 = new ClientWebSocket();
+        using var clientWs2 = new ClientWebSocket();
+        var session1 = new CdpSession(clientWs1, window1);
+        var session2 = new CdpSession(clientWs2, window2);
+
+        // 1. Test Session Storage (isLocalStorage = false) - should be isolated
+        JsonObject CreateSessionStorageId() => new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["isLocalStorage"] = false
+        };
+
+        // Set on session 1
+        await DOMStorageDomain.HandleAsync(session1, "setDOMStorageItem", new JsonObject
+        {
+            ["storageId"] = CreateSessionStorageId(),
+            ["key"] = "sessionKey",
+            ["value"] = "sessionVal1"
+        });
+
+        // Get from session 1
+        var itemsRes1 = await DOMStorageDomain.HandleAsync(session1, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateSessionStorageId()
+        });
+        var entries1 = itemsRes1["entries"] as JsonArray;
+        Assert.NotNull(entries1);
+        Assert.Contains(entries1, e => e?[0]?.GetValue<string>() == "sessionKey" && e?[1]?.GetValue<string>() == "sessionVal1");
+
+        // Get from session 2 - should not contain sessionKey
+        var itemsRes2 = await DOMStorageDomain.HandleAsync(session2, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateSessionStorageId()
+        });
+        var entries2 = itemsRes2["entries"] as JsonArray;
+        Assert.NotNull(entries2);
+        Assert.DoesNotContain(entries2, e => e?[0]?.GetValue<string>() == "sessionKey");
+
+        // 2. Test Local Storage (isLocalStorage = true) - should be shared
+        JsonObject CreateLocalStorageId() => new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["isLocalStorage"] = true
+        };
+
+        // Set on session 1
+        await DOMStorageDomain.HandleAsync(session1, "setDOMStorageItem", new JsonObject
+        {
+            ["storageId"] = CreateLocalStorageId(),
+            ["key"] = "localKey",
+            ["value"] = "localVal"
+        });
+
+        // Get from session 2 - should find localVal since it's shared across the same origin
+        var localItemsRes2 = await DOMStorageDomain.HandleAsync(session2, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateLocalStorageId()
+        });
+        var localEntries2 = localItemsRes2["entries"] as JsonArray;
+        Assert.NotNull(localEntries2);
+        Assert.Contains(localEntries2, e => e?[0]?.GetValue<string>() == "localKey" && e?[1]?.GetValue<string>() == "localVal");
+
+        // Clean up
+        await DOMStorageDomain.HandleAsync(session1, "clear", new JsonObject
+        {
+            ["storageId"] = CreateLocalStorageId()
+        });
+
+        window1.Close();
+        window2.Close();
+    }
 }
+
