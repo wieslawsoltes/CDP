@@ -528,4 +528,78 @@ public class NewDomainTests
 
         Assert.NotNull(await TetheringDomain.HandleAsync(session, "bind", new JsonObject()));
     }
+
+    [AvaloniaFact]
+    public async Task TestChromeDevToolsParityFeatures()
+    {
+        var window = new Avalonia.Controls.Window
+        {
+            Title = "Audits Test Window",
+            Content = new Avalonia.Controls.StackPanel
+            {
+                Children =
+                {
+                    new Avalonia.Controls.Button { Content = "Test Button" },
+                    new Avalonia.Controls.Button() // invalid button with no content (A11y violation!)
+                }
+            }
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Test DOMStorage backend implementation
+        JsonObject CreateStorageId() => new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["isLocalStorage"] = true
+        };
+
+        // Set
+        await DOMStorageDomain.HandleAsync(session, "setDOMStorageItem", new JsonObject
+        {
+            ["storageId"] = CreateStorageId(),
+            ["key"] = "testKey",
+            ["value"] = "testValue"
+        });
+
+        // Get
+        var itemsRes = await DOMStorageDomain.HandleAsync(session, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateStorageId()
+        });
+        Assert.NotNull(itemsRes);
+        var entries = itemsRes["entries"] as JsonArray;
+        Assert.NotNull(entries);
+        Assert.Contains(entries, e => e?[0]?.GetValue<string>() == "testKey" && e?[1]?.GetValue<string>() == "testValue");
+
+        // Remove
+        await DOMStorageDomain.HandleAsync(session, "removeDOMStorageItem", new JsonObject
+        {
+            ["storageId"] = CreateStorageId(),
+            ["key"] = "testKey"
+        });
+        
+        // Verify removed
+        var itemsRes2 = await DOMStorageDomain.HandleAsync(session, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateStorageId()
+        });
+        var entries2 = itemsRes2["entries"] as JsonArray;
+        Assert.NotNull(entries2);
+        Assert.Empty(entries2);
+
+        // 2. Test Audits runDiagnostics
+        var auditsRes = await AuditsDomain.HandleAsync(session, "runDiagnostics", new JsonObject());
+        Assert.NotNull(auditsRes);
+        Assert.True(auditsRes.ContainsKey("accessibilityScore"));
+        Assert.True(auditsRes.ContainsKey("bestPracticesScore"));
+        Assert.True(auditsRes.ContainsKey("layoutScore"));
+        var issues = auditsRes["issues"] as JsonArray;
+        Assert.NotNull(issues);
+        Assert.Contains(issues, i => i?["category"]?.GetValue<string>() == "Accessibility" && i?["message"]?.GetValue<string>().Contains("missing an accessible name") == true);
+
+        window.Close();
+    }
 }

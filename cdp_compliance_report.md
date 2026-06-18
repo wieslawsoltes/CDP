@@ -1,13 +1,13 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-18 08:29:11 UTC
+Generated on: 2026-06-18 08:47:47 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 
 ## Summary
 
 * **Total Standard CDP Methods Supported**: 254 / 668 (38,0%)
-* **Total Custom/Extension Methods Supported**: 11
+* **Total Custom/Extension Methods Supported**: 12
 
 | Domain | Status / Coverage | Standard Supported | Custom Extensions | Missing Standard |
 | :--- | :--- | :--- | :--- | :--- |
@@ -15,7 +15,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Ads** | Fully Compliant | 1 | 0 | 0 |
 | **Animation** | Unsupported | 0 | 0 | 10 |
 | **Application** | Custom Domain (3 actions) | 0 | 3 | 0 |
-| **Audits** | Fully Compliant | 4 | 0 | 0 |
+| **Audits** | Fully Compliant | 4 | 1 | 0 |
 | **Autofill** | Fully Compliant | 4 | 0 | 0 |
 | **BackgroundService** | Fully Compliant | 4 | 0 | 0 |
 | **BluetoothEmulation** | Unsupported | 0 | 0 | 15 |
@@ -94,6 +94,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 ### Audits
 
 * **Standard Supported (4)**: `checkFormsIssues`, `disable`, `enable`, `getEncodedResponse`
+* **Custom Extensions (1)**: `runDiagnostics`
 
 ### Autofill
 
