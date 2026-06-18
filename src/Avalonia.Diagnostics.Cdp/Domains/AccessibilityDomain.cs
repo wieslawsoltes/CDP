@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 
@@ -24,13 +27,17 @@ public static class AccessibilityDomain
                     var nodes = new JsonArray();
                     if (session.Window != null)
                     {
-                        var visuals = new List<Visual>();
-                        Traverse(session.Window, visuals);
-
-                        foreach (var visual in visuals)
+                        var rootPeer = ControlAutomationPeer.CreatePeerForElement(session.Window);
+                        if (rootPeer != null)
                         {
-                            var node = BuildAXNode(session, visual);
-                            nodes.Add(node);
+                            var list = new List<AutomationPeer>();
+                            TraversePeers(rootPeer, list);
+
+                            foreach (var peer in list)
+                            {
+                                var node = BuildAXNode(session, peer);
+                                nodes.Add(node);
+                            }
                         }
                     }
 
@@ -65,12 +72,24 @@ public static class AccessibilityDomain
                     var nodes = new JsonArray();
                     if (targetVisual != null)
                     {
-                        var current = targetVisual;
-                        while (current != null)
+                        var peer = targetVisual is Control targetControl ? ControlAutomationPeer.CreatePeerForElement(targetControl) : null;
+                        if (peer != null)
                         {
-                            var axNode = BuildAXNode(session, current);
-                            nodes.Add(axNode);
-                            current = current.GetVisualParent();
+                            var current = peer;
+                            while (current != null)
+                            {
+                                nodes.Add(BuildAXNode(session, current));
+                                current = current.GetParent();
+                            }
+                        }
+                        else
+                        {
+                            var current = targetVisual;
+                            while (current != null)
+                            {
+                                nodes.Add(BuildAXNodeFromVisualFallback(session, current));
+                                current = current.GetVisualParent();
+                            }
                         }
                     }
 
@@ -81,15 +100,18 @@ public static class AccessibilityDomain
                 {
                     string? idStr = @params["id"]?.GetValue<string>();
                     var nodes = new JsonArray();
-                    if (!string.IsNullOrEmpty(idStr) && int.TryParse(idStr, out int nodeId))
+                    if (!string.IsNullOrEmpty(idStr))
                     {
-                        var visual = session.NodeMap.GetVisual(nodeId);
-                        if (visual != null)
+                        var peersMap = GetPeersMap(session);
+                        if (peersMap.TryGetValue(idStr, out var parentPeer))
                         {
-                            foreach (var child in visual.GetVisualChildren())
+                            var children = parentPeer.GetChildren();
+                            if (children != null)
                             {
-                                var childNode = BuildAXNode(session, child);
-                                nodes.Add(childNode);
+                                foreach (var child in children)
+                                {
+                                    nodes.Add(BuildAXNode(session, child));
+                                }
                             }
                         }
                     }
@@ -101,7 +123,11 @@ public static class AccessibilityDomain
                     JsonObject? node = null;
                     if (session.Window != null)
                     {
-                        node = BuildAXNode(session, session.Window);
+                        var rootPeer = ControlAutomationPeer.CreatePeerForElement(session.Window);
+                        if (rootPeer != null)
+                        {
+                            node = BuildAXNode(session, rootPeer);
+                        }
                     }
                     return new JsonObject { ["node"] = node };
                 }
@@ -134,16 +160,90 @@ public static class AccessibilityDomain
                     var nodes = new JsonArray();
                     if (targetVisual != null)
                     {
-                        var targetNode = BuildAXNode(session, targetVisual);
-                        nodes.Add(targetNode);
-
-                        if (fetchRelatives)
+                        var peer = targetVisual is Control targetControl ? ControlAutomationPeer.CreatePeerForElement(targetControl) : null;
+                        if (peer != null)
                         {
-                            var current = targetVisual.GetVisualParent();
-                            while (current != null)
+                            var addedNodeIds = new HashSet<string>();
+
+                            void AddNode(AutomationPeer p)
                             {
-                                nodes.Add(BuildAXNode(session, current));
-                                current = current.GetVisualParent();
+                                string id = GetPeerId(session, p);
+                                if (addedNodeIds.Add(id))
+                                {
+                                    nodes.Add(BuildAXNode(session, p));
+                                }
+                            }
+
+                            AddNode(peer);
+
+                            if (fetchRelatives)
+                            {
+                                // Children
+                                var children = peer.GetChildren();
+                                if (children != null)
+                                {
+                                    foreach (var child in children)
+                                    {
+                                        AddNode(child);
+                                    }
+                                }
+
+                                // Ancestors and siblings
+                                var parent = peer.GetParent();
+                                while (parent != null)
+                                {
+                                    AddNode(parent);
+
+                                    var siblings = parent.GetChildren();
+                                    if (siblings != null)
+                                    {
+                                        foreach (var sibling in siblings)
+                                        {
+                                            AddNode(sibling);
+                                        }
+                                    }
+
+                                    parent = parent.GetParent();
+                                }
+                            }
+                        }
+                        else
+                        {
+                            var addedNodeIds = new HashSet<string>();
+
+                            void AddNode(Visual v)
+                            {
+                                int id = session.NodeMap.GetOrAdd(v);
+                                string idStr = id.ToString();
+                                if (addedNodeIds.Add(idStr))
+                                {
+                                    nodes.Add(BuildAXNodeFromVisualFallback(session, v));
+                                }
+                            }
+
+                            AddNode(targetVisual);
+
+                            if (fetchRelatives)
+                            {
+                                // Children
+                                foreach (var child in targetVisual.GetVisualChildren())
+                                {
+                                    AddNode(child);
+                                }
+
+                                // Ancestors and siblings
+                                var parent = targetVisual.GetVisualParent();
+                                while (parent != null)
+                                {
+                                    AddNode(parent);
+
+                                    foreach (var sibling in parent.GetVisualChildren())
+                                    {
+                                        AddNode(sibling);
+                                    }
+
+                                    parent = parent.GetVisualParent();
+                                }
                             }
                         }
                     }
@@ -172,35 +272,39 @@ public static class AccessibilityDomain
                     var matchedNodes = new JsonArray();
                     if (rootVisual != null)
                     {
-                        var list = new List<Visual>();
-                        Traverse(rootVisual, list);
-
-                        foreach (var visual in list)
+                        var rootPeer = rootVisual is Control rootControl ? ControlAutomationPeer.CreatePeerForElement(rootControl) : null;
+                        if (rootPeer != null)
                         {
-                            var axNode = BuildAXNode(session, visual);
-                            bool matches = true;
+                            var list = new List<AutomationPeer>();
+                            TraversePeers(rootPeer, list);
 
-                            if (!string.IsNullOrEmpty(accessibleName))
+                            foreach (var peer in list)
                             {
-                                var nameNode = axNode["name"]?["value"]?.GetValue<string>();
-                                if (nameNode == null || !nameNode.Contains(accessibleName, StringComparison.OrdinalIgnoreCase))
+                                var axNode = BuildAXNode(session, peer);
+                                bool matches = true;
+
+                                if (!string.IsNullOrEmpty(accessibleName))
                                 {
-                                    matches = false;
+                                    var nameNode = axNode["name"]?["value"]?.GetValue<string>();
+                                    if (nameNode == null || !nameNode.Contains(accessibleName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        matches = false;
+                                    }
                                 }
-                            }
 
-                            if (matches && !string.IsNullOrEmpty(role))
-                            {
-                                var roleNode = axNode["role"]?["value"]?.GetValue<string>();
-                                if (roleNode == null || !roleNode.Equals(role, StringComparison.OrdinalIgnoreCase))
+                                if (matches && !string.IsNullOrEmpty(role))
                                 {
-                                    matches = false;
+                                    var roleNode = axNode["role"]?["value"]?.GetValue<string>();
+                                    if (roleNode == null || !roleNode.Equals(role, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        matches = false;
+                                    }
                                 }
-                            }
 
-                            if (matches)
-                            {
-                                matchedNodes.Add(axNode);
+                                if (matches)
+                                {
+                                    matchedNodes.Add(axNode);
+                                }
                             }
                         }
                     }
@@ -213,38 +317,105 @@ public static class AccessibilityDomain
         }
     }
 
-    private static void Traverse(Visual visual, List<Visual> list)
+    private static void TraversePeers(AutomationPeer peer, List<AutomationPeer> list)
     {
-        list.Add(visual);
-        foreach (var child in visual.GetVisualChildren())
+        if (peer == null) return;
+        list.Add(peer);
+        var children = peer.GetChildren();
+        if (children != null)
         {
-            Traverse(child, list);
+            foreach (var child in children)
+            {
+                TraversePeers(child, list);
+            }
         }
     }
 
-    private static JsonObject BuildAXNode(CdpSession session, Visual visual)
+    private static Dictionary<string, AutomationPeer> GetPeersMap(CdpSession session)
     {
-        int visualNodeId = session.NodeMap.GetOrAdd(visual);
-        string nodeId = visualNodeId.ToString();
+        var map = new Dictionary<string, AutomationPeer>();
+        if (session.Window != null)
+        {
+            var rootPeer = ControlAutomationPeer.CreatePeerForElement(session.Window);
+            if (rootPeer != null)
+            {
+                var list = new List<AutomationPeer>();
+                TraversePeers(rootPeer, list);
+                foreach (var peer in list)
+                {
+                    string id = GetPeerId(session, peer);
+                    map[id] = peer;
+                }
+            }
+        }
+        return map;
+    }
 
-        // ignored: Set to true if the control's AutomationProperties.GetAccessibilityView(control) is None.
-        var accessibilityView = AutomationProperties.GetAccessibilityView(visual);
-        bool ignored = accessibilityView.ToString().Equals("None", StringComparison.OrdinalIgnoreCase);
+    private static string GetPeerId(CdpSession session, AutomationPeer peer)
+    {
+        if (peer is ControlAutomationPeer controlPeer && controlPeer.Owner is Visual visual)
+        {
+            return session.NodeMap.GetOrAdd(visual).ToString();
+        }
+        return $"synthetic-{peer.GetHashCode()}";
+    }
 
-        // role: an AXValue object with type="role" and value as the control class name or AutomationProperties.GetControlTypeOverride.
-        var overrideType = AutomationProperties.GetControlTypeOverride(visual);
-        string roleStr = overrideType?.ToString() ?? visual.GetType().Name;
+    private static JsonObject BuildAXNode(CdpSession session, AutomationPeer peer)
+    {
+        Visual? visual = null;
+        if (peer is ControlAutomationPeer controlPeer)
+        {
+            visual = controlPeer.Owner;
+        }
+
+        string nodeId = GetPeerId(session, peer);
+        int? backendDOMNodeId = null;
+        if (visual != null)
+        {
+            backendDOMNodeId = session.NodeMap.GetOrAdd(visual);
+        }
+
+        bool ignored = false;
+        if (peer is NoneAutomationPeer)
+        {
+            ignored = true;
+        }
+        else if (!peer.IsControlElement() && !peer.IsContentElement())
+        {
+            ignored = true;
+        }
+        else if (visual != null && AutomationProperties.GetAccessibilityView(visual) == AccessibilityView.Raw)
+        {
+            ignored = true;
+        }
+
+        string roleStr = peer.GetAutomationControlType().ToString();
+        if (roleStr == "None" || roleStr == "Custom")
+        {
+            if (visual != null)
+            {
+                var overrideType = AutomationProperties.GetControlTypeOverride(visual);
+                roleStr = overrideType?.ToString() ?? peer.GetClassName() ?? visual.GetType().Name;
+            }
+            else
+            {
+                roleStr = peer.GetClassName() ?? "Unknown";
+            }
+        }
         var roleJson = new JsonObject
         {
             ["type"] = "role",
             ["value"] = roleStr
         };
 
-        // name: an AXValue object with type="string" and value from AutomationProperties.GetName(control) or control text (like TextBlock.Text).
-        string? nameStr = AutomationProperties.GetName(visual);
-        if (string.IsNullOrEmpty(nameStr))
+        string? nameStr = peer.GetName();
+        if (string.IsNullOrEmpty(nameStr) && visual != null)
         {
-            nameStr = GetControlTextOrContent(visual);
+            nameStr = AutomationProperties.GetName(visual);
+            if (string.IsNullOrEmpty(nameStr))
+            {
+                nameStr = GetControlTextOrContent(visual);
+            }
         }
 
         JsonObject? nameJson = null;
@@ -257,7 +428,372 @@ public static class AccessibilityDomain
             };
         }
 
-        // description: an AXValue object with type="string" and value from AutomationProperties.GetHelpText(control) if set.
+        string? descriptionStr = null;
+        if (visual != null)
+        {
+            descriptionStr = AutomationProperties.GetHelpText(visual);
+        }
+        JsonObject? descriptionJson = null;
+        if (!string.IsNullOrEmpty(descriptionStr))
+        {
+            descriptionJson = new JsonObject
+            {
+                ["type"] = "string",
+                ["value"] = descriptionStr
+            };
+        }
+
+        var parentPeer = peer.GetParent();
+        string? parentId = null;
+        if (parentPeer != null)
+        {
+            parentId = GetPeerId(session, parentPeer);
+        }
+
+        var childIds = new JsonArray();
+        var children = peer.GetChildren();
+        if (children != null)
+        {
+            foreach (var child in children)
+            {
+                childIds.Add(GetPeerId(session, child));
+            }
+        }
+
+        var propertiesJson = new JsonArray();
+
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "focusable",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = peer.IsKeyboardFocusable()
+            }
+        });
+
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "focused",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = peer.HasKeyboardFocus()
+            }
+        });
+
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "disabled",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = !peer.IsEnabled()
+            }
+        });
+
+        var rangeProvider = peer.GetProvider<IRangeValueProvider>();
+        if (rangeProvider != null)
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "valuemin",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "number",
+                    ["value"] = rangeProvider.Minimum
+                }
+            });
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "valuemax",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "number",
+                    ["value"] = rangeProvider.Maximum
+                }
+            });
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "value",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "number",
+                    ["value"] = rangeProvider.Value
+                }
+            });
+        }
+        else
+        {
+            var valueProvider = peer.GetProvider<IValueProvider>();
+            if (valueProvider != null)
+            {
+                propertiesJson.Add(new JsonObject
+                {
+                    ["name"] = "value",
+                    ["value"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["value"] = valueProvider.Value
+                    }
+                });
+            }
+        }
+
+        var toggleProvider = peer.GetProvider<IToggleProvider>();
+        if (toggleProvider != null)
+        {
+            string checkedStr = toggleProvider.ToggleState switch
+            {
+                ToggleState.On => "true",
+                ToggleState.Off => "false",
+                _ => "mixed"
+            };
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "checked",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "token",
+                    ["value"] = checkedStr
+                }
+            });
+        }
+
+        var expandCollapseProvider = peer.GetProvider<IExpandCollapseProvider>();
+        if (expandCollapseProvider != null)
+        {
+            bool expanded = expandCollapseProvider.ExpandCollapseState == ExpandCollapseState.Expanded;
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "expanded",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "boolean",
+                    ["value"] = expanded
+                }
+            });
+        }
+
+        var selectionItemProvider = peer.GetProvider<ISelectionItemProvider>();
+        if (selectionItemProvider != null)
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "selected",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "boolean",
+                    ["value"] = selectionItemProvider.IsSelected
+                }
+            });
+        }
+
+        var selectionProvider = peer.GetProvider<ISelectionProvider>();
+        if (selectionProvider != null)
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "multiselectable",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "boolean",
+                    ["value"] = selectionProvider.CanSelectMultiple
+                }
+            });
+        }
+
+        if (!string.IsNullOrEmpty(descriptionStr))
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "description",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = descriptionStr
+                }
+            });
+        }
+
+        string? acceleratorKey = peer.GetAcceleratorKey() ?? (visual != null ? AutomationProperties.GetAcceleratorKey(visual) : null);
+        if (!string.IsNullOrEmpty(acceleratorKey))
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "keyshortcuts",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = acceleratorKey
+                }
+            });
+        }
+
+        if (visual != null)
+        {
+            int posInSet = AutomationProperties.GetPositionInSet(visual);
+            if (posInSet > 0)
+            {
+                propertiesJson.Add(new JsonObject
+                {
+                    ["name"] = "posinset",
+                    ["value"] = new JsonObject
+                    {
+                        ["type"] = "integer",
+                        ["value"] = posInSet
+                    }
+                });
+            }
+
+            int sizeOfSet = AutomationProperties.GetSizeOfSet(visual);
+            if (sizeOfSet > 0)
+            {
+                propertiesJson.Add(new JsonObject
+                {
+                    ["name"] = "setsize",
+                    ["value"] = new JsonObject
+                    {
+                        ["type"] = "integer",
+                        ["value"] = sizeOfSet
+                    }
+                });
+            }
+
+            var liveSetting = AutomationProperties.GetLiveSetting(visual);
+            if (liveSetting != AutomationLiveSetting.Off)
+            {
+                string liveStr = liveSetting switch
+                {
+                    AutomationLiveSetting.Polite => "polite",
+                    AutomationLiveSetting.Assertive => "assertive",
+                    _ => "off"
+                };
+                propertiesJson.Add(new JsonObject
+                {
+                    ["name"] = "live",
+                    ["value"] = new JsonObject
+                    {
+                        ["type"] = "token",
+                        ["value"] = liveStr
+                    }
+                });
+            }
+
+            bool isRequired = AutomationProperties.GetIsRequiredForForm(visual);
+            if (isRequired)
+            {
+                propertiesJson.Add(new JsonObject
+                {
+                    ["name"] = "required",
+                    ["value"] = new JsonObject
+                    {
+                        ["type"] = "boolean",
+                        ["value"] = true
+                    }
+                });
+            }
+        }
+
+        string? localizedControlType = peer.GetLocalizedControlType();
+        if (!string.IsNullOrEmpty(localizedControlType))
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "roledescription",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = localizedControlType
+                }
+            });
+        }
+
+        var nodeJson = new JsonObject
+        {
+            ["nodeId"] = nodeId,
+            ["ignored"] = ignored,
+            ["role"] = roleJson
+        };
+
+        if (backendDOMNodeId.HasValue)
+        {
+            nodeJson["backendDOMNodeId"] = backendDOMNodeId.Value;
+        }
+
+        if (nameJson != null)
+        {
+            nodeJson["name"] = nameJson;
+        }
+
+        if (descriptionJson != null)
+        {
+            nodeJson["description"] = descriptionJson;
+        }
+
+        if (parentId != null)
+        {
+            nodeJson["parentId"] = parentId;
+        }
+
+        if (childIds.Count > 0)
+        {
+            nodeJson["childIds"] = childIds;
+        }
+
+        if (propertiesJson.Count > 0)
+        {
+            nodeJson["properties"] = propertiesJson;
+        }
+
+        return nodeJson;
+    }
+
+    private static JsonObject BuildAXNodeFromVisualFallback(CdpSession session, Visual visual)
+    {
+        int visualNodeId = session.NodeMap.GetOrAdd(visual);
+        string nodeId = visualNodeId.ToString();
+
+        bool ignored = true;
+        var accessibilityView = AutomationProperties.GetAccessibilityView(visual);
+        if (accessibilityView == AccessibilityView.Control || accessibilityView == AccessibilityView.Content)
+        {
+            ignored = false;
+        }
+        else if (accessibilityView == AccessibilityView.Default)
+        {
+            var overrideType = AutomationProperties.GetControlTypeOverride(visual);
+            var nameStr = AutomationProperties.GetName(visual);
+            if (overrideType.HasValue || !string.IsNullOrEmpty(nameStr))
+            {
+                ignored = false;
+            }
+        }
+
+        var overrideTypeVal = AutomationProperties.GetControlTypeOverride(visual);
+        string roleStr = overrideTypeVal?.ToString() ?? visual.GetType().Name;
+        var roleJson = new JsonObject
+        {
+            ["type"] = "role",
+            ["value"] = roleStr
+        };
+
+        string? nameStrFallback = AutomationProperties.GetName(visual);
+        if (string.IsNullOrEmpty(nameStrFallback))
+        {
+            nameStrFallback = GetControlTextOrContent(visual);
+        }
+
+        JsonObject? nameJson = null;
+        if (nameStrFallback != null)
+        {
+            nameJson = new JsonObject
+            {
+                ["type"] = "string",
+                ["value"] = nameStrFallback
+            };
+        }
+
         string? descriptionStr = AutomationProperties.GetHelpText(visual);
         JsonObject? descriptionJson = null;
         if (!string.IsNullOrEmpty(descriptionStr))
@@ -269,7 +805,6 @@ public static class AccessibilityDomain
             };
         }
 
-        // parentId: string parent ID if applicable.
         var parent = visual.GetVisualParent();
         string? parentId = null;
         if (parent != null)
@@ -277,11 +812,118 @@ public static class AccessibilityDomain
             parentId = session.NodeMap.GetOrAdd(parent).ToString();
         }
 
-        // childIds: array of string child IDs.
         var childIds = new JsonArray();
         foreach (var child in visual.GetVisualChildren())
         {
             childIds.Add(session.NodeMap.GetOrAdd(child).ToString());
+        }
+
+        var propertiesJson = new JsonArray();
+        if (visual is Avalonia.Input.IInputElement ie)
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "focusable",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "boolean",
+                    ["value"] = ie.Focusable
+                }
+            });
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "focused",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "boolean",
+                    ["value"] = ie.IsFocused
+                }
+            });
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "disabled",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "boolean",
+                    ["value"] = !ie.IsEnabled
+                }
+            });
+        }
+
+        int posInSet = AutomationProperties.GetPositionInSet(visual);
+        if (posInSet > 0)
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "posinset",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "integer",
+                    ["value"] = posInSet
+                }
+            });
+        }
+
+        int sizeOfSet = AutomationProperties.GetSizeOfSet(visual);
+        if (sizeOfSet > 0)
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "setsize",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "integer",
+                    ["value"] = sizeOfSet
+                }
+            });
+        }
+
+        var liveSetting = AutomationProperties.GetLiveSetting(visual);
+        if (liveSetting != AutomationLiveSetting.Off)
+        {
+            string liveStr = liveSetting switch
+            {
+                AutomationLiveSetting.Polite => "polite",
+                AutomationLiveSetting.Assertive => "assertive",
+                _ => "off"
+            };
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "live",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "token",
+                    ["value"] = liveStr
+                }
+            });
+        }
+
+        bool isRequired = AutomationProperties.GetIsRequiredForForm(visual);
+        if (isRequired)
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "required",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "boolean",
+                    ["value"] = true
+                }
+            });
+        }
+
+        string? acceleratorKey = AutomationProperties.GetAcceleratorKey(visual);
+        if (!string.IsNullOrEmpty(acceleratorKey))
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "keyshortcuts",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = acceleratorKey
+                }
+            });
         }
 
         var nodeJson = new JsonObject
@@ -312,6 +954,11 @@ public static class AccessibilityDomain
             nodeJson["childIds"] = childIds;
         }
 
+        if (propertiesJson.Count > 0)
+        {
+            nodeJson["properties"] = propertiesJson;
+        }
+
         return nodeJson;
     }
 
@@ -320,7 +967,6 @@ public static class AccessibilityDomain
         if (visual is TextBlock textBlock) return textBlock.Text;
         if (visual is TextBox textBox) return textBox.Text;
         
-        // Try getting Content
         var contentProp = visual.GetType().GetProperty("Content");
         if (contentProp != null)
         {
@@ -328,7 +974,6 @@ public static class AccessibilityDomain
             if (contentVal is string str) return str;
         }
 
-        // Try getting Header
         var headerProp = visual.GetType().GetProperty("Header");
         if (headerProp != null)
         {

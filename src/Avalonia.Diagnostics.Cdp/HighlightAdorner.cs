@@ -1,6 +1,8 @@
 using System;
 using System.Globalization;
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
@@ -44,8 +46,29 @@ public class HighlightAdorner : Control
         var borderPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 120, 170, 240)), 1.5);
         context.DrawRectangle(contentBrush, borderPen, bounds);
 
-        // Draw tooltip: "Type | Width x Height"
+        // Draw tooltip: "Type | Width x Height | Role: ... Name: ..."
+        var peer = _adornedVisual is Control control ? ControlAutomationPeer.CreatePeerForElement(control) : null;
+        string? axRole = peer?.GetAutomationControlType().ToString();
+        string? axName = peer?.GetName();
+        if (string.IsNullOrEmpty(axName))
+        {
+            axName = AutomationProperties.GetName(_adornedVisual);
+        }
+
         string label = $"{_adornedVisual.GetType().Name} | {w:0}x{h:0}";
+        if (peer != null && axRole != null && axRole != "None" && axRole != "Custom")
+        {
+            label += $" | Role: {axRole.ToLowerInvariant()}";
+            if (!string.IsNullOrEmpty(axName))
+            {
+                label += $" Name: \"{axName}\"";
+            }
+        }
+        else if (!string.IsNullOrEmpty(axName))
+        {
+            label += $" | Name: \"{axName}\"";
+        }
+
         var text = new FormattedText(
             label,
             CultureInfo.InvariantCulture,
