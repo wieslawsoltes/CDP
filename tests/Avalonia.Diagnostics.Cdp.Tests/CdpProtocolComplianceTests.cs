@@ -207,8 +207,30 @@ public class CdpProtocolComplianceTests
     private List<string> ParseImplementedMethods(string code)
     {
         var methods = new List<string>();
-        // Match case "actionName":
-        var matches = Regex.Matches(code, @"case\s+""([^""]+)""\s*:");
+        
+        int handleAsyncIdx = code.IndexOf("HandleAsync");
+        if (handleAsyncIdx == -1) return methods;
+
+        int switchIdx = code.IndexOf("switch", handleAsyncIdx);
+        if (switchIdx == -1) return methods;
+
+        int braceStart = code.IndexOf('{', switchIdx);
+        if (braceStart == -1) return methods;
+
+        int braceCount = 1;
+        int idx = braceStart + 1;
+        while (idx < code.Length && braceCount > 0)
+        {
+            if (code[idx] == '{') braceCount++;
+            else if (code[idx] == '}') braceCount--;
+            idx++;
+        }
+
+        if (braceCount > 0) return methods;
+
+        string switchBlock = code.Substring(braceStart, idx - braceStart);
+
+        var matches = Regex.Matches(switchBlock, @"case\s+""([^""]+)""\s*:");
         foreach (Match match in matches)
         {
             var method = match.Groups[1].Value;

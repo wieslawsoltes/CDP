@@ -1,13 +1,13 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-18 07:29:37 UTC
+Generated on: 2026-06-18 07:31:31 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 
 ## Summary
 
 * **Total Standard CDP Methods Supported**: 202 / 668 (30,2%)
-* **Total Custom/Extension Methods Supported**: 29
+* **Total Custom/Extension Methods Supported**: 11
 
 | Domain | Status / Coverage | Standard Supported | Custom Extensions | Missing Standard |
 | :--- | :--- | :--- | :--- | :--- |
@@ -41,7 +41,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **HeadlessExperimental** | Unsupported | 0 | 0 | 3 |
 | **HeapProfiler** | Unsupported | 0 | 0 | 12 |
 | **IndexedDB** | Unsupported | 0 | 0 | 9 |
-| **Input** | 7/13 (53,8%) | 7 | 18 | 6 |
+| **Input** | 7/13 (53,8%) | 7 | 0 | 6 |
 | **Inspector** | Unsupported | 0 | 0 | 2 |
 | **IO** | Unsupported | 0 | 0 | 3 |
 | **LayerTree** | Unsupported | 0 | 0 | 9 |
@@ -203,7 +203,6 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 ### Input
 
 * **Standard Supported (7)**: `dispatchKeyEvent`, `dispatchMouseEvent`, `emulateTouchFromMouseEvent`, `insertText`, `setIgnoreInputEvents`, `synthesizeScrollGesture`, `synthesizeTapGesture`
-* **Custom Extensions (18)**: `arrowdown`, `arrowleft`, `arrowright`, `arrowup`, `backspace`, `delete`, `down`, `end`, `enter`, `escape`, `home`, `left`, `pagedown`, `pageup`, `right`, `space`, `tab`, `up`
 * **Missing Standard (6)**: `cancelDragging`, `dispatchDragEvent`, `dispatchTouchEvent`, `imeSetComposition`, `setInterceptDrags`, `synthesizePinchGesture`
 
 ### Inspector
