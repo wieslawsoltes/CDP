@@ -38,6 +38,11 @@ public static class OverlayDomain
                     return new JsonObject();
                 }
 
+            case "highlightRect":
+                {
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method Overlay.{action} is not implemented");
         }

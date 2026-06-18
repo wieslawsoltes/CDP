@@ -28,6 +28,10 @@ public static class DomDebuggerDomain
                     return new JsonObject { ["listeners"] = listeners };
                 }
 
+            case "setEventListenerBreakpoint":
+            case "removeEventListenerBreakpoint":
+                return new JsonObject();
+
             default:
                 throw new Exception($"Method DOMDebugger.{action} is not implemented");
         }

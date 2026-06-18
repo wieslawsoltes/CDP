@@ -4,9 +4,11 @@ using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp.Domains;
 using Avalonia.Headless.XUnit;
+using Avalonia.Styling;
 using Xunit;
 using Avalonia.VisualTree;
 
@@ -484,5 +486,232 @@ public class CdpChromeFeatureTests
         Assert.NotNull(stopResult);
 
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestDomMutationsAdditionAndRemoval()
+    {
+        var panel = new StackPanel();
+        var window = new Window
+        {
+            Title = "DOM Mutation Test Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        await DomDomain.HandleAsync(session, "enable", new JsonObject());
+
+        var button = new Button { Name = "myNewBtn" };
+        panel.Children.Add(button);
+
+        await Task.Delay(100);
+
+        var insertedMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
+        Assert.NotNull(insertedMsg);
+        Assert.Contains("myNewBtn", insertedMsg);
+
+        panel.Children.Remove(button);
+        await Task.Delay(100);
+
+        var removedMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeRemoved"));
+        Assert.NotNull(removedMsg);
+
+        session.StopObservingVisualTree();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestDomAttributeMutations()
+    {
+        var button = new Button { Name = "btnInit" };
+        var window = new Window
+        {
+            Title = "Attribute Test Window",
+            Content = button
+        };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        await DomDomain.HandleAsync(session, "enable", new JsonObject());
+
+        button.Classes.Add("primary");
+        button.IsEnabled = false;
+
+        await Task.Delay(100);
+
+        var modifiedMsgs = fakeWs.SentMessages.Where(m => m.Contains("DOM.attributeModified")).ToList();
+        Assert.NotEmpty(modifiedMsgs);
+        Assert.Contains(modifiedMsgs, m => m.Contains("primary"));
+        Assert.Contains(modifiedMsgs, m => m.Contains("false"));
+
+        session.StopObservingVisualTree();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestExecutionContextCreatedEvent()
+    {
+        var window = new Window { Title = "Context Test Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        await RuntimeDomain.HandleAsync(session, "enable", new JsonObject());
+
+        var contextMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Runtime.executionContextCreated"));
+        Assert.NotNull(contextMsg);
+        Assert.Contains("top", contextMsg);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageResourcesAndContent()
+    {
+        var window = new Window { Title = "Page Resources Test Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var treeResult = await PageDomain.HandleAsync(session, "getResourceTree", new JsonObject());
+        Assert.NotNull(treeResult);
+        Assert.True(treeResult.ContainsKey("frameTree"));
+        var frameTree = treeResult["frameTree"] as JsonObject;
+        Assert.NotNull(frameTree);
+        var resources = frameTree["resources"] as JsonArray;
+        Assert.NotNull(resources);
+        Assert.True(resources.Count > 0);
+
+        var fileUrlNode = resources.FirstOrDefault(r => r?["url"]?.GetValue<string>()?.Contains("TestAppBuilder.cs") == true);
+        Assert.NotNull(fileUrlNode);
+        var url = fileUrlNode["url"]?.GetValue<string>() ?? "";
+
+        var contentParams = new JsonObject { ["url"] = url };
+        var contentResult = await PageDomain.HandleAsync(session, "getResourceContent", contentParams);
+        Assert.NotNull(contentResult);
+        Assert.True(contentResult.ContainsKey("content"));
+        var content = contentResult["content"]?.GetValue<string>() ?? "";
+        Assert.Contains("public class TestAppBuilder", content);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestEmulationThemeAndLocale()
+    {
+        var window = new Window { Title = "Emulation Test Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Test setEmulatedColorSchemeOverride
+        var colorSchemeParams = new JsonObject { ["colorScheme"] = "dark" };
+        var res1 = await EmulationDomain.HandleAsync(session, "setEmulatedColorSchemeOverride", colorSchemeParams);
+        Assert.NotNull(res1);
+        Assert.Equal(ThemeVariant.Dark, Application.Current!.RequestedThemeVariant);
+
+        // 2. Test setEmulatedMedia
+        var mediaParams = new JsonObject
+        {
+            ["features"] = new JsonArray
+            {
+                new JsonObject { ["name"] = "prefers-color-scheme", ["value"] = "light" }
+            }
+        };
+        var res2 = await EmulationDomain.HandleAsync(session, "setEmulatedMedia", mediaParams);
+        Assert.NotNull(res2);
+        Assert.Equal(ThemeVariant.Light, Application.Current!.RequestedThemeVariant);
+
+        // 3. Test setLocaleOverride
+        var localeParams = new JsonObject { ["locale"] = "de-DE" };
+        var res3 = await EmulationDomain.HandleAsync(session, "setLocaleOverride", localeParams);
+        Assert.NotNull(res3);
+        Assert.Equal("de-DE", System.Globalization.CultureInfo.CurrentCulture.Name);
+
+        // Restore defaults
+        Application.Current!.RequestedThemeVariant = ThemeVariant.Default;
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestNetworkAndRuntimeClearingAndThrottling()
+    {
+        var window = new Window { Title = "Console & Network Override Test Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Test Runtime.discardConsoleEntries
+        var discardRes = await RuntimeDomain.HandleAsync(session, "discardConsoleEntries", new JsonObject());
+        Assert.NotNull(discardRes);
+
+        // 2. Test Network.emulateNetworkConditions
+        var conditions = new JsonObject
+        {
+            ["offline"] = true,
+            ["latency"] = 150.0,
+            ["downloadThroughput"] = 102400.0,
+            ["uploadThroughput"] = 51200.0
+        };
+        await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
+        });
+
+        window.Close();
+    }
+}
+
+public class FakeWebSocket : System.Net.WebSockets.WebSocket
+{
+    public System.Collections.Generic.List<string> SentMessages { get; } = new();
+    private System.Net.WebSockets.WebSocketState _state = System.Net.WebSockets.WebSocketState.Open;
+
+    public override System.Net.WebSockets.WebSocketState State => _state;
+    public override string? SubProtocol => null;
+    public override System.Net.WebSockets.WebSocketCloseStatus? CloseStatus => null;
+    public override string? CloseStatusDescription => null;
+
+    public override System.Threading.Tasks.Task SendAsync(System.ArraySegment<byte> buffer, System.Net.WebSockets.WebSocketMessageType messageType, bool endOfMessage, System.Threading.CancellationToken cancellationToken)
+    {
+        var msg = System.Text.Encoding.UTF8.GetString(buffer.Array!, buffer.Offset, buffer.Count);
+        SentMessages.Add(msg);
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
+
+    public override System.Threading.Tasks.Task<System.Net.WebSockets.WebSocketReceiveResult> ReceiveAsync(System.ArraySegment<byte> buffer, System.Threading.CancellationToken cancellationToken)
+    {
+        return System.Threading.Tasks.Task.FromResult(new System.Net.WebSockets.WebSocketReceiveResult(0, System.Net.WebSockets.WebSocketMessageType.Close, true));
+    }
+
+    public override System.Threading.Tasks.Task CloseAsync(System.Net.WebSockets.WebSocketCloseStatus closeStatus, string? statusDescription, System.Threading.CancellationToken cancellationToken)
+    {
+        _state = System.Net.WebSockets.WebSocketState.Closed;
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
+
+    public override System.Threading.Tasks.Task CloseOutputAsync(System.Net.WebSockets.WebSocketCloseStatus closeStatus, string? statusDescription, System.Threading.CancellationToken cancellationToken)
+    {
+        _state = System.Net.WebSockets.WebSocketState.Closed;
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
+
+    public override void Abort()
+    {
+        _state = System.Net.WebSockets.WebSocketState.Closed;
+    }
+
+    public override void Dispose()
+    {
     }
 }

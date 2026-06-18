@@ -22,7 +22,7 @@ public static class CdpDispatcher
         {
             if (domain != "DOM" && domain != "CSS" && domain != "Page" && domain != "Overlay" &&
                 domain != "Runtime" && domain != "Accessibility" && domain != "Log" && domain != "Performance" &&
-                domain != "Network" && domain != "Recorder")
+                domain != "Network" && domain != "Recorder" && domain != "Console")
             {
                 return new JsonObject();
             }
@@ -60,12 +60,16 @@ public static class CdpDispatcher
                 return await EmulationDomain.HandleAsync(session, action, @params);
             case "Log":
                 return await LogDomain.HandleAsync(session, action, @params);
+            case "Console":
+                return await ConsoleDomain.HandleAsync(session, action, @params);
             case "Performance":
                 return await PerformanceDomain.HandleAsync(session, action, @params);
             case "Browser":
                 return await BrowserDomain.HandleAsync(session, action, @params);
             case "SystemInfo":
                 return await SystemInfoDomain.HandleAsync(session, action, @params);
+            case "Schema":
+                return await SchemaDomain.HandleAsync(session, action, @params);
             case "Recorder":
                 return await RecorderDomain.HandleAsync(session, action, @params);
             default:

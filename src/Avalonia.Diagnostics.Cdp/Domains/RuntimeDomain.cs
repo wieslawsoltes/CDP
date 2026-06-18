@@ -17,6 +17,18 @@ public static class RuntimeDomain
         switch (action)
         {
             case "enable":
+                {
+                    var context = new JsonObject
+                    {
+                        ["id"] = 1,
+                        ["origin"] = $"http://127.0.0.1:{CdpServer.Port}/",
+                        ["name"] = "top",
+                        ["uniqueId"] = "1"
+                    };
+                    var contextParams = new JsonObject { ["context"] = context };
+                    _ = session.SendEventAsync("Runtime.executionContextCreated", contextParams);
+                    return new JsonObject();
+                }
             case "disable":
                 return new JsonObject();
 
@@ -108,8 +120,25 @@ public static class RuntimeDomain
                 }
 
             case "releaseObjectGroup":
+            case "discardConsoleEntries":
                 {
                     return new JsonObject();
+                }
+
+            case "getIsolateId":
+                {
+                    return new JsonObject { ["isolateId"] = "1" };
+                }
+
+            case "getHeapUsage":
+                {
+                    double jsHeapUsedSize = GC.GetTotalMemory(false);
+                    double jsHeapTotalSize = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
+                    return new JsonObject
+                    {
+                        ["usedSize"] = jsHeapUsedSize,
+                        ["totalSize"] = jsHeapTotalSize
+                    };
                 }
 
             default:

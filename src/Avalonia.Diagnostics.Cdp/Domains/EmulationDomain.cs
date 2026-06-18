@@ -2,7 +2,9 @@ using System;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Runtime.CompilerServices;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Styling;
 using Avalonia.Threading;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
@@ -57,6 +59,100 @@ public static class EmulationDomain
                         }
                     });
                     return new JsonObject();
+                }
+
+            case "setEmulatedColorSchemeOverride":
+                {
+                    string colorScheme = @params["colorScheme"]?.GetValue<string>() ?? "";
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (Application.Current != null)
+                        {
+                            if (colorScheme.Equals("dark", StringComparison.OrdinalIgnoreCase))
+                            {
+                                Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
+                            }
+                            else if (colorScheme.Equals("light", StringComparison.OrdinalIgnoreCase))
+                            {
+                                Application.Current.RequestedThemeVariant = ThemeVariant.Light;
+                            }
+                            else
+                            {
+                                Application.Current.RequestedThemeVariant = ThemeVariant.Default;
+                            }
+                        }
+                    });
+                    return new JsonObject();
+                }
+
+            case "setEmulatedMedia":
+                {
+                    var features = @params["features"] as JsonArray;
+                    if (features != null)
+                    {
+                        foreach (var featureNode in features)
+                        {
+                            var name = featureNode?["name"]?.GetValue<string>();
+                            var val = featureNode?["value"]?.GetValue<string>();
+                            if (name != null && name.Equals("prefers-color-scheme", StringComparison.OrdinalIgnoreCase))
+                            {
+                                await Dispatcher.UIThread.InvokeAsync(() =>
+                                {
+                                    if (Application.Current != null)
+                                    {
+                                        if (val != null && val.Equals("dark", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
+                                        }
+                                        else if (val != null && val.Equals("light", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            Application.Current.RequestedThemeVariant = ThemeVariant.Light;
+                                        }
+                                        else
+                                        {
+                                            Application.Current.RequestedThemeVariant = ThemeVariant.Default;
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    return new JsonObject();
+                }
+
+            case "setLocaleOverride":
+                {
+                    string locale = @params["locale"]?.GetValue<string>() ?? "";
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var culture = !string.IsNullOrEmpty(locale)
+                            ? new System.Globalization.CultureInfo(locale)
+                            : System.Globalization.CultureInfo.InstalledUICulture;
+
+                        System.Globalization.CultureInfo.CurrentCulture = culture;
+                        System.Globalization.CultureInfo.CurrentUICulture = culture;
+                        System.Globalization.CultureInfo.DefaultThreadCurrentCulture = culture;
+                        System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = culture;
+
+                        foreach (var win in CdpServer.GetWindows())
+                        {
+                            win.Window.InvalidateVisual();
+                        }
+                    });
+                    return new JsonObject();
+                }
+
+            case "setCPUThrottlingRate":
+            case "setTouchEmulationEnabled":
+            case "setFocusEmulationEnabled":
+            case "setAutoDarkModeOverride":
+                {
+                    return new JsonObject();
+                }
+
+            case "canEmulate":
+                {
+                    return new JsonObject { ["result"] = true };
                 }
 
             default:
