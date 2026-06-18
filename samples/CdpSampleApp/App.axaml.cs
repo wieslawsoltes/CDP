@@ -18,8 +18,8 @@ public partial class App : Application
         {
             desktop.MainWindow = new MainWindow();
             
-            // Start the Chrome DevTools Protocol server
-            CdpServer.Start(9222);
+            // Attach the in-process CDP Inspector tool (F12)
+            desktop.MainWindow.AttachCdpInspector(9222);
         }
 
         base.OnFrameworkInitializationCompleted();

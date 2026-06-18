@@ -5,6 +5,8 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj" />
+    <Project Path="src/CDP.Inspector.Shared/CDP.Inspector.Shared.csproj" />
+    <Project Path="src/CDP.DiagnosticTools/CDP.DiagnosticTools.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj" />
