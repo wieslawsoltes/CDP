@@ -39,9 +39,19 @@
                     <views:PerformanceView Name="PerformanceTab"/>
                 </TabItem>
 
+                <!-- Memory Panel -->
+                <TabItem Header="Memory">
+                    <views:MemoryView Name="MemoryTab"/>
+                </TabItem>
+
                 <!-- Application Panel -->
                 <TabItem Header="Application">
                     <views:ApplicationView Name="ApplicationTab"/>
+                </TabItem>
+
+                <!-- Audits Panel -->
+                <TabItem Header="Audits">
+                    <views:AuditsView Name="AuditsTab"/>
                 </TabItem>
 
                 <!-- Simulation Panel -->

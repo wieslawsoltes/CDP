@@ -12,7 +12,9 @@ public class MainWindowViewModel : ViewModelBase
     public SourcesViewModel Sources { get; }
     public NetworkViewModel Network { get; }
     public PerformanceViewModel Performance { get; }
+    public MemoryViewModel Memory { get; }
     public ApplicationViewModel Application { get; }
+    public AuditsViewModel Audits { get; }
     public SimulationViewModel Simulation { get; }
     public RecorderViewModel Recorder { get; }
 
@@ -26,7 +28,9 @@ public class MainWindowViewModel : ViewModelBase
         Sources = new SourcesViewModel(CdpService);
         Network = new NetworkViewModel(CdpService);
         Performance = new PerformanceViewModel(CdpService);
+        Memory = new MemoryViewModel(CdpService);
         Application = new ApplicationViewModel(CdpService);
+        Audits = new AuditsViewModel(CdpService, nodeId => Elements.SelectNodeById(nodeId));
         Simulation = new SimulationViewModel(CdpService, () => Elements.SelectedNode);
         Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress);
 
