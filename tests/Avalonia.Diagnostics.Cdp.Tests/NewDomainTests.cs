@@ -602,4 +602,85 @@ public class NewDomainTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestDOMStorageSessionIsolation()
+    {
+        var window1 = new Avalonia.Controls.Window { Title = "Window 1" };
+        var window2 = new Avalonia.Controls.Window { Title = "Window 2" };
+        window1.Show();
+        window2.Show();
+
+        using var clientWs1 = new ClientWebSocket();
+        using var clientWs2 = new ClientWebSocket();
+        var session1 = new CdpSession(clientWs1, window1);
+        var session2 = new CdpSession(clientWs2, window2);
+
+        // 1. Test Session Storage (isLocalStorage = false) - should be isolated
+        JsonObject CreateSessionStorageId() => new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["isLocalStorage"] = false
+        };
+
+        // Set on session 1
+        await DOMStorageDomain.HandleAsync(session1, "setDOMStorageItem", new JsonObject
+        {
+            ["storageId"] = CreateSessionStorageId(),
+            ["key"] = "sessionKey",
+            ["value"] = "sessionVal1"
+        });
+
+        // Get from session 1
+        var itemsRes1 = await DOMStorageDomain.HandleAsync(session1, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateSessionStorageId()
+        });
+        var entries1 = itemsRes1["entries"] as JsonArray;
+        Assert.NotNull(entries1);
+        Assert.Contains(entries1, e => e?[0]?.GetValue<string>() == "sessionKey" && e?[1]?.GetValue<string>() == "sessionVal1");
+
+        // Get from session 2 - should not contain sessionKey
+        var itemsRes2 = await DOMStorageDomain.HandleAsync(session2, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateSessionStorageId()
+        });
+        var entries2 = itemsRes2["entries"] as JsonArray;
+        Assert.NotNull(entries2);
+        Assert.DoesNotContain(entries2, e => e?[0]?.GetValue<string>() == "sessionKey");
+
+        // 2. Test Local Storage (isLocalStorage = true) - should be shared
+        JsonObject CreateLocalStorageId() => new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["isLocalStorage"] = true
+        };
+
+        // Set on session 1
+        await DOMStorageDomain.HandleAsync(session1, "setDOMStorageItem", new JsonObject
+        {
+            ["storageId"] = CreateLocalStorageId(),
+            ["key"] = "localKey",
+            ["value"] = "localVal"
+        });
+
+        // Get from session 2 - should find localVal since it's shared across the same origin
+        var localItemsRes2 = await DOMStorageDomain.HandleAsync(session2, "getDOMStorageItems", new JsonObject
+        {
+            ["storageId"] = CreateLocalStorageId()
+        });
+        var localEntries2 = localItemsRes2["entries"] as JsonArray;
+        Assert.NotNull(localEntries2);
+        Assert.Contains(localEntries2, e => e?[0]?.GetValue<string>() == "localKey" && e?[1]?.GetValue<string>() == "localVal");
+
+        // Clean up
+        await DOMStorageDomain.HandleAsync(session1, "clear", new JsonObject
+        {
+            ["storageId"] = CreateLocalStorageId()
+        });
+
+        window1.Close();
+        window2.Close();
+    }
 }
+
