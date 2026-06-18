@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 
@@ -6,24 +7,66 @@ namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class DOMStorageDomain
 {
+    private static readonly ConcurrentDictionary<(string origin, bool isLocal), ConcurrentDictionary<string, string>> _stores = new();
+
+    private static ConcurrentDictionary<string, string> GetStore(JsonObject? storageId)
+    {
+        bool isLocal = storageId?["isLocalStorage"]?.GetValue<bool>() ?? true;
+        string origin = storageId?["securityOrigin"]?.GetValue<string>() ?? "default";
+        return _stores.GetOrAdd((origin, isLocal), _ => new ConcurrentDictionary<string, string>());
+    }
+
     public static Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
     {
+        var storageId = @params["storageId"] as JsonObject;
+
         switch (action)
         {
-            case "clear":
-            case "disable":
             case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "clear":
+                {
+                    var store = GetStore(storageId);
+                    store.Clear();
+                    return Task.FromResult(new JsonObject());
+                }
+
             case "removeDOMStorageItem":
+                {
+                    string key = @params["key"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        var store = GetStore(storageId);
+                        store.TryRemove(key, out _);
+                    }
+                    return Task.FromResult(new JsonObject());
+                }
+
             case "setDOMStorageItem":
                 {
+                    string key = @params["key"]?.GetValue<string>() ?? "";
+                    string value = @params["value"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        var store = GetStore(storageId);
+                        store[key] = value;
+                    }
                     return Task.FromResult(new JsonObject());
                 }
 
             case "getDOMStorageItems":
                 {
+                    var store = GetStore(storageId);
+                    var entries = new JsonArray();
+                    foreach (var pair in store)
+                    {
+                        entries.Add(new JsonArray { pair.Key, pair.Value });
+                    }
                     return Task.FromResult(new JsonObject
                     {
-                        ["entries"] = new JsonArray()
+                        ["entries"] = entries
                     });
                 }
 
