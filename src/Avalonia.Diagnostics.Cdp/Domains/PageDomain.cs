@@ -204,8 +204,9 @@ public static class PageDomain
                     double w = 800, h = 600;
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        w = session.Window.Width;
-                        h = session.Window.Height;
+                        var size = session.Window.ClientSize;
+                        if (!double.IsNaN(size.Width) && size.Width > 0) w = size.Width;
+                        if (!double.IsNaN(size.Height) && size.Height > 0) h = size.Height;
                     });
 
                     return new JsonObject
