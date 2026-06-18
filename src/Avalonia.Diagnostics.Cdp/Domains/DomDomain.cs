@@ -432,7 +432,7 @@ public static class DomDomain
             ["backendNodeId"] = nodeId,
             ["nodeType"] = 1,
             ["nodeName"] = visual.GetType().Name,
-            ["localName"] = visual.GetType().Name.ToLowerInvariant(),
+            ["localName"] = visual.GetType().Name,
             ["nodeValue"] = "",
             ["childNodeCount"] = children.Count,
             ["attributes"] = attributes
@@ -498,7 +498,7 @@ public static class DomDomain
             ["backendNodeId"] = nodeId,
             ["nodeType"] = 1, // Element Node
             ["nodeName"] = visual.GetType().Name,
-            ["localName"] = visual.GetType().Name.ToLowerInvariant(),
+            ["localName"] = visual.GetType().Name,
             ["nodeValue"] = "",
             ["childNodeCount"] = children.Count,
             ["attributes"] = attributes
