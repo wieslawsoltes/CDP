@@ -17,7 +17,7 @@
                     </StackPanel>
                 </StackPanel>
                 
-                <TextBox Grid.Column="1" Text="{Binding Console.FilterQuery, Mode=TwoWay}" Watermark="Filter log entries..." Height="28" Margin="10,0" VerticalContentAlignment="Center"/>
+                <TextBox Grid.Column="1" Text="{Binding Console.FilterQuery, Mode=TwoWay}" PlaceholderText="Filter log entries..." Height="28" Margin="10,0" VerticalContentAlignment="Center"/>
                 <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
             </Grid>
 
@@ -56,7 +56,7 @@
             </ListBox>
             
             <Grid ColumnDefinitions="*, Auto">
-                <TextBox Name="txtConsoleInput" Text="{Binding Console.ConsoleInputText, Mode=TwoWay}" Watermark="Enter C# Interactive command (use inspected $0 variable)..." Height="28" VerticalContentAlignment="Center"/>
+                <TextBox Name="txtConsoleInput" Text="{Binding Console.ConsoleInputText, Mode=TwoWay}" PlaceholderText="Enter C# Interactive command (use inspected $0 variable)..." Height="28" VerticalContentAlignment="Center"/>
                 <Button Name="btnSendConsole" Command="{Binding Console.EvaluateCommand}" Grid.Column="1" Content="Evaluate" Margin="5,0,0,0" Padding="15,0" Height="28" Classes="accent"/>
             </Grid>
         </Grid>

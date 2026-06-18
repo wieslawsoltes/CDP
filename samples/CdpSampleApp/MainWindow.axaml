@@ -16,7 +16,7 @@
                             <TextBlock Name="txtStatus" Text="Not Clicked" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         </StackPanel>
                         
-                        <TextBox Name="txtInput" Watermark="Type text here..." Width="300" HorizontalAlignment="Left"/>
+                        <TextBox Name="txtInput" PlaceholderText="Type text here..." Width="300" HorizontalAlignment="Left"/>
                         
                         <CheckBox Name="chkToggle" Content="Enable Option"/>
                         
@@ -44,7 +44,7 @@
                             <TextBlock Text="Scroll Start" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource SystemControlHighlightAccentBrush}"/>
                             <Button Name="scrollBtn1" Content="Scroll Button 1"/>
                             <Button Name="scrollBtn2" Content="Scroll Button 2"/>
-                            <TextBox Name="scrollTxt1" Watermark="Scroll Textbox 1" Width="200" HorizontalAlignment="Left"/>
+                            <TextBox Name="scrollTxt1" PlaceholderText="Scroll Textbox 1" Width="200" HorizontalAlignment="Left"/>
                             <TextBlock Text="Middle of Scroll Area" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource SystemControlHighlightAccentBrush}" Margin="0,30"/>
                             <Button Name="scrollBtn3" Content="Scroll Button 3"/>
                             <CheckBox Name="scrollChk1" Content="Scroll Checkbox 1"/>

@@ -13,7 +13,7 @@
                         <StackPanel Spacing="5">
                             <TextBlock Text="Page Control" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
                             <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,5">
-                                <TextBox Name="txtNavigateUrl" Text="{Binding Simulation.NavigateUrlText, Mode=TwoWay}" Watermark="http://localhost:9222/about" Height="28" VerticalContentAlignment="Center"/>
+                                <TextBox Name="txtNavigateUrl" Text="{Binding Simulation.NavigateUrlText, Mode=TwoWay}" PlaceholderText="http://localhost:9222/about" Height="28" VerticalContentAlignment="Center"/>
                                 <Button Name="btnNavigate" Command="{Binding Simulation.NavigateCommand}" Grid.Column="1" Content="Navigate" Margin="5,0,0,0"/>
                                 <Button Name="btnReload" Command="{Binding Simulation.ReloadCommand}" Grid.Column="2" Content="Reload" Margin="5,0,0,0"/>
                             </Grid>
@@ -80,7 +80,7 @@
                         <StackPanel Spacing="5">
                             <TextBlock Text="Keyboard Input" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
                             <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
-                                <TextBox Name="txtInputSim" Text="{Binding Simulation.InputSimText, Mode=TwoWay}" Watermark="Type text to insert..." Height="28" VerticalContentAlignment="Center"/>
+                                <TextBox Name="txtInputSim" Text="{Binding Simulation.InputSimText, Mode=TwoWay}" PlaceholderText="Type text to insert..." Height="28" VerticalContentAlignment="Center"/>
                                 <Button Name="btnSendText" Command="{Binding Simulation.SendTextCommand}" Grid.Column="1" Content="Insert Text" Margin="5,0,0,0"/>
                             </Grid>
                             <Grid ColumnDefinitions="*, Auto">
@@ -115,9 +115,9 @@
                     <!-- Emulation Controls -->
                     <StackPanel Spacing="10" Grid.Row="0" Margin="0,0,0,10">
                         <Grid ColumnDefinitions="*, *, *" RowDefinitions="Auto, Auto">
-                            <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" Watermark="Width" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,5"/>
-                            <TextBox Grid.Column="1" Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" Watermark="Height" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,5"/>
-                            <TextBox Grid.Column="2" Name="txtScaleFactor" Text="{Binding Simulation.ScaleFactorText, Mode=TwoWay}" Watermark="Scale" Height="28" VerticalContentAlignment="Center" Margin="0,0,0,5"/>
+                            <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" PlaceholderText="Width" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,5"/>
+                            <TextBox Grid.Column="1" Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" PlaceholderText="Height" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,5"/>
+                            <TextBox Grid.Column="2" Name="txtScaleFactor" Text="{Binding Simulation.ScaleFactorText, Mode=TwoWay}" PlaceholderText="Scale" Height="28" VerticalContentAlignment="Center" Margin="0,0,0,5"/>
                             <CheckBox Grid.Row="1" Grid.Column="0" Name="chkMobile" IsChecked="{Binding Simulation.IsMobileActive, Mode=TwoWay}" Content="Mobile" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right">
                                 <Button Name="btnResize" Command="{Binding Simulation.ResizeCommand}" Content="Apply Size" Classes="accent" Height="28"/>
