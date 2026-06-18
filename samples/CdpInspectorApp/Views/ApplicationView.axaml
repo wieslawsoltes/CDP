@@ -50,5 +50,50 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- Storage Editor -->
+        <Grid Name="gridStorageEditor" Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0" IsVisible="{Binding Application.IsStorageEditorVisible}">
+            <Grid ColumnDefinitions="*, Auto">
+                <TextBlock Text="{Binding Application.StorageTitle}" Classes="panel-header"/>
+                <Button Grid.Column="1" Name="btnRefreshStorage" Command="{Binding Application.RefreshStorageCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
+            </Grid>
+            
+            <ListBox Name="lstStorageItems" ItemsSource="{Binding Application.StorageItems}" SelectedItem="{Binding Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="*, *, Auto">
+                            <TextBlock Text="{Binding Key}" FontWeight="Bold" Margin="5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value}" TextTrimming="CharacterEllipsis" Margin="5" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="12"/>
+                            <Button Grid.Column="2" Name="btnDeleteStorageItem" Command="{Binding $parent[UserControl].DataContext.Application.DeleteStorageItemCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Margin="5,0" Padding="8,2" FontSize="10"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Storage Modifier Panel -->
+            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
+                    <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Storage Item" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
+                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtStorageKey" Text="{Binding Application.StorageKeyInput, Mode=TwoWay}" Watermark="Key" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtStorageValue" Text="{Binding Application.StorageValueInput, Mode=TwoWay}" Watermark="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <Button Grid.Row="1" Grid.Column="2" Name="btnSaveStorageItem" Command="{Binding Application.SaveStorageItemCommand}" Content="Save Item" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
+                    <Button Grid.Row="1" Grid.Column="3" Name="btnAddStorageItem" Command="{Binding Application.AddStorageItemCommand}" Content="Add New" Height="28" Padding="12,0"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Placeholder for simulated nodes (Cookies / Background Services / Preferences) -->
+        <StackPanel Grid.Column="2" Margin="30" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" IsVisible="{Binding Application.IsPlaceholderVisible}">
+            <TextBlock Text="Chrome Parity Simulator" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8" HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding Application.SelectedNode.Name, StringFormat='The {0} store is simulated via CdpServer domain hooks.'}" 
+                       Foreground="#9aa0a6" FontSize="12" HorizontalAlignment="Center" TextAlignment="Center"/>
+            <Border BorderBrush="#3c4043" BorderThickness="1" Background="#292a2d" Padding="15" CornerRadius="4" Width="400">
+                <StackPanel Spacing="5">
+                    <TextBlock Text="Status: Active" Foreground="#81c995" FontWeight="SemiBold" FontSize="12"/>
+                    <TextBlock Text="Service Type: Protocol Mock Stubs" Foreground="#e8eaed" FontSize="11"/>
+                    <TextBlock Text="Connection: ws://localhost:9222/devtools/browser" Foreground="#9aa0a6" FontSize="11"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
     </Grid>
 </UserControl>
