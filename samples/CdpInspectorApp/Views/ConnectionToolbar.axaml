@@ -11,7 +11,7 @@
 
             <Grid Grid.Column="1" ColumnDefinitions="Auto, *" Margin="25,0,15,0">
                 <TextBlock Text="Host:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,10,0"/>
-                <TextBox Name="txtHost" Grid.Column="1" Text="{Binding Connection.HostAddress, Mode=TwoWay}" Watermark="e.g. http://localhost:9222" Width="180" HorizontalAlignment="Left" Height="28" VerticalContentAlignment="Center"/>
+                <TextBox Name="txtHost" Grid.Column="1" Text="{Binding Connection.HostAddress, Mode=TwoWay}" PlaceholderText="e.g. http://localhost:9222" Width="180" HorizontalAlignment="Left" Height="28" VerticalContentAlignment="Center"/>
             </Grid>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">

@@ -43,8 +43,8 @@
             <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
                 <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
                     <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Global Resource Entry" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
-                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtResourceKey" Text="{Binding Application.ResourceKeyInput, Mode=TwoWay}" Watermark="Resource Key Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtResourceValue" Text="{Binding Application.ResourceValueInput, Mode=TwoWay}" Watermark="Value (Hex Color, Brush, Double...)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtResourceKey" Text="{Binding Application.ResourceKeyInput, Mode=TwoWay}" PlaceholderText="Resource Key Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtResourceValue" Text="{Binding Application.ResourceValueInput, Mode=TwoWay}" PlaceholderText="Value (Hex Color, Brush, Double...)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
                     <Button Grid.Row="1" Grid.Column="2" Name="btnSaveResource" Command="{Binding Application.SaveResourceCommand}" Content="Save Resource" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
                     <Button Grid.Row="1" Grid.Column="3" Name="btnAddResource" Command="{Binding Application.AddResourceCommand}" Content="Add New" Height="28" Padding="12,0"/>
                 </Grid>
@@ -60,7 +60,7 @@
             
             <ListBox Name="lstStorageItems" ItemsSource="{Binding Application.StorageItems}" SelectedItem="{Binding Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1">
                 <ListBox.ItemTemplate>
-                    <DataTemplate>
+                     <DataTemplate>
                         <Grid ColumnDefinitions="*, *, Auto">
                             <TextBlock Text="{Binding Key}" FontWeight="Bold" Margin="5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12"/>
                             <TextBlock Grid.Column="1" Text="{Binding Value}" TextTrimming="CharacterEllipsis" Margin="5" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="12"/>
@@ -74,8 +74,8 @@
             <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
                 <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
                     <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Storage Item" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
-                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtStorageKey" Text="{Binding Application.StorageKeyInput, Mode=TwoWay}" Watermark="Key" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtStorageValue" Text="{Binding Application.StorageValueInput, Mode=TwoWay}" Watermark="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtStorageKey" Text="{Binding Application.StorageKeyInput, Mode=TwoWay}" PlaceholderText="Key" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtStorageValue" Text="{Binding Application.StorageValueInput, Mode=TwoWay}" PlaceholderText="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
                     <Button Grid.Row="1" Grid.Column="2" Name="btnSaveStorageItem" Command="{Binding Application.SaveStorageItemCommand}" Content="Save Item" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
                     <Button Grid.Row="1" Grid.Column="3" Name="btnAddStorageItem" Command="{Binding Application.AddStorageItemCommand}" Content="Add New" Height="28" Padding="12,0"/>
                 </Grid>

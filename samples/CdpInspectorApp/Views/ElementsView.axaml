@@ -10,7 +10,7 @@
                 <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                     <!-- Search -->
                     <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
-                        <TextBox Name="txtSearch" Text="{Binding Elements.SearchQuery, Mode=TwoWay}" Watermark="Search by tag, ID, class, or text content..." Height="28" VerticalContentAlignment="Center"/>
+                        <TextBox Name="txtSearch" Text="{Binding Elements.SearchQuery, Mode=TwoWay}" PlaceholderText="Search by tag, ID, class, or text content..." Height="28" VerticalContentAlignment="Center"/>
                         <Button Name="btnSearch" Command="{Binding Elements.SearchCommand}" Grid.Column="1" Content="Search" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                     </Grid>
 
@@ -95,7 +95,7 @@
                                     </ListBox.ItemTemplate>
                                 </ListBox>
                                 <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
-                                    <TextBox Name="txtStyleText" Text="{Binding Elements.StyleTextInputText, Mode=TwoWay}" Watermark="Add style rule (e.g. background: red)..." Height="28" VerticalContentAlignment="Center"/>
+                                    <TextBox Name="txtStyleText" Text="{Binding Elements.StyleTextInputText, Mode=TwoWay}" PlaceholderText="Add style rule (e.g. background: red)..." Height="28" VerticalContentAlignment="Center"/>
                                     <Button Name="btnApplyStyleText" Command="{Binding Elements.ApplyStyleTextCommand}" Grid.Column="1" Content="Apply" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                                 </Grid>
                             </Grid>
@@ -135,8 +135,8 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                         <Grid Grid.Row="1" ColumnDefinitions="*, *, Auto, Auto" Margin="0,8,0,0">
-                            <TextBox Name="txtAttrName" Text="{Binding Elements.AttributeNameInputText, Mode=TwoWay}" Watermark="Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBox Grid.Column="1" Name="txtAttrValue" Text="{Binding Elements.AttributeValueInputText, Mode=TwoWay}" Watermark="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Name="txtAttrName" Text="{Binding Elements.AttributeNameInputText, Mode=TwoWay}" PlaceholderText="Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Grid.Column="1" Name="txtAttrValue" Text="{Binding Elements.AttributeValueInputText, Mode=TwoWay}" PlaceholderText="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
                             <Button Grid.Column="2" Name="btnApplyAttr" Command="{Binding Elements.ApplyAttributeCommand}" Content="Apply" Padding="10,0" Height="28" Margin="0,0,4,0"/>
                             <Button Grid.Column="3" Name="btnDeleteAttr" Command="{Binding Elements.DeleteAttributeCommand}" Content="Delete" Padding="10,0" Height="28"/>
                         </Grid>
@@ -165,7 +165,7 @@
                         <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, *, Auto" Margin="0,8,0,0">
                             <TextBlock Text="Selected:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,5,0" FontSize="11"/>
                             <TextBlock Name="lblSelectedProperty" Text="{Binding Elements.SelectedPropertyNameText}" FontWeight="Bold" Foreground="#8ab4f8" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"/>
-                            <TextBox Grid.Column="2" Name="txtPropertyValue" Text="{Binding Elements.PropertyValueInputText, Mode=TwoWay}" Watermark="Value..." Height="28" VerticalContentAlignment="Center"/>
+                            <TextBox Grid.Column="2" Name="txtPropertyValue" Text="{Binding Elements.PropertyValueInputText, Mode=TwoWay}" PlaceholderText="Value..." Height="28" VerticalContentAlignment="Center"/>
                             <Button Grid.Column="3" Name="btnApplyProperty" Command="{Binding Elements.ApplyPropertyCommand}" Content="Set" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                         </Grid>
                     </Grid>
