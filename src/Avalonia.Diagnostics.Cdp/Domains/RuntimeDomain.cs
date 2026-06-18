@@ -96,7 +96,7 @@ public static class RuntimeDomain
 
                                 var propDesc = new JsonObject
                                 {
-                                    ["name"] = prop.Name,
+                                    ["name"] = ToCamelCase(prop.Name),
                                     ["value"] = CreateRemoteObject(session, val),
                                     ["writable"] = prop.CanWrite,
                                     ["configurable"] = true,
@@ -397,6 +397,12 @@ public static class RuntimeDomain
         }
 
         return result;
+    }
+
+    private static string ToCamelCase(string s)
+    {
+        if (string.IsNullOrEmpty(s) || !char.IsUpper(s[0])) return s;
+        return char.ToLowerInvariant(s[0]) + s.Substring(1);
     }
 
     private static object? ConvertValue(string val, Type targetType)
