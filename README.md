@@ -9,7 +9,10 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 | Package Name | Target | Version | Downloads |
 | :--- | :--- | :--- | :--- |
 | **CDP.Avalonia** | Core Library | [![NuGet](https://img.shields.io/nuget/v/CDP.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Avalonia/) |
+| **CDP.Inspector.Shared** | Shared UI Library | [![NuGet](https://img.shields.io/nuget/v/CDP.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector.Shared/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector.Shared/) |
+| **CDP.DiagnosticTools** | In-Process Diagnostics | [![NuGet](https://img.shields.io/nuget/v/CDP.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/CDP.DiagnosticTools/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/CDP.DiagnosticTools/) |
 | **CDP.Inspector** | .NET Global Tool | [![NuGet](https://img.shields.io/nuget/v/CDP.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector/) |
+
 
 ---
 
@@ -98,13 +101,45 @@ public override void OnFrameworkInitializationCompleted()
     base.OnFrameworkInitializationCompleted();
 }
 ```
-
 Make sure to stop the server when the application shuts down:
 
 ```csharp
 // Typically called during application exit/shutdown
 CdpServer.Stop();
 ```
+
+### 3. In-Process Diagnostics Inspector
+
+If you prefer to launch the DevTools inspector client directly inside your application's process (as a replacement for Avalonia's built-in DevTools), you can use the `CDP.DiagnosticTools` package.
+
+#### Install Package
+Install via the .NET CLI:
+```bash
+dotnet add package CDP.DiagnosticTools
+```
+
+#### Attach the Inspector
+Call `AttachCdpInspector` on your main window (typically in `App.axaml.cs` inside `OnFrameworkInitializationCompleted`):
+
+```csharp
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+
+public override void OnFrameworkInitializationCompleted()
+{
+    if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        desktop.MainWindow = new MainWindow();
+        
+        // Attach the in-process CDP Inspector (default trigger key is F12)
+        desktop.MainWindow.AttachCdpInspector(9222);
+    }
+
+    base.OnFrameworkInitializationCompleted();
+}
+```
+
+When running, press **F12** inside the window to open the in-process DevTools client connected directly to the target application's CDP server.
 
 ---
 
