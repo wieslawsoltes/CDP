@@ -464,7 +464,7 @@ public class CdpSession
         _sendSemaphore.Dispose();
     }
 
-    private readonly ConcurrentDictionary<Visual, (INotifyCollectionChanged Observable, NotifyCollectionChangedEventHandler Handler)> _collectionHandlers = new();
+    private readonly ConcurrentDictionary<object, (INotifyCollectionChanged Observable, NotifyCollectionChangedEventHandler Handler)> _collectionHandlers = new();
     private readonly ConcurrentDictionary<Visual, EventHandler<AvaloniaPropertyChangedEventArgs>> _propertyHandlers = new();
     private readonly ConcurrentDictionary<Control, NotifyCollectionChangedEventHandler> _classesHandlers = new();
 
@@ -580,9 +580,188 @@ public class CdpSession
             }
         }
 
+        if (UseLogicalTree && visual is ILogical logical)
+        {
+            foreach (var child in logical.LogicalChildren)
+            {
+                if (child is StyledElement se && se.TemplatedParent != null)
+                {
+                    continue;
+                }
+                if (child is not Visual && child is ILogical childLogical)
+                {
+                    SubscribeToNonVisualLogical(childLogical, visual);
+                }
+            }
+        }
+
         foreach (var child in GetTreeChildren(visual))
         {
             SubscribeToVisual(child);
+        }
+    }
+
+    private void SubscribeToNonVisualLogical(ILogical logical, Visual parentVisual)
+    {
+        if (logical.LogicalChildren is INotifyCollectionChanged notify)
+        {
+            if (!_collectionHandlers.ContainsKey(logical))
+            {
+                NotifyCollectionChangedEventHandler colHandler = (s, e) => OnLogicalChildrenChanged(parentVisual, logical, e);
+                notify.CollectionChanged += colHandler;
+                _collectionHandlers[logical] = (notify, colHandler);
+            }
+        }
+
+        foreach (var child in logical.LogicalChildren)
+        {
+            if (child is StyledElement se && se.TemplatedParent != null)
+            {
+                continue;
+            }
+            if (child is not Visual && child is ILogical childLogical)
+            {
+                SubscribeToNonVisualLogical(childLogical, parentVisual);
+            }
+        }
+    }
+
+    private void UnsubscribeFromNonVisualLogical(ILogical logical)
+    {
+        foreach (var child in logical.LogicalChildren)
+        {
+            if (child is StyledElement se && se.TemplatedParent != null)
+            {
+                continue;
+            }
+            if (child is not Visual && child is ILogical childLogical)
+            {
+                UnsubscribeFromNonVisualLogical(childLogical);
+                if (_collectionHandlers.TryRemove(childLogical, out var entry))
+                {
+                    try { entry.Observable.CollectionChanged -= entry.Handler; } catch { }
+                }
+            }
+        }
+    }
+
+    private void OnLogicalChildrenChanged(Visual parentVisual, ILogical container, NotifyCollectionChangedEventArgs e)
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => OnLogicalChildrenChanged(parentVisual, container, e));
+            return;
+        }
+
+        var parentNodeId = NodeMap.GetOrAdd(parentVisual);
+        if (parentNodeId == 0) return;
+
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                if (e.NewItems != null)
+                {
+                    foreach (var item in e.NewItems)
+                    {
+                        if (item is StyledElement se && se.TemplatedParent != null)
+                        {
+                            continue;
+                        }
+
+                        if (item is Visual child && child is not HighlightAdorner)
+                        {
+                            var children = GetTreeChildren(parentVisual).ToList();
+                            int childIndex = children.IndexOf(child);
+                            int previousNodeId = 0;
+                            if (childIndex > 0)
+                            {
+                                previousNodeId = NodeMap.GetOrAdd(children[childIndex - 1]);
+                            }
+
+                            var childNode = Domains.DomDomain.BuildDomNode(child, this, 1, 1);
+                            _ = SendEventAsync("DOM.childNodeInserted", new JsonObject
+                            {
+                                ["parentNodeId"] = parentNodeId,
+                                ["previousNodeId"] = previousNodeId,
+                                ["node"] = childNode
+                            });
+                            SubscribeToVisual(child);
+                        }
+                        else if (item is ILogical childLogical)
+                        {
+                            SubscribeToNonVisualLogical(childLogical, parentVisual);
+
+                            foreach (var desc in GetLogicalVisualChildren(childLogical))
+                            {
+                                var children = GetTreeChildren(parentVisual).ToList();
+                                int childIndex = children.IndexOf(desc);
+                                int previousNodeId = 0;
+                                if (childIndex > 0)
+                                {
+                                    previousNodeId = NodeMap.GetOrAdd(children[childIndex - 1]);
+                                }
+
+                                var childNode = Domains.DomDomain.BuildDomNode(desc, this, 1, 1);
+                                _ = SendEventAsync("DOM.childNodeInserted", new JsonObject
+                                {
+                                    ["parentNodeId"] = parentNodeId,
+                                    ["previousNodeId"] = previousNodeId,
+                                    ["node"] = childNode
+                                });
+                                SubscribeToVisual(desc);
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Remove:
+                if (e.OldItems != null)
+                {
+                    foreach (var item in e.OldItems)
+                    {
+                        if (item is Visual child)
+                        {
+                            int childNodeId = NodeMap.GetOrAdd(child);
+                            if (childNodeId != 0)
+                            {
+                                _ = SendEventAsync("DOM.childNodeRemoved", new JsonObject
+                                {
+                                    ["parentNodeId"] = parentNodeId,
+                                    ["nodeId"] = childNodeId
+                                });
+                                UnsubscribeFromVisual(child);
+                            }
+                        }
+                        else if (item is ILogical childLogical)
+                        {
+                            foreach (var desc in GetLogicalVisualChildren(childLogical))
+                            {
+                                int childNodeId = NodeMap.GetOrAdd(desc);
+                                if (childNodeId != 0)
+                                {
+                                    _ = SendEventAsync("DOM.childNodeRemoved", new JsonObject
+                                    {
+                                        ["parentNodeId"] = parentNodeId,
+                                        ["nodeId"] = childNodeId
+                                    });
+                                    UnsubscribeFromVisual(desc);
+                                }
+                            }
+
+                            UnsubscribeFromNonVisualLogical(childLogical);
+                            if (_collectionHandlers.TryRemove(childLogical, out var entry))
+                            {
+                                try { entry.Observable.CollectionChanged -= entry.Handler; } catch { }
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Reset:
+                _ = SendEventAsync("DOM.documentUpdated", new JsonObject());
+                break;
         }
     }
 
@@ -593,6 +772,11 @@ public class CdpSession
         foreach (var child in GetTreeChildren(visual))
         {
             UnsubscribeFromVisual(child);
+        }
+
+        if (UseLogicalTree && visual is ILogical logical)
+        {
+            UnsubscribeFromNonVisualLogical(logical);
         }
 
         if (_collectionHandlers.TryRemove(visual, out var entry))
@@ -632,6 +816,11 @@ public class CdpSession
                 {
                     foreach (var item in e.NewItems)
                     {
+                        if (item is StyledElement se && se.TemplatedParent != null)
+                        {
+                            continue;
+                        }
+
                         if (item is Visual child && child is not HighlightAdorner)
                         {
                             var children = GetTreeChildren(parent).ToList();
@@ -650,6 +839,30 @@ public class CdpSession
                                 ["node"] = childNode
                             });
                             SubscribeToVisual(child);
+                        }
+                        else if (UseLogicalTree && item is ILogical childLogical)
+                        {
+                            SubscribeToNonVisualLogical(childLogical, parent);
+
+                            foreach (var desc in GetLogicalVisualChildren(childLogical))
+                            {
+                                var children = GetTreeChildren(parent).ToList();
+                                int childIndex = children.IndexOf(desc);
+                                int previousNodeId = 0;
+                                if (childIndex > 0)
+                                {
+                                    previousNodeId = NodeMap.GetOrAdd(children[childIndex - 1]);
+                                }
+
+                                var childNode = Domains.DomDomain.BuildDomNode(desc, this, 1, 1);
+                                _ = SendEventAsync("DOM.childNodeInserted", new JsonObject
+                                {
+                                    ["parentNodeId"] = parentNodeId,
+                                    ["previousNodeId"] = previousNodeId,
+                                    ["node"] = childNode
+                                });
+                                SubscribeToVisual(desc);
+                            }
                         }
                     }
                 }
@@ -671,6 +884,28 @@ public class CdpSession
                                     ["nodeId"] = childNodeId
                                 });
                                 UnsubscribeFromVisual(child);
+                            }
+                        }
+                        else if (UseLogicalTree && item is ILogical childLogical)
+                        {
+                            foreach (var desc in GetLogicalVisualChildren(childLogical))
+                            {
+                                int childNodeId = NodeMap.GetOrAdd(desc);
+                                if (childNodeId != 0)
+                                {
+                                    _ = SendEventAsync("DOM.childNodeRemoved", new JsonObject
+                                    {
+                                        ["parentNodeId"] = parentNodeId,
+                                        ["nodeId"] = childNodeId
+                                    });
+                                    UnsubscribeFromVisual(desc);
+                                }
+                            }
+
+                            UnsubscribeFromNonVisualLogical(childLogical);
+                            if (_collectionHandlers.TryRemove(childLogical, out var entry))
+                            {
+                                try { entry.Observable.CollectionChanged -= entry.Handler; } catch { }
                             }
                         }
                     }

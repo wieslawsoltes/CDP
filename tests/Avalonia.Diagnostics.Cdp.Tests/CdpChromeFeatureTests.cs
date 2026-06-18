@@ -839,6 +839,11 @@ public class CdpChromeFeatureTests
         {
             LogicalChildren.Add(child);
         }
+
+        public void RemoveLogicalChild(Avalonia.LogicalTree.ILogical child)
+        {
+            LogicalChildren.Remove(child);
+        }
     }
 
     [AvaloniaFact]
@@ -851,6 +856,66 @@ public class CdpChromeFeatureTests
         var results = System.Linq.Enumerable.ToList(CdpSession.GetLogicalVisualChildren(host));
         Assert.Single(results);
         Assert.Same(button, results[0]);
+    }
+
+    private class LogicalStackPanel : StackPanel
+    {
+        public void AddLogicalChild(Avalonia.LogicalTree.ILogical child)
+        {
+            LogicalChildren.Add(child);
+        }
+
+        public void RemoveLogicalChild(Avalonia.LogicalTree.ILogical child)
+        {
+            LogicalChildren.Remove(child);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TestLogicalTreeNotificationsWithNonVisualLogicalNode()
+    {
+        var panel = new LogicalStackPanel();
+        var host = new NonVisualLogicalNode();
+        panel.AddLogicalChild(host);
+
+        var window = new Window
+        {
+            Title = "Logical Notifications NonVisual Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+        session.UseLogicalTree = true;
+        session.StartObservingVisualTree();
+
+        // Dynamically add a button inside the non-visual logical host
+        var button = new Button { Name = "btnUnderHost" };
+        host.AddLogicalChild(button);
+
+        // Wait a tiny bit for UI thread
+        await Task.Delay(100);
+
+        // Verify we received childNodeInserted
+        var insertedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
+        Assert.NotNull(insertedEvent);
+        Assert.Contains("btnUnderHost", insertedEvent);
+
+        // Clear sent messages
+        fakeWs.SentMessages.Clear();
+
+        // Dynamically remove the button
+        host.RemoveLogicalChild(button);
+
+        // Wait a tiny bit for UI thread
+        await Task.Delay(100);
+
+        // Verify we received childNodeRemoved
+        var removedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeRemoved"));
+        Assert.NotNull(removedEvent);
+
+        window.Close();
     }
 }
 
