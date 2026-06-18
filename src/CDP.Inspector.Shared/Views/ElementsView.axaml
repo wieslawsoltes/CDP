@@ -4,7 +4,7 @@
              x:CompileBindings="False">
     <Grid ColumnDefinitions="*, 4, 1.2*">
         <!-- Left Side (DOM / Accessibility Trees) -->
-        <TabControl Margin="10" Padding="0,5,0,0">
+        <TabControl Margin="10" Padding="0,5,0,0" SelectedIndex="{Binding Elements.SelectedTreeTabIndex, Mode=TwoWay}">
             <!-- DOM Tree Tab -->
             <TabItem Header="DOM Tree">
                 <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
@@ -17,6 +17,12 @@
                     <!-- treeDom -->
                     <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
                         <TreeView Name="treeDom" ItemsSource="{Binding Elements.RootNodes}" SelectedItem="{Binding Elements.SelectedNode, Mode=TwoWay}">
+                            <TreeView.Styles>
+                                <Style Selector="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                                </Style>
+                            </TreeView.Styles>
                             <TreeView.ItemTemplate>
                                 <TreeDataTemplate ItemsSource="{Binding Children}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -46,13 +52,21 @@
             <!-- Accessibility Tree Tab -->
             <TabItem Header="Accessibility Tree">
                 <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
-                    <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
-                        <TextBlock Text="AX Tree represents the automation hierarchy resolved via CDP" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
-                        <Button Name="btnRefreshAxTree" Command="{Binding Elements.RefreshAxTreeCommand}" Grid.Column="1" Content="Refresh" Padding="10,0" Height="28"/>
+                    <!-- Search -->
+                    <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,8">
+                        <TextBox Name="txtAxSearch" Text="{Binding Elements.AxSearchQuery, Mode=TwoWay}" PlaceholderText="Search by role or accessible name..." Height="28" VerticalContentAlignment="Center"/>
+                        <Button Name="btnAxSearch" Command="{Binding Elements.AxSearchCommand}" Grid.Column="1" Content="Search" Margin="5,0,0,0" Padding="10,0" Height="28"/>
+                        <Button Name="btnRefreshAxTree" Command="{Binding Elements.RefreshAxTreeCommand}" Grid.Column="2" Content="Refresh" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                     </Grid>
 
                     <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
                         <TreeView Name="treeAx" ItemsSource="{Binding Elements.AxRootNodes}" SelectedItem="{Binding Elements.SelectedAxNode, Mode=TwoWay}">
+                            <TreeView.Styles>
+                                <Style Selector="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                                </Style>
+                            </TreeView.Styles>
                             <TreeView.ItemTemplate>
                                 <TreeDataTemplate ItemsSource="{Binding Children}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
