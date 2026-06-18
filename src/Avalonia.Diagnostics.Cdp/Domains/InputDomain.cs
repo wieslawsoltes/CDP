@@ -50,6 +50,14 @@ public static class InputDomain
                     return new JsonObject();
                 }
 
+            case "emulateTouchFromMouseEvent":
+            case "setIgnoreInputEvents":
+            case "synthesizeTapGesture":
+            case "synthesizeScrollGesture":
+                {
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method Input.{action} is not implemented");
         }

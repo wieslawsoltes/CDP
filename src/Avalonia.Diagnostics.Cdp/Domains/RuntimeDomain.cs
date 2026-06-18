@@ -141,6 +141,16 @@ public static class RuntimeDomain
                     };
                 }
 
+            case "runIfWaitingForDebugger":
+            case "setCustomObjectFormatterEnabled":
+            case "setMaxCallStackSizeToCapture":
+            case "setAsyncCallStackDepth":
+            case "addBinding":
+            case "removeBinding":
+                {
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method Runtime.{action} is not implemented");
         }

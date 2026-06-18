@@ -229,7 +229,7 @@ public class NewDomainTests
         Assert.NotNull(targetRes);
         int windowId = targetRes["windowId"]?.GetValue<int>() ?? 0;
         Assert.True(windowId > 0);
- 
+
         var boundsRes = await BrowserDomain.HandleAsync(session, "getWindowBounds", new JsonObject { ["windowId"] = windowId });
         Assert.NotNull(boundsRes);
         var bounds = boundsRes["bounds"] as JsonObject;
@@ -385,5 +385,94 @@ public class NewDomainTests
 
         var setRes = await EmulationDomain.HandleAsync(session, "setCPUThrottlingRate", new JsonObject { ["rate"] = 4 });
         Assert.NotNull(setRes);
+    }
+
+    [AvaloniaFact]
+    public async Task TestDomDomainFlattenedDocument()
+    {
+        var window = new Window
+        {
+            Title = "DOM Flatten Test",
+            Width = 400,
+            Height = 300,
+            Content = new Button { Content = "Click Me" }
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        var result = await DomDomain.HandleAsync(session, "getFlattenedDocument", new JsonObject());
+        Assert.NotNull(result);
+        var nodes = result["nodes"] as JsonArray;
+        Assert.NotNull(nodes);
+        Assert.True(nodes.Count > 0);
+
+        var docNode = nodes[0] as JsonObject;
+        Assert.NotNull(docNode);
+        Assert.Equal("#document", docNode["nodeName"]?.GetValue<string>());
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestAccessibilityDomainPartialTreeAndQuery()
+    {
+        var window = new Window
+        {
+            Title = "AX Test",
+            Width = 400,
+            Height = 300,
+            Content = new Button { Content = "Target Button" }
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        var partialRes = await AccessibilityDomain.HandleAsync(session, "getPartialAXTree", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["fetchRelatives"] = true
+        });
+        Assert.NotNull(partialRes);
+        Assert.NotNull(partialRes["nodes"] as JsonArray);
+
+        var queryRes = await AccessibilityDomain.HandleAsync(session, "queryAXTree", new JsonObject
+        {
+            ["accessibleName"] = "Target Button"
+        });
+        Assert.NotNull(queryRes);
+        Assert.NotNull(queryRes["nodes"] as JsonArray);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestBrowserDomainCommandLineAndCrash()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var result = await BrowserDomain.HandleAsync(session, "getBrowserCommandLine", new JsonObject());
+        Assert.NotNull(result);
+        var args = result["arguments"] as JsonArray;
+        Assert.NotNull(args);
+        Assert.True(args.Count > 0);
+    }
+
+    [AvaloniaFact]
+    public async Task TestTargetDomainCreateAndAttach()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var createRes = await TargetDomain.HandleAsync(session, "createTarget", new JsonObject());
+        Assert.NotNull(createRes);
+        Assert.NotEmpty(createRes["targetId"]?.GetValue<string>() ?? "");
+
+        var attachRes = await TargetDomain.HandleAsync(session, "attachToTarget", new JsonObject());
+        Assert.NotNull(attachRes);
+        Assert.Equal("session-1", attachRes["sessionId"]?.GetValue<string>());
     }
 }

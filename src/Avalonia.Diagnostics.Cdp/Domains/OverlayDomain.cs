@@ -43,6 +43,17 @@ public static class OverlayDomain
                     return new JsonObject();
                 }
 
+            case "setShowDebugBorders":
+            case "setShowFPSCounter":
+            case "setShowPaintRects":
+            case "setShowViewportSizeOnResize":
+            case "setShowGridOverlays":
+            case "setShowFlexOverlays":
+            case "setPausedInDebuggerMessage":
+                {
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method Overlay.{action} is not implemented");
         }

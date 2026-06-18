@@ -99,6 +99,29 @@ public static class TargetDomain
                     return new JsonObject { ["targetInfo"] = found };
                 }
 
+            case "activateTarget":
+            case "detachFromTarget":
+            case "exposeDevToolsProtocol":
+            case "sendMessageToTarget":
+                {
+                    return new JsonObject();
+                }
+
+            case "attachToTarget":
+                {
+                    return new JsonObject { ["sessionId"] = "session-1" };
+                }
+
+            case "closeTarget":
+                {
+                    return new JsonObject { ["success"] = true };
+                }
+
+            case "createTarget":
+                {
+                    return new JsonObject { ["targetId"] = Guid.NewGuid().ToString() };
+                }
+
             default:
                 throw new Exception($"Method Target.{action} is not implemented");
         }

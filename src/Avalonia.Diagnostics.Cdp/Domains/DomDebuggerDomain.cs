@@ -30,6 +30,13 @@ public static class DomDebuggerDomain
 
             case "setEventListenerBreakpoint":
             case "removeEventListenerBreakpoint":
+            case "removeDOMBreakpoint":
+            case "removeInstrumentationBreakpoint":
+            case "removeXHRBreakpoint":
+            case "setBreakOnCSPViolation":
+            case "setDOMBreakpoint":
+            case "setInstrumentationBreakpoint":
+            case "setXHRBreakpoint":
                 return new JsonObject();
 
             default:
