@@ -50,10 +50,18 @@ public static class MemoryDomain
                 });
 
             case "collectGarbage":
+            case "forciblyPurgeJavaScriptMemory":
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 GC.Collect();
                 return new JsonObject();
+
+            case "setPressureNotificationsSuppressed":
+            case "simulatePressureNotification":
+            case "prepareForLeakDetection":
+                {
+                    return new JsonObject();
+                }
 
             default:
                 throw new Exception($"Method Memory.{action} is not implemented");

@@ -124,8 +124,26 @@ public static class NetworkDomain
             case "clearBrowserCache":
             case "clearBrowserCookies":
             case "setCacheDisabled":
+            case "setExtraHTTPHeaders":
+            case "setUserAgentOverride":
+            case "setBlockedURLs":
+            case "setRequestInterception":
+            case "setAcceptedEncodings":
+            case "clearAcceptedEncodingsOverride":
+            case "deleteCookies":
+            case "setCookie":
+            case "setCookies":
                 {
                     return Task.FromResult(new JsonObject());
+                }
+
+            case "getCookies":
+            case "getAllCookies":
+                {
+                    return Task.FromResult(new JsonObject
+                    {
+                        ["cookies"] = new JsonArray()
+                    });
                 }
 
             default:

@@ -234,6 +234,78 @@ public static class PageDomain
                     };
                 }
 
+            case "getFrameTree":
+                {
+                    var port = CdpServer.Port;
+                    var host = $"127.0.0.1:{port}";
+                    var frame = new JsonObject
+                    {
+                        ["id"] = "main-frame-id",
+                        ["loaderId"] = "main-loader-id",
+                        ["url"] = $"http://{host}/",
+                        ["domainAndRegistry"] = "127.0.0.1",
+                        ["securityOrigin"] = $"http://{host}",
+                        ["mimeType"] = "text/html"
+                    };
+                    var frameTree = new JsonObject
+                    {
+                        ["frame"] = frame
+                    };
+                    return new JsonObject { ["frameTree"] = frameTree };
+                }
+
+            case "getAppManifest":
+                {
+                    return new JsonObject
+                    {
+                        ["url"] = "",
+                        ["errors"] = new JsonArray()
+                    };
+                }
+
+            case "getNavigationHistory":
+                {
+                    var port = CdpServer.Port;
+                    var entries = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["id"] = 1,
+                            ["url"] = $"http://127.0.0.1:{port}/",
+                            ["userTypedURL"] = $"http://127.0.0.1:{port}/",
+                            ["title"] = session.Window?.GetType().Name ?? "Avalonia Window",
+                            ["transitionType"] = "typed"
+                        }
+                    };
+                    return new JsonObject
+                    {
+                        ["currentIndex"] = 0,
+                        ["entries"] = entries
+                    };
+                }
+
+            case "addScriptToEvaluateOnNewDocument":
+                {
+                    return new JsonObject { ["identifier"] = "1" };
+                }
+
+            case "removeScriptToEvaluateOnNewDocument":
+            case "setDeviceMetricsOverride":
+            case "clearDeviceMetricsOverride":
+            case "setGeolocationOverride":
+            case "clearGeolocationOverride":
+            case "setDeviceOrientationOverride":
+            case "clearDeviceOrientationOverride":
+            case "setTouchEmulationEnabled":
+            case "setLifecycleEventsEnabled":
+            case "setAdBlockingEnabled":
+            case "setBypassCSP":
+            case "setFontFamilies":
+            case "setFontSizes":
+                {
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method Page.{action} is not implemented");
         }

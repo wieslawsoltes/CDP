@@ -155,6 +155,22 @@ public static class EmulationDomain
                     return new JsonObject { ["result"] = true };
                 }
 
+            case "setUserAgentOverride":
+            case "setNavigatorOverrides":
+            case "setGeolocationOverride":
+            case "clearGeolocationOverride":
+            case "setDefaultBackgroundColorOverride":
+            case "setEmitTouchEventsForMouse":
+            case "setDocumentCookieDisabled":
+            case "setScriptExecutionDisabled":
+            case "setScrollbarsHidden":
+            case "setTimezoneOverride":
+            case "setIdleOverride":
+            case "clearIdleOverride":
+                {
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method Emulation.{action} is not implemented");
         }

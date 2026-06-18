@@ -106,6 +106,108 @@ public static class AccessibilityDomain
                     return new JsonObject { ["node"] = node };
                 }
 
+            case "getPartialAXTree":
+                {
+                    int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    int? backendNodeId = @params["backendNodeId"]?.GetValue<int>();
+                    string? objectId = @params["objectId"]?.GetValue<string>();
+                    bool fetchRelatives = @params["fetchRelatives"]?.GetValue<bool>() ?? true;
+
+                    Visual? targetVisual = null;
+                    if (nodeId.HasValue)
+                    {
+                        targetVisual = session.NodeMap.GetVisual(nodeId.Value);
+                    }
+                    else if (backendNodeId.HasValue)
+                    {
+                        targetVisual = session.NodeMap.GetVisual(backendNodeId.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(objectId))
+                    {
+                        var obj = session.GetObject(objectId);
+                        if (obj is Visual v)
+                        {
+                            targetVisual = v;
+                        }
+                    }
+
+                    var nodes = new JsonArray();
+                    if (targetVisual != null)
+                    {
+                        var targetNode = BuildAXNode(session, targetVisual);
+                        nodes.Add(targetNode);
+
+                        if (fetchRelatives)
+                        {
+                            var current = targetVisual.GetVisualParent();
+                            while (current != null)
+                            {
+                                nodes.Add(BuildAXNode(session, current));
+                                current = current.GetVisualParent();
+                            }
+                        }
+                    }
+
+                    return new JsonObject { ["nodes"] = nodes };
+                }
+
+            case "queryAXTree":
+                {
+                    int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    int? backendNodeId = @params["backendNodeId"]?.GetValue<int>();
+                    string? objectId = @params["objectId"]?.GetValue<string>();
+                    string? accessibleName = @params["accessibleName"]?.GetValue<string>();
+                    string? role = @params["role"]?.GetValue<string>();
+
+                    Visual? rootVisual = null;
+                    if (nodeId.HasValue) rootVisual = session.NodeMap.GetVisual(nodeId.Value);
+                    else if (backendNodeId.HasValue) rootVisual = session.NodeMap.GetVisual(backendNodeId.Value);
+                    else if (!string.IsNullOrEmpty(objectId))
+                    {
+                        if (session.GetObject(objectId) is Visual v) rootVisual = v;
+                    }
+
+                    if (rootVisual == null) rootVisual = session.Window;
+
+                    var matchedNodes = new JsonArray();
+                    if (rootVisual != null)
+                    {
+                        var list = new List<Visual>();
+                        Traverse(rootVisual, list);
+
+                        foreach (var visual in list)
+                        {
+                            var axNode = BuildAXNode(session, visual);
+                            bool matches = true;
+
+                            if (!string.IsNullOrEmpty(accessibleName))
+                            {
+                                var nameNode = axNode["name"]?["value"]?.GetValue<string>();
+                                if (nameNode == null || !nameNode.Contains(accessibleName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    matches = false;
+                                }
+                            }
+
+                            if (matches && !string.IsNullOrEmpty(role))
+                            {
+                                var roleNode = axNode["role"]?["value"]?.GetValue<string>();
+                                if (roleNode == null || !roleNode.Equals(role, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    matches = false;
+                                }
+                            }
+
+                            if (matches)
+                            {
+                                matchedNodes.Add(axNode);
+                            }
+                        }
+                    }
+
+                    return new JsonObject { ["nodes"] = matchedNodes };
+                }
+
             default:
                 throw new Exception($"Method Accessibility.{action} is not implemented");
         }

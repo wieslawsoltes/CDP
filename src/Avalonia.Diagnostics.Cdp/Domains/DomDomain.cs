@@ -308,8 +308,144 @@ public static class DomDomain
                     return new JsonObject();
                 }
 
+            case "getFlattenedDocument":
+                {
+                    int depth = @params["depth"]?.GetValue<int>() ?? -1;
+                    var flatList = new List<JsonObject>();
+
+                    var documentChildrenIds = new JsonArray { session.NodeMap.GetOrAdd(session.Window) };
+                    var docNode = new JsonObject
+                    {
+                        ["nodeId"] = 1,
+                        ["backendNodeId"] = 1,
+                        ["nodeType"] = 9,
+                        ["nodeName"] = "#document",
+                        ["localName"] = "",
+                        ["nodeValue"] = "",
+                        ["childNodeCount"] = 1,
+                        ["childIds"] = documentChildrenIds,
+                        ["documentURL"] = $"http://localhost:{CdpServer.Port}/",
+                        ["baseURL"] = $"http://localhost:{CdpServer.Port}/"
+                    };
+                    flatList.Add(docNode);
+
+                    FlattenDomNode(session.Window, session, 1, depth, flatList);
+
+                    var nodesJson = new JsonArray();
+                    foreach (var n in flatList)
+                    {
+                        nodesJson.Add(n);
+                    }
+
+                    return new JsonObject { ["nodes"] = nodesJson };
+                }
+
+            case "requestNode":
+                {
+                    string objectId = @params["objectId"]?.GetValue<string>() ?? "";
+                    var obj = session.GetObject(objectId);
+                    if (obj is Visual visual)
+                    {
+                        int nodeId = session.NodeMap.GetOrAdd(visual);
+                        return new JsonObject { ["nodeId"] = nodeId };
+                    }
+                    throw new Exception("Resolved object is not a Visual");
+                }
+
+            case "scrollIntoViewIfNeeded":
+                {
+                    int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    int? backendNodeId = @params["backendNodeId"]?.GetValue<int>();
+                    string? objectId = @params["objectId"]?.GetValue<string>();
+
+                    Visual? targetVisual = null;
+                    if (nodeId.HasValue) targetVisual = session.NodeMap.GetVisual(nodeId.Value);
+                    else if (backendNodeId.HasValue) targetVisual = session.NodeMap.GetVisual(backendNodeId.Value);
+                    else if (!string.IsNullOrEmpty(objectId))
+                    {
+                        if (session.GetObject(objectId) is Visual v) targetVisual = v;
+                    }
+
+                    if (targetVisual is Control control)
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(() => control.BringIntoView());
+                    }
+                    return new JsonObject();
+                }
+
+            case "setNodeValue":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string value = @params["value"]?.GetValue<string>() ?? "";
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var visual = session.NodeMap.GetVisual(nodeId);
+                        if (visual is TextBlock textBlock) textBlock.Text = value;
+                        else if (visual is TextBox textBox) textBox.Text = value;
+                    });
+                    return new JsonObject();
+                }
+
+            case "setNodeName":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var visual = session.NodeMap.GetVisual(nodeId);
+                        if (visual is Control control) control.Name = name;
+                    });
+                    return new JsonObject { ["nodeId"] = nodeId };
+                }
+
+            case "setOuterHTML":
+                {
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method DOM.{action} is not implemented");
+        }
+    }
+
+    private static void FlattenDomNode(Visual visual, CdpSession session, int currentDepth, int maxDepth, List<JsonObject> flatList)
+    {
+        int nodeId = session.NodeMap.GetOrAdd(visual);
+        var visualChildren = visual.GetVisualChildren().Where(c => !(c is HighlightAdorner)).ToList();
+        var childIds = new JsonArray();
+        foreach (var child in visualChildren)
+        {
+            childIds.Add(session.NodeMap.GetOrAdd(child));
+        }
+
+        var attributes = BuildAttributes(visual);
+        var node = new JsonObject
+        {
+            ["nodeId"] = nodeId,
+            ["parentId"] = visual.GetVisualParent() != null ? session.NodeMap.GetOrAdd(visual.GetVisualParent()!) : 1,
+            ["backendNodeId"] = nodeId,
+            ["nodeType"] = 1,
+            ["nodeName"] = visual.GetType().Name,
+            ["localName"] = visual.GetType().Name.ToLowerInvariant(),
+            ["nodeValue"] = "",
+            ["childNodeCount"] = visualChildren.Count,
+            ["attributes"] = attributes
+        };
+
+        if (childIds.Count > 0)
+        {
+            node["childIds"] = childIds;
+        }
+
+        flatList.Add(node);
+
+        bool recursive = maxDepth == -1 || currentDepth < maxDepth;
+        if (recursive)
+        {
+            foreach (var child in visualChildren)
+            {
+                FlattenDomNode(child, session, currentDepth + 1, maxDepth, flatList);
+            }
         }
     }
 

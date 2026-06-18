@@ -1,17 +1,17 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-18 06:06:24 UTC
+Generated on: 2026-06-18 06:08:49 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 
 ## Summary
 
-* **Total Standard CDP Methods Supported**: 112 / 668 (16,8%)
+* **Total Standard CDP Methods Supported**: 202 / 668 (30,2%)
 * **Total Custom/Extension Methods Supported**: 29
 
 | Domain | Status / Coverage | Standard Supported | Custom Extensions | Missing Standard |
 | :--- | :--- | :--- | :--- | :--- |
-| **Accessibility** | 6/8 (75,0%) | 6 | 1 | 2 |
+| **Accessibility** | Fully Compliant | 8 | 1 | 0 |
 | **Ads** | Unsupported | 0 | 0 | 1 |
 | **Animation** | Unsupported | 0 | 0 | 10 |
 | **Application** | Custom Domain (3 actions) | 0 | 3 | 0 |
@@ -19,7 +19,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Autofill** | Unsupported | 0 | 0 | 4 |
 | **BackgroundService** | Unsupported | 0 | 0 | 4 |
 | **BluetoothEmulation** | Unsupported | 0 | 0 | 15 |
-| **Browser** | 5/20 (25,0%) | 5 | 0 | 15 |
+| **Browser** | 12/20 (60,0%) | 12 | 0 | 8 |
 | **CacheStorage** | Unsupported | 0 | 0 | 5 |
 | **Cast** | Unsupported | 0 | 0 | 6 |
 | **Console** | Fully Compliant | 3 | 0 | 0 |
@@ -28,11 +28,11 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Debugger** | Unsupported | 0 | 0 | 33 |
 | **DeviceAccess** | Unsupported | 0 | 0 | 4 |
 | **DeviceOrientation** | Unsupported | 0 | 0 | 2 |
-| **DOM** | 20/53 (37,7%) | 20 | 0 | 33 |
-| **DOMDebugger** | 3/10 (30,0%) | 3 | 0 | 7 |
+| **DOM** | 26/53 (49,1%) | 26 | 0 | 27 |
+| **DOMDebugger** | Fully Compliant | 10 | 0 | 0 |
 | **DOMSnapshot** | Unsupported | 0 | 0 | 4 |
 | **DOMStorage** | Unsupported | 0 | 0 | 6 |
-| **Emulation** | 9/47 (19,1%) | 9 | 1 | 38 |
+| **Emulation** | 21/47 (44,7%) | 21 | 1 | 26 |
 | **EventBreakpoints** | Unsupported | 0 | 0 | 3 |
 | **Extensions** | Unsupported | 0 | 0 | 8 |
 | **FedCm** | Unsupported | 0 | 0 | 7 |
@@ -41,23 +41,23 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **HeadlessExperimental** | Unsupported | 0 | 0 | 3 |
 | **HeapProfiler** | Unsupported | 0 | 0 | 12 |
 | **IndexedDB** | Unsupported | 0 | 0 | 9 |
-| **Input** | 3/13 (23,1%) | 3 | 18 | 10 |
+| **Input** | 7/13 (53,8%) | 7 | 18 | 6 |
 | **Inspector** | Unsupported | 0 | 0 | 2 |
 | **IO** | Unsupported | 0 | 0 | 3 |
 | **LayerTree** | Unsupported | 0 | 0 | 9 |
 | **Log** | Fully Compliant | 5 | 0 | 0 |
 | **Media** | Unsupported | 0 | 0 | 2 |
-| **Memory** | 1/11 (9,1%) | 1 | 2 | 10 |
-| **Network** | 10/41 (24,4%) | 10 | 0 | 31 |
-| **Overlay** | 6/30 (20,0%) | 6 | 0 | 24 |
-| **Page** | 12/61 (19,7%) | 12 | 0 | 49 |
+| **Memory** | 5/11 (45,5%) | 5 | 2 | 6 |
+| **Network** | 21/41 (51,2%) | 21 | 0 | 20 |
+| **Overlay** | 13/30 (43,3%) | 13 | 0 | 17 |
+| **Page** | 29/61 (47,5%) | 29 | 0 | 32 |
 | **Performance** | Fully Compliant | 4 | 0 | 0 |
 | **PerformanceTimeline** | Unsupported | 0 | 0 | 1 |
 | **Preload** | Unsupported | 0 | 0 | 2 |
 | **Profiler** | Unsupported | 0 | 0 | 9 |
 | **PWA** | Unsupported | 0 | 0 | 7 |
 | **Recorder** | Custom Domain (2 actions) | 0 | 2 | 0 |
-| **Runtime** | 10/23 (43,5%) | 10 | 0 | 13 |
+| **Runtime** | 16/23 (69,6%) | 16 | 0 | 7 |
 | **Schema** | Fully Compliant | 1 | 0 | 0 |
 | **Security** | Unsupported | 0 | 0 | 5 |
 | **ServiceWorker** | Unsupported | 0 | 0 | 12 |
@@ -65,7 +65,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Sources** | Custom Domain (2 actions) | 0 | 2 | 0 |
 | **Storage** | Unsupported | 0 | 0 | 34 |
 | **SystemInfo** | Fully Compliant | 3 | 0 | 0 |
-| **Target** | 4/19 (21,1%) | 4 | 0 | 15 |
+| **Target** | 11/19 (57,9%) | 11 | 0 | 8 |
 | **Tethering** | Unsupported | 0 | 0 | 2 |
 | **Tracing** | Unsupported | 0 | 0 | 6 |
 | **WebAudio** | Unsupported | 0 | 0 | 3 |
@@ -76,9 +76,8 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Accessibility
 
-* **Standard Supported (6)**: `disable`, `enable`, `getAXNodeAndAncestors`, `getChildAXNodes`, `getFullAXTree`, `getRootAXNode`
+* **Standard Supported (8)**: `disable`, `enable`, `getAXNodeAndAncestors`, `getChildAXNodes`, `getFullAXTree`, `getPartialAXTree`, `getRootAXNode`, `queryAXTree`
 * **Custom Extensions (1)**: `getAXNode`
-* **Missing Standard (2)**: `getPartialAXTree`, `queryAXTree`
 
 ### Ads
 
@@ -110,8 +109,8 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Browser
 
-* **Standard Supported (5)**: `close`, `getVersion`, `getWindowBounds`, `getWindowForTarget`, `setWindowBounds`
-* **Missing Standard (15)**: `addPrivacySandboxCoordinatorKeyConfig`, `addPrivacySandboxEnrollmentOverride`, `cancelDownload`, `crash`, `crashGpuProcess`, `executeBrowserCommand`, `getBrowserCommandLine`, `getHistogram`, `getHistograms`, `grantPermissions`, `resetPermissions`, `setContentsSize`, `setDockTile`, `setDownloadBehavior`, `setPermission`
+* **Standard Supported (12)**: `cancelDownload`, `close`, `crash`, `getBrowserCommandLine`, `getVersion`, `getWindowBounds`, `getWindowForTarget`, `grantPermissions`, `resetPermissions`, `setDownloadBehavior`, `setPermission`, `setWindowBounds`
+* **Missing Standard (8)**: `addPrivacySandboxCoordinatorKeyConfig`, `addPrivacySandboxEnrollmentOverride`, `crashGpuProcess`, `executeBrowserCommand`, `getHistogram`, `getHistograms`, `setContentsSize`, `setDockTile`
 
 ### CacheStorage
 
@@ -148,13 +147,12 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### DOM
 
-* **Standard Supported (20)**: `describeNode`, `disable`, `discardSearchResults`, `enable`, `focus`, `getAttributes`, `getBoxModel`, `getDocument`, `getNodeForLocation`, `getOuterHTML`, `getSearchResults`, `performSearch`, `querySelector`, `querySelectorAll`, `removeAttribute`, `removeNode`, `requestChildNodes`, `resolveNode`, `setAttributeValue`, `setInspectedNode`
-* **Missing Standard (33)**: `collectClassNamesFromSubtree`, `copyTo`, `forceShowPopover`, `getAnchorElement`, `getContainerForNode`, `getContentQuads`, `getDetachedDomNodes`, `getElementByRelation`, `getFileInfo`, `getFlattenedDocument`, `getFrameOwner`, `getNodesForSubtreeByStyle`, `getNodeStackTraces`, `getQueryingDescendantsForContainer`, `getRelayoutBoundary`, `getTopLayerElements`, `hideHighlight`, `highlightNode`, `highlightRect`, `markUndoableState`, `moveTo`, `pushNodeByPathToFrontend`, `pushNodesByBackendIdsToFrontend`, `redo`, `requestNode`, `scrollIntoViewIfNeeded`, `setAttributesAsText`, `setFileInputFiles`, `setNodeName`, `setNodeStackTracesEnabled`, `setNodeValue`, `setOuterHTML`, `undo`
+* **Standard Supported (26)**: `describeNode`, `disable`, `discardSearchResults`, `enable`, `focus`, `getAttributes`, `getBoxModel`, `getDocument`, `getFlattenedDocument`, `getNodeForLocation`, `getOuterHTML`, `getSearchResults`, `performSearch`, `querySelector`, `querySelectorAll`, `removeAttribute`, `removeNode`, `requestChildNodes`, `requestNode`, `resolveNode`, `scrollIntoViewIfNeeded`, `setAttributeValue`, `setInspectedNode`, `setNodeName`, `setNodeValue`, `setOuterHTML`
+* **Missing Standard (27)**: `collectClassNamesFromSubtree`, `copyTo`, `forceShowPopover`, `getAnchorElement`, `getContainerForNode`, `getContentQuads`, `getDetachedDomNodes`, `getElementByRelation`, `getFileInfo`, `getFrameOwner`, `getNodesForSubtreeByStyle`, `getNodeStackTraces`, `getQueryingDescendantsForContainer`, `getRelayoutBoundary`, `getTopLayerElements`, `hideHighlight`, `highlightNode`, `highlightRect`, `markUndoableState`, `moveTo`, `pushNodeByPathToFrontend`, `pushNodesByBackendIdsToFrontend`, `redo`, `setAttributesAsText`, `setFileInputFiles`, `setNodeStackTracesEnabled`, `undo`
 
 ### DOMDebugger
 
-* **Standard Supported (3)**: `getEventListeners`, `removeEventListenerBreakpoint`, `setEventListenerBreakpoint`
-* **Missing Standard (7)**: `removeDOMBreakpoint`, `removeInstrumentationBreakpoint`, `removeXHRBreakpoint`, `setBreakOnCSPViolation`, `setDOMBreakpoint`, `setInstrumentationBreakpoint`, `setXHRBreakpoint`
+* **Standard Supported (10)**: `getEventListeners`, `removeDOMBreakpoint`, `removeEventListenerBreakpoint`, `removeInstrumentationBreakpoint`, `removeXHRBreakpoint`, `setBreakOnCSPViolation`, `setDOMBreakpoint`, `setEventListenerBreakpoint`, `setInstrumentationBreakpoint`, `setXHRBreakpoint`
 
 ### DOMSnapshot
 
@@ -166,9 +164,9 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Emulation
 
-* **Standard Supported (9)**: `canEmulate`, `clearDeviceMetricsOverride`, `setAutoDarkModeOverride`, `setCPUThrottlingRate`, `setDeviceMetricsOverride`, `setEmulatedMedia`, `setFocusEmulationEnabled`, `setLocaleOverride`, `setTouchEmulationEnabled`
+* **Standard Supported (21)**: `canEmulate`, `clearDeviceMetricsOverride`, `clearGeolocationOverride`, `clearIdleOverride`, `setAutoDarkModeOverride`, `setCPUThrottlingRate`, `setDefaultBackgroundColorOverride`, `setDeviceMetricsOverride`, `setDocumentCookieDisabled`, `setEmitTouchEventsForMouse`, `setEmulatedMedia`, `setFocusEmulationEnabled`, `setGeolocationOverride`, `setIdleOverride`, `setLocaleOverride`, `setNavigatorOverrides`, `setScriptExecutionDisabled`, `setScrollbarsHidden`, `setTimezoneOverride`, `setTouchEmulationEnabled`, `setUserAgentOverride`
 * **Custom Extensions (1)**: `setEmulatedColorSchemeOverride`
-* **Missing Standard (38)**: `addScreen`, `clearDevicePostureOverride`, `clearDisplayFeaturesOverride`, `clearGeolocationOverride`, `clearIdleOverride`, `getOverriddenSensorInformation`, `getScreenInfos`, `removeScreen`, `resetPageScaleFactor`, `setAutomationOverride`, `setDataSaverOverride`, `setDefaultBackgroundColorOverride`, `setDevicePostureOverride`, `setDisabledImageTypes`, `setDisplayFeaturesOverride`, `setDocumentCookieDisabled`, `setEmitTouchEventsForMouse`, `setEmulatedOSTextScale`, `setEmulatedVisionDeficiency`, `setGeolocationOverride`, `setHardwareConcurrencyOverride`, `setIdleOverride`, `setNavigatorOverrides`, `setPageScaleFactor`, `setPressureSourceOverrideEnabled`, `setPressureStateOverride`, `setPrimaryScreen`, `setSafeAreaInsetsOverride`, `setScriptExecutionDisabled`, `setScrollbarsHidden`, `setSensorOverrideEnabled`, `setSensorOverrideReadings`, `setSmallViewportHeightDifferenceOverride`, `setTimezoneOverride`, `setUserAgentOverride`, `setVirtualTimePolicy`, `setVisibleSize`, `updateScreen`
+* **Missing Standard (26)**: `addScreen`, `clearDevicePostureOverride`, `clearDisplayFeaturesOverride`, `getOverriddenSensorInformation`, `getScreenInfos`, `removeScreen`, `resetPageScaleFactor`, `setAutomationOverride`, `setDataSaverOverride`, `setDevicePostureOverride`, `setDisabledImageTypes`, `setDisplayFeaturesOverride`, `setEmulatedOSTextScale`, `setEmulatedVisionDeficiency`, `setHardwareConcurrencyOverride`, `setPageScaleFactor`, `setPressureSourceOverrideEnabled`, `setPressureStateOverride`, `setPrimaryScreen`, `setSafeAreaInsetsOverride`, `setSensorOverrideEnabled`, `setSensorOverrideReadings`, `setSmallViewportHeightDifferenceOverride`, `setVirtualTimePolicy`, `setVisibleSize`, `updateScreen`
 
 ### EventBreakpoints
 
@@ -204,9 +202,9 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Input
 
-* **Standard Supported (3)**: `dispatchKeyEvent`, `dispatchMouseEvent`, `insertText`
+* **Standard Supported (7)**: `dispatchKeyEvent`, `dispatchMouseEvent`, `emulateTouchFromMouseEvent`, `insertText`, `setIgnoreInputEvents`, `synthesizeScrollGesture`, `synthesizeTapGesture`
 * **Custom Extensions (18)**: `arrowdown`, `arrowleft`, `arrowright`, `arrowup`, `backspace`, `delete`, `down`, `end`, `enter`, `escape`, `home`, `left`, `pagedown`, `pageup`, `right`, `space`, `tab`, `up`
-* **Missing Standard (10)**: `cancelDragging`, `dispatchDragEvent`, `dispatchTouchEvent`, `emulateTouchFromMouseEvent`, `imeSetComposition`, `setIgnoreInputEvents`, `setInterceptDrags`, `synthesizePinchGesture`, `synthesizeScrollGesture`, `synthesizeTapGesture`
+* **Missing Standard (6)**: `cancelDragging`, `dispatchDragEvent`, `dispatchTouchEvent`, `imeSetComposition`, `setInterceptDrags`, `synthesizePinchGesture`
 
 ### Inspector
 
@@ -230,24 +228,24 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Memory
 
-* **Standard Supported (1)**: `getDOMCounters`
+* **Standard Supported (5)**: `forciblyPurgeJavaScriptMemory`, `getDOMCounters`, `prepareForLeakDetection`, `setPressureNotificationsSuppressed`, `simulatePressureNotification`
 * **Custom Extensions (2)**: `collectGarbage`, `getLiveControls`
-* **Missing Standard (10)**: `forciblyPurgeJavaScriptMemory`, `getAllTimeSamplingProfile`, `getBrowserSamplingProfile`, `getDOMCountersForLeakDetection`, `getSamplingProfile`, `prepareForLeakDetection`, `setPressureNotificationsSuppressed`, `simulatePressureNotification`, `startSampling`, `stopSampling`
+* **Missing Standard (6)**: `getAllTimeSamplingProfile`, `getBrowserSamplingProfile`, `getDOMCountersForLeakDetection`, `getSamplingProfile`, `startSampling`, `stopSampling`
 
 ### Network
 
-* **Standard Supported (10)**: `canClearBrowserCache`, `canClearBrowserCookies`, `canEmulateNetworkConditions`, `clearBrowserCache`, `clearBrowserCookies`, `disable`, `emulateNetworkConditions`, `enable`, `getResponseBody`, `setCacheDisabled`
-* **Missing Standard (31)**: `clearAcceptedEncodingsOverride`, `configureDurableMessages`, `continueInterceptedRequest`, `deleteCookies`, `deleteDeviceBoundSession`, `emulateNetworkConditionsByRule`, `enableDeviceBoundSessions`, `enableReportingApi`, `fetchSchemefulSite`, `getAllCookies`, `getCertificate`, `getCookies`, `getRequestPostData`, `getResponseBodyForInterception`, `getSecurityIsolationStatus`, `loadNetworkResource`, `overrideNetworkState`, `replayXHR`, `searchInResponseBody`, `setAcceptedEncodings`, `setAttachDebugStack`, `setBlockedURLs`, `setBypassServiceWorker`, `setCookie`, `setCookieControls`, `setCookies`, `setExtraHTTPHeaders`, `setRequestInterception`, `setUserAgentOverride`, `streamResourceContent`, `takeResponseBodyForInterceptionAsStream`
+* **Standard Supported (21)**: `canClearBrowserCache`, `canClearBrowserCookies`, `canEmulateNetworkConditions`, `clearAcceptedEncodingsOverride`, `clearBrowserCache`, `clearBrowserCookies`, `deleteCookies`, `disable`, `emulateNetworkConditions`, `enable`, `getAllCookies`, `getCookies`, `getResponseBody`, `setAcceptedEncodings`, `setBlockedURLs`, `setCacheDisabled`, `setCookie`, `setCookies`, `setExtraHTTPHeaders`, `setRequestInterception`, `setUserAgentOverride`
+* **Missing Standard (20)**: `configureDurableMessages`, `continueInterceptedRequest`, `deleteDeviceBoundSession`, `emulateNetworkConditionsByRule`, `enableDeviceBoundSessions`, `enableReportingApi`, `fetchSchemefulSite`, `getCertificate`, `getRequestPostData`, `getResponseBodyForInterception`, `getSecurityIsolationStatus`, `loadNetworkResource`, `overrideNetworkState`, `replayXHR`, `searchInResponseBody`, `setAttachDebugStack`, `setBypassServiceWorker`, `setCookieControls`, `streamResourceContent`, `takeResponseBodyForInterceptionAsStream`
 
 ### Overlay
 
-* **Standard Supported (6)**: `disable`, `enable`, `hideHighlight`, `highlightNode`, `highlightRect`, `setInspectMode`
-* **Missing Standard (24)**: `getGridHighlightObjectsForTest`, `getHighlightObjectForTest`, `getSourceOrderHighlightObjectForTest`, `highlightFrame`, `highlightQuad`, `highlightSourceOrder`, `setPausedInDebuggerMessage`, `setShowAdHighlights`, `setShowContainerQueryOverlays`, `setShowDebugBorders`, `setShowFlexOverlays`, `setShowFPSCounter`, `setShowGridOverlays`, `setShowHinge`, `setShowHitTestBorders`, `setShowInspectedElementAnchor`, `setShowIsolatedElements`, `setShowLayoutShiftRegions`, `setShowPaintRects`, `setShowScrollBottleneckRects`, `setShowScrollSnapOverlays`, `setShowViewportSizeOnResize`, `setShowWebVitals`, `setShowWindowControlsOverlay`
+* **Standard Supported (13)**: `disable`, `enable`, `hideHighlight`, `highlightNode`, `highlightRect`, `setInspectMode`, `setPausedInDebuggerMessage`, `setShowDebugBorders`, `setShowFlexOverlays`, `setShowFPSCounter`, `setShowGridOverlays`, `setShowPaintRects`, `setShowViewportSizeOnResize`
+* **Missing Standard (17)**: `getGridHighlightObjectsForTest`, `getHighlightObjectForTest`, `getSourceOrderHighlightObjectForTest`, `highlightFrame`, `highlightQuad`, `highlightSourceOrder`, `setShowAdHighlights`, `setShowContainerQueryOverlays`, `setShowHinge`, `setShowHitTestBorders`, `setShowInspectedElementAnchor`, `setShowIsolatedElements`, `setShowLayoutShiftRegions`, `setShowScrollBottleneckRects`, `setShowScrollSnapOverlays`, `setShowWebVitals`, `setShowWindowControlsOverlay`
 
 ### Page
 
-* **Standard Supported (12)**: `bringToFront`, `captureScreenshot`, `disable`, `enable`, `getLayoutMetrics`, `getResourceContent`, `getResourceTree`, `navigate`, `reload`, `screencastFrameAck`, `startScreencast`, `stopScreencast`
-* **Missing Standard (49)**: `addCompilationCache`, `addScriptToEvaluateOnLoad`, `addScriptToEvaluateOnNewDocument`, `captureSnapshot`, `clearCompilationCache`, `clearDeviceMetricsOverride`, `clearDeviceOrientationOverride`, `clearGeolocationOverride`, `close`, `crash`, `createIsolatedWorld`, `deleteCookie`, `generateTestReport`, `getAdScriptAncestry`, `getAnnotatedPageContent`, `getAppId`, `getAppManifest`, `getFrameTree`, `getInstallabilityErrors`, `getManifestIcons`, `getNavigationHistory`, `getOriginTrials`, `getPermissionsPolicyState`, `handleJavaScriptDialog`, `navigateToHistoryEntry`, `printToPDF`, `produceCompilationCache`, `removeScriptToEvaluateOnLoad`, `removeScriptToEvaluateOnNewDocument`, `resetNavigationHistory`, `searchInResource`, `setAdBlockingEnabled`, `setBypassCSP`, `setDeviceMetricsOverride`, `setDeviceOrientationOverride`, `setDocumentContent`, `setDownloadBehavior`, `setFontFamilies`, `setFontSizes`, `setGeolocationOverride`, `setInterceptFileChooserDialog`, `setLifecycleEventsEnabled`, `setPrerenderingAllowed`, `setRPHRegistrationMode`, `setSPCTransactionMode`, `setTouchEmulationEnabled`, `setWebLifecycleState`, `stopLoading`, `waitForDebugger`
+* **Standard Supported (29)**: `addScriptToEvaluateOnNewDocument`, `bringToFront`, `captureScreenshot`, `clearDeviceMetricsOverride`, `clearDeviceOrientationOverride`, `clearGeolocationOverride`, `disable`, `enable`, `getAppManifest`, `getFrameTree`, `getLayoutMetrics`, `getNavigationHistory`, `getResourceContent`, `getResourceTree`, `navigate`, `reload`, `removeScriptToEvaluateOnNewDocument`, `screencastFrameAck`, `setAdBlockingEnabled`, `setBypassCSP`, `setDeviceMetricsOverride`, `setDeviceOrientationOverride`, `setFontFamilies`, `setFontSizes`, `setGeolocationOverride`, `setLifecycleEventsEnabled`, `setTouchEmulationEnabled`, `startScreencast`, `stopScreencast`
+* **Missing Standard (32)**: `addCompilationCache`, `addScriptToEvaluateOnLoad`, `captureSnapshot`, `clearCompilationCache`, `close`, `crash`, `createIsolatedWorld`, `deleteCookie`, `generateTestReport`, `getAdScriptAncestry`, `getAnnotatedPageContent`, `getAppId`, `getInstallabilityErrors`, `getManifestIcons`, `getOriginTrials`, `getPermissionsPolicyState`, `handleJavaScriptDialog`, `navigateToHistoryEntry`, `printToPDF`, `produceCompilationCache`, `removeScriptToEvaluateOnLoad`, `resetNavigationHistory`, `searchInResource`, `setDocumentContent`, `setDownloadBehavior`, `setInterceptFileChooserDialog`, `setPrerenderingAllowed`, `setRPHRegistrationMode`, `setSPCTransactionMode`, `setWebLifecycleState`, `stopLoading`, `waitForDebugger`
 
 ### Performance
 
@@ -275,8 +273,8 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Runtime
 
-* **Standard Supported (10)**: `callFunctionOn`, `disable`, `discardConsoleEntries`, `enable`, `evaluate`, `getHeapUsage`, `getIsolateId`, `getProperties`, `releaseObject`, `releaseObjectGroup`
-* **Missing Standard (13)**: `addBinding`, `awaitPromise`, `compileScript`, `getExceptionDetails`, `globalLexicalScopeNames`, `queryObjects`, `removeBinding`, `runIfWaitingForDebugger`, `runScript`, `setAsyncCallStackDepth`, `setCustomObjectFormatterEnabled`, `setMaxCallStackSizeToCapture`, `terminateExecution`
+* **Standard Supported (16)**: `addBinding`, `callFunctionOn`, `disable`, `discardConsoleEntries`, `enable`, `evaluate`, `getHeapUsage`, `getIsolateId`, `getProperties`, `releaseObject`, `releaseObjectGroup`, `removeBinding`, `runIfWaitingForDebugger`, `setAsyncCallStackDepth`, `setCustomObjectFormatterEnabled`, `setMaxCallStackSizeToCapture`
+* **Missing Standard (7)**: `awaitPromise`, `compileScript`, `getExceptionDetails`, `globalLexicalScopeNames`, `queryObjects`, `runScript`, `terminateExecution`
 
 ### Schema
 
@@ -308,8 +306,8 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Target
 
-* **Standard Supported (4)**: `getTargetInfo`, `getTargets`, `setAutoAttach`, `setDiscoverTargets`
-* **Missing Standard (15)**: `activateTarget`, `attachToBrowserTarget`, `attachToTarget`, `autoAttachRelated`, `closeTarget`, `createBrowserContext`, `createTarget`, `detachFromTarget`, `disposeBrowserContext`, `exposeDevToolsProtocol`, `getBrowserContexts`, `getDevToolsTarget`, `openDevTools`, `sendMessageToTarget`, `setRemoteLocations`
+* **Standard Supported (11)**: `activateTarget`, `attachToTarget`, `closeTarget`, `createTarget`, `detachFromTarget`, `exposeDevToolsProtocol`, `getTargetInfo`, `getTargets`, `sendMessageToTarget`, `setAutoAttach`, `setDiscoverTargets`
+* **Missing Standard (8)**: `attachToBrowserTarget`, `autoAttachRelated`, `createBrowserContext`, `disposeBrowserContext`, `getBrowserContexts`, `getDevToolsTarget`, `openDevTools`, `setRemoteLocations`
 
 ### Tethering
 
