@@ -35,6 +35,7 @@
                         </StackPanel>
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                             <Button Name="btnFocus" Command="{Binding Elements.FocusSelectedNodeCommand}" Content="Scroll Into View" Height="28" Padding="10,0"/>
+                            <CheckBox Name="chkVisualTree" IsChecked="{Binding Elements.ShowVisualTree, Mode=TwoWay}" IsEnabled="{Binding Connection.IsConnected}" Content="Visual Tree Mode" FontSize="11" Margin="5,0" VerticalAlignment="Center"/>
                             <CheckBox Name="chkHighlight" IsChecked="{Binding Elements.IsHighlightActive, Mode=TwoWay}" IsEnabled="{Binding Connection.IsConnected}" Content="Inspect Highlight" FontSize="11" Margin="5,0" VerticalAlignment="Center"/>
                             <Button Name="btnDeleteControl" Command="{Binding Elements.DeleteSelectedNodeCommand}" Content="Delete Element" Height="28" Padding="10,0" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c"/>
                         </StackPanel>

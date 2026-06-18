@@ -512,12 +512,16 @@ public class CdpChromeFeatureTests
         var insertedMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
         Assert.NotNull(insertedMsg);
         Assert.Contains("myNewBtn", insertedMsg);
+        Assert.Contains("parentNodeId", insertedMsg);
+        Assert.DoesNotContain("parentId", insertedMsg);
 
         panel.Children.Remove(button);
         await Task.Delay(100);
 
         var removedMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeRemoved"));
         Assert.NotNull(removedMsg);
+        Assert.Contains("parentNodeId", removedMsg);
+        Assert.DoesNotContain("parentId", removedMsg);
 
         session.StopObservingVisualTree();
         window.Close();
@@ -667,6 +671,249 @@ public class CdpChromeFeatureTests
         {
             await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
         });
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestLogicalTreeModePierceFalse()
+    {
+        var button = new Button { Content = "Test Button", Name = "myButton" };
+        var panel = new StackPanel
+        {
+            Children = { button }
+        };
+        var window = new Window
+        {
+            Title = "Logical Tree Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Get document with pierce: false (Logical Tree Mode)
+        var docParams = new JsonObject { ["depth"] = -1, ["pierce"] = false };
+        var docResult = await DomDomain.HandleAsync(session, "getDocument", docParams);
+        Assert.NotNull(docResult);
+        Assert.True(session.UseLogicalTree);
+
+        var root = docResult["root"] as JsonObject;
+        Assert.NotNull(root);
+
+        // Let's verify outerHTML is representing logical tree only
+        var windowNode = root["children"]?[0] as JsonObject;
+        Assert.NotNull(windowNode);
+
+        // Retrieve outerHTML of the window under logical mode
+        var htmlParams = new JsonObject { ["nodeId"] = session.NodeMap.GetOrAdd(window) };
+        var htmlResult = await DomDomain.HandleAsync(session, "getOuterHTML", htmlParams);
+        Assert.NotNull(htmlResult);
+        string html = htmlResult["outerHTML"]?.GetValue<string>() ?? "";
+        
+        // Logical tree should have: Window, StackPanel, Button
+        // BUT it must NOT contain visual template parts like ContentPresenter, Border, VisualLayerManager etc.
+        Assert.Contains("<Window", html);
+        Assert.Contains("<StackPanel", html);
+        Assert.Contains("<Button", html);
+        Assert.DoesNotContain("ContentPresenter", html);
+        Assert.DoesNotContain("Border", html);
+        Assert.DoesNotContain("VisualLayerManager", html);
+
+        // 2. DOM.querySelector should work with logical path/selector
+        var queryParams = new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "Window > StackPanel > Button"
+        };
+        var queryResult = await DomDomain.HandleAsync(session, "querySelector", queryParams);
+        Assert.NotNull(queryResult);
+        int matchedNodeId = queryResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.True(matchedNodeId > 0);
+        var matchedVisual = session.NodeMap.GetVisual(matchedNodeId);
+        Assert.Same(button, matchedVisual);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestLogicalTreeNotifications()
+    {
+        var panel = new StackPanel();
+        var window = new Window
+        {
+            Title = "Logical Notifications Window",
+            Content = panel
+        };
+        window.Show();
+
+        var fakeWs = new FakeWebSocket();
+        var sessionWithFake = new CdpSession(fakeWs, window);
+        sessionWithFake.UseLogicalTree = true;
+        sessionWithFake.StartObservingVisualTree();
+
+        // Add a logical child
+        var button = new Button { Name = "newBtn" };
+        panel.Children.Add(button);
+
+        // Wait a tiny bit for UI thread
+        await Task.Delay(100);
+
+        // Verify we received childNodeInserted
+        var insertedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
+        Assert.NotNull(insertedEvent);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestSwitchTreeModeRestartsObservers()
+    {
+        var panel = new StackPanel();
+        var window = new Window
+        {
+            Title = "Switch Mode Test Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // Start observing in Visual Tree Mode (default)
+        await DomDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.True(session.IsDomEnabled);
+        Assert.False(session.UseLogicalTree);
+
+        // Switch to Logical Tree Mode by calling getDocument with pierce: false
+        await DomDomain.HandleAsync(session, "getDocument", new JsonObject { ["pierce"] = false });
+        Assert.True(session.IsDomEnabled);
+        Assert.True(session.UseLogicalTree);
+
+        // Clear sent messages
+        fakeWs.SentMessages.Clear();
+
+        // Add a child
+        var button = new Button { Name = "newBtn" };
+        panel.Children.Add(button);
+
+        // Wait a tiny bit for UI thread
+        await Task.Delay(100);
+
+        // Verify we received childNodeInserted
+        var insertedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
+        Assert.NotNull(insertedEvent);
+
+        session.StopObservingVisualTree();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void TestFindLogicalNodeResolution()
+    {
+        var panel = new StackPanel();
+        var button = new Button { Content = "Test" };
+        panel.Children.Add(button);
+
+        var window = new Window { Content = panel };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        window.UpdateLayout();
+
+        var textBlock = button.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault();
+        Assert.NotNull(textBlock);
+
+        var resolvedTb = session.FindLogicalNode(textBlock);
+        Assert.Same(button, resolvedTb);
+
+        window.Close();
+    }
+
+    private class NonVisualLogicalNode : StyledElement
+    {
+        public void AddLogicalChild(Avalonia.LogicalTree.ILogical child)
+        {
+            LogicalChildren.Add(child);
+        }
+
+        public void RemoveLogicalChild(Avalonia.LogicalTree.ILogical child)
+        {
+            LogicalChildren.Remove(child);
+        }
+    }
+
+    [AvaloniaFact]
+    public void TestLogicalVisualChildrenWithNonVisualLogicalNode()
+    {
+        var host = new NonVisualLogicalNode();
+        var button = new Button { Name = "btnUnderHost" };
+        host.AddLogicalChild(button);
+
+        var results = System.Linq.Enumerable.ToList(CdpSession.GetLogicalVisualChildren(host));
+        Assert.Single(results);
+        Assert.Same(button, results[0]);
+    }
+
+    private class LogicalStackPanel : StackPanel
+    {
+        public void AddLogicalChild(Avalonia.LogicalTree.ILogical child)
+        {
+            LogicalChildren.Add(child);
+        }
+
+        public void RemoveLogicalChild(Avalonia.LogicalTree.ILogical child)
+        {
+            LogicalChildren.Remove(child);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TestLogicalTreeNotificationsWithNonVisualLogicalNode()
+    {
+        var panel = new LogicalStackPanel();
+        var host = new NonVisualLogicalNode();
+        panel.AddLogicalChild(host);
+
+        var window = new Window
+        {
+            Title = "Logical Notifications NonVisual Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+        session.UseLogicalTree = true;
+        session.StartObservingVisualTree();
+
+        // Dynamically add a button inside the non-visual logical host
+        var button = new Button { Name = "btnUnderHost" };
+        host.AddLogicalChild(button);
+
+        // Wait a tiny bit for UI thread
+        await Task.Delay(100);
+
+        // Verify we received childNodeInserted
+        var insertedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
+        Assert.NotNull(insertedEvent);
+        Assert.Contains("btnUnderHost", insertedEvent);
+
+        // Clear sent messages
+        fakeWs.SentMessages.Clear();
+
+        // Dynamically remove the button
+        host.RemoveLogicalChild(button);
+
+        // Wait a tiny bit for UI thread
+        await Task.Delay(100);
+
+        // Verify we received childNodeRemoved
+        var removedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeRemoved"));
+        Assert.NotNull(removedEvent);
 
         window.Close();
     }
