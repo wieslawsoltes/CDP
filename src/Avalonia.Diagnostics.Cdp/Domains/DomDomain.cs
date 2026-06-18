@@ -767,7 +767,16 @@ public static class DomDomain
     {
         if (session.UseLogicalTree)
         {
-            return (visual as ILogical)?.LogicalParent as Visual;
+            var current = (visual as ILogical)?.LogicalParent;
+            while (current != null)
+            {
+                if (current is Visual v)
+                {
+                    return v;
+                }
+                current = current.LogicalParent;
+            }
+            return null;
         }
         return visual.GetVisualParent();
     }
