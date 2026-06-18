@@ -101,6 +101,14 @@ public class CdpIntegrationTests
                     Assert.NotNull(rootNode);
                     Assert.Equal("#document", rootNode["nodeName"]?.GetValue<string>());
 
+                    var children = rootNode["children"] as JsonArray;
+                    Assert.NotNull(children);
+                    Assert.NotEmpty(children);
+                    var windowNode = children[0] as JsonObject;
+                    Assert.NotNull(windowNode);
+                    Assert.Equal("Window", windowNode["nodeName"]?.GetValue<string>());
+                    Assert.Equal("Window", windowNode["localName"]?.GetValue<string>());
+
                     // Close websocket connection
                     Console.WriteLine("INTEGRATION_TEST_CLIENT: Closing websocket");
                     await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
