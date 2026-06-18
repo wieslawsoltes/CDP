@@ -72,6 +72,30 @@ public static class CdpDispatcher
                 return await SchemaDomain.HandleAsync(session, action, @params);
             case "Recorder":
                 return await RecorderDomain.HandleAsync(session, action, @params);
+            case "Inspector":
+                return await InspectorDomain.HandleAsync(session, action, @params);
+            case "Media":
+                return await MediaDomain.HandleAsync(session, action, @params);
+            case "EventBreakpoints":
+                return await EventBreakpointsDomain.HandleAsync(session, action, @params);
+            case "DeviceOrientation":
+                return await DeviceOrientationDomain.HandleAsync(session, action, @params);
+            case "Ads":
+                return await AdsDomain.HandleAsync(session, action, @params);
+            case "Autofill":
+                return await AutofillDomain.HandleAsync(session, action, @params);
+            case "BackgroundService":
+                return await BackgroundServiceDomain.HandleAsync(session, action, @params);
+            case "Cast":
+                return await CastDomain.HandleAsync(session, action, @params);
+            case "DeviceAccess":
+                return await DeviceAccessDomain.HandleAsync(session, action, @params);
+            case "FileSystem":
+                return await FileSystemDomain.HandleAsync(session, action, @params);
+            case "CrashReportContext":
+                return await CrashReportContextDomain.HandleAsync(session, action, @params);
+            case "PerformanceTimeline":
+                return await PerformanceTimelineDomain.HandleAsync(session, action, @params);
             default:
                 if (action == "enable" || action == "disable")
                 {

@@ -1,58 +1,58 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-18 07:31:31 UTC
+Generated on: 2026-06-18 08:02:44 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 
 ## Summary
 
-* **Total Standard CDP Methods Supported**: 202 / 668 (30,2%)
+* **Total Standard CDP Methods Supported**: 233 / 668 (34,9%)
 * **Total Custom/Extension Methods Supported**: 11
 
 | Domain | Status / Coverage | Standard Supported | Custom Extensions | Missing Standard |
 | :--- | :--- | :--- | :--- | :--- |
 | **Accessibility** | Fully Compliant | 8 | 1 | 0 |
-| **Ads** | Unsupported | 0 | 0 | 1 |
+| **Ads** | Fully Compliant | 1 | 0 | 0 |
 | **Animation** | Unsupported | 0 | 0 | 10 |
 | **Application** | Custom Domain (3 actions) | 0 | 3 | 0 |
 | **Audits** | Unsupported | 0 | 0 | 4 |
-| **Autofill** | Unsupported | 0 | 0 | 4 |
-| **BackgroundService** | Unsupported | 0 | 0 | 4 |
+| **Autofill** | Fully Compliant | 4 | 0 | 0 |
+| **BackgroundService** | Fully Compliant | 4 | 0 | 0 |
 | **BluetoothEmulation** | Unsupported | 0 | 0 | 15 |
 | **Browser** | 12/20 (60,0%) | 12 | 0 | 8 |
 | **CacheStorage** | Unsupported | 0 | 0 | 5 |
-| **Cast** | Unsupported | 0 | 0 | 6 |
+| **Cast** | Fully Compliant | 6 | 0 | 0 |
 | **Console** | Fully Compliant | 3 | 0 | 0 |
-| **CrashReportContext** | Unsupported | 0 | 0 | 1 |
+| **CrashReportContext** | Fully Compliant | 1 | 0 | 0 |
 | **CSS** | 7/39 (17,9%) | 7 | 0 | 32 |
 | **Debugger** | Unsupported | 0 | 0 | 33 |
-| **DeviceAccess** | Unsupported | 0 | 0 | 4 |
-| **DeviceOrientation** | Unsupported | 0 | 0 | 2 |
+| **DeviceAccess** | Fully Compliant | 4 | 0 | 0 |
+| **DeviceOrientation** | Fully Compliant | 2 | 0 | 0 |
 | **DOM** | 26/53 (49,1%) | 26 | 0 | 27 |
 | **DOMDebugger** | Fully Compliant | 10 | 0 | 0 |
 | **DOMSnapshot** | Unsupported | 0 | 0 | 4 |
 | **DOMStorage** | Unsupported | 0 | 0 | 6 |
 | **Emulation** | 21/47 (44,7%) | 21 | 1 | 26 |
-| **EventBreakpoints** | Unsupported | 0 | 0 | 3 |
+| **EventBreakpoints** | Fully Compliant | 3 | 0 | 0 |
 | **Extensions** | Unsupported | 0 | 0 | 8 |
 | **FedCm** | Unsupported | 0 | 0 | 7 |
 | **Fetch** | Unsupported | 0 | 0 | 9 |
-| **FileSystem** | Unsupported | 0 | 0 | 1 |
+| **FileSystem** | Fully Compliant | 1 | 0 | 0 |
 | **HeadlessExperimental** | Unsupported | 0 | 0 | 3 |
 | **HeapProfiler** | Unsupported | 0 | 0 | 12 |
 | **IndexedDB** | Unsupported | 0 | 0 | 9 |
 | **Input** | 7/13 (53,8%) | 7 | 0 | 6 |
-| **Inspector** | Unsupported | 0 | 0 | 2 |
+| **Inspector** | Fully Compliant | 2 | 0 | 0 |
 | **IO** | Unsupported | 0 | 0 | 3 |
 | **LayerTree** | Unsupported | 0 | 0 | 9 |
 | **Log** | Fully Compliant | 5 | 0 | 0 |
-| **Media** | Unsupported | 0 | 0 | 2 |
+| **Media** | Fully Compliant | 2 | 0 | 0 |
 | **Memory** | 5/11 (45,5%) | 5 | 2 | 6 |
 | **Network** | 21/41 (51,2%) | 21 | 0 | 20 |
 | **Overlay** | 13/30 (43,3%) | 13 | 0 | 17 |
 | **Page** | 29/61 (47,5%) | 29 | 0 | 32 |
 | **Performance** | Fully Compliant | 4 | 0 | 0 |
-| **PerformanceTimeline** | Unsupported | 0 | 0 | 1 |
+| **PerformanceTimeline** | Fully Compliant | 1 | 0 | 0 |
 | **Preload** | Unsupported | 0 | 0 | 2 |
 | **Profiler** | Unsupported | 0 | 0 | 9 |
 | **PWA** | Unsupported | 0 | 0 | 7 |
@@ -81,7 +81,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Ads
 
-* **Missing Standard (1)**: `getAdMetrics`
+* **Standard Supported (1)**: `getAdMetrics`
 
 ### Animation
 
@@ -97,11 +97,11 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Autofill
 
-* **Missing Standard (4)**: `disable`, `enable`, `setAddresses`, `trigger`
+* **Standard Supported (4)**: `disable`, `enable`, `setAddresses`, `trigger`
 
 ### BackgroundService
 
-* **Missing Standard (4)**: `clearEvents`, `setRecording`, `startObserving`, `stopObserving`
+* **Standard Supported (4)**: `clearEvents`, `setRecording`, `startObserving`, `stopObserving`
 
 ### BluetoothEmulation
 
@@ -118,7 +118,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Cast
 
-* **Missing Standard (6)**: `disable`, `enable`, `setSinkToUse`, `startDesktopMirroring`, `startTabMirroring`, `stopCasting`
+* **Standard Supported (6)**: `disable`, `enable`, `setSinkToUse`, `startDesktopMirroring`, `startTabMirroring`, `stopCasting`
 
 ### Console
 
@@ -126,7 +126,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### CrashReportContext
 
-* **Missing Standard (1)**: `getEntries`
+* **Standard Supported (1)**: `getEntries`
 
 ### CSS
 
@@ -139,11 +139,11 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### DeviceAccess
 
-* **Missing Standard (4)**: `cancelPrompt`, `disable`, `enable`, `selectPrompt`
+* **Standard Supported (4)**: `cancelPrompt`, `disable`, `enable`, `selectPrompt`
 
 ### DeviceOrientation
 
-* **Missing Standard (2)**: `clearDeviceOrientationOverride`, `setDeviceOrientationOverride`
+* **Standard Supported (2)**: `clearDeviceOrientationOverride`, `setDeviceOrientationOverride`
 
 ### DOM
 
@@ -170,7 +170,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### EventBreakpoints
 
-* **Missing Standard (3)**: `disable`, `removeInstrumentationBreakpoint`, `setInstrumentationBreakpoint`
+* **Standard Supported (3)**: `disable`, `removeInstrumentationBreakpoint`, `setInstrumentationBreakpoint`
 
 ### Extensions
 
@@ -186,7 +186,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### FileSystem
 
-* **Missing Standard (1)**: `getDirectory`
+* **Standard Supported (1)**: `getDirectory`
 
 ### HeadlessExperimental
 
@@ -207,7 +207,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Inspector
 
-* **Missing Standard (2)**: `disable`, `enable`
+* **Standard Supported (2)**: `disable`, `enable`
 
 ### IO
 
@@ -223,7 +223,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Media
 
-* **Missing Standard (2)**: `disable`, `enable`
+* **Standard Supported (2)**: `disable`, `enable`
 
 ### Memory
 
@@ -252,7 +252,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### PerformanceTimeline
 
-* **Missing Standard (1)**: `enable`
+* **Standard Supported (1)**: `enable`
 
 ### Preload
 

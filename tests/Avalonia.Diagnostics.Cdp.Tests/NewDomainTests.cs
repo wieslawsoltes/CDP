@@ -475,4 +475,32 @@ public class NewDomainTests
         Assert.NotNull(attachRes);
         Assert.Equal("session-1", attachRes["sessionId"]?.GetValue<string>());
     }
+
+    [AvaloniaFact]
+    public async Task TestRound5ComplianceDomains()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        Assert.NotNull(await InspectorDomain.HandleAsync(session, "enable", new JsonObject()));
+        Assert.NotNull(await MediaDomain.HandleAsync(session, "enable", new JsonObject()));
+        Assert.NotNull(await EventBreakpointsDomain.HandleAsync(session, "disable", new JsonObject()));
+        Assert.NotNull(await DeviceOrientationDomain.HandleAsync(session, "clearDeviceOrientationOverride", new JsonObject()));
+        
+        var adsRes = await AdsDomain.HandleAsync(session, "getAdMetrics", new JsonObject());
+        Assert.NotNull(adsRes);
+        Assert.NotNull(adsRes["pubsubMetrics"]);
+
+        Assert.NotNull(await AutofillDomain.HandleAsync(session, "enable", new JsonObject()));
+        Assert.NotNull(await BackgroundServiceDomain.HandleAsync(session, "startObserving", new JsonObject()));
+        Assert.NotNull(await CastDomain.HandleAsync(session, "enable", new JsonObject()));
+        Assert.NotNull(await DeviceAccessDomain.HandleAsync(session, "enable", new JsonObject()));
+        Assert.NotNull(await FileSystemDomain.HandleAsync(session, "getDirectory", new JsonObject()));
+
+        var crashRes = await CrashReportContextDomain.HandleAsync(session, "getEntries", new JsonObject());
+        Assert.NotNull(crashRes);
+        Assert.NotNull(crashRes["reportContexts"]);
+
+        Assert.NotNull(await PerformanceTimelineDomain.HandleAsync(session, "enable", new JsonObject()));
+    }
 }
