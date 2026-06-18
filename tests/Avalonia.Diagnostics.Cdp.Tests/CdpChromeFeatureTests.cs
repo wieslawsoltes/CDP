@@ -766,6 +766,48 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestSwitchTreeModeRestartsObservers()
+    {
+        var panel = new StackPanel();
+        var window = new Window
+        {
+            Title = "Switch Mode Test Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // Start observing in Visual Tree Mode (default)
+        await DomDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.True(session.IsDomEnabled);
+        Assert.False(session.UseLogicalTree);
+
+        // Switch to Logical Tree Mode by calling getDocument with pierce: false
+        await DomDomain.HandleAsync(session, "getDocument", new JsonObject { ["pierce"] = false });
+        Assert.True(session.IsDomEnabled);
+        Assert.True(session.UseLogicalTree);
+
+        // Clear sent messages
+        fakeWs.SentMessages.Clear();
+
+        // Add a child
+        var button = new Button { Name = "newBtn" };
+        panel.Children.Add(button);
+
+        // Wait a tiny bit for UI thread
+        await Task.Delay(100);
+
+        // Verify we received childNodeInserted
+        var insertedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
+        Assert.NotNull(insertedEvent);
+
+        session.StopObservingVisualTree();
+        window.Close();
+    }
 }
 
 public class FakeWebSocket : System.Net.WebSockets.WebSocket

@@ -29,7 +29,24 @@ public class CdpSession
     public ConcurrentDictionary<string, object> RemoteObjects { get; } = new();
     public int InspectedNodeId { get; set; } = 0;
     public bool DiscoverTargetsEnabled { get; set; }
-    public bool UseLogicalTree { get; set; } = false;
+    public bool IsDomEnabled { get; private set; }
+
+    private bool _useLogicalTree = false;
+    public bool UseLogicalTree
+    {
+        get => _useLogicalTree;
+        set
+        {
+            if (_useLogicalTree != value)
+            {
+                _useLogicalTree = value;
+                if (IsDomEnabled)
+                {
+                    StartObservingVisualTree();
+                }
+            }
+        }
+    }
     private int _nextObjectId = 1;
 
     private bool _inspectModeEnabled;
@@ -386,6 +403,7 @@ public class CdpSession
             return;
         }
         StopObservingVisualTree();
+        IsDomEnabled = true;
         SubscribeToVisual(Window);
     }
 
@@ -396,6 +414,7 @@ public class CdpSession
             Dispatcher.UIThread.Post(StopObservingVisualTree);
             return;
         }
+        IsDomEnabled = false;
         foreach (var pair in _collectionHandlers)
         {
             try { pair.Value.Observable.CollectionChanged -= pair.Value.Handler; } catch { }
