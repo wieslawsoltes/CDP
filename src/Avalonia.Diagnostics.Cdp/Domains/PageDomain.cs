@@ -40,41 +40,7 @@ public static class PageDomain
 
                     try
                     {
-                        var files = Directory.GetFiles(workspaceRoot, "*.*", SearchOption.AllDirectories);
-                        foreach (var file in files)
-                        {
-                            if (ShouldExclude(file)) continue;
-
-                            var ext = Path.GetExtension(file).ToLowerInvariant();
-                            if (ext == ".cs" || ext == ".axaml" || ext == ".md" || ext == ".json" || ext == ".csproj")
-                            {
-                                var relativePath = Path.GetRelativePath(workspaceRoot, file).Replace('\\', '/');
-                                var url = $"http://{host}/workspace/{relativePath}";
-                                var type = ext switch
-                                {
-                                    ".cs" => "Script",
-                                    ".axaml" => "Document",
-                                    ".md" => "Document",
-                                    ".json" => "Document",
-                                    _ => "Other"
-                                };
-                                var mimeType = ext switch
-                                {
-                                    ".cs" => "text/x-csharp",
-                                    ".axaml" => "text/xml",
-                                    ".md" => "text/markdown",
-                                    ".json" => "application/json",
-                                    _ => "text/plain"
-                                };
-
-                                resourcesArray.Add(new JsonObject
-                                {
-                                    ["url"] = url,
-                                    ["type"] = type,
-                                    ["mimeType"] = mimeType
-                                });
-                            }
-                        }
+                        await Task.Run(() => ScanResourcesRecursive(workspaceRoot, workspaceRoot, host, resourcesArray));
                     }
                     catch (Exception ex)
                     {
@@ -280,5 +246,61 @@ public static class PageDomain
                               || s.Equals("obj", StringComparison.OrdinalIgnoreCase)
                               || s.Equals(".git", StringComparison.OrdinalIgnoreCase)
                               || s.Equals("node_modules", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void ScanResourcesRecursive(string dir, string workspaceRoot, string host, JsonArray resourcesArray)
+    {
+        string dirName = Path.GetFileName(dir);
+        if (dirName.Equals("bin", StringComparison.OrdinalIgnoreCase)
+            || dirName.Equals("obj", StringComparison.OrdinalIgnoreCase)
+            || dirName.Equals(".git", StringComparison.OrdinalIgnoreCase)
+            || dirName.Equals(".vs", StringComparison.OrdinalIgnoreCase)
+            || dirName.Equals(".idea", StringComparison.OrdinalIgnoreCase)
+            || dirName.Equals("node_modules", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var file in Directory.GetFiles(dir))
+            {
+                var ext = Path.GetExtension(file).ToLowerInvariant();
+                if (ext == ".cs" || ext == ".axaml" || ext == ".md" || ext == ".json" || ext == ".csproj")
+                {
+                    var relativePath = Path.GetRelativePath(workspaceRoot, file).Replace('\\', '/');
+                    var url = $"http://{host}/workspace/{relativePath}";
+                    var type = ext switch
+                    {
+                        ".cs" => "Script",
+                        ".axaml" => "Document",
+                        ".md" => "Document",
+                        ".json" => "Document",
+                        _ => "Other"
+                    };
+                    var mimeType = ext switch
+                    {
+                        ".cs" => "text/x-csharp",
+                        ".axaml" => "text/xml",
+                        ".md" => "text/markdown",
+                        ".json" => "application/json",
+                        _ => "text/plain"
+                    };
+
+                    resourcesArray.Add(new JsonObject
+                    {
+                        ["url"] = url,
+                        ["type"] = type,
+                        ["mimeType"] = mimeType
+                    });
+                }
+            }
+
+            foreach (var subDir in Directory.GetDirectories(dir))
+            {
+                ScanResourcesRecursive(subDir, workspaceRoot, host, resourcesArray);
+            }
+        }
+        catch { }
     }
 }
