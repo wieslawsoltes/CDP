@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -487,6 +488,99 @@ public class CdpIntegrationTests
                 var removeRes = await SendJsonAndReceiveAsync(ws, "DOM.removeNode", new JsonObject { ["nodeId"] = btnNodeId });
                 Assert.NotNull(removeRes);
                 Assert.False(removeRes.ContainsKey("error"));
+
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
+            });
+
+            while (!clientTask.IsCompleted)
+            {
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            clientTask.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            CdpServer.Stop();
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void TestAccessibilityAutomationTreeAndProperties()
+    {
+        var checkBox = new CheckBox { Name = "chkOption", IsChecked = true };
+        var slider = new Slider { Name = "sldValue", Minimum = 10, Maximum = 100, Value = 42 };
+        var textBox = new TextBox { Name = "txtInput", Text = "Automation test!" };
+        AutomationProperties.SetIsRequiredForForm(textBox, true);
+
+        var panel = new StackPanel { Children = { checkBox, slider, textBox } };
+        var window = new Window { Title = "AX Integration Window", Content = panel };
+        window.Show();
+
+        var id = CdpServer.Register(window, "AX Window");
+        int port = GetFreePort() + 4;
+
+        try
+        {
+            CdpServer.Start(port);
+
+            var clientTask = Task.Run(async () =>
+            {
+                using var ws = new ClientWebSocket();
+                var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
+                await ws.ConnectAsync(uri, CancellationToken.None);
+
+                // 1. Get Document to populate node map
+                await SendJsonAndReceiveAsync(ws, "DOM.getDocument", new JsonObject { ["pierce"] = true });
+
+                // 2. Query selector for TextBox to get its DOM nodeId
+                var qRes = await SendJsonAndReceiveAsync(ws, "DOM.querySelector", new JsonObject
+                {
+                    ["nodeId"] = 1,
+                    ["selector"] = "TextBox"
+                });
+                int txtNodeId = qRes["result"]?["nodeId"]?.GetValue<int>() ?? 0;
+                Assert.True(txtNodeId > 1);
+
+                // 3. Get Full AX Tree
+                var fullAXRes = await SendJsonAndReceiveAsync(ws, "Accessibility.getFullAXTree", new JsonObject());
+                var nodes = fullAXRes["result"]?["nodes"] as JsonArray;
+                Assert.NotNull(nodes);
+                Assert.NotEmpty(nodes);
+
+                // Find the TextBox node in full AX tree
+                var txtAXNode = nodes.FirstOrDefault(n => n?["backendDOMNodeId"]?.GetValue<int>() == txtNodeId) as JsonObject;
+                Assert.NotNull(txtAXNode);
+                var tbProps = txtAXNode["properties"] as JsonArray;
+                Assert.NotNull(tbProps);
+                var reqProp = tbProps.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "required");
+                Assert.NotNull(reqProp);
+                Assert.True(reqProp["value"]?["value"]?.GetValue<bool>());
+
+                // Find the CheckBox node in full AX tree
+                var chkAXNode = nodes.FirstOrDefault(n => n?["role"]?["value"]?.GetValue<string>() == "CheckBox") as JsonObject;
+                Assert.NotNull(chkAXNode);
+                var chkProps = chkAXNode["properties"] as JsonArray;
+                Assert.NotNull(chkProps);
+                var checkedProp = chkProps.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "checked");
+                Assert.NotNull(checkedProp);
+                Assert.Equal("true", checkedProp["value"]?["value"]?.GetValue<string>());
+
+                // 4. Test getPartialAXTree with fetchRelatives
+                var partialAXRes = await SendJsonAndReceiveAsync(ws, "Accessibility.getPartialAXTree", new JsonObject
+                {
+                    ["nodeId"] = txtNodeId,
+                    ["fetchRelatives"] = true
+                });
+                var partialNodes = partialAXRes["result"]?["nodes"] as JsonArray;
+                Assert.NotNull(partialNodes);
+                Assert.NotEmpty(partialNodes);
+
+                // Sibling slider should be included in relatives
+                var sldAXNode = partialNodes.FirstOrDefault(n => n?["role"]?["value"]?.GetValue<string>() == "Slider");
+                Assert.NotNull(sldAXNode);
 
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
             });

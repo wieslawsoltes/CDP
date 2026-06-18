@@ -18,4 +18,107 @@ public partial class MainWindow : Window
             vm.Recorder.LoadScriptContent(content);
         }
     }
+
+    public int GetSelectedTreeTabIndex()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Elements.SelectedTreeTabIndex;
+        }
+        return -1;
+    }
+
+    public void SetSelectedTreeTabIndex(int index)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Elements.SelectedTreeTabIndex = index;
+        }
+    }
+
+    public int GetSelectedDomNodeId()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Elements.SelectedNode?.NodeId ?? -1;
+        }
+        return -1;
+    }
+
+    public string? GetSelectedAxNodeId()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Elements.SelectedAxNode?.NodeId;
+        }
+        return null;
+    }
+
+    public void SelectDomNodeById(int nodeId)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Elements.SelectNodeById(nodeId);
+        }
+    }
+
+    public void SetAxSearchQuery(string query)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Elements.AxSearchQuery = query;
+        }
+    }
+
+    public void ExecuteAxSearch()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Elements.AxSearchCommand.Execute(null);
+        }
+    }
+
+    public string? GetSelectedAxNodeRole()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Elements.SelectedAxNode?.Role;
+        }
+        return null;
+    }
+
+    public int FindDomNodeId(string selector)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return FindDomNodeId(vm.Elements.RootNodes, selector);
+        }
+        return -1;
+    }
+
+    private int FindDomNodeId(System.Collections.Generic.IEnumerable<CdpInspectorApp.Models.DomNodeModel> nodes, string selector)
+    {
+        foreach (var node in nodes)
+        {
+            if (selector.StartsWith("#"))
+            {
+                string targetId = selector.Substring(1);
+                var idAttr = System.Linq.Enumerable.FirstOrDefault(node.AttributesList, a => a.Name.Equals("id", System.StringComparison.OrdinalIgnoreCase));
+                if (idAttr != null && idAttr.Value.Equals(targetId, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return node.NodeId;
+                }
+            }
+            
+            if (node.NodeName.Equals(selector, System.StringComparison.OrdinalIgnoreCase) || 
+                node.DisplayName.Equals(selector, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return node.NodeId;
+            }
+
+            int childId = FindDomNodeId(node.Children, selector);
+            if (childId != -1) return childId;
+        }
+        return -1;
+    }
 }

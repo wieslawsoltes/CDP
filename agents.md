@@ -38,11 +38,20 @@ By embedding the `CdpServer` in **both** the target application (`CdpSampleApp` 
 
 ---
 
-## Step-by-Step E2E Recording Verification Flow
+## E2E Test Automation & Verification Requirements
 
-The E2E verification sequence is located inside `scratch/ControlApp`. The flow shown below is the baseline verification sequence used to validate the core recording, loading, and replaying pipeline. **AI coding agents must customize or extend the actual verification script in `ControlApp` to target the specific deliverables of the current task (such as verifying logical tree lookups, toggle behaviors, or specific UI components).**
+> [!IMPORTANT]
+> **Mandatory Task-Specific E2E Verification Rule:**
+> The E2E verification script located in `scratch/ControlApp` is a dynamic, task-specific test harness.
+> - **DO NOT reuse static or pre-existing scenarios** (such as the default recording/replaying flow) unless the task explicitly requests it.
+> - For **every coding task**, the agent **MUST** design, write, and execute dedicated, custom E2E verification logic inside `ControlApp/Program.cs` that directly targets and tests the changes made.
+> - Programmatically trigger relevant target interactions, inspect view models, verify tab states, and assert outcomes.
+> - Add explicit assertions to confirm success conditions.
+> - The custom verifier must be executed successfully, and its log output must be included in the final walkthrough.
 
-The default verification flow operates as follows:
+### Step-by-Step E2E Verification Flow (Task-Specific Example)
+
+The sequence diagram below illustrates a customized E2E verification flow designed specifically for the accessibility and selection synchronization task (demonstrating how to structure task-specific scenarios):
 
 ```mermaid
 sequenceDiagram
@@ -55,28 +64,22 @@ sequenceDiagram
     Agent->>Inspector: Click '#btnRefreshTargets' (Scan)
     Agent->>Inspector: Click '#btnConnect' (Connects Inspector to Sample)
     Note over Inspector: Connects WS client to Sample (9222)
-    Agent->>Inspector: Click '#TabRecorder' (Switch Panel)
-    Agent->>Inspector: Click '#btnToggleRecord' (Start Recording)
-    Inspector->>Sample: Recorder.start
 
-    Agent->>Sample: DOM.enable, DOM.getDocument
-    Agent->>Sample: Click '#btnClickMe'
-    Agent->>Sample: Click '#txtInput' to focus
-    Agent->>Sample: Input.insertText("Avalonia CDP Automation!")
-    Agent->>Sample: Click '#btnClickMe' (Lost focus / text change)
-    Note over Sample: Emits events to Inspector
+    Note over Agent: --- Scenario 1: Accessibility Properties Mappings ---
+    Agent->>Sample: Accessibility.getFullAXTree
+    Note over Agent: Asserts mapped roles & properties (CheckBox, Slider, ProgressBar)
 
-    Agent->>Inspector: Click '#btnToggleRecord' (Stop Recording)
-    Inspector->>Sample: Recorder.stop
-    Agent->>Inspector: DOM.querySelector('#txtGeneratedCode')
-    Agent->>Inspector: DOM.getOuterHTML (Fetch generated code)
-    Note over Agent: Asserts Puppeteer script content
+    Note over Agent: --- Scenario 2: Partial AX Tree Relatives ---
+    Agent->>Sample: Accessibility.getPartialAXTree (nodeId=Slider, fetchRelatives=true)
+    Note over Agent: Asserts sibling/ancestor relative nodes are retrieved
 
-    Agent->>Inspector: Click '#btnClear' (Clear steps list)
-    Agent->>Inspector: Runtime.evaluate("LoadScriptContent(...)")
-    Note over Agent: Asserts parsed script is loaded in list
-    Agent->>Inspector: Click '#btnReplay' (Trigger coordinate replay)
-    Note over Inspector: Queries coordinates & clicks Sample App
+    Note over Agent: --- Scenario 3: Bidirectional Selection Sync ---
+    Agent->>Inspector: Runtime.evaluate("FindDomNodeId('#btnClickMe')") (Resolve local ID)
+    Agent->>Inspector: Runtime.evaluate("SelectDomNodeById(...)") (Select DOM node)
+    Agent->>Inspector: Runtime.evaluate("SetSelectedTreeTabIndex(1)") (Switch to AX tab)
+    Note over Inspector: Refreshes AXTree & syncs selection
+    Agent->>Inspector: Runtime.evaluate("GetSelectedAxNodeId()")
+    Note over Agent: Asserts AX Selection matches DOM Node ID
 ```
 
 ---
