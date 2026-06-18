@@ -40,7 +40,9 @@ By embedding the `CdpServer` in **both** the target application (`CdpSampleApp` 
 
 ## Step-by-Step E2E Recording Verification Flow
 
-Our verification sequence inside `scratch/ControlApp` operates as follows:
+The E2E verification sequence is located inside `scratch/ControlApp`. The flow shown below is the baseline verification sequence used to validate the core recording, loading, and replaying pipeline. **AI coding agents must customize or extend the actual verification script in `ControlApp` to target the specific deliverables of the current task (such as verifying logical tree lookups, toggle behaviors, or specific UI components).**
+
+The default verification flow operates as follows:
 
 ```mermaid
 sequenceDiagram
