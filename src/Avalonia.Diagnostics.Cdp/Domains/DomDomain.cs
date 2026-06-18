@@ -29,7 +29,7 @@ public static class DomDomain
 
             case "getDocument":
                 {
-                    bool pierce = @params["pierce"]?.GetValue<bool>() ?? true;
+                    bool pierce = @params["pierce"]?.GetValue<bool>() ?? false;
                     session.UseLogicalTree = !pierce;
                     int depth = @params["depth"]?.GetValue<int>() ?? -1;
                     var rootNode = BuildDocumentNode(session, depth);
@@ -313,7 +313,7 @@ public static class DomDomain
 
             case "getFlattenedDocument":
                 {
-                    bool pierce = @params["pierce"]?.GetValue<bool>() ?? true;
+                    bool pierce = @params["pierce"]?.GetValue<bool>() ?? false;
                     session.UseLogicalTree = !pierce;
                     int depth = @params["depth"]?.GetValue<int>() ?? -1;
                     var flatList = new List<JsonObject>();

@@ -60,7 +60,7 @@ public class CdpIntegrationTests
                     {
                         ["id"] = 1,
                         ["method"] = "DOM.getDocument",
-                        ["params"] = new JsonObject()
+                        ["params"] = new JsonObject { ["pierce"] = true }
                     };
 
                     Console.WriteLine("INTEGRATION_TEST_CLIENT: Sending DOM.getDocument request");
@@ -189,7 +189,7 @@ public class CdpIntegrationTests
                 {
                     ["id"] = 1,
                     ["method"] = "DOM.getDocument",
-                    ["params"] = new JsonObject()
+                    ["params"] = new JsonObject { ["pierce"] = true }
                 };
                 await SendJsonAsync(ws, request);
                 var response = await ReceiveJsonAsync(ws);
@@ -331,7 +331,7 @@ public class CdpIntegrationTests
                 {
                     ["id"] = 1,
                     ["method"] = "DOM.getDocument",
-                    ["params"] = new JsonObject()
+                    ["params"] = new JsonObject { ["pierce"] = true }
                 };
                 await SendJsonAsync(ws, request);
                 var response = await ReceiveJsonAsync(ws);
@@ -452,7 +452,7 @@ public class CdpIntegrationTests
                 await ws.ConnectAsync(uri, CancellationToken.None);
 
                 // 1. Get Document
-                var docRes = await SendJsonAndReceiveAsync(ws, "DOM.getDocument", new JsonObject());
+                var docRes = await SendJsonAndReceiveAsync(ws, "DOM.getDocument", new JsonObject { ["pierce"] = true });
                 
                 // 2. Query Selector for Button
                 var qRes = await SendJsonAndReceiveAsync(ws, "DOM.querySelector", new JsonObject
