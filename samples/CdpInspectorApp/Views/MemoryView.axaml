@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpInspectorApp.Views.MemoryView"
+             x:CompileBindings="False">
+    <Grid ColumnDefinitions="240, 4, *" Margin="10">
+        <!-- Left panel (Snapshots list & controls) -->
+        <Grid RowDefinitions="Auto, *" Margin="0,0,10,0">
+            <StackPanel Spacing="8" Margin="0,0,0,10">
+                <Button Name="btnTakeSnapshot" Command="{Binding Memory.TakeSnapshotCommand}" Content="Take Heap Snapshot" Classes="accent" HorizontalAlignment="Stretch"/>
+                <Button Name="btnGcCollect" Command="{Binding Memory.CollectGarbageCommand}" Content="Collect Garbage" HorizontalAlignment="Stretch" Background="#2e7d32" Foreground="White" BorderBrush="#2e7d32"/>
+            </StackPanel>
+            
+            <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <TextBlock Text="HEAP SNAPSHOTS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
+                    <ListBox Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding Memory.Snapshots}" SelectedItem="{Binding Memory.SelectedSnapshot, Mode=TwoWay}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="3">
+                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12"/>
+                                    <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss'}" Foreground="#9aa0a6" FontSize="10"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+        <!-- Right panel (Snapshot details) -->
+        <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
+            <!-- Details Header toolbar -->
+            <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,10">
+                <TextBlock Text="{Binding Memory.SelectedSnapshot.Name, FallbackValue='Select or Take a Snapshot'}" Classes="panel-header" FontSize="16" VerticalAlignment="Center"/>
+                
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <CheckBox Content="Comparison mode" IsChecked="{Binding Memory.IsComparisonMode, Mode=TwoWay}" FontSize="12" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding Memory.IsComparisonMode}">
+                        <TextBlock Text="Baseline:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                        <ComboBox ItemsSource="{Binding Memory.ComparisonBaselines}" SelectedItem="{Binding Memory.SelectedBaseline, Mode=TwoWay}" Height="28">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" FontSize="12"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- Table content -->
+            <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
+                <Grid>
+                    <!-- Summary mode list -->
+                    <Grid RowDefinitions="Auto, *" IsVisible="{Binding !Memory.IsComparisonMode}">
+                        <!-- Headers -->
+                        <Grid ColumnDefinitions="*, 120" Margin="10,5,10,5">
+                            <TextBlock Text="Control Type / Constructor" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
+                            <TextBlock Grid.Column="1" Text="Live Instances Count" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
+                        
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Memory.CurrentEntries}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*, 120" Margin="2">
+                                        <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Count}" FontSize="12" Foreground="#8ab4f8" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+
+                    <!-- Comparison mode list -->
+                    <Grid RowDefinitions="Auto, *" IsVisible="{Binding Memory.IsComparisonMode}">
+                        <!-- Headers -->
+                        <Grid ColumnDefinitions="*, 100, 100, 100" Margin="10,5,10,5">
+                            <TextBlock Text="Control Type / Constructor" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
+                            <TextBlock Grid.Column="1" Text="Baseline" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                            <TextBlock Grid.Column="2" Text="Current" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                            <TextBlock Grid.Column="3" Text="Delta" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
+                        
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Memory.ComparisonEntries}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="*, 100, 100, 100" Margin="2">
+                                        <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding BaselineCount}" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding SnapshotCount}" FontSize="12" Foreground="#e8eaed" HorizontalAlignment="Right"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding DeltaText}" FontSize="12" Foreground="#f28b82" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                    
+                    <!-- Empty state -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNull}}">
+                        <TextBlock Text="No snapshot selected" Foreground="#9aa0a6" FontSize="13" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Click 'Take Heap Snapshot' on the left to capture control instances footprint." Foreground="#5f6368" FontSize="11" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
