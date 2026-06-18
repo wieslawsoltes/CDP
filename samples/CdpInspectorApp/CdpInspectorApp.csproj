@@ -5,6 +5,19 @@
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>cdp-inspector</ToolCommandName>
+    <PackageId>CDP.Inspector</PackageId>
+    <Title>CDP Inspector</Title>
+    <Description>Chrome DevTools Protocol (CDP) client inspector for Avalonia UI applications.</Description>
+    <Authors>Wiesław Šoltés</Authors>
+    <Company>Wiesław Šoltés</Company>
+    <PackageProjectUrl>https://github.com/wieslawsoltes/CDP</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/wieslawsoltes/CDP.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,5 +29,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Avalonia.Diagnostics.Cdp\Avalonia.Diagnostics.Cdp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>
