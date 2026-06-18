@@ -22,7 +22,7 @@ public static class CdpDiagnosticsExtensions
         {
             if (e.Key == Key.F12)
             {
-                ToggleInspector(window, port);
+                ToggleInspector(window, CdpServer.Port);
                 e.Handled = true;
             }
         };
