@@ -503,4 +503,26 @@ public class NewDomainTests
 
         Assert.NotNull(await PerformanceTimelineDomain.HandleAsync(session, "enable", new JsonObject()));
     }
+
+    [AvaloniaFact]
+    public async Task TestRound6ComplianceDomains()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        Assert.NotNull(await AuditsDomain.HandleAsync(session, "enable", new JsonObject()));
+        Assert.NotNull(await DOMSnapshotDomain.HandleAsync(session, "enable", new JsonObject()));
+        
+        var storageRes = await DOMStorageDomain.HandleAsync(session, "getDOMStorageItems", new JsonObject());
+        Assert.NotNull(storageRes);
+        Assert.NotNull(storageRes["entries"]);
+
+        Assert.NotNull(await PreloadDomain.HandleAsync(session, "enable", new JsonObject()));
+
+        var audioRes = await WebAudioDomain.HandleAsync(session, "getRealtimeData", new JsonObject());
+        Assert.NotNull(audioRes);
+        Assert.NotNull(audioRes["realtimeData"]);
+
+        Assert.NotNull(await TetheringDomain.HandleAsync(session, "bind", new JsonObject()));
+    }
 }

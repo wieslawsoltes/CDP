@@ -96,6 +96,18 @@ public static class CdpDispatcher
                 return await CrashReportContextDomain.HandleAsync(session, action, @params);
             case "PerformanceTimeline":
                 return await PerformanceTimelineDomain.HandleAsync(session, action, @params);
+            case "Audits":
+                return await AuditsDomain.HandleAsync(session, action, @params);
+            case "DOMSnapshot":
+                return await DOMSnapshotDomain.HandleAsync(session, action, @params);
+            case "DOMStorage":
+                return await DOMStorageDomain.HandleAsync(session, action, @params);
+            case "Preload":
+                return await PreloadDomain.HandleAsync(session, action, @params);
+            case "WebAudio":
+                return await WebAudioDomain.HandleAsync(session, action, @params);
+            case "Tethering":
+                return await TetheringDomain.HandleAsync(session, action, @params);
             default:
                 if (action == "enable" || action == "disable")
                 {

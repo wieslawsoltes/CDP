@@ -1,12 +1,12 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-18 08:02:44 UTC
+Generated on: 2026-06-18 08:04:00 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 
 ## Summary
 
-* **Total Standard CDP Methods Supported**: 233 / 668 (34,9%)
+* **Total Standard CDP Methods Supported**: 254 / 668 (38,0%)
 * **Total Custom/Extension Methods Supported**: 11
 
 | Domain | Status / Coverage | Standard Supported | Custom Extensions | Missing Standard |
@@ -15,7 +15,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Ads** | Fully Compliant | 1 | 0 | 0 |
 | **Animation** | Unsupported | 0 | 0 | 10 |
 | **Application** | Custom Domain (3 actions) | 0 | 3 | 0 |
-| **Audits** | Unsupported | 0 | 0 | 4 |
+| **Audits** | Fully Compliant | 4 | 0 | 0 |
 | **Autofill** | Fully Compliant | 4 | 0 | 0 |
 | **BackgroundService** | Fully Compliant | 4 | 0 | 0 |
 | **BluetoothEmulation** | Unsupported | 0 | 0 | 15 |
@@ -30,8 +30,8 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **DeviceOrientation** | Fully Compliant | 2 | 0 | 0 |
 | **DOM** | 26/53 (49,1%) | 26 | 0 | 27 |
 | **DOMDebugger** | Fully Compliant | 10 | 0 | 0 |
-| **DOMSnapshot** | Unsupported | 0 | 0 | 4 |
-| **DOMStorage** | Unsupported | 0 | 0 | 6 |
+| **DOMSnapshot** | Fully Compliant | 4 | 0 | 0 |
+| **DOMStorage** | Fully Compliant | 6 | 0 | 0 |
 | **Emulation** | 21/47 (44,7%) | 21 | 1 | 26 |
 | **EventBreakpoints** | Fully Compliant | 3 | 0 | 0 |
 | **Extensions** | Unsupported | 0 | 0 | 8 |
@@ -53,7 +53,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Page** | 29/61 (47,5%) | 29 | 0 | 32 |
 | **Performance** | Fully Compliant | 4 | 0 | 0 |
 | **PerformanceTimeline** | Fully Compliant | 1 | 0 | 0 |
-| **Preload** | Unsupported | 0 | 0 | 2 |
+| **Preload** | Fully Compliant | 2 | 0 | 0 |
 | **Profiler** | Unsupported | 0 | 0 | 9 |
 | **PWA** | Unsupported | 0 | 0 | 7 |
 | **Recorder** | Custom Domain (2 actions) | 0 | 2 | 0 |
@@ -66,9 +66,9 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Storage** | Unsupported | 0 | 0 | 34 |
 | **SystemInfo** | Fully Compliant | 3 | 0 | 0 |
 | **Target** | 11/19 (57,9%) | 11 | 0 | 8 |
-| **Tethering** | Unsupported | 0 | 0 | 2 |
+| **Tethering** | Fully Compliant | 2 | 0 | 0 |
 | **Tracing** | Unsupported | 0 | 0 | 6 |
-| **WebAudio** | Unsupported | 0 | 0 | 3 |
+| **WebAudio** | Fully Compliant | 3 | 0 | 0 |
 | **WebAuthn** | Unsupported | 0 | 0 | 13 |
 | **WebMCP** | Unsupported | 0 | 0 | 4 |
 
@@ -93,7 +93,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Audits
 
-* **Missing Standard (4)**: `checkFormsIssues`, `disable`, `enable`, `getEncodedResponse`
+* **Standard Supported (4)**: `checkFormsIssues`, `disable`, `enable`, `getEncodedResponse`
 
 ### Autofill
 
@@ -156,11 +156,11 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### DOMSnapshot
 
-* **Missing Standard (4)**: `captureSnapshot`, `disable`, `enable`, `getSnapshot`
+* **Standard Supported (4)**: `captureSnapshot`, `disable`, `enable`, `getSnapshot`
 
 ### DOMStorage
 
-* **Missing Standard (6)**: `clear`, `disable`, `enable`, `getDOMStorageItems`, `removeDOMStorageItem`, `setDOMStorageItem`
+* **Standard Supported (6)**: `clear`, `disable`, `enable`, `getDOMStorageItems`, `removeDOMStorageItem`, `setDOMStorageItem`
 
 ### Emulation
 
@@ -256,7 +256,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Preload
 
-* **Missing Standard (2)**: `disable`, `enable`
+* **Standard Supported (2)**: `disable`, `enable`
 
 ### Profiler
 
@@ -310,7 +310,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Tethering
 
-* **Missing Standard (2)**: `bind`, `unbind`
+* **Standard Supported (2)**: `bind`, `unbind`
 
 ### Tracing
 
@@ -318,7 +318,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### WebAudio
 
-* **Missing Standard (3)**: `disable`, `enable`, `getRealtimeData`
+* **Standard Supported (3)**: `disable`, `enable`, `getRealtimeData`
 
 ### WebAuthn
 
