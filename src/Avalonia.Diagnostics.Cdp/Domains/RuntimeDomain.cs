@@ -125,6 +125,22 @@ public static class RuntimeDomain
                     return new JsonObject();
                 }
 
+            case "getIsolateId":
+                {
+                    return new JsonObject { ["isolateId"] = "1" };
+                }
+
+            case "getHeapUsage":
+                {
+                    double jsHeapUsedSize = GC.GetTotalMemory(false);
+                    double jsHeapTotalSize = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
+                    return new JsonObject
+                    {
+                        ["usedSize"] = jsHeapUsedSize,
+                        ["totalSize"] = jsHeapTotalSize
+                    };
+                }
+
             default:
                 throw new Exception($"Method Runtime.{action} is not implemented");
         }

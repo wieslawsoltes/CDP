@@ -33,6 +33,53 @@ public static class DomDomain
                     return new JsonObject { ["root"] = rootNode };
                 }
 
+            case "getAttributes":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual == null)
+                    {
+                        throw new Exception($"Node with ID {nodeId} not found");
+                    }
+                    var attributes = BuildAttributes(visual);
+                    return new JsonObject { ["attributes"] = attributes };
+                }
+
+            case "describeNode":
+                {
+                    int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    int? backendNodeId = @params["backendNodeId"]?.GetValue<int>();
+                    string? objectId = @params["objectId"]?.GetValue<string>();
+
+                    Visual? targetVisual = null;
+                    if (nodeId.HasValue)
+                    {
+                        targetVisual = session.NodeMap.GetVisual(nodeId.Value);
+                    }
+                    else if (backendNodeId.HasValue)
+                    {
+                        targetVisual = session.NodeMap.GetVisual(backendNodeId.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(objectId))
+                    {
+                        var obj = session.GetObject(objectId);
+                        if (obj is Visual v)
+                        {
+                            targetVisual = v;
+                        }
+                    }
+
+                    if (targetVisual == null)
+                    {
+                        throw new Exception("Node not found");
+                    }
+
+                    var depth = @params["depth"]?.GetValue<int>() ?? 0;
+                    var node = BuildDomNode(targetVisual, session, 0, depth);
+
+                    return new JsonObject { ["node"] = node };
+                }
+
             case "requestChildNodes":
                 {
                     int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
@@ -301,56 +348,7 @@ public static class DomDomain
             }
         }
 
-        var attributes = new JsonArray();
-        attributes.Add("type");
-        attributes.Add(visual.GetType().FullName ?? visual.GetType().Name);
-
-        if (visual is Control control)
-        {
-            if (!string.IsNullOrEmpty(control.Name))
-            {
-                attributes.Add("name");
-                attributes.Add(control.Name);
-                attributes.Add("id");
-                attributes.Add(control.Name);
-            }
-
-            if (control.Classes.Count > 0)
-            {
-                attributes.Add("class");
-                attributes.Add(string.Join(" ", control.Classes));
-            }
-
-            string? text = GetControlTextOrContent(control);
-            if (!string.IsNullOrEmpty(text))
-            {
-                attributes.Add("text");
-                attributes.Add(text);
-            }
-
-            attributes.Add("bounds");
-            attributes.Add($"{control.Bounds.X},{control.Bounds.Y},{control.Bounds.Width},{control.Bounds.Height}");
-            
-            attributes.Add("isenabled");
-            attributes.Add(control.IsEnabled.ToString().ToLowerInvariant());
-            
-            attributes.Add("isvisible");
-            attributes.Add(control.IsVisible.ToString().ToLowerInvariant());
-
-            var automationName = control.GetValue(AutomationProperties.NameProperty);
-            if (!string.IsNullOrEmpty(automationName))
-            {
-                attributes.Add("accessibility-name");
-                attributes.Add(automationName);
-            }
-            
-            var automationHelp = control.GetValue(AutomationProperties.HelpTextProperty);
-            if (!string.IsNullOrEmpty(automationHelp))
-            {
-                attributes.Add("accessibility-help");
-                attributes.Add(automationHelp);
-            }
-        }
+        var attributes = BuildAttributes(visual);
 
         var node = new JsonObject
         {
@@ -614,5 +612,60 @@ public static class DomDomain
             if (child is HighlightAdorner) continue;
             SearchVisualTree(child, query, session, results);
         }
+    }
+
+    public static JsonArray BuildAttributes(Visual visual)
+    {
+        var attributes = new JsonArray();
+        attributes.Add("type");
+        attributes.Add(visual.GetType().FullName ?? visual.GetType().Name);
+
+        if (visual is Control control)
+        {
+            if (!string.IsNullOrEmpty(control.Name))
+            {
+                attributes.Add("name");
+                attributes.Add(control.Name);
+                attributes.Add("id");
+                attributes.Add(control.Name);
+            }
+
+            if (control.Classes.Count > 0)
+            {
+                attributes.Add("class");
+                attributes.Add(string.Join(" ", control.Classes));
+            }
+
+            string? text = GetControlTextOrContent(control);
+            if (!string.IsNullOrEmpty(text))
+            {
+                attributes.Add("text");
+                attributes.Add(text);
+            }
+
+            attributes.Add("bounds");
+            attributes.Add($"{control.Bounds.X},{control.Bounds.Y},{control.Bounds.Width},{control.Bounds.Height}");
+            
+            attributes.Add("isenabled");
+            attributes.Add(control.IsEnabled.ToString().ToLowerInvariant());
+            
+            attributes.Add("isvisible");
+            attributes.Add(control.IsVisible.ToString().ToLowerInvariant());
+
+            var automationName = control.GetValue(AutomationProperties.NameProperty);
+            if (!string.IsNullOrEmpty(automationName))
+            {
+                attributes.Add("accessibility-name");
+                attributes.Add(automationName);
+            }
+            
+            var automationHelp = control.GetValue(AutomationProperties.HelpTextProperty);
+            if (!string.IsNullOrEmpty(automationHelp))
+            {
+                attributes.Add("accessibility-help");
+                attributes.Add(automationHelp);
+            }
+        }
+        return attributes;
     }
 }

@@ -114,6 +114,20 @@ public static class NetworkDomain
                     return Task.FromResult(new JsonObject());
                 }
 
+            case "canClearBrowserCache":
+            case "canClearBrowserCookies":
+            case "canEmulateNetworkConditions":
+                {
+                    return Task.FromResult(new JsonObject { ["result"] = true });
+                }
+
+            case "clearBrowserCache":
+            case "clearBrowserCookies":
+            case "setCacheDisabled":
+                {
+                    return Task.FromResult(new JsonObject());
+                }
+
             default:
                 throw new Exception($"Method Network.{action} is not implemented");
         }

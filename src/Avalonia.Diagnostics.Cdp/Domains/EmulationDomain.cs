@@ -142,6 +142,19 @@ public static class EmulationDomain
                     return new JsonObject();
                 }
 
+            case "setCPUThrottlingRate":
+            case "setTouchEmulationEnabled":
+            case "setFocusEmulationEnabled":
+            case "setAutoDarkModeOverride":
+                {
+                    return new JsonObject();
+                }
+
+            case "canEmulate":
+                {
+                    return new JsonObject { ["result"] = true };
+                }
+
             default:
                 throw new Exception($"Method Emulation.{action} is not implemented");
         }

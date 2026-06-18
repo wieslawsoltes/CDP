@@ -32,10 +32,20 @@ public class CdpProtocolComplianceTests
         {
             var fileName = Path.GetFileNameWithoutExtension(file);
             var domainName = fileName.EndsWith("Domain") ? fileName.Substring(0, fileName.Length - 6) : fileName;
+            if (domainName.Equals("Dom", StringComparison.OrdinalIgnoreCase)) domainName = "DOM";
+            else if (domainName.Equals("Css", StringComparison.OrdinalIgnoreCase)) domainName = "CSS";
+            else if (domainName.Equals("DomDebugger", StringComparison.OrdinalIgnoreCase)) domainName = "DOMDebugger";
 
             var content = await File.ReadAllTextAsync(file);
             var methods = ParseImplementedMethods(content);
-            implementedDomains[domainName] = methods;
+            if (implementedDomains.TryGetValue(domainName, out var existingMethods))
+            {
+                existingMethods.AddRange(methods);
+            }
+            else
+            {
+                implementedDomains[domainName] = methods;
+            }
         }
 
         // 3. Fetch official CDP specification json files

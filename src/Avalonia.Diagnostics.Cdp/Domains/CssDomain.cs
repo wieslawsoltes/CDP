@@ -85,6 +85,16 @@ public static class CssDomain
                     return new JsonObject { ["styles"] = styles };
                 }
 
+            case "createStyleSheet":
+                {
+                    return new JsonObject { ["styleSheetId"] = "1" };
+                }
+
+            case "setStyleSheetText":
+                {
+                    return new JsonObject { ["sourceMapURL"] = "" };
+                }
+
             default:
                 throw new Exception($"Method CSS.{action} is not implemented");
         }

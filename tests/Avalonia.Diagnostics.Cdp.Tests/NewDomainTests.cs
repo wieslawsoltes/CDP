@@ -210,4 +210,179 @@ public class NewDomainTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestBrowserDomainBounds()
+    {
+        var window = new Window
+        {
+            Title = "Browser Window Test",
+            Width = 600,
+            Height = 400
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        var targetRes = await BrowserDomain.HandleAsync(session, "getWindowForTarget", new JsonObject());
+        Assert.NotNull(targetRes);
+        Assert.Equal(1, targetRes["windowId"]?.GetValue<int>());
+
+        var boundsRes = await BrowserDomain.HandleAsync(session, "getWindowBounds", new JsonObject { ["windowId"] = 1 });
+        Assert.NotNull(boundsRes);
+        var bounds = boundsRes["bounds"] as JsonObject;
+        Assert.NotNull(bounds);
+        Assert.Equal(600, bounds["width"]?.GetValue<int>());
+        Assert.Equal(400, bounds["height"]?.GetValue<int>());
+
+        var setBoundsParams = new JsonObject
+        {
+            ["windowId"] = 1,
+            ["bounds"] = new JsonObject
+            {
+                ["width"] = 700,
+                ["height"] = 500
+            }
+        };
+        await BrowserDomain.HandleAsync(session, "setWindowBounds", setBoundsParams);
+        Assert.Equal(700, window.Width);
+        Assert.Equal(500, window.Height);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestRuntimeDomainNewMethods()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var isolateRes = await RuntimeDomain.HandleAsync(session, "getIsolateId", new JsonObject());
+        Assert.NotNull(isolateRes);
+        Assert.Equal("1", isolateRes["isolateId"]?.GetValue<string>());
+
+        var heapRes = await RuntimeDomain.HandleAsync(session, "getHeapUsage", new JsonObject());
+        Assert.NotNull(heapRes);
+        Assert.True(heapRes["usedSize"]?.GetValue<double>() > 0);
+    }
+
+    [AvaloniaFact]
+    public async Task TestDomDomainNewMethods()
+    {
+        var window = new Window
+        {
+            Title = "DOM Test Window",
+            Content = new StackPanel
+            {
+                Name = "mainPanel"
+            }
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // Populate NodeMap
+        var docRes = await DomDomain.HandleAsync(session, "getDocument", new JsonObject());
+        var rootNode = docRes["root"] as JsonObject;
+        Assert.NotNull(rootNode);
+
+        var queryRes = await DomDomain.HandleAsync(session, "querySelector", new JsonObject { ["nodeId"] = 1, ["selector"] = "#mainPanel" });
+        int panelId = queryRes["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.True(panelId > 0);
+
+        var attrRes = await DomDomain.HandleAsync(session, "getAttributes", new JsonObject { ["nodeId"] = panelId });
+        Assert.NotNull(attrRes);
+        var attrs = attrRes["attributes"] as JsonArray;
+        Assert.NotNull(attrs);
+        Assert.Contains(attrs, a => a?.GetValue<string>() == "mainPanel");
+
+        var descRes = await DomDomain.HandleAsync(session, "describeNode", new JsonObject { ["nodeId"] = panelId });
+        Assert.NotNull(descRes);
+        var node = descRes["node"] as JsonObject;
+        Assert.NotNull(node);
+        Assert.Equal("StackPanel", node["nodeName"]?.GetValue<string>());
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestCssDomainNewStubs()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var createRes = await CssDomain.HandleAsync(session, "createStyleSheet", new JsonObject());
+        Assert.NotNull(createRes);
+        Assert.Equal("1", createRes["styleSheetId"]?.GetValue<string>());
+
+        var setRes = await CssDomain.HandleAsync(session, "setStyleSheetText", new JsonObject());
+        Assert.NotNull(setRes);
+    }
+
+    [AvaloniaFact]
+    public async Task TestDomDebuggerNewStubs()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var setRes = await DomDebuggerDomain.HandleAsync(session, "setEventListenerBreakpoint", new JsonObject());
+        Assert.NotNull(setRes);
+
+        var removeRes = await DomDebuggerDomain.HandleAsync(session, "removeEventListenerBreakpoint", new JsonObject());
+        Assert.NotNull(removeRes);
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageDomainNewMethods()
+    {
+        var window = new Window
+        {
+            Title = "Page test",
+            Width = 400,
+            Height = 300
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        var frontRes = await PageDomain.HandleAsync(session, "bringToFront", new JsonObject());
+        Assert.NotNull(frontRes);
+
+        var metricsRes = await PageDomain.HandleAsync(session, "getLayoutMetrics", new JsonObject());
+        Assert.NotNull(metricsRes);
+        Assert.True(metricsRes.ContainsKey("cssLayoutViewport"));
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestNetworkDomainNewStubs()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var checkRes = await NetworkDomain.HandleAsync(session, "canClearBrowserCache", new JsonObject());
+        Assert.NotNull(checkRes);
+        Assert.True(checkRes["result"]?.GetValue<bool>());
+
+        var clearRes = await NetworkDomain.HandleAsync(session, "clearBrowserCache", new JsonObject());
+        Assert.NotNull(clearRes);
+    }
+
+    [AvaloniaFact]
+    public async Task TestEmulationDomainNewStubs()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var checkRes = await EmulationDomain.HandleAsync(session, "canEmulate", new JsonObject());
+        Assert.NotNull(checkRes);
+        Assert.True(checkRes["result"]?.GetValue<bool>());
+
+        var setRes = await EmulationDomain.HandleAsync(session, "setCPUThrottlingRate", new JsonObject { ["rate"] = 4 });
+        Assert.NotNull(setRes);
+    }
 }

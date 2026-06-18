@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 
@@ -184,6 +185,53 @@ public static class PageDomain
                         }
                     });
                     return new JsonObject();
+                }
+
+            case "bringToFront":
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (session.Window is Window win)
+                        {
+                            win.Activate();
+                        }
+                    });
+                    return new JsonObject();
+                }
+
+            case "getLayoutMetrics":
+                {
+                    double w = 800, h = 600;
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        w = session.Window.Width;
+                        h = session.Window.Height;
+                    });
+
+                    return new JsonObject
+                    {
+                        ["cssLayoutViewport"] = new JsonObject
+                        {
+                            ["x"] = 0,
+                            ["y"] = 0,
+                            ["width"] = w,
+                            ["height"] = h
+                        },
+                        ["cssVisualViewport"] = new JsonObject
+                        {
+                            ["x"] = 0,
+                            ["y"] = 0,
+                            ["width"] = w,
+                            ["height"] = h
+                        },
+                        ["cssContentSize"] = new JsonObject
+                        {
+                            ["x"] = 0,
+                            ["y"] = 0,
+                            ["width"] = w,
+                            ["height"] = h
+                        }
+                    };
                 }
 
             default:
