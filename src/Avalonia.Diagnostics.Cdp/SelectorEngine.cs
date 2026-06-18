@@ -4,62 +4,65 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 
 namespace Avalonia.Diagnostics.Cdp;
 
 public static class SelectorEngine
 {
-    public static Visual? QuerySelector(Visual root, string selector)
+    public static Visual? QuerySelector(Visual root, string selector, bool useLogicalTree = false)
     {
         if (string.IsNullOrWhiteSpace(selector)) return null;
-        return QuerySelectorInternal(root, selector.Trim());
+        return QuerySelectorInternal(root, selector.Trim(), useLogicalTree);
     }
 
-    public static List<Visual> QuerySelectorAll(Visual root, string selector)
+    public static List<Visual> QuerySelectorAll(Visual root, string selector, bool useLogicalTree = false)
     {
         var results = new List<Visual>();
         if (string.IsNullOrWhiteSpace(selector)) return results;
-        QuerySelectorAllInternal(root, selector.Trim(), results);
+        QuerySelectorAllInternal(root, selector.Trim(), results, useLogicalTree);
         return results;
     }
 
-    private static Visual? QuerySelectorInternal(Visual current, string selector)
+    private static Visual? QuerySelectorInternal(Visual current, string selector, bool useLogicalTree)
     {
-        if (Matches(current, selector))
+        if (Matches(current, selector, useLogicalTree))
         {
             return current;
         }
 
-        foreach (var child in current.GetVisualChildren())
+        var children = useLogicalTree ? GetLogicalChildren(current) : current.GetVisualChildren();
+        foreach (var child in children)
         {
-            var result = QuerySelectorInternal(child, selector);
+            var result = QuerySelectorInternal(child, selector, useLogicalTree);
             if (result != null) return result;
         }
 
         return null;
     }
 
-    private static void QuerySelectorAllInternal(Visual current, string selector, List<Visual> results)
+    private static void QuerySelectorAllInternal(Visual current, string selector, List<Visual> results, bool useLogicalTree)
     {
-        if (Matches(current, selector))
+        if (Matches(current, selector, useLogicalTree))
         {
             results.Add(current);
         }
 
-        foreach (var child in current.GetVisualChildren())
+        var children = useLogicalTree ? GetLogicalChildren(current) : current.GetVisualChildren();
+        foreach (var child in children)
         {
-            QuerySelectorAllInternal(child, selector, results);
+            QuerySelectorAllInternal(child, selector, results, useLogicalTree);
         }
     }
 
-    public static bool Matches(Visual visual, string selector)
+    public static bool Matches(Visual visual, string selector, bool useLogicalTree = false)
     {
         if (string.IsNullOrWhiteSpace(selector)) return false;
 
         var tokens = TokenizeSelector(selector);
         if (tokens.Count == 0) return false;
 
-        return MatchesTokens(visual, tokens, tokens.Count - 1);
+        return MatchesTokens(visual, tokens, tokens.Count - 1, useLogicalTree);
     }
 
     private static List<string> TokenizeSelector(string selector)
@@ -124,7 +127,7 @@ public static class SelectorEngine
         return tokens;
     }
 
-    private static bool MatchesTokens(Visual visual, List<string> tokens, int tokenIndex)
+    private static bool MatchesTokens(Visual visual, List<string> tokens, int tokenIndex, bool useLogicalTree)
     {
         if (tokenIndex < 0) return true;
 
@@ -137,20 +140,20 @@ public static class SelectorEngine
 
         if (combinator == ">")
         {
-            var parent = visual.GetVisualParent();
+            var parent = useLogicalTree ? GetLogicalParent(visual) : visual.GetVisualParent();
             if (parent == null) return false;
-            return MatchesTokens(parent, tokens, tokenIndex - 2);
+            return MatchesTokens(parent, tokens, tokenIndex - 2, useLogicalTree);
         }
         else if (combinator == " ")
         {
-            var parent = visual.GetVisualParent();
+            var parent = useLogicalTree ? GetLogicalParent(visual) : visual.GetVisualParent();
             while (parent != null)
             {
-                if (MatchesTokens(parent, tokens, tokenIndex - 2))
+                if (MatchesTokens(parent, tokens, tokenIndex - 2, useLogicalTree))
                 {
                     return true;
                 }
-                parent = parent.GetVisualParent();
+                parent = useLogicalTree ? GetLogicalParent(parent) : parent.GetVisualParent();
             }
             return false;
         }
@@ -245,7 +248,7 @@ public static class SelectorEngine
         return true;
     }
 
-    public static string GetSelector(Visual visual)
+    public static string GetSelector(Visual visual, bool useLogicalTree = false)
     {
         if (visual is Control c && !string.IsNullOrEmpty(c.Name) && !c.Name.StartsWith("PART_"))
         {
@@ -260,7 +263,7 @@ public static class SelectorEngine
             {
                 return $"#{ctrl.Name}";
             }
-            current = current.GetVisualParent();
+            current = useLogicalTree ? GetLogicalParent(current) : current.GetVisualParent();
         }
 
         // Fallback to structural path if no named ancestor is found
@@ -279,9 +282,23 @@ public static class SelectorEngine
             }
 
             parts.Insert(0, part);
-            current = current.GetVisualParent();
+            current = useLogicalTree ? GetLogicalParent(current) : current.GetVisualParent();
         }
 
         return string.Join(" > ", parts);
+    }
+
+    private static IEnumerable<Visual> GetLogicalChildren(Visual visual)
+    {
+        if (visual is ILogical logical)
+        {
+            return logical.LogicalChildren.OfType<Visual>();
+        }
+        return Enumerable.Empty<Visual>();
+    }
+
+    private static Visual? GetLogicalParent(Visual visual)
+    {
+        return (visual as ILogical)?.LogicalParent as Visual;
     }
 }

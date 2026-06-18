@@ -29,6 +29,7 @@ public class CdpSession
     public ConcurrentDictionary<string, object> RemoteObjects { get; } = new();
     public int InspectedNodeId { get; set; } = 0;
     public bool DiscoverTargetsEnabled { get; set; }
+    public bool UseLogicalTree { get; set; } = false;
     private int _nextObjectId = 1;
 
     private bool _inspectModeEnabled;
@@ -359,6 +360,24 @@ public class CdpSession
     private readonly ConcurrentDictionary<Visual, EventHandler<AvaloniaPropertyChangedEventArgs>> _propertyHandlers = new();
     private readonly ConcurrentDictionary<Control, NotifyCollectionChangedEventHandler> _classesHandlers = new();
 
+    private System.Collections.Generic.IEnumerable<Visual> GetTreeChildren(Visual visual)
+    {
+        if (UseLogicalTree && visual is Avalonia.LogicalTree.ILogical logical)
+        {
+            return logical.LogicalChildren.OfType<Visual>();
+        }
+        return visual.GetVisualChildren().Where(c => !(c is HighlightAdorner));
+    }
+
+    private INotifyCollectionChanged? GetChildrenObservable(Visual visual)
+    {
+        if (UseLogicalTree && visual is Avalonia.LogicalTree.ILogical logical)
+        {
+            return logical.LogicalChildren;
+        }
+        return GetVisualChildrenObservable(visual);
+    }
+
     public void StartObservingVisualTree()
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -379,7 +398,7 @@ public class CdpSession
         }
         foreach (var pair in _collectionHandlers)
         {
-            if (GetVisualChildrenObservable(pair.Key) is INotifyCollectionChanged notify)
+            if (GetChildrenObservable(pair.Key) is INotifyCollectionChanged notify)
             {
                 try { notify.CollectionChanged -= pair.Value; } catch { }
             }
@@ -413,7 +432,7 @@ public class CdpSession
             _propertyHandlers[visual] = propHandler;
         }
 
-        if (GetVisualChildrenObservable(visual) is INotifyCollectionChanged notify)
+        if (GetChildrenObservable(visual) is INotifyCollectionChanged notify)
         {
             if (!_collectionHandlers.ContainsKey(visual))
             {
@@ -454,12 +473,9 @@ public class CdpSession
             }
         }
 
-        foreach (var child in visual.GetVisualChildren())
+        foreach (var child in GetTreeChildren(visual))
         {
-            if (child is not HighlightAdorner)
-            {
-                SubscribeToVisual(child);
-            }
+            SubscribeToVisual(child);
         }
     }
 
@@ -467,14 +483,14 @@ public class CdpSession
     {
         if (visual == null) return;
 
-        foreach (var child in visual.GetVisualChildren())
+        foreach (var child in GetTreeChildren(visual))
         {
             UnsubscribeFromVisual(child);
         }
 
         if (_collectionHandlers.TryRemove(visual, out var colHandler))
         {
-            if (GetVisualChildrenObservable(visual) is INotifyCollectionChanged notify)
+            if (GetChildrenObservable(visual) is INotifyCollectionChanged notify)
             {
                 try { notify.CollectionChanged -= colHandler; } catch { }
             }
@@ -514,24 +530,22 @@ public class CdpSession
                     {
                         if (item is Visual child && child is not HighlightAdorner)
                         {
-                            var visualChildren = parent.GetVisualChildren().Where(c => c is not HighlightAdorner).ToList();
-                            int childIndex = visualChildren.IndexOf(child);
+                            var children = GetTreeChildren(parent).ToList();
+                            int childIndex = children.IndexOf(child);
                             int previousNodeId = 0;
                             if (childIndex > 0)
                             {
-                                var prevSibling = visualChildren[childIndex - 1];
-                                previousNodeId = NodeMap.GetOrAdd(prevSibling);
+                                previousNodeId = NodeMap.GetOrAdd(children[childIndex - 1]);
                             }
 
-                            SubscribeToVisual(child);
-                            var nodeJson = Domains.DomDomain.BuildDomNode(child, this, 1, 1);
-
+                            var childNode = Domains.DomDomain.BuildDomNode(child, this, 1, 1);
                             _ = SendEventAsync("DOM.childNodeInserted", new JsonObject
                             {
-                                ["parentNodeId"] = parentNodeId,
+                                ["parentId"] = parentNodeId,
                                 ["previousNodeId"] = previousNodeId,
-                                ["node"] = nodeJson
+                                ["node"] = childNode
                             });
+                            SubscribeToVisual(child);
                         }
                     }
                 }
@@ -544,16 +558,15 @@ public class CdpSession
                     {
                         if (item is Visual child)
                         {
-                            var nodeId = NodeMap.GetOrAdd(child);
-                            UnsubscribeFromVisual(child);
-
-                            if (nodeId != 0)
+                            int childNodeId = NodeMap.GetOrAdd(child);
+                            if (childNodeId != 0)
                             {
                                 _ = SendEventAsync("DOM.childNodeRemoved", new JsonObject
                                 {
-                                    ["parentNodeId"] = parentNodeId,
-                                    ["nodeId"] = nodeId
+                                    ["parentId"] = parentNodeId,
+                                    ["nodeId"] = childNodeId
                                 });
+                                UnsubscribeFromVisual(child);
                             }
                         }
                     }

@@ -10,6 +10,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
+using Avalonia.LogicalTree;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -28,6 +29,8 @@ public static class DomDomain
 
             case "getDocument":
                 {
+                    bool pierce = @params["pierce"]?.GetValue<bool>() ?? true;
+                    session.UseLogicalTree = !pierce;
                     int depth = @params["depth"]?.GetValue<int>() ?? -1;
                     var rootNode = BuildDocumentNode(session, depth);
                     return new JsonObject { ["root"] = rootNode };
@@ -97,7 +100,7 @@ public static class DomDomain
                     {
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
-                    var match = SelectorEngine.QuerySelector(root, selector);
+                    var match = SelectorEngine.QuerySelector(root, selector, session.UseLogicalTree);
                     int matchId = match != null ? session.NodeMap.GetOrAdd(match) : 0;
                     return new JsonObject { ["nodeId"] = matchId };
                 }
@@ -111,7 +114,7 @@ public static class DomDomain
                     {
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
-                    var matches = SelectorEngine.QuerySelectorAll(root, selector);
+                    var matches = SelectorEngine.QuerySelectorAll(root, selector, session.UseLogicalTree);
                     var nodeIds = new JsonArray();
                     foreach (var match in matches)
                     {
@@ -128,7 +131,7 @@ public static class DomDomain
                     {
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
-                    string html = GetOuterHtml(visual);
+                    string html = GetOuterHtml(visual, session);
                     return new JsonObject { ["outerHTML"] = html };
                 }
 
@@ -260,7 +263,7 @@ public static class DomDomain
 
                     try
                     {
-                        var matches = SelectorEngine.QuerySelectorAll(session.Window, query);
+                        var matches = SelectorEngine.QuerySelectorAll(session.Window, query, session.UseLogicalTree);
                         foreach (var match in matches)
                         {
                             results.Add(session.NodeMap.GetOrAdd(match));
@@ -310,6 +313,8 @@ public static class DomDomain
 
             case "getFlattenedDocument":
                 {
+                    bool pierce = @params["pierce"]?.GetValue<bool>() ?? true;
+                    session.UseLogicalTree = !pierce;
                     int depth = @params["depth"]?.GetValue<int>() ?? -1;
                     var flatList = new List<JsonObject>();
 
@@ -411,24 +416,25 @@ public static class DomDomain
     private static void FlattenDomNode(Visual visual, CdpSession session, int currentDepth, int maxDepth, List<JsonObject> flatList)
     {
         int nodeId = session.NodeMap.GetOrAdd(visual);
-        var visualChildren = visual.GetVisualChildren().Where(c => !(c is HighlightAdorner)).ToList();
+        var children = GetChildren(visual, session).ToList();
         var childIds = new JsonArray();
-        foreach (var child in visualChildren)
+        foreach (var child in children)
         {
             childIds.Add(session.NodeMap.GetOrAdd(child));
         }
 
         var attributes = BuildAttributes(visual);
+        var parent = GetParent(visual, session);
         var node = new JsonObject
         {
             ["nodeId"] = nodeId,
-            ["parentId"] = visual.GetVisualParent() != null ? session.NodeMap.GetOrAdd(visual.GetVisualParent()!) : 1,
+            ["parentId"] = parent != null ? session.NodeMap.GetOrAdd(parent) : 1,
             ["backendNodeId"] = nodeId,
             ["nodeType"] = 1,
             ["nodeName"] = visual.GetType().Name,
             ["localName"] = visual.GetType().Name.ToLowerInvariant(),
             ["nodeValue"] = "",
-            ["childNodeCount"] = visualChildren.Count,
+            ["childNodeCount"] = children.Count,
             ["attributes"] = attributes
         };
 
@@ -442,7 +448,7 @@ public static class DomDomain
         bool recursive = maxDepth == -1 || currentDepth < maxDepth;
         if (recursive)
         {
-            foreach (var child in visualChildren)
+            foreach (var child in children)
             {
                 FlattenDomNode(child, session, currentDepth + 1, maxDepth, flatList);
             }
@@ -472,13 +478,13 @@ public static class DomDomain
     public static JsonObject BuildDomNode(Visual visual, CdpSession session, int currentDepth, int maxDepth)
     {
         int nodeId = session.NodeMap.GetOrAdd(visual);
-        var visualChildren = visual.GetVisualChildren().Where(c => !(c is HighlightAdorner)).ToList();
+        var children = GetChildren(visual, session).ToList();
         var childrenJson = new JsonArray();
 
         bool recursive = maxDepth == -1 || currentDepth < maxDepth;
         if (recursive)
         {
-            foreach (var child in visualChildren)
+            foreach (var child in children)
             {
                 childrenJson.Add(BuildDomNode(child, session, currentDepth + 1, maxDepth));
             }
@@ -494,7 +500,7 @@ public static class DomDomain
             ["nodeName"] = visual.GetType().Name,
             ["localName"] = visual.GetType().Name.ToLowerInvariant(),
             ["nodeValue"] = "",
-            ["childNodeCount"] = visualChildren.Count,
+            ["childNodeCount"] = children.Count,
             ["attributes"] = attributes
         };
 
@@ -512,9 +518,8 @@ public static class DomDomain
         if (visual == null) return;
 
         var nodesJson = new JsonArray();
-        foreach (var child in visual.GetVisualChildren())
+        foreach (var child in GetChildren(visual, session))
         {
-            if (child is HighlightAdorner) continue;
             nodesJson.Add(BuildDomNode(child, session, 1, depth));
         }
 
@@ -527,7 +532,7 @@ public static class DomDomain
         await session.SendEventAsync("DOM.setChildNodes", notification);
     }
 
-    public static string GetOuterHtml(Visual visual)
+    public static string GetOuterHtml(Visual visual, CdpSession session)
     {
         var name = visual.GetType().Name;
         var sb = new StringBuilder();
@@ -550,13 +555,13 @@ public static class DomDomain
             }
         }
 
-        var children = visual.GetVisualChildren().Where(c => !(c is HighlightAdorner)).ToList();
+        var children = GetChildren(visual, session).ToList();
         if (children.Count > 0)
         {
             sb.Append(">");
             foreach (var child in children)
             {
-                sb.Append(GetOuterHtml(child));
+                sb.Append(GetOuterHtml(child, session));
             }
             sb.Append("</").Append(name).Append(">");
         }
@@ -743,11 +748,28 @@ public static class DomDomain
             results.Add(session.NodeMap.GetOrAdd(parent));
         }
 
-        foreach (var child in parent.GetVisualChildren())
+        foreach (var child in GetChildren(parent, session))
         {
-            if (child is HighlightAdorner) continue;
             SearchVisualTree(child, query, session, results);
         }
+    }
+
+    private static IEnumerable<Visual> GetChildren(Visual visual, CdpSession session)
+    {
+        if (session.UseLogicalTree && visual is ILogical logical)
+        {
+            return logical.LogicalChildren.OfType<Visual>();
+        }
+        return visual.GetVisualChildren().Where(c => !(c is HighlightAdorner));
+    }
+
+    private static Visual? GetParent(Visual visual, CdpSession session)
+    {
+        if (session.UseLogicalTree)
+        {
+            return (visual as ILogical)?.LogicalParent as Visual;
+        }
+        return visual.GetVisualParent();
     }
 
     public static JsonArray BuildAttributes(Visual visual)

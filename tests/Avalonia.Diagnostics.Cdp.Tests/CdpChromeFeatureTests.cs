@@ -670,6 +670,98 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestLogicalTreeModePierceFalse()
+    {
+        var button = new Button { Content = "Test Button", Name = "myButton" };
+        var panel = new StackPanel
+        {
+            Children = { button }
+        };
+        var window = new Window
+        {
+            Title = "Logical Tree Window",
+            Content = panel
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Get document with pierce: false (Logical Tree Mode)
+        var docParams = new JsonObject { ["depth"] = -1, ["pierce"] = false };
+        var docResult = await DomDomain.HandleAsync(session, "getDocument", docParams);
+        Assert.NotNull(docResult);
+        Assert.True(session.UseLogicalTree);
+
+        var root = docResult["root"] as JsonObject;
+        Assert.NotNull(root);
+
+        // Let's verify outerHTML is representing logical tree only
+        var windowNode = root["children"]?[0] as JsonObject;
+        Assert.NotNull(windowNode);
+
+        // Retrieve outerHTML of the window under logical mode
+        var htmlParams = new JsonObject { ["nodeId"] = session.NodeMap.GetOrAdd(window) };
+        var htmlResult = await DomDomain.HandleAsync(session, "getOuterHTML", htmlParams);
+        Assert.NotNull(htmlResult);
+        string html = htmlResult["outerHTML"]?.GetValue<string>() ?? "";
+        
+        // Logical tree should have: Window, StackPanel, Button
+        // BUT it must NOT contain visual template parts like ContentPresenter, Border, VisualLayerManager etc.
+        Assert.Contains("<Window", html);
+        Assert.Contains("<StackPanel", html);
+        Assert.Contains("<Button", html);
+        Assert.DoesNotContain("ContentPresenter", html);
+        Assert.DoesNotContain("Border", html);
+        Assert.DoesNotContain("VisualLayerManager", html);
+
+        // 2. DOM.querySelector should work with logical path/selector
+        var queryParams = new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "Window > StackPanel > Button"
+        };
+        var queryResult = await DomDomain.HandleAsync(session, "querySelector", queryParams);
+        Assert.NotNull(queryResult);
+        int matchedNodeId = queryResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.True(matchedNodeId > 0);
+        var matchedVisual = session.NodeMap.GetVisual(matchedNodeId);
+        Assert.Same(button, matchedVisual);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestLogicalTreeNotifications()
+    {
+        var panel = new StackPanel();
+        var window = new Window
+        {
+            Title = "Logical Notifications Window",
+            Content = panel
+        };
+        window.Show();
+
+        var fakeWs = new FakeWebSocket();
+        var sessionWithFake = new CdpSession(fakeWs, window);
+        sessionWithFake.UseLogicalTree = true;
+        sessionWithFake.StartObservingVisualTree();
+
+        // Add a logical child
+        var button = new Button { Name = "newBtn" };
+        panel.Children.Add(button);
+
+        // Wait a tiny bit for UI thread
+        await Task.Delay(100);
+
+        // Verify we received childNodeInserted
+        var insertedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeInserted"));
+        Assert.NotNull(insertedEvent);
+
+        window.Close();
+    }
 }
 
 public class FakeWebSocket : System.Net.WebSockets.WebSocket
