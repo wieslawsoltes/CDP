@@ -35,6 +35,7 @@ public class ElementsViewModel : ViewModelBase
     private string _styleTextInputText = "";
     private bool _isHighlightActive;
     private string _searchQuery = "";
+    private bool _showVisualTree = false;
 
     // Accessibility Details
     private string _axRoleText = "None";
@@ -220,6 +221,18 @@ public class ElementsViewModel : ViewModelBase
         get => _layoutBounds;
         set => RaiseAndSetIfChanged(ref _layoutBounds, value);
     }
+
+    public bool ShowVisualTree
+    {
+        get => _showVisualTree;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _showVisualTree, value))
+            {
+                _ = RefreshDomTreeAsync();
+            }
+        }
+    }
     public string LayoutHorizontalAlignment
     {
         get => _layoutHorizontalAlignment;
@@ -327,7 +340,7 @@ public class ElementsViewModel : ViewModelBase
     {
         try
         {
-            var response = await _cdpService.SendCommandAsync("DOM.getDocument");
+            var response = await _cdpService.SendCommandAsync("DOM.getDocument", new JsonObject { ["pierce"] = ShowVisualTree });
             var root = response["root"] as JsonObject;
             if (root == null) return;
 

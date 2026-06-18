@@ -808,6 +808,50 @@ public class CdpChromeFeatureTests
         session.StopObservingVisualTree();
         window.Close();
     }
+
+    [AvaloniaFact]
+    public void TestFindLogicalNodeResolution()
+    {
+        var panel = new StackPanel();
+        var button = new Button { Content = "Test" };
+        panel.Children.Add(button);
+
+        var window = new Window { Content = panel };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        window.UpdateLayout();
+
+        var textBlock = button.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault();
+        Assert.NotNull(textBlock);
+
+        var resolvedTb = session.FindLogicalNode(textBlock);
+        Assert.Same(button, resolvedTb);
+
+        window.Close();
+    }
+
+    private class NonVisualLogicalNode : StyledElement
+    {
+        public void AddLogicalChild(Avalonia.LogicalTree.ILogical child)
+        {
+            LogicalChildren.Add(child);
+        }
+    }
+
+    [AvaloniaFact]
+    public void TestLogicalVisualChildrenWithNonVisualLogicalNode()
+    {
+        var host = new NonVisualLogicalNode();
+        var button = new Button { Name = "btnUnderHost" };
+        host.AddLogicalChild(button);
+
+        var results = System.Linq.Enumerable.ToList(CdpSession.GetLogicalVisualChildren(host));
+        Assert.Single(results);
+        Assert.Same(button, results[0]);
+    }
 }
 
 public class FakeWebSocket : System.Net.WebSockets.WebSocket

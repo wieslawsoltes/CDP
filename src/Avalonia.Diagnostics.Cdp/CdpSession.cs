@@ -15,6 +15,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 
 namespace Avalonia.Diagnostics.Cdp;
 
@@ -78,6 +79,88 @@ public class CdpSession
         }
     }
 
+    public static System.Collections.Generic.IEnumerable<Visual> GetLogicalVisualChildren(ILogical logical)
+    {
+        foreach (var child in logical.LogicalChildren)
+        {
+            if (child is StyledElement se && se.TemplatedParent != null)
+            {
+                continue;
+            }
+            if (child is Visual visualChild)
+            {
+                if (visualChild.GetVisualParent() is not Avalonia.Controls.Presenters.ContentPresenter cp || cp.Content == visualChild)
+                {
+                    yield return visualChild;
+                }
+            }
+            else if (child is ILogical childLogical)
+            {
+                foreach (var desc in GetLogicalVisualChildren(childLogical))
+                {
+                    yield return desc;
+                }
+            }
+        }
+    }
+
+    private bool IsLogicalNode(ILogical? node)
+    {
+        if (node == null) return false;
+        if (node is TopLevel) return true;
+        if (node is StyledElement se && se.TemplatedParent != null) return false;
+        if (node is Visual visual)
+        {
+            var vp = visual.GetVisualParent();
+            if (vp is Avalonia.Controls.Presenters.ContentPresenter cp && cp.Content != visual)
+            {
+                return false;
+            }
+        }
+
+        var current = node;
+        while (current != null)
+        {
+            var parent = current.LogicalParent;
+            if (parent == null)
+            {
+                return current is TopLevel;
+            }
+            if (current is StyledElement cse && cse.TemplatedParent != null)
+            {
+                return false;
+            }
+            if (current is Visual v)
+            {
+                var vp = v.GetVisualParent();
+                if (vp is Avalonia.Controls.Presenters.ContentPresenter cp && cp.Content != v)
+                {
+                    return false;
+                }
+            }
+            if (!parent.LogicalChildren.Contains(current))
+            {
+                return false;
+            }
+            current = parent;
+        }
+        return false;
+    }
+
+    public Visual FindLogicalNode(Visual visual)
+    {
+        var current = visual;
+        while (current != null)
+        {
+            if (current is ILogical logical && IsLogicalNode(logical))
+            {
+                return current;
+            }
+            current = current.GetVisualParent();
+        }
+        return visual;
+    }
+
     private void OnInspectPointerMoved(object? sender, PointerEventArgs e)
     {
         if (!_inspectModeEnabled) return;
@@ -85,6 +168,10 @@ public class CdpSession
         var hit = Window.InputHitTest(pos);
         if (hit is Visual visual)
         {
+            if (UseLogicalTree)
+            {
+                visual = FindLogicalNode(visual);
+            }
             HighlightOverlayManager.ShowHighlight(Window, visual);
         }
         else
@@ -101,6 +188,10 @@ public class CdpSession
         var hit = Window.InputHitTest(pos);
         if (hit is Visual visual)
         {
+            if (UseLogicalTree)
+            {
+                visual = FindLogicalNode(visual);
+            }
             var nodeId = NodeMap.GetOrAdd(visual);
             await SendEventAsync("Overlay.inspectNodeRequested", new JsonObject
             {
@@ -381,7 +472,7 @@ public class CdpSession
     {
         if (UseLogicalTree && visual is Avalonia.LogicalTree.ILogical logical)
         {
-            return logical.LogicalChildren.OfType<Visual>();
+            return GetLogicalVisualChildren(logical);
         }
         return visual.GetVisualChildren().Where(c => !(c is HighlightAdorner));
     }

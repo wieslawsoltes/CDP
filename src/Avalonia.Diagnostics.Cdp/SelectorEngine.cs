@@ -292,7 +292,7 @@ public static class SelectorEngine
     {
         if (visual is ILogical logical)
         {
-            return logical.LogicalChildren.OfType<Visual>();
+            return CdpSession.GetLogicalVisualChildren(logical);
         }
         return Enumerable.Empty<Visual>();
     }
@@ -302,7 +302,9 @@ public static class SelectorEngine
         var current = (visual as ILogical)?.LogicalParent;
         while (current != null)
         {
-            if (current is Visual v)
+            if (current is Visual v && 
+                (v is not StyledElement se || se.TemplatedParent == null) &&
+                (v.GetVisualParent() is not Avalonia.Controls.Presenters.ContentPresenter cp || cp.Content == v))
             {
                 return v;
             }

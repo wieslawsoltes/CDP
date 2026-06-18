@@ -347,7 +347,7 @@ public class RecorderViewModel : ViewModelBase
                 await _cdpService.SendCommandAsync("Recorder.stop");
             }
 
-            var docRes = await _cdpService.SendCommandAsync("DOM.getDocument");
+            var docRes = await _cdpService.SendCommandAsync("DOM.getDocument", new JsonObject { ["pierce"] = true });
             var root = docRes["root"] as JsonObject;
             int rootNodeId = root?["nodeId"]?.GetValue<int>() ?? 1;
 
