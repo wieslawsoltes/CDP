@@ -4,10 +4,22 @@
              x:CompileBindings="False">
     <Grid RowDefinitions="*, Auto" Margin="10">
         <Grid RowDefinitions="Auto, *">
-            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
-                <Button Name="btnClearLogs" Command="{Binding Console.ClearLogsCommand}" Content="Clear Console"/>
-                <TextBlock Text="Broadcasting diagnostics traces and C# script logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
-            </StackPanel>
+            <!-- Filter Toolbar -->
+            <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Name="btnClearLogs" Command="{Binding Console.ClearLogsCommand}" Content="Clear Console"/>
+                    <StackPanel Orientation="Horizontal" Spacing="2" Background="#292a2d" Margin="5,0,0,0">
+                        <ToggleButton Content="All" IsChecked="{Binding Console.FilterAll, Mode=TwoWay}" Padding="8,4" FontSize="11"/>
+                        <ToggleButton Content="Error" IsChecked="{Binding Console.FilterError, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#f28b82"/>
+                        <ToggleButton Content="Warning" IsChecked="{Binding Console.FilterWarning, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#fdd663"/>
+                        <ToggleButton Content="Info" IsChecked="{Binding Console.FilterInfo, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#81c995"/>
+                        <ToggleButton Content="Verbose" IsChecked="{Binding Console.FilterVerbose, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#9aa0a6"/>
+                    </StackPanel>
+                </StackPanel>
+                
+                <TextBox Grid.Column="1" Text="{Binding Console.FilterQuery, Mode=TwoWay}" Watermark="Filter log entries..." Height="28" Margin="10,0" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
+            </Grid>
 
             <!-- Logs Console List -->
             <ListBox Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1">
