@@ -82,7 +82,8 @@ public static class PageDomain
                     var workspaceRoot = FindWorkspaceRoot();
                     var absolutePath = Path.GetFullPath(Path.Combine(workspaceRoot, relativePath));
 
-                    if (!absolutePath.StartsWith(workspaceRoot, StringComparison.OrdinalIgnoreCase))
+                    var relative = Path.GetRelativePath(workspaceRoot, absolutePath);
+                    if (relative.StartsWith("..") || Path.IsPathRooted(relative))
                     {
                         throw new Exception("Access denied: path traversal detected");
                     }

@@ -107,10 +107,20 @@ public static class NetworkDomain
 
             case "emulateNetworkConditions":
                 {
-                    _offline = @params["offline"]?.GetValue<bool>() ?? false;
-                    _latency = @params["latency"]?.GetValue<double>() ?? 0;
-                    _downloadThroughput = @params["downloadThroughput"]?.GetValue<double>() ?? -1;
-                    _uploadThroughput = @params["uploadThroughput"]?.GetValue<double>() ?? -1;
+                    bool offline = @params["offline"]?.GetValue<bool>() ?? false;
+                    double latency = @params["latency"]?.GetValue<double>() ?? 0;
+                    double downloadThroughput = @params["downloadThroughput"]?.GetValue<double>() ?? -1;
+                    double uploadThroughput = @params["uploadThroughput"]?.GetValue<double>() ?? -1;
+
+                    if (offline || latency > 0 || downloadThroughput >= 0 || uploadThroughput >= 0)
+                    {
+                        throw new NotSupportedException("Network emulation (offline/throttling) is not supported.");
+                    }
+
+                    _offline = false;
+                    _latency = 0;
+                    _downloadThroughput = -1;
+                    _uploadThroughput = -1;
                     return Task.FromResult(new JsonObject());
                 }
 

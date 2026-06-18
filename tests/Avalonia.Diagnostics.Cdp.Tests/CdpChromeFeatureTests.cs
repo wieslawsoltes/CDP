@@ -663,8 +663,10 @@ public class CdpChromeFeatureTests
             ["downloadThroughput"] = 102400.0,
             ["uploadThroughput"] = 51200.0
         };
-        var emulateRes = await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
-        Assert.NotNull(emulateRes);
+        await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
+        });
 
         window.Close();
     }

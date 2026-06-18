@@ -17,9 +17,36 @@ public static class TargetDomain
                 }
 
             case "setAutoAttach":
+                {
+                    return new JsonObject();
+                }
+
             case "setDiscoverTargets":
                 {
-                    // STUB: Return success
+                    bool discover = @params["discover"]?.GetValue<bool>() ?? false;
+                    session.DiscoverTargetsEnabled = discover;
+                    if (discover)
+                    {
+                        var targetInfos = CdpServer.GetActiveTargets();
+                        foreach (var target in targetInfos)
+                        {
+                            if (target is JsonObject targetObj)
+                            {
+                                _ = session.SendEventAsync("Target.targetCreated", new JsonObject
+                                {
+                                    ["targetInfo"] = new JsonObject
+                                    {
+                                        ["targetId"] = targetObj["targetId"]?.GetValue<string>(),
+                                        ["type"] = targetObj["type"]?.GetValue<string>(),
+                                        ["title"] = targetObj["title"]?.GetValue<string>(),
+                                        ["url"] = targetObj["url"]?.GetValue<string>(),
+                                        ["attached"] = targetObj["attached"]?.GetValue<bool>() ?? true,
+                                        ["browserContextId"] = targetObj["browserContextId"]?.GetValue<string>()
+                                    }
+                                });
+                            }
+                        }
+                    }
                     return new JsonObject();
                 }
 
