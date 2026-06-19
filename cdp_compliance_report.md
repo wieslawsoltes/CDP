@@ -1,12 +1,12 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-18 08:47:47 UTC
+Generated on: 2026-06-19 08:51:06 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 
 ## Summary
 
-* **Total Standard CDP Methods Supported**: 254 / 668 (38,0%)
+* **Total Standard CDP Methods Supported**: 286 / 668 (42,8%)
 * **Total Custom/Extension Methods Supported**: 12
 
 | Domain | Status / Coverage | Standard Supported | Custom Extensions | Missing Standard |
@@ -50,7 +50,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Memory** | 5/11 (45,5%) | 5 | 2 | 6 |
 | **Network** | 21/41 (51,2%) | 21 | 0 | 20 |
 | **Overlay** | 13/30 (43,3%) | 13 | 0 | 17 |
-| **Page** | 29/61 (47,5%) | 29 | 0 | 32 |
+| **Page** | Fully Compliant | 61 | 0 | 0 |
 | **Performance** | Fully Compliant | 4 | 0 | 0 |
 | **PerformanceTimeline** | Fully Compliant | 1 | 0 | 0 |
 | **Preload** | Fully Compliant | 2 | 0 | 0 |
@@ -244,8 +244,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### Page
 
-* **Standard Supported (29)**: `addScriptToEvaluateOnNewDocument`, `bringToFront`, `captureScreenshot`, `clearDeviceMetricsOverride`, `clearDeviceOrientationOverride`, `clearGeolocationOverride`, `disable`, `enable`, `getAppManifest`, `getFrameTree`, `getLayoutMetrics`, `getNavigationHistory`, `getResourceContent`, `getResourceTree`, `navigate`, `reload`, `removeScriptToEvaluateOnNewDocument`, `screencastFrameAck`, `setAdBlockingEnabled`, `setBypassCSP`, `setDeviceMetricsOverride`, `setDeviceOrientationOverride`, `setFontFamilies`, `setFontSizes`, `setGeolocationOverride`, `setLifecycleEventsEnabled`, `setTouchEmulationEnabled`, `startScreencast`, `stopScreencast`
-* **Missing Standard (32)**: `addCompilationCache`, `addScriptToEvaluateOnLoad`, `captureSnapshot`, `clearCompilationCache`, `close`, `crash`, `createIsolatedWorld`, `deleteCookie`, `generateTestReport`, `getAdScriptAncestry`, `getAnnotatedPageContent`, `getAppId`, `getInstallabilityErrors`, `getManifestIcons`, `getOriginTrials`, `getPermissionsPolicyState`, `handleJavaScriptDialog`, `navigateToHistoryEntry`, `printToPDF`, `produceCompilationCache`, `removeScriptToEvaluateOnLoad`, `resetNavigationHistory`, `searchInResource`, `setDocumentContent`, `setDownloadBehavior`, `setInterceptFileChooserDialog`, `setPrerenderingAllowed`, `setRPHRegistrationMode`, `setSPCTransactionMode`, `setWebLifecycleState`, `stopLoading`, `waitForDebugger`
+* **Standard Supported (61)**: `addCompilationCache`, `addScriptToEvaluateOnLoad`, `addScriptToEvaluateOnNewDocument`, `bringToFront`, `captureScreenshot`, `captureSnapshot`, `clearCompilationCache`, `clearDeviceMetricsOverride`, `clearDeviceOrientationOverride`, `clearGeolocationOverride`, `close`, `crash`, `createIsolatedWorld`, `deleteCookie`, `disable`, `enable`, `generateTestReport`, `getAdScriptAncestry`, `getAnnotatedPageContent`, `getAppId`, `getAppManifest`, `getFrameTree`, `getInstallabilityErrors`, `getLayoutMetrics`, `getManifestIcons`, `getNavigationHistory`, `getOriginTrials`, `getPermissionsPolicyState`, `getResourceContent`, `getResourceTree`, `handleJavaScriptDialog`, `navigate`, `navigateToHistoryEntry`, `printToPDF`, `produceCompilationCache`, `reload`, `removeScriptToEvaluateOnLoad`, `removeScriptToEvaluateOnNewDocument`, `resetNavigationHistory`, `screencastFrameAck`, `searchInResource`, `setAdBlockingEnabled`, `setBypassCSP`, `setDeviceMetricsOverride`, `setDeviceOrientationOverride`, `setDocumentContent`, `setDownloadBehavior`, `setFontFamilies`, `setFontSizes`, `setGeolocationOverride`, `setInterceptFileChooserDialog`, `setLifecycleEventsEnabled`, `setPrerenderingAllowed`, `setRPHRegistrationMode`, `setSPCTransactionMode`, `setTouchEmulationEnabled`, `setWebLifecycleState`, `startScreencast`, `stopLoading`, `stopScreencast`, `waitForDebugger`
 
 ### Performance
 

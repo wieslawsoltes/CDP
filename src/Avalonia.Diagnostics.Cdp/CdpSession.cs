@@ -31,6 +31,28 @@ public class CdpSession
     public int InspectedNodeId { get; set; } = 0;
     public bool DiscoverTargetsEnabled { get; set; }
     public bool IsDomEnabled { get; private set; }
+    public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument { get; } = new();
+    public ConcurrentDictionary<string, string> ScriptsToEvaluateOnLoad { get; } = new();
+    public System.Collections.Generic.List<JsonObject> Cookies { get; } = new();
+
+    public JsonObject? GeolocationOverride { get; set; }
+    public JsonObject? DeviceOrientationOverride { get; set; }
+    public bool TouchEmulationEnabled { get; set; }
+    public bool LifecycleEventsEnabled { get; set; }
+    public bool AdBlockingEnabled { get; set; }
+    public bool BypassCSP { get; set; }
+    public JsonObject? FontFamilies { get; set; }
+    public JsonObject? FontSizes { get; set; }
+    public string? DownloadBehavior { get; set; }
+    public string? DownloadPath { get; set; }
+    public bool InterceptFileChooserDialog { get; set; }
+    public bool PrerenderingAllowed { get; set; }
+    public string? RPHRegistrationMode { get; set; }
+    public string? SPCTransactionMode { get; set; }
+    public string? WebLifecycleState { get; set; }
+    public ConcurrentDictionary<string, string> CompilationCache { get; } = new();
+    public System.Collections.Generic.List<JsonObject> NavigationHistory { get; } = new();
+    public int NavigationHistoryIndex { get; set; } = -1;
 
     private bool _useLogicalTree = false;
     public bool UseLogicalTree
@@ -204,6 +226,18 @@ public class CdpSession
     {
         _webSocket = webSocket;
         Window = window;
+
+        var port = CdpServer.Port;
+        var rootUrl = $"http://127.0.0.1:{port}/";
+        NavigationHistory.Add(new JsonObject
+        {
+            ["id"] = 1,
+            ["url"] = rootUrl,
+            ["userTypedURL"] = rootUrl,
+            ["title"] = window?.GetType().Name ?? "Avalonia Window",
+            ["transitionType"] = "typed"
+        });
+        NavigationHistoryIndex = 0;
     }
 
     public string RegisterObject(object obj)

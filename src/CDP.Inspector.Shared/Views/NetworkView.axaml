@@ -5,7 +5,19 @@
     <Grid RowDefinitions="Auto, *" Margin="10">
         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
             <Button Name="btnClearNetwork" Command="{Binding Network.ClearNetworkCommand}" Content="Clear Network Log"/>
-            <TextBlock Text="Captures outbound HTTP requests from HttpClient instances" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
+            <TextBlock Text="Throttling:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="12" Margin="10,0,0,0"/>
+            <ComboBox Name="cmbThrottling"
+                      ItemsSource="{Binding Network.ThrottlingProfiles}"
+                      SelectedItem="{Binding Network.SelectedProfile, Mode=TwoWay}"
+                      Width="150" Height="28"
+                      Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding DisplayName}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Text="Captures outbound HTTP requests from HttpClient instances" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11" Margin="10,0,0,0"/>
         </StackPanel>
 
         <Grid Grid.Row="1" ColumnDefinitions="*, 4, 380">
