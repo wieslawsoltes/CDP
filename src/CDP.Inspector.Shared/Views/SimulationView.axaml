@@ -114,6 +114,20 @@
                 <Grid RowDefinitions="Auto, *">
                     <!-- Emulation Controls -->
                     <StackPanel Spacing="10" Grid.Row="0" Margin="0,0,0,10">
+                        <Grid ColumnDefinitions="*, *" Margin="0,0,0,5">
+                            <TextBlock Text="Device Preset:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="12"/>
+                            <ComboBox Grid.Column="1" Name="cmbDevicePresets"
+                                      ItemsSource="{Binding Simulation.DevicePresets}"
+                                      SelectedItem="{Binding Simulation.SelectedDevicePreset, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" Height="28"
+                                      Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
                         <Grid ColumnDefinitions="*, *, *" RowDefinitions="Auto, Auto">
                             <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" PlaceholderText="Width" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,5"/>
                             <TextBox Grid.Column="1" Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" PlaceholderText="Height" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,5"/>

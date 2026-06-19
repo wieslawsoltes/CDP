@@ -26,6 +26,31 @@ public class SimulationViewModel : ViewModelBase
     private bool _isMobileActive;
     private Bitmap? _screenshotImage;
 
+    private readonly System.Collections.ObjectModel.ObservableCollection<DevicePreset> _devicePresets = new()
+    {
+        new DevicePreset("Responsive", 0, 0, 1.0, false),
+        new DevicePreset("iPhone SE", 375, 667, 2.0, true),
+        new DevicePreset("iPhone 12 Pro", 390, 844, 3.0, true),
+        new DevicePreset("Pixel 5", 393, 851, 2.75, true),
+        new DevicePreset("iPad Air", 820, 1180, 2.0, true),
+        new DevicePreset("Desktop (1080p)", 1920, 1080, 1.0, false)
+    };
+    private DevicePreset? _selectedDevicePreset;
+
+    public System.Collections.ObjectModel.ObservableCollection<DevicePreset> DevicePresets => _devicePresets;
+
+    public DevicePreset? SelectedDevicePreset
+    {
+        get => _selectedDevicePreset;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedDevicePreset, value))
+            {
+                OnDevicePresetChanged();
+            }
+        }
+    }
+
     // Page control
     private string _navigateUrlText = "http://localhost:9222/about";
 
@@ -202,6 +227,8 @@ public class SimulationViewModel : ViewModelBase
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _getSelectedNodeFunc = getSelectedNodeFunc ?? throw new ArgumentNullException(nameof(getSelectedNodeFunc));
+
+        _selectedDevicePreset = _devicePresets[0];
 
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
 
@@ -609,5 +636,45 @@ public class SimulationViewModel : ViewModelBase
             IsAltActive = false;
             IsMetaActive = false;
         });
+    }
+
+    private void OnDevicePresetChanged()
+    {
+        if (SelectedDevicePreset == null) return;
+
+        if (SelectedDevicePreset.Width == 0 && SelectedDevicePreset.Height == 0)
+        {
+            WidthText = "800";
+            HeightText = "600";
+            ScaleFactorText = "1.0";
+            IsMobileActive = false;
+            _ = ResizeResetAsync();
+        }
+        else
+        {
+            WidthText = SelectedDevicePreset.Width.ToString();
+            HeightText = SelectedDevicePreset.Height.ToString();
+            ScaleFactorText = SelectedDevicePreset.Scale.ToString();
+            IsMobileActive = SelectedDevicePreset.IsMobile;
+            _ = ResizeAsync();
+        }
+    }
+}
+
+public class DevicePreset
+{
+    public string DisplayName { get; }
+    public int Width { get; }
+    public int Height { get; }
+    public double Scale { get; }
+    public bool IsMobile { get; }
+
+    public DevicePreset(string displayName, int width, int height, double scale, bool isMobile)
+    {
+        DisplayName = displayName;
+        Width = width;
+        Height = height;
+        Scale = scale;
+        IsMobile = isMobile;
     }
 }

@@ -667,10 +667,8 @@ public class CdpChromeFeatureTests
             ["downloadThroughput"] = 102400.0,
             ["uploadThroughput"] = 51200.0
         };
-        await Assert.ThrowsAsync<NotSupportedException>(async () =>
-        {
-            await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
-        });
+        var emulateRes = await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
+        Assert.NotNull(emulateRes);
 
         window.Close();
     }
@@ -914,6 +912,48 @@ public class CdpChromeFeatureTests
         // Verify we received childNodeRemoved
         var removedEvent = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("DOM.childNodeRemoved"));
         Assert.NotNull(removedEvent);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestNetworkThrottlingSimulationOffline()
+    {
+        var window = new Window { Title = "Network Throttling Test Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Enable Network emulation conditions with offline = true
+        var conditions = new JsonObject
+        {
+            ["offline"] = true,
+            ["latency"] = 0.0,
+            ["downloadThroughput"] = 0.0,
+            ["uploadThroughput"] = 0.0
+        };
+        await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
+
+        // 2. Try starting an HTTP request and verify it throws HttpRequestException
+        using var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, "https://example.com");
+        Assert.Throws<System.Net.Http.HttpRequestException>(() =>
+        {
+            NetworkDomain.OnRequestStart(request);
+        });
+
+        // 3. Clear emulation conditions (offline = false)
+        var resetConditions = new JsonObject
+        {
+            ["offline"] = false,
+            ["latency"] = 0.0,
+            ["downloadThroughput"] = -1.0,
+            ["uploadThroughput"] = -1.0
+        };
+        await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", resetConditions);
+
+        // 4. Try starting the HTTP request again and confirm it does not throw
+        NetworkDomain.OnRequestStart(request);
 
         window.Close();
     }

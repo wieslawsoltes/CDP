@@ -107,20 +107,10 @@ public static class NetworkDomain
 
             case "emulateNetworkConditions":
                 {
-                    bool offline = @params["offline"]?.GetValue<bool>() ?? false;
-                    double latency = @params["latency"]?.GetValue<double>() ?? 0;
-                    double downloadThroughput = @params["downloadThroughput"]?.GetValue<double>() ?? -1;
-                    double uploadThroughput = @params["uploadThroughput"]?.GetValue<double>() ?? -1;
-
-                    if (offline || latency > 0 || downloadThroughput >= 0 || uploadThroughput >= 0)
-                    {
-                        throw new NotSupportedException("Network emulation (offline/throttling) is not supported.");
-                    }
-
-                    _offline = false;
-                    _latency = 0;
-                    _downloadThroughput = -1;
-                    _uploadThroughput = -1;
+                    _offline = @params["offline"]?.GetValue<bool>() ?? false;
+                    _latency = @params["latency"]?.GetValue<double>() ?? 0;
+                    _downloadThroughput = @params["downloadThroughput"]?.GetValue<double>() ?? -1;
+                    _uploadThroughput = @params["uploadThroughput"]?.GetValue<double>() ?? -1;
                     return Task.FromResult(new JsonObject());
                 }
 
@@ -163,6 +153,16 @@ public static class NetworkDomain
 
     public static void OnRequestStart(HttpRequestMessage request)
     {
+        if (_offline)
+        {
+            throw new HttpRequestException("Network is offline (emulated by CDP).");
+        }
+
+        if (_latency > 0)
+        {
+            System.Threading.Thread.Sleep((int)_latency);
+        }
+
         if (_enabledSessions.IsEmpty) return;
 
         string requestId = $"req-{System.Threading.Interlocked.Increment(ref _nextRequestId)}";
@@ -300,6 +300,30 @@ public static class NetworkDomain
             }
         }
         return obj;
+    }
+
+    internal static void ApplyDownloadThrottling(int bytesRead)
+    {
+        if (_downloadThroughput > 0 && bytesRead > 0)
+        {
+            double delayMs = (bytesRead * 1000.0) / _downloadThroughput;
+            if (delayMs > 1)
+            {
+                System.Threading.Thread.Sleep((int)delayMs);
+            }
+        }
+    }
+
+    internal static async Task ApplyDownloadThrottlingAsync(int bytesRead, CancellationToken cancellationToken)
+    {
+        if (_downloadThroughput > 0 && bytesRead > 0)
+        {
+            double delayMs = (bytesRead * 1000.0) / _downloadThroughput;
+            if (delayMs > 1)
+            {
+                await Task.Delay((int)delayMs, cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 }
 
@@ -483,6 +507,7 @@ internal class TrackingStream : Stream
         if (read > 0)
         {
             _parent.TrackData(new ReadOnlySpan<byte>(buffer, offset, read));
+            NetworkDomain.ApplyDownloadThrottling(read);
         }
         else if (read == 0)
         {
@@ -497,6 +522,7 @@ internal class TrackingStream : Stream
         if (read > 0)
         {
             _parent.TrackData(new ReadOnlySpan<byte>(buffer, offset, read));
+            await NetworkDomain.ApplyDownloadThrottlingAsync(read, cancellationToken).ConfigureAwait(false);
         }
         else if (read == 0)
         {
@@ -511,6 +537,7 @@ internal class TrackingStream : Stream
         if (read > 0)
         {
             _parent.TrackData(buffer.Span.Slice(0, read));
+            await NetworkDomain.ApplyDownloadThrottlingAsync(read, cancellationToken).ConfigureAwait(false);
         }
         else if (read == 0)
         {

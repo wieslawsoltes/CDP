@@ -21,7 +21,29 @@ public class NetworkViewModel : ViewModelBase
     private string _selectedResponseHeaders = "";
     private string _selectedResponseBody = "";
 
+    private ObservableCollection<ThrottlingProfile> _throttlingProfiles = new()
+    {
+        new ThrottlingProfile("No Throttling", false, 0, -1, -1),
+        new ThrottlingProfile("Fast 3G", false, 100, 200000, 96000),
+        new ThrottlingProfile("Slow 3G", false, 400, 47000, 47000),
+        new ThrottlingProfile("Offline", true, 0, 0, 0)
+    };
+    private ThrottlingProfile? _selectedProfile;
+
     public ObservableCollection<NetworkRequestModel> NetworkRequests => _networkRequests;
+    public ObservableCollection<ThrottlingProfile> ThrottlingProfiles => _throttlingProfiles;
+
+    public ThrottlingProfile? SelectedProfile
+    {
+        get => _selectedProfile;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedProfile, value))
+            {
+                _ = ApplyThrottlingAsync();
+            }
+        }
+    }
 
     public NetworkRequestModel? SelectedRequest
     {
@@ -67,6 +89,7 @@ public class NetworkViewModel : ViewModelBase
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
 
+        _selectedProfile = _throttlingProfiles[0];
         ClearNetworkCommand = new RelayCommand(ClearNetwork);
     }
 
@@ -90,6 +113,7 @@ public class NetworkViewModel : ViewModelBase
         try
         {
             await _cdpService.SendCommandAsync("Network.enable");
+            await ApplyThrottlingAsync();
         }
         catch (Exception ex)
         {
@@ -242,5 +266,43 @@ public class NetworkViewModel : ViewModelBase
             SelectedResponseHeaders = "";
             SelectedResponseBody = "";
         }
+    }
+
+    private async Task ApplyThrottlingAsync()
+    {
+        if (SelectedProfile == null || !_cdpService.IsConnected) return;
+
+        try
+        {
+            await _cdpService.SendCommandAsync("Network.emulateNetworkConditions", new JsonObject
+            {
+                ["offline"] = SelectedProfile.Offline,
+                ["latency"] = SelectedProfile.Latency,
+                ["downloadThroughput"] = SelectedProfile.DownloadThroughput,
+                ["uploadThroughput"] = SelectedProfile.UploadThroughput
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error applying network throttling: {ex.Message}");
+        }
+    }
+}
+
+public class ThrottlingProfile
+{
+    public string DisplayName { get; }
+    public bool Offline { get; }
+    public double Latency { get; }
+    public double DownloadThroughput { get; }
+    public double UploadThroughput { get; }
+
+    public ThrottlingProfile(string displayName, bool offline, double latency, double downloadThroughput, double uploadThroughput)
+    {
+        DisplayName = displayName;
+        Offline = offline;
+        Latency = latency;
+        DownloadThroughput = downloadThroughput;
+        UploadThroughput = uploadThroughput;
     }
 }
