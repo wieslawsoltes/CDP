@@ -20,6 +20,8 @@ public static class CdpServer
     private static bool _isRunning;
     private static int _port = 9222;
     public static int Port => _port;
+    public static System.IO.TextWriter OriginalOut => _originalOut ?? Console.Out;
+    public static System.IO.TextWriter OriginalError => _originalError ?? Console.Error;
     private static readonly ConcurrentDictionary<string, (TopLevel Window, string Title)> _windows = new();
     private static readonly ConcurrentDictionary<CdpSession, byte> _sessions = new();
     private static System.IO.TextWriter? _originalOut;
