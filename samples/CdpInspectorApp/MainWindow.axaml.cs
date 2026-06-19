@@ -121,4 +121,72 @@ public partial class MainWindow : Window
         }
         return -1;
     }
+
+    public void SetPropertySearchText(string text)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Elements.PropertySearchText = text;
+        }
+    }
+
+    public int GetFilteredPropertiesCount()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return System.Linq.Enumerable.Count(vm.Elements.FilteredProperties);
+        }
+        return 0;
+    }
+
+    public void SetCssSearchText(string text)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Elements.CssSearchText = text;
+        }
+    }
+
+    public int GetFilteredCssPropertiesCount()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return System.Linq.Enumerable.Count(vm.Elements.FilteredCssProperties);
+        }
+        return 0;
+    }
+
+    public void SetComputedSearchText(string text)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Elements.ComputedSearchText = text;
+        }
+    }
+
+    public int GetFilteredComputedStylesCount()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return System.Linq.Enumerable.Count(vm.Elements.FilteredComputedStyles);
+        }
+        return 0;
+    }
+
+    public void SetAttributeSearchText(string text)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.Elements.AttributeSearchText = text;
+        }
+    }
+
+    public int GetFilteredAttributesCount()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return System.Linq.Enumerable.Count(vm.Elements.FilteredAttributes);
+        }
+        return 0;
+    }
 }
