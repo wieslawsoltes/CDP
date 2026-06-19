@@ -189,4 +189,20 @@ public partial class MainWindow : Window
         }
         return 0;
     }
+
+    public void ForcePseudoState(string state, bool forceValue)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            switch (state.ToLowerInvariant())
+            {
+                case "hover": vm.Elements.IsForcedHover = forceValue; break;
+                case "active": vm.Elements.IsForcedActive = forceValue; break;
+                case "focus": vm.Elements.IsForcedFocus = forceValue; break;
+                case "focus-within": vm.Elements.IsForcedFocusWithin = forceValue; break;
+                case "focus-visible": vm.Elements.IsForcedFocusVisible = forceValue; break;
+                case "disabled": vm.Elements.IsForcedDisabled = forceValue; break;
+            }
+        }
+    }
 }

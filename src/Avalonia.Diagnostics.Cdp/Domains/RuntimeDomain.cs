@@ -294,7 +294,7 @@ public static class RuntimeDomain
                     var methodName = part.Substring(0, opIndex).Trim();
                     var argStr = part.Substring(opIndex + 1, part.Length - opIndex - 2).Trim();
 
-                    // Resolve arguments
+                    // Resolve arguments (support multiple comma-separated arguments)
                     object?[] methodArgs;
                     Type[] argTypes;
 
@@ -303,44 +303,81 @@ public static class RuntimeDomain
                         methodArgs = Array.Empty<object?>();
                         argTypes = Type.EmptyTypes;
                     }
-                    else if (variableBindings != null && variableBindings.TryGetValue(argStr, out var boundVal))
-                    {
-                        methodArgs = new object?[] { boundVal };
-                        argTypes = new Type[] { boundVal?.GetType() ?? typeof(object) };
-                    }
                     else
                     {
-                        // Clean quotes if it is a string literal
-                        if ((argStr.StartsWith("\"") && argStr.EndsWith("\"")) || (argStr.StartsWith("'") && argStr.EndsWith("'")))
+                        var argsList = new System.Collections.Generic.List<string>();
+                        var currentArg = new System.Text.StringBuilder();
+                        bool inDoubleQuotes = false;
+                        bool inSingleQuotes = false;
+                        for (int i = 0; i < argStr.Length; i++)
                         {
-                            var unescaped = argStr.Substring(1, argStr.Length - 2)
-                                .Replace("\\\"", "\"")
-                                .Replace("\\n", "\n")
-                                .Replace("\\r", "\r")
-                                .Replace("\\t", "\t");
-                            methodArgs = new object?[] { unescaped };
-                            argTypes = new Type[] { typeof(string) };
+                            char c = argStr[i];
+                            if (c == '"' && (i == 0 || argStr[i - 1] != '\\'))
+                            {
+                                inDoubleQuotes = !inDoubleQuotes;
+                                currentArg.Append(c);
+                            }
+                            else if (c == '\'' && (i == 0 || argStr[i - 1] != '\\'))
+                            {
+                                inSingleQuotes = !inSingleQuotes;
+                                currentArg.Append(c);
+                            }
+                            else if (c == ',' && !inDoubleQuotes && !inSingleQuotes)
+                            {
+                                argsList.Add(currentArg.ToString().Trim());
+                                currentArg.Clear();
+                            }
+                            else
+                            {
+                                currentArg.Append(c);
+                            }
                         }
-                        else if (int.TryParse(argStr, out int intVal))
+                        if (currentArg.Length > 0 || argsList.Count > 0)
                         {
-                            methodArgs = new object?[] { intVal };
-                            argTypes = new Type[] { typeof(int) };
+                            argsList.Add(currentArg.ToString().Trim());
                         }
-                        else if (double.TryParse(argStr, System.Globalization.NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleVal))
+
+                        methodArgs = new object?[argsList.Count];
+                        argTypes = new Type[argsList.Count];
+
+                        for (int idx = 0; idx < argsList.Count; idx++)
                         {
-                            methodArgs = new object?[] { doubleVal };
-                            argTypes = new Type[] { typeof(double) };
-                        }
-                        else if (bool.TryParse(argStr, out bool boolVal))
-                        {
-                            methodArgs = new object?[] { boolVal };
-                            argTypes = new Type[] { typeof(bool) };
-                        }
-                        else
-                        {
-                            // Fallback as raw string
-                            methodArgs = new object?[] { argStr };
-                            argTypes = new Type[] { typeof(string) };
+                            var argValStr = argsList[idx];
+                            if (variableBindings != null && variableBindings.TryGetValue(argValStr, out var boundVal))
+                            {
+                                methodArgs[idx] = boundVal;
+                                argTypes[idx] = boundVal?.GetType() ?? typeof(object);
+                            }
+                            else if ((argValStr.StartsWith("\"") && argValStr.EndsWith("\"")) || (argValStr.StartsWith("'") && argValStr.EndsWith("'")))
+                            {
+                                var unescaped = argValStr.Substring(1, argValStr.Length - 2)
+                                    .Replace("\\\"", "\"")
+                                    .Replace("\\n", "\n")
+                                    .Replace("\\r", "\r")
+                                    .Replace("\\t", "\t");
+                                methodArgs[idx] = unescaped;
+                                argTypes[idx] = typeof(string);
+                            }
+                            else if (int.TryParse(argValStr, out int intVal))
+                            {
+                                methodArgs[idx] = intVal;
+                                argTypes[idx] = typeof(int);
+                            }
+                            else if (double.TryParse(argValStr, System.Globalization.NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleVal))
+                            {
+                                methodArgs[idx] = doubleVal;
+                                argTypes[idx] = typeof(double);
+                            }
+                            else if (bool.TryParse(argValStr, out bool boolVal))
+                            {
+                                methodArgs[idx] = boolVal;
+                                argTypes[idx] = typeof(bool);
+                            }
+                            else
+                            {
+                                methodArgs[idx] = argValStr;
+                                argTypes[idx] = typeof(string);
+                            }
                         }
                     }
 

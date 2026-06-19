@@ -92,7 +92,341 @@ public static class CssDomain
 
             case "setStyleSheetText":
                 {
+                    string sheetId = @params["styleSheetId"]?.GetValue<string>() ?? "";
+                    string text = @params["text"]?.GetValue<string>() ?? "";
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (int.TryParse(sheetId, out int nodeId))
+                        {
+                            var visual = session.NodeMap.GetVisual(nodeId);
+                            if (visual is Control control)
+                            {
+                                ApplyStyleText(control, text);
+                            }
+                        }
+                    });
                     return new JsonObject { ["sourceMapURL"] = "" };
+                }
+
+            case "getInlineStylesForNode":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual == null)
+                    {
+                        throw new Exception($"Node with ID {nodeId} not found");
+                    }
+                    var inlineStyle = await Dispatcher.UIThread.InvokeAsync(() => GetInlineStyle(visual, nodeId));
+                    return new JsonObject
+                    {
+                        ["inlineStyle"] = inlineStyle,
+                        ["attributesStyle"] = new JsonObject
+                        {
+                            ["styleSheetId"] = nodeId.ToString(),
+                            ["cssProperties"] = new JsonArray(),
+                            ["shorthandEntries"] = new JsonArray(),
+                            ["cssText"] = ""
+                        }
+                    };
+                }
+
+            case "forcePseudoState":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    var classes = @params["forcedPseudoClasses"] as JsonArray;
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var visual = session.NodeMap.GetVisual(nodeId);
+                        if (visual is Control control)
+                        {
+                            var pseudoProp = control.GetType().GetProperty("PseudoClasses", 
+                                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                            if (pseudoProp != null)
+                            {
+                                var pseudoClasses = pseudoProp.GetValue(control);
+                                if (pseudoClasses != null)
+                                {
+                                    var removeMethod = pseudoClasses.GetType().GetMethod("Remove", new[] { typeof(string) });
+                                    var addMethod = pseudoClasses.GetType().GetMethod("Add", new[] { typeof(string) });
+                                    if (removeMethod != null && addMethod != null)
+                                    {
+                                        removeMethod.Invoke(pseudoClasses, new object[] { "hover" });
+                                        removeMethod.Invoke(pseudoClasses, new object[] { "pointerover" });
+                                        removeMethod.Invoke(pseudoClasses, new object[] { "active" });
+                                        removeMethod.Invoke(pseudoClasses, new object[] { "pressed" });
+                                        removeMethod.Invoke(pseudoClasses, new object[] { "focus" });
+                                        removeMethod.Invoke(pseudoClasses, new object[] { "focus-within" });
+                                        removeMethod.Invoke(pseudoClasses, new object[] { "focus-visible" });
+                                        removeMethod.Invoke(pseudoClasses, new object[] { "disabled" });
+
+                                        if (classes != null)
+                                        {
+                                            foreach (var clsNode in classes)
+                                            {
+                                                string cls = clsNode?.GetValue<string>() ?? "";
+                                                if (string.Equals(cls, "hover", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    addMethod.Invoke(pseudoClasses, new object[] { "hover" });
+                                                    addMethod.Invoke(pseudoClasses, new object[] { "pointerover" });
+                                                }
+                                                else if (string.Equals(cls, "active", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    addMethod.Invoke(pseudoClasses, new object[] { "active" });
+                                                    addMethod.Invoke(pseudoClasses, new object[] { "pressed" });
+                                                }
+                                                else if (!string.IsNullOrEmpty(cls))
+                                                {
+                                                    // Strip colon if passed
+                                                    if (cls.StartsWith(":")) cls = cls.Substring(1);
+                                                    addMethod.Invoke(pseudoClasses, new object[] { cls });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    return new JsonObject();
+                }
+
+            case "getPlatformFontsForNode":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual == null)
+                    {
+                        throw new Exception($"Node with ID {nodeId} not found");
+                    }
+                    var fonts = await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var list = new JsonArray();
+                        string family = "Default";
+                        if (visual is Control control)
+                        {
+                            var ffProp = control.GetType().GetProperty("FontFamily");
+                            if (ffProp != null && ffProp.GetValue(control) is FontFamily ff)
+                            {
+                                family = ff.Name;
+                            }
+                        }
+                        list.Add(new JsonObject
+                        {
+                            ["familyName"] = family,
+                            ["postScriptName"] = family,
+                            ["isCustomFont"] = false,
+                            ["glyphCount"] = 1
+                        });
+                        return list;
+                    });
+                    return new JsonObject { ["fonts"] = fonts };
+                }
+
+            case "getBackgroundColors":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual == null)
+                    {
+                        throw new Exception($"Node with ID {nodeId} not found");
+                    }
+                    var result = await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var res = new JsonObject();
+                        var colors = new JsonArray();
+                        string fontSize = "12px";
+                        string fontWeight = "normal";
+
+                        if (visual is Control control)
+                        {
+                            var bgProp = control.GetType().GetProperty("Background");
+                            if (bgProp != null && bgProp.GetValue(control) is IBrush brush)
+                            {
+                                colors.Add(brush.ToString() ?? "");
+                            }
+                            else
+                            {
+                                colors.Add("#00000000");
+                            }
+
+                            var fsProp = control.GetType().GetProperty("FontSize");
+                            if (fsProp != null)
+                            {
+                                fontSize = $"{fsProp.GetValue(control)}px";
+                            }
+                            var fwProp = control.GetType().GetProperty("FontWeight");
+                            if (fwProp != null)
+                            {
+                                fontWeight = fwProp.GetValue(control)?.ToString() ?? "normal";
+                            }
+                        }
+                        else
+                        {
+                            colors.Add("#00000000");
+                        }
+
+                        res["backgroundColors"] = colors;
+                        res["computedFontSize"] = fontSize;
+                        res["computedFontWeight"] = fontWeight;
+                        return res;
+                    });
+                    return result;
+                }
+
+            case "collectClassNames":
+                {
+                    string sheetId = @params["styleSheetId"]?.GetValue<string>() ?? "";
+                    var classNames = await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var list = new JsonArray();
+                        if (int.TryParse(sheetId, out int nodeId))
+                        {
+                            var visual = session.NodeMap.GetVisual(nodeId);
+                            if (visual is Control control)
+                            {
+                                foreach (var cls in control.Classes)
+                                {
+                                    list.Add(cls);
+                                }
+                                var pseudoProp = control.GetType().GetProperty("PseudoClasses", 
+                                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                                if (pseudoProp != null && pseudoProp.GetValue(control) is System.Collections.IEnumerable pseudoClasses)
+                                {
+                                    foreach (var pc in pseudoClasses)
+                                    {
+                                        if (pc != null)
+                                        {
+                                            string pcStr = pc.ToString() ?? "";
+                                            if (!pcStr.StartsWith(":"))
+                                            {
+                                                pcStr = ":" + pcStr;
+                                            }
+                                            list.Add(pcStr);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        return list;
+                    });
+                    return new JsonObject { ["classNames"] = classNames };
+                }
+
+            case "getStyleSheetText":
+                {
+                    string sheetId = @params["styleSheetId"]?.GetValue<string>() ?? "";
+                    var text = await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (int.TryParse(sheetId, out int nodeId))
+                        {
+                            var visual = session.NodeMap.GetVisual(nodeId);
+                            if (visual != null)
+                            {
+                                var styleObj = GetInlineStyle(visual, nodeId);
+                                return styleObj["cssText"]?.GetValue<string>() ?? "";
+                            }
+                        }
+                        return "";
+                    });
+                    return new JsonObject { ["text"] = text };
+                }
+
+            case "addRule":
+                {
+                    string sheetId = @params["styleSheetId"]?.GetValue<string>() ?? "";
+                    string ruleText = @params["ruleText"]?.GetValue<string>() ?? "";
+                    var rule = await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (int.TryParse(sheetId, out int nodeId))
+                        {
+                            var visual = session.NodeMap.GetVisual(nodeId);
+                            if (visual is Control control)
+                            {
+                                ApplyStyleText(control, ruleText);
+                                var inlineStyle = GetInlineStyle(control, nodeId);
+                                return new JsonObject
+                                {
+                                    ["styleSheetId"] = sheetId,
+                                    ["selectorList"] = new JsonObject
+                                    {
+                                        ["selectors"] = new JsonArray { new JsonObject { ["text"] = "element" } },
+                                        ["text"] = "element"
+                                    },
+                                    ["origin"] = "inspector",
+                                    ["style"] = inlineStyle
+                                };
+                            }
+                        }
+                        return new JsonObject();
+                    });
+                    return new JsonObject { ["rule"] = rule };
+                }
+
+            case "getLayersForNode":
+                {
+                    return new JsonObject
+                    {
+                        ["rootLayer"] = new JsonObject
+                        {
+                            ["name"] = "default",
+                            ["order"] = 1
+                        }
+                    };
+                }
+
+            case "getMediaQueries":
+                {
+                    return new JsonObject
+                    {
+                        ["medias"] = new JsonArray()
+                    };
+                }
+
+            case "getLonghandProperties":
+                {
+                    string shorthandName = @params["shorthandName"]?.GetValue<string>() ?? "";
+                    string value = @params["value"]?.GetValue<string>() ?? "";
+                    var list = new JsonArray();
+                    
+                    var parts = value.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    string t = "0", r = "0", b = "0", l = "0";
+                    if (parts.Length == 1)
+                    {
+                        t = r = b = l = parts[0];
+                    }
+                    else if (parts.Length == 2)
+                    {
+                        t = b = parts[0];
+                        r = l = parts[1];
+                    }
+                    else if (parts.Length == 4)
+                    {
+                        l = parts[0];
+                        t = parts[1];
+                        r = parts[2];
+                        b = parts[3];
+                    }
+
+                    if (shorthandName.Equals("margin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        list.Add(CreateInlineProperty("margin-top", t));
+                        list.Add(CreateInlineProperty("margin-right", r));
+                        list.Add(CreateInlineProperty("margin-bottom", b));
+                        list.Add(CreateInlineProperty("margin-left", l));
+                    }
+                    else if (shorthandName.Equals("padding", StringComparison.OrdinalIgnoreCase))
+                    {
+                        list.Add(CreateInlineProperty("padding-top", t));
+                        list.Add(CreateInlineProperty("padding-right", r));
+                        list.Add(CreateInlineProperty("padding-bottom", b));
+                        list.Add(CreateInlineProperty("padding-left", l));
+                    }
+                    else
+                    {
+                        list.Add(CreateInlineProperty(shorthandName, value));
+                    }
+
+                    return new JsonObject { ["longhandProperties"] = list };
                 }
 
             default:
