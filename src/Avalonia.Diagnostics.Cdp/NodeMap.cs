@@ -30,6 +30,14 @@ public class NodeMap
         return _visualToId.TryGetValue(visual, out id);
     }
 
+    public void Remove(Visual visual)
+    {
+        if (_visualToId.TryRemove(visual, out int id))
+        {
+            _idToVisual.TryRemove(id, out _);
+        }
+    }
+
     public void Clear()
     {
         _visualToId.Clear();
