@@ -259,7 +259,7 @@ public static class CdpServer
                     var winInfo = GetWindows().FirstOrDefault(w => w.Id == targetId);
                     if (winInfo.Window != null)
                     {
-                        var wsContext = await context.AcceptWebSocketAsync(null);
+                        var wsContext = await context.AcceptWebSocketAsync(null, TimeSpan.FromSeconds(10));
                         var session = new CdpSession(wsContext.WebSocket, winInfo.Window);
                         await session.StartAsync();
                         return;
@@ -270,7 +270,7 @@ public static class CdpServer
                     var firstWin = GetWindows().FirstOrDefault();
                     if (firstWin.Window != null)
                     {
-                        var wsContext = await context.AcceptWebSocketAsync(null);
+                        var wsContext = await context.AcceptWebSocketAsync(null, TimeSpan.FromSeconds(10));
                         var session = new CdpSession(wsContext.WebSocket, firstWin.Window);
                         await session.StartAsync();
                         return;

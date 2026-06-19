@@ -378,7 +378,15 @@ public class CdpSession
     {
         if (_webSocket.State != WebSocketState.Open) return;
         var bytes = Encoding.UTF8.GetBytes(node.ToJsonString());
-        await _sendSemaphore.WaitAsync();
+        try
+        {
+            await _sendSemaphore.WaitAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
         try
         {
             if (_webSocket.State == WebSocketState.Open)
@@ -386,9 +394,17 @@ public class CdpSession
                 await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
             }
         }
+        catch (Exception)
+        {
+            // Ignore socket writing errors if client disconnected/closed
+        }
         finally
         {
-            _sendSemaphore.Release();
+            try
+            {
+                _sendSemaphore.Release();
+            }
+            catch (ObjectDisposedException) { }
         }
     }
 

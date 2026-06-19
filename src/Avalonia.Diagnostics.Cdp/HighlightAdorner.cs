@@ -24,6 +24,31 @@ public class HighlightAdorner : Control
         VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        var topLevel = TopLevel.GetTopLevel(_adornedVisual) ?? TopLevel.GetTopLevel(this);
+        if (topLevel != null)
+        {
+            topLevel.LayoutUpdated += OnLayoutUpdated;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        var topLevel = TopLevel.GetTopLevel(_adornedVisual) ?? TopLevel.GetTopLevel(this);
+        if (topLevel != null)
+        {
+            topLevel.LayoutUpdated -= OnLayoutUpdated;
+        }
+    }
+
+    private void OnLayoutUpdated(object? sender, EventArgs e)
+    {
+        InvalidateVisual();
+    }
+
     public override void Render(DrawingContext context)
     {
         var topLevel = TopLevel.GetTopLevel(_adornedVisual);

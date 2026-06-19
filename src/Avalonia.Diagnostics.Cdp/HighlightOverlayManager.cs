@@ -9,7 +9,7 @@ namespace Avalonia.Diagnostics.Cdp;
 
 public static class HighlightOverlayManager
 {
-    private static readonly ConcurrentDictionary<TopLevel, HighlightAdorner> _activeAdorners = new();
+    private static readonly ConcurrentDictionary<TopLevel, (HighlightAdorner Adorner, AdornerLayer Layer)> _activeAdorners = new();
 
     public static void ShowHighlight(TopLevel window, Visual visual)
     {
@@ -37,9 +37,9 @@ public static class HighlightOverlayManager
 
     private static void ShowHighlightInternal(TopLevel window, Visual visual)
     {
-        if (_activeAdorners.TryGetValue(window, out var existingAdorner))
+        if (_activeAdorners.TryGetValue(window, out var existing))
         {
-            if (existingAdorner.AdornedVisual == visual)
+            if (existing.Adorner.AdornedVisual == visual)
             {
                 // Already highlighting this visual, avoid flickering or recreating
                 return;
@@ -53,19 +53,15 @@ public static class HighlightOverlayManager
         {
             var adorner = new HighlightAdorner(visual);
             adornerLayer.Children.Add(adorner);
-            _activeAdorners[window] = adorner;
+            _activeAdorners[window] = (adorner, adornerLayer);
         }
     }
 
     private static void HideHighlightInternal(TopLevel window)
     {
-        if (_activeAdorners.TryRemove(window, out var adorner))
+        if (_activeAdorners.TryRemove(window, out var existing))
         {
-            var adornerLayer = AdornerLayer.GetAdornerLayer(adorner);
-            if (adornerLayer != null)
-            {
-                adornerLayer.Children.Remove(adorner);
-            }
+            existing.Layer.Children.Remove(existing.Adorner);
         }
     }
 }
