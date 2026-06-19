@@ -52,6 +52,7 @@ public static class RuntimeDomain
                     string objectId = @params["objectId"]?.GetValue<string>() ?? "";
                     string functionDeclaration = @params["functionDeclaration"]?.GetValue<string>() ?? "";
                     bool returnByValue = @params["returnByValue"]?.GetValue<bool>() ?? false;
+                    var arguments = @params["arguments"] as JsonArray;
 
                     var result = await Dispatcher.UIThread.InvokeAsync(() =>
                     {
@@ -61,9 +62,9 @@ public static class RuntimeDomain
                             throw new Exception($"Object with ID {objectId} not found");
                         }
 
-                        var val = EvaluateFunction(session, target, functionDeclaration);
+                        var val = EvaluateFunction(session, target, functionDeclaration, arguments);
                         return returnByValue
-                            ? new JsonObject { ["result"] = new JsonObject { ["value"] = JsonValue.Create(val) } }
+                            ? new JsonObject { ["result"] = new JsonObject { ["value"] = val == null ? null : (val is JsonNode jNode ? jNode.DeepClone() : JsonValue.Create(val)) } }
                             : new JsonObject { ["result"] = CreateRemoteObject(session, val) };
                     });
                     return result;
@@ -156,9 +157,47 @@ public static class RuntimeDomain
         }
     }
 
-    private static object? EvaluateFunction(CdpSession session, object target, string functionDeclaration)
+    private static object? EvaluateFunction(CdpSession session, object target, string functionDeclaration, JsonArray? arguments)
     {
-        // Extract function body between { and }
+        // 1. Parse parameters and bind to arguments
+        var paramStart = functionDeclaration.IndexOf('(');
+        var paramEnd = functionDeclaration.IndexOf(')');
+        var variableBindings = new Dictionary<string, object?>(StringComparer.Ordinal);
+        if (paramStart != -1 && paramEnd != -1 && paramEnd > paramStart)
+        {
+            var paramsStr = functionDeclaration.Substring(paramStart + 1, paramEnd - paramStart - 1).Trim();
+            if (!string.IsNullOrEmpty(paramsStr))
+            {
+                var parts = paramsStr.Split(',');
+                var paramNames = new string[parts.Length];
+                for (int idx = 0; idx < parts.Length; idx++)
+                {
+                    paramNames[idx] = parts[idx].Trim();
+                }
+
+                if (arguments != null)
+                {
+                    for (int i = 0; i < paramNames.Length && i < arguments.Count; i++)
+                    {
+                        var argObj = arguments[i] as JsonObject;
+                        if (argObj != null)
+                        {
+                            if (argObj.TryGetPropertyValue("value", out var valNode))
+                            {
+                                variableBindings[paramNames[i]] = GetNodeValue(valNode);
+                            }
+                            else if (argObj.TryGetPropertyValue("objectId", out var objIdNode) && objIdNode != null)
+                            {
+                                string objId = objIdNode.GetValue<string>();
+                                variableBindings[paramNames[i]] = session.GetObject(objId);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Extract function body between { and }
         int start = functionDeclaration.IndexOf('{');
         int end = functionDeclaration.LastIndexOf('}');
         if (start != -1 && end != -1 && end > start)
@@ -179,13 +218,13 @@ public static class RuntimeDomain
                 body = body.Substring(5).Trim();
             }
 
-            return EvaluateExpression(session, target, body);
+            return EvaluateExpression(session, target, body, variableBindings);
         }
 
         return null;
     }
 
-    private static object? EvaluateExpression(CdpSession session, object target, string expression)
+    private static object? EvaluateExpression(CdpSession session, object target, string expression, Dictionary<string, object?>? variableBindings = null)
     {
         if (string.IsNullOrWhiteSpace(expression)) return null;
 
@@ -198,7 +237,7 @@ public static class RuntimeDomain
 
             var remaining = expression.Substring(2);
             if (remaining.StartsWith(".")) remaining = remaining.Substring(1);
-            return EvaluateExpression(session, inspected, remaining);
+            return EvaluateExpression(session, inspected, remaining, variableBindings);
         }
 
         // Strip leading "this." if present
@@ -229,7 +268,14 @@ public static class RuntimeDomain
             var lastProp = current.GetType().GetProperty(lastPropName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
             if (lastProp == null || !lastProp.CanWrite) throw new Exception($"Property '{lastPropName}' not found or read-only");
 
-            var converted = ConvertValue(valStr, lastProp.PropertyType);
+            object? boundValue = null;
+            bool isBound = false;
+            if (variableBindings != null && variableBindings.TryGetValue(valStr, out boundValue))
+            {
+                isBound = true;
+            }
+
+            var converted = isBound ? ConvertValueFromBound(boundValue, lastProp.PropertyType) : ConvertValue(valStr, lastProp.PropertyType);
             lastProp.SetValue(current, converted);
             return converted;
         }
@@ -256,6 +302,11 @@ public static class RuntimeDomain
                     {
                         methodArgs = Array.Empty<object?>();
                         argTypes = Type.EmptyTypes;
+                    }
+                    else if (variableBindings != null && variableBindings.TryGetValue(argStr, out var boundVal))
+                    {
+                        methodArgs = new object?[] { boundVal };
+                        argTypes = new Type[] { boundVal?.GetType() ?? typeof(object) };
                     }
                     else
                     {
@@ -425,5 +476,49 @@ public static class RuntimeDomain
         }
 
         return Convert.ChangeType(val, targetType, CultureInfo.InvariantCulture);
+    }
+
+    private static object? GetNodeValue(JsonNode? node)
+    {
+        if (node == null) return null;
+        if (node is JsonValue jsonVal)
+        {
+            var element = jsonVal.GetValue<System.Text.Json.JsonElement>();
+            switch (element.ValueKind)
+            {
+                case System.Text.Json.JsonValueKind.String:
+                    return element.GetString();
+                case System.Text.Json.JsonValueKind.Number:
+                    if (element.TryGetInt32(out int i)) return i;
+                    if (element.TryGetInt64(out long l)) return l;
+                    return element.GetDouble();
+                case System.Text.Json.JsonValueKind.True:
+                    return true;
+                case System.Text.Json.JsonValueKind.False:
+                    return false;
+                case System.Text.Json.JsonValueKind.Null:
+                    return null;
+            }
+        }
+        return node;
+    }
+
+    private static object? ConvertValueFromBound(object? value, Type targetType)
+    {
+        if (value == null) return null;
+        if (targetType.IsAssignableFrom(value.GetType())) return value;
+        try
+        {
+            var underType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            if (value is string str)
+            {
+                return ConvertValue(str, underType);
+            }
+            return Convert.ChangeType(value, underType, CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return value;
+        }
     }
 }

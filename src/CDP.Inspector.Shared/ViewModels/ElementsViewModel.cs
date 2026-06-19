@@ -67,6 +67,111 @@ public class ElementsViewModel : ViewModelBase
     public ObservableCollection<CssPropertyModel> ComputedStyles => _computedStyles;
     public ObservableCollection<EventListenerModel> EventListeners => _eventListeners;
 
+    private string _propertySearchText = "";
+    private string _cssSearchText = "";
+    private string _computedSearchText = "";
+    private string _attributeSearchText = "";
+
+    public string PropertySearchText
+    {
+        get => _propertySearchText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _propertySearchText, value))
+            {
+                OnPropertyChanged(nameof(FilteredProperties));
+            }
+        }
+    }
+
+    public string CssSearchText
+    {
+        get => _cssSearchText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _cssSearchText, value))
+            {
+                OnPropertyChanged(nameof(FilteredCssProperties));
+            }
+        }
+    }
+
+    public string ComputedSearchText
+    {
+        get => _computedSearchText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _computedSearchText, value))
+            {
+                OnPropertyChanged(nameof(FilteredComputedStyles));
+            }
+        }
+    }
+
+    public string AttributeSearchText
+    {
+        get => _attributeSearchText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _attributeSearchText, value))
+            {
+                OnPropertyChanged(nameof(FilteredAttributes));
+            }
+        }
+    }
+
+    public IEnumerable<PropertyModel> FilteredProperties
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(PropertySearchText))
+            {
+                return Properties;
+            }
+            return Properties.Where(p => (p.Name != null && p.Name.Contains(PropertySearchText, StringComparison.OrdinalIgnoreCase))
+                                      || (p.Value != null && p.Value.Contains(PropertySearchText, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
+    public IEnumerable<CssPropertyModel> FilteredCssProperties
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(CssSearchText))
+            {
+                return CssProperties;
+            }
+            return CssProperties.Where(p => (p.Name != null && p.Name.Contains(CssSearchText, StringComparison.OrdinalIgnoreCase))
+                                         || (p.Value != null && p.Value.Contains(CssSearchText, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
+    public IEnumerable<CssPropertyModel> FilteredComputedStyles
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(ComputedSearchText))
+            {
+                return ComputedStyles;
+            }
+            return ComputedStyles.Where(p => (p.Name != null && p.Name.Contains(ComputedSearchText, StringComparison.OrdinalIgnoreCase))
+                                          || (p.Value != null && p.Value.Contains(ComputedSearchText, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
+    public IEnumerable<AttributeModel> FilteredAttributes
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(AttributeSearchText))
+            {
+                return Attributes;
+            }
+            return Attributes.Where(p => (p.Name != null && p.Name.Contains(AttributeSearchText, StringComparison.OrdinalIgnoreCase))
+                                      || (p.Value != null && p.Value.Contains(AttributeSearchText, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
     private bool _isSelectingProgrammatically;
 
     public DomNodeModel? SelectedNode
@@ -311,6 +416,11 @@ public class ElementsViewModel : ViewModelBase
         SearchCommand = new RelayCommand(async () => await PerformSearchAsync());
         AxSearchCommand = new RelayCommand(async () => await PerformAxSearchAsync());
         RefreshAxTreeCommand = new RelayCommand(async () => await RefreshAxTreeAsync());
+
+        Properties.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredProperties));
+        CssProperties.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredCssProperties));
+        ComputedStyles.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredComputedStyles));
+        Attributes.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredAttributes));
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
