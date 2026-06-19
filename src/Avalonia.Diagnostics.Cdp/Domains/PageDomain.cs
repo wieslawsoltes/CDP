@@ -399,21 +399,40 @@ public static class PageDomain
                     bool caseSensitive = @params["caseSensitive"]?.GetValue<bool>() ?? false;
                     bool isRegex = @params["isRegex"]?.GetValue<bool>() ?? false;
 
+                    var resultArr = new JsonArray();
+
+                    if (string.IsNullOrEmpty(query))
+                    {
+                        return new JsonObject { ["result"] = resultArr };
+                    }
+
                     var port = CdpServer.Port;
                     var prefix = $"http://127.0.0.1:{port}/workspace/";
                     var prefixLocalhost = $"http://localhost:{port}/workspace/";
 
                     string relativePath = "";
                     if (url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
                         relativePath = url.Substring(prefix.Length);
+                    }
                     else if (url.StartsWith(prefixLocalhost, StringComparison.OrdinalIgnoreCase))
+                    {
                         relativePath = url.Substring(prefixLocalhost.Length);
+                    }
+                    else
+                    {
+                        throw new Exception($"Invalid resource URL: {url}");
+                    }
 
                     relativePath = Uri.UnescapeDataString(relativePath);
                     var workspaceRoot = FindWorkspaceRoot();
                     var absolutePath = Path.GetFullPath(Path.Combine(workspaceRoot, relativePath));
 
-                    var resultArr = new JsonArray();
+                    var relative = Path.GetRelativePath(workspaceRoot, absolutePath);
+                    if (relative.StartsWith("..") || Path.IsPathRooted(relative))
+                    {
+                        throw new Exception("Access denied: path traversal detected");
+                    }
 
                     if (File.Exists(absolutePath))
                     {

@@ -925,6 +925,9 @@ public class CdpChromeFeatureTests
         using var fakeWs = new FakeWebSocket();
         var session = new CdpSession(fakeWs, window);
 
+        // 0. Enable Network domain
+        await NetworkDomain.HandleAsync(session, "enable", new JsonObject());
+
         // 1. Enable Network emulation conditions with offline = true
         var conditions = new JsonObject
         {
@@ -955,6 +958,7 @@ public class CdpChromeFeatureTests
         // 4. Try starting the HTTP request again and confirm it does not throw
         NetworkDomain.OnRequestStart(request);
 
+        NetworkDomain.RemoveSession(session);
         window.Close();
     }
 }

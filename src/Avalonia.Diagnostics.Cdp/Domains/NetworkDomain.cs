@@ -57,6 +57,15 @@ public static class NetworkDomain
         _enabledSessions.Clear();
         _responseBodies.Clear();
         _requestIds.Clear();
+        ResetEmulation();
+    }
+
+    private static void ResetEmulation()
+    {
+        _offline = false;
+        _latency = 0;
+        _downloadThroughput = -1;
+        _uploadThroughput = -1;
     }
 
     public static void RegisterListenerSubscription(IDisposable subscription)
@@ -77,6 +86,10 @@ public static class NetworkDomain
     public static void RemoveSession(CdpSession session)
     {
         _enabledSessions.TryRemove(session, out _);
+        if (_enabledSessions.IsEmpty)
+        {
+            ResetEmulation();
+        }
     }
 
     public static Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
@@ -89,6 +102,10 @@ public static class NetworkDomain
 
             case "disable":
                 _enabledSessions.TryRemove(session, out _);
+                if (_enabledSessions.IsEmpty)
+                {
+                    ResetEmulation();
+                }
                 return Task.FromResult(new JsonObject());
 
             case "getResponseBody":
@@ -153,6 +170,8 @@ public static class NetworkDomain
 
     public static void OnRequestStart(HttpRequestMessage request)
     {
+        if (_enabledSessions.IsEmpty) return;
+
         if (_offline)
         {
             throw new HttpRequestException("Network is offline (emulated by CDP).");
@@ -162,8 +181,6 @@ public static class NetworkDomain
         {
             System.Threading.Thread.Sleep((int)_latency);
         }
-
-        if (_enabledSessions.IsEmpty) return;
 
         string requestId = $"req-{System.Threading.Interlocked.Increment(ref _nextRequestId)}";
         _requestIds[request] = requestId;
@@ -592,6 +609,10 @@ public class HttpKeyValueObserver : IObserver<KeyValuePair<string, object?>>
                     NetworkDomain.OnRequestStop(request, response);
                 }
             }
+        }
+        catch (HttpRequestException ex) when (ex.Message.Contains("emulated by CDP"))
+        {
+            throw;
         }
         catch (Exception ex)
         {
