@@ -95,9 +95,24 @@
                 <TabItem Header="Styles">
                     <TabControl Padding="0,5,0,0" Margin="0,5,0,0">
                         <TabItem Header="Inline styles">
-                            <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
-                                <TextBox Name="txtCssSearch" Text="{Binding Elements.CssSearchText, Mode=TwoWay}" PlaceholderText="Filter styles" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
-                                <ListBox Grid.Row="1" Name="listCssProperties" ItemsSource="{Binding Elements.FilteredCssProperties}">
+                            <Grid RowDefinitions="Auto, Auto, *, Auto" Margin="0,5,0,0">
+                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                                    <TextBox Name="txtCssSearch" Text="{Binding Elements.CssSearchText, Mode=TwoWay}" PlaceholderText="Filter styles" Height="26" VerticalContentAlignment="Center"/>
+                                    <ToggleButton Name="btnHovToggle" Grid.Column="1" IsChecked="{Binding Elements.IsPseudoStatePanelOpen, Mode=TwoWay}" Content=":hov" Margin="5,0,0,0" Padding="8,0" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                </Grid>
+                                
+                                <Border Grid.Row="1" Background="#2d2e30" BorderBrush="#3c4043" BorderThickness="0,0,0,1" IsVisible="{Binding Elements.IsPseudoStatePanelOpen}" Padding="10,8" Margin="0,0,0,5">
+                                    <Grid ColumnDefinitions="*, *, *" RowDefinitions="Auto, Auto">
+                                        <CheckBox Name="chkForcedHover" Content=":hover" IsChecked="{Binding Elements.IsForcedHover, Mode=TwoWay}" FontSize="11" Margin="0,2"/>
+                                        <CheckBox Name="chkForcedActive" Grid.Column="1" Content=":active" IsChecked="{Binding Elements.IsForcedActive, Mode=TwoWay}" FontSize="11" Margin="0,2"/>
+                                        <CheckBox Name="chkForcedFocus" Grid.Column="2" Content=":focus" IsChecked="{Binding Elements.IsForcedFocus, Mode=TwoWay}" FontSize="11" Margin="0,2"/>
+                                        <CheckBox Name="chkForcedFocusWithin" Grid.Row="1" Content=":focus-within" IsChecked="{Binding Elements.IsForcedFocusWithin, Mode=TwoWay}" FontSize="11" Margin="0,2"/>
+                                        <CheckBox Name="chkForcedFocusVisible" Grid.Row="1" Grid.Column="1" Content=":focus-visible" IsChecked="{Binding Elements.IsForcedFocusVisible, Mode=TwoWay}" FontSize="11" Margin="0,2"/>
+                                        <CheckBox Name="chkForcedDisabled" Grid.Row="1" Grid.Column="2" Content=":disabled" IsChecked="{Binding Elements.IsForcedDisabled, Mode=TwoWay}" FontSize="11" Margin="0,2"/>
+                                    </Grid>
+                                </Border>
+
+                                <ListBox Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding Elements.FilteredCssProperties}">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <Grid ColumnDefinitions="*, Auto">
@@ -110,7 +125,7 @@
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
-                                <Grid Grid.Row="2" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
+                                <Grid Grid.Row="3" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
                                     <TextBox Name="txtStyleText" Text="{Binding Elements.StyleTextInputText, Mode=TwoWay}" PlaceholderText="Add style rule (e.g. background: red)..." Height="28" VerticalContentAlignment="Center"/>
                                     <Button Name="btnApplyStyleText" Command="{Binding Elements.ApplyStyleTextCommand}" Grid.Column="1" Content="Apply" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                                 </Grid>

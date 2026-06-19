@@ -72,6 +72,113 @@ public class ElementsViewModel : ViewModelBase
     private string _computedSearchText = "";
     private string _attributeSearchText = "";
 
+    private bool _isPseudoStatePanelOpen;
+    private bool _isForcedHover;
+    private bool _isForcedActive;
+    private bool _isForcedFocus;
+    private bool _isForcedFocusWithin;
+    private bool _isForcedFocusVisible;
+    private bool _isForcedDisabled;
+
+    public bool IsPseudoStatePanelOpen
+    {
+        get => _isPseudoStatePanelOpen;
+        set => RaiseAndSetIfChanged(ref _isPseudoStatePanelOpen, value);
+    }
+
+    public bool IsForcedHover
+    {
+        get => _isForcedHover;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isForcedHover, value))
+            {
+                _ = UpdateForcedPseudoStateAsync();
+            }
+        }
+    }
+
+    public bool IsForcedActive
+    {
+        get => _isForcedActive;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isForcedActive, value))
+            {
+                _ = UpdateForcedPseudoStateAsync();
+            }
+        }
+    }
+
+    public bool IsForcedFocus
+    {
+        get => _isForcedFocus;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isForcedFocus, value))
+            {
+                _ = UpdateForcedPseudoStateAsync();
+            }
+        }
+    }
+
+    public bool IsForcedFocusWithin
+    {
+        get => _isForcedFocusWithin;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isForcedFocusWithin, value))
+            {
+                _ = UpdateForcedPseudoStateAsync();
+            }
+        }
+    }
+
+    public bool IsForcedFocusVisible
+    {
+        get => _isForcedFocusVisible;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isForcedFocusVisible, value))
+            {
+                _ = UpdateForcedPseudoStateAsync();
+            }
+        }
+    }
+
+    public bool IsForcedDisabled
+    {
+        get => _isForcedDisabled;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isForcedDisabled, value))
+            {
+                _ = UpdateForcedPseudoStateAsync();
+            }
+        }
+    }
+
+    private async Task UpdateForcedPseudoStateAsync()
+    {
+        if (!_cdpService.IsConnected || SelectedNode == null) return;
+        var list = new JsonArray();
+        if (IsForcedHover) list.Add("hover");
+        if (IsForcedActive) list.Add("active");
+        if (IsForcedFocus) list.Add("focus");
+        if (IsForcedFocusWithin) list.Add("focus-within");
+        if (IsForcedFocusVisible) list.Add("focus-visible");
+        if (IsForcedDisabled) list.Add("disabled");
+        try
+        {
+            await _cdpService.SendCommandAsync("CSS.forcePseudoState", new JsonObject
+            {
+                ["nodeId"] = SelectedNode.NodeId,
+                ["forcedPseudoClasses"] = list
+            });
+        }
+        catch {}
+    }
+
     public string PropertySearchText
     {
         get => _propertySearchText;
@@ -564,6 +671,19 @@ public class ElementsViewModel : ViewModelBase
     private async Task HandleNodeSelectionChangedAsync()
     {
         var node = SelectedNode;
+        _isForcedHover = false;
+        _isForcedActive = false;
+        _isForcedFocus = false;
+        _isForcedFocusWithin = false;
+        _isForcedFocusVisible = false;
+        _isForcedDisabled = false;
+        OnPropertyChanged(nameof(IsForcedHover));
+        OnPropertyChanged(nameof(IsForcedActive));
+        OnPropertyChanged(nameof(IsForcedFocus));
+        OnPropertyChanged(nameof(IsForcedFocusWithin));
+        OnPropertyChanged(nameof(IsForcedFocusVisible));
+        OnPropertyChanged(nameof(IsForcedDisabled));
+
         if (node == null)
         {
             SelectedNodeIdText = "None";
