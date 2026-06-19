@@ -257,6 +257,55 @@ public static class PageDomain
                     return new JsonObject { ["identifier"] = "1" };
                 }
 
+            case "close":
+            case "crash":
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (session.Window is Window win)
+                        {
+                            win.Close();
+                        }
+                    });
+                    return new JsonObject();
+                }
+
+            case "addScriptToEvaluateOnLoad":
+                return new JsonObject { ["identifier"] = "1" };
+
+            case "captureSnapshot":
+                return new JsonObject { ["data"] = "" };
+
+            case "createIsolatedWorld":
+                return new JsonObject { ["executionContextId"] = 1 };
+
+            case "getAdScriptAncestry":
+                return new JsonObject { ["adScriptAncestry"] = new JsonArray() };
+
+            case "getAnnotatedPageContent":
+                return new JsonObject { ["content"] = "" };
+
+            case "getAppId":
+                return new JsonObject { ["appId"] = "" };
+
+            case "getInstallabilityErrors":
+                return new JsonObject { ["installabilityErrors"] = new JsonArray() };
+
+            case "getManifestIcons":
+                return new JsonObject { ["primaryIcon"] = "" };
+
+            case "getOriginTrials":
+                return new JsonObject { ["originTrials"] = new JsonArray() };
+
+            case "getPermissionsPolicyState":
+                return new JsonObject { ["states"] = new JsonArray() };
+
+            case "printToPDF":
+                return new JsonObject { ["data"] = "" };
+
+            case "searchInResource":
+                return new JsonObject { ["result"] = new JsonArray() };
+
             case "removeScriptToEvaluateOnNewDocument":
             case "setDeviceMetricsOverride":
             case "clearDeviceMetricsOverride":
@@ -270,6 +319,24 @@ public static class PageDomain
             case "setBypassCSP":
             case "setFontFamilies":
             case "setFontSizes":
+            case "stopLoading":
+            case "resetNavigationHistory":
+            case "navigateToHistoryEntry":
+            case "deleteCookie":
+            case "setDocumentContent":
+            case "setDownloadBehavior":
+            case "setInterceptFileChooserDialog":
+            case "setPrerenderingAllowed":
+            case "setRPHRegistrationMode":
+            case "setSPCTransactionMode":
+            case "setWebLifecycleState":
+            case "addCompilationCache":
+            case "clearCompilationCache":
+            case "produceCompilationCache":
+            case "removeScriptToEvaluateOnLoad":
+            case "generateTestReport":
+            case "handleJavaScriptDialog":
+            case "waitForDebugger":
                 {
                     return new JsonObject();
                 }
