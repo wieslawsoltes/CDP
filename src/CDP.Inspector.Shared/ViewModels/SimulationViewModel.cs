@@ -246,6 +246,12 @@ public class SimulationViewModel : ViewModelBase
         MouseMoveCommand = new RelayCommand(async () => await MouseMoveAsync(), () => _cdpService.IsConnected);
         MouseClickAtPointCommand = new RelayCommand(async () => await MouseClickAtPointAsync(), () => _cdpService.IsConnected);
         MouseDragCommand = new RelayCommand(async () => await MouseDragAsync(), () => _cdpService.IsConnected);
+
+        _cdpService.EventReceived += CdpService_EventReceived;
+        if (_cdpService.IsConnected)
+        {
+            _ = StartScreencastAsync();
+        }
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -255,6 +261,10 @@ public class SimulationViewModel : ViewModelBase
             if (!_cdpService.IsConnected)
             {
                 ClearData();
+            }
+            else
+            {
+                _ = StartScreencastAsync();
             }
             RaiseCanExecuteChangedForAll();
         }
@@ -657,6 +667,135 @@ public class SimulationViewModel : ViewModelBase
             ScaleFactorText = SelectedDevicePreset.Scale.ToString();
             IsMobileActive = SelectedDevicePreset.IsMobile;
             _ = ResizeAsync();
+        }
+    }
+
+    private async Task StartScreencastAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+            {
+                ["format"] = "png",
+                ["everyNthFrame"] = 1
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"StartScreencast failed: {ex.Message}");
+        }
+    }
+
+    private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
+    {
+        if (e.Method == "Page.screencastFrame")
+        {
+            try
+            {
+                var base64 = e.Params["data"]?.GetValue<string>() ?? "";
+                var sessionId = e.Params["sessionId"]?.GetValue<int>() ?? 0;
+                
+                if (!string.IsNullOrEmpty(base64))
+                {
+                    byte[] bytes = Convert.FromBase64String(base64);
+                    using var ms = new MemoryStream(bytes);
+                    var bitmap = new Bitmap(ms);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        ScreenshotImage = bitmap;
+                    });
+                }
+
+                if (sessionId != 0)
+                {
+                    _ = _cdpService.SendCommandAsync("Page.screencastFrameAck", new JsonObject { ["sessionId"] = sessionId });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error processing screencast frame: {ex.Message}");
+            }
+        }
+    }
+
+    public async Task SendMouseEventAsync(string type, double x, double y, string button, int modifiers)
+    {
+        if (!_cdpService.IsConnected) return;
+
+        int clickCount = 0;
+        if (type == "mousePressed" || type == "mouseReleased")
+        {
+            clickCount = 1;
+        }
+
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = type,
+                ["x"] = x,
+                ["y"] = y,
+                ["button"] = button,
+                ["clickCount"] = clickCount,
+                ["modifiers"] = modifiers
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Interactive mouse event failed: {ex.Message}");
+        }
+    }
+
+    public async Task SendWheelEventAsync(double x, double y, double deltaY)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseWheel",
+                ["x"] = x,
+                ["y"] = y,
+                ["deltaX"] = 0.0,
+                ["deltaY"] = deltaY * 100.0,
+                ["modifiers"] = 0
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Interactive wheel event failed: {ex.Message}");
+        }
+    }
+
+    public async Task SendTextInputAsync(string text)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.insertText", new JsonObject { ["text"] = text });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Interactive text input failed: {ex.Message}");
+        }
+    }
+
+    public async Task SendKeyboardEventAsync(string type, string key, int modifiers)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
+            {
+                ["type"] = type,
+                ["key"] = key,
+                ["modifiers"] = modifiers
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Interactive key event failed: {ex.Message}");
         }
     }
 }

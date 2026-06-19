@@ -414,6 +414,7 @@ public class CdpSession
     private volatile bool _screencastDirty;
     private readonly SemaphoreSlim _screencastSignal = new(0, 1);
     private DateTime _lastFrameCaptureTime = DateTime.MinValue;
+    private DateTime _lastFrameSentTime = DateTime.MinValue;
 
     private void OnWindowLayoutUpdated(object? sender, EventArgs e)
     {
@@ -441,14 +442,15 @@ public class CdpSession
         _ackedFrameId = 0;
         _screencastDirty = true;
         _lastFrameCaptureTime = DateTime.MinValue;
+        _lastFrameSentTime = DateTime.UtcNow;
 
         Window.LayoutUpdated += OnWindowLayoutUpdated;
 
         Task.Run(async () =>
         {
-            try
+            while (_screencastEnabled && !_cts.IsCancellationRequested && _webSocket.State == WebSocketState.Open)
             {
-                while (_screencastEnabled && !_cts.IsCancellationRequested && _webSocket.State == WebSocketState.Open)
+                try
                 {
                     if (!_screencastDirty)
                     {
@@ -459,9 +461,18 @@ public class CdpSession
 
                     if (_lastScreencastFrameId > _ackedFrameId)
                     {
-                        await Task.Delay(30);
-                        _screencastDirty = true;
-                        continue;
+                        var timeSinceLastFrame = DateTime.UtcNow - _lastFrameSentTime;
+                        if (timeSinceLastFrame.TotalMilliseconds > 500)
+                        {
+                            // Watchdog recovery: if client hasn't acked in 500ms, assume ack is lost and recover
+                            _ackedFrameId = _lastScreencastFrameId;
+                        }
+                        else
+                        {
+                            await Task.Delay(30, _cts.Token);
+                            _screencastDirty = true;
+                            continue;
+                        }
                     }
 
                     var now = DateTime.UtcNow;
@@ -469,7 +480,7 @@ public class CdpSession
                     if (elapsed.TotalMilliseconds < 50)
                     {
                         var waitTime = 50 - (int)elapsed.TotalMilliseconds;
-                        await Task.Delay(waitTime);
+                        await Task.Delay(waitTime, _cts.Token);
                     }
 
                     _lastFrameCaptureTime = DateTime.UtcNow;
@@ -516,6 +527,8 @@ public class CdpSession
                         ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                     };
 
+                    _lastFrameSentTime = DateTime.UtcNow;
+
                     await SendEventAsync("Page.screencastFrame", new JsonObject
                     {
                         ["data"] = base64Data,
@@ -523,8 +536,22 @@ public class CdpSession
                         ["sessionId"] = currentFrameId
                     });
                 }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception)
+                {
+                    try
+                    {
+                        await Task.Delay(100, _cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
             }
-            catch { }
         });
     }
 

@@ -142,7 +142,7 @@
                     </StackPanel>
                     
                     <!-- Screenshot display -->
-                    <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
+                    <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True" Focusable="True" Name="borderScreenshot">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                             <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </ScrollViewer>
