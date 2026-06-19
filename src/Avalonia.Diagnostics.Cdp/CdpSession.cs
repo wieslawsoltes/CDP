@@ -200,6 +200,7 @@ public class CdpSession
         {
             HighlightOverlayManager.HideHighlight(Window);
         }
+        RequestScreencastFrame();
     }
 
     private async void OnInspectPointerPressed(object? sender, PointerPressedEventArgs e)
