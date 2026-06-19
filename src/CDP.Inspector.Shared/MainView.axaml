@@ -9,12 +9,17 @@
         <views:ConnectionToolbar Name="Toolbar" Grid.Row="0"/>
 
         <!-- 2. Split Screen View: Left Preview, Right Panels -->
-        <Grid Grid.Row="1" Background="#202124" ColumnDefinitions="*, 4, 1.2*">
+        <Grid Grid.Row="1" Background="#202124">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="{Binding PreviewColumnWidth}"/>
+                <ColumnDefinition Width="{Binding SplitterColumnWidth}"/>
+                <ColumnDefinition Width="1.2*"/>
+            </Grid.ColumnDefinitions>
             <!-- Left side: Live Interactive Target Screencast/Simulation -->
-            <views:SimulationView Name="SimulationPane" Grid.Column="0"/>
+            <views:SimulationView Name="SimulationPane" Grid.Column="0" IsVisible="{Binding IsPreviewPanelVisible}"/>
 
             <!-- Column Splitter -->
-            <GridSplitter Grid.Column="1" Background="#3c4043" ResizeDirection="Columns"/>
+            <GridSplitter Grid.Column="1" Background="#3c4043" ResizeDirection="Columns" IsVisible="{Binding IsPreviewPanelVisible}"/>
 
             <!-- Right side: Developer Tools Panels -->
             <TabControl Grid.Column="2" Padding="0" Margin="0">

@@ -238,4 +238,39 @@ public partial class MainWindow : Window
         }
         return false;
     }
+
+    public bool GetIsPreviewPanelVisible()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.IsPreviewPanelVisible;
+        }
+        return false;
+    }
+
+    public void SetIsPreviewPanelVisible(bool visible)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.IsPreviewPanelVisible = visible;
+        }
+    }
+
+    public double GetDeviceWidth()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Simulation.DeviceWidth;
+        }
+        return 0;
+    }
+
+    public double GetDeviceHeight()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Simulation.DeviceHeight;
+        }
+        return 0;
+    }
 }
