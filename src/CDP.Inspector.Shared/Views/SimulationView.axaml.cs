@@ -61,19 +61,11 @@ public partial class SimulationView : UserControl
 
         double imageWidth = img.Bounds.Width;
         double imageHeight = img.Bounds.Height;
-        double bitmapWidth = bitmap.Size.Width;
-        double bitmapHeight = bitmap.Size.Height;
 
-        double dx = 0;
-        double dy = 0;
+        double targetX = pos.X;
+        double targetY = pos.Y;
 
-        if (imageWidth > bitmapWidth) dx = (imageWidth - bitmapWidth) / 2;
-        if (imageHeight > bitmapHeight) dy = (imageHeight - bitmapHeight) / 2;
-
-        double targetX = pos.X - dx;
-        double targetY = pos.Y - dy;
-
-        if (targetX < 0 || targetX > bitmapWidth || targetY < 0 || targetY > bitmapHeight) return;
+        if (targetX < 0 || targetX > imageWidth || targetY < 0 || targetY > imageHeight) return;
 
         if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
         {
@@ -92,26 +84,12 @@ public partial class SimulationView : UserControl
 
         double imageWidth = img.Bounds.Width;
         double imageHeight = img.Bounds.Height;
-        double bitmapWidth = bitmap.Size.Width;
-        double bitmapHeight = bitmap.Size.Height;
 
-        double dx = 0;
-        double dy = 0;
+        double targetX = pos.X;
+        double targetY = pos.Y;
 
-        if (imageWidth > bitmapWidth)
-        {
-            dx = (imageWidth - bitmapWidth) / 2;
-        }
-        if (imageHeight > bitmapHeight)
-        {
-            dy = (imageHeight - bitmapHeight) / 2;
-        }
-
-        double targetX = pos.X - dx;
-        double targetY = pos.Y - dy;
-
-        // Clamp to bitmap boundaries
-        if (targetX < 0 || targetX > bitmapWidth || targetY < 0 || targetY > bitmapHeight)
+        // Clamp to image boundaries
+        if (targetX < 0 || targetX > imageWidth || targetY < 0 || targetY > imageHeight)
         {
             return;
         }

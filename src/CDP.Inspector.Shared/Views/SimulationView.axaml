@@ -65,7 +65,7 @@
         <Border Grid.Row="2" Background="#202124" Focusable="True" Name="borderScreenshot">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                 <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Margin="15" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Stretch="None"/>
+                    <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Width="{Binding Simulation.DeviceWidth}" Height="{Binding Simulation.DeviceHeight}" Stretch="Uniform"/>
                 </Border>
             </ScrollViewer>
         </Border>

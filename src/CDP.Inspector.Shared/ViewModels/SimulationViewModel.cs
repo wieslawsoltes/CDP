@@ -25,6 +25,8 @@ public class SimulationViewModel : ViewModelBase
     private string _scaleFactorText = "1.0";
     private bool _isMobileActive;
     private Bitmap? _screenshotImage;
+    private double _deviceWidth = 800;
+    private double _deviceHeight = 600;
 
     private readonly System.Collections.ObjectModel.ObservableCollection<DevicePreset> _devicePresets = new()
     {
@@ -126,6 +128,18 @@ public class SimulationViewModel : ViewModelBase
     {
         get => _screenshotImage;
         private set => RaiseAndSetIfChanged(ref _screenshotImage, value);
+    }
+
+    public double DeviceWidth
+    {
+        get => _deviceWidth;
+        private set => RaiseAndSetIfChanged(ref _deviceWidth, value);
+    }
+
+    public double DeviceHeight
+    {
+        get => _deviceHeight;
+        private set => RaiseAndSetIfChanged(ref _deviceHeight, value);
     }
 
     public string NavigateUrlText
@@ -769,7 +783,22 @@ public class SimulationViewModel : ViewModelBase
             {
                 var base64 = e.Params["data"]?.GetValue<string>() ?? "";
                 var sessionId = e.Params["sessionId"]?.GetValue<int>() ?? 0;
+                var metadata = e.Params["metadata"];
                 
+                if (metadata != null)
+                {
+                    double deviceWidth = metadata["deviceWidth"]?.GetValue<double>() ?? 0;
+                    double deviceHeight = metadata["deviceHeight"]?.GetValue<double>() ?? 0;
+                    if (deviceWidth > 0 && deviceHeight > 0)
+                    {
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            DeviceWidth = deviceWidth;
+                            DeviceHeight = deviceHeight;
+                        });
+                    }
+                }
+
                 if (!string.IsNullOrEmpty(base64))
                 {
                     byte[] bytes = Convert.FromBase64String(base64);
