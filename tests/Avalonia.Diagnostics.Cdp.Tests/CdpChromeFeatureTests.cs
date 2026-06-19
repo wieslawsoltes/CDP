@@ -230,10 +230,10 @@ public class CdpChromeFeatureTests
     [AvaloniaFact]
     public async Task TestCustomCdpPort()
     {
-        CdpServer.Start(9223);
+        CdpServer.Start(9235);
         try
         {
-            Assert.Equal(9223, CdpServer.Port);
+            Assert.Equal(9235, CdpServer.Port);
 
             var window = new Window { Title = "Port Test Window" };
             window.Show();
@@ -248,8 +248,8 @@ public class CdpChromeFeatureTests
             var root = docResult["root"] as JsonObject;
             Assert.NotNull(root);
 
-            Assert.Equal("http://localhost:9223/", root["documentURL"]?.GetValue<string>());
-            Assert.Equal("http://localhost:9223/", root["baseURL"]?.GetValue<string>());
+            Assert.Equal("http://localhost:9235/", root["documentURL"]?.GetValue<string>());
+            Assert.Equal("http://localhost:9235/", root["baseURL"]?.GetValue<string>());
 
             window.Close();
         }
@@ -485,6 +485,193 @@ public class CdpChromeFeatureTests
         var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
         Assert.NotNull(stopResult);
 
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencastWithOptions()
+    {
+        var window = new Window { Title = "Screencast Test Window", Width = 300, Height = 200 };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var @params = new JsonObject
+        {
+            ["format"] = "jpeg",
+            ["quality"] = 80,
+            ["maxWidth"] = 150,
+            ["maxHeight"] = 150
+        };
+
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", @params);
+        Assert.NotNull(startResult);
+
+        session.RequestScreencastFrame();
+
+        int retries = 50;
+        string? screencastFrameMsg = null;
+        while (retries-- > 0 && screencastFrameMsg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                screencastFrameMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+        }
+
+        Assert.NotNull(screencastFrameMsg);
+
+        var node = System.Text.Json.Nodes.JsonNode.Parse(screencastFrameMsg);
+        Assert.NotNull(node);
+        Assert.Equal("Page.screencastFrame", node["method"]?.GetValue<string>());
+
+        var frameParams = node["params"];
+        Assert.NotNull(frameParams);
+        var data = frameParams["data"]?.GetValue<string>();
+        Assert.False(string.IsNullOrEmpty(data));
+
+        var metadata = frameParams["metadata"];
+        Assert.NotNull(metadata);
+
+        var deviceWidth = metadata["deviceWidth"]?.GetValue<double>();
+        Assert.Equal(150, deviceWidth);
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencastEveryNthFrame()
+    {
+        var window = new Window { Title = "Screencast Nth Frame Window", Width = 300, Height = 200 };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var @params = new JsonObject
+        {
+            ["everyNthFrame"] = 2
+        };
+
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", @params);
+        Assert.NotNull(startResult);
+
+        await Task.Delay(100);
+        
+        lock (fakeWs.SentMessages)
+        {
+            Assert.Empty(fakeWs.SentMessages.Where(m => m.Contains("Page.screencastFrame")));
+        }
+
+        session.RequestScreencastFrame();
+
+        int retries = 50;
+        string? screencastFrameMsg = null;
+        while (retries-- > 0 && screencastFrameMsg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                screencastFrameMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+        }
+
+        Assert.NotNull(screencastFrameMsg);
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencastVisibilityChanged()
+    {
+        var window = new Window { Title = "Screencast Visibility Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", new JsonObject());
+        Assert.NotNull(startResult);
+
+        window.IsVisible = false;
+
+        int retries = 50;
+        string? visibilityMsg = null;
+        while (retries-- > 0 && visibilityMsg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                visibilityMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastVisibilityChanged"));
+            }
+        }
+
+        Assert.NotNull(visibilityMsg);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(visibilityMsg);
+        Assert.NotNull(node);
+        Assert.Equal("Page.screencastVisibilityChanged", node["method"]?.GetValue<string>());
+        var visibleVal = node["params"]?["visible"]?.GetValue<bool>();
+        Assert.False(visibleVal);
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencastDuplicateFrameSkipping()
+    {
+        var window = new Window { Title = "Screencast Duplicate Frame Window", Width = 300, Height = 200 };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Start Screencast
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", new JsonObject());
+        Assert.NotNull(startResult);
+
+        // First frame should be captured automatically
+        int retries = 50;
+        string? firstFrameMsg = null;
+        while (retries-- > 0 && firstFrameMsg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                firstFrameMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+        }
+
+        Assert.NotNull(firstFrameMsg);
+        
+        // Clear sent messages to make checking the next one easy
+        lock (fakeWs.SentMessages)
+        {
+            fakeWs.SentMessages.Clear();
+        }
+
+        // Acknowledge the frame (this triggers a request for the next frame and releases the backpressure semaphore)
+        session.AcknowledgeScreencastFrame(1);
+
+        // Wait a bit to let the loop run and perform change detection (delta compression).
+        // Since there are no visual changes, the second frame should be skipped.
+        await Task.Delay(200);
+
+        lock (fakeWs.SentMessages)
+        {
+            var duplicateMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            Assert.Null(duplicateMsg); // Should be skipped!
+        }
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
         window.Close();
     }
 
