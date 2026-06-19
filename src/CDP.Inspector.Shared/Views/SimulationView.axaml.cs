@@ -9,10 +9,14 @@ namespace CdpInspectorApp.Views;
 
 public partial class SimulationView : UserControl
 {
+    private ConnectionViewModel? _connectionVm;
+
     public SimulationView()
     {
         InitializeComponent();
         
+        DataContextChanged += SimulationView_DataContextChanged;
+
         var img = this.Find<Image>("imgScreenshot");
         if (img != null)
         {
@@ -28,6 +32,43 @@ public partial class SimulationView : UserControl
             border.KeyDown += Border_KeyDown;
             border.KeyUp += Border_KeyUp;
             border.TextInput += Border_TextInput;
+        }
+    }
+
+    private void SimulationView_DataContextChanged(object? sender, EventArgs e)
+    {
+        if (_connectionVm != null)
+        {
+            _connectionVm.PropertyChanged -= ConnectionVm_PropertyChanged;
+            _connectionVm = null;
+        }
+
+        if (DataContext is MainWindowViewModel mainVm)
+        {
+            _connectionVm = mainVm.Connection;
+            _connectionVm.PropertyChanged += ConnectionVm_PropertyChanged;
+            UpdateCursor(_connectionVm.IsInspectModeActive);
+        }
+        else
+        {
+            UpdateCursor(false);
+        }
+    }
+
+    private void ConnectionVm_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ConnectionViewModel.IsInspectModeActive) && _connectionVm != null)
+        {
+            UpdateCursor(_connectionVm.IsInspectModeActive);
+        }
+    }
+
+    private void UpdateCursor(bool isInspectActive)
+    {
+        var img = this.Find<Image>("imgScreenshot");
+        if (img != null)
+        {
+            img.Cursor = isInspectActive ? new Cursor(StandardCursorType.Cross) : null;
         }
     }
 

@@ -11,6 +11,8 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Xunit;
 using Avalonia.VisualTree;
+using Avalonia.Input;
+using Avalonia.Threading;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -1146,6 +1148,79 @@ public class CdpChromeFeatureTests
         NetworkDomain.OnRequestStart(request);
 
         NetworkDomain.RemoveSession(session);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestInspectModeAndSimulatedClick()
+    {
+        var window = new Window
+        {
+            Title = "Inspect Test Window",
+            Width = 300,
+            Height = 200,
+            Content = new Button { Content = "Target Button", Width = 100, Height = 50 }
+        };
+        window.Show();
+
+        // Wait for window to be fully ready and laid out
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Enable inspect mode
+        var setInspectParams = new JsonObject
+        {
+            ["mode"] = "searchForNode",
+            ["highlightConfig"] = new JsonObject()
+        };
+        await OverlayDomain.HandleAsync(session, "setInspectMode", setInspectParams);
+
+        // 2. Simulate mouse press on the button
+        var clickParams = new JsonObject
+        {
+            ["type"] = "mousePressed",
+            ["x"] = 50.0,
+            ["y"] = 25.0,
+            ["button"] = "left",
+            ["clickCount"] = 1,
+            ["modifiers"] = 0
+        };
+        
+        // Force layout
+        window.Measure(new Size(300, 200));
+        window.Arrange(new Rect(0, 0, 300, 200));
+        Dispatcher.UIThread.RunJobs();
+        
+        await InputDomain.HandleAsync(session, "dispatchMouseEvent", clickParams);
+
+        // Give dispatcher some time to process
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        // 3. Verify that Overlay.inspectNodeRequested was sent
+        string? inspectMsg = null;
+        lock (fakeWs.SentMessages)
+        {
+            inspectMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Overlay.inspectNodeRequested"));
+        }
+
+        Assert.NotNull(inspectMsg);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(inspectMsg);
+        Assert.NotNull(node);
+        Assert.Equal("Overlay.inspectNodeRequested", node["method"]?.GetValue<string>());
+        
+        var backendNodeId = node["params"]?["backendNodeId"]?.GetValue<int>();
+        Assert.True(backendNodeId > 0);
+
         window.Close();
     }
 }

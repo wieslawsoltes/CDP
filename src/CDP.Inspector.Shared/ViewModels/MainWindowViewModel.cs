@@ -72,12 +72,16 @@ public class MainWindowViewModel : ViewModelBase
         Simulation = new SimulationViewModel(CdpService, () => Elements.SelectedNode);
         Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress);
 
-        // Notify simulation command availability when element selection changes
+        // Notify simulation command availability when element selection changes, and exit inspect mode
         Elements.PropertyChanged += (sender, e) =>
         {
-            if (e.PropertyName == nameof(ElementsViewModel.SelectedNode))
+            if (e.PropertyName == nameof(ElementsViewModel.SelectedNode) || e.PropertyName == nameof(ElementsViewModel.SelectedAxNode))
             {
                 Simulation.RaiseCanExecuteChangedForAll();
+                if (Connection.IsInspectModeActive)
+                {
+                    Connection.IsInspectModeActive = false;
+                }
             }
         };
     }
