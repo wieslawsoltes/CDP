@@ -24,7 +24,14 @@ This skill equips coding agents (such as Gemini, Claude, Copilot, and Codex) wit
 ## 2. Installation & Configuration
 
 ### Step A: Install the NuGet Package
-Add the CDP diagnostics package to your Avalonia desktop application project:
+Add the appropriate CDP package to your Avalonia desktop application project:
+
+If using the automatic **F12** keybinding and embedded inspector client (Option 1):
+```shell
+dotnet add package CDP.DiagnosticTools
+```
+
+If using the lightweight programmatic CDP Server directly (Option 2):
 ```shell
 dotnet add package CDP.Avalonia
 ```

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -88,9 +89,14 @@ public class E2ETestExample
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
+    private static readonly ConcurrentDictionary<int, TaskCompletionSource<JsonObject>> _pendingRequests = new();
+
     private static async Task<JsonObject> SendCommandAsync(ClientWebSocket ws, string method, JsonObject parameters)
     {
         int id = Interlocked.Increment(ref _nextId);
+        var tcs = new TaskCompletionSource<JsonObject>();
+        _pendingRequests[id] = tcs;
+
         var request = new JsonObject
         {
             ["id"] = id,
@@ -101,21 +107,47 @@ public class E2ETestExample
         var bytes = Encoding.UTF8.GetBytes(request.ToJsonString());
         await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
 
-        // Note: Real harness should use a TaskCompletionSource registry to correlate response by request ID.
-        return new JsonObject(); 
+        return await tcs.Task;
     }
 
     private static async Task ReceiveLoopAsync(ClientWebSocket ws)
     {
         var buffer = new byte[65536];
+        var ms = new System.IO.MemoryStream();
         while (ws.State == WebSocketState.Open)
         {
             try
             {
-                var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                ms.SetLength(0);
+                WebSocketReceiveResult result;
+                do
+                {
+                    result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    if (result.MessageType == WebSocketMessageType.Close) break;
+                    ms.Write(buffer, 0, result.Count);
+                } while (!result.EndOfMessage);
+
                 if (result.MessageType == WebSocketMessageType.Close) break;
-                string msg = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+                string msg = Encoding.UTF8.GetString(ms.ToArray());
                 Console.WriteLine($"[RECEIVED] {msg}");
+
+                var responseNode = JsonNode.Parse(msg);
+                if (responseNode is JsonObject jsonObj && jsonObj.TryGetPropertyValue("id", out var idNode) && idNode != null)
+                {
+                    int responseId = idNode.GetValue<int>();
+                    if (_pendingRequests.TryRemove(responseId, out var tcs))
+                    {
+                        if (jsonObj.TryGetPropertyValue("result", out var resultNode) && resultNode is JsonObject resultObj)
+                        {
+                            tcs.TrySetResult((JsonObject)resultObj.DeepClone());
+                        }
+                        else
+                        {
+                            tcs.TrySetResult(new JsonObject());
+                        }
+                    }
+                }
             }
             catch { break; }
         }
