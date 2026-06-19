@@ -24,6 +24,7 @@ public static class CdpServer
     public static System.IO.TextWriter OriginalError => _originalError ?? Console.Error;
     private static readonly ConcurrentDictionary<string, (TopLevel Window, string Title)> _windows = new();
     private static readonly ConcurrentDictionary<CdpSession, byte> _sessions = new();
+    public static IEnumerable<CdpSession> Sessions => _sessions.Keys;
     private static System.IO.TextWriter? _originalOut;
     private static System.IO.TextWriter? _originalError;
     private static ConsoleRedirector? _redirectedOut;
