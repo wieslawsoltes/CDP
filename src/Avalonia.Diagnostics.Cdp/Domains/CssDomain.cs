@@ -400,12 +400,18 @@ public static class CssDomain
                         t = b = parts[0];
                         r = l = parts[1];
                     }
+                    else if (parts.Length == 3)
+                    {
+                        t = parts[0];
+                        r = l = parts[1];
+                        b = parts[2];
+                    }
                     else if (parts.Length == 4)
                     {
-                        l = parts[0];
-                        t = parts[1];
-                        r = parts[2];
-                        b = parts[3];
+                        t = parts[0];
+                        r = parts[1];
+                        b = parts[2];
+                        l = parts[3];
                     }
 
                     if (shorthandName.Equals("margin", StringComparison.OrdinalIgnoreCase))
