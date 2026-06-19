@@ -165,6 +165,7 @@ public static class InputDomain
             )!;
             inputHandler.Invoke(args);
         });
+        session.RequestScreencastFrame();
     }
 
     private static async Task DispatchKeyEventAsync(
@@ -229,6 +230,7 @@ public static class InputDomain
                 inputHandler.Invoke(keyArgs);
             }
         });
+        session.RequestScreencastFrame();
     }
 
     private static TextBox? FindFocusedTextBox(Visual parent)
@@ -274,6 +276,7 @@ public static class InputDomain
             )!;
             inputHandler.Invoke(textArgs);
         });
+        session.RequestScreencastFrame();
     }
 
     private static Key MapCdpKey(string keyStr)
