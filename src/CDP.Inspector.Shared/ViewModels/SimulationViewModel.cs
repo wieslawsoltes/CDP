@@ -217,11 +217,14 @@ public class SimulationViewModel : ViewModelBase
     // Page
     public ICommand NavigateCommand { get; }
     public ICommand ReloadCommand { get; }
+    public ICommand BackCommand { get; }
+    public ICommand ForwardCommand { get; }
 
     // Mouse
     public ICommand MouseMoveCommand { get; }
     public ICommand MouseClickAtPointCommand { get; }
     public ICommand MouseDragCommand { get; }
+    public ICommand RotateDeviceCommand { get; }
 
     public SimulationViewModel(ICdpService cdpService, Func<DomNodeModel?> getSelectedNodeFunc)
     {
@@ -242,6 +245,9 @@ public class SimulationViewModel : ViewModelBase
 
         NavigateCommand = new RelayCommand(async () => await NavigateAsync(), () => _cdpService.IsConnected);
         ReloadCommand = new RelayCommand(async () => await ReloadAsync(), () => _cdpService.IsConnected);
+        BackCommand = new RelayCommand(async () => await GoBackAsync(), () => _cdpService.IsConnected);
+        ForwardCommand = new RelayCommand(async () => await GoForwardAsync(), () => _cdpService.IsConnected);
+        RotateDeviceCommand = new RelayCommand(async () => await RotateDeviceAsync(), () => _cdpService.IsConnected);
 
         MouseMoveCommand = new RelayCommand(async () => await MouseMoveAsync(), () => _cdpService.IsConnected);
         MouseClickAtPointCommand = new RelayCommand(async () => await MouseClickAtPointAsync(), () => _cdpService.IsConnected);
@@ -282,6 +288,9 @@ public class SimulationViewModel : ViewModelBase
 
         ((RelayCommand)NavigateCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ReloadCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)BackCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)ForwardCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)RotateDeviceCommand).RaiseCanExecuteChanged();
         ((RelayCommand)MouseMoveCommand).RaiseCanExecuteChanged();
         ((RelayCommand)MouseClickAtPointCommand).RaiseCanExecuteChanged();
         ((RelayCommand)MouseDragCommand).RaiseCanExecuteChanged();
@@ -516,6 +525,71 @@ public class SimulationViewModel : ViewModelBase
         catch (Exception ex)
         {
             Console.WriteLine($"Reload failed: {ex.Message}");
+        }
+    }
+
+    private async Task GoBackAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            var res = await _cdpService.SendCommandAsync("Page.getNavigationHistory", new JsonObject());
+            if (res != null && res.ContainsKey("entries") && res.ContainsKey("currentIndex"))
+            {
+                var entries = res["entries"] as JsonArray;
+                int currentIndex = res["currentIndex"]?.GetValue<int>() ?? -1;
+                if (entries != null && currentIndex > 0)
+                {
+                    var targetEntry = entries[currentIndex - 1] as JsonObject;
+                    int id = targetEntry?["id"]?.GetValue<int>() ?? -1;
+                    if (id != -1)
+                    {
+                        await _cdpService.SendCommandAsync("Page.navigateToHistoryEntry", new JsonObject { ["entryId"] = id });
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GoBack failed: {ex.Message}");
+        }
+    }
+
+    private async Task GoForwardAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            var res = await _cdpService.SendCommandAsync("Page.getNavigationHistory", new JsonObject());
+            if (res != null && res.ContainsKey("entries") && res.ContainsKey("currentIndex"))
+            {
+                var entries = res["entries"] as JsonArray;
+                int currentIndex = res["currentIndex"]?.GetValue<int>() ?? -1;
+                if (entries != null && currentIndex >= 0 && currentIndex < entries.Count - 1)
+                {
+                    var targetEntry = entries[currentIndex + 1] as JsonObject;
+                    int id = targetEntry?["id"]?.GetValue<int>() ?? -1;
+                    if (id != -1)
+                    {
+                        await _cdpService.SendCommandAsync("Page.navigateToHistoryEntry", new JsonObject { ["entryId"] = id });
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GoForward failed: {ex.Message}");
+        }
+    }
+
+    private async Task RotateDeviceAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        if (int.TryParse(WidthText, out int w) && int.TryParse(HeightText, out int h))
+        {
+            WidthText = h.ToString();
+            HeightText = w.ToString();
+            await ResizeAsync();
         }
     }
 

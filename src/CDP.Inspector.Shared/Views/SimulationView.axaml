@@ -2,153 +2,158 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="CdpInspectorApp.Views.SimulationView"
              x:CompileBindings="False">
-    <Grid ColumnDefinitions="*, 4, *" Margin="10">
-        <!-- Left: Input & Interaction Simulation -->
-        <Grid RowDefinitions="Auto, *">
-            <TextBlock Text="Input &amp; Interaction Simulation" Classes="panel-header"/>
-            <Border Classes="panel-card" Grid.Row="1">
-                <ScrollViewer>
-                    <StackPanel Spacing="15">
-                        <!-- Page Control -->
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="Page Control" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
-                            <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,5">
-                                <TextBox Name="txtNavigateUrl" Text="{Binding Simulation.NavigateUrlText, Mode=TwoWay}" PlaceholderText="http://localhost:9222/about" Height="28" VerticalContentAlignment="Center"/>
-                                <Button Name="btnNavigate" Command="{Binding Simulation.NavigateCommand}" Grid.Column="1" Content="Navigate" Margin="5,0,0,0"/>
-                                <Button Name="btnReload" Command="{Binding Simulation.ReloadCommand}" Grid.Column="2" Content="Reload" Margin="5,0,0,0"/>
-                            </Grid>
-                        </StackPanel>
+    <Grid RowDefinitions="Auto, Auto, *, Auto" Background="#202124">
+        
+        <!-- Row 0: Browser Navigation Bar -->
+        <Border Grid.Row="0" Background="#2d2e31" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,5">
+            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto">
+                <Button Command="{Binding Simulation.BackCommand}" Content="◀" ToolTip.Tip="Go back" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0"/>
+                <Button Grid.Column="1" Command="{Binding Simulation.ForwardCommand}" Content="▶" ToolTip.Tip="Go forward" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0"/>
+                <Button Grid.Column="2" Command="{Binding Simulation.ReloadCommand}" Content="↻" ToolTip.Tip="Reload target page" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,8,0"/>
+                
+                <!-- Address URL text box -->
+                <TextBox Grid.Column="3" Name="txtNavigateUrl" Text="{Binding Simulation.NavigateUrlText, Mode=TwoWay}" PlaceholderText="Enter URL (e.g. http://localhost:9222/)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding Simulation.NavigateCommand}"/>
+                    </TextBox.KeyBindings>
+                </TextBox>
+                
+                <Button Grid.Column="4" Command="{Binding Simulation.NavigateCommand}" Content="Go" Classes="accent" Height="28" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
 
-                        <!-- Mouse Events -->
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="Mouse Events" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button Name="btnClick" Command="{Binding Simulation.ClickCommand}" Content="Click Element Center" Classes="accent"/>
-                                <TextBlock Text="(Simulates click at center of selected element)" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                            </StackPanel>
-                        </StackPanel>
+        <!-- Row 1: Device Emulation Bar -->
+        <Border Grid.Row="1" Background="#28292c" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,5">
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
+                    <TextBlock Text="Device:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox Name="cmbDevicePresets"
+                              Width="150" Height="28"
+                              ItemsSource="{Binding Simulation.DevicePresets}"
+                              SelectedItem="{Binding Simulation.SelectedDevicePreset, Mode=TwoWay}"
+                              Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed" VerticalAlignment="Center">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" FontSize="11"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
 
-                        <!-- Advanced Mouse & Coordinates -->
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="Advanced Mouse &amp; Coordinates" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
-                            <Grid ColumnDefinitions="*, *, *, *" Margin="0,0,0,5">
-                                <StackPanel Margin="0,0,5,5">
-                                    <TextBlock Text="X / Start X" FontSize="10" Foreground="#9aa0a6"/>
-                                    <TextBox Name="txtMousePointX" Text="{Binding Simulation.MousePointXText, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="0,0,5,5">
-                                    <TextBlock Text="Y / Start Y" FontSize="10" Foreground="#9aa0a6"/>
-                                    <TextBox Name="txtMousePointY" Text="{Binding Simulation.MousePointYText, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Margin="0,0,5,5">
-                                    <TextBlock Text="Drag End X" FontSize="10" Foreground="#9aa0a6"/>
-                                    <TextBox Name="txtMouseDragEndX" Text="{Binding Simulation.MouseDragEndXText, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="3" Margin="0,0,0,5">
-                                    <TextBlock Text="Drag End Y" FontSize="10" Foreground="#9aa0a6"/>
-                                    <TextBox Name="txtMouseDragEndY" Text="{Binding Simulation.MouseDragEndYText, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
-                                </StackPanel>
-                            </Grid>
-                            <Grid ColumnDefinitions="*, *, Auto" Margin="0,0,0,5">
-                                <StackPanel Margin="0,0,5,0" Width="120">
-                                    <TextBlock Text="Mouse Button" FontSize="10" Foreground="#9aa0a6"/>
-                                    <ComboBox Name="cbMouseButton" ItemsSource="{Binding Simulation.MouseButtonsList}" SelectedItem="{Binding Simulation.MouseButtonText, Mode=TwoWay}" Height="28" HorizontalAlignment="Stretch"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Margin="5,0,5,0" Width="100">
-                                    <TextBlock Text="Click Count" FontSize="10" Foreground="#9aa0a6"/>
-                                    <TextBox Name="txtMouseClickCount" Text="{Binding Simulation.MouseClickCountText, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
-                                </StackPanel>
-                            </Grid>
-                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,5,0,0">
-                                <Button Name="btnMouseMove" Command="{Binding Simulation.MouseMoveCommand}" Content="Move Mouse"/>
-                                <Button Name="btnMouseClickAtPoint" Command="{Binding Simulation.MouseClickAtPointCommand}" Content="Click at Point"/>
-                                <Button Name="btnMouseDrag" Command="{Binding Simulation.MouseDragCommand}" Content="Drag to End"/>
-                            </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
+                    <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" PlaceholderText="Width" Width="55" Height="28" VerticalContentAlignment="Center" FontSize="11" Margin="0,0,2,0"/>
+                    <TextBlock Text="✕" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="3,0"/>
+                    <TextBox Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" PlaceholderText="Height" Width="55" Height="28" VerticalContentAlignment="Center" FontSize="11" Margin="2,0,5,0"/>
+                    <Button Command="{Binding Simulation.RotateDeviceCommand}" Content="⇅" ToolTip.Tip="Swap orientation" Width="28" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
+                    <TextBlock Text="Scale:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Name="txtScaleFactor" Text="{Binding Simulation.ScaleFactorText, Mode=TwoWay}" PlaceholderText="1.0" Width="40" Height="28" VerticalContentAlignment="Center" FontSize="11"/>
+                </StackPanel>
+
+                <CheckBox Name="chkMobile" IsChecked="{Binding Simulation.IsMobileActive, Mode=TwoWay}" Content="Mobile" VerticalAlignment="Center" FontSize="11" Margin="0,0,15,0"/>
+
+                <Button Name="btnResize" Command="{Binding Simulation.ResizeCommand}" Content="Apply" Classes="accent" Height="28" FontSize="11" Margin="0,0,5,0"/>
+                <Button Name="btnResizeReset" Command="{Binding Simulation.ResizeResetCommand}" Content="Reset" Height="28" FontSize="11" Margin="0,0,15,0"/>
+                
+                <Button Name="btnCaptureScreenshot" Command="{Binding Simulation.CaptureScreenshotCommand}" Content="Screenshot" Height="28" FontSize="11"/>
+            </WrapPanel>
+        </Border>
+
+        <!-- Row 2: Live Screencast Viewport -->
+        <Border Grid.Row="2" Background="#202124" Focusable="True" Name="borderScreenshot">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Margin="15" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Stretch="None"/>
+                </Border>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Row 3: Collapsible Advanced Interaction Tools -->
+        <Expander Grid.Row="3" Header="Advanced Manual Interaction Tools" Background="#28292c" BorderBrush="#3c4043" BorderThickness="0,1,0,0" ExpandDirection="Up" IsExpanded="False">
+            <ScrollViewer MaxHeight="250">
+                <Grid ColumnDefinitions="*, *" Margin="5">
+                    <!-- Left side: Manual actions -->
+                    <StackPanel Spacing="10" Margin="0,0,10,0">
+                        <!-- Mouse click element -->
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Selected Element Actions" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="11"/>
+                            <Button Name="btnClick" Command="{Binding Simulation.ClickCommand}" Content="Click Selected Element Center" Classes="accent" FontSize="11" HorizontalAlignment="Stretch"/>
                         </StackPanel>
                         
-                        <!-- Scroll -->
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="Scroll / Mouse Wheel" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="Delta Y:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                                <TextBox Name="txtScrollDeltaY" Text="{Binding Simulation.ScrollDeltaYText, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center"/>
-                                <Button Name="btnScroll" Command="{Binding Simulation.ScrollCommand}" Content="Scroll"/>
-                            </StackPanel>
-                        </StackPanel>
-                        
-                        <!-- Keyboard Input -->
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="Keyboard Input" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
-                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
-                                <TextBox Name="txtInputSim" Text="{Binding Simulation.InputSimText, Mode=TwoWay}" PlaceholderText="Type text to insert..." Height="28" VerticalContentAlignment="Center"/>
-                                <Button Name="btnSendText" Command="{Binding Simulation.SendTextCommand}" Grid.Column="1" Content="Insert Text" Margin="5,0,0,0"/>
+                        <!-- Keyboard Simulation -->
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Keyboard Simulation" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="11"/>
+                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,3">
+                                <TextBox Name="txtInputSim" Text="{Binding Simulation.InputSimText, Mode=TwoWay}" PlaceholderText="Text to insert..." Height="28" FontSize="11" VerticalContentAlignment="Center"/>
+                                <Button Name="btnSendText" Command="{Binding Simulation.SendTextCommand}" Grid.Column="1" Content="Send Text" FontSize="11" Margin="4,0,0,0"/>
                             </Grid>
                             <Grid ColumnDefinitions="*, Auto">
-                                <ComboBox Name="cbKeys" ItemsSource="{Binding Simulation.KeysList}" SelectedItem="{Binding Simulation.SelectedKey, Mode=TwoWay}" PlaceholderText="Select Key..." Height="28" HorizontalAlignment="Stretch"/>
-                                <Button Name="btnSendKey" Command="{Binding Simulation.SendKeyCommand}" Grid.Column="1" Content="Press Key" Margin="5,0,0,0"/>
+                                <ComboBox Name="cbKeys" ItemsSource="{Binding Simulation.KeysList}" SelectedItem="{Binding Simulation.SelectedKey, Mode=TwoWay}" PlaceholderText="Select Key..." Height="28" FontSize="11" HorizontalAlignment="Stretch"/>
+                                <Button Name="btnSendKey" Command="{Binding Simulation.SendKeyCommand}" Grid.Column="1" Content="Send Key" FontSize="11" Margin="4,0,0,0"/>
                             </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,3,0,0">
+                                <CheckBox Name="chkCtrl" IsChecked="{Binding Simulation.IsCtrlActive, Mode=TwoWay}" Content="Ctrl" FontSize="10"/>
+                                <CheckBox Name="chkShift" IsChecked="{Binding Simulation.IsShiftActive, Mode=TwoWay}" Content="Shift" FontSize="10"/>
+                                <CheckBox Name="chkAlt" IsChecked="{Binding Simulation.IsAltActive, Mode=TwoWay}" Content="Alt" FontSize="10"/>
+                                <CheckBox Name="chkMeta" IsChecked="{Binding Simulation.IsMetaActive, Mode=TwoWay}" Content="Meta" FontSize="10"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Right side: Manual Coordinate actions -->
+                    <StackPanel Grid.Column="1" Spacing="10" Margin="10,0,0,0">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Manual Coordinates Simulation" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="11"/>
+                            <Grid ColumnDefinitions="*, *, *, *">
+                                <StackPanel Margin="0,0,3,3">
+                                    <TextBlock Text="X" FontSize="9" Foreground="#9aa0a6"/>
+                                    <TextBox Name="txtMousePointX" Text="{Binding Simulation.MousePointXText, Mode=TwoWay}" Height="28" FontSize="11" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,3,3">
+                                    <TextBlock Text="Y" FontSize="9" Foreground="#9aa0a6"/>
+                                    <TextBox Name="txtMousePointY" Text="{Binding Simulation.MousePointYText, Mode=TwoWay}" Height="28" FontSize="11" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="0,0,3,3">
+                                    <TextBlock Text="Drag End X" FontSize="9" Foreground="#9aa0a6"/>
+                                    <TextBox Name="txtMouseDragEndX" Text="{Binding Simulation.MouseDragEndXText, Mode=TwoWay}" Height="28" FontSize="11" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Margin="0,0,0,3">
+                                    <TextBlock Text="Drag End Y" FontSize="9" Foreground="#9aa0a6"/>
+                                    <TextBox Name="txtMouseDragEndY" Text="{Binding Simulation.MouseDragEndYText, Mode=TwoWay}" Height="28" FontSize="11" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+                            
+                            <Grid ColumnDefinitions="*, *, Auto">
+                                <StackPanel Margin="0,0,3,0">
+                                    <TextBlock Text="Button" FontSize="9" Foreground="#9aa0a6"/>
+                                    <ComboBox Name="cbMouseButton" ItemsSource="{Binding Simulation.MouseButtonsList}" SelectedItem="{Binding Simulation.MouseButtonText, Mode=TwoWay}" Height="28" FontSize="11" HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="3,0,3,0">
+                                    <TextBlock Text="Clicks" FontSize="9" Foreground="#9aa0a6"/>
+                                    <TextBox Name="txtMouseClickCount" Text="{Binding Simulation.MouseClickCountText, Mode=TwoWay}" Height="28" FontSize="11" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,5,0,0">
+                                <Button Name="btnMouseMove" Command="{Binding Simulation.MouseMoveCommand}" Content="Move" FontSize="11"/>
+                                <Button Name="btnMouseClickAtPoint" Command="{Binding Simulation.MouseClickAtPointCommand}" Content="Click Point" FontSize="11"/>
+                                <Button Name="btnMouseDrag" Command="{Binding Simulation.MouseDragCommand}" Content="Drag" FontSize="11"/>
+                            </StackPanel>
                         </StackPanel>
 
-                        <!-- Keyboard Modifiers -->
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="Keyboard Modifiers" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="12"/>
-                            <StackPanel Orientation="Horizontal" Spacing="15">
-                                <CheckBox Name="chkCtrl" IsChecked="{Binding Simulation.IsCtrlActive, Mode=TwoWay}" Content="Ctrl"/>
-                                <CheckBox Name="chkShift" IsChecked="{Binding Simulation.IsShiftActive, Mode=TwoWay}" Content="Shift"/>
-                                <CheckBox Name="chkAlt" IsChecked="{Binding Simulation.IsAltActive, Mode=TwoWay}" Content="Alt"/>
-                                <CheckBox Name="chkMeta" IsChecked="{Binding Simulation.IsMetaActive, Mode=TwoWay}" Content="Meta"/>
+                        <!-- Scroll simulation -->
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Manual Wheel Scroll" FontWeight="SemiBold" Foreground="#8ab4f8" FontSize="11"/>
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <TextBox Name="txtScrollDeltaY" Text="{Binding Simulation.ScrollDeltaYText, Mode=TwoWay}" Width="60" Height="28" FontSize="11" VerticalContentAlignment="Center"/>
+                                <Button Name="btnScroll" Command="{Binding Simulation.ScrollCommand}" Content="Scroll" FontSize="11"/>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
-                </ScrollViewer>
-            </Border>
-        </Grid>
-        
-        <!-- Splitter -->
-        <GridSplitter Grid.Column="1" Background="#3c4043"/>
-        
-        <!-- Right: Device Emulation & Screenshot -->
-        <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
-            <TextBlock Text="Device Emulation &amp; Screenshot" Classes="panel-header"/>
-            <Border Classes="panel-card" Grid.Row="1">
-                <Grid RowDefinitions="Auto, *">
-                    <!-- Emulation Controls -->
-                    <StackPanel Spacing="10" Grid.Row="0" Margin="0,0,0,10">
-                        <Grid ColumnDefinitions="*, *" Margin="0,0,0,5">
-                            <TextBlock Text="Device Preset:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="12"/>
-                            <ComboBox Grid.Column="1" Name="cmbDevicePresets"
-                                      ItemsSource="{Binding Simulation.DevicePresets}"
-                                      SelectedItem="{Binding Simulation.SelectedDevicePreset, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch" Height="28"
-                                      Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding DisplayName}"/>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </Grid>
-                        <Grid ColumnDefinitions="*, *, *" RowDefinitions="Auto, Auto">
-                            <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" PlaceholderText="Width" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,5"/>
-                            <TextBox Grid.Column="1" Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" PlaceholderText="Height" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,5"/>
-                            <TextBox Grid.Column="2" Name="txtScaleFactor" Text="{Binding Simulation.ScaleFactorText, Mode=TwoWay}" PlaceholderText="Scale" Height="28" VerticalContentAlignment="Center" Margin="0,0,0,5"/>
-                            <CheckBox Grid.Row="1" Grid.Column="0" Name="chkMobile" IsChecked="{Binding Simulation.IsMobileActive, Mode=TwoWay}" Content="Mobile" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right">
-                                <Button Name="btnResize" Command="{Binding Simulation.ResizeCommand}" Content="Apply Size" Classes="accent" Height="28"/>
-                                <Button Name="btnResizeReset" Command="{Binding Simulation.ResizeResetCommand}" Content="Reset" Height="28"/>
-                            </StackPanel>
-                        </Grid>
-                        <Button Name="btnCaptureScreenshot" Command="{Binding Simulation.CaptureScreenshotCommand}" Content="Capture Screenshot" HorizontalAlignment="Stretch" Height="28"/>
-                    </StackPanel>
-                    
-                    <!-- Screenshot display -->
-                    <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True" Focusable="True" Name="borderScreenshot">
-                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                            <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </ScrollViewer>
-                    </Border>
                 </Grid>
-            </Border>
-        </Grid>
+            </ScrollViewer>
+        </Expander>
     </Grid>
 </UserControl>

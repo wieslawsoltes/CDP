@@ -8,9 +8,16 @@
         <!-- 1. Connection and Targets Toolbar -->
         <views:ConnectionToolbar Name="Toolbar" Grid.Row="0"/>
 
-        <!-- 2. DevTools Panels TabControl -->
-        <Grid Grid.Row="1" Background="#202124">
-            <TabControl Padding="0" Margin="0">
+        <!-- 2. Split Screen View: Left Preview, Right Panels -->
+        <Grid Grid.Row="1" Background="#202124" ColumnDefinitions="*, 4, 1.2*">
+            <!-- Left side: Live Interactive Target Screencast/Simulation -->
+            <views:SimulationView Name="SimulationPane" Grid.Column="0"/>
+
+            <!-- Column Splitter -->
+            <GridSplitter Grid.Column="1" Background="#3c4043" ResizeDirection="Columns"/>
+
+            <!-- Right side: Developer Tools Panels -->
+            <TabControl Grid.Column="2" Padding="0" Margin="0">
                 <!-- Elements Panel -->
                 <TabItem Header="Elements">
                     <views:ElementsView Name="ElementsTab"/>
@@ -51,10 +58,6 @@
                     <views:AuditsView Name="AuditsTab"/>
                 </TabItem>
 
-                <!-- Simulation Panel -->
-                <TabItem Header="Simulation">
-                    <views:SimulationView Name="SimulationTab"/>
-                </TabItem>
 
                 <!-- Recorder Panel -->
                 <TabItem Name="TabRecorder" Header="Recorder">
