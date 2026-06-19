@@ -182,7 +182,7 @@ public static class RuntimeDomain
                         var argObj = arguments[i] as JsonObject;
                         if (argObj != null)
                         {
-                            if (argObj.TryGetPropertyValue("value", out var valNode) && valNode != null)
+                            if (argObj.TryGetPropertyValue("value", out var valNode))
                             {
                                 variableBindings[paramNames[i]] = GetNodeValue(valNode);
                             }
@@ -510,6 +510,10 @@ public static class RuntimeDomain
         try
         {
             var underType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            if (value is string str)
+            {
+                return ConvertValue(str, underType);
+            }
             return Convert.ChangeType(value, underType, CultureInfo.InvariantCulture);
         }
         catch
