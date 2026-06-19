@@ -429,6 +429,105 @@ public static class CssDomain
                     return new JsonObject { ["longhandProperties"] = list };
                 }
 
+            case "getLocationForSelector":
+                {
+                    return new JsonObject
+                    {
+                        ["ranges"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["startLine"] = 0,
+                                ["startColumn"] = 0,
+                                ["endLine"] = 0,
+                                ["endColumn"] = 0
+                            }
+                        }
+                    };
+                }
+
+            case "getAnimatedStylesForNode":
+                {
+                    return new JsonObject
+                    {
+                        ["animationStyles"] = new JsonArray(),
+                        ["transitionsStyle"] = new JsonObject
+                        {
+                            ["styleSheetId"] = "0",
+                            ["cssProperties"] = new JsonArray(),
+                            ["shorthandEntries"] = new JsonArray(),
+                            ["cssText"] = ""
+                        },
+                        ["inherited"] = new JsonArray()
+                    };
+                }
+
+            case "getEnvironmentVariables":
+                {
+                    return new JsonObject
+                    {
+                        ["environmentVariables"] = new JsonObject()
+                    };
+                }
+
+            case "resolveValues":
+                {
+                    var values = @params["values"] as JsonArray;
+                    var results = new JsonArray();
+                    if (values != null)
+                    {
+                        foreach (var val in values)
+                        {
+                            results.Add(val?.GetValue<string>() ?? "");
+                        }
+                    }
+                    return new JsonObject { ["results"] = results };
+                }
+
+            case "trackComputedStyleUpdates":
+            case "trackComputedStyleUpdatesForNode":
+            case "startRuleUsageTracking":
+            case "forceStartingStyle":
+            case "setLocalFontsEnabled":
+            case "setContainerQueryConditionText":
+            case "setContainerQueryText":
+            case "setEffectivePropertyValueForNode":
+            case "setKeyframeKey":
+            case "setMediaText":
+            case "setNavigationText":
+            case "setPropertyRulePropertyName":
+            case "setRuleSelector":
+            case "setScopeText":
+            case "setSupportsText":
+                {
+                    return new JsonObject();
+                }
+
+            case "takeComputedStyleUpdates":
+                {
+                    return new JsonObject
+                    {
+                        ["nodeIds"] = new JsonArray()
+                    };
+                }
+
+            case "stopRuleUsageTracking":
+                {
+                    return new JsonObject
+                    {
+                        ["ruleUsage"] = new JsonArray()
+                    };
+                }
+
+            case "takeCoverageDelta":
+                {
+                    return new JsonObject
+                    {
+                        ["coverage"] = new JsonArray(),
+                        ["timestamp"] = 0.0
+                    };
+                }
+
             default:
                 throw new Exception($"Method CSS.{action} is not implemented");
         }

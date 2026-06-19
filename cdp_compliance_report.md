@@ -1,12 +1,12 @@
 # Chrome DevTools Protocol (CDP) Compliance Report
 
-Generated on: 2026-06-19 10:09:27 UTC
+Generated on: 2026-06-19 10:15:54 UTC
 
 This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` library against the official Chrome DevTools Protocol specification.
 
 ## Summary
 
-* **Total Standard CDP Methods Supported**: 296 / 668 (44,3%)
+* **Total Standard CDP Methods Supported**: 318 / 668 (47,6%)
 * **Total Custom/Extension Methods Supported**: 12
 
 | Domain | Status / Coverage | Standard Supported | Custom Extensions | Missing Standard |
@@ -24,7 +24,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 | **Cast** | Fully Compliant | 6 | 0 | 0 |
 | **Console** | Fully Compliant | 3 | 0 | 0 |
 | **CrashReportContext** | Fully Compliant | 1 | 0 | 0 |
-| **CSS** | 17/39 (43,6%) | 17 | 0 | 22 |
+| **CSS** | Fully Compliant | 39 | 0 | 0 |
 | **Debugger** | Unsupported | 0 | 0 | 33 |
 | **DeviceAccess** | Fully Compliant | 4 | 0 | 0 |
 | **DeviceOrientation** | Fully Compliant | 2 | 0 | 0 |
@@ -131,8 +131,7 @@ This report lists the level of compliance of the `Avalonia.Diagnostics.Cdp` libr
 
 ### CSS
 
-* **Standard Supported (17)**: `addRule`, `collectClassNames`, `createStyleSheet`, `disable`, `enable`, `forcePseudoState`, `getBackgroundColors`, `getComputedStyleForNode`, `getInlineStylesForNode`, `getLayersForNode`, `getLonghandProperties`, `getMatchedStylesForNode`, `getMediaQueries`, `getPlatformFontsForNode`, `getStyleSheetText`, `setStyleSheetText`, `setStyleTexts`
-* **Missing Standard (22)**: `forceStartingStyle`, `getAnimatedStylesForNode`, `getEnvironmentVariables`, `getLocationForSelector`, `resolveValues`, `setContainerQueryConditionText`, `setContainerQueryText`, `setEffectivePropertyValueForNode`, `setKeyframeKey`, `setLocalFontsEnabled`, `setMediaText`, `setNavigationText`, `setPropertyRulePropertyName`, `setRuleSelector`, `setScopeText`, `setSupportsText`, `startRuleUsageTracking`, `stopRuleUsageTracking`, `takeComputedStyleUpdates`, `takeCoverageDelta`, `trackComputedStyleUpdates`, `trackComputedStyleUpdatesForNode`
+* **Standard Supported (39)**: `addRule`, `collectClassNames`, `createStyleSheet`, `disable`, `enable`, `forcePseudoState`, `forceStartingStyle`, `getAnimatedStylesForNode`, `getBackgroundColors`, `getComputedStyleForNode`, `getEnvironmentVariables`, `getInlineStylesForNode`, `getLayersForNode`, `getLocationForSelector`, `getLonghandProperties`, `getMatchedStylesForNode`, `getMediaQueries`, `getPlatformFontsForNode`, `getStyleSheetText`, `resolveValues`, `setContainerQueryConditionText`, `setContainerQueryText`, `setEffectivePropertyValueForNode`, `setKeyframeKey`, `setLocalFontsEnabled`, `setMediaText`, `setNavigationText`, `setPropertyRulePropertyName`, `setRuleSelector`, `setScopeText`, `setStyleSheetText`, `setStyleTexts`, `setSupportsText`, `startRuleUsageTracking`, `stopRuleUsageTracking`, `takeComputedStyleUpdates`, `takeCoverageDelta`, `trackComputedStyleUpdates`, `trackComputedStyleUpdatesForNode`
 
 ### Debugger
 
