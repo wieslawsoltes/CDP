@@ -41,30 +41,108 @@ class Program
     {
         try
         {
-            Console.WriteLine("=== STARTING CDP SCREENCAST E2E VERIFICATION ===");
+            Console.WriteLine("=== STARTING TASK-SPECIFIC INPUTS & GESTURES E2E VERIFICATION ===");
             
-            // 1. Create a window and show it
+            // 1. Create a window and controls
             Window? window = null;
+            TextBox? textBox = null;
+            Border? border = null;
+            Button? button = null;
+            ScrollViewer? scrollViewer = null;
+
+            bool touchPressed = false;
+            int touchPressCount = 0;
+            bool tapped = false;
+            double scrollDeltaY = 0;
+
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
+                textBox = new TextBox
+                {
+                    Width = 100,
+                    Height = 50,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top
+                };
+                border = new Border
+                {
+                    Width = 200,
+                    Height = 100,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                    Background = Avalonia.Media.Brushes.Red
+                };
+                border.PointerPressed += (s, e) =>
+                {
+                    if (e.Pointer.Type == Avalonia.Input.PointerType.Touch)
+                    {
+                        touchPressed = true;
+                        touchPressCount++;
+                    }
+                };
+                button = new Button
+                {
+                    Width = 100,
+                    Height = 50,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                    Content = "Tap Target"
+                };
+                button.Click += (s, e) => tapped = true;
+
+                scrollViewer = new ScrollViewer
+                {
+                    Width = 200,
+                    Height = 200,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                    Content = new Canvas { Width = 1000, Height = 1000 }
+                };
+                scrollViewer.ScrollChanged += (s, e) =>
+                {
+                    scrollDeltaY = scrollViewer.Offset.Y;
+                };
+
+                var containerCanvas = new Canvas { Width = 400, Height = 500 };
+                Canvas.SetLeft(textBox, 0); Canvas.SetTop(textBox, 0);
+                Canvas.SetLeft(border, 150); Canvas.SetTop(border, 0);
+                Canvas.SetLeft(button, 0); Canvas.SetTop(button, 100);
+                Canvas.SetLeft(scrollViewer, 0); Canvas.SetTop(scrollViewer, 200);
+
+                containerCanvas.Children.Add(textBox);
+                containerCanvas.Children.Add(border);
+                containerCanvas.Children.Add(button);
+                containerCanvas.Children.Add(scrollViewer);
+
                 window = new Window
                 {
-                    Title = "E2E Test Window",
+                    Title = "E2E Keyboard and Gesture Test Window",
                     Width = 400,
-                    Height = 300
+                    Height = 500,
+                    WindowDecorations = WindowDecorations.None,
+                    Content = containerCanvas
                 };
                 window.Show();
+                window.Activate();
+            });
+
+            // Wait for visual tree to arrange
+            await Task.Delay(200);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                window!.Measure(new Size(400, 500));
+                window!.Arrange(new Rect(0, 0, 400, 500));
             });
 
             // 2. Start the CDP Server manually on port 9236
             CdpServer.Start(9236);
-            var targetId = CdpServer.Register(window!, "E2E Screencast Target");
+            var targetId = CdpServer.Register(window!, "E2E Target");
 
             // 3. Connect a WebSocket client to the server
             var wsUri = new Uri($"ws://localhost:9236/devtools/page/{targetId}");
             using var ws = new ClientWebSocket();
             await ws.ConnectAsync(wsUri, CancellationToken.None);
-            Console.WriteLine("WebSocket connected to target.");
+            Console.WriteLine("WebSocket connected to E2E target.");
 
             // Start background WebSocket message reader
             _ = Task.Run(async () =>
@@ -95,147 +173,252 @@ class Program
                 catch { }
             });
 
-            // 4. Start Screencast via CDP
-            // format: jpeg, quality: 75, maxWidth: 200, maxHeight: 200, everyNthFrame: 1
-            var startCommand = new JsonObject
-            {
-                ["id"] = 1,
-                ["method"] = "Page.startScreencast",
-                ["params"] = new JsonObject
-                {
-                    ["format"] = "jpeg",
-                    ["quality"] = 75,
-                    ["maxWidth"] = 200,
-                    ["maxHeight"] = 200,
-                    ["everyNthFrame"] = 1
-                }
-            };
-
-            await SendCommandAsync(ws, startCommand);
-            Console.WriteLine("Sent Page.startScreencast.");
-
-            // 5. Receive frame event from WebSocket
-            var firstFrame = await ReceiveScreencastFrameAsync();
-            Console.WriteLine("Received screencastFrame event!");
-
-            // Assertions on the frame
-            var data = firstFrame["params"]?["data"]?.GetValue<string>();
-            if (string.IsNullOrEmpty(data))
-            {
-                throw new Exception("Assertion failed: screencastFrame data is empty!");
-            }
-
-            var metadata = firstFrame["params"]?["metadata"];
-            if (metadata == null)
-            {
-                throw new Exception("Assertion failed: screencastFrame metadata is null!");
-            }
-
-            var deviceWidth = metadata["deviceWidth"]?.GetValue<double>();
-            var deviceHeight = metadata["deviceHeight"]?.GetValue<double>();
-            Console.WriteLine($"Resized bounds in metadata: {deviceWidth}x{deviceHeight}");
-            if (deviceWidth != 200)
-            {
-                throw new Exception($"Assertion failed: Expected deviceWidth 200, got {deviceWidth}");
-            }
-
-            var sessionId = firstFrame["params"]?["sessionId"]?.GetValue<int>() ?? 0;
-            Console.WriteLine($"Session/Frame ID: {sessionId}");
-
-            // 6. Acknowledge the frame (releasing the backpressure SemaphoreSlim)
-            var ackCommand = new JsonObject
-            {
-                ["id"] = 2,
-                ["method"] = "Page.screencastFrameAck",
-                ["params"] = new JsonObject
-                {
-                    ["sessionId"] = sessionId
-                }
-            };
-            await SendCommandAsync(ws, ackCommand);
-            Console.WriteLine("Sent Page.screencastFrameAck.");
-
-            // 7. Verify Delta Compression / Change Detection (Duplicate Frame Skipping)
-            // Wait 500ms. Since the UI did not change, no screencast frame should be sent.
-            Console.WriteLine("Waiting to verify that duplicate frames are skipped...");
-            var duplicateFrame = await ReceiveEventWithTimeoutAsync("Page.screencastFrame", 500);
-            if (duplicateFrame != null)
-            {
-                throw new Exception("Assertion failed: Duplicate frame was not skipped by delta compression!");
-            }
-            Console.WriteLine("Verified: Duplicate frame was successfully skipped (delta compression works!).");
-
-            // 8. Trigger visual update by changing window background and requesting a frame
-            Console.WriteLine("Changing window background to trigger a new screencast frame...");
+            // 4. Test Keyboard Typing
+            Console.WriteLine("Testing Keyboard input typing...");
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
-                window!.Background = Avalonia.Media.Brushes.Red;
-                window!.InvalidateVisual();
-                Console.WriteLine($"[ControlApp Debug] Active Sessions Count: {System.Linq.Enumerable.Count(CdpServer.Sessions)}");
-                foreach (var sessionItem in CdpServer.Sessions)
-                {
-                    sessionItem.RequestScreencastFrame();
-                }
+                textBox!.Focus();
             });
+            await Task.Delay(50);
 
-            // 9. Verify that a new frame (with changes) is sent and received
-            var secondFrame = await ReceiveEventWithTimeoutAsync("Page.screencastFrame", 2000);
-            if (secondFrame == null)
+            var keyDownCommand = new JsonObject
             {
-                throw new Exception("Assertion failed: Failed to receive second screencast frame after visual/layout update!");
-            }
-            Console.WriteLine("Received second screencast frame after layout update!");
-
-            var secondSessionId = secondFrame["params"]?["sessionId"]?.GetValue<int>() ?? 0;
-            Console.WriteLine($"Second Session/Frame ID: {secondSessionId}");
-            if (secondSessionId <= sessionId)
-            {
-                throw new Exception($"Assertion failed: Expected second session ID to be greater than {sessionId}, got {secondSessionId}");
-            }
-
-            // 10. Acknowledge the second frame
-            var ackCommand2 = new JsonObject
-            {
-                ["id"] = 3,
-                ["method"] = "Page.screencastFrameAck",
+                ["id"] = 10,
+                ["method"] = "Input.dispatchKeyEvent",
                 ["params"] = new JsonObject
                 {
-                    ["sessionId"] = secondSessionId
+                    ["type"] = "rawKeyDown",
+                    ["key"] = "KeyA",
+                    ["text"] = "a",
+                    ["modifiers"] = 0
                 }
             };
-            await SendCommandAsync(ws, ackCommand2);
-            Console.WriteLine("Sent second Page.screencastFrameAck.");
+            await SendCommandAsync(ws, keyDownCommand);
 
-            // 11. Verify visibility change event
+            var charCommand = new JsonObject
+            {
+                ["id"] = 11,
+                ["method"] = "Input.dispatchKeyEvent",
+                ["params"] = new JsonObject
+                {
+                    ["type"] = "char",
+                    ["key"] = "KeyA",
+                    ["text"] = "a",
+                    ["modifiers"] = 0
+                }
+            };
+            await SendCommandAsync(ws, charCommand);
+
+            var keyUpCommand = new JsonObject
+            {
+                ["id"] = 12,
+                ["method"] = "Input.dispatchKeyEvent",
+                ["params"] = new JsonObject
+                {
+                    ["type"] = "keyUp",
+                    ["key"] = "KeyA",
+                    ["text"] = "",
+                    ["modifiers"] = 0
+                }
+            };
+            await SendCommandAsync(ws, keyUpCommand);
+            await Task.Delay(100);
+
+            // 5. Test Touch Emulation
+            Console.WriteLine("Testing Touch emulation...");
+            var touchCommand = new JsonObject
+            {
+                ["id"] = 20,
+                ["method"] = "Input.emulateTouchFromMouseEvent",
+                ["params"] = new JsonObject
+                {
+                    ["type"] = "mousePressed",
+                    ["x"] = 200.0,
+                    ["y"] = 50.0,
+                    ["button"] = "left",
+                    ["clickCount"] = 1,
+                    ["modifiers"] = 0
+                }
+            };
+            await SendCommandAsync(ws, touchCommand);
+            await Task.Delay(100);
+
+            // 6. Test Tap Gesture
+            Console.WriteLine("Testing Tap gesture simulation...");
+            var tapCommand = new JsonObject
+            {
+                ["id"] = 30,
+                ["method"] = "Input.synthesizeTapGesture",
+                ["params"] = new JsonObject
+                {
+                    ["x"] = 50.0,
+                    ["y"] = 125.0,
+                    ["tapCount"] = 1,
+                    ["duration"] = 50,
+                    ["gestureSourceType"] = "mouse"
+                }
+            };
+            await SendCommandAsync(ws, tapCommand);
+            await Task.Delay(200);
+
+            // 7. Test Scroll Gesture
+            Console.WriteLine("Testing Scroll gesture simulation...");
+            var scrollCommand = new JsonObject
+            {
+                ["id"] = 40,
+                ["method"] = "Input.synthesizeScrollGesture",
+                ["params"] = new JsonObject
+                {
+                    ["x"] = 100.0,
+                    ["y"] = 300.0,
+                    ["xDistance"] = 0.0,
+                    ["yDistance"] = -60.0,
+                    ["speed"] = 800,
+                    ["gestureSourceType"] = "mouse"
+                }
+            };
+            await SendCommandAsync(ws, scrollCommand);
+            await Task.Delay(500);
+
+            // 7.5. Test Touch Emulation toggle & Mouse to Touch routing
+            Console.WriteLine("Testing Touch Emulation toggle & Mouse-to-Touch routing...");
+            
+            // Enable touch emulation
+            var enableTouchEmulation = new JsonObject
+            {
+                ["id"] = 45,
+                ["method"] = "Emulation.setTouchEmulationEnabled",
+                ["params"] = new JsonObject { ["enabled"] = true }
+            };
+            await SendCommandAsync(ws, enableTouchEmulation);
+            await Task.Delay(50);
+
+            // Send a standard mouse pressed event
+            var emulatedMousePress = new JsonObject
+            {
+                ["id"] = 46,
+                ["method"] = "Input.dispatchMouseEvent",
+                ["params"] = new JsonObject
+                {
+                    ["type"] = "mousePressed",
+                    ["x"] = 200.0,
+                    ["y"] = 50.0,
+                    ["button"] = "left",
+                    ["clickCount"] = 1,
+                    ["modifiers"] = 0
+                }
+            };
+            
+            // Reset touchPressed to false before verifying
+            touchPressed = false;
+            await SendCommandAsync(ws, emulatedMousePress);
+            await Task.Delay(100);
+
+            // Release mouse
+            var emulatedMouseRelease = new JsonObject
+            {
+                ["id"] = 47,
+                ["method"] = "Input.dispatchMouseEvent",
+                ["params"] = new JsonObject
+                {
+                    ["type"] = "mouseReleased",
+                    ["x"] = 200.0,
+                    ["y"] = 50.0,
+                    ["button"] = "left",
+                    ["clickCount"] = 1,
+                    ["modifiers"] = 0
+                }
+            };
+            await SendCommandAsync(ws, emulatedMouseRelease);
+            
+            // Disable touch emulation
+            var disableTouchEmulation = new JsonObject
+            {
+                ["id"] = 48,
+                ["method"] = "Emulation.setTouchEmulationEnabled",
+                ["params"] = new JsonObject { ["enabled"] = false }
+            };
+            await SendCommandAsync(ws, disableTouchEmulation);
+            await Task.Delay(50);
+            
+            // Verify touchPressed was true during mouse event dispatch
+            bool touchEmulationPassed = touchPressed;
+
+            // 7.6. Test Pinch Gesture
+            Console.WriteLine("Testing Pinch gesture simulation...");
+            var pinchCommand = new JsonObject
+            {
+                ["id"] = 49,
+                ["method"] = "Input.synthesizePinchGesture",
+                ["params"] = new JsonObject
+                {
+                    ["x"] = 250.0,
+                    ["y"] = 50.0,
+                    ["scaleFactor"] = 2.0,
+                    ["relativeSpeed"] = 800,
+                    ["gestureSourceType"] = "touch"
+                }
+            };
+            
+            touchPressCount = 0;
+            await SendCommandAsync(ws, pinchCommand);
+            await Task.Delay(500);
+
+            // 8. Assertions & Verification
+            Console.WriteLine("Verifying E2E assertions...");
+            string? textBoxText = null;
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
-                window!.IsVisible = false;
+                textBoxText = textBox!.Text;
             });
 
-            var visibilityEvent = await ReceiveVisibilityEventAsync();
-            Console.WriteLine("Received Page.screencastVisibilityChanged event!");
-            var visible = visibilityEvent["params"]?["visible"]?.GetValue<bool>();
-            Console.WriteLine($"Visibility state: {visible}");
-            if (visible != false)
+            Console.WriteLine($"TextBox text: '{textBoxText}'");
+            if (textBoxText != "a")
             {
-                throw new Exception("Assertion failed: expected visible to be false!");
+                throw new Exception($"Assertion failed: Expected TextBox text 'a', got '{textBoxText}'");
             }
+            Console.WriteLine("-> Keyboard input typing verification PASSED.");
 
-            // 12. Stop Screencast
-            var stopCommand = new JsonObject
+            Console.WriteLine($"Touch pressed: {touchPressed}");
+            if (!touchPressed)
             {
-                ["id"] = 4,
-                ["method"] = "Page.stopScreencast",
-                ["params"] = new JsonObject()
-            };
-            await SendCommandAsync(ws, stopCommand);
-            Console.WriteLine("Sent Page.stopScreencast.");
+                throw new Exception("Assertion failed: Expected touchPressed to be true");
+            }
+            Console.WriteLine("-> Touch emulation verification PASSED.");
+
+            Console.WriteLine($"Touch emulation toggle passed: {touchEmulationPassed}");
+            if (!touchEmulationPassed)
+            {
+                throw new Exception("Assertion failed: Expected touchEmulationPassed to be true");
+            }
+            Console.WriteLine("-> Touch emulation toggle verification PASSED.");
+
+            Console.WriteLine($"Touch press count during pinch gesture: {touchPressCount}");
+            if (touchPressCount < 2)
+            {
+                throw new Exception($"Assertion failed: Expected touchPressCount to be >= 2, got {touchPressCount}");
+            }
+            Console.WriteLine("-> Pinch gesture verification PASSED.");
+
+            Console.WriteLine($"Tapped: {tapped}");
+            if (!tapped)
+            {
+                throw new Exception("Assertion failed: Expected tapped to be true");
+            }
+            Console.WriteLine("-> Tap gesture verification PASSED.");
+
+            Console.WriteLine($"Scroll offset Y: {scrollDeltaY}");
+            if (scrollDeltaY <= 0)
+            {
+                throw new Exception("Assertion failed: Expected scroll offset Y to be positive");
+            }
+            Console.WriteLine("-> Scroll gesture verification PASSED.");
 
             // Clean up
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
+            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close E2E test", CancellationToken.None);
             CdpServer.Stop();
 
-            Console.WriteLine("=== E2E SCREENCAST VERIFICATION SUCCESSFUL! ===");
+            Console.WriteLine("=== ALL TASK-SPECIFIC INPUTS & GESTURES E2E VERIFICATIONS SUCCESSFUL! ===");
             Environment.Exit(0);
         }
         catch (Exception ex)
@@ -253,43 +436,4 @@ class Program
         var bytes = Encoding.UTF8.GetBytes(json);
         await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
     }
-
-    private static async Task<JsonObject> ReceiveEventAsync(string methodName)
-    {
-        var result = await ReceiveEventWithTimeoutAsync(methodName, Timeout.Infinite);
-        if (result == null)
-        {
-            throw new Exception($"Timed out or socket closed waiting for event {methodName}");
-        }
-        return result;
-    }
-
-    private static async Task<JsonObject?> ReceiveEventWithTimeoutAsync(string methodName, int timeoutMs)
-    {
-        using var cts = (timeoutMs == Timeout.Infinite) ? new CancellationTokenSource() : new CancellationTokenSource(timeoutMs);
-        try
-        {
-            while (await _messageChannel.Reader.WaitToReadAsync(cts.Token))
-            {
-                while (_messageChannel.Reader.TryRead(out var node))
-                {
-                    if (node != null && node.ContainsKey("method") && node["method"]?.GetValue<string>() == methodName)
-                    {
-                        return node;
-                    }
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            return null; // Timed out
-        }
-        return null;
-    }
-
-    private static Task<JsonObject> ReceiveScreencastFrameAsync()
-        => ReceiveEventAsync("Page.screencastFrame");
-
-    private static Task<JsonObject> ReceiveVisibilityEventAsync()
-        => ReceiveEventAsync("Page.screencastVisibilityChanged");
 }

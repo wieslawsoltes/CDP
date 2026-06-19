@@ -164,7 +164,11 @@ public partial class SimulationView : UserControl
             string keyStr = MapKey(e.Key);
             _ = mainVm.Simulation.SendKeyboardEventAsync("rawKeyDown", keyStr, modifiers);
         }
-        e.Handled = true;
+        
+        if (e.Key is Key.Tab or Key.Left or Key.Right or Key.Up or Key.Down or Key.Back or Key.Delete or Key.Escape or Key.Enter)
+        {
+            e.Handled = true;
+        }
     }
 
     private void Border_KeyUp(object? sender, KeyEventArgs e)
@@ -180,7 +184,11 @@ public partial class SimulationView : UserControl
             string keyStr = MapKey(e.Key);
             _ = mainVm.Simulation.SendKeyboardEventAsync("keyUp", keyStr, modifiers);
         }
-        e.Handled = true;
+        
+        if (e.Key is Key.Tab or Key.Left or Key.Right or Key.Up or Key.Down or Key.Back or Key.Delete or Key.Escape or Key.Enter)
+        {
+            e.Handled = true;
+        }
     }
 
     private void Border_TextInput(object? sender, TextInputEventArgs e)

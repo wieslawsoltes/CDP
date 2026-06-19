@@ -1223,6 +1223,322 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestKeyboardInputWithoutDuplication()
+    {
+        var textBox = new TextBox
+        {
+            Width = 100,
+            Height = 50,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top
+        };
+        var window = new Window
+        {
+            Title = "Keyboard Test Window",
+            Width = 300,
+            Height = 200,
+            Content = textBox
+        };
+        window.Show();
+        window.Activate();
+
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        var focused = textBox.Focus();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(focused, "TextBox should acquire focus");
+        Assert.True(textBox.IsFocused, "TextBox IsFocused should be true");
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // Simulate typing "a" using CDP standard sequence
+        var keyDownParams = new JsonObject
+        {
+            ["type"] = "rawKeyDown",
+            ["key"] = "KeyA",
+            ["text"] = "a",
+            ["modifiers"] = 0
+        };
+        await InputDomain.HandleAsync(session, "dispatchKeyEvent", keyDownParams);
+
+        var charParams = new JsonObject
+        {
+            ["type"] = "char",
+            ["key"] = "KeyA",
+            ["text"] = "a",
+            ["modifiers"] = 0
+        };
+        await InputDomain.HandleAsync(session, "dispatchKeyEvent", charParams);
+
+        var keyUpParams = new JsonObject
+        {
+            ["type"] = "keyUp",
+            ["key"] = "KeyA",
+            ["text"] = "",
+            ["modifiers"] = 0
+        };
+        await InputDomain.HandleAsync(session, "dispatchKeyEvent", keyUpParams);
+
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.Equal("a", textBox.Text);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestTouchEmulationFromMouseEvent()
+    {
+        bool touchPressed = false;
+        var border = new Border
+        {
+            Width = 100,
+            Height = 100,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Background = Avalonia.Media.Brushes.Red
+        };
+        border.PointerPressed += (s, e) =>
+        {
+            if (e.Pointer.Type == PointerType.Touch)
+            {
+                touchPressed = true;
+            }
+        };
+
+        var window = new Window
+        {
+            Title = "Touch Test Window",
+            Width = 300,
+            Height = 200,
+            Content = border
+        };
+        window.Show();
+        window.Activate();
+
+        // Force layout
+        window.Measure(new Size(300, 200));
+        window.Arrange(new Rect(0, 0, 300, 200));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var touchParams = new JsonObject
+        {
+            ["type"] = "mousePressed",
+            ["x"] = 50.0,
+            ["y"] = 50.0,
+            ["button"] = "left",
+            ["clickCount"] = 1,
+            ["modifiers"] = 0
+        };
+        await InputDomain.HandleAsync(session, "emulateTouchFromMouseEvent", touchParams);
+
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.True(touchPressed);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestSynthesizeTapGesture()
+    {
+        bool tapped = false;
+        var button = new Button
+        {
+            Width = 100,
+            Height = 50,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Content = "Tap Target"
+        };
+        button.Click += (s, e) => tapped = true;
+
+        var window = new Window
+        {
+            Title = "Tap Test Window",
+            Width = 300,
+            Height = 200,
+            Content = button
+        };
+        window.Show();
+        window.Activate();
+
+        // Force layout
+        window.Measure(new Size(300, 200));
+        window.Arrange(new Rect(0, 0, 300, 200));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var tapParams = new JsonObject
+        {
+            ["x"] = 50.0,
+            ["y"] = 25.0,
+            ["tapCount"] = 1,
+            ["duration"] = 20,
+            ["gestureSourceType"] = "touch"
+        };
+        await InputDomain.HandleAsync(session, "synthesizeTapGesture", tapParams);
+
+        for (int i = 0; i < 15; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.True(tapped);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestSynthesizeScrollGesture()
+    {
+        double scrollDeltaY = 0;
+        var scrollViewer = new ScrollViewer
+        {
+            Width = 200,
+            Height = 200,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Content = new Canvas { Width = 1000, Height = 1000 }
+        };
+        scrollViewer.ScrollChanged += (s, e) =>
+        {
+            scrollDeltaY = scrollViewer.Offset.Y;
+        };
+
+        var window = new Window
+        {
+            Title = "Scroll Test Window",
+            Width = 300,
+            Height = 300,
+            Content = scrollViewer
+        };
+        window.Show();
+        window.Activate();
+
+        // Force layout
+        window.Measure(new Size(300, 300));
+        window.Arrange(new Rect(0, 0, 300, 300));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // Test with Mouse Wheel
+        var scrollParamsMouse = new JsonObject
+        {
+            ["x"] = 100.0,
+            ["y"] = 100.0,
+            ["xDistance"] = 0.0,
+            ["yDistance"] = -50.0,
+            ["speed"] = 800,
+            ["gestureSourceType"] = "mouse"
+        };
+        await InputDomain.HandleAsync(session, "synthesizeScrollGesture", scrollParamsMouse);
+
+        for (int i = 0; i < 15; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.True(scrollDeltaY > 0, $"Expected positive Y offset, got Y={scrollDeltaY}");
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestSynthesizePinchGesture()
+    {
+        var border = new Border
+        {
+            Width = 200,
+            Height = 200,
+            Background = Avalonia.Media.Brushes.Red
+        };
+        int touchCount = 0;
+        border.PointerPressed += (s, e) =>
+        {
+            if (e.Pointer.Type == PointerType.Touch)
+            {
+                touchCount++;
+            }
+        };
+
+        var window = new Window
+        {
+            Title = "Pinch Test Window",
+            Width = 300,
+            Height = 300,
+            Content = border
+        };
+        window.Show();
+        window.Activate();
+
+        window.Measure(new Size(300, 300));
+        window.Arrange(new Rect(0, 0, 300, 300));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var pinchParams = new JsonObject
+        {
+            ["x"] = 100.0,
+            ["y"] = 100.0,
+            ["scaleFactor"] = 2.0,
+            ["relativeSpeed"] = 800,
+            ["gestureSourceType"] = "touch"
+        };
+        await InputDomain.HandleAsync(session, "synthesizePinchGesture", pinchParams);
+
+        for (int i = 0; i < 15; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.True(touchCount >= 2, $"Expected at least 2 touch presses (for pinch gesture two points), got {touchCount}");
+
+        window.Close();
+    }
 }
 
 public class FakeWebSocket : System.Net.WebSockets.WebSocket

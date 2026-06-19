@@ -121,7 +121,29 @@ public class SimulationViewModel : ViewModelBase
     public bool IsMobileActive
     {
         get => _isMobileActive;
-        set => RaiseAndSetIfChanged(ref _isMobileActive, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isMobileActive, value))
+            {
+                _ = UpdateTouchEmulationAsync(value);
+            }
+        }
+    }
+
+    private async Task UpdateTouchEmulationAsync(bool enabled)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Emulation.setTouchEmulationEnabled", new JsonObject
+            {
+                ["enabled"] = enabled
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to set touch emulation: {ex.Message}");
+        }
     }
 
     public Bitmap? ScreenshotImage
@@ -486,6 +508,10 @@ public class SimulationViewModel : ViewModelBase
         try
         {
             await _cdpService.SendCommandAsync("Emulation.clearDeviceMetricsOverride", new JsonObject());
+            await _cdpService.SendCommandAsync("Emulation.setTouchEmulationEnabled", new JsonObject
+            {
+                ["enabled"] = false
+            });
         }
         catch (Exception ex)
         {
