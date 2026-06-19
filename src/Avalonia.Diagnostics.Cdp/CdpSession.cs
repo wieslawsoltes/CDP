@@ -495,6 +495,7 @@ public class CdpSession
         NodeMap.Clear();
         RemoteObjects.Clear();
         HighlightOverlayManager.HideHighlight(Window);
+        Domains.CssDomain.CleanupSession(this);
         _sendSemaphore.Dispose();
     }
 
@@ -957,9 +958,14 @@ public class CdpSession
         if (sender is not Visual visual) return;
         
         var propName = e.Property.Name;
+        var nodeId = NodeMap.GetOrAdd(visual);
+        if (nodeId != 0)
+        {
+            Domains.CssDomain.OnPropertyChanged(this, nodeId, propName);
+        }
+
         if (propName == "Name" || propName == "Classes" || propName == "IsEnabled" || propName == "IsVisible" || propName == "Bounds" || propName == "Text" || propName == "Content")
         {
-            var nodeId = NodeMap.GetOrAdd(visual);
             if (nodeId == 0) return;
 
             if (propName == "Name")

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
@@ -431,61 +432,156 @@ public static class CssDomain
 
             case "getLocationForSelector":
                 {
-                    return new JsonObject
+                    string sheetId = @params["styleSheetId"]?.GetValue<string>() ?? "";
+                    string selectorText = @params["selectorText"]?.GetValue<string>() ?? "";
+                    var ranges = new JsonArray();
+
+                    if (int.TryParse(sheetId, out int nodeId))
                     {
-                        ["ranges"] = new JsonArray
+                        var visual = session.NodeMap.GetVisual(nodeId);
+                        if (visual != null)
                         {
-                            new JsonObject
+                            if (selectorText.Equals("element", StringComparison.OrdinalIgnoreCase))
                             {
-                                ["startLine"] = 0,
-                                ["startColumn"] = 0,
-                                ["endLine"] = 0,
-                                ["endColumn"] = 0
+                                ranges.Add(new JsonObject
+                                {
+                                    ["startLine"] = 0,
+                                    ["startColumn"] = 0,
+                                    ["endLine"] = 0,
+                                    ["endColumn"] = selectorText.Length
+                                });
                             }
                         }
-                    };
+                    }
+                    return new JsonObject { ["ranges"] = ranges };
                 }
 
             case "getAnimatedStylesForNode":
                 {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    var transitionsStyle = new JsonObject();
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var visual = session.NodeMap.GetVisual(nodeId);
+                        if (visual is Control control)
+                        {
+                            transitionsStyle = GetTransitionsStyle(control, nodeId);
+                        }
+                    });
                     return new JsonObject
                     {
                         ["animationStyles"] = new JsonArray(),
-                        ["transitionsStyle"] = new JsonObject
-                        {
-                            ["styleSheetId"] = "0",
-                            ["cssProperties"] = new JsonArray(),
-                            ["shorthandEntries"] = new JsonArray(),
-                            ["cssText"] = ""
-                        },
+                        ["transitionsStyle"] = transitionsStyle,
                         ["inherited"] = new JsonArray()
                     };
                 }
 
             case "getEnvironmentVariables":
                 {
+                    double scaling = 1.0;
+                    var windows = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                        ? desktop.Windows
+                        : Array.Empty<Window>();
+                    if (windows.Count > 0)
+                    {
+                        scaling = windows[0].RenderScaling;
+                    }
+
                     return new JsonObject
                     {
-                        ["environmentVariables"] = new JsonObject()
+                        ["environmentVariables"] = new JsonObject
+                        {
+                            ["device-pixel-ratio"] = scaling.ToString("0.##", CultureInfo.InvariantCulture),
+                            ["safe-area-inset-top"] = "0px",
+                            ["safe-area-inset-right"] = "0px",
+                            ["safe-area-inset-bottom"] = "0px",
+                            ["safe-area-inset-left"] = "0px"
+                        }
                     };
                 }
 
             case "resolveValues":
                 {
                     var values = @params["values"] as JsonArray;
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
                     var results = new JsonArray();
+                    double fontSize = 16.0;
+
+                    if (nodeId > 0)
+                    {
+                        fontSize = await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            var visual = session.NodeMap.GetVisual(nodeId);
+                            if (visual is Control control)
+                            {
+                                var fsProp = control.GetType().GetProperty("FontSize");
+                                if (fsProp != null && fsProp.GetValue(control) is double fsDouble)
+                                {
+                                    return fsDouble;
+                                }
+                            }
+                            return 16.0;
+                        });
+                    }
+
                     if (values != null)
                     {
-                        foreach (var val in values)
+                        foreach (var valNode in values)
                         {
-                            results.Add(val?.GetValue<string>() ?? "");
+                            string val = valNode?.GetValue<string>() ?? "";
+                            string resolvedVal = ResolveCssValue(val, fontSize);
+                            results.Add(resolvedVal);
                         }
                     }
                     return new JsonObject { ["results"] = results };
                 }
 
             case "trackComputedStyleUpdates":
+                {
+                    var props = @params["propertiesToTrack"] as JsonArray;
+                    if (props != null && props.Count > 0)
+                    {
+                        var set = _sessionTrackedComputedNodes.GetOrAdd(session, _ => new HashSet<int>());
+                        lock (set)
+                        {
+                            set.Add(-1); // track globally
+                        }
+                    }
+                    else
+                    {
+                        _sessionTrackedComputedNodes.TryRemove(session, out _);
+                        _sessionUpdatedComputedStyleNodes.TryRemove(session, out _);
+                    }
+                    return new JsonObject();
+                }
+
             case "trackComputedStyleUpdatesForNode":
+                {
+                    int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    if (nodeId.HasValue && nodeId.Value > 0)
+                    {
+                        _sessionSingleTrackedNode[session] = nodeId.Value;
+                    }
+                    else
+                    {
+                        _sessionSingleTrackedNode.TryRemove(session, out _);
+                    }
+                    return new JsonObject();
+                }
+
+            case "takeComputedStyleUpdates":
+                {
+                    var nodeIds = new JsonArray();
+                    if (_sessionUpdatedComputedStyleNodes.TryRemove(session, out var updatedDict))
+                    {
+                        foreach (var key in updatedDict.Keys)
+                        {
+                            nodeIds.Add(key);
+                        }
+                    }
+                    return new JsonObject { ["nodeIds"] = nodeIds };
+                }
+
             case "startRuleUsageTracking":
             case "forceStartingStyle":
             case "setLocalFontsEnabled":
@@ -501,14 +597,6 @@ public static class CssDomain
             case "setSupportsText":
                 {
                     return new JsonObject();
-                }
-
-            case "takeComputedStyleUpdates":
-                {
-                    return new JsonObject
-                    {
-                        ["nodeIds"] = new JsonArray()
-                    };
                 }
 
             case "stopRuleUsageTracking":
@@ -745,5 +833,162 @@ public static class CssDomain
         }
 
         return Convert.ChangeType(val, targetType, CultureInfo.InvariantCulture);
+    }
+
+    private static readonly ConcurrentDictionary<CdpSession, HashSet<int>> _sessionTrackedComputedNodes = new();
+    private static readonly ConcurrentDictionary<CdpSession, ConcurrentDictionary<int, bool>> _sessionUpdatedComputedStyleNodes = new();
+    private static readonly ConcurrentDictionary<CdpSession, int> _sessionSingleTrackedNode = new();
+
+    public static void OnPropertyChanged(CdpSession session, int nodeId, string propertyName)
+    {
+        // 1. Check global/multiple tracking
+        if (_sessionTrackedComputedNodes.TryGetValue(session, out var trackedSet))
+        {
+            lock (trackedSet)
+            {
+                if (trackedSet.Contains(-1) || trackedSet.Contains(nodeId))
+                {
+                    var updatedDict = _sessionUpdatedComputedStyleNodes.GetOrAdd(session, _ => new ConcurrentDictionary<int, bool>());
+                    updatedDict[nodeId] = true;
+                }
+            }
+        }
+
+        // 2. Check single node tracking for events
+        if (_sessionSingleTrackedNode.TryGetValue(session, out int singleTrackedNodeId))
+        {
+            if (singleTrackedNodeId == nodeId)
+            {
+                // Send CSS.computedStyleUpdated event
+                _ = session.SendEventAsync("CSS.computedStyleUpdated", new JsonObject
+                {
+                    ["nodeId"] = nodeId
+                });
+            }
+        }
+    }
+
+    public static void CleanupSession(CdpSession session)
+    {
+        _sessionTrackedComputedNodes.TryRemove(session, out _);
+        _sessionUpdatedComputedStyleNodes.TryRemove(session, out _);
+        _sessionSingleTrackedNode.TryRemove(session, out _);
+    }
+
+    private static string ResolveCssValue(string val, double fontSize)
+    {
+        val = val.Trim();
+        if (val.EndsWith("em", StringComparison.OrdinalIgnoreCase) && 
+            double.TryParse(val.Substring(0, val.Length - 2).Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out double emCount))
+        {
+            return $"{(emCount * fontSize).ToString("0.##", CultureInfo.InvariantCulture)}px";
+        }
+        if (val.StartsWith("calc(", StringComparison.OrdinalIgnoreCase) && val.EndsWith(")"))
+        {
+            string expression = val.Substring(5, val.Length - 6).Trim();
+            try
+            {
+                var parts = expression.Split(new[] { '+', '-', '*', '/' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2)
+                {
+                    string p1 = parts[0].Trim();
+                    string p2 = parts[1].Trim();
+                    double v1 = ParseUnitValue(p1, fontSize);
+                    double v2 = ParseUnitValue(p2, fontSize);
+                    char op = ' ';
+                    foreach (var c in expression)
+                    {
+                        if (c == '+' || c == '-' || c == '*' || c == '/')
+                        {
+                            op = c;
+                            break;
+                        }
+                    }
+                    double result = op switch
+                    {
+                        '+' => v1 + v2,
+                        '-' => v1 - v2,
+                        '*' => v1 * v2,
+                        '/' => v2 != 0 ? v1 / v2 : 0,
+                        _ => 0
+                    };
+                    return $"{result.ToString("0.##", CultureInfo.InvariantCulture)}px";
+                }
+            }
+            catch { }
+        }
+        return val;
+    }
+
+    private static double ParseUnitValue(string val, double fontSize)
+    {
+        val = val.Trim();
+        if (val.EndsWith("px", StringComparison.OrdinalIgnoreCase) && 
+            double.TryParse(val.Substring(0, val.Length - 2).Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out double pxVal))
+        {
+            return pxVal;
+        }
+        if (val.EndsWith("em", StringComparison.OrdinalIgnoreCase) && 
+            double.TryParse(val.Substring(0, val.Length - 2).Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out double emVal))
+        {
+            return emVal * fontSize;
+        }
+        if (double.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleVal))
+        {
+            return doubleVal;
+        }
+        return 0;
+    }
+
+    private static JsonObject GetTransitionsStyle(Control control, int nodeId)
+    {
+        var cssProperties = new JsonArray();
+        var sbText = new System.Text.StringBuilder();
+
+        var transProp = control.GetType().GetProperty("Transitions");
+        if (transProp != null && transProp.GetValue(control) is System.Collections.IEnumerable transitions)
+        {
+            var propNames = new System.Collections.Generic.List<string>();
+            var durStrings = new System.Collections.Generic.List<string>();
+
+            foreach (var t in transitions)
+            {
+                if (t == null) continue;
+                var propOfTrans = t.GetType().GetProperty("Property");
+                var durOfTrans = t.GetType().GetProperty("Duration");
+                if (propOfTrans != null && durOfTrans != null)
+                {
+                    var propVal = propOfTrans.GetValue(t);
+                    var durVal = durOfTrans.GetValue(t);
+
+                    string propName = propVal?.ToString() ?? "all";
+                    if (propName.Contains("Property")) propName = propName.Replace("Property", "").ToLower();
+
+                    var durSpan = durVal is TimeSpan ts ? ts : TimeSpan.Zero;
+                    string durStr = $"{durSpan.TotalSeconds.ToString("0.##", CultureInfo.InvariantCulture)}s";
+
+                    propNames.Add(propName);
+                    durStrings.Add(durStr);
+                }
+            }
+
+            if (propNames.Count > 0)
+            {
+                string combinedProps = string.Join(", ", propNames);
+                string combinedDurs = string.Join(", ", durStrings);
+
+                cssProperties.Add(CreateInlineProperty("transition-property", combinedProps));
+                cssProperties.Add(CreateInlineProperty("transition-duration", combinedDurs));
+                sbText.Append($"transition-property: {combinedProps}; transition-duration: {combinedDurs};");
+            }
+        }
+
+        return new JsonObject
+        {
+            ["styleSheetId"] = nodeId.ToString(),
+            ["cssProperties"] = cssProperties,
+            ["shorthandEntries"] = new JsonArray(),
+            ["cssText"] = sbText.ToString()
+        };
     }
 }
