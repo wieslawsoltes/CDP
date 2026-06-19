@@ -295,7 +295,7 @@ public class CdpIntegrationTests
                 Console.WriteLine($"INTEGRATION_TEST_CLIENT: getProperties response: {getPropsResponse.ToJsonString()}");
                 var propsList = getPropsResponse["result"]?["result"] as JsonArray;
                 Assert.NotNull(propsList);
-                var nameProp = propsList.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "name");
+                var nameProp = propsList.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "Name");
                 Assert.NotNull(nameProp);
 
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);

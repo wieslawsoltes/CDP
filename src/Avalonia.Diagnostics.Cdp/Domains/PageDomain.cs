@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -136,6 +137,11 @@ public static class PageDomain
                         session.Window.InvalidateArrange();
                         session.Window.InvalidateVisual();
                     });
+                    _ = Task.Run(async () =>
+                    {
+                        await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnNewDocument.Values);
+                        await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnLoad.Values);
+                    });
                     return new JsonObject();
                 }
 
@@ -151,7 +157,35 @@ public static class PageDomain
                             navigateMethod.Invoke(session.Window, new object[] { url });
                         }
                     });
-                    return new JsonObject();
+
+                    var nextId = session.NavigationHistory.Count + 1;
+                    var historyEntry = new JsonObject
+                    {
+                        ["id"] = nextId,
+                        ["url"] = url,
+                        ["userTypedURL"] = url,
+                        ["title"] = session.Window?.GetType().Name ?? "Avalonia Window",
+                        ["transitionType"] = "link"
+                    };
+
+                    if (session.NavigationHistoryIndex >= 0 && session.NavigationHistoryIndex < session.NavigationHistory.Count - 1)
+                    {
+                        session.NavigationHistory.RemoveRange(session.NavigationHistoryIndex + 1, session.NavigationHistory.Count - (session.NavigationHistoryIndex + 1));
+                    }
+                    session.NavigationHistory.Add(historyEntry);
+                    session.NavigationHistoryIndex = session.NavigationHistory.Count - 1;
+
+                    _ = Task.Run(async () =>
+                    {
+                        await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnNewDocument.Values);
+                        await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnLoad.Values);
+                    });
+
+                    return new JsonObject
+                    {
+                        ["frameId"] = "main-frame-id",
+                        ["loaderId"] = "main-loader-id"
+                    };
                 }
 
             case "bringToFront":
@@ -224,37 +258,57 @@ public static class PageDomain
 
             case "getAppManifest":
                 {
+                    var port = CdpServer.Port;
                     return new JsonObject
                     {
-                        ["url"] = "",
-                        ["errors"] = new JsonArray()
+                        ["url"] = $"http://127.0.0.1:{port}/manifest.json",
+                        ["errors"] = new JsonArray(),
+                        ["data"] = "{\"name\": \"CdpSampleApp\", \"short_name\": \"CdpSampleApp\", \"start_url\": \"/\", \"display\": \"standalone\"}"
                     };
                 }
 
             case "getNavigationHistory":
                 {
-                    var port = CdpServer.Port;
-                    var entries = new JsonArray
+                    var entries = new JsonArray();
+                    foreach (var entry in session.NavigationHistory)
                     {
-                        new JsonObject
-                        {
-                            ["id"] = 1,
-                            ["url"] = $"http://127.0.0.1:{port}/",
-                            ["userTypedURL"] = $"http://127.0.0.1:{port}/",
-                            ["title"] = session.Window?.GetType().Name ?? "Avalonia Window",
-                            ["transitionType"] = "typed"
-                        }
-                    };
+                        entries.Add(entry.DeepClone());
+                    }
                     return new JsonObject
                     {
-                        ["currentIndex"] = 0,
+                        ["currentIndex"] = session.NavigationHistoryIndex,
                         ["entries"] = entries
                     };
                 }
 
             case "addScriptToEvaluateOnNewDocument":
                 {
-                    return new JsonObject { ["identifier"] = "1" };
+                    string source = @params["source"]?.GetValue<string>() ?? "";
+                    string identifier = Guid.NewGuid().ToString();
+                    session.ScriptsToEvaluateOnNewDocument[identifier] = source;
+                    return new JsonObject { ["identifier"] = identifier };
+                }
+
+            case "removeScriptToEvaluateOnNewDocument":
+                {
+                    string identifier = @params["identifier"]?.GetValue<string>() ?? "";
+                    session.ScriptsToEvaluateOnNewDocument.TryRemove(identifier, out _);
+                    return new JsonObject();
+                }
+
+            case "addScriptToEvaluateOnLoad":
+                {
+                    string source = @params["source"]?.GetValue<string>() ?? "";
+                    string identifier = Guid.NewGuid().ToString();
+                    session.ScriptsToEvaluateOnLoad[identifier] = source;
+                    return new JsonObject { ["identifier"] = identifier };
+                }
+
+            case "removeScriptToEvaluateOnLoad":
+                {
+                    string identifier = @params["identifier"]?.GetValue<string>() ?? "";
+                    session.ScriptsToEvaluateOnLoad.TryRemove(identifier, out _);
+                    return new JsonObject();
                 }
 
             case "close":
@@ -270,74 +324,399 @@ public static class PageDomain
                     return new JsonObject();
                 }
 
-            case "addScriptToEvaluateOnLoad":
-                return new JsonObject { ["identifier"] = "1" };
-
             case "captureSnapshot":
-                return new JsonObject { ["data"] = "" };
+                {
+                    string mhtml = CaptureSnapshotMhtml(session);
+                    return new JsonObject { ["data"] = mhtml };
+                }
 
             case "createIsolatedWorld":
-                return new JsonObject { ["executionContextId"] = 1 };
+                {
+                    return new JsonObject { ["executionContextId"] = 1 };
+                }
 
             case "getAdScriptAncestry":
                 return new JsonObject { ["adScriptAncestry"] = new JsonArray() };
 
             case "getAnnotatedPageContent":
-                return new JsonObject { ["content"] = "" };
+                {
+                    string content = "";
+                    if (Dispatcher.UIThread.CheckAccess())
+                    {
+                        content = GetVisualTreeHtml(session.Window);
+                    }
+                    else
+                    {
+                        content = Dispatcher.UIThread.Invoke(() => GetVisualTreeHtml(session.Window));
+                    }
+                    return new JsonObject
+                    {
+                        ["content"] = content
+                    };
+                }
 
             case "getAppId":
-                return new JsonObject { ["appId"] = "" };
+                return new JsonObject
+                {
+                    ["appId"] = "com.cdp.sampleapp",
+                    ["recommendedId"] = "com.cdp.sampleapp"
+                };
 
             case "getInstallabilityErrors":
-                return new JsonObject { ["installabilityErrors"] = new JsonArray() };
+                return new JsonObject
+                {
+                    ["installabilityErrors"] = new JsonArray()
+                };
 
             case "getManifestIcons":
-                return new JsonObject { ["primaryIcon"] = "" };
+                return new JsonObject
+                {
+                    ["primaryIcon"] = "http://127.0.0.1:" + CdpServer.Port + "/favicon.ico"
+                };
 
             case "getOriginTrials":
-                return new JsonObject { ["originTrials"] = new JsonArray() };
+                return new JsonObject
+                {
+                    ["originTrials"] = new JsonArray()
+                };
 
             case "getPermissionsPolicyState":
-                return new JsonObject { ["states"] = new JsonArray() };
+                return new JsonObject
+                {
+                    ["states"] = new JsonArray()
+                };
 
             case "printToPDF":
-                return new JsonObject { ["data"] = "" };
+                {
+                    string pdfBase64 = await PrintToPdfAsync(session);
+                    return new JsonObject { ["data"] = pdfBase64 };
+                }
 
             case "searchInResource":
-                return new JsonObject { ["result"] = new JsonArray() };
+                {
+                    string url = @params["url"]?.GetValue<string>() ?? "";
+                    string query = @params["query"]?.GetValue<string>() ?? "";
+                    bool caseSensitive = @params["caseSensitive"]?.GetValue<bool>() ?? false;
+                    bool isRegex = @params["isRegex"]?.GetValue<bool>() ?? false;
 
-            case "removeScriptToEvaluateOnNewDocument":
+                    var port = CdpServer.Port;
+                    var prefix = $"http://127.0.0.1:{port}/workspace/";
+                    var prefixLocalhost = $"http://localhost:{port}/workspace/";
+
+                    string relativePath = "";
+                    if (url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        relativePath = url.Substring(prefix.Length);
+                    else if (url.StartsWith(prefixLocalhost, StringComparison.OrdinalIgnoreCase))
+                        relativePath = url.Substring(prefixLocalhost.Length);
+
+                    relativePath = Uri.UnescapeDataString(relativePath);
+                    var workspaceRoot = FindWorkspaceRoot();
+                    var absolutePath = Path.GetFullPath(Path.Combine(workspaceRoot, relativePath));
+
+                    var resultArr = new JsonArray();
+
+                    if (File.Exists(absolutePath))
+                    {
+                        var content = await File.ReadAllTextAsync(absolutePath);
+                        var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                        
+                        var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                        System.Text.RegularExpressions.Regex? regex = null;
+                        if (isRegex)
+                        {
+                            var options = caseSensitive ? System.Text.RegularExpressions.RegexOptions.None : System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+                            regex = new System.Text.RegularExpressions.Regex(query, options);
+                        }
+
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            bool isMatch = false;
+                            if (isRegex && regex != null)
+                                isMatch = regex.IsMatch(lines[i]);
+                            else
+                                isMatch = lines[i].Contains(query, comparison);
+
+                            if (isMatch)
+                            {
+                                resultArr.Add(new JsonObject
+                                {
+                                    ["lineNumber"] = i + 1,
+                                    ["lineContent"] = lines[i]
+                                });
+                            }
+                        }
+                    }
+
+                    return new JsonObject { ["result"] = resultArr };
+                }
+
+            case "deleteCookie":
+                {
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    session.Cookies.RemoveAll(c => c["name"]?.GetValue<string>() == name);
+                    return new JsonObject();
+                }
+
+            case "setDocumentContent":
+                {
+                    string html = @params["html"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrEmpty(html) && html.Trim().StartsWith("<"))
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            try
+                            {
+                                var newContent = Avalonia.Markup.Xaml.AvaloniaRuntimeXamlLoader.Load(html);
+                                if (session.Window is Window win)
+                                {
+                                    win.Content = newContent;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"setDocumentContent XAML loader failed: {ex.Message}");
+                            }
+                        });
+                    }
+                    return new JsonObject();
+                }
+
             case "setDeviceMetricsOverride":
             case "clearDeviceMetricsOverride":
+                return await EmulationDomain.HandleAsync(session, action, @params);
+
             case "setGeolocationOverride":
+                {
+                    session.GeolocationOverride = new JsonObject
+                    {
+                        ["latitude"] = @params["latitude"]?.GetValue<double>() ?? 0.0,
+                        ["longitude"] = @params["longitude"]?.GetValue<double>() ?? 0.0,
+                        ["accuracy"] = @params["accuracy"]?.GetValue<double>() ?? 0.0
+                    };
+                    return new JsonObject();
+                }
+
             case "clearGeolocationOverride":
+                {
+                    session.GeolocationOverride = null;
+                    return new JsonObject();
+                }
+
             case "setDeviceOrientationOverride":
+                {
+                    session.DeviceOrientationOverride = new JsonObject
+                    {
+                        ["alpha"] = @params["alpha"]?.GetValue<double>() ?? 0.0,
+                        ["beta"] = @params["beta"]?.GetValue<double>() ?? 0.0,
+                        ["gamma"] = @params["gamma"]?.GetValue<double>() ?? 0.0
+                    };
+                    return new JsonObject();
+                }
+
             case "clearDeviceOrientationOverride":
+                {
+                    session.DeviceOrientationOverride = null;
+                    return new JsonObject();
+                }
+
             case "setTouchEmulationEnabled":
+                {
+                    session.TouchEmulationEnabled = @params["enabled"]?.GetValue<bool>() ?? false;
+                    return await EmulationDomain.HandleAsync(session, "setTouchEmulationEnabled", @params);
+                }
+
             case "setLifecycleEventsEnabled":
+                {
+                    session.LifecycleEventsEnabled = @params["enabled"]?.GetValue<bool>() ?? false;
+                    return new JsonObject();
+                }
+
             case "setAdBlockingEnabled":
+                {
+                    session.AdBlockingEnabled = @params["enabled"]?.GetValue<bool>() ?? false;
+                    return new JsonObject();
+                }
+
             case "setBypassCSP":
+                {
+                    session.BypassCSP = @params["enabled"]?.GetValue<bool>() ?? false;
+                    return new JsonObject();
+                }
+
             case "setFontFamilies":
+                {
+                    session.FontFamilies = @params["fontFamilies"] as JsonObject;
+                    var familyName = @params["fontFamilies"]?["standard"]?.GetValue<string>();
+                    if (!string.IsNullOrEmpty(familyName))
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            try
+                            {
+                                if (session.Window is Window win)
+                                {
+                                    win.FontFamily = new Media.FontFamily(familyName);
+                                }
+                            }
+                            catch { }
+                        });
+                    }
+                    return new JsonObject();
+                }
+
             case "setFontSizes":
+                {
+                    session.FontSizes = @params["fontSizes"] as JsonObject;
+                    var standardSize = @params["fontSizes"]?["standard"]?.GetValue<int>();
+                    if (standardSize > 0)
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            try
+                            {
+                                if (session.Window is Window win)
+                                {
+                                    win.FontSize = standardSize.Value;
+                                }
+                            }
+                            catch { }
+                        });
+                    }
+                    return new JsonObject();
+                }
+
             case "stopLoading":
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        session.Window.InvalidateVisual();
+                    });
+                    return new JsonObject();
+                }
+
             case "resetNavigationHistory":
+                {
+                    session.NavigationHistory.Clear();
+                    var port = CdpServer.Port;
+                    var rootUrl = $"http://127.0.0.1:{port}/";
+                    session.NavigationHistory.Add(new JsonObject
+                    {
+                        ["id"] = 1,
+                        ["url"] = rootUrl,
+                        ["userTypedURL"] = rootUrl,
+                        ["title"] = session.Window?.GetType().Name ?? "Avalonia Window",
+                        ["transitionType"] = "typed"
+                    });
+                    session.NavigationHistoryIndex = 0;
+                    return new JsonObject();
+                }
+
             case "navigateToHistoryEntry":
-            case "deleteCookie":
-            case "setDocumentContent":
+                {
+                    int entryId = @params["entryId"]?.GetValue<int>() ?? 0;
+                    var entry = session.NavigationHistory.FirstOrDefault(e => e["id"]?.GetValue<int>() == entryId);
+                    if (entry != null)
+                    {
+                        var url = entry["url"]?.GetValue<string>() ?? "";
+                        session.NavigationHistoryIndex = session.NavigationHistory.IndexOf(entry);
+                        
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            var windowType = session.Window.GetType();
+                            var navigateMethod = windowType.GetMethod("Navigate", new[] { typeof(string) });
+                            if (navigateMethod != null)
+                            {
+                                navigateMethod.Invoke(session.Window, new object[] { url });
+                            }
+                        });
+                        
+                        _ = Task.Run(async () =>
+                        {
+                            await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnNewDocument.Values);
+                            await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnLoad.Values);
+                        });
+                    }
+                    return new JsonObject();
+                }
+
             case "setDownloadBehavior":
+                {
+                    session.DownloadBehavior = @params["behavior"]?.GetValue<string>();
+                    session.DownloadPath = @params["downloadPath"]?.GetValue<string>();
+                    return new JsonObject();
+                }
+
             case "setInterceptFileChooserDialog":
+                {
+                    session.InterceptFileChooserDialog = @params["enabled"]?.GetValue<bool>() ?? false;
+                    return new JsonObject();
+                }
+
             case "setPrerenderingAllowed":
+                {
+                    session.PrerenderingAllowed = @params["prerenderingAllowed"]?.GetValue<bool>() ?? false;
+                    return new JsonObject();
+                }
+
             case "setRPHRegistrationMode":
+                {
+                    session.RPHRegistrationMode = @params["mode"]?.GetValue<string>();
+                    return new JsonObject();
+                }
+
             case "setSPCTransactionMode":
+                {
+                    session.SPCTransactionMode = @params["mode"]?.GetValue<string>();
+                    return new JsonObject();
+                }
+
             case "setWebLifecycleState":
+                {
+                    session.WebLifecycleState = @params["state"]?.GetValue<string>();
+                    return new JsonObject();
+                }
+
             case "addCompilationCache":
+                {
+                    string url = @params["url"]?.GetValue<string>() ?? "";
+                    string data = @params["data"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        session.CompilationCache[url] = data;
+                    }
+                    return new JsonObject();
+                }
+
             case "clearCompilationCache":
+                {
+                    session.CompilationCache.Clear();
+                    return new JsonObject();
+                }
+
             case "produceCompilationCache":
-            case "removeScriptToEvaluateOnLoad":
+                {
+                    return new JsonObject();
+                }
+
             case "generateTestReport":
+                {
+                    string message = @params["message"]?.GetValue<string>() ?? "";
+                    string group = @params["group"]?.GetValue<string>() ?? "default";
+                    Console.WriteLine($"[CDP Page.generateTestReport] Group: {group}, Message: {message}");
+                    return new JsonObject();
+                }
+
             case "handleJavaScriptDialog":
+                {
+                    bool accept = @params["accept"]?.GetValue<bool>() ?? false;
+                    string promptText = @params["promptText"]?.GetValue<string>() ?? "";
+                    Console.WriteLine($"[CDP Page.handleJavaScriptDialog] Accept: {accept}, PromptText: {promptText}");
+                    return new JsonObject();
+                }
+
             case "waitForDebugger":
                 {
+                    await Task.Delay(50);
                     return new JsonObject();
                 }
 
@@ -442,5 +821,127 @@ public static class PageDomain
             }
         }
         catch { }
+    }
+
+    private static async Task EvaluateScriptsAsync(CdpSession session, System.Collections.Generic.IEnumerable<string> scripts)
+    {
+        foreach (var script in scripts)
+        {
+            try
+            {
+                await RuntimeDomain.HandleAsync(session, "evaluate", new JsonObject
+                {
+                    ["expression"] = script
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error executing page evaluate script: {ex.Message}");
+            }
+        }
+    }
+
+    private static async Task<string> PrintToPdfAsync(CdpSession session)
+    {
+        return await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var window = session.Window;
+            var scale = window.RenderScaling;
+            var width = Math.Max(1, (int)(window.Bounds.Width * scale));
+            var height = Math.Max(1, (int)(window.Bounds.Height * scale));
+
+            using var bitmap = new RenderTargetBitmap(new PixelSize(width, height), new Vector(96 * scale, 96 * scale));
+            bitmap.Render(window);
+
+            using var ms = new MemoryStream();
+            using (var imageStream = new MemoryStream())
+            {
+                bitmap.Save(imageStream);
+                imageStream.Position = 0;
+                
+                using (var skBitmap = SkiaSharp.SKBitmap.Decode(imageStream))
+                using (var document = SkiaSharp.SKDocument.CreatePdf(ms))
+                {
+                    if (skBitmap != null && document != null)
+                    {
+                        using (var canvas = document.BeginPage(width, height))
+                        {
+                            canvas.DrawBitmap(skBitmap, 0, 0);
+                            document.EndPage();
+                        }
+                        document.Close();
+                    }
+                }
+            }
+
+            return Convert.ToBase64String(ms.ToArray());
+        });
+    }
+
+    private static string GetVisualTreeHtml(Visual visual, int depth = 0)
+    {
+        if (visual == null) return "";
+        var indent = new string(' ', depth * 2);
+        var typeName = visual.GetType().Name;
+        var name = (visual as Controls.Control)?.Name ?? "";
+        var attributes = string.IsNullOrEmpty(name) ? "" : $" id=\"{name}\"";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"{indent}<div class=\"visual-node\"{attributes} data-type=\"{typeName}\">");
+        sb.AppendLine($"{indent}  <strong>{typeName}</strong>");
+        
+        var children = visual.GetVisualChildren();
+        if (children.Any())
+        {
+            sb.AppendLine($"{indent}  <div class=\"children\">");
+            foreach (var child in children)
+            {
+                sb.Append(GetVisualTreeHtml(child, depth + 2));
+            }
+            sb.AppendLine($"{indent}  </div>");
+        }
+        
+        sb.AppendLine($"{indent}</div>");
+        return sb.ToString();
+    }
+
+    private static string CaptureSnapshotMhtml(CdpSession session)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("MIME-Version: 1.0");
+        sb.AppendLine("Content-Type: multipart/related; boundary=\"----MultipartBoundary\"");
+        sb.AppendLine();
+        sb.AppendLine("------MultipartBoundary");
+        sb.AppendLine("Content-Type: text/html");
+        sb.AppendLine("Content-Location: http://localhost/");
+        sb.AppendLine();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html>");
+        sb.AppendLine("<head>");
+        sb.AppendLine("  <title>Avalonia Visual Tree Snapshot</title>");
+        sb.AppendLine("  <style>");
+        sb.AppendLine("    body { font-family: monospace; background-color: #202124; color: #e8eaed; padding: 20px; }");
+        sb.AppendLine("    .visual-node { border-left: 1px dashed #3c4043; padding-left: 10px; margin: 5px 0; }");
+        sb.AppendLine("    .children { margin-left: 15px; }");
+        sb.AppendLine("  </style>");
+        sb.AppendLine("</head>");
+        sb.AppendLine("<body>");
+        
+        string treeHtml = "";
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            treeHtml = GetVisualTreeHtml(session.Window);
+        }
+        else
+        {
+            treeHtml = Dispatcher.UIThread.Invoke(() => GetVisualTreeHtml(session.Window));
+        }
+        sb.AppendLine(treeHtml);
+
+        sb.AppendLine("</body>");
+        sb.AppendLine("</html>");
+        sb.AppendLine("------MultipartBoundary--");
+        
+        return sb.ToString();
     }
 }

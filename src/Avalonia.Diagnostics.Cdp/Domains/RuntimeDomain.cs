@@ -96,7 +96,7 @@ public static class RuntimeDomain
 
                                 var propDesc = new JsonObject
                                 {
-                                    ["name"] = ToCamelCase(prop.Name),
+                                    ["name"] = prop.Name,
                                     ["value"] = CreateRemoteObject(session, val),
                                     ["writable"] = prop.CanWrite,
                                     ["configurable"] = true,
