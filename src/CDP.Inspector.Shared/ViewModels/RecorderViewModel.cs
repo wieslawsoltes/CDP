@@ -18,7 +18,9 @@ namespace CdpInspectorApp.ViewModels;
 public enum RecordingFormat
 {
     Puppeteer,
-    PlaywrightTest
+    PlaywrightTest,
+    SeleniumCSharp,
+    AppiumCSharp
 }
 
 public class RecorderViewModel : ViewModelBase
@@ -107,12 +109,37 @@ public class RecorderViewModel : ViewModelBase
     public List<RecordingFormat> AvailableFormats { get; } = new()
     {
         RecordingFormat.Puppeteer,
-        RecordingFormat.PlaywrightTest
+        RecordingFormat.PlaywrightTest,
+        RecordingFormat.SeleniumCSharp,
+        RecordingFormat.AppiumCSharp
     };
 
-    public string ScriptTabHeader => SelectedFormat == RecordingFormat.Puppeteer ? "Puppeteer Script" : "Playwright Script";
-    public string ScriptTitleText => SelectedFormat == RecordingFormat.Puppeteer ? "Generated Puppeteer Script" : "Generated Playwright Test Script";
-    public string ExportButtonText => SelectedFormat == RecordingFormat.Puppeteer ? "Export Puppeteer" : "Export Playwright";
+    public string ScriptTabHeader => SelectedFormat switch
+    {
+        RecordingFormat.Puppeteer => "Puppeteer Script",
+        RecordingFormat.PlaywrightTest => "Playwright Script",
+        RecordingFormat.SeleniumCSharp => "Selenium C#",
+        RecordingFormat.AppiumCSharp => "Appium C#",
+        _ => ""
+    };
+
+    public string ScriptTitleText => SelectedFormat switch
+    {
+        RecordingFormat.Puppeteer => "Generated Puppeteer Script",
+        RecordingFormat.PlaywrightTest => "Generated Playwright Test Script",
+        RecordingFormat.SeleniumCSharp => "Generated Selenium C# Script",
+        RecordingFormat.AppiumCSharp => "Generated Appium C# Script",
+        _ => ""
+    };
+
+    public string ExportButtonText => SelectedFormat switch
+    {
+        RecordingFormat.Puppeteer => "Export Puppeteer",
+        RecordingFormat.PlaywrightTest => "Export Playwright",
+        RecordingFormat.SeleniumCSharp => "Export Selenium C#",
+        RecordingFormat.AppiumCSharp => "Export Appium C#",
+        _ => ""
+    };
 
     private bool _isTestStudioActive;
     public bool IsTestStudioActive
@@ -319,9 +346,19 @@ public class RecorderViewModel : ViewModelBase
         {
             UpdateGeneratedPuppeteerCode();
         }
-        else
+        else if (SelectedFormat == RecordingFormat.PlaywrightTest)
         {
             UpdateGeneratedPlaywrightCode();
+        }
+        else if (SelectedFormat == RecordingFormat.SeleniumCSharp)
+        {
+            var generator = new SeleniumCSharpGenerator();
+            GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
+        }
+        else if (SelectedFormat == RecordingFormat.AppiumCSharp)
+        {
+            var generator = new AppiumCSharpGenerator();
+            GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
         }
     }
 

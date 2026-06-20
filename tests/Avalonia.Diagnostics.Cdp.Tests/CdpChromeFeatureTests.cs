@@ -14,6 +14,7 @@ using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.ViewModels;
+using CdpInspectorApp.Services;
 using System.Collections.Generic;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -562,6 +563,62 @@ public class CdpChromeFeatureTests
         Assert.Contains(@"await test.step('Type text in element :contains(\'Cancel\')', async () => {", generated);
         Assert.Contains(@"page.locator(':contains(\'Cancel\')')", generated);
         Assert.Contains(@"fill('I said ""yes"" and backslash \\ test')", generated);
+    }
+
+    [Fact]
+    public void TestSeleniumCSharpCodeGeneration()
+    {
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/foo" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" }
+        };
+
+        var generator = new SeleniumCSharpGenerator();
+        string generated = generator.Generate(steps, "localhost:9222");
+
+        Assert.Contains("using OpenQA.Selenium;", generated);
+        Assert.Contains("using OpenQA.Selenium.Chrome;", generated);
+        Assert.Contains("options.DebuggerAddress = \"localhost:9222\";", generated);
+        Assert.Contains("_driver.Manage().Window.Size = new Size(1024, 768);", generated);
+        Assert.Contains("_driver.Navigate().GoToUrl(\"http://localhost:9222/foo\");", generated);
+        Assert.Contains("_driver.FindElement(By.CssSelector(\"#btnClick\")).Click();", generated);
+        Assert.Contains("var element_3 = _driver.FindElement(By.CssSelector(\"#txtInput\"));", generated);
+        Assert.Contains("element_3.SendKeys(\"hello \\\"world\\\" \\\\ test\");", generated);
+        Assert.Contains("Assert.IsTrue(_driver.FindElement(By.CssSelector(\"#btnClick\")).Displayed);", generated);
+        Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
+    }
+
+    [Fact]
+    public void TestAppiumCSharpCodeGeneration()
+    {
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/foo" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" }
+        };
+
+        var generator = new AppiumCSharpGenerator();
+        string generated = generator.Generate(steps, "localhost:9222");
+
+        Assert.Contains("using OpenQA.Selenium.Appium;", generated);
+        Assert.Contains("using OpenQA.Selenium.Appium.Windows;", generated);
+        Assert.Contains("options.AddAdditionalCapability(\"platformName\", \"Windows\");", generated);
+        Assert.Contains("_driver.Manage().Window.Size = new Size(1024, 768);", generated);
+        Assert.Contains("_driver.Navigate().GoToUrl(\"http://localhost:9222/foo\");", generated);
+        Assert.Contains("_driver.FindElementByAccessibilityId(\"btnClick\").Click();", generated);
+        Assert.Contains("var element_3 = _driver.FindElementByAccessibilityId(\"txtInput\");", generated);
+        Assert.Contains("element_3.SendKeys(\"hello \\\"world\\\" \\\\ test\");", generated);
+        Assert.Contains("Assert.IsTrue(_driver.FindElementByAccessibilityId(\"btnClick\").Displayed);", generated);
+        Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
     }
 
     [AvaloniaFact]

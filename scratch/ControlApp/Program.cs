@@ -643,6 +643,78 @@ description: ""Verify new commands execution""
             mainVm.Recorder.SelectedFormat = RecordingFormat.Puppeteer;
             Console.WriteLine("Scenario 9 PASSED.");
 
+            // 13. Test Scenario 10: Selenium C# Code Generation E2E
+            Console.WriteLine("Testing Scenario 10: Selenium C# code generation...");
+            mainVm.Recorder.SelectedFormat = RecordingFormat.SeleniumCSharp;
+            
+            // Check properties
+            if (mainVm.Recorder.ScriptTabHeader != "Selenium C#" ||
+                mainVm.Recorder.ScriptTitleText != "Generated Selenium C# Script" ||
+                mainVm.Recorder.ExportButtonText != "Export Selenium C#")
+            {
+                throw new Exception("Selenium C# UI properties are incorrect!");
+            }
+
+            string seleniumCode = mainVm.Recorder.GeneratedCode;
+            Console.WriteLine($"Generated Selenium C# Code:\n{seleniumCode}");
+
+            if (!seleniumCode.Contains("using OpenQA.Selenium;") ||
+                !seleniumCode.Contains("using OpenQA.Selenium.Chrome;") ||
+                !seleniumCode.Contains("options.DebuggerAddress = \"127.0.0.1:9236\";") ||
+                !seleniumCode.Contains("_driver = new ChromeDriver(options);") ||
+                !seleniumCode.Contains("_driver.Manage().Window.Size = new Size(1024, 768);") ||
+                !seleniumCode.Contains("_driver.Navigate().GoToUrl(\"http://127.0.0.1:9236/\");") ||
+                !seleniumCode.Contains("_driver.FindElement(By.CssSelector(\":contains(\\\"Click Me\\\")\")).Click();") ||
+                !seleniumCode.Contains("var element_3 = _driver.FindElement(By.CssSelector(\"#txtTarget\"));") ||
+                !seleniumCode.Contains("element_3.Clear();") ||
+                !seleniumCode.Contains("element_3.SendKeys(\"E2E Playwright ' Text with backslash \\\\\");") ||
+                !seleniumCode.Contains("Assert.IsTrue(_driver.FindElement(By.CssSelector(\":contains(\\\"Click Me\\\")\")).Displayed);") ||
+                !seleniumCode.Contains("bool isVisible_5 = false;") ||
+                !seleniumCode.Contains("catch (NoSuchElementException)"))
+            {
+                throw new Exception("Generated Selenium C# code is missing expected structures/statements!");
+            }
+            Console.WriteLine("Selenium C# code generation verified.");
+            Console.WriteLine("Scenario 10 PASSED.");
+
+            // 14. Test Scenario 11: Appium C# Code Generation E2E
+            Console.WriteLine("Testing Scenario 11: Appium C# code generation...");
+            mainVm.Recorder.SelectedFormat = RecordingFormat.AppiumCSharp;
+
+            // Check properties
+            if (mainVm.Recorder.ScriptTabHeader != "Appium C#" ||
+                mainVm.Recorder.ScriptTitleText != "Generated Appium C# Script" ||
+                mainVm.Recorder.ExportButtonText != "Export Appium C#")
+            {
+                throw new Exception("Appium C# UI properties are incorrect!");
+            }
+
+            string appiumCode = mainVm.Recorder.GeneratedCode;
+            Console.WriteLine($"Generated Appium C# Code:\n{appiumCode}");
+
+            if (!appiumCode.Contains("using OpenQA.Selenium.Appium;") ||
+                !appiumCode.Contains("using OpenQA.Selenium.Appium.Windows;") ||
+                !appiumCode.Contains("options.AddAdditionalCapability(\"platformName\", \"Windows\");") ||
+                !appiumCode.Contains("options.AddAdditionalCapability(\"automationName\", \"Windows\");") ||
+                !appiumCode.Contains("options.AddAdditionalCapability(\"app\", \"Root\");") ||
+                !appiumCode.Contains("_driver = new WindowsDriver<WindowsElement>(new Uri(\"http://127.0.0.1:4723/\"), options);") ||
+                !appiumCode.Contains("_driver.Manage().Window.Size = new Size(1024, 768);") ||
+                !appiumCode.Contains("_driver.FindElementByName(\":contains(\\\"Click Me\\\")\").Click();") ||
+                !appiumCode.Contains("var element_3 = _driver.FindElementByAccessibilityId(\"txtTarget\");") ||
+                !appiumCode.Contains("element_3.Clear();") ||
+                !appiumCode.Contains("element_3.SendKeys(\"E2E Playwright ' Text with backslash \\\\\");") ||
+                !appiumCode.Contains("Assert.IsTrue(_driver.FindElementByName(\":contains(\\\"Click Me\\\")\").Displayed);") ||
+                !appiumCode.Contains("bool isVisible_5 = false;") ||
+                !appiumCode.Contains("catch (Exception)"))
+            {
+                throw new Exception("Generated Appium C# code is missing expected structures/statements!");
+            }
+            Console.WriteLine("Appium C# code generation verified.");
+
+            // Reset back to Puppeteer default
+            mainVm.Recorder.SelectedFormat = RecordingFormat.Puppeteer;
+            Console.WriteLine("Scenario 11 PASSED.");
+
             // Clean up
             if (mainVm.Recorder.IsRecording)
             {
