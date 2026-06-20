@@ -448,8 +448,8 @@ public class CdpChromeFeatureTests
         Assert.Equal("#btnSave", pwSteps[2].Selector);
         Assert.Equal("right", pwSteps[2].Button);
         Assert.Equal(3, pwSteps[2].ClickCount);
-        // Modifiers: Shift=4, Control=2 -> 4 + 2 = 6
-        Assert.Equal(6, pwSteps[2].Modifiers);
+        // Modifiers: Control=2, Shift=8 -> 2 + 8 = 10
+        Assert.Equal(10, pwSteps[2].Modifiers);
 
         Assert.Equal("change", pwSteps[3].Type);
         Assert.Equal("#txtBio", pwSteps[3].Selector);
@@ -473,7 +473,7 @@ public class CdpChromeFeatureTests
         {
             new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1400, Height = 1050 },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/profile" },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnSave", Button = "right", ClickCount = 3, Modifiers = 6 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnSave", Button = "right", ClickCount = 3, Modifiers = 10 },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtBio", Value = "Testing Playwright Support!" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "dragAndDrop", Selector = "#item1", TargetSelector = "#item2" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Escape" },
@@ -646,7 +646,7 @@ public class CdpChromeFeatureTests
         {
             new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/foo" },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick", Button = "right", ClickCount = 3, Modifiers = 6 }, // Control=2, Shift=4
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick", Button = "right", ClickCount = 3, Modifiers = 10 }, // Control=2, Shift=8
             new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Enter", Modifiers = 2 }, // Control=2
             new CdpInspectorApp.Models.RecordedStepModel { Type = "dragAndDrop", Selector = "#src", TargetSelector = "#dst" },
