@@ -155,6 +155,12 @@ public partial class RecorderView : UserControl
                 extension = "cs";
                 suggestedName = "AppiumTests.cs";
             }
+            else if (vm.Recorder.SelectedFormat == RecordingFormat.AvaloniaHeadlessXUnit)
+            {
+                title = "Save Avalonia Headless Test";
+                extension = "cs";
+                suggestedName = "HeadlessTests.cs";
+            }
 
             var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {

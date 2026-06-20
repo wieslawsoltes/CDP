@@ -20,7 +20,8 @@ public enum RecordingFormat
     Puppeteer,
     PlaywrightTest,
     SeleniumCSharp,
-    AppiumCSharp
+    AppiumCSharp,
+    AvaloniaHeadlessXUnit
 }
 
 public class RecorderViewModel : ViewModelBase
@@ -111,7 +112,8 @@ public class RecorderViewModel : ViewModelBase
         RecordingFormat.Puppeteer,
         RecordingFormat.PlaywrightTest,
         RecordingFormat.SeleniumCSharp,
-        RecordingFormat.AppiumCSharp
+        RecordingFormat.AppiumCSharp,
+        RecordingFormat.AvaloniaHeadlessXUnit
     };
 
     public string ScriptTabHeader => SelectedFormat switch
@@ -120,6 +122,7 @@ public class RecorderViewModel : ViewModelBase
         RecordingFormat.PlaywrightTest => "Playwright Script",
         RecordingFormat.SeleniumCSharp => "Selenium C#",
         RecordingFormat.AppiumCSharp => "Appium C#",
+        RecordingFormat.AvaloniaHeadlessXUnit => "Avalonia Headless",
         _ => ""
     };
 
@@ -129,6 +132,7 @@ public class RecorderViewModel : ViewModelBase
         RecordingFormat.PlaywrightTest => "Generated Playwright Test Script",
         RecordingFormat.SeleniumCSharp => "Generated Selenium C# Script",
         RecordingFormat.AppiumCSharp => "Generated Appium C# Script",
+        RecordingFormat.AvaloniaHeadlessXUnit => "Generated Avalonia Headless xUnit Test",
         _ => ""
     };
 
@@ -138,6 +142,7 @@ public class RecorderViewModel : ViewModelBase
         RecordingFormat.PlaywrightTest => "Export Playwright",
         RecordingFormat.SeleniumCSharp => "Export Selenium C#",
         RecordingFormat.AppiumCSharp => "Export Appium C#",
+        RecordingFormat.AvaloniaHeadlessXUnit => "Export Headless Test",
         _ => ""
     };
 
@@ -358,6 +363,11 @@ public class RecorderViewModel : ViewModelBase
         else if (SelectedFormat == RecordingFormat.AppiumCSharp)
         {
             var generator = new AppiumCSharpGenerator();
+            GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
+        }
+        else if (SelectedFormat == RecordingFormat.AvaloniaHeadlessXUnit)
+        {
+            var generator = new AvaloniaHeadlessXUnitGenerator();
             GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
         }
     }
