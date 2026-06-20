@@ -228,23 +228,90 @@ public static class RuntimeDomain
     {
         if (string.IsNullOrWhiteSpace(expression)) return null;
 
-        if (expression.StartsWith("$0"))
+        var trimmed = expression.Trim();
+
+        // 0. Logical OR (||) evaluation
+        if (trimmed.Contains("||"))
+        {
+            var orSplit = trimmed.Split(new[] { "||" }, StringSplitOptions.None);
+            foreach (var part in orSplit)
+            {
+                try
+                {
+                    var val = EvaluateExpression(session, target, part.Trim(), variableBindings);
+                    if (val != null)
+                    {
+                        var str = val.ToString();
+                        if (!string.IsNullOrEmpty(str))
+                        {
+                            return val;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore and try next operand
+                }
+            }
+            return null;
+        }
+
+        // 1. Literal constants
+        if (trimmed.Equals("true", StringComparison.OrdinalIgnoreCase)) return true;
+        if (trimmed.Equals("false", StringComparison.OrdinalIgnoreCase)) return false;
+        if ((trimmed.StartsWith("\"") && trimmed.EndsWith("\"")) || (trimmed.StartsWith("'") && trimmed.EndsWith("'")))
+        {
+            return trimmed.Substring(1, trimmed.Length - 2);
+        }
+        if (int.TryParse(trimmed, out int iVal)) return iVal;
+        if (double.TryParse(trimmed, System.Globalization.NumberStyles.Any, CultureInfo.InvariantCulture, out double dVal)) return dVal;
+
+        // 2. Comparison expressions
+        string[]? opSplit = null;
+        string? op = null;
+        if (trimmed.Contains("===")) { op = "==="; opSplit = trimmed.Split(new[] { "===" }, StringSplitOptions.None); }
+        else if (trimmed.Contains("!==")) { op = "!=="; opSplit = trimmed.Split(new[] { "!==" }, StringSplitOptions.None); }
+        else if (trimmed.Contains("==")) { op = "=="; opSplit = trimmed.Split(new[] { "==" }, StringSplitOptions.None); }
+        else if (trimmed.Contains("!=")) { op = "!="; opSplit = trimmed.Split(new[] { "!=" }, StringSplitOptions.None); }
+
+        if (opSplit != null && opSplit.Length == 2 && op != null)
+        {
+            var leftVal = EvaluateExpression(session, target, opSplit[0], variableBindings);
+            var rightVal = EvaluateExpression(session, target, opSplit[1], variableBindings);
+
+            bool isEqual = Equals(leftVal?.ToString(), rightVal?.ToString());
+            if (leftVal is bool lBool && rightVal is bool rBool)
+            {
+                isEqual = lBool == rBool;
+            }
+            else if (double.TryParse(leftVal?.ToString(), out double lD) && double.TryParse(rightVal?.ToString(), out double rD))
+            {
+                isEqual = Math.Abs(lD - rD) < 0.000001;
+            }
+
+            if (op == "==" || op == "===") return isEqual;
+            return !isEqual;
+        }
+
+        if (trimmed.StartsWith("$0"))
         {
             var inspected = session.NodeMap.GetVisual(session.InspectedNodeId);
             if (inspected == null) throw new Exception("No inspected node ($0) is selected");
 
-            if (expression == "$0") return inspected;
+            if (trimmed == "$0") return inspected;
 
-            var remaining = expression.Substring(2);
+            var remaining = trimmed.Substring(2);
             if (remaining.StartsWith(".")) remaining = remaining.Substring(1);
             return EvaluateExpression(session, inspected, remaining, variableBindings);
         }
 
         // Strip leading "this." if present
-        if (expression.StartsWith("this."))
+        if (trimmed.StartsWith("this."))
         {
-            expression = expression.Substring(5).Trim();
+            trimmed = trimmed.Substring(5).Trim();
         }
+
+        expression = trimmed;
 
         // Handle assignment: e.g. "Width = 500"
         var eqIndex = expression.IndexOf('=');

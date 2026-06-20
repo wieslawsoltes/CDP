@@ -1,0 +1,177 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models"
+             xmlns:services="clr-namespace:CdpInspectorApp.Services"
+             xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             x:Class="CdpInspectorApp.Views.TestStudioView"
+             x:CompileBindings="False">
+    <Grid ColumnDefinitions="*, 4, *">
+        <!-- LEFT COLUMN: Steps List + Debugger Toolbar + Quick-Add panel -->
+        <Grid Grid.Column="0" RowDefinitions="Auto, *, Auto" Margin="0,0,10,0">
+            <!-- Debugger Toolbar -->
+            <Border Grid.Row="0" Classes="panel-card" Margin="0,0,0,10">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="▶ Play" Command="{Binding Recorder.TestStudio.PlayCommand}" Classes="accent"/>
+                    <Button Content="⏸ Pause" Command="{Binding Recorder.TestStudio.PauseCommand}"/>
+                    <Button Content="■ Stop" Command="{Binding Recorder.TestStudio.StopCommand}"/>
+                    <Button Content="↷ Step" Command="{Binding Recorder.TestStudio.StepOverCommand}"/>
+                    <Button Content="Clear" Command="{Binding Recorder.TestStudio.ClearCommand}"/>
+                    <Button Command="{Binding Recorder.ToggleRecordCommand}"
+                            Content="{Binding Recorder.ToggleRecordButtonText}"
+                            Background="{Binding Recorder.ToggleRecordButtonBackground}"
+                            BorderBrush="{Binding Recorder.ToggleRecordButtonBorderBrush}"
+                            Foreground="White"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Steps List -->
+            <Grid Grid.Row="1" RowDefinitions="Auto, *">
+                <TextBlock Grid.Row="0" Text="Test Steps" Classes="panel-header" Foreground="#e8eaed" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
+                <ListBox Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.Steps}" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="4" Padding="8" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                <DockPanel LastChildFill="True">
+                                    <!-- Step Actions -->
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                        <Button Content="▲" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                        <Button Content="▼" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                        <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10" Foreground="#ff6b6b" BorderBrush="#ff6b6b"/>
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <!-- Status indicator icon -->
+                                        <Ellipse Width="8" Height="8" Fill="#9aa0a6" VerticalAlignment="Center" IsVisible="{Binding IsPending}"/>
+                                        <Ellipse Width="8" Height="8" Fill="#1a73e8" VerticalAlignment="Center" IsVisible="{Binding IsRunning}"/>
+                                        <TextBlock Text="✔" Foreground="#0f9d58" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsPassed}"/>
+                                        <TextBlock Text="✘" Foreground="#c5221f" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsFailed}"/>
+
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12"/>
+                                                <TextBlock Text="{Binding Selector}" Foreground="#8ab4f8" FontSize="12" IsVisible="{Binding Selector, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding DetailDisplay}" FontSize="11" Foreground="#9aa0a6" IsVisible="{Binding DetailDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <!-- Maestro Command Toolbox -->
+            <Border Grid.Row="2" Classes="panel-card" Margin="0,10,0,0">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Maestro Command Toolbox" Classes="panel-header" Margin="0,0,0,4"/>
+                    
+                    <!-- Target Selector using AutoCompleteBox -->
+                    <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
+                        <TextBlock Grid.Column="0" Text="Target Selector: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                        <AutoCompleteBox Grid.Column="1" 
+                                         Text="{Binding Recorder.TestStudio.SelectedElementSelector, Mode=TwoWay}"
+                                         ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
+                                         FilterMode="Contains"
+                                         FontSize="11" 
+                                         Margin="4,0,0,0"
+                                         PlaceholderText="Type or select a selector..."/>
+                    </Grid>
+ 
+                    <!-- Parameters Input -->
+                    <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
+                        <TextBlock Grid.Column="0" Text="Value / Text: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                        <TextBox Grid.Column="1" Text="{Binding Recorder.TestStudio.InputSimText, Mode=TwoWay}" PlaceholderText="Value, text, expression, or delay..." FontSize="11" Margin="4,0,0,0"/>
+                    </Grid>
+
+                    <!-- Categories TabControl -->
+                    <TabControl Background="Transparent" BorderThickness="0" Margin="0,4,0,0" MinHeight="100">
+                        <!-- Interactions Tab -->
+                        <TabItem Header="Interactions" FontSize="11">
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Tap" Command="{Binding Recorder.TestStudio.AddTapCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Double Tap" Command="{Binding Recorder.TestStudio.AddDoubleTapCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Long Press" Command="{Binding Recorder.TestStudio.AddLongPressCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Input Text" Command="{Binding Recorder.TestStudio.AddInputCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Clear Text" Command="{Binding Recorder.TestStudio.AddClearTextCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Paste Text" Command="{Binding Recorder.TestStudio.AddPasteTextCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Erase Text" Command="{Binding Recorder.TestStudio.AddEraseTextCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Swipe" Command="{Binding Recorder.TestStudio.AddSwipeCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Scroll" Command="{Binding Recorder.TestStudio.AddScrollCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Copy Text" Command="{Binding Recorder.TestStudio.AddCopyTextFromCommand}" Margin="0,0,6,6"/>
+                            </WrapPanel>
+                        </TabItem>
+                        
+                        <!-- Assertions Tab -->
+                        <TabItem Header="Assertions" FontSize="11">
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Assert Visible" Command="{Binding Recorder.TestStudio.AddAssertVisibleCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Assert True" Command="{Binding Recorder.TestStudio.AddAssertTrueCommand}" Margin="0,0,6,6"/>
+                            </WrapPanel>
+                        </TabItem>
+                        
+                        <!-- App & Device Tab -->
+                        <TabItem Header="App &amp; Device" FontSize="11">
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Launch App" Command="{Binding Recorder.TestStudio.AddLaunchAppCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Stop App" Command="{Binding Recorder.TestStudio.AddStopAppCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Kill App" Command="{Binding Recorder.TestStudio.AddKillAppCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Clear State" Command="{Binding Recorder.TestStudio.AddClearStateCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Set Orientation" Command="{Binding Recorder.TestStudio.AddSetOrientationCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Set Location" Command="{Binding Recorder.TestStudio.AddSetLocationCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Take Screenshot" Command="{Binding Recorder.TestStudio.AddTakeScreenshotCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Go Back" Command="{Binding Recorder.TestStudio.AddBackCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Delay (ms)" Command="{Binding Recorder.TestStudio.AddDelayCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Open Link" Command="{Binding Recorder.TestStudio.AddOpenLinkCommand}" Margin="0,0,6,6"/>
+                            </WrapPanel>
+                        </TabItem>
+
+                        <!-- Logic Tab -->
+                        <TabItem Header="Logic" FontSize="11">
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Repeat" Command="{Binding Recorder.TestStudio.AddRepeatCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Retry" Command="{Binding Recorder.TestStudio.AddRetryCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Run Flow" Command="{Binding Recorder.TestStudio.AddRunFlowCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Eval Script" Command="{Binding Recorder.TestStudio.AddEvalScriptCommand}" Margin="0,0,6,6"/>
+                            </WrapPanel>
+                        </TabItem>
+                    </TabControl>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- GRID SPLITTER -->
+        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+        <!-- RIGHT COLUMN: YAML Editor + Apply YAML button + execution logs -->
+        <Grid Grid.Column="2" RowDefinitions="*, 4, *" Margin="10,0,0,0">
+            <!-- YAML Editor -->
+            <Grid Grid.Row="0" RowDefinitions="Auto, *" Margin="0,0,0,6">
+                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                    <TextBlock Grid.Column="0" Text="YAML Configuration" Classes="panel-header" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="Apply YAML" Command="{Binding Recorder.TestStudio.ApplyYamlCommand}" Classes="accent"/>
+                </Grid>
+                <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <ae:TextEditor Name="txtYamlCode" Background="Transparent" BorderThickness="0" FontFamily="Courier New,Consolas,Monospace" FontSize="12" Foreground="#e8eaed" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+                </Border>
+            </Grid>
+
+            <!-- SPLITTER -->
+            <GridSplitter Grid.Row="1" Background="#3c4043"/>
+
+            <!-- Execution Logs -->
+            <Grid Grid.Row="2" RowDefinitions="Auto, *" Margin="0,6,0,0">
+                <TextBlock Grid.Row="0" Text="Execution Log" Classes="panel-header" FontSize="14" FontWeight="Bold"/>
+                <ListBox Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.Logs}" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" FontFamily="Courier New,Consolas,Monospace" FontSize="11" Foreground="#e8eaed"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

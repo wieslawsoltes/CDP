@@ -120,34 +120,43 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
     }
 
+    private readonly object _disconnectLock = new();
+
     public async Task DisconnectAsync()
     {
-        if (_ws != null)
+        ClientWebSocket? ws = null;
+        CancellationTokenSource? cts = null;
+
+        lock (_disconnectLock)
         {
+            if (_ws == null) return;
+            ws = _ws;
+            cts = _cts;
+            _ws = null;
+            _cts = null;
             ConnectionStatus = "Disconnecting...";
-            try
+        }
+
+        try
+        {
+            cts?.Cancel();
+            if (ws.State == WebSocketState.Open)
             {
-                _cts?.Cancel();
-                if (_ws.State == WebSocketState.Open)
-                {
-                    await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
-                }
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
             }
-            catch (Exception)
-            {
-                // Ignore errors during close
-            }
-            finally
-            {
-                _ws.Dispose();
-                _ws = null;
-                _cts?.Dispose();
-                _cts = null;
-                IsConnected = false;
-                ConnectionStatus = "Disconnected";
-                ConnectedHost = "";
-                ConnectedTargetId = "";
-            }
+        }
+        catch (Exception)
+        {
+            // Ignore errors during close
+        }
+        finally
+        {
+            ws.Dispose();
+            cts?.Dispose();
+            IsConnected = false;
+            ConnectionStatus = "Disconnected";
+            ConnectedHost = "";
+            ConnectedTargetId = "";
         }
     }
 

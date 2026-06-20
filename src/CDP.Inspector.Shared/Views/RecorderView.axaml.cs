@@ -5,6 +5,10 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using CdpInspectorApp.ViewModels;
 
+using AvaloniaEdit;
+using AvaloniaEdit.TextMate;
+using TextMateSharp.Grammars;
+
 namespace CdpInspectorApp.Views;
 
 public partial class RecorderView : UserControl
@@ -16,11 +20,69 @@ public partial class RecorderView : UserControl
     public Button BtnExportPuppeteer => btnExportPuppeteer;
     public Button BtnExportJson => btnExportJson;
     public ListBox LstRecordedSteps => lstRecordedSteps;
-    public TextBox TxtGeneratedCode => txtGeneratedCode;
+    public TextEditor TxtGeneratedCode => txtGeneratedCode;
+
+    private TextMate.Installation? _textMateInstallation;
+    private RegistryOptions? _registryOptions;
 
     public RecorderView()
     {
         InitializeComponent();
+        
+        var editor = txtGeneratedCode;
+        if (editor != null)
+        {
+            _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
+            _textMateInstallation = editor.InstallTextMate(_registryOptions);
+            try
+            {
+                var jsLanguage = _registryOptions.GetLanguageByExtension(".js");
+                if (jsLanguage != null)
+                {
+                    _textMateInstallation.SetGrammar(_registryOptions.GetScopeByLanguageId(jsLanguage.Id));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RecorderView] Failed to initialize TextMate grammar: {ex.Message}");
+            }
+        }
+
+        DataContextChanged += (sender, args) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    vm.Recorder.PropertyChanged -= Recorder_PropertyChanged;
+                    vm.Recorder.PropertyChanged += Recorder_PropertyChanged;
+                    UpdateEditorText(vm.Recorder.GeneratedCode);
+                }
+            });
+        };
+    }
+
+    private void Recorder_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RecorderViewModel.GeneratedCode))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    UpdateEditorText(vm.Recorder.GeneratedCode);
+                }
+            });
+        }
+    }
+
+    private void UpdateEditorText(string? text)
+    {
+        var editor = txtGeneratedCode;
+        if (editor != null && editor.Text != text)
+        {
+            editor.Text = text ?? "";
+        }
     }
 
     private async void BtnLoad_Click(object? sender, RoutedEventArgs e)

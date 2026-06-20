@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Diagnostics.Cdp;
 using CdpInspectorApp.Services;
 
 namespace CdpInspectorApp.ViewModels;
@@ -81,6 +83,43 @@ public class MainWindowViewModel : ViewModelBase
                 if (Connection.IsInspectModeActive)
                 {
                     Connection.IsInspectModeActive = false;
+                }
+            }
+
+            if (e.PropertyName == nameof(ElementsViewModel.SelectedNode))
+            {
+                var node = Elements.SelectedNode;
+                if (node != null)
+                {
+                    string selector = "";
+                    var visualProp = node.GetType().GetProperty("Visual");
+                    if (visualProp != null && visualProp.GetValue(node) is Avalonia.Visual visual)
+                    {
+                        selector = SelectorEngine.GetSelector(visual);
+                    }
+
+                    if (string.IsNullOrEmpty(selector))
+                    {
+                        var idAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+                        if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value))
+                        {
+                            selector = $"#{idAttr.Value}";
+                        }
+                        else
+                        {
+                            var classAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Class", StringComparison.OrdinalIgnoreCase));
+                            if (classAttr != null && !string.IsNullOrEmpty(classAttr.Value))
+                            {
+                                selector = $"{node.NodeName}.{classAttr.Value.Split(' ').FirstOrDefault()}";
+                            }
+                            else
+                            {
+                                selector = node.NodeName;
+                            }
+                        }
+                    }
+
+                    Recorder.TestStudio.SelectedElementSelector = selector ?? "";
                 }
             }
         };
