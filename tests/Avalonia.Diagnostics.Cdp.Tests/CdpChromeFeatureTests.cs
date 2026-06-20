@@ -562,27 +562,59 @@ public class CdpChromeFeatureTests
         var startResult = await PageDomain.HandleAsync(session, "startScreencast", @params);
         Assert.NotNull(startResult);
 
-        await Task.Delay(100);
-        
-        lock (fakeWs.SentMessages)
-        {
-            Assert.Empty(fakeWs.SentMessages.Where(m => m.Contains("Page.screencastFrame")));
-        }
-
-        session.RequestScreencastFrame();
-
+        // 1. First frame (Counter = 1) is sent immediately upon startScreencast
         int retries = 50;
-        string? screencastFrameMsg = null;
-        while (retries-- > 0 && screencastFrameMsg == null)
+        string? frame1Msg = null;
+        while (retries-- > 0 && frame1Msg == null)
         {
             await Task.Delay(50);
             lock (fakeWs.SentMessages)
             {
-                screencastFrameMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+                frame1Msg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
             }
         }
+        Assert.NotNull(frame1Msg);
 
-        Assert.NotNull(screencastFrameMsg);
+        // 2. Trigger another frame. This will be Counter = 2.
+        // Since 2 % 2 == 0, this frame should be sent.
+        lock (fakeWs.SentMessages)
+        {
+            fakeWs.SentMessages.Clear();
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            window.Background = Avalonia.Media.Brushes.Red;
+        });
+
+        session.RequestScreencastFrame();
+
+        retries = 50;
+        string? frame2Msg = null;
+        while (retries-- > 0 && frame2Msg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                frame2Msg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+        }
+        Assert.NotNull(frame2Msg);
+
+        // 3. Trigger another frame. This will be Counter = 3.
+        // Since 3 % 2 != 0, this frame should be SKIPPED.
+        lock (fakeWs.SentMessages)
+        {
+            fakeWs.SentMessages.Clear();
+        }
+
+        session.RequestScreencastFrame();
+        await Task.Delay(200);
+
+        lock (fakeWs.SentMessages)
+        {
+            Assert.Empty(fakeWs.SentMessages.Where(m => m.Contains("Page.screencastFrame")));
+        }
 
         var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
         Assert.NotNull(stopResult);

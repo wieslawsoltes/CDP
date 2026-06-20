@@ -14,8 +14,6 @@ namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class InputDomain
 {
-    private static readonly IInputDevice s_touchDevice =
-        (IInputDevice)Activator.CreateInstance(typeof(TouchDevice), nonPublic: true)!;
 
     private static RawTouchEventArgs CreateRawTouchEventArgs(
         IInputDevice device,
@@ -402,7 +400,7 @@ public static class InputDomain
             };
 
             var args = CreateRawTouchEventArgs(
-                s_touchDevice,
+                session.TouchDevice,
                 timestamp,
                 inputRoot,
                 eventType,
@@ -441,7 +439,7 @@ public static class InputDomain
                 if (useTouch)
                 {
                     var touchDown = CreateRawTouchEventArgs(
-                        s_touchDevice,
+                        session.TouchDevice,
                         timestamp,
                         inputRoot,
                         RawPointerEventType.TouchBegin,
@@ -483,7 +481,7 @@ public static class InputDomain
                 if (useTouch)
                 {
                     var touchUp = CreateRawTouchEventArgs(
-                        s_touchDevice,
+                        session.TouchDevice,
                         timestamp,
                         inputRoot,
                         RawPointerEventType.TouchEnd,
@@ -549,7 +547,7 @@ public static class InputDomain
 
                 var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var touchDown = CreateRawTouchEventArgs(
-                    s_touchDevice,
+                    session.TouchDevice,
                     timestamp,
                     inputRoot,
                     RawPointerEventType.TouchBegin,
@@ -580,7 +578,7 @@ public static class InputDomain
 
                     var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     var touchMove = CreateRawTouchEventArgs(
-                        s_touchDevice,
+                        session.TouchDevice,
                         timestamp,
                         inputRoot,
                         RawPointerEventType.TouchUpdate,
@@ -606,7 +604,7 @@ public static class InputDomain
 
                 var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var touchUp = CreateRawTouchEventArgs(
-                    s_touchDevice,
+                    session.TouchDevice,
                     timestamp,
                     inputRoot,
                     RawPointerEventType.TouchEnd,
@@ -694,7 +692,7 @@ public static class InputDomain
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             var touchDown1 = CreateRawTouchEventArgs(
-                s_touchDevice,
+                session.TouchDevice,
                 timestamp,
                 inputRoot,
                 RawPointerEventType.TouchBegin,
@@ -705,7 +703,7 @@ public static class InputDomain
             inputHandler.Invoke(touchDown1);
 
             var touchDown2 = CreateRawTouchEventArgs(
-                s_touchDevice,
+                session.TouchDevice,
                 timestamp,
                 inputRoot,
                 RawPointerEventType.TouchBegin,
@@ -736,7 +734,7 @@ public static class InputDomain
                 var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                 var touchMove1 = CreateRawTouchEventArgs(
-                    s_touchDevice,
+                    session.TouchDevice,
                     timestamp,
                     inputRoot,
                     RawPointerEventType.TouchUpdate,
@@ -747,7 +745,7 @@ public static class InputDomain
                 inputHandler.Invoke(touchMove1);
 
                 var touchMove2 = CreateRawTouchEventArgs(
-                    s_touchDevice,
+                    session.TouchDevice,
                     timestamp,
                     inputRoot,
                     RawPointerEventType.TouchUpdate,
@@ -773,7 +771,7 @@ public static class InputDomain
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             var touchUp1 = CreateRawTouchEventArgs(
-                s_touchDevice,
+                session.TouchDevice,
                 timestamp,
                 inputRoot,
                 RawPointerEventType.TouchEnd,
@@ -784,7 +782,7 @@ public static class InputDomain
             inputHandler.Invoke(touchUp1);
 
             var touchUp2 = CreateRawTouchEventArgs(
-                s_touchDevice,
+                session.TouchDevice,
                 timestamp,
                 inputRoot,
                 RawPointerEventType.TouchEnd,

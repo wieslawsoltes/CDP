@@ -38,6 +38,8 @@ public class CdpSession
     public JsonObject? GeolocationOverride { get; set; }
     public JsonObject? DeviceOrientationOverride { get; set; }
     public bool TouchEmulationEnabled { get; set; }
+    public IInputDevice TouchDevice { get; } =
+        (IInputDevice)Activator.CreateInstance(typeof(TouchDevice), nonPublic: true)!;
     public bool LifecycleEventsEnabled { get; set; }
     public bool AdBlockingEnabled { get; set; }
     public bool BypassCSP { get; set; }
@@ -539,7 +541,7 @@ public class CdpSession
                     _lastFrameCaptureTime = DateTime.UtcNow;
 
                     _screencastFrameCounter++;
-                    if (_screencastEveryNthFrame.HasValue && _screencastEveryNthFrame.Value > 1)
+                    if (_screencastEveryNthFrame.HasValue && _screencastEveryNthFrame.Value > 1 && _screencastFrameCounter > 1)
                     {
                         if (_screencastFrameCounter % _screencastEveryNthFrame.Value != 0)
                         {
