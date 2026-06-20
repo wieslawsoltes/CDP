@@ -317,7 +317,331 @@ If running from source in the cloned repository:
    ```
 2. Click **Scan Targets** inside the inspector, select `CdpSampleApp (127.0.0.1:9222)`, and click **Connect**.
 3. Explore the redesigned Chrome DevTools dark mode panels (Elements, Console, Sources, Network, Performance, Application, and Simulation).
-4. Record user interactions by clicking the **Recorder** tab, clicking **Start Recording**, performing clicks and text typing on the sample app, and stopping the recording. You can save/export the Puppeteer scripts, load them back, and click **Replay** to replay them.
+4. Record user interactions by clicking the **Recorder** tab, clicking **Start Recording**, performing clicks and text typing on the sample app, and stopping the recording. You can save/export scripts in any of the supported target formats, load them back, and click **Replay** to replay them.
+
+#### Supported Recorder Target Formats
+
+The Recorder panel in `CdpInspectorApp` supports capturing user actions and exporting them to multiple target formats for automated testing.
+
+The table below outlines each target format, the testing framework it targets, how it connects or is used, and a brief description:
+
+| Target Format | Target Testing Framework | Connection / Usage with Recorder | Description |
+| :--- | :--- | :--- | :--- |
+| **Puppeteer** | Node.js (JavaScript) | Controls the application over standard CDP. | Great for lightweight scripting and browser-driven orchestration. |
+| **Playwright Test** | Playwright (JS/TS Runner) | Connects to the active application via `chromium.connectOverCDP(host)`. | Standard modern E2E testing framework for complex workflows. |
+| **Selenium C#** | Selenium WebDriver (NUnit) | Attaches to the active application session via `ChromeOptions.DebuggerAddress`. | Seamless integration into C# .NET NUnit test pipelines. |
+| **Appium C#** | Appium Windows Driver (NUnit) | Connects via Appium Server (`http://127.0.0.1:4723/`) using `WindowsDriver`. | Controls Windows desktop controls utilizing dynamic selector translation. |
+| **Avalonia Headless** | `Avalonia.Headless.XUnit` | Runs directly in-process. Simulates inputs using window mouse/keyboard extensions. | High-performance headless tests running inside the xUnit test runner. |
+
+---
+
+#### Code Generation Examples
+
+Below are complete examples of the generated code for each recording target format representing a recorded sequence of: setting viewport size to 1024x768, navigating to `http://localhost:9222/foo`, clicking `#btnClick`, entering text into `#txtInput`, asserting `#btnClick` is visible, and asserting `#hidden` is hidden.
+
+<details>
+<summary>1. Puppeteer (JavaScript)</summary>
+
+```javascript
+const puppeteer = require('puppeteer');
+
+(async () => {
+  const browser = await puppeteer.launch({ headless: false });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1024, height: 768 });
+  await page.goto('http://localhost:9222/foo');
+
+  // Click on element
+  const element_2 = await page.waitForSelector('#btnClick');
+  await element_2.click();
+
+  // Type text in element
+  const element_3 = await page.waitForSelector('#txtInput');
+  await element_3.type('hello "world" \\ test');
+
+  // Assert element is visible
+  await page.waitForSelector('#btnClick', { visible: true });
+
+  // Assert element is hidden
+  await page.waitForSelector('#hidden', { hidden: true });
+
+  await browser.close();
+})();
+```
+</details>
+
+<details>
+<summary>2. Playwright Test (JavaScript/TypeScript)</summary>
+
+```typescript
+import { test, expect, chromium } from '@playwright/test';
+
+test.describe('CDP Recorded Tests', () => {
+  test('recorded test', async () => {
+    const browser = await chromium.connectOverCDP('http://localhost:9222');
+    const context = browser.contexts()[0];
+    const page = context.pages()[0];
+
+    await test.step('Set viewport size', async () => {
+      await page.setViewportSize({ width: 1024, height: 768 });
+    });
+
+    await test.step('Navigate to http://localhost:9222/foo', async () => {
+      await page.goto('http://localhost:9222/foo');
+    });
+
+    await test.step('Click on element #btnClick', async () => {
+      const element_2 = page.locator('#btnClick');
+      await element_2.click();
+    });
+
+    await test.step('Type text in element #txtInput', async () => {
+      const element_3 = page.locator('#txtInput');
+      await element_3.fill('hello "world" \\ test');
+    });
+
+    await test.step('Assert element #btnClick is visible', async () => {
+      await expect(page.locator('#btnClick')).toBeVisible();
+    });
+
+    await test.step('Assert element #hidden is hidden', async () => {
+      await expect(page.locator('#hidden')).toBeHidden();
+    });
+
+    await browser.close();
+  });
+});
+```
+</details>
+
+<details>
+<summary>3. Selenium C# (NUnit)</summary>
+
+```csharp
+using System;
+using System.Drawing;
+using System.Threading;
+using NUnit.Framework;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Chrome;
+using OpenQA.Selenium.Interactions;
+
+namespace SeleniumTests
+{
+    [TestFixture]
+    public class RecordedTests
+    {
+        private IWebDriver _driver;
+        private Actions _actions;
+
+        [SetUp]
+        public void SetUp()
+        {
+            var options = new ChromeOptions();
+            options.DebuggerAddress = "localhost:9222";
+            _driver = new ChromeDriver(options);
+            _actions = new Actions(_driver);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            _driver?.Quit();
+        }
+
+        [Test]
+        public void TestRecordedSteps()
+        {
+            // Step 1: setViewport
+            _driver.Manage().Window.Size = new Size(1024, 768);
+
+            // Step 2: navigate
+            _driver.Navigate().GoToUrl("http://localhost:9222/foo");
+
+            // Step 3: click
+            _driver.FindElement(By.CssSelector("#btnClick")).Click();
+
+            // Step 4: change
+            var element_3 = _driver.FindElement(By.CssSelector("#txtInput"));
+            element_3.Clear();
+            element_3.SendKeys("hello \"world\" \\ test");
+
+            // Step 5: assertVisible
+            Assert.IsTrue(_driver.FindElement(By.CssSelector("#btnClick")).Displayed);
+
+            // Step 6: assertNotVisible
+            bool isVisible_5 = false;
+            try
+            {
+                isVisible_5 = _driver.FindElement(By.CssSelector("#hidden")).Displayed;
+            }
+            catch (NoSuchElementException)
+            {
+                isVisible_5 = false;
+            }
+            Assert.IsFalse(isVisible_5);
+        }
+    }
+}
+```
+</details>
+
+<details>
+<summary>4. Appium C# (NUnit)</summary>
+
+```csharp
+using System;
+using System.Drawing;
+using System.Threading;
+using NUnit.Framework;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Appium;
+using OpenQA.Selenium.Appium.Windows;
+using OpenQA.Selenium.Interactions;
+
+namespace AppiumTests
+{
+    [TestFixture]
+    public class RecordedTests
+    {
+        private WindowsDriver<WindowsElement> _driver;
+
+        [SetUp]
+        public void SetUp()
+        {
+            var options = new AppiumOptions();
+            options.AddAdditionalCapability("platformName", "Windows");
+            options.AddAdditionalCapability("automationName", "Windows");
+            options.AddAdditionalCapability("app", "Root");
+
+            _driver = new WindowsDriver<WindowsElement>(new Uri("http://127.0.0.1:4723/"), options);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            _driver?.Quit();
+        }
+
+        [Test]
+        public void TestRecordedSteps()
+        {
+            // Step 1: setViewport
+            _driver.Manage().Window.Size = new Size(1024, 768);
+
+            // Step 2: navigate
+            _driver.Navigate().GoToUrl("http://localhost:9222/foo");
+
+            // Step 3: click
+            _driver.FindElementByAccessibilityId("btnClick").Click();
+
+            // Step 4: change
+            var element_3 = _driver.FindElementByAccessibilityId("txtInput");
+            element_3.Clear();
+            element_3.SendKeys("hello \"world\" \\ test");
+
+            // Step 5: assertVisible
+            Assert.IsTrue(_driver.FindElementByAccessibilityId("btnClick").Displayed);
+
+            // Step 6: assertNotVisible
+            bool isVisible_5 = false;
+            try
+            {
+                isVisible_5 = _driver.FindElementByAccessibilityId("hidden").Displayed;
+            }
+            catch (Exception)
+            {
+                isVisible_5 = false;
+            }
+            Assert.IsFalse(isVisible_5);
+        }
+    }
+}
+```
+</details>
+
+<details>
+<summary>5. Avalonia Headless Tests (xUnit)</summary>
+
+```csharp
+using System;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Diagnostics.Cdp;
+using Avalonia.Headless;
+using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Xunit;
+
+namespace HeadlessRecordedTests
+{
+    public class RecordedTests
+    {
+        [AvaloniaFact]
+        public async Task TestRecordedScenario()
+        {
+            // Initialize target window
+            var window = new CdpSampleApp.MainWindow();
+            window.Show();
+
+            // Wait for window layout
+            await Task.Delay(100);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Input);
+
+            // Step 1: setViewport
+            window.Width = 1024;
+            window.Height = 768;
+
+            // Step 2: navigate
+            if (window is CdpSampleApp.MainWindow mainWin)
+            {
+                mainWin.Navigate("http://localhost:9222/foo");
+            }
+
+            // Step 3: click
+            var element_2 = SelectorEngine.QuerySelector(window, "#btnClick") as Control;
+            Assert.NotNull(element_2);
+            ClickControl(window, element_2, MouseButton.Left, RawInputModifiers.None);
+
+            // Step 4: change
+            var element_3 = SelectorEngine.QuerySelector(window, "#txtInput") as Control;
+            Assert.NotNull(element_3);
+            element_3.Focus();
+            window.KeyTextInput("hello \"world\" \\ test");
+
+            // Step 5: assertVisible
+            var element_4 = SelectorEngine.QuerySelector(window, "#btnClick") as Control;
+            Assert.NotNull(element_4);
+            Assert.True(element_4.IsVisible);
+
+            // Step 6: assertNotVisible
+            var element_5 = SelectorEngine.QuerySelector(window, "#hidden") as Control;
+            Assert.True(element_5 == null || !element_5.IsVisible);
+
+            await Task.Delay(50);
+        }
+
+        private static void ClickControl(Window window, Control control, MouseButton button, RawInputModifiers modifiers)
+        {
+            var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window) ?? new Point();
+            window.MouseDown(point, button, modifiers);
+            window.MouseUp(point, button, modifiers);
+        }
+
+        private static void DragAndDrop(Window window, Control source, Control target)
+        {
+            var startPoint = source.TranslatePoint(new Point(source.Bounds.Width / 2, source.Bounds.Height / 2), window) ?? new Point();
+            var endPoint = target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window) ?? new Point();
+            window.MouseMove(startPoint);
+            window.MouseDown(startPoint, MouseButton.Left);
+            window.MouseMove(endPoint);
+            window.MouseUp(endPoint, MouseButton.Left);
+        }
+    }
+}
+```
+</details>
 
 ---
 
