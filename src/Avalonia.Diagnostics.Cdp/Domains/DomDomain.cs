@@ -834,6 +834,13 @@ public static class DomDomain
                 attributes.Add("AccessibilityHelp");
                 attributes.Add(automationHelp);
             }
+
+            var accessibilityId = control.GetValue(AutomationProperties.AutomationIdProperty) as string;
+            if (!string.IsNullOrEmpty(accessibilityId))
+            {
+                attributes.Add("AccessibilityId");
+                attributes.Add(accessibilityId);
+            }
         }
         return attributes;
     }
