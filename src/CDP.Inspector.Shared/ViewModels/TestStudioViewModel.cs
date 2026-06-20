@@ -423,6 +423,12 @@ public class TestStudioViewModel : ViewModelBase
                 Log($"Step {_currentStepIndex + 1} passed.");
                 _currentStepIndex++;
             }
+            catch (OperationCanceledException)
+            {
+                step.Status = StepStatus.Pending;
+                Log($"Step {_currentStepIndex + 1} paused.");
+                throw;
+            }
             catch (Exception ex)
             {
                 step.Status = StepStatus.Failed;
@@ -465,8 +471,12 @@ public class TestStudioViewModel : ViewModelBase
                     var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
                     if (nodeId > 0)
                     {
-                        await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
-                        await Task.Delay(100, token);
+                        try
+                        {
+                            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                            await Task.Delay(100, token);
+                        }
+                        catch { }
                     }
                     Log($"Tapping at coordinate ({x:F1}, {y:F1})");
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
@@ -496,8 +506,12 @@ public class TestStudioViewModel : ViewModelBase
                     var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
                     if (nodeId > 0)
                     {
-                        await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
-                        await Task.Delay(100, token);
+                        try
+                        {
+                            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                            await Task.Delay(100, token);
+                        }
+                        catch { }
                     }
                     Log($"Double tapping at coordinate ({x:F1}, {y:F1})");
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
@@ -515,8 +529,12 @@ public class TestStudioViewModel : ViewModelBase
                     var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
                     if (nodeId > 0)
                     {
-                        await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
-                        await Task.Delay(100, token);
+                        try
+                        {
+                            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                            await Task.Delay(100, token);
+                        }
+                        catch { }
                     }
                     Log($"Long pressing at coordinate ({x:F1}, {y:F1})");
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
@@ -528,32 +546,46 @@ public class TestStudioViewModel : ViewModelBase
 
             case "inputText":
                 {
-                    if (string.IsNullOrEmpty(step.Selector))
+                    if (!string.IsNullOrEmpty(step.Selector))
                     {
-                        throw new Exception("inputText step requires a Selector.");
-                    }
-                    Log($"Waiting for element '{step.Selector}' to be visible...");
-                    int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                        Log($"Waiting for element '{step.Selector}' to be visible...");
+                        int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
 
-                    Log($"Focusing element and typing '{step.Value}'");
-                    await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
-                    await Task.Delay(100, token);
+                        Log($"Focusing element and typing '{step.Value}'");
+                        try
+                        {
+                            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                            await Task.Delay(100, token);
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        Log($"Typing '{step.Value}' on currently focused control...");
+                    }
                     await _cdpService.SendCommandAsync("Input.insertText", new JsonObject { ["text"] = step.Value ?? "" });
                     await Task.Delay(200, token);
                     break;
                 }
             case "clearText":
                 {
-                    if (string.IsNullOrEmpty(step.Selector))
+                    if (!string.IsNullOrEmpty(step.Selector))
                     {
-                        throw new Exception("clearText step requires a Selector.");
-                    }
-                    Log($"Waiting for element '{step.Selector}' to be visible...");
-                    int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                        Log($"Waiting for element '{step.Selector}' to be visible...");
+                        int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
 
-                    Log("Focusing element and clearing text...");
-                    await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
-                    await Task.Delay(100, token);
+                        Log("Focusing element and clearing text...");
+                        try
+                        {
+                            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                            await Task.Delay(100, token);
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        Log("Clearing text on currently focused control...");
+                    }
 
                     // Ctrl+A
                     await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
@@ -574,13 +606,13 @@ public class TestStudioViewModel : ViewModelBase
                     {
                         ["type"] = "rawKeyDown",
                         ["key"] = "a",
-                        ["modifiers"] = 8
+                        ["modifiers"] = 4
                     });
                     await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
                     {
                         ["type"] = "keyUp",
                         ["key"] = "a",
-                        ["modifiers"] = 8
+                        ["modifiers"] = 4
                     });
 
                     await Task.Delay(50, token);
@@ -1057,6 +1089,106 @@ public class TestStudioViewModel : ViewModelBase
                     Log($"Completed nested flow: {flowPath}");
                     break;
                 }
+            case "scrollUntilVisible":
+                {
+                    if (string.IsNullOrEmpty(step.Selector))
+                    {
+                        throw new Exception("scrollUntilVisible step requires a Selector.");
+                    }
+
+                    string direction = "down";
+                    int maxScrolls = 10;
+                    double amount = 150;
+
+                    if (!string.IsNullOrEmpty(step.Value))
+                    {
+                        var props = ParseKeyValuePairs(step.Value);
+                        if (props.TryGetValue("direction", out var dir))
+                        {
+                            direction = dir;
+                        }
+                        if (props.TryGetValue("maxscrolls", out var msStr) && int.TryParse(msStr, out int ms))
+                        {
+                            maxScrolls = ms;
+                        }
+                    }
+
+                    double scrollX = 400;
+                    double scrollY = 300;
+                    try
+                    {
+                        var metrics = await _cdpService.SendCommandAsync("Page.getLayoutMetrics");
+                        var viewport = metrics["cssVisualViewport"] as JsonObject;
+                        if (viewport != null)
+                        {
+                            double w = viewport["width"]?.GetValue<double>() ?? 800;
+                            double h = viewport["height"]?.GetValue<double>() ?? 600;
+                            scrollX = w / 2.0;
+                            scrollY = h / 2.0;
+                        }
+                    }
+                    catch { }
+
+                    double deltaX = 0;
+                    double deltaY = 0;
+                    if (direction.Equals("down", StringComparison.OrdinalIgnoreCase))
+                    {
+                        deltaY = -amount;
+                    }
+                    else if (direction.Equals("up", StringComparison.OrdinalIgnoreCase))
+                    {
+                        deltaY = amount;
+                    }
+                    else if (direction.Equals("left", StringComparison.OrdinalIgnoreCase))
+                    {
+                        deltaX = amount;
+                    }
+                    else if (direction.Equals("right", StringComparison.OrdinalIgnoreCase))
+                    {
+                        deltaX = -amount;
+                    }
+
+                    int scrollCount = 0;
+                    bool visible = false;
+                    while (scrollCount <= maxScrolls)
+                    {
+                        token.ThrowIfCancellationRequested();
+
+                        var nodeId = await CheckElementVisibleAsync(step.Selector);
+                        if (nodeId.HasValue)
+                        {
+                            visible = true;
+                            Log($"Element '{step.Selector}' is visible after {scrollCount} scrolls.");
+                            break;
+                        }
+
+                        if (scrollCount == maxScrolls)
+                        {
+                            break;
+                        }
+
+                        Log($"Element '{step.Selector}' not visible. Scrolling ({scrollCount + 1}/{maxScrolls}) at ({scrollX:F1}, {scrollY:F1}) with deltaX={deltaX}, deltaY={deltaY}...");
+                        await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                        {
+                            ["type"] = "mouseWheel",
+                            ["x"] = scrollX,
+                            ["y"] = scrollY,
+                            ["deltaX"] = deltaX,
+                            ["deltaY"] = deltaY,
+                            ["button"] = "none",
+                            ["modifiers"] = 0
+                        });
+
+                        scrollCount++;
+                        await Task.Delay(300, token);
+                    }
+
+                    if (!visible)
+                    {
+                        throw new Exception($"Element '{step.Selector}' did not become visible after {maxScrolls} scrolls.");
+                    }
+                    break;
+                }
             default:
                 throw new NotSupportedException($"Step action '{action}' is not supported.");
         }
@@ -1127,6 +1259,33 @@ public class TestStudioViewModel : ViewModelBase
             await Task.Delay(200, token);
         }
         throw new TimeoutException($"Element with selector '{selector}' was still visible after 5 seconds.");
+    }
+
+    private async Task<int?> CheckElementVisibleAsync(string selector)
+    {
+        try
+        {
+            var docRes = await _cdpService.SendCommandAsync("DOM.getDocument", new JsonObject { ["pierce"] = true });
+            var root = docRes["root"] as JsonObject;
+            int rootNodeId = root?["nodeId"]?.GetValue<int>() ?? 1;
+
+            var qParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = selector };
+            var qRes = await _cdpService.SendCommandAsync("DOM.querySelector", qParams);
+            int nodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+            if (nodeId > 0)
+            {
+                var (w, h) = await GetElementSizeAsync(nodeId);
+                if (w > 0 && h > 0)
+                {
+                    return nodeId;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+        return null;
     }
 
     private async Task<(double width, double height)> GetElementSizeAsync(int nodeId)

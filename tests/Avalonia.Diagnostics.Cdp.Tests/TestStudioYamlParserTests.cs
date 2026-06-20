@@ -256,4 +256,50 @@ description: ""Verify new Maestro commands""
             Assert.Equal(steps[i].Selector, stepsGen[i].Selector);
         }
     }
+
+    [Fact]
+    public void TestPRCommentFixes()
+    {
+        // 1. Parsing selectorless inputText and clearText
+        string selectorlessYaml = @"
+- inputText: ""Hello without selector""
+- clearText
+";
+        var selectorlessSteps = TestStudioYamlParser.Parse(selectorlessYaml, out _, out _);
+        Assert.Equal(2, selectorlessSteps.Count);
+        Assert.Equal("inputText", selectorlessSteps[0].Action);
+        Assert.Equal("", selectorlessSteps[0].Selector);
+        Assert.Equal("Hello without selector", selectorlessSteps[0].Value);
+
+        Assert.Equal("clearText", selectorlessSteps[1].Action);
+        Assert.Equal("", selectorlessSteps[1].Selector);
+
+        // 2 & 3. Targeted scrolls (selector & properties)
+        string scrollWithSelectorYaml = @"
+- scroll:
+    selector: ""#scrollableContainer""
+    direction: ""down""
+    amount: 250
+";
+        var scrollSteps = TestStudioYamlParser.Parse(scrollWithSelectorYaml, out _, out _);
+        Assert.Single(scrollSteps);
+        Assert.Equal("scroll", scrollSteps[0].Action);
+        Assert.Equal("#scrollableContainer", scrollSteps[0].Selector);
+        Assert.Contains("direction: down", scrollSteps[0].Value);
+        Assert.Contains("amount: 250", scrollSteps[0].Value);
+
+        var generatedScroll = TestStudioYamlParser.Generate(scrollSteps, "", "");
+        var parsedScroll = TestStudioYamlParser.Parse(generatedScroll, out _, out _);
+        Assert.Single(parsedScroll);
+        Assert.Equal("scroll", parsedScroll[0].Action);
+        Assert.Equal("#scrollableContainer", parsedScroll[0].Selector);
+        Assert.Contains("direction: down", parsedScroll[0].Value);
+        Assert.Contains("amount: 250", parsedScroll[0].Value);
+
+        // 4. Invalid YAML throws exception
+        string invalidYaml = @"
+- unclosed_quote: ""string
+";
+        Assert.ThrowsAny<Exception>(() => TestStudioYamlParser.Parse(invalidYaml, out _, out _));
+    }
 }

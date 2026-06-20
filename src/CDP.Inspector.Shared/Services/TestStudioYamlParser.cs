@@ -53,16 +53,9 @@ public static class TestStudioYamlParser
         }
 
         var yamlStream = new YamlStream();
-        try
+        using (var reader = new StringReader(yaml))
         {
-            using (var reader = new StringReader(yaml))
-            {
-                yamlStream.Load(reader);
-            }
-        }
-        catch
-        {
-            return steps;
+            yamlStream.Load(reader);
         }
 
         foreach (var doc in yamlStream.Documents)
@@ -400,7 +393,7 @@ public static class TestStudioYamlParser
 
             case "scroll":
                 model.Action = "scroll";
-                model.Selector = "";
+                model.Selector = dict.GetValueOrDefault("selector", "");
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
                     model.Value = inlineValue;
@@ -658,9 +651,13 @@ public static class TestStudioYamlParser
                 else if (action == "scroll")
                 {
                     var props = ParseKeyValuePairs(step.Value);
-                    if (props.Count > 0)
+                    if (props.Count > 0 || !string.IsNullOrEmpty(step.Selector))
                     {
                         var scrollDict = new Dictionary<string, object>();
+                        if (!string.IsNullOrEmpty(step.Selector))
+                        {
+                            scrollDict["selector"] = step.Selector;
+                        }
                         foreach (var kv in props)
                         {
                             scrollDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)kv.Value;
