@@ -15,6 +15,12 @@ using CdpInspectorApp.Services;
 
 namespace CdpInspectorApp.ViewModels;
 
+public enum RecordingFormat
+{
+    Puppeteer,
+    PlaywrightTest
+}
+
 public class RecorderViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
@@ -81,6 +87,32 @@ public class RecorderViewModel : ViewModelBase
         get => _isReplayEnabled;
         private set => RaiseAndSetIfChanged(ref _isReplayEnabled, value);
     }
+
+    private RecordingFormat _selectedFormat = RecordingFormat.Puppeteer;
+    public RecordingFormat SelectedFormat
+    {
+        get => _selectedFormat;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedFormat, value))
+            {
+                UpdateGeneratedCode();
+                OnPropertyChanged(nameof(ScriptTabHeader));
+                OnPropertyChanged(nameof(ScriptTitleText));
+                OnPropertyChanged(nameof(ExportButtonText));
+            }
+        }
+    }
+
+    public List<RecordingFormat> AvailableFormats { get; } = new()
+    {
+        RecordingFormat.Puppeteer,
+        RecordingFormat.PlaywrightTest
+    };
+
+    public string ScriptTabHeader => SelectedFormat == RecordingFormat.Puppeteer ? "Puppeteer Script" : "Playwright Script";
+    public string ScriptTitleText => SelectedFormat == RecordingFormat.Puppeteer ? "Generated Puppeteer Script" : "Generated Playwright Test Script";
+    public string ExportButtonText => SelectedFormat == RecordingFormat.Puppeteer ? "Export Puppeteer" : "Export Playwright";
 
     private bool _isTestStudioActive;
     public bool IsTestStudioActive
@@ -283,6 +315,18 @@ public class RecorderViewModel : ViewModelBase
 
     private void UpdateGeneratedCode()
     {
+        if (SelectedFormat == RecordingFormat.Puppeteer)
+        {
+            UpdateGeneratedPuppeteerCode();
+        }
+        else
+        {
+            UpdateGeneratedPlaywrightCode();
+        }
+    }
+
+    private void UpdateGeneratedPuppeteerCode()
+    {
         var sb = new StringBuilder();
         sb.AppendLine("const puppeteer = require('puppeteer');");
         sb.AppendLine();
@@ -378,11 +422,155 @@ public class RecorderViewModel : ViewModelBase
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
                 }
             }
+            else if (step.Type == "assertVisible")
+            {
+                sb.AppendLine($"  // Assert element is visible");
+                sb.AppendLine($"  await page.waitForSelector('{step.Selector}', {{ visible: true }});");
+            }
+            else if (step.Type == "assertNotVisible")
+            {
+                sb.AppendLine($"  // Assert element is hidden");
+                sb.AppendLine($"  await page.waitForSelector('{step.Selector}', {{ hidden: true }});");
+            }
             sb.AppendLine();
         }
 
         sb.AppendLine("  await browser.close();");
         sb.AppendLine("})();");
+
+        GeneratedCode = sb.ToString();
+    }
+
+    private void UpdateGeneratedPlaywrightCode()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("import { test, expect, chromium } from '@playwright/test';");
+        sb.AppendLine();
+        sb.AppendLine("test.describe('CDP Recorded Tests', () => {");
+        sb.AppendLine("  test('recorded test', async () => {");
+
+        string host = _getHostAddress();
+        if (string.IsNullOrEmpty(host))
+        {
+            host = "http://localhost:9222";
+        }
+        if (!host.StartsWith("http://") && !host.StartsWith("https://"))
+        {
+            host = "http://" + host;
+        }
+        if (host.EndsWith("/"))
+        {
+            host = host.Substring(0, host.Length - 1);
+        }
+
+        sb.AppendLine($"    const browser = await chromium.connectOverCDP('{host}');");
+        sb.AppendLine("    const context = browser.contexts()[0];");
+        sb.AppendLine("    const page = context.pages()[0];");
+        sb.AppendLine();
+
+        bool hasViewportStep = RecordedSteps.Any(s => s.Type == "setViewport");
+        bool hasNavigateStep = RecordedSteps.Any(s => s.Type == "navigate");
+
+        if (!hasViewportStep)
+        {
+            sb.AppendLine("    await test.step('Set viewport size', async () => {");
+            sb.AppendLine("      await page.setViewportSize({ width: 800, height: 600 });");
+            sb.AppendLine("    });");
+        }
+        if (!hasNavigateStep)
+        {
+            sb.AppendLine("    await test.step('Navigate to application', async () => {");
+            sb.AppendLine($"      await page.goto('{host}/');");
+            sb.AppendLine("    });");
+        }
+
+        foreach (var step in RecordedSteps)
+        {
+            sb.AppendLine();
+            if (step.Type == "click")
+            {
+                var options = new List<string>();
+                if (step.Button != "left") options.Add($"button: '{step.Button}'");
+                if (step.ClickCount > 1) options.Add($"clickCount: {step.ClickCount}");
+                if (step.Modifiers > 0)
+                {
+                    var modsList = string.Join(", ", GetModifiersList(step.Modifiers).Select(m => $"'{m}'"));
+                    options.Add($"modifiers: [{modsList}]");
+                }
+                string optStr = options.Count > 0 ? $"{{ {string.Join(", ", options)} }}" : "";
+
+                sb.AppendLine($"    await test.step('Click on element {step.Selector}', async () => {{");
+                sb.AppendLine($"      const element_{RecordedSteps.IndexOf(step)} = page.locator('{step.Selector}');");
+                sb.AppendLine($"      await element_{RecordedSteps.IndexOf(step)}.click({optStr});");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "change")
+            {
+                sb.AppendLine($"    await test.step('Type text in element {step.Selector}', async () => {{");
+                sb.AppendLine($"      const element_{RecordedSteps.IndexOf(step)} = page.locator('{step.Selector}');");
+                sb.AppendLine($"      await element_{RecordedSteps.IndexOf(step)}.fill('{step.Value}');");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "setViewport")
+            {
+                sb.AppendLine($"    await test.step('Set viewport size', async () => {{");
+                sb.AppendLine($"      await page.setViewportSize({{ width: {step.Width}, height: {step.Height} }});");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "navigate")
+            {
+                sb.AppendLine($"    await test.step('Navigate to {step.Url}', async () => {{");
+                sb.AppendLine($"      await page.goto('{step.Url}');");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "keydown")
+            {
+                sb.AppendLine($"    await test.step('Press key {step.Key}', async () => {{");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.down('{mod}');");
+                }
+                sb.AppendLine($"      await page.keyboard.press('{step.Key}');");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.up('{mod}');");
+                }
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "dragAndDrop")
+            {
+                sb.AppendLine($"    await test.step('Drag element {step.Selector} to {step.TargetSelector}', async () => {{");
+                sb.AppendLine($"      const source_{RecordedSteps.IndexOf(step)} = page.locator('{step.Selector}');");
+                sb.AppendLine($"      const target_{RecordedSteps.IndexOf(step)} = page.locator('{step.TargetSelector}');");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.down('{mod}');");
+                }
+                sb.AppendLine($"      await source_{RecordedSteps.IndexOf(step)}.dragTo(target_{RecordedSteps.IndexOf(step)});");
+                if (step.Modifiers > 0)
+                {
+                    foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.up('{mod}');");
+                }
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "assertVisible")
+            {
+                sb.AppendLine($"    await test.step('Assert element {step.Selector} is visible', async () => {{");
+                sb.AppendLine($"      await expect(page.locator('{step.Selector}')).toBeVisible();");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "assertNotVisible")
+            {
+                sb.AppendLine($"    await test.step('Assert element {step.Selector} is hidden', async () => {{");
+                sb.AppendLine($"      await expect(page.locator('{step.Selector}')).toBeHidden();");
+                sb.AppendLine("    });");
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("    await browser.close();");
+        sb.AppendLine("  });");
+        sb.AppendLine("});");
 
         GeneratedCode = sb.ToString();
     }
