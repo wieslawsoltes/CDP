@@ -82,6 +82,21 @@ public class RecorderViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _isReplayEnabled, value);
     }
 
+    private bool _isTestStudioActive;
+    public bool IsTestStudioActive
+    {
+        get => _isTestStudioActive;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isTestStudioActive, value))
+            {
+                Console.WriteLine($"[DEBUG] IsTestStudioActive setter called: new value = {value}");
+            }
+        }
+    }
+
+    public TestStudioViewModel TestStudio { get; }
+
     public ICommand ToggleRecordCommand { get; }
     public ICommand ReplayCommand { get; }
     public ICommand ClearCommand { get; }
@@ -90,6 +105,8 @@ public class RecorderViewModel : ViewModelBase
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _getHostAddress = getHostAddress ?? throw new ArgumentNullException(nameof(getHostAddress));
+
+        TestStudio = new TestStudioViewModel(_cdpService);
 
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
@@ -155,6 +172,7 @@ public class RecorderViewModel : ViewModelBase
     private void AddRecordedStep(JsonObject stepJson)
     {
         string type = stepJson["type"]?.GetValue<string>() ?? "";
+        Console.WriteLine($"[DEBUG] AddRecordedStep: type={type}, IsTestStudioActive={IsTestStudioActive}");
         string value = stepJson["value"]?.GetValue<string>() ?? "";
         double offsetX = stepJson["offsetX"]?.GetValue<double>() ?? 0;
         double offsetY = stepJson["offsetY"]?.GetValue<double>() ?? 0;
@@ -210,6 +228,53 @@ public class RecorderViewModel : ViewModelBase
         };
 
         RecordedSteps.Add(model);
+
+        if (IsTestStudioActive)
+        {
+            TestStudioStepModel? tsStep = null;
+            if (type == "click")
+            {
+                tsStep = new TestStudioStepModel
+                {
+                    Action = "tapOn",
+                    Selector = selector,
+                    Value = ""
+                };
+            }
+            else if (type == "change")
+            {
+                tsStep = new TestStudioStepModel
+                {
+                    Action = "inputText",
+                    Selector = selector,
+                    Value = value
+                };
+            }
+            else if (type == "navigate")
+            {
+                tsStep = new TestStudioStepModel
+                {
+                    Action = "launchApp",
+                    Selector = "",
+                    Value = ""
+                };
+            }
+            else if (type == "keydown")
+            {
+                tsStep = new TestStudioStepModel
+                {
+                    Action = "pressKey",
+                    Selector = "",
+                    Value = keyVal
+                };
+            }
+
+            if (tsStep != null)
+            {
+                TestStudio.Steps.Add(tsStep);
+            }
+        }
+
         IsReplayEnabled = RecordedSteps.Count > 0;
         ((RelayCommand)ReplayCommand).RaiseCanExecuteChanged();
 

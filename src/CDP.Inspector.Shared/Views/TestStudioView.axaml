@@ -1,0 +1,135 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models"
+             x:Class="CdpInspectorApp.Views.TestStudioView"
+             x:CompileBindings="False">
+    <Grid ColumnDefinitions="*, 4, *">
+        <!-- LEFT COLUMN: Steps List + Debugger Toolbar + Quick-Add panel -->
+        <Grid Grid.Column="0" RowDefinitions="Auto, *, Auto" Margin="0,0,10,0">
+            <!-- Debugger Toolbar -->
+            <Border Grid.Row="0" Classes="panel-card" Margin="0,0,0,10">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="▶ Play" Command="{Binding Recorder.TestStudio.PlayCommand}" Classes="accent"/>
+                    <Button Content="⏸ Pause" Command="{Binding Recorder.TestStudio.PauseCommand}"/>
+                    <Button Content="■ Stop" Command="{Binding Recorder.TestStudio.StopCommand}"/>
+                    <Button Content="↷ Step" Command="{Binding Recorder.TestStudio.StepOverCommand}"/>
+                    <Button Content="Clear" Command="{Binding Recorder.TestStudio.ClearCommand}"/>
+                    <Button Command="{Binding Recorder.ToggleRecordCommand}"
+                            Content="{Binding Recorder.ToggleRecordButtonText}"
+                            Background="{Binding Recorder.ToggleRecordButtonBackground}"
+                            BorderBrush="{Binding Recorder.ToggleRecordButtonBorderBrush}"
+                            Foreground="White"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Steps List -->
+            <Grid Grid.Row="1" RowDefinitions="Auto, *">
+                <TextBlock Grid.Row="0" Text="Test Steps" Classes="panel-header" Foreground="#e8eaed" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
+                <ListBox Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.Steps}" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="4" Padding="8" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                <DockPanel LastChildFill="True">
+                                    <!-- Step Actions -->
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                        <Button Content="▲" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                        <Button Content="▼" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                        <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10" Foreground="#ff6b6b" BorderBrush="#ff6b6b"/>
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <!-- Status indicator icon -->
+                                        <Ellipse Width="8" Height="8" Fill="#9aa0a6" VerticalAlignment="Center" IsVisible="{Binding IsPending}"/>
+                                        <Ellipse Width="8" Height="8" Fill="#1a73e8" VerticalAlignment="Center" IsVisible="{Binding IsRunning}"/>
+                                        <TextBlock Text="✔" Foreground="#0f9d58" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsPassed}"/>
+                                        <TextBlock Text="✘" Foreground="#c5221f" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsFailed}"/>
+
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12"/>
+                                                <TextBlock Text="{Binding Selector}" Foreground="#8ab4f8" FontSize="12" IsVisible="{Binding Selector, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding DetailDisplay}" FontSize="11" Foreground="#9aa0a6" IsVisible="{Binding DetailDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <!-- Quick-Add / Element Action panel -->
+            <Border Grid.Row="2" Classes="panel-card" Margin="0,10,0,0">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Add Element Action" Classes="panel-header" Margin="0,0,0,4"/>
+                    
+                    <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
+                        <TextBlock Grid.Column="0" Text="Target Selector: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                        <TextBox Grid.Column="1" Text="{Binding Recorder.TestStudio.SelectedElementSelector}" IsReadOnly="False" FontSize="11" Margin="4,0,0,0"/>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="Tap" Command="{Binding Recorder.TestStudio.AddTapCommand}"/>
+                        <Button Content="Clear Text" Command="{Binding Recorder.TestStudio.AddClearTextCommand}"/>
+                        <Button Content="Assert Visible" Command="{Binding Recorder.TestStudio.AddAssertVisibleCommand}"/>
+                        <Button Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}"/>
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="*, Auto" Margin="0,4,0,0">
+                        <TextBox Grid.Column="0" PlaceholderText="Text for input action..." Text="{Binding Recorder.TestStudio.InputSimText}" FontSize="11" Margin="0,0,6,0"/>
+                        <Button Grid.Column="1" Content="Input Text" Command="{Binding Recorder.TestStudio.AddInputCommand}"/>
+                    </Grid>
+
+                    <Separator Height="1" Background="#3c4043" Margin="0,4"/>
+
+                    <TextBlock Text="Generic Actions" Classes="panel-header" Margin="0,0,0,4"/>
+
+                    <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,4">
+                        <NumericUpDown Grid.Column="0" Value="{Binding Recorder.TestStudio.DelayMs}" Minimum="0" Maximum="60000" Increment="100" FormatString="0 ms" FontSize="11" Margin="0,0,6,0"/>
+                        <Button Grid.Column="1" Content="Add Delay" Command="{Binding Recorder.TestStudio.AddDelayCommand}"/>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="Launch App" Command="{Binding Recorder.TestStudio.AddLaunchAppCommand}"/>
+                        <Button Content="Go Back" Command="{Binding Recorder.TestStudio.AddBackCommand}"/>
+                        <Button Content="Scroll" Command="{Binding Recorder.TestStudio.AddScrollCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- GRID SPLITTER -->
+        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+        <!-- RIGHT COLUMN: YAML Editor + Apply YAML button + execution logs -->
+        <Grid Grid.Column="2" RowDefinitions="*, 4, *" Margin="10,0,0,0">
+            <!-- YAML Editor -->
+            <Grid Grid.Row="0" RowDefinitions="Auto, *" Margin="0,0,0,6">
+                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                    <TextBlock Grid.Column="0" Text="YAML Configuration" Classes="panel-header" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="Apply YAML" Command="{Binding Recorder.TestStudio.ApplyYamlCommand}" Classes="accent"/>
+                </Grid>
+                <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <TextBox Text="{Binding Recorder.TestStudio.YamlCode}" AcceptsReturn="True" BorderThickness="0" Background="Transparent" FontFamily="Courier New,Consolas,Monospace" FontSize="12"/>
+                </Border>
+            </Grid>
+
+            <!-- SPLITTER -->
+            <GridSplitter Grid.Row="1" Background="#3c4043"/>
+
+            <!-- Execution Logs -->
+            <Grid Grid.Row="2" RowDefinitions="Auto, *" Margin="0,6,0,0">
+                <TextBlock Grid.Row="0" Text="Execution Log" Classes="panel-header" FontSize="14" FontWeight="Bold"/>
+                <ListBox Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.Logs}" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" FontFamily="Courier New,Consolas,Monospace" FontSize="11" Foreground="#e8eaed"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
