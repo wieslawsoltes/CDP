@@ -169,8 +169,8 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
         var list = new List<string>();
         if ((modifiers & 1) != 0) list.Add("RawInputModifiers.Alt");
         if ((modifiers & 2) != 0) list.Add("RawInputModifiers.Control");
-        if ((modifiers & 4) != 0) list.Add("RawInputModifiers.Shift");
-        if ((modifiers & 8) != 0) list.Add("RawInputModifiers.Meta");
+        if ((modifiers & 4) != 0) list.Add("RawInputModifiers.Meta");
+        if ((modifiers & 8) != 0) list.Add("RawInputModifiers.Shift");
         return string.Join(" | ", list);
     }
 

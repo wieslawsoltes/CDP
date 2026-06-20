@@ -201,8 +201,8 @@ public class AppiumCSharpGenerator : ICodeGenerator
         var list = new List<string>();
         if ((modifiers & 1) != 0) list.Add("Keys.Alt");
         if ((modifiers & 2) != 0) list.Add("Keys.Control");
-        if ((modifiers & 4) != 0) list.Add("Keys.Shift");
-        if ((modifiers & 8) != 0) list.Add("Keys.Command");
+        if ((modifiers & 4) != 0) list.Add("Keys.Command");
+        if ((modifiers & 8) != 0) list.Add("Keys.Shift");
         return list;
     }
 

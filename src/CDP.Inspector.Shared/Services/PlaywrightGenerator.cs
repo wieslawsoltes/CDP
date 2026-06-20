@@ -155,8 +155,8 @@ public class PlaywrightGenerator : ICodeGenerator
         var list = new List<string>();
         if ((modifiers & 1) != 0) list.Add("Alt");
         if ((modifiers & 2) != 0) list.Add("Control");
-        if ((modifiers & 4) != 0) list.Add("Shift");
-        if ((modifiers & 8) != 0) list.Add("Meta");
+        if ((modifiers & 4) != 0) list.Add("Meta");
+        if ((modifiers & 8) != 0) list.Add("Shift");
         return list;
     }
 
