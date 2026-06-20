@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
 using Avalonia.LogicalTree;
 
@@ -10,23 +12,236 @@ namespace Avalonia.Diagnostics.Cdp;
 
 public static class SelectorEngine
 {
+    private static readonly HashSet<string> s_knownVisualTypes = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object s_lock = new();
+    private static bool s_initializedTypes = false;
+
+    private static void EnsureInitializedTypes()
+    {
+        if (s_initializedTypes) return;
+        lock (s_lock)
+        {
+            if (s_initializedTypes) return;
+            try
+            {
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    try
+                    {
+                        foreach (var type in assembly.GetTypes())
+                        {
+                            if (type.IsClass && !type.IsAbstract && typeof(Visual).IsAssignableFrom(type))
+                            {
+                                s_knownVisualTypes.Add(type.Name);
+                                if (type.FullName != null)
+                                {
+                                    s_knownVisualTypes.Add(type.FullName);
+                                }
+                            }
+                        }
+                    }
+                    catch (ReflectionTypeLoadException ex)
+                    {
+                        if (ex.Types != null)
+                        {
+                            foreach (var type in ex.Types)
+                            {
+                                if (type != null && type.IsClass && !type.IsAbstract && typeof(Visual).IsAssignableFrom(type))
+                                {
+                                    s_knownVisualTypes.Add(type.Name);
+                                    if (type.FullName != null)
+                                    {
+                                        s_knownVisualTypes.Add(type.FullName);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore other assembly loading issues
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore general errors
+            }
+            s_initializedTypes = true;
+        }
+    }
+
+    private static bool IsStandardCss(string selector)
+    {
+        if (string.IsNullOrWhiteSpace(selector)) return false;
+
+        // Quoted strings are not standard CSS (they are text literals)
+        if (selector.Length >= 2)
+        {
+            if ((selector.StartsWith("\"") && selector.EndsWith("\"")) ||
+                (selector.StartsWith("'") && selector.EndsWith("'")))
+            {
+                return false;
+            }
+        }
+
+        // If it contains typical CSS characters, it is standard CSS
+        if (selector.Contains('#') ||
+            selector.Contains('.') ||
+            selector.Contains('>') ||
+            selector.Contains(':') ||
+            selector.Contains('[') ||
+            selector.Contains(']') ||
+            selector.Contains('*'))
+        {
+            return true;
+        }
+
+        // It has no typical CSS characters.
+        // We check if all parts are known visual type names.
+        EnsureInitializedTypes();
+        var parts = selector.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return false;
+
+        foreach (var part in parts)
+        {
+            if (!s_knownVisualTypes.Contains(part))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string NormalizeSelector(string selector)
+    {
+        if (string.IsNullOrWhiteSpace(selector)) return selector;
+        selector = selector.Trim();
+
+        if (!IsStandardCss(selector))
+        {
+            // If it is quoted, strip the quotes first
+            if (selector.Length >= 2)
+            {
+                if ((selector.StartsWith("\"") && selector.EndsWith("\"")) ||
+                    (selector.StartsWith("'") && selector.EndsWith("'")))
+                {
+                    selector = selector.Substring(1, selector.Length - 2);
+                }
+            }
+            return $":contains(\"{selector}\")";
+        }
+
+        return selector;
+    }
+
+    private static bool VisualContainsText(Visual visual, string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+
+        // Try casting first for common types to be fast/non-allocating
+        if (visual is TextBlock textBlock)
+        {
+            return textBlock.Text != null && textBlock.Text.Contains(text, StringComparison.OrdinalIgnoreCase);
+        }
+        if (visual is TextBox textBox)
+        {
+            return textBox.Text != null && textBox.Text.Contains(text, StringComparison.OrdinalIgnoreCase);
+        }
+        if (visual is ContentControl contentControl)
+        {
+            if (contentControl.Content is string contentStr)
+            {
+                return contentStr.Contains(text, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        if (visual is HeaderedContentControl headeredContentControl)
+        {
+            if (headeredContentControl.Header is string headerStr)
+            {
+                return headerStr.Contains(text, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        if (visual is HeaderedItemsControl headeredItemsControl)
+        {
+            if (headeredItemsControl.Header is string headerStr)
+            {
+                return headerStr.Contains(text, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        if (visual is Avalonia.Controls.Presenters.ContentPresenter contentPresenter)
+        {
+            if (contentPresenter.Content is string contentStr)
+            {
+                return contentStr.Contains(text, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        // Reflection fallback for other properties (like custom controls, or properties like Text/Content/Header)
+        var properties = visual.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        foreach (var prop in properties)
+        {
+            if (prop.Name.Equals("Text", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var val = prop.GetValue(visual);
+                    if (val is string valStr && valStr.Contains(text, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                catch { }
+            }
+            else if (prop.Name.Equals("Content", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var val = prop.GetValue(visual);
+                    if (val is string valStr && valStr.Contains(text, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                catch { }
+            }
+            else if (prop.Name.Equals("Header", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var val = prop.GetValue(visual);
+                    if (val is string valStr && valStr.Contains(text, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        return false;
+    }
+
     public static Visual? QuerySelector(Visual root, string selector, bool useLogicalTree = false)
     {
         if (string.IsNullOrWhiteSpace(selector)) return null;
-        return QuerySelectorInternal(root, selector.Trim(), useLogicalTree);
+        var normalizedSelector = NormalizeSelector(selector);
+        return QuerySelectorInternal(root, normalizedSelector, useLogicalTree);
     }
 
     public static List<Visual> QuerySelectorAll(Visual root, string selector, bool useLogicalTree = false)
     {
         var results = new List<Visual>();
         if (string.IsNullOrWhiteSpace(selector)) return results;
-        QuerySelectorAllInternal(root, selector.Trim(), results, useLogicalTree);
+        var normalizedSelector = NormalizeSelector(selector);
+        QuerySelectorAllInternal(root, normalizedSelector, results, useLogicalTree);
         return results;
     }
 
     private static Visual? QuerySelectorInternal(Visual current, string selector, bool useLogicalTree)
     {
-        if (Matches(current, selector, useLogicalTree))
+        if (MatchesInternal(current, selector, useLogicalTree))
         {
             return current;
         }
@@ -43,7 +258,7 @@ public static class SelectorEngine
 
     private static void QuerySelectorAllInternal(Visual current, string selector, List<Visual> results, bool useLogicalTree)
     {
-        if (Matches(current, selector, useLogicalTree))
+        if (MatchesInternal(current, selector, useLogicalTree))
         {
             results.Add(current);
         }
@@ -58,8 +273,13 @@ public static class SelectorEngine
     public static bool Matches(Visual visual, string selector, bool useLogicalTree = false)
     {
         if (string.IsNullOrWhiteSpace(selector)) return false;
+        var normalizedSelector = NormalizeSelector(selector);
+        return MatchesInternal(visual, normalizedSelector, useLogicalTree);
+    }
 
-        var tokens = TokenizeSelector(selector);
+    private static bool MatchesInternal(Visual visual, string normalizedSelector, bool useLogicalTree)
+    {
+        var tokens = TokenizeSelector(normalizedSelector);
         if (tokens.Count == 0) return false;
 
         return MatchesTokens(visual, tokens, tokens.Count - 1, useLogicalTree);
@@ -69,11 +289,35 @@ public static class SelectorEngine
     {
         var tokens = new List<string>();
         var currentToken = "";
+        bool inDoubleQuotes = false;
+        bool inSingleQuotes = false;
+        int parenDepth = 0;
         
         for (int i = 0; i < selector.Length; i++)
         {
             char c = selector[i];
-            if (c == '>')
+
+            if (c == '"' && !inSingleQuotes)
+            {
+                inDoubleQuotes = !inDoubleQuotes;
+                currentToken += c;
+            }
+            else if (c == '\'' && !inDoubleQuotes)
+            {
+                inSingleQuotes = !inSingleQuotes;
+                currentToken += c;
+            }
+            else if (c == '(' && !inDoubleQuotes && !inSingleQuotes)
+            {
+                parenDepth++;
+                currentToken += c;
+            }
+            else if (c == ')' && !inDoubleQuotes && !inSingleQuotes)
+            {
+                if (parenDepth > 0) parenDepth--;
+                currentToken += c;
+            }
+            else if (c == '>' && !inDoubleQuotes && !inSingleQuotes && parenDepth == 0)
             {
                 if (!string.IsNullOrWhiteSpace(currentToken))
                 {
@@ -82,7 +326,7 @@ public static class SelectorEngine
                 }
                 tokens.Add(">");
             }
-            else if (char.IsWhiteSpace(c))
+            else if (char.IsWhiteSpace(c) && !inDoubleQuotes && !inSingleQuotes && parenDepth == 0)
             {
                 if (!string.IsNullOrWhiteSpace(currentToken))
                 {
@@ -165,81 +409,141 @@ public static class SelectorEngine
     {
         if (selector == "*") return true;
 
-        string type = "";
-        string? id = null;
-        var classes = new List<string>();
-
-        int i = 0;
-        // Parse type
-        while (i < selector.Length && selector[i] != '#' && selector[i] != '.')
+        var containsTexts = new List<string>();
+        while (true)
         {
-            type += selector[i];
-            i++;
+            int containsIndex = selector.IndexOf(":contains(", StringComparison.OrdinalIgnoreCase);
+            if (containsIndex < 0) break;
+
+            int start = containsIndex + ":contains(".Length;
+            int end = selector.IndexOf(')', start);
+            string containsText;
+            if (end >= 0)
+            {
+                containsText = selector.Substring(start, end - start);
+            }
+            else
+            {
+                containsText = selector.Substring(start);
+            }
+
+            // Clean quotes if present
+            if (containsText.StartsWith("\"") && containsText.EndsWith("\"") && containsText.Length >= 2)
+            {
+                containsText = containsText.Substring(1, containsText.Length - 2);
+            }
+            else if (containsText.StartsWith("'") && containsText.EndsWith("'") && containsText.Length >= 2)
+            {
+                containsText = containsText.Substring(1, containsText.Length - 2);
+            }
+
+            containsTexts.Add(containsText);
+
+            // Remove the :contains(...) part from the selector
+            string before = selector.Substring(0, containsIndex);
+            string after = (end >= 0 && end + 1 < selector.Length) ? selector.Substring(end + 1) : "";
+            selector = before + after;
         }
 
-        while (i < selector.Length)
+        if (string.IsNullOrWhiteSpace(selector))
         {
-            if (selector[i] == '#')
+            selector = "*";
+        }
+
+        bool baseMatch = true;
+        if (selector != "*")
+        {
+            string type = "";
+            string? id = null;
+            var classes = new List<string>();
+
+            int i = 0;
+            // Parse type
+            while (i < selector.Length && selector[i] != '#' && selector[i] != '.')
             {
+                type += selector[i];
                 i++;
-                string idVal = "";
-                while (i < selector.Length && selector[i] != '#' && selector[i] != '.')
+            }
+
+            while (i < selector.Length)
+            {
+                if (selector[i] == '#')
                 {
-                    idVal += selector[i];
+                    i++;
+                    string idVal = "";
+                    while (i < selector.Length && selector[i] != '#' && selector[i] != '.')
+                    {
+                        idVal += selector[i];
+                        i++;
+                    }
+                    id = idVal;
+                }
+                else if (selector[i] == '.')
+                {
+                    i++;
+                    string classVal = "";
+                    while (i < selector.Length && selector[i] != '#' && selector[i] != '.')
+                    {
+                        classVal += selector[i];
+                        i++;
+                    }
+                    classes.Add(classVal);
+                }
+                else
+                {
                     i++;
                 }
-                id = idVal;
             }
-            else if (selector[i] == '.')
+
+            // Match type
+            if (!string.IsNullOrEmpty(type))
             {
-                i++;
-                string classVal = "";
-                while (i < selector.Length && selector[i] != '#' && selector[i] != '.')
+                var visualType = visual.GetType();
+                bool typeMatches = visualType.Name.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+                                   (visualType.FullName != null && visualType.FullName.Equals(type, StringComparison.OrdinalIgnoreCase));
+                if (!typeMatches) baseMatch = false;
+            }
+
+            // Match ID (Control Name)
+            if (baseMatch && id != null)
+            {
+                if (visual is Control control)
                 {
-                    classVal += selector[i];
-                    i++;
+                    if (control.Name != id) baseMatch = false;
                 }
-                classes.Add(classVal);
-            }
-            else
-            {
-                i++;
-            }
-        }
-
-        // Match type
-        if (!string.IsNullOrEmpty(type))
-        {
-            var visualType = visual.GetType();
-            bool typeMatches = visualType.Name.Equals(type, StringComparison.OrdinalIgnoreCase) ||
-                               (visualType.FullName != null && visualType.FullName.Equals(type, StringComparison.OrdinalIgnoreCase));
-            if (!typeMatches) return false;
-        }
-
-        // Match ID (Control Name)
-        if (id != null)
-        {
-            if (visual is Control control)
-            {
-                if (control.Name != id) return false;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        // Match Classes
-        if (classes.Count > 0)
-        {
-            if (visual is Control control)
-            {
-                foreach (var cls in classes)
+                else
                 {
-                    if (!control.Classes.Contains(cls)) return false;
+                    baseMatch = false;
                 }
             }
-            else
+
+            // Match Classes
+            if (baseMatch && classes.Count > 0)
+            {
+                if (visual is Control control)
+                {
+                    foreach (var cls in classes)
+                    {
+                        if (!control.Classes.Contains(cls))
+                        {
+                            baseMatch = false;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    baseMatch = false;
+                }
+            }
+        }
+
+        if (!baseMatch) return false;
+
+        // Check containsText conditions
+        foreach (var containsText in containsTexts)
+        {
+            if (!VisualContainsText(visual, containsText))
             {
                 return false;
             }
