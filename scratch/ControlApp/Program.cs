@@ -584,6 +584,65 @@ description: ""Verify new commands execution""
 
             Console.WriteLine("Scenario 8 PASSED.");
 
+            // 12. Test Scenario 9: Playwright Code Generation & Parsing E2E
+            Console.WriteLine("Testing Scenario 9: Playwright code generation & parsing...");
+            mainVm.Recorder.SelectedFormat = RecordingFormat.PlaywrightTest;
+            mainVm.Recorder.ClearRecording();
+
+            // Simulate adding a step
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                mainVm.Recorder.LoadParsedSteps(new System.Collections.Generic.List<RecordedStepModel>
+                {
+                    new RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
+                    new RecordedStepModel { Type = "navigate", Url = "http://127.0.0.1:9236/" },
+                    new RecordedStepModel { Type = "click", Selector = "#btnTarget", Button = "left", ClickCount = 1 },
+                    new RecordedStepModel { Type = "change", Selector = "#txtTarget", Value = "E2E Playwright Text" },
+                    new RecordedStepModel { Type = "assertVisible", Selector = "#btnTarget" },
+                    new RecordedStepModel { Type = "assertNotVisible", Selector = "#nonexistent" }
+                });
+            });
+
+            string pwGeneratedCode = mainVm.Recorder.GeneratedCode;
+            Console.WriteLine($"Generated Playwright Code:\n{pwGeneratedCode}");
+
+            if (!pwGeneratedCode.Contains("import { test, expect, chromium } from '@playwright/test';") ||
+                !pwGeneratedCode.Contains("test.describe('CDP Recorded Tests', () => {") ||
+                !pwGeneratedCode.Contains("await test.step('Click on element #btnTarget', async () => {") ||
+                !pwGeneratedCode.Contains("await test.step('Assert element #btnTarget is visible', async () => {") ||
+                !pwGeneratedCode.Contains("await expect(page.locator('#btnTarget')).toBeVisible();") ||
+                !pwGeneratedCode.Contains("await expect(page.locator('#nonexistent')).toBeHidden();") ||
+                !pwGeneratedCode.Contains("chromium.connectOverCDP('http://127.0.0.1:9236')") ||
+                !pwGeneratedCode.Contains("page.locator('#btnTarget')") ||
+                !pwGeneratedCode.Contains("page.locator('#txtTarget')") ||
+                !pwGeneratedCode.Contains("fill('E2E Playwright Text')"))
+            {
+                throw new Exception("Generated Playwright code is missing some expected structures!");
+            }
+            Console.WriteLine("Playwright code generation verified.");
+
+            // Verify parsing back
+            var parsedStepsFromPlaywright = RecordingParser.Parse(pwGeneratedCode);
+            if (parsedStepsFromPlaywright.Count != 6)
+            {
+                throw new Exception($"Expected 6 parsed steps from Playwright script, got {parsedStepsFromPlaywright.Count}");
+            }
+
+            if (parsedStepsFromPlaywright[0].Type != "setViewport" ||
+                parsedStepsFromPlaywright[1].Type != "navigate" ||
+                parsedStepsFromPlaywright[2].Type != "click" || parsedStepsFromPlaywright[2].Selector != "#btnTarget" ||
+                parsedStepsFromPlaywright[3].Type != "change" || parsedStepsFromPlaywright[3].Selector != "#txtTarget" || parsedStepsFromPlaywright[3].Value != "E2E Playwright Text" ||
+                parsedStepsFromPlaywright[4].Type != "assertVisible" || parsedStepsFromPlaywright[4].Selector != "#btnTarget" ||
+                parsedStepsFromPlaywright[5].Type != "assertNotVisible" || parsedStepsFromPlaywright[5].Selector != "#nonexistent")
+            {
+                throw new Exception("Parsed steps from Playwright script do not match expected actions/properties.");
+            }
+            Console.WriteLine("Playwright code parsing verified.");
+
+            // Reset back to Puppeteer default
+            mainVm.Recorder.SelectedFormat = RecordingFormat.Puppeteer;
+            Console.WriteLine("Scenario 9 PASSED.");
+
             // Clean up
             if (mainVm.Recorder.IsRecording)
             {
