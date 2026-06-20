@@ -131,25 +131,35 @@ public partial class RecorderView : UserControl
         {
             var topLevel = TopLevel.GetTopLevel(this);
             if (topLevel == null) return;
+            if (DataContext is not MainWindowViewModel vm) return;
+
+            string title = "Save Puppeteer Script";
+            string extension = "js";
+            string suggestedName = "recording.js";
+
+            if (vm.Recorder.SelectedFormat == RecordingFormat.PlaywrightTest)
+            {
+                title = "Save Playwright Script";
+                extension = "spec.js";
+                suggestedName = "recording.spec.js";
+            }
+
             var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "Save Puppeteer Script",
-                DefaultExtension = "js",
-                SuggestedFileName = "recording.js"
+                Title = title,
+                DefaultExtension = extension,
+                SuggestedFileName = suggestedName
             });
             if (file != null)
             {
-                if (DataContext is MainWindowViewModel vm)
-                {
-                    await using var stream = await file.OpenWriteAsync();
-                    await using var writer = new StreamWriter(stream);
-                    await writer.WriteAsync(vm.Recorder.GeneratedCode);
-                }
+                await using var stream = await file.OpenWriteAsync();
+                await using var writer = new StreamWriter(stream);
+                await writer.WriteAsync(vm.Recorder.GeneratedCode);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error exporting Puppeteer script: {ex.Message}");
+            Console.WriteLine($"Error exporting script: {ex.Message}");
         }
     }
 
