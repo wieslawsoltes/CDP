@@ -158,10 +158,15 @@ public partial class SimulationView : UserControl
             int modifiers = 0;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)) modifiers |= 1;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) modifiers |= 2;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 4;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 8;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 4;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 8;
 
-            _ = mainVm.Simulation.SendMouseEventAsync(type, targetX, targetY, button, modifiers);
+            int buttons = 0;
+            if (pointerPoint.Properties.IsLeftButtonPressed) buttons |= 1;
+            if (pointerPoint.Properties.IsRightButtonPressed) buttons |= 2;
+            if (pointerPoint.Properties.IsMiddleButtonPressed) buttons |= 4;
+
+            _ = mainVm.Simulation.SendMouseEventAsync(type, targetX, targetY, button, modifiers, buttons);
         }
     }
 
@@ -172,8 +177,8 @@ public partial class SimulationView : UserControl
             int modifiers = 0;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)) modifiers |= 1;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) modifiers |= 2;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 4;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 8;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 4;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 8;
 
             string keyStr = MapKey(e.Key);
             _ = mainVm.Simulation.SendKeyboardEventAsync("rawKeyDown", keyStr, modifiers);
@@ -192,8 +197,8 @@ public partial class SimulationView : UserControl
             int modifiers = 0;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)) modifiers |= 1;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) modifiers |= 2;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 4;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 8;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 4;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 8;
 
             string keyStr = MapKey(e.Key);
             _ = mainVm.Simulation.SendKeyboardEventAsync("keyUp", keyStr, modifiers);

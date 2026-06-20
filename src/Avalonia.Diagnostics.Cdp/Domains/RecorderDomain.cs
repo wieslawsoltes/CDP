@@ -138,8 +138,8 @@ internal class SessionRecorderState
             int modifiers = 0;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)) modifiers |= 1;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) modifiers |= 2;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 4;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 8;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 4;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 8;
 
             var step = new JsonObject
             {
@@ -223,8 +223,8 @@ internal class SessionRecorderState
         int modifiers = 0;
         if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)) modifiers |= 1;
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) modifiers |= 2;
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 4;
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 8;
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Meta)) modifiers |= 4;
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) modifiers |= 8;
 
         if (_isDragging)
         {

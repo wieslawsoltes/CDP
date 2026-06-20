@@ -143,8 +143,9 @@ public static class InputDomain
                     double deltaX = GetDoubleOrDefault(@params["deltaX"], 0);
                     double deltaY = GetDoubleOrDefault(@params["deltaY"], 0);
                     int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
+                    int buttons = @params["buttons"]?.GetValue<int>() ?? 0;
 
-                    await DispatchMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw);
+                    await DispatchMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, buttons);
                     return new JsonObject();
                 }
 
@@ -260,7 +261,8 @@ public static class InputDomain
         string button,
         double deltaX,
         double deltaY,
-        int modifiersRaw)
+        int modifiersRaw,
+        int buttons = 0)
     {
         if (session.TouchEmulationEnabled)
         {
@@ -282,8 +284,8 @@ public static class InputDomain
             var modifiers = RawInputModifiers.None;
             if ((modifiersRaw & 1) != 0) modifiers |= RawInputModifiers.Alt;
             if ((modifiersRaw & 2) != 0) modifiers |= RawInputModifiers.Control;
-            if ((modifiersRaw & 4) != 0) modifiers |= RawInputModifiers.Shift;
-            if ((modifiersRaw & 8) != 0) modifiers |= RawInputModifiers.Meta;
+            if ((modifiersRaw & 4) != 0) modifiers |= RawInputModifiers.Meta;
+            if ((modifiersRaw & 8) != 0) modifiers |= RawInputModifiers.Shift;
 
             if (type == "mouseWheel")
             {
@@ -322,9 +324,9 @@ public static class InputDomain
                 };
             }
 
-            if (eventType == RawPointerEventType.LeftButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "left")) modifiers |= RawInputModifiers.LeftMouseButton;
-            if (eventType == RawPointerEventType.RightButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "right")) modifiers |= RawInputModifiers.RightMouseButton;
-            if (eventType == RawPointerEventType.MiddleButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "middle")) modifiers |= RawInputModifiers.MiddleMouseButton;
+            if ((buttons & 1) != 0 || eventType == RawPointerEventType.LeftButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "left")) modifiers |= RawInputModifiers.LeftMouseButton;
+            if ((buttons & 2) != 0 || eventType == RawPointerEventType.RightButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "right")) modifiers |= RawInputModifiers.RightMouseButton;
+            if ((buttons & 4) != 0 || eventType == RawPointerEventType.MiddleButtonDown || (type == "mouseMoved" && button.ToLowerInvariant() == "middle")) modifiers |= RawInputModifiers.MiddleMouseButton;
 
             var args = (RawPointerEventArgs)Activator.CreateInstance(
                 typeof(RawPointerEventArgs),
@@ -364,8 +366,8 @@ public static class InputDomain
             var modifiers = RawInputModifiers.None;
             if ((modifiersRaw & 1) != 0) modifiers |= RawInputModifiers.Alt;
             if ((modifiersRaw & 2) != 0) modifiers |= RawInputModifiers.Control;
-            if ((modifiersRaw & 4) != 0) modifiers |= RawInputModifiers.Shift;
-            if ((modifiersRaw & 8) != 0) modifiers |= RawInputModifiers.Meta;
+            if ((modifiersRaw & 4) != 0) modifiers |= RawInputModifiers.Meta;
+            if ((modifiersRaw & 8) != 0) modifiers |= RawInputModifiers.Shift;
 
             if (type == "mouseMoved" && (button == "none" || string.IsNullOrEmpty(button)))
             {
@@ -564,8 +566,8 @@ public static class InputDomain
             for (int i = 1; i < steps; i++)
             {
                 double progress = (double)i / steps;
-                double px = x - (xDistance * progress);
-                double py = y - (yDistance * progress);
+                double px = x + (xDistance * progress);
+                double py = y + (yDistance * progress);
 
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
@@ -608,7 +610,7 @@ public static class InputDomain
                     timestamp,
                     inputRoot,
                     RawPointerEventType.TouchEnd,
-                    new Point(x - xDistance, y - yDistance),
+                    new Point(x + xDistance, y + yDistance),
                     RawInputModifiers.None,
                     1
                 );
@@ -817,8 +819,8 @@ public static class InputDomain
             var modifiers = RawInputModifiers.None;
             if ((modifiersRaw & 1) != 0) modifiers |= RawInputModifiers.Alt;
             if ((modifiersRaw & 2) != 0) modifiers |= RawInputModifiers.Control;
-            if ((modifiersRaw & 4) != 0) modifiers |= RawInputModifiers.Shift;
-            if ((modifiersRaw & 8) != 0) modifiers |= RawInputModifiers.Meta;
+            if ((modifiersRaw & 4) != 0) modifiers |= RawInputModifiers.Meta;
+            if ((modifiersRaw & 8) != 0) modifiers |= RawInputModifiers.Shift;
 
             var key = MapCdpKey(keyStr, codeStr);
 

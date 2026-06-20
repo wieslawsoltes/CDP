@@ -337,8 +337,8 @@ public class SimulationViewModel : ViewModelBase
         int modifiers = 0;
         if (IsAltActive) modifiers |= 1;
         if (IsCtrlActive) modifiers |= 2;
-        if (IsShiftActive) modifiers |= 4;
-        if (IsMetaActive) modifiers |= 8;
+        if (IsMetaActive) modifiers |= 4;
+        if (IsShiftActive) modifiers |= 8;
         return modifiers;
     }
 
@@ -508,10 +508,7 @@ public class SimulationViewModel : ViewModelBase
         try
         {
             await _cdpService.SendCommandAsync("Emulation.clearDeviceMetricsOverride", new JsonObject());
-            await _cdpService.SendCommandAsync("Emulation.setTouchEmulationEnabled", new JsonObject
-            {
-                ["enabled"] = false
-            });
+            IsMobileActive = false;
         }
         catch (Exception ex)
         {
@@ -700,10 +697,16 @@ public class SimulationViewModel : ViewModelBase
                 ["type"] = "mouseMoved",
                 ["x"] = x,
                 ["y"] = y,
-                ["button"] = "none"
+                ["button"] = "none",
+                ["buttons"] = 0
             });
             await Task.Delay(50);
             
+            int buttons = 0;
+            if (button == "left") buttons = 1;
+            else if (button == "right") buttons = 2;
+            else if (button == "middle") buttons = 4;
+
             // Press button
             await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
             {
@@ -712,7 +715,8 @@ public class SimulationViewModel : ViewModelBase
                 ["y"] = y,
                 ["button"] = button,
                 ["clickCount"] = 1,
-                ["modifiers"] = modifiers
+                ["modifiers"] = modifiers,
+                ["buttons"] = buttons
             });
             await Task.Delay(50);
 
@@ -728,7 +732,8 @@ public class SimulationViewModel : ViewModelBase
                 ["x"] = endX,
                 ["y"] = endY,
                 ["button"] = button,
-                ["modifiers"] = dragModifiers
+                ["modifiers"] = dragModifiers,
+                ["buttons"] = buttons
             });
             await Task.Delay(50);
 
@@ -740,7 +745,8 @@ public class SimulationViewModel : ViewModelBase
                 ["y"] = endY,
                 ["button"] = button,
                 ["clickCount"] = 1,
-                ["modifiers"] = modifiers
+                ["modifiers"] = modifiers,
+                ["buttons"] = 0
             });
         }
         catch (Exception ex)
@@ -848,7 +854,7 @@ public class SimulationViewModel : ViewModelBase
         }
     }
 
-    public async Task SendMouseEventAsync(string type, double x, double y, string button, int modifiers)
+    public async Task SendMouseEventAsync(string type, double x, double y, string button, int modifiers, int buttons = 0)
     {
         if (!_cdpService.IsConnected) return;
 
@@ -867,7 +873,8 @@ public class SimulationViewModel : ViewModelBase
                 ["y"] = y,
                 ["button"] = button,
                 ["clickCount"] = clickCount,
-                ["modifiers"] = modifiers
+                ["modifiers"] = modifiers,
+                ["buttons"] = buttons
             });
         }
         catch (Exception ex)
