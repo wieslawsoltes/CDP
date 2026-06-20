@@ -14,6 +14,7 @@ using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.ViewModels;
+using CdpInspectorApp.Services;
 using System.Collections.Generic;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -447,8 +448,8 @@ public class CdpChromeFeatureTests
         Assert.Equal("#btnSave", pwSteps[2].Selector);
         Assert.Equal("right", pwSteps[2].Button);
         Assert.Equal(3, pwSteps[2].ClickCount);
-        // Modifiers: Shift=4, Control=2 -> 4 + 2 = 6
-        Assert.Equal(6, pwSteps[2].Modifiers);
+        // Modifiers: Control=2, Shift=8 -> 2 + 8 = 10
+        Assert.Equal(10, pwSteps[2].Modifiers);
 
         Assert.Equal("change", pwSteps[3].Type);
         Assert.Equal("#txtBio", pwSteps[3].Selector);
@@ -472,7 +473,7 @@ public class CdpChromeFeatureTests
         {
             new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1400, Height = 1050 },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/profile" },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnSave", Button = "right", ClickCount = 3, Modifiers = 6 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnSave", Button = "right", ClickCount = 3, Modifiers = 10 },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtBio", Value = "Testing Playwright Support!" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "dragAndDrop", Selector = "#item1", TargetSelector = "#item2" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Escape" },
@@ -562,6 +563,118 @@ public class CdpChromeFeatureTests
         Assert.Contains(@"await test.step('Type text in element :contains(\'Cancel\')', async () => {", generated);
         Assert.Contains(@"page.locator(':contains(\'Cancel\')')", generated);
         Assert.Contains(@"fill('I said ""yes"" and backslash \\ test')", generated);
+    }
+
+    [Fact]
+    public void TestSeleniumCSharpCodeGeneration()
+    {
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/foo" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnRight", Button = "right" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnMiddle", Button = "middle" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnDouble", ClickCount = 2 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnTriple", ClickCount = 3 }
+        };
+
+        var generator = new SeleniumCSharpGenerator();
+        string generated = generator.Generate(steps, "localhost:9222");
+
+        Assert.Contains("using OpenQA.Selenium;", generated);
+        Assert.Contains("using OpenQA.Selenium.Chrome;", generated);
+        Assert.Contains("options.DebuggerAddress = \"localhost:9222\";", generated);
+        Assert.Contains("_driver.Manage().Window.Size = new Size(1024, 768);", generated);
+        Assert.Contains("_driver.Navigate().GoToUrl(\"http://localhost:9222/foo\");", generated);
+        Assert.Contains("_driver.FindElement(By.CssSelector(\"#btnClick\")).Click();", generated);
+        Assert.Contains("var element_3 = _driver.FindElement(By.CssSelector(\"#txtInput\"));", generated);
+        Assert.Contains("element_3.SendKeys(\"hello \\\"world\\\" \\\\ test\");", generated);
+        Assert.Contains("Assert.IsTrue(_driver.FindElement(By.CssSelector(\"#btnClick\")).Displayed);", generated);
+        Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
+        Assert.Contains("_actions.ContextClick(_driver.FindElement(By.CssSelector(\"#btnRight\"))).Perform();", generated);
+        Assert.Contains("((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent('click', {button: 1}));\", _driver.FindElement(By.CssSelector(\"#btnMiddle\")));", generated);
+        Assert.Contains("_actions.DoubleClick(_driver.FindElement(By.CssSelector(\"#btnDouble\"))).Perform();", generated);
+        Assert.Contains("var element_9 = _driver.FindElement(By.CssSelector(\"#btnTriple\"));", generated);
+        Assert.Contains("for (int c_9 = 0; c_9 < 3; c_9++)", generated);
+    }
+
+    [Fact]
+    public void TestAppiumCSharpCodeGeneration()
+    {
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/foo" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnRight", Button = "right" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnMiddle", Button = "middle" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnDouble", ClickCount = 2 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnTriple", ClickCount = 3 }
+        };
+
+        var generator = new AppiumCSharpGenerator();
+        string generated = generator.Generate(steps, "localhost:9222");
+
+        Assert.Contains("using OpenQA.Selenium.Appium;", generated);
+        Assert.Contains("using OpenQA.Selenium.Appium.Windows;", generated);
+        Assert.Contains("options.AddAdditionalCapability(\"platformName\", \"Windows\");", generated);
+        Assert.Contains("_driver.Manage().Window.Size = new Size(1024, 768);", generated);
+        Assert.Contains("_driver.Navigate().GoToUrl(\"http://localhost:9222/foo\");", generated);
+        Assert.Contains("_driver.FindElementByAccessibilityId(\"btnClick\").Click();", generated);
+        Assert.Contains("var element_3 = _driver.FindElementByAccessibilityId(\"txtInput\");", generated);
+        Assert.Contains("element_3.SendKeys(\"hello \\\"world\\\" \\\\ test\");", generated);
+        Assert.Contains("Assert.IsTrue(_driver.FindElementByAccessibilityId(\"btnClick\").Displayed);", generated);
+        Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
+        Assert.Contains("new Actions(_driver).ContextClick(_driver.FindElementByAccessibilityId(\"btnRight\")).Perform();", generated);
+        Assert.Contains("new Actions(_driver).Click(_driver.FindElementByAccessibilityId(\"btnMiddle\")).Perform();", generated);
+        Assert.Contains("new Actions(_driver).DoubleClick(_driver.FindElementByAccessibilityId(\"btnDouble\")).Perform();", generated);
+        Assert.Contains("var element_9 = _driver.FindElementByAccessibilityId(\"btnTriple\");", generated);
+        Assert.Contains("for (int c_9 = 0; c_9 < 3; c_9++)", generated);
+    }
+
+    [Fact]
+    public void TestAvaloniaHeadlessXUnitCodeGeneration()
+    {
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/foo" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick", Button = "right", ClickCount = 3, Modifiers = 10 }, // Control=2, Shift=8
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Enter", Modifiers = 2 }, // Control=2
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "dragAndDrop", Selector = "#src", TargetSelector = "#dst" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" }
+        };
+
+        var generator = new AvaloniaHeadlessXUnitGenerator();
+        string generated = generator.Generate(steps, "localhost:9222");
+
+        Assert.Contains("using Avalonia.Headless.XUnit;", generated);
+        Assert.Contains("using Avalonia.Diagnostics.Cdp;", generated);
+        Assert.Contains("window.Width = 1024;", generated);
+        Assert.Contains("window.Height = 768;", generated);
+        Assert.Contains("mainWin.Navigate(\"http://localhost:9222/foo\");", generated);
+        Assert.Contains("var element_2 = SelectorEngine.QuerySelector(window, \"#btnClick\") as Control;", generated);
+        Assert.Contains("ClickControl(window, element_2, MouseButton.Right, RawInputModifiers.Control | RawInputModifiers.Shift);", generated);
+        Assert.Contains("for (int c_2 = 0; c_2 < 3; c_2++)", generated);
+        Assert.Contains("var element_3 = SelectorEngine.QuerySelector(window, \"#txtInput\") as Control;", generated);
+        Assert.Contains("element_3.Focus();", generated);
+        Assert.Contains("window.KeyTextInput(\"hello \\\"world\\\" \\\\ test\");", generated);
+        Assert.Contains("window.KeyPress(Key.Enter, RawInputModifiers.Control);", generated);
+        Assert.Contains("window.KeyRelease(Key.Enter, RawInputModifiers.Control);", generated);
+        Assert.Contains("var source_5 = SelectorEngine.QuerySelector(window, \"#src\") as Control;", generated);
+        Assert.Contains("var target_5 = SelectorEngine.QuerySelector(window, \"#dst\") as Control;", generated);
+        Assert.Contains("DragAndDrop(window, source_5, target_5);", generated);
+        Assert.Contains("Assert.True(element_6.IsVisible);", generated);
+        Assert.Contains("Assert.True(element_7 == null || !element_7.IsVisible);", generated);
     }
 
     [AvaloniaFact]
@@ -789,7 +902,7 @@ public class CdpChromeFeatureTests
 
         lock (fakeWs.SentMessages)
         {
-            Assert.Empty(fakeWs.SentMessages.Where(m => m.Contains("Page.screencastFrame")));
+            Assert.DoesNotContain(fakeWs.SentMessages, m => m.Contains("Page.screencastFrame"));
         }
 
         var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());

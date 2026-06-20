@@ -144,8 +144,8 @@ public static class RecordingParser
                     string modKey = GetStringGroup(kdMatch, 1).ToLowerInvariant();
                     if (modKey == "alt") currentModifiers |= 1;
                     else if (modKey == "control") currentModifiers |= 2;
-                    else if (modKey == "shift") currentModifiers |= 4;
-                    else if (modKey == "meta") currentModifiers |= 8;
+                    else if (modKey == "meta") currentModifiers |= 4;
+                    else if (modKey == "shift") currentModifiers |= 8;
                     continue;
                 }
 
@@ -155,8 +155,8 @@ public static class RecordingParser
                     string modKey = GetStringGroup(kuMatch, 1).ToLowerInvariant();
                     if (modKey == "alt") currentModifiers &= ~1;
                     else if (modKey == "control") currentModifiers &= ~2;
-                    else if (modKey == "shift") currentModifiers &= ~4;
-                    else if (modKey == "meta") currentModifiers &= ~8;
+                    else if (modKey == "meta") currentModifiers &= ~4;
+                    else if (modKey == "shift") currentModifiers &= ~8;
                     continue;
                 }
 
@@ -312,8 +312,8 @@ public static class RecordingParser
                         string modsContent = modifiersMatch.Groups[1].Value;
                         if (modsContent.Contains("Alt", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 1;
                         if (modsContent.Contains("Control", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 2;
-                        if (modsContent.Contains("Shift", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 4;
-                        if (modsContent.Contains("Meta", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 8;
+                        if (modsContent.Contains("Meta", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 4;
+                        if (modsContent.Contains("Shift", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 8;
                     }
 
                     if (varToSelector.TryGetValue(varName, out string? selector))

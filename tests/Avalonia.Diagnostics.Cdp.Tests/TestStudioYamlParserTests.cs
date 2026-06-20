@@ -128,17 +128,23 @@ description: ""Verify login and dashboard interaction""
             // Since order of keys in dictionary generated string might vary or format is parsed back, let's assert key equality
             if (steps[i].Action == "scroll" || steps[i].Action == "scrollUntilVisible")
             {
+                var val1 = steps[i].Value ?? "";
+                var val2 = stepsSecond[i].Value ?? "";
                 var dict1 = new Dictionary<string, string>();
-                foreach (var p in steps[i].Value.Split(','))
+                foreach (var p in val1.Split(','))
                 {
+                    if (string.IsNullOrEmpty(p)) continue;
                     var kv = p.Split(':');
-                    dict1[kv[0].Trim()] = kv[1].Trim();
+                    if (kv.Length == 2)
+                        dict1[kv[0].Trim()] = kv[1].Trim();
                 }
                 var dict2 = new Dictionary<string, string>();
-                foreach (var p in stepsSecond[i].Value.Split(','))
+                foreach (var p in val2.Split(','))
                 {
+                    if (string.IsNullOrEmpty(p)) continue;
                     var kv = p.Split(':');
-                    dict2[kv[0].Trim()] = kv[1].Trim();
+                    if (kv.Length == 2)
+                        dict2[kv[0].Trim()] = kv[1].Trim();
                 }
                 Assert.Equal(dict1.Count, dict2.Count);
                 foreach (var kv in dict1)

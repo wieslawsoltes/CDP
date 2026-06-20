@@ -143,6 +143,24 @@ public partial class RecorderView : UserControl
                 extension = "spec.js";
                 suggestedName = "recording.spec.js";
             }
+            else if (vm.Recorder.SelectedFormat == RecordingFormat.SeleniumCSharp)
+            {
+                title = "Save Selenium C# Script";
+                extension = "cs";
+                suggestedName = "SeleniumTests.cs";
+            }
+            else if (vm.Recorder.SelectedFormat == RecordingFormat.AppiumCSharp)
+            {
+                title = "Save Appium C# Script";
+                extension = "cs";
+                suggestedName = "AppiumTests.cs";
+            }
+            else if (vm.Recorder.SelectedFormat == RecordingFormat.AvaloniaHeadlessXUnit)
+            {
+                title = "Save Avalonia Headless Test";
+                extension = "cs";
+                suggestedName = "HeadlessTests.cs";
+            }
 
             var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
