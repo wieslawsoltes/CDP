@@ -13,6 +13,8 @@ using Xunit;
 using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Threading;
+using CdpInspectorApp.ViewModels;
+using System.Collections.Generic;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -386,6 +388,114 @@ public class CdpChromeFeatureTests
 
         Assert.Equal("keydown", jsSteps[5].Type);
         Assert.Equal("Tab", jsSteps[5].Key);
+    }
+
+    [Fact]
+    public void TestPlaywrightScriptGenerationAndParsing()
+    {
+        // 1. Playwright JS parse test
+        string pwContent = @"
+        import { test, expect, chromium } from '@playwright/test';
+
+        test.describe('CDP Recorded Tests', () => {
+          test('recorded test', async () => {
+            const browser = await chromium.connectOverCDP('http://localhost:9222');
+            const context = browser.contexts()[0];
+            const page = context.pages()[0];
+
+            await test.step('Set viewport size', async () => {
+              await page.setViewportSize({ width: 1400, height: 1050 });
+            });
+            await test.step('Navigate to profile', async () => {
+              await page.goto('http://localhost:9222/profile');
+            });
+            await test.step('Click on #btnSave', async () => {
+              const element_0 = page.locator('#btnSave');
+              await element_0.click({ button: 'right', clickCount: 3, modifiers: ['Shift', 'Control'] });
+            });
+            await test.step('Type text', async () => {
+              const element_1 = page.locator('#txtBio');
+              await element_1.fill('Testing Playwright Support!');
+            });
+            await test.step('Drag and drop', async () => {
+              const dragSrc = page.locator('#item1');
+              const dragTgt = page.locator('#item2');
+              await dragSrc.dragTo(dragTgt);
+            });
+            await test.step('Press Escape', async () => {
+              await page.keyboard.press('Escape');
+            });
+            await test.step('Verify visibility', async () => {
+              await expect(page.locator('#btnSave')).toBeVisible();
+              await expect(page.locator('#btnCancel')).toBeHidden();
+            });
+            await browser.close();
+          });
+        });";
+
+        var pwSteps = RecordingParser.Parse(pwContent);
+        Assert.Equal(8, pwSteps.Count);
+
+        Assert.Equal("setViewport", pwSteps[0].Type);
+        Assert.Equal(1400, pwSteps[0].Width);
+        Assert.Equal(1050, pwSteps[0].Height);
+
+        Assert.Equal("navigate", pwSteps[1].Type);
+        Assert.Equal("http://localhost:9222/profile", pwSteps[1].Url);
+
+        Assert.Equal("click", pwSteps[2].Type);
+        Assert.Equal("#btnSave", pwSteps[2].Selector);
+        Assert.Equal("right", pwSteps[2].Button);
+        Assert.Equal(3, pwSteps[2].ClickCount);
+        // Modifiers: Shift=4, Control=2 -> 4 + 2 = 6
+        Assert.Equal(6, pwSteps[2].Modifiers);
+
+        Assert.Equal("change", pwSteps[3].Type);
+        Assert.Equal("#txtBio", pwSteps[3].Selector);
+        Assert.Equal("Testing Playwright Support!", pwSteps[3].Value);
+
+        Assert.Equal("dragAndDrop", pwSteps[4].Type);
+        Assert.Equal("#item1", pwSteps[4].Selector);
+        Assert.Equal("#item2", pwSteps[4].TargetSelector);
+
+        Assert.Equal("keydown", pwSteps[5].Type);
+        Assert.Equal("Escape", pwSteps[5].Key);
+
+        Assert.Equal("assertVisible", pwSteps[6].Type);
+        Assert.Equal("#btnSave", pwSteps[6].Selector);
+
+        Assert.Equal("assertNotVisible", pwSteps[7].Type);
+        Assert.Equal("#btnCancel", pwSteps[7].Selector);
+
+        // 2. Generation test
+        var stepsList = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1400, Height = 1050 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/profile" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnSave", Button = "right", ClickCount = 3, Modifiers = 6 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtBio", Value = "Testing Playwright Support!" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "dragAndDrop", Selector = "#item1", TargetSelector = "#item2" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Escape" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnSave" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#btnCancel" }
+        };
+
+        var vm = new RecorderViewModel(new AccessibilitySearchTests.MockCdpService(), () => "localhost:9222");
+        vm.SelectedFormat = RecordingFormat.PlaywrightTest;
+        vm.LoadParsedSteps(stepsList);
+
+        string generated = vm.GeneratedCode;
+        Assert.Contains("import { test, expect, chromium } from '@playwright/test';", generated);
+        Assert.Contains("test.describe('CDP Recorded Tests', () => {", generated);
+        Assert.Contains("await test.step('Click on element #btnSave', async () => {", generated);
+        Assert.Contains("await test.step('Assert element #btnSave is visible', async () => {", generated);
+        Assert.Contains("await expect(page.locator('#btnSave')).toBeVisible();", generated);
+        Assert.Contains("await expect(page.locator('#btnCancel')).toBeHidden();", generated);
+        Assert.Contains("chromium.connectOverCDP('http://localhost:9222')", generated);
+        Assert.Contains("page.locator('#btnSave')", generated);
+        Assert.Contains("button: 'right'", generated);
+        Assert.Contains("clickCount: 3", generated);
+        Assert.Contains("modifiers: ['Control', 'Shift']", generated);
     }
 
     [AvaloniaFact]

@@ -12,7 +12,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public class AccessibilitySearchTests
 {
-    private class MockCdpService : ICdpService
+    public class MockCdpService : ICdpService
     {
         public bool IsConnected { get; set; } = true;
         public string ConnectionStatus => "";
