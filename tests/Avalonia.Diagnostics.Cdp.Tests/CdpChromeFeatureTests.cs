@@ -621,6 +621,44 @@ public class CdpChromeFeatureTests
         Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
     }
 
+    [Fact]
+    public void TestAvaloniaHeadlessXUnitCodeGeneration()
+    {
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/foo" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick", Button = "right", ClickCount = 3, Modifiers = 6 }, // Control=2, Shift=4
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Enter", Modifiers = 2 }, // Control=2
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "dragAndDrop", Selector = "#src", TargetSelector = "#dst" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" }
+        };
+
+        var generator = new AvaloniaHeadlessXUnitGenerator();
+        string generated = generator.Generate(steps, "localhost:9222");
+
+        Assert.Contains("using Avalonia.Headless.XUnit;", generated);
+        Assert.Contains("using Avalonia.Diagnostics.Cdp;", generated);
+        Assert.Contains("window.Width = 1024;", generated);
+        Assert.Contains("window.Height = 768;", generated);
+        Assert.Contains("mainWin.Navigate(\"http://localhost:9222/foo\");", generated);
+        Assert.Contains("var element_2 = SelectorEngine.QuerySelector(window, \"#btnClick\") as Control;", generated);
+        Assert.Contains("ClickControl(window, element_2, MouseButton.Right, RawInputModifiers.Control | RawInputModifiers.Shift);", generated);
+        Assert.Contains("for (int c_2 = 0; c_2 < 3; c_2++)", generated);
+        Assert.Contains("var element_3 = SelectorEngine.QuerySelector(window, \"#txtInput\") as Control;", generated);
+        Assert.Contains("element_3.Focus();", generated);
+        Assert.Contains("window.KeyTextInput(\"hello \\\"world\\\" \\\\ test\");", generated);
+        Assert.Contains("window.KeyPress(Key.Enter, RawInputModifiers.Control);", generated);
+        Assert.Contains("window.KeyRelease(Key.Enter, RawInputModifiers.Control);", generated);
+        Assert.Contains("var source_5 = SelectorEngine.QuerySelector(window, \"#src\") as Control;", generated);
+        Assert.Contains("var target_5 = SelectorEngine.QuerySelector(window, \"#dst\") as Control;", generated);
+        Assert.Contains("DragAndDrop(window, source_5, target_5);", generated);
+        Assert.Contains("Assert.True(element_6.IsVisible);", generated);
+        Assert.Contains("Assert.True(element_7 == null || !element_7.IsVisible);", generated);
+    }
+
     [AvaloniaFact]
     public void TestRecorderDragAndDropTargetResolution()
     {
