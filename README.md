@@ -143,6 +143,28 @@ When running, press **F12** inside the window to open the in-process DevTools cl
 
 ---
 
+## Test Studio & Headless Test Runner
+
+The project features a **Test Studio** panel inside the inspector app, which provides a visual, interactive test suite workspace using a Maestro-compatible YAML syntax.
+
+### Key Capabilities
+- **Command Toolbox**: A category-tabbed toolbox grouping actions into *Interactions* (taps, inputs, swipes, scrolls), *Assertions* (visibility and logical checks), *App & Device* (app lifecycle, orientations, geolocations, screenshots), and *Logic* (loops, retries, nested flows).
+- **Interactive Execution & Debugging**: Step-by-step test execution (Play, Pause, Step Over, Stop) with real-time status updates (Pending, Running, Passed, Failed).
+- **Smart Waiting**: If a target element is not found immediately during playback, the execution engine automatically retries element queries every 200ms for up to 5 seconds before failing.
+- **YAML Synchronization**: A live, two-way code editor with line numbers and full TextMate-powered syntax highlighting.
+- **Selector Autocomplete**: An application-wide Autocomplete service that gathers all tag names, classes, and IDs from the live DOM tree, automatically suggesting them as you type element selectors.
+
+### Headless CI/CD Execution
+The core adapter (`HeadlessTestAdapter`) allows programmatically executing Test Studio YAML scripts on arbitrary Avalonia windows headlessly during unit or integration testing:
+
+```csharp
+var adapter = new HeadlessTestAdapter();
+// Runs a YAML test script on a target window instance
+await adapter.RunTestAsync(myWindow, myYamlContent, isYamlContent: true);
+```
+
+---
+
 ## AI Coding Agents Integration Points
 
 This library provides ideal entry points for AI agents (e.g. Playwright-based web agents) to navigate, inspect, and interact with the desktop application:
