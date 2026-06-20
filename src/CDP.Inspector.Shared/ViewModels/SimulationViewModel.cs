@@ -25,6 +25,8 @@ public class SimulationViewModel : ViewModelBase
     private string _scaleFactorText = "1.0";
     private bool _isMobileActive;
     private Bitmap? _screenshotImage;
+    private double _deviceWidth = 800;
+    private double _deviceHeight = 600;
 
     private readonly System.Collections.ObjectModel.ObservableCollection<DevicePreset> _devicePresets = new()
     {
@@ -119,13 +121,47 @@ public class SimulationViewModel : ViewModelBase
     public bool IsMobileActive
     {
         get => _isMobileActive;
-        set => RaiseAndSetIfChanged(ref _isMobileActive, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isMobileActive, value))
+            {
+                _ = UpdateTouchEmulationAsync(value);
+            }
+        }
+    }
+
+    private async Task UpdateTouchEmulationAsync(bool enabled)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Emulation.setTouchEmulationEnabled", new JsonObject
+            {
+                ["enabled"] = enabled
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to set touch emulation: {ex.Message}");
+        }
     }
 
     public Bitmap? ScreenshotImage
     {
         get => _screenshotImage;
         private set => RaiseAndSetIfChanged(ref _screenshotImage, value);
+    }
+
+    public double DeviceWidth
+    {
+        get => _deviceWidth;
+        private set => RaiseAndSetIfChanged(ref _deviceWidth, value);
+    }
+
+    public double DeviceHeight
+    {
+        get => _deviceHeight;
+        private set => RaiseAndSetIfChanged(ref _deviceHeight, value);
     }
 
     public string NavigateUrlText
@@ -217,11 +253,14 @@ public class SimulationViewModel : ViewModelBase
     // Page
     public ICommand NavigateCommand { get; }
     public ICommand ReloadCommand { get; }
+    public ICommand BackCommand { get; }
+    public ICommand ForwardCommand { get; }
 
     // Mouse
     public ICommand MouseMoveCommand { get; }
     public ICommand MouseClickAtPointCommand { get; }
     public ICommand MouseDragCommand { get; }
+    public ICommand RotateDeviceCommand { get; }
 
     public SimulationViewModel(ICdpService cdpService, Func<DomNodeModel?> getSelectedNodeFunc)
     {
@@ -242,10 +281,19 @@ public class SimulationViewModel : ViewModelBase
 
         NavigateCommand = new RelayCommand(async () => await NavigateAsync(), () => _cdpService.IsConnected);
         ReloadCommand = new RelayCommand(async () => await ReloadAsync(), () => _cdpService.IsConnected);
+        BackCommand = new RelayCommand(async () => await GoBackAsync(), () => _cdpService.IsConnected);
+        ForwardCommand = new RelayCommand(async () => await GoForwardAsync(), () => _cdpService.IsConnected);
+        RotateDeviceCommand = new RelayCommand(async () => await RotateDeviceAsync(), () => _cdpService.IsConnected);
 
         MouseMoveCommand = new RelayCommand(async () => await MouseMoveAsync(), () => _cdpService.IsConnected);
         MouseClickAtPointCommand = new RelayCommand(async () => await MouseClickAtPointAsync(), () => _cdpService.IsConnected);
         MouseDragCommand = new RelayCommand(async () => await MouseDragAsync(), () => _cdpService.IsConnected);
+
+        _cdpService.EventReceived += CdpService_EventReceived;
+        if (_cdpService.IsConnected)
+        {
+            _ = StartScreencastAsync();
+        }
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -255,6 +303,10 @@ public class SimulationViewModel : ViewModelBase
             if (!_cdpService.IsConnected)
             {
                 ClearData();
+            }
+            else
+            {
+                _ = StartScreencastAsync();
             }
             RaiseCanExecuteChangedForAll();
         }
@@ -272,6 +324,9 @@ public class SimulationViewModel : ViewModelBase
 
         ((RelayCommand)NavigateCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ReloadCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)BackCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)ForwardCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)RotateDeviceCommand).RaiseCanExecuteChanged();
         ((RelayCommand)MouseMoveCommand).RaiseCanExecuteChanged();
         ((RelayCommand)MouseClickAtPointCommand).RaiseCanExecuteChanged();
         ((RelayCommand)MouseDragCommand).RaiseCanExecuteChanged();
@@ -282,8 +337,8 @@ public class SimulationViewModel : ViewModelBase
         int modifiers = 0;
         if (IsAltActive) modifiers |= 1;
         if (IsCtrlActive) modifiers |= 2;
-        if (IsShiftActive) modifiers |= 4;
-        if (IsMetaActive) modifiers |= 8;
+        if (IsMetaActive) modifiers |= 4;
+        if (IsShiftActive) modifiers |= 8;
         return modifiers;
     }
 
@@ -453,6 +508,7 @@ public class SimulationViewModel : ViewModelBase
         try
         {
             await _cdpService.SendCommandAsync("Emulation.clearDeviceMetricsOverride", new JsonObject());
+            IsMobileActive = false;
         }
         catch (Exception ex)
         {
@@ -506,6 +562,71 @@ public class SimulationViewModel : ViewModelBase
         catch (Exception ex)
         {
             Console.WriteLine($"Reload failed: {ex.Message}");
+        }
+    }
+
+    private async Task GoBackAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            var res = await _cdpService.SendCommandAsync("Page.getNavigationHistory", new JsonObject());
+            if (res != null && res.ContainsKey("entries") && res.ContainsKey("currentIndex"))
+            {
+                var entries = res["entries"] as JsonArray;
+                int currentIndex = res["currentIndex"]?.GetValue<int>() ?? -1;
+                if (entries != null && currentIndex > 0)
+                {
+                    var targetEntry = entries[currentIndex - 1] as JsonObject;
+                    int id = targetEntry?["id"]?.GetValue<int>() ?? -1;
+                    if (id != -1)
+                    {
+                        await _cdpService.SendCommandAsync("Page.navigateToHistoryEntry", new JsonObject { ["entryId"] = id });
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GoBack failed: {ex.Message}");
+        }
+    }
+
+    private async Task GoForwardAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            var res = await _cdpService.SendCommandAsync("Page.getNavigationHistory", new JsonObject());
+            if (res != null && res.ContainsKey("entries") && res.ContainsKey("currentIndex"))
+            {
+                var entries = res["entries"] as JsonArray;
+                int currentIndex = res["currentIndex"]?.GetValue<int>() ?? -1;
+                if (entries != null && currentIndex >= 0 && currentIndex < entries.Count - 1)
+                {
+                    var targetEntry = entries[currentIndex + 1] as JsonObject;
+                    int id = targetEntry?["id"]?.GetValue<int>() ?? -1;
+                    if (id != -1)
+                    {
+                        await _cdpService.SendCommandAsync("Page.navigateToHistoryEntry", new JsonObject { ["entryId"] = id });
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GoForward failed: {ex.Message}");
+        }
+    }
+
+    private async Task RotateDeviceAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        if (int.TryParse(WidthText, out int w) && int.TryParse(HeightText, out int h))
+        {
+            WidthText = h.ToString();
+            HeightText = w.ToString();
+            await ResizeAsync();
         }
     }
 
@@ -576,10 +697,16 @@ public class SimulationViewModel : ViewModelBase
                 ["type"] = "mouseMoved",
                 ["x"] = x,
                 ["y"] = y,
-                ["button"] = "none"
+                ["button"] = "none",
+                ["buttons"] = 0
             });
             await Task.Delay(50);
             
+            int buttons = 0;
+            if (button == "left") buttons = 1;
+            else if (button == "right") buttons = 2;
+            else if (button == "middle") buttons = 4;
+
             // Press button
             await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
             {
@@ -588,7 +715,8 @@ public class SimulationViewModel : ViewModelBase
                 ["y"] = y,
                 ["button"] = button,
                 ["clickCount"] = 1,
-                ["modifiers"] = modifiers
+                ["modifiers"] = modifiers,
+                ["buttons"] = buttons
             });
             await Task.Delay(50);
 
@@ -604,7 +732,8 @@ public class SimulationViewModel : ViewModelBase
                 ["x"] = endX,
                 ["y"] = endY,
                 ["button"] = button,
-                ["modifiers"] = dragModifiers
+                ["modifiers"] = dragModifiers,
+                ["buttons"] = buttons
             });
             await Task.Delay(50);
 
@@ -616,7 +745,8 @@ public class SimulationViewModel : ViewModelBase
                 ["y"] = endY,
                 ["button"] = button,
                 ["clickCount"] = 1,
-                ["modifiers"] = modifiers
+                ["modifiers"] = modifiers,
+                ["buttons"] = 0
             });
         }
         catch (Exception ex)
@@ -657,6 +787,151 @@ public class SimulationViewModel : ViewModelBase
             ScaleFactorText = SelectedDevicePreset.Scale.ToString();
             IsMobileActive = SelectedDevicePreset.IsMobile;
             _ = ResizeAsync();
+        }
+    }
+
+    private async Task StartScreencastAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+            {
+                ["format"] = "png",
+                ["everyNthFrame"] = 1
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"StartScreencast failed: {ex.Message}");
+        }
+    }
+
+    private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
+    {
+        if (e.Method == "Page.screencastFrame")
+        {
+            try
+            {
+                var base64 = e.Params["data"]?.GetValue<string>() ?? "";
+                var sessionId = e.Params["sessionId"]?.GetValue<int>() ?? 0;
+                var metadata = e.Params["metadata"];
+                
+                if (metadata != null)
+                {
+                    double deviceWidth = metadata["deviceWidth"]?.GetValue<double>() ?? 0;
+                    double deviceHeight = metadata["deviceHeight"]?.GetValue<double>() ?? 0;
+                    if (deviceWidth > 0 && deviceHeight > 0)
+                    {
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            DeviceWidth = deviceWidth;
+                            DeviceHeight = deviceHeight;
+                        });
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(base64))
+                {
+                    byte[] bytes = Convert.FromBase64String(base64);
+                    using var ms = new MemoryStream(bytes);
+                    var bitmap = new Bitmap(ms);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        ScreenshotImage = bitmap;
+                    });
+                }
+
+                if (sessionId != 0)
+                {
+                    _ = _cdpService.SendCommandAsync("Page.screencastFrameAck", new JsonObject { ["sessionId"] = sessionId });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error processing screencast frame: {ex.Message}");
+            }
+        }
+    }
+
+    public async Task SendMouseEventAsync(string type, double x, double y, string button, int modifiers, int buttons = 0)
+    {
+        if (!_cdpService.IsConnected) return;
+
+        int clickCount = 0;
+        if (type == "mousePressed" || type == "mouseReleased")
+        {
+            clickCount = 1;
+        }
+
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = type,
+                ["x"] = x,
+                ["y"] = y,
+                ["button"] = button,
+                ["clickCount"] = clickCount,
+                ["modifiers"] = modifiers,
+                ["buttons"] = buttons
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Interactive mouse event failed: {ex.Message}");
+        }
+    }
+
+    public async Task SendWheelEventAsync(double x, double y, double deltaY)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseWheel",
+                ["x"] = x,
+                ["y"] = y,
+                ["deltaX"] = 0.0,
+                ["deltaY"] = deltaY * 100.0,
+                ["modifiers"] = 0
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Interactive wheel event failed: {ex.Message}");
+        }
+    }
+
+    public async Task SendTextInputAsync(string text)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.insertText", new JsonObject { ["text"] = text });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Interactive text input failed: {ex.Message}");
+        }
+    }
+
+    public async Task SendKeyboardEventAsync(string type, string key, int modifiers)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
+            {
+                ["type"] = type,
+                ["key"] = key,
+                ["modifiers"] = modifiers
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Interactive key event failed: {ex.Message}");
         }
     }
 }

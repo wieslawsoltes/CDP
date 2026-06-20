@@ -28,6 +28,7 @@ public static class OverlayDomain
                     if (visual != null)
                     {
                         HighlightOverlayManager.ShowHighlight(session.Window, visual);
+                        session.RequestScreencastFrame();
                     }
                     return new JsonObject();
                 }
@@ -35,6 +36,7 @@ public static class OverlayDomain
             case "hideHighlight":
                 {
                     HighlightOverlayManager.HideHighlight(session.Window);
+                    session.RequestScreencastFrame();
                     return new JsonObject();
                 }
 

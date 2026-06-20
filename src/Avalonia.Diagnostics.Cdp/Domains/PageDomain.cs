@@ -112,7 +112,12 @@ public static class PageDomain
 
             case "startScreencast":
                 {
-                    session.StartScreencast();
+                    string format = @params != null && @params.ContainsKey("format") ? @params["format"]?.GetValue<string>() ?? "png" : "png";
+                    int? quality = @params != null && @params.ContainsKey("quality") ? @params["quality"]?.GetValue<int>() : null;
+                    int? maxWidth = @params != null && @params.ContainsKey("maxWidth") ? @params["maxWidth"]?.GetValue<int>() : null;
+                    int? maxHeight = @params != null && @params.ContainsKey("maxHeight") ? @params["maxHeight"]?.GetValue<int>() : null;
+                    int? everyNthFrame = @params != null && @params.ContainsKey("everyNthFrame") ? @params["everyNthFrame"]?.GetValue<int>() : null;
+                    session.StartScreencast(format, quality, maxWidth, maxHeight, everyNthFrame);
                     return new JsonObject();
                 }
 

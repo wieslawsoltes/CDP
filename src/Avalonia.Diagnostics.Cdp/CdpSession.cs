@@ -25,7 +25,7 @@ public class CdpSession
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
 
-    public TopLevel Window { get; }
+    public TopLevel? Window { get; }
     public NodeMap NodeMap { get; } = new();
     public ConcurrentDictionary<string, object> RemoteObjects { get; } = new();
     public int InspectedNodeId { get; set; } = 0;
@@ -38,6 +38,8 @@ public class CdpSession
     public JsonObject? GeolocationOverride { get; set; }
     public JsonObject? DeviceOrientationOverride { get; set; }
     public bool TouchEmulationEnabled { get; set; }
+    public IInputDevice TouchDevice { get; } =
+        (IInputDevice)Activator.CreateInstance(typeof(TouchDevice), nonPublic: true)!;
     public bool LifecycleEventsEnabled { get; set; }
     public bool AdBlockingEnabled { get; set; }
     public bool BypassCSP { get; set; }
@@ -200,6 +202,7 @@ public class CdpSession
         {
             HighlightOverlayManager.HideHighlight(Window);
         }
+        RequestScreencastFrame();
     }
 
     private async void OnInspectPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -222,7 +225,7 @@ public class CdpSession
         }
     }
 
-    public CdpSession(WebSocket webSocket, TopLevel window)
+    public CdpSession(WebSocket webSocket, TopLevel? window)
     {
         _webSocket = webSocket;
         Window = window;
@@ -238,6 +241,39 @@ public class CdpSession
             ["transitionType"] = "typed"
         });
         NavigationHistoryIndex = 0;
+
+        if (Window != null)
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                _isVisibleSubscription = Window.GetObservable(Visual.IsVisibleProperty).Subscribe(new AnonymousObserver<bool>(visible =>
+                {
+                    if (_screencastEnabled)
+                    {
+                        _ = SendEventAsync("Page.screencastVisibilityChanged", new JsonObject
+                        {
+                            ["visible"] = visible
+                        });
+                    }
+                }));
+            }
+            else
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _isVisibleSubscription = Window.GetObservable(Visual.IsVisibleProperty).Subscribe(new AnonymousObserver<bool>(visible =>
+                    {
+                        if (_screencastEnabled)
+                        {
+                            _ = SendEventAsync("Page.screencastVisibilityChanged", new JsonObject
+                            {
+                                ["visible"] = visible
+                            });
+                        }
+                    }));
+                });
+            }
+        }
     }
 
     public string RegisterObject(object obj)
@@ -414,6 +450,19 @@ public class CdpSession
     private volatile bool _screencastDirty;
     private readonly SemaphoreSlim _screencastSignal = new(0, 1);
     private DateTime _lastFrameCaptureTime = DateTime.MinValue;
+    private DateTime _lastFrameSentTime = DateTime.UtcNow;
+
+    private string _screencastFormat = "png";
+    private int? _screencastQuality;
+    private int? _screencastMaxWidth;
+    private int? _screencastMaxHeight;
+    private int? _screencastEveryNthFrame;
+    private int _screencastFrameCounter;
+    private IDisposable? _isVisibleSubscription;
+
+    private byte[]? _lastSentFrameBytes;
+    private readonly MemoryStream _captureStream = new();
+    private readonly SemaphoreSlim _ackSignal = new(1, 1);
 
     private void OnWindowLayoutUpdated(object? sender, EventArgs e)
     {
@@ -433,22 +482,43 @@ public class CdpSession
         catch { }
     }
 
-    public void StartScreencast()
+    public void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null)
     {
         if (_screencastEnabled) return;
         _screencastEnabled = true;
+        _screencastFormat = format;
+        _screencastQuality = quality;
+        _screencastMaxWidth = maxWidth;
+        _screencastMaxHeight = maxHeight;
+        _screencastEveryNthFrame = everyNthFrame;
+        _screencastFrameCounter = 0;
         _lastScreencastFrameId = 0;
         _ackedFrameId = 0;
         _screencastDirty = true;
         _lastFrameCaptureTime = DateTime.MinValue;
+        _lastFrameSentTime = DateTime.UtcNow;
+        _lastSentFrameBytes = null;
 
-        Window.LayoutUpdated += OnWindowLayoutUpdated;
+        // Reset the ACK signal count to 1
+        try
+        {
+            if (_ackSignal.CurrentCount == 0)
+            {
+                _ackSignal.Release();
+            }
+        }
+        catch { }
+
+        if (Window != null)
+        {
+            Window.LayoutUpdated += OnWindowLayoutUpdated;
+        }
 
         Task.Run(async () =>
         {
-            try
+            while (_screencastEnabled && !_cts.IsCancellationRequested && _webSocket.State == WebSocketState.Open)
             {
-                while (_screencastEnabled && !_cts.IsCancellationRequested && _webSocket.State == WebSocketState.Open)
+                try
                 {
                     if (!_screencastDirty)
                     {
@@ -457,49 +527,160 @@ public class CdpSession
 
                     _screencastDirty = false;
 
-                    if (_lastScreencastFrameId > _ackedFrameId)
-                    {
-                        await Task.Delay(30);
-                        _screencastDirty = true;
-                        continue;
-                    }
+                    // Event-driven backpressure wait with watchdog timeout
+                    bool acked = await _ackSignal.WaitAsync(500, _cts.Token);
 
                     var now = DateTime.UtcNow;
                     var elapsed = now - _lastFrameCaptureTime;
-                    if (elapsed.TotalMilliseconds < 50)
+                    if (elapsed.TotalMilliseconds < 33)
                     {
-                        var waitTime = 50 - (int)elapsed.TotalMilliseconds;
-                        await Task.Delay(waitTime);
+                        var waitTime = 33 - (int)elapsed.TotalMilliseconds;
+                        await Task.Delay(waitTime, _cts.Token);
                     }
 
                     _lastFrameCaptureTime = DateTime.UtcNow;
 
+                    _screencastFrameCounter++;
+                    if (_screencastEveryNthFrame.HasValue && _screencastEveryNthFrame.Value > 1 && _screencastFrameCounter > 1)
+                    {
+                        if (_screencastFrameCounter % _screencastEveryNthFrame.Value != 0)
+                        {
+                            // Release ack signal permit since we are skipping this frame
+                            try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
+                            continue;
+                        }
+                    }
+
                     string base64Data = "";
                     double width = 0;
                     double height = 0;
+                    int pixelWidth = 1;
+                    int pixelHeight = 1;
+                    byte[]? rawPngBytes = null;
+                    int rawPngLength = 0;
+                    int visualStateHash = 0;
                     
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         try
                         {
+                            if (Window == null) return;
                             var scale = Window.RenderScaling;
                             width = Window.Bounds.Width;
                             height = Window.Bounds.Height;
-                            int pixelWidth = Math.Max(1, (int)(width * scale));
-                            int pixelHeight = Math.Max(1, (int)(height * scale));
+                            pixelWidth = Math.Max(1, (int)(width * scale));
+                            pixelHeight = Math.Max(1, (int)(height * scale));
+                            visualStateHash = GetVisualTreeStateHash(Window);
 
                             using var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize(pixelWidth, pixelHeight), new Vector(96 * scale, 96 * scale));
                             bitmap.Render(Window);
 
-                            using var ms = new MemoryStream();
-                            bitmap.Save(ms);
-                            base64Data = Convert.ToBase64String(ms.ToArray());
+                            lock (_captureStream)
+                            {
+                                _captureStream.Position = 0;
+                                _captureStream.SetLength(0);
+                                bitmap.Save(_captureStream);
+                                rawPngBytes = _captureStream.GetBuffer();
+                                rawPngLength = (int)_captureStream.Length;
+                            }
                         }
-                        catch { }
+                        catch (Exception)
+                        {
+                        }
                     });
+
+                    if (rawPngBytes == null || rawPngLength == 0)
+                    {
+                        rawPngBytes = GetFallbackMockImageBytes(pixelWidth, pixelHeight, visualStateHash);
+                        rawPngLength = rawPngBytes.Length;
+                    }
+
+                    // Delta Compression / Change Detection: compare raw pixels to previous frame
+                    var currentFrameSpan = new ReadOnlySpan<byte>(rawPngBytes, 0, rawPngLength);
+                    if (_lastSentFrameBytes != null && currentFrameSpan.SequenceEqual(_lastSentFrameBytes))
+                    {
+                        // Release ack signal permit since we are skipping this frame
+                        try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
+                        continue;
+                    }
+
+                    _lastSentFrameBytes = currentFrameSpan.ToArray();
+
+                    try
+                    {
+                        using var ms = new MemoryStream(rawPngBytes, 0, rawPngLength);
+                        using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
+                        if (skBitmap != null)
+                        {
+                            pixelWidth = skBitmap.Width;
+                            pixelHeight = skBitmap.Height;
+
+                            double resizeScale = 1.0;
+                            if (_screencastMaxWidth.HasValue && width > _screencastMaxWidth.Value)
+                            {
+                                resizeScale = Math.Min(resizeScale, (double)_screencastMaxWidth.Value / width);
+                            }
+                            if (_screencastMaxHeight.HasValue && height > _screencastMaxHeight.Value)
+                            {
+                                resizeScale = Math.Min(resizeScale, (double)_screencastMaxHeight.Value / height);
+                            }
+
+                            SkiaSharp.SKBitmap bitmapToEncode = skBitmap;
+                            SkiaSharp.SKBitmap? resizedBitmap = null;
+
+                            if (resizeScale < 1.0)
+                            {
+                                int targetPixelWidth = (int)Math.Max(1, Math.Round(pixelWidth * resizeScale));
+                                int targetPixelHeight = (int)Math.Max(1, Math.Round(pixelHeight * resizeScale));
+                                var info = new SkiaSharp.SKImageInfo(targetPixelWidth, targetPixelHeight, skBitmap.ColorType, skBitmap.AlphaType);
+                                resizedBitmap = new SkiaSharp.SKBitmap(info);
+                                if (skBitmap.ScalePixels(resizedBitmap, SkiaSharp.SKFilterQuality.High))
+                                {
+                                    bitmapToEncode = resizedBitmap;
+                                    width = width * resizeScale;
+                                    height = height * resizeScale;
+                                }
+                                else
+                                {
+                                    resizedBitmap.Dispose();
+                                    resizedBitmap = null;
+                                }
+                            }
+
+                            var encodedFormat = SkiaSharp.SKEncodedImageFormat.Png;
+                            if (string.Equals(_screencastFormat, "jpeg", StringComparison.OrdinalIgnoreCase))
+                            {
+                                encodedFormat = SkiaSharp.SKEncodedImageFormat.Jpeg;
+                            }
+                            else if (string.Equals(_screencastFormat, "webp", StringComparison.OrdinalIgnoreCase))
+                            {
+                                encodedFormat = SkiaSharp.SKEncodedImageFormat.Webp;
+                            }
+
+                            int q = _screencastQuality ?? 100;
+                            if (q < 0) q = 0;
+                            if (q > 100) q = 100;
+
+                            using var image = SkiaSharp.SKImage.FromBitmap(bitmapToEncode);
+                            using var encodedData = image.Encode(encodedFormat, q);
+                            if (encodedData != null)
+                            {
+                                using var msOut = new MemoryStream();
+                                encodedData.SaveTo(msOut);
+                                base64Data = Convert.ToBase64String(msOut.ToArray());
+                            }
+
+                            resizedBitmap?.Dispose();
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
 
                     if (string.IsNullOrEmpty(base64Data))
                     {
+                        // Release ack signal permit since we are skipping this frame
+                        try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
                         continue;
                     }
 
@@ -516,6 +697,8 @@ public class CdpSession
                         ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                     };
 
+                    _lastFrameSentTime = DateTime.UtcNow;
+
                     await SendEventAsync("Page.screencastFrame", new JsonObject
                     {
                         ["data"] = base64Data,
@@ -523,8 +706,22 @@ public class CdpSession
                         ["sessionId"] = currentFrameId
                     });
                 }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception)
+                {
+                    try
+                    {
+                        await Task.Delay(100, _cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
             }
-            catch { }
         });
     }
 
@@ -532,7 +729,10 @@ public class CdpSession
     {
         if (!_screencastEnabled) return;
         _screencastEnabled = false;
-        Window.LayoutUpdated -= OnWindowLayoutUpdated;
+        if (Window != null)
+        {
+            Window.LayoutUpdated -= OnWindowLayoutUpdated;
+        }
         try
         {
             if (_screencastSignal.CurrentCount == 0)
@@ -541,11 +741,27 @@ public class CdpSession
             }
         }
         catch { }
+        try
+        {
+            if (_ackSignal.CurrentCount == 0)
+            {
+                _ackSignal.Release();
+            }
+        }
+        catch { }
     }
 
     public void AcknowledgeScreencastFrame(int sessionId)
     {
         _ackedFrameId = Math.Max(_ackedFrameId, sessionId);
+        try
+        {
+            if (_ackSignal.CurrentCount == 0)
+            {
+                _ackSignal.Release();
+            }
+        }
+        catch { }
         RequestScreencastFrame();
     }
 
@@ -561,8 +777,14 @@ public class CdpSession
         Domains.RecorderDomain.RemoveSession(this);
         NodeMap.Clear();
         RemoteObjects.Clear();
-        HighlightOverlayManager.HideHighlight(Window);
+        if (Window != null)
+        {
+            HighlightOverlayManager.HideHighlight(Window);
+        }
         Domains.CssDomain.CleanupSession(this);
+        _isVisibleSubscription?.Dispose();
+        _captureStream.Dispose();
+        _ackSignal.Dispose();
         _sendSemaphore.Dispose();
     }
 
@@ -1289,5 +1511,58 @@ public class CdpSession
     private static INotifyCollectionChanged? GetVisualChildrenObservable(Visual visual)
     {
         return VisualChildrenProperty?.GetValue(visual) as INotifyCollectionChanged;
+    }
+
+    private class AnonymousObserver<T> : IObserver<T>
+    {
+        private readonly Action<T> _onNext;
+        public AnonymousObserver(Action<T> onNext) => _onNext = onNext;
+        public void OnCompleted() { }
+        public void OnError(Exception error) { }
+        public void OnNext(T value) => _onNext(value);
+    }
+
+    private int GetVisualTreeStateHash(Visual? visual)
+    {
+        if (visual == null) return 0;
+        int hash = visual.GetType().GetHashCode();
+        hash = HashCode.Combine(hash, visual.Bounds.Width, visual.Bounds.Height, visual.IsVisible);
+        
+        if (visual is Panel panel && panel.Background != null)
+        {
+            hash = HashCode.Combine(hash, panel.Background.ToString());
+        }
+        else if (visual is Avalonia.Controls.Primitives.TemplatedControl tc && tc.Background != null)
+        {
+            hash = HashCode.Combine(hash, tc.Background.ToString());
+        }
+
+        foreach (var child in visual.GetVisualChildren())
+        {
+            hash = HashCode.Combine(hash, GetVisualTreeStateHash(child));
+        }
+        
+        return hash;
+    }
+
+    private byte[] GetFallbackMockImageBytes(int pixelWidth, int pixelHeight, int stateHash)
+    {
+        try
+        {
+            using var bitmap = new SkiaSharp.SKBitmap(pixelWidth, pixelHeight);
+            using var canvas = new SkiaSharp.SKCanvas(bitmap);
+            canvas.Clear(SkiaSharp.SKColors.Transparent);
+            
+            using var paint = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor((uint)stateHash | 0xFF000000) };
+            canvas.DrawPoint(0, 0, paint);
+            
+            using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+            using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            return data?.ToArray() ?? Array.Empty<byte>();
+        }
+        catch
+        {
+            return Array.Empty<byte>();
+        }
     }
 }

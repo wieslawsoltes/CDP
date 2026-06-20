@@ -205,4 +205,72 @@ public partial class MainWindow : Window
             }
         }
     }
+
+    public void SendSimulationMouseEvent(string type, double x, double y, string button, int modifiers)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            _ = vm.Simulation.SendMouseEventAsync(type, x, y, button, modifiers);
+        }
+    }
+
+    public void SendSimulationKeyboardEvent(string type, string key, int modifiers)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            _ = vm.Simulation.SendKeyboardEventAsync(type, key, modifiers);
+        }
+    }
+
+    public void SendSimulationTextInput(string text)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            _ = vm.Simulation.SendTextInputAsync(text);
+        }
+    }
+
+    public bool HasSimulationScreenshotImage()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Simulation.ScreenshotImage != null;
+        }
+        return false;
+    }
+
+    public bool GetIsPreviewPanelVisible()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.IsPreviewPanelVisible;
+        }
+        return false;
+    }
+
+    public void SetIsPreviewPanelVisible(bool visible)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            vm.IsPreviewPanelVisible = visible;
+        }
+    }
+
+    public double GetDeviceWidth()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Simulation.DeviceWidth;
+        }
+        return 0;
+    }
+
+    public double GetDeviceHeight()
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            return vm.Simulation.DeviceHeight;
+        }
+        return 0;
+    }
 }

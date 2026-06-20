@@ -1,4 +1,5 @@
 using System;
+using Avalonia.Controls;
 using CdpInspectorApp.Services;
 
 namespace CdpInspectorApp.ViewModels;
@@ -18,6 +19,43 @@ public class MainWindowViewModel : ViewModelBase
     public SimulationViewModel Simulation { get; }
     public RecorderViewModel Recorder { get; }
 
+    private bool _isPreviewPanelVisible = true;
+    private GridLength _previewColumnWidth = new GridLength(1, GridUnitType.Star);
+    private GridLength _splitterColumnWidth = new GridLength(4, GridUnitType.Pixel);
+
+    public bool IsPreviewPanelVisible
+    {
+        get => _isPreviewPanelVisible;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isPreviewPanelVisible, value))
+            {
+                if (value)
+                {
+                    PreviewColumnWidth = new GridLength(1, GridUnitType.Star);
+                    SplitterColumnWidth = new GridLength(4, GridUnitType.Pixel);
+                }
+                else
+                {
+                    PreviewColumnWidth = new GridLength(0, GridUnitType.Pixel);
+                    SplitterColumnWidth = new GridLength(0, GridUnitType.Pixel);
+                }
+            }
+        }
+    }
+
+    public GridLength PreviewColumnWidth
+    {
+        get => _previewColumnWidth;
+        set => RaiseAndSetIfChanged(ref _previewColumnWidth, value);
+    }
+
+    public GridLength SplitterColumnWidth
+    {
+        get => _splitterColumnWidth;
+        set => RaiseAndSetIfChanged(ref _splitterColumnWidth, value);
+    }
+
     public MainWindowViewModel(ICdpService? cdpService = null)
     {
         CdpService = cdpService ?? new CdpService();
@@ -34,12 +72,16 @@ public class MainWindowViewModel : ViewModelBase
         Simulation = new SimulationViewModel(CdpService, () => Elements.SelectedNode);
         Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress);
 
-        // Notify simulation command availability when element selection changes
+        // Notify simulation command availability when element selection changes, and exit inspect mode
         Elements.PropertyChanged += (sender, e) =>
         {
-            if (e.PropertyName == nameof(ElementsViewModel.SelectedNode))
+            if (e.PropertyName == nameof(ElementsViewModel.SelectedNode) || e.PropertyName == nameof(ElementsViewModel.SelectedAxNode))
             {
                 Simulation.RaiseCanExecuteChangedForAll();
+                if (Connection.IsInspectModeActive)
+                {
+                    Connection.IsInspectModeActive = false;
+                }
             }
         };
     }

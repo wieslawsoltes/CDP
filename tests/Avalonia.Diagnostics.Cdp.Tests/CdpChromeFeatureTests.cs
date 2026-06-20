@@ -11,6 +11,8 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Xunit;
 using Avalonia.VisualTree;
+using Avalonia.Input;
+using Avalonia.Threading;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -230,10 +232,10 @@ public class CdpChromeFeatureTests
     [AvaloniaFact]
     public async Task TestCustomCdpPort()
     {
-        CdpServer.Start(9223);
+        CdpServer.Start(9235);
         try
         {
-            Assert.Equal(9223, CdpServer.Port);
+            Assert.Equal(9235, CdpServer.Port);
 
             var window = new Window { Title = "Port Test Window" };
             window.Show();
@@ -248,8 +250,8 @@ public class CdpChromeFeatureTests
             var root = docResult["root"] as JsonObject;
             Assert.NotNull(root);
 
-            Assert.Equal("http://localhost:9223/", root["documentURL"]?.GetValue<string>());
-            Assert.Equal("http://localhost:9223/", root["baseURL"]?.GetValue<string>());
+            Assert.Equal("http://localhost:9235/", root["documentURL"]?.GetValue<string>());
+            Assert.Equal("http://localhost:9235/", root["baseURL"]?.GetValue<string>());
 
             window.Close();
         }
@@ -485,6 +487,225 @@ public class CdpChromeFeatureTests
         var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
         Assert.NotNull(stopResult);
 
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencastWithOptions()
+    {
+        var window = new Window { Title = "Screencast Test Window", Width = 300, Height = 200 };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var @params = new JsonObject
+        {
+            ["format"] = "jpeg",
+            ["quality"] = 80,
+            ["maxWidth"] = 150,
+            ["maxHeight"] = 150
+        };
+
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", @params);
+        Assert.NotNull(startResult);
+
+        session.RequestScreencastFrame();
+
+        int retries = 50;
+        string? screencastFrameMsg = null;
+        while (retries-- > 0 && screencastFrameMsg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                screencastFrameMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+        }
+
+        Assert.NotNull(screencastFrameMsg);
+
+        var node = System.Text.Json.Nodes.JsonNode.Parse(screencastFrameMsg);
+        Assert.NotNull(node);
+        Assert.Equal("Page.screencastFrame", node["method"]?.GetValue<string>());
+
+        var frameParams = node["params"];
+        Assert.NotNull(frameParams);
+        var data = frameParams["data"]?.GetValue<string>();
+        Assert.False(string.IsNullOrEmpty(data));
+
+        var metadata = frameParams["metadata"];
+        Assert.NotNull(metadata);
+
+        var deviceWidth = metadata["deviceWidth"]?.GetValue<double>();
+        Assert.Equal(150, deviceWidth);
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencastEveryNthFrame()
+    {
+        var window = new Window { Title = "Screencast Nth Frame Window", Width = 300, Height = 200 };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var @params = new JsonObject
+        {
+            ["everyNthFrame"] = 2
+        };
+
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", @params);
+        Assert.NotNull(startResult);
+
+        // 1. First frame (Counter = 1) is sent immediately upon startScreencast
+        int retries = 50;
+        string? frame1Msg = null;
+        while (retries-- > 0 && frame1Msg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                frame1Msg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+        }
+        Assert.NotNull(frame1Msg);
+
+        // 2. Trigger another frame. This will be Counter = 2.
+        // Since 2 % 2 == 0, this frame should be sent.
+        lock (fakeWs.SentMessages)
+        {
+            fakeWs.SentMessages.Clear();
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            window.Background = Avalonia.Media.Brushes.Red;
+        });
+
+        session.RequestScreencastFrame();
+
+        retries = 50;
+        string? frame2Msg = null;
+        while (retries-- > 0 && frame2Msg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                frame2Msg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+        }
+        Assert.NotNull(frame2Msg);
+
+        // 3. Trigger another frame. This will be Counter = 3.
+        // Since 3 % 2 != 0, this frame should be SKIPPED.
+        lock (fakeWs.SentMessages)
+        {
+            fakeWs.SentMessages.Clear();
+        }
+
+        session.RequestScreencastFrame();
+        await Task.Delay(200);
+
+        lock (fakeWs.SentMessages)
+        {
+            Assert.Empty(fakeWs.SentMessages.Where(m => m.Contains("Page.screencastFrame")));
+        }
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencastVisibilityChanged()
+    {
+        var window = new Window { Title = "Screencast Visibility Window" };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", new JsonObject());
+        Assert.NotNull(startResult);
+
+        window.IsVisible = false;
+
+        int retries = 50;
+        string? visibilityMsg = null;
+        while (retries-- > 0 && visibilityMsg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                visibilityMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastVisibilityChanged"));
+            }
+        }
+
+        Assert.NotNull(visibilityMsg);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(visibilityMsg);
+        Assert.NotNull(node);
+        Assert.Equal("Page.screencastVisibilityChanged", node["method"]?.GetValue<string>());
+        var visibleVal = node["params"]?["visible"]?.GetValue<bool>();
+        Assert.False(visibleVal);
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageScreencastDuplicateFrameSkipping()
+    {
+        var window = new Window { Title = "Screencast Duplicate Frame Window", Width = 300, Height = 200 };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Start Screencast
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", new JsonObject());
+        Assert.NotNull(startResult);
+
+        // First frame should be captured automatically
+        int retries = 50;
+        string? firstFrameMsg = null;
+        while (retries-- > 0 && firstFrameMsg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                firstFrameMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+        }
+
+        Assert.NotNull(firstFrameMsg);
+        
+        // Clear sent messages to make checking the next one easy
+        lock (fakeWs.SentMessages)
+        {
+            fakeWs.SentMessages.Clear();
+        }
+
+        // Acknowledge the frame (this triggers a request for the next frame and releases the backpressure semaphore)
+        session.AcknowledgeScreencastFrame(1);
+
+        // Wait a bit to let the loop run and perform change detection (delta compression).
+        // Since there are no visual changes, the second frame should be skipped.
+        await Task.Delay(200);
+
+        lock (fakeWs.SentMessages)
+        {
+            var duplicateMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            Assert.Null(duplicateMsg); // Should be skipped!
+        }
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
         window.Close();
     }
 
@@ -959,6 +1180,395 @@ public class CdpChromeFeatureTests
         NetworkDomain.OnRequestStart(request);
 
         NetworkDomain.RemoveSession(session);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestInspectModeAndSimulatedClick()
+    {
+        var window = new Window
+        {
+            Title = "Inspect Test Window",
+            Width = 300,
+            Height = 200,
+            Content = new Button { Content = "Target Button", Width = 100, Height = 50 }
+        };
+        window.Show();
+
+        // Wait for window to be fully ready and laid out
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // 1. Enable inspect mode
+        var setInspectParams = new JsonObject
+        {
+            ["mode"] = "searchForNode",
+            ["highlightConfig"] = new JsonObject()
+        };
+        await OverlayDomain.HandleAsync(session, "setInspectMode", setInspectParams);
+
+        // 2. Simulate mouse press on the button
+        var clickParams = new JsonObject
+        {
+            ["type"] = "mousePressed",
+            ["x"] = 50.0,
+            ["y"] = 25.0,
+            ["button"] = "left",
+            ["clickCount"] = 1,
+            ["modifiers"] = 0
+        };
+        
+        // Force layout
+        window.Measure(new Size(300, 200));
+        window.Arrange(new Rect(0, 0, 300, 200));
+        Dispatcher.UIThread.RunJobs();
+        
+        await InputDomain.HandleAsync(session, "dispatchMouseEvent", clickParams);
+
+        // Give dispatcher some time to process
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        // 3. Verify that Overlay.inspectNodeRequested was sent
+        string? inspectMsg = null;
+        lock (fakeWs.SentMessages)
+        {
+            inspectMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Overlay.inspectNodeRequested"));
+        }
+
+        Assert.NotNull(inspectMsg);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(inspectMsg);
+        Assert.NotNull(node);
+        Assert.Equal("Overlay.inspectNodeRequested", node["method"]?.GetValue<string>());
+        
+        var backendNodeId = node["params"]?["backendNodeId"]?.GetValue<int>();
+        Assert.True(backendNodeId > 0);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestKeyboardInputWithoutDuplication()
+    {
+        var textBox = new TextBox
+        {
+            Width = 100,
+            Height = 50,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top
+        };
+        var window = new Window
+        {
+            Title = "Keyboard Test Window",
+            Width = 300,
+            Height = 200,
+            Content = textBox
+        };
+        window.Show();
+        window.Activate();
+
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        var focused = textBox.Focus();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(focused, "TextBox should acquire focus");
+        Assert.True(textBox.IsFocused, "TextBox IsFocused should be true");
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // Simulate typing "a" using CDP standard sequence
+        var keyDownParams = new JsonObject
+        {
+            ["type"] = "rawKeyDown",
+            ["key"] = "KeyA",
+            ["text"] = "a",
+            ["modifiers"] = 0
+        };
+        await InputDomain.HandleAsync(session, "dispatchKeyEvent", keyDownParams);
+
+        var charParams = new JsonObject
+        {
+            ["type"] = "char",
+            ["key"] = "KeyA",
+            ["text"] = "a",
+            ["modifiers"] = 0
+        };
+        await InputDomain.HandleAsync(session, "dispatchKeyEvent", charParams);
+
+        var keyUpParams = new JsonObject
+        {
+            ["type"] = "keyUp",
+            ["key"] = "KeyA",
+            ["text"] = "",
+            ["modifiers"] = 0
+        };
+        await InputDomain.HandleAsync(session, "dispatchKeyEvent", keyUpParams);
+
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.Equal("a", textBox.Text);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestTouchEmulationFromMouseEvent()
+    {
+        bool touchPressed = false;
+        var border = new Border
+        {
+            Width = 100,
+            Height = 100,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Background = Avalonia.Media.Brushes.Red
+        };
+        border.PointerPressed += (s, e) =>
+        {
+            if (e.Pointer.Type == PointerType.Touch)
+            {
+                touchPressed = true;
+            }
+        };
+
+        var window = new Window
+        {
+            Title = "Touch Test Window",
+            Width = 300,
+            Height = 200,
+            Content = border
+        };
+        window.Show();
+        window.Activate();
+
+        // Force layout
+        window.Measure(new Size(300, 200));
+        window.Arrange(new Rect(0, 0, 300, 200));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var touchParams = new JsonObject
+        {
+            ["type"] = "mousePressed",
+            ["x"] = 50.0,
+            ["y"] = 50.0,
+            ["button"] = "left",
+            ["clickCount"] = 1,
+            ["modifiers"] = 0
+        };
+        await InputDomain.HandleAsync(session, "emulateTouchFromMouseEvent", touchParams);
+
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.True(touchPressed);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestSynthesizeTapGesture()
+    {
+        bool tapped = false;
+        var button = new Button
+        {
+            Width = 100,
+            Height = 50,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Content = "Tap Target"
+        };
+        button.Click += (s, e) => tapped = true;
+
+        var window = new Window
+        {
+            Title = "Tap Test Window",
+            Width = 300,
+            Height = 200,
+            Content = button
+        };
+        window.Show();
+        window.Activate();
+
+        // Force layout
+        window.Measure(new Size(300, 200));
+        window.Arrange(new Rect(0, 0, 300, 200));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var tapParams = new JsonObject
+        {
+            ["x"] = 50.0,
+            ["y"] = 25.0,
+            ["tapCount"] = 1,
+            ["duration"] = 20,
+            ["gestureSourceType"] = "touch"
+        };
+        await InputDomain.HandleAsync(session, "synthesizeTapGesture", tapParams);
+
+        for (int i = 0; i < 15; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.True(tapped);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestSynthesizeScrollGesture()
+    {
+        double scrollDeltaY = 0;
+        var scrollViewer = new ScrollViewer
+        {
+            Width = 200,
+            Height = 200,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Content = new Canvas { Width = 1000, Height = 1000 }
+        };
+        scrollViewer.ScrollChanged += (s, e) =>
+        {
+            scrollDeltaY = scrollViewer.Offset.Y;
+        };
+
+        var window = new Window
+        {
+            Title = "Scroll Test Window",
+            Width = 300,
+            Height = 300,
+            Content = scrollViewer
+        };
+        window.Show();
+        window.Activate();
+
+        // Force layout
+        window.Measure(new Size(300, 300));
+        window.Arrange(new Rect(0, 0, 300, 300));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        // Test with Mouse Wheel
+        var scrollParamsMouse = new JsonObject
+        {
+            ["x"] = 100.0,
+            ["y"] = 100.0,
+            ["xDistance"] = 0.0,
+            ["yDistance"] = -50.0,
+            ["speed"] = 800,
+            ["gestureSourceType"] = "mouse"
+        };
+        await InputDomain.HandleAsync(session, "synthesizeScrollGesture", scrollParamsMouse);
+
+        for (int i = 0; i < 15; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.True(scrollDeltaY > 0, $"Expected positive Y offset, got Y={scrollDeltaY}");
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestSynthesizePinchGesture()
+    {
+        var border = new Border
+        {
+            Width = 200,
+            Height = 200,
+            Background = Avalonia.Media.Brushes.Red
+        };
+        int touchCount = 0;
+        border.PointerPressed += (s, e) =>
+        {
+            if (e.Pointer.Type == PointerType.Touch)
+            {
+                touchCount++;
+            }
+        };
+
+        var window = new Window
+        {
+            Title = "Pinch Test Window",
+            Width = 300,
+            Height = 300,
+            Content = border
+        };
+        window.Show();
+        window.Activate();
+
+        window.Measure(new Size(300, 300));
+        window.Arrange(new Rect(0, 0, 300, 300));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var pinchParams = new JsonObject
+        {
+            ["x"] = 100.0,
+            ["y"] = 100.0,
+            ["scaleFactor"] = 2.0,
+            ["relativeSpeed"] = 800,
+            ["gestureSourceType"] = "touch"
+        };
+        await InputDomain.HandleAsync(session, "synthesizePinchGesture", pinchParams);
+
+        for (int i = 0; i < 15; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+
+        Assert.True(touchCount >= 2, $"Expected at least 2 touch presses (for pinch gesture two points), got {touchCount}");
+
         window.Close();
     }
 }
