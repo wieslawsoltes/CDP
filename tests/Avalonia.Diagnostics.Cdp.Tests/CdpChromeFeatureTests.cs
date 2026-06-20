@@ -902,7 +902,7 @@ public class CdpChromeFeatureTests
 
         lock (fakeWs.SentMessages)
         {
-            Assert.Empty(fakeWs.SentMessages.Where(m => m.Contains("Page.screencastFrame")));
+            Assert.DoesNotContain(fakeWs.SentMessages, m => m.Contains("Page.screencastFrame"));
         }
 
         var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());

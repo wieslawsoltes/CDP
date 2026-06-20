@@ -115,26 +115,26 @@ public class CdpProtocolComplianceTests
             var hasSpec = specDomains.TryGetValue(domain, out var specMethods);
             var hasImpl = implementedDomains.TryGetValue(domain, out var implMethods);
 
-            if (!hasSpec) specMethods = new HashSet<string>();
-            if (!hasImpl) implMethods = new List<string>();
+            var specMethodsSet = (hasSpec && specMethods != null) ? specMethods : new HashSet<string>();
+            var implMethodsList = (hasImpl && implMethods != null) ? implMethods : new List<string>();
 
-            var standardSupported = implMethods.Intersect(specMethods).ToList();
-            var customSupported = implMethods.Except(specMethods).ToList();
-            var unsupported = specMethods.Except(implMethods).ToList();
+            var standardSupported = implMethodsList.Intersect(specMethodsSet).ToList();
+            var customSupported = implMethodsList.Except(specMethodsSet).ToList();
+            var unsupported = specMethodsSet.Except(implMethodsList).ToList();
 
             totalStandardSupported += standardSupported.Count;
-            totalStandardSpec += specMethods.Count;
+            totalStandardSpec += specMethodsSet.Count;
             totalCustomSupported += customSupported.Count;
 
             string status = "Unsupported";
             if (hasImpl && hasSpec)
             {
-                double percentage = specMethods.Count > 0 ? (double)standardSupported.Count / specMethods.Count * 100.0 : 0.0;
-                status = percentage >= 100.0 ? "Fully Compliant" : $"{standardSupported.Count}/{specMethods.Count} ({percentage:F1}%)";
+                double percentage = specMethodsSet.Count > 0 ? (double)standardSupported.Count / specMethodsSet.Count * 100.0 : 0.0;
+                status = percentage >= 100.0 ? "Fully Compliant" : $"{standardSupported.Count}/{specMethodsSet.Count} ({percentage:F1}%)";
             }
             else if (hasImpl && !hasSpec)
             {
-                status = $"Custom Domain ({implMethods.Count} actions)";
+                status = $"Custom Domain ({implMethodsList.Count} actions)";
             }
 
             tableRows.Add($"| **{domain}** | {status} | {standardSupported.Count} | {customSupported.Count} | {unsupported.Count} |");
@@ -161,12 +161,12 @@ public class CdpProtocolComplianceTests
             var hasSpec = specDomains.TryGetValue(domain, out var specMethods);
             var hasImpl = implementedDomains.TryGetValue(domain, out var implMethods);
 
-            if (!hasSpec) specMethods = new HashSet<string>();
-            if (!hasImpl) implMethods = new List<string>();
+            var specMethodsSet = (hasSpec && specMethods != null) ? specMethods : new HashSet<string>();
+            var implMethodsList = (hasImpl && implMethods != null) ? implMethods : new List<string>();
 
-            var standardSupported = implMethods.Intersect(specMethods).OrderBy(m => m).ToList();
-            var customSupported = implMethods.Except(specMethods).OrderBy(m => m).ToList();
-            var unsupported = specMethods.Except(implMethods).OrderBy(m => m).ToList();
+            var standardSupported = implMethodsList.Intersect(specMethodsSet).OrderBy(m => m).ToList();
+            var customSupported = implMethodsList.Except(specMethodsSet).OrderBy(m => m).ToList();
+            var unsupported = specMethodsSet.Except(implMethodsList).OrderBy(m => m).ToList();
 
             sb.AppendLine($"### {domain}");
             sb.AppendLine();
@@ -262,7 +262,7 @@ public class CdpProtocolComplianceTests
                 foreach (var domainNode in domainsArray)
                 {
                     var domainName = domainNode?["domain"]?.GetValue<string>();
-                    if (string.IsNullOrEmpty(domainName)) continue;
+                    if (string.IsNullOrEmpty(domainName) || domainNode == null) continue;
 
                     if (!domains.ContainsKey(domainName))
                     {
