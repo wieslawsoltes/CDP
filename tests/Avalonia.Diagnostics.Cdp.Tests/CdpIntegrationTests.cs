@@ -122,21 +122,7 @@ public class CdpIntegrationTests
             });
 
             // Pump dispatcher queue on UI thread until client task completes
-            int loopCount = 0;
-            while (!clientTask.IsCompleted)
-            {
-                loopCount++;
-                if (loopCount % 50 == 0)
-                {
-                    Console.WriteLine($"INTEGRATION_TEST_UI_LOOP: Pumping dispatcher, clientTask Status: {clientTask.Status}");
-                }
-                Dispatcher.UIThread.RunJobs();
-                Thread.Sleep(10);
-            }
-
-            Console.WriteLine("INTEGRATION_TEST: Client task completed, propagating results");
-            // Propagate any assertions or exceptions
-            clientTask.GetAwaiter().GetResult();
+            PumpDispatcher(clientTask);
             Console.WriteLine("INTEGRATION_TEST: Test completed successfully!");
         }
         catch (Exception ex)
@@ -301,13 +287,7 @@ public class CdpIntegrationTests
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
             });
 
-            while (!clientTask.IsCompleted)
-            {
-                Dispatcher.UIThread.RunJobs();
-                Thread.Sleep(10);
-            }
-
-            clientTask.GetAwaiter().GetResult();
+            PumpDispatcher(clientTask);
         }
         finally
         {
@@ -425,13 +405,7 @@ public class CdpIntegrationTests
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
             });
 
-            while (!clientTask.IsCompleted)
-            {
-                Dispatcher.UIThread.RunJobs();
-                Thread.Sleep(10);
-            }
-
-            clientTask.GetAwaiter().GetResult();
+            PumpDispatcher(clientTask);
         }
         finally
         {
@@ -500,13 +474,7 @@ public class CdpIntegrationTests
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
             });
 
-            while (!clientTask.IsCompleted)
-            {
-                Dispatcher.UIThread.RunJobs();
-                Thread.Sleep(10);
-            }
-
-            clientTask.GetAwaiter().GetResult();
+            PumpDispatcher(clientTask);
         }
         finally
         {
@@ -593,13 +561,7 @@ public class CdpIntegrationTests
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
             });
 
-            while (!clientTask.IsCompleted)
-            {
-                Dispatcher.UIThread.RunJobs();
-                Thread.Sleep(10);
-            }
-
-            clientTask.GetAwaiter().GetResult();
+            PumpDispatcher(clientTask);
         }
         finally
         {
@@ -618,5 +580,22 @@ public class CdpIntegrationTests
         };
         await SendJsonAsync(ws, request);
         return await ReceiveJsonAsync(ws);
+    }
+
+    private static void PumpDispatcher(Task task, int timeoutMs = 15000)
+    {
+        int loopCount = 0;
+        int maxLoops = timeoutMs / 10;
+        while (!task.IsCompleted)
+        {
+            loopCount++;
+            if (loopCount > maxLoops)
+            {
+                throw new TimeoutException($"Integration test timed out waiting for task to complete after {timeoutMs} ms.");
+            }
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(10);
+        }
+        task.GetAwaiter().GetResult();
     }
 }
