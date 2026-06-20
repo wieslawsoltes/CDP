@@ -111,19 +111,26 @@ public static class RecordingParser
 
         if (!isJson)
         {
-            // Parse as Puppeteer JS script
+            // Parse as Puppeteer or Playwright JS script
             var varToSelector = new Dictionary<string, string>();
             var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-            var selectorRegex = new Regex(@"const\s+(\w+)\s*=\s*await\s+page\.waitForSelector\('([^']+)'\);", RegexOptions.Compiled);
+            var selectorRegex = new Regex(@"const\s+(\w+)\s*=\s*await\s+page\.waitForSelector\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
+            var pwLocatorRegex = new Regex(@"const\s+(\w+)\s*=\s*page\.locator\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
             var clickRegex = new Regex(@"await\s+(\w+)\.click\((.*?)\);", RegexOptions.Compiled);
-            var typeRegex = new Regex(@"await\s+(\w+)\.type\('([^']*)'\);", RegexOptions.Compiled);
+            var typeRegex = new Regex(@"await\s+(\w+)\.type\(['""]([^'""]*)['""]\);", RegexOptions.Compiled);
+            var pwFillRegex = new Regex(@"await\s+(\w+)\.fill\(['""]([^'""]*)['""]\);", RegexOptions.Compiled);
             var viewportRegex = new Regex(@"await\s+page\.setViewport\(\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}\);", RegexOptions.Compiled);
-            var gotoRegex = new Regex(@"await\s+page\.goto\('([^']+)'\);", RegexOptions.Compiled);
-            var keypressRegex = new Regex(@"await\s+page\.keyboard\.press\('([^']+)'\);", RegexOptions.Compiled);
+            var pwViewportRegex = new Regex(@"await\s+page\.setViewportSize\(\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}\);", RegexOptions.Compiled);
+            var gotoRegex = new Regex(@"await\s+page\.goto\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
+            var keypressRegex = new Regex(@"await\s+page\.keyboard\.press\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
             var dragRegex = new Regex(@"await\s+(\w+)\.dragTo\((\w+)\);", RegexOptions.Compiled);
-            var keyDownRegex = new Regex(@"await\s+page\.keyboard\.down\('([^']+)'\);", RegexOptions.Compiled);
-            var keyUpRegex = new Regex(@"await\s+page\.keyboard\.up\('([^']+)'\);", RegexOptions.Compiled);
+            var keyDownRegex = new Regex(@"await\s+page\.keyboard\.down\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
+            var keyUpRegex = new Regex(@"await\s+page\.keyboard\.up\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
+            var pwAssertVisibleRegex = new Regex(@"await\s+expect\(page\.locator\(['""]([^'""]+)['""]\)\)\.toBeVisible\(\);", RegexOptions.Compiled);
+            var pwAssertHiddenRegex = new Regex(@"await\s+expect\(page\.locator\(['""]([^'""]+)['""]\)\)\.toBeHidden\(\);", RegexOptions.Compiled);
+            var pupAssertVisibleRegex = new Regex(@"await\s+page\.waitForSelector\(['""]([^'""]+)['""]\s*,\s*\{\s*visible:\s*true\s*\}\);", RegexOptions.Compiled);
+            var pupAssertHiddenRegex = new Regex(@"await\s+page\.waitForSelector\(['""]([^'""]+)['""]\s*,\s*\{\s*hidden:\s*true\s*\}\);", RegexOptions.Compiled);
 
             int currentModifiers = 0;
 
@@ -163,6 +170,62 @@ public static class RecordingParser
                     continue;
                 }
 
+                var pwAvMatch = pwAssertVisibleRegex.Match(line);
+                if (pwAvMatch.Success)
+                {
+                    steps.Add(new ParsedStep
+                    {
+                        Type = "assertVisible",
+                        Selector = pwAvMatch.Groups[1].Value
+                    });
+                    continue;
+                }
+
+                var pwAhMatch = pwAssertHiddenRegex.Match(line);
+                if (pwAhMatch.Success)
+                {
+                    steps.Add(new ParsedStep
+                    {
+                        Type = "assertNotVisible",
+                        Selector = pwAhMatch.Groups[1].Value
+                    });
+                    continue;
+                }
+
+                var pupAvMatch = pupAssertVisibleRegex.Match(line);
+                if (pupAvMatch.Success)
+                {
+                    steps.Add(new ParsedStep
+                    {
+                        Type = "assertVisible",
+                        Selector = pupAvMatch.Groups[1].Value
+                    });
+                    continue;
+                }
+
+                var pupAhMatch = pupAssertHiddenRegex.Match(line);
+                if (pupAhMatch.Success)
+                {
+                    steps.Add(new ParsedStep
+                    {
+                        Type = "assertNotVisible",
+                        Selector = pupAhMatch.Groups[1].Value
+                    });
+                    continue;
+                }
+
+                var pwVpMatch = pwViewportRegex.Match(line);
+                if (pwVpMatch.Success)
+                {
+                    steps.Add(new ParsedStep
+                    {
+                        Type = "setViewport",
+                        Width = double.Parse(pwVpMatch.Groups[1].Value),
+                        Height = double.Parse(pwVpMatch.Groups[2].Value)
+                    });
+                    continue;
+                }
+
                 var gotoMatch = gotoRegex.Match(line);
                 if (gotoMatch.Success)
                 {
@@ -195,6 +258,15 @@ public static class RecordingParser
                     continue;
                 }
 
+                var pwSelMatch = pwLocatorRegex.Match(line);
+                if (pwSelMatch.Success)
+                {
+                    string varName = pwSelMatch.Groups[1].Value;
+                    string selector = pwSelMatch.Groups[2].Value;
+                    varToSelector[varName] = selector;
+                    continue;
+                }
+
                 var dragMatch = dragRegex.Match(line);
                 if (dragMatch.Success)
                 {
@@ -223,12 +295,24 @@ public static class RecordingParser
 
                     string button = "left";
                     int clickCount = 1;
+                    int clickModifiers = currentModifiers;
 
                     var buttonMatch = Regex.Match(optionsStr, @"button:\s*['""](\w+)['""]");
                     if (buttonMatch.Success) button = buttonMatch.Groups[1].Value;
 
                     var countMatch = Regex.Match(optionsStr, @"clickCount:\s*(\d+)");
                     if (countMatch.Success) clickCount = int.Parse(countMatch.Groups[1].Value);
+
+                    var modifiersMatch = Regex.Match(optionsStr, @"modifiers:\s*\[(.*?)\]");
+                    if (modifiersMatch.Success)
+                    {
+                        clickModifiers = 0;
+                        string modsContent = modifiersMatch.Groups[1].Value;
+                        if (modsContent.Contains("Alt", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 1;
+                        if (modsContent.Contains("Control", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 2;
+                        if (modsContent.Contains("Shift", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 4;
+                        if (modsContent.Contains("Meta", StringComparison.OrdinalIgnoreCase)) clickModifiers |= 8;
+                    }
 
                     if (varToSelector.TryGetValue(varName, out string? selector))
                     {
@@ -240,7 +324,7 @@ public static class RecordingParser
                             OffsetY = 0,
                             Button = button,
                             ClickCount = clickCount,
-                            Modifiers = currentModifiers
+                            Modifiers = clickModifiers
                         });
                     }
                     continue;
@@ -251,6 +335,23 @@ public static class RecordingParser
                 {
                     string varName = typeMatch.Groups[1].Value;
                     string textVal = typeMatch.Groups[2].Value;
+                    if (varToSelector.TryGetValue(varName, out string? selector))
+                    {
+                        steps.Add(new ParsedStep
+                        {
+                            Type = "change",
+                            Selector = selector,
+                            Value = textVal
+                        });
+                    }
+                    continue;
+                }
+
+                var pwFillMatch = pwFillRegex.Match(line);
+                if (pwFillMatch.Success)
+                {
+                    string varName = pwFillMatch.Groups[1].Value;
+                    string textVal = pwFillMatch.Groups[2].Value;
                     if (varToSelector.TryGetValue(varName, out string? selector))
                     {
                         steps.Add(new ParsedStep
