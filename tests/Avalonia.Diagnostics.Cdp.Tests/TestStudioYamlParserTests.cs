@@ -152,4 +152,108 @@ description: ""Verify login and dashboard interaction""
             }
         }
     }
+
+    [Fact]
+    public void TestNewMaestroCommands()
+    {
+        string yaml = @"appId: ""CdpSampleApp""
+description: ""Verify new Maestro commands""
+---
+- doubleTapOn: ""#btnDouble""
+- longPressOn: ""#btnLong""
+- pasteText: ""pasted text""
+- eraseText: 5
+- swipe:
+    direction: ""left""
+- stopApp
+- killApp: ""myApp""
+- clearState: ""myApp""
+- setOrientation: ""landscape""
+- setLocation:
+    latitude: 37.7749
+    longitude: -122.4194
+- takeScreenshot: ""my_screenshot.png""
+- assertTrue: ""1 == 1""
+- evalScript: ""console.log('hello')""
+- repeat: 3
+- retry: 2
+- runFlow: ""nested_flow.yaml""
+- openLink: ""https://google.com""
+- copyTextFrom: ""#myLabel""
+";
+
+        var steps = TestStudioYamlParser.Parse(yaml, out var appId, out var description);
+
+        Assert.Equal("CdpSampleApp", appId);
+        Assert.Equal("Verify new Maestro commands", description);
+        Assert.Equal(18, steps.Count);
+
+        Assert.Equal("doubleTapOn", steps[0].Action);
+        Assert.Equal("#btnDouble", steps[0].Selector);
+
+        Assert.Equal("longPressOn", steps[1].Action);
+        Assert.Equal("#btnLong", steps[1].Selector);
+
+        Assert.Equal("pasteText", steps[2].Action);
+        Assert.Equal("pasted text", steps[2].Value);
+
+        Assert.Equal("eraseText", steps[3].Action);
+        Assert.Equal("5", steps[3].Value);
+
+        Assert.Equal("swipe", steps[4].Action);
+        Assert.Contains("direction: left", steps[4].Value);
+
+        Assert.Equal("stopApp", steps[5].Action);
+
+        Assert.Equal("killApp", steps[6].Action);
+        Assert.Equal("myApp", steps[6].Value);
+
+        Assert.Equal("clearState", steps[7].Action);
+        Assert.Equal("myApp", steps[7].Value);
+
+        Assert.Equal("setOrientation", steps[8].Action);
+        Assert.Equal("landscape", steps[8].Value);
+
+        Assert.Equal("setLocation", steps[9].Action);
+        Assert.Contains("latitude: 37.7749", steps[9].Value);
+        Assert.Contains("longitude: -122.4194", steps[9].Value);
+
+        Assert.Equal("takeScreenshot", steps[10].Action);
+        Assert.Equal("my_screenshot.png", steps[10].Value);
+
+        Assert.Equal("assertTrue", steps[11].Action);
+        Assert.Equal("1 == 1", steps[11].Value);
+
+        Assert.Equal("evalScript", steps[12].Action);
+        Assert.Equal("console.log('hello')", steps[12].Value);
+
+        Assert.Equal("repeat", steps[13].Action);
+        Assert.Equal("3", steps[13].Value);
+
+        Assert.Equal("retry", steps[14].Action);
+        Assert.Equal("2", steps[14].Value);
+
+        Assert.Equal("runFlow", steps[15].Action);
+        Assert.Equal("nested_flow.yaml", steps[15].Value);
+
+        Assert.Equal("openLink", steps[16].Action);
+        Assert.Equal("https://google.com", steps[16].Value);
+
+        Assert.Equal("copyTextFrom", steps[17].Action);
+        Assert.Equal("#myLabel", steps[17].Selector);
+
+        // Test generation round-trip
+        var gen = TestStudioYamlParser.Generate(steps, appId, description);
+        var stepsGen = TestStudioYamlParser.Parse(gen, out var appIdGen, out var descGen);
+
+        Assert.Equal(appId, appIdGen);
+        Assert.Equal(description, descGen);
+        Assert.Equal(steps.Count, stepsGen.Count);
+
+        for (int i = 0; i < steps.Count; i++)
+        {
+            Assert.Equal(steps[i].Action, stepsGen[i].Action);
+            Assert.Equal(steps[i].Selector, stepsGen[i].Selector);
+        }
+    }
 }

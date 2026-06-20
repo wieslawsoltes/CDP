@@ -44,6 +44,14 @@ class Program
         try
         {
             Console.WriteLine("=== STARTING TASK-SPECIFIC TEST STUDIO E2E VERIFICATION ===");
+            var clipboardType = typeof(Avalonia.Input.Platform.IClipboard);
+            Console.WriteLine("IClipboard methods: " + string.Join(", ", clipboardType.GetMethods().Select(m => $"{m.ReturnType.Name} {m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")));
+            var extensionTypes = clipboardType.Assembly.GetTypes().Where(t => t.IsAbstract && t.IsSealed && t.Name.Contains("Clipboard", StringComparison.OrdinalIgnoreCase));
+            foreach (var ext in extensionTypes)
+            {
+                Console.WriteLine($"Extension class: {ext.FullName}");
+                Console.WriteLine("Methods: " + string.Join(", ", ext.GetMethods().Select(m => $"{m.Name}")));
+            }
 
             // 1. Create a window and controls
             Window? window = null;
@@ -107,6 +115,10 @@ class Program
                 };
                 window.Show();
                 window.Activate();
+                if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    desktop.MainWindow = window;
+                }
             });
 
             // Wait for visual tree to arrange
@@ -147,6 +159,7 @@ class Program
             await testStudio.AddAssertVisibleAsync();
             await testStudio.AddAssertNotVisibleAsync();
             await testStudio.AddClearTextAsync();
+            testStudio.InputSimText = "";
             testStudio.AddDelay();
             await testStudio.AddScrollAsync();
             await testStudio.AddBackAsync();
@@ -445,6 +458,10 @@ description: ""E2E Yaml Parse Test""
                 throw new Exception($"Translated step does not match expectations. Action: {recordedKeyStep.Action}, Value: {recordedKeyStep.Value}");
             }
             Console.WriteLine("Recorder keydown step successfully intercepted, translated, and appended to Test Studio.");
+            
+            // Stop recording so subsequent execution isn't recorded in steps list
+            await mainVm.Recorder.ToggleRecordAsync();
+            mainVm.Recorder.IsTestStudioActive = false;
             Console.WriteLine("Scenario 6 PASSED.");
 
             // 10. Test Scenario 7: Verify View bindings
@@ -466,8 +483,108 @@ description: ""E2E Yaml Parse Test""
             });
             Console.WriteLine("Scenario 7 PASSED.");
 
+            // 11. Test Scenario 8: Verify New Maestro Commands Execution (doubleTapOn, longPressOn, assertTrue, takeScreenshot)
+            Console.WriteLine("Testing Scenario 8: Verify New Maestro Commands Execution...");
+            testStudio.ClearCommand.Execute(null);
+            
+            // Set up a flow testing doubleTapOn, longPressOn, assertTrue, and takeScreenshot
+            testStudio.YamlCode = @"appId: ""CdpSampleApp""
+description: ""Verify new commands execution""
+---
+- doubleTapOn: ""#btnTarget""
+- longPressOn: ""#btnTarget""
+- assertTrue: ""1 === 1""
+- takeScreenshot: ""e2e_screenshot.png""
+- copyTextFrom: ""#btnTarget""
+- openLink: ""http://127.0.0.1:9236/mockPage""
+";
+            testStudio.ApplyYamlCommand.Execute(null);
+            if (testStudio.Steps.Count != 6)
+            {
+                throw new Exception($"Expected 6 parsed steps for Scenario 8, got {testStudio.Steps.Count}");
+            }
+            
+            // Let's run Play to execute them
+            await testStudio.PlayAsync();
+            
+            // Wait for execution to finish
+            elapsedMs = 0;
+            while (testStudio.IsExecuting && elapsedMs < waitTimeoutMs)
+            {
+                await Task.Delay(100);
+                elapsedMs += 100;
+            }
+
+            if (testStudio.IsExecuting)
+            {
+                throw new Exception("Scenario 8 Play execution timed out!");
+            }
+
+            // Print logs
+            System.Collections.Generic.List<string> logsCopy = new();
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                logsCopy = testStudio.Logs.ToList();
+            });
+            foreach (var log in logsCopy)
+            {
+                Console.WriteLine($"[TestStudio Log] {log}");
+            }
+
+            // Assert statuses
+            for (int i = 0; i < testStudio.Steps.Count; i++)
+            {
+                var step = testStudio.Steps[i];
+                if (step.Status != StepStatus.Passed)
+                {
+                    throw new Exception($"Scenario 8 Step {i+1} ({step.ActionDisplay}) failed with error: {step.ErrorMessage}");
+                }
+            }
+            Console.WriteLine("Scenario 8 step execution completed successfully.");
+            
+            // Check if screenshot was created
+            if (System.IO.File.Exists("e2e_screenshot.png"))
+            {
+                Console.WriteLine("Screenshot file 'e2e_screenshot.png' was captured successfully.");
+                try { System.IO.File.Delete("e2e_screenshot.png"); } catch {}
+            }
+            else
+            {
+                throw new Exception("Expected screenshot file 'e2e_screenshot.png' to be created, but it was not found.");
+            }
+
+            // Check clipboard value from copyTextFrom step
+            string clipboardVal = "";
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                Avalonia.Input.Platform.IClipboard? clipboard = null;
+                if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    clipboard = desktop.MainWindow?.Clipboard;
+                }
+                else if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.ISingleViewApplicationLifetime singleView)
+                {
+                    clipboard = Avalonia.Controls.TopLevel.GetTopLevel(singleView.MainView)?.Clipboard;
+                }
+                if (clipboard != null)
+                {
+                    clipboardVal = await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(clipboard) ?? "";
+                }
+            });
+
+            if (clipboardVal != "Click Me")
+            {
+                throw new Exception($"Expected clipboard text to be 'Click Me', got '{clipboardVal}'");
+            }
+            Console.WriteLine($"Clipboard verified: '{clipboardVal}'");
+
+            Console.WriteLine("Scenario 8 PASSED.");
+
             // Clean up
-            await mainVm.Recorder.ToggleRecordAsync();
+            if (mainVm.Recorder.IsRecording)
+            {
+                await mainVm.Recorder.ToggleRecordAsync();
+            }
             await cdpService.DisconnectAsync();
             CdpServer.Stop();
 

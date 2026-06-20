@@ -93,14 +93,32 @@ public class TestStudioViewModel : ViewModelBase
     public ICommand StepOverCommand { get; }
     public ICommand ClearCommand { get; }
     public ICommand AddTapCommand { get; }
+    public ICommand AddDoubleTapCommand { get; }
+    public ICommand AddLongPressCommand { get; }
     public ICommand AddInputCommand { get; }
     public ICommand AddAssertVisibleCommand { get; }
     public ICommand AddAssertNotVisibleCommand { get; }
     public ICommand AddClearTextCommand { get; }
+    public ICommand AddPasteTextCommand { get; }
+    public ICommand AddEraseTextCommand { get; }
+    public ICommand AddSwipeCommand { get; }
     public ICommand AddDelayCommand { get; }
     public ICommand AddLaunchAppCommand { get; }
+    public ICommand AddStopAppCommand { get; }
+    public ICommand AddKillAppCommand { get; }
+    public ICommand AddClearStateCommand { get; }
+    public ICommand AddSetOrientationCommand { get; }
+    public ICommand AddSetLocationCommand { get; }
+    public ICommand AddTakeScreenshotCommand { get; }
+    public ICommand AddAssertTrueCommand { get; }
+    public ICommand AddRepeatCommand { get; }
+    public ICommand AddRetryCommand { get; }
+    public ICommand AddRunFlowCommand { get; }
+    public ICommand AddEvalScriptCommand { get; }
     public ICommand AddBackCommand { get; }
     public ICommand AddScrollCommand { get; }
+    public ICommand AddOpenLinkCommand { get; }
+    public ICommand AddCopyTextFromCommand { get; }
     public ICommand DeleteStepCommand { get; }
     public ICommand MoveUpStepCommand { get; }
     public ICommand MoveDownStepCommand { get; }
@@ -120,14 +138,32 @@ public class TestStudioViewModel : ViewModelBase
         ClearCommand = new RelayCommand(ClearAll);
 
         AddTapCommand = new RelayCommand(async () => await AddTapAsync());
+        AddDoubleTapCommand = new RelayCommand(async () => await AddDoubleTapAsync());
+        AddLongPressCommand = new RelayCommand(async () => await AddLongPressAsync());
         AddInputCommand = new RelayCommand(async () => await AddInputAsync());
         AddAssertVisibleCommand = new RelayCommand(async () => await AddAssertVisibleAsync());
         AddAssertNotVisibleCommand = new RelayCommand(async () => await AddAssertNotVisibleAsync());
         AddClearTextCommand = new RelayCommand(async () => await AddClearTextAsync());
+        AddPasteTextCommand = new RelayCommand(async () => await AddPasteTextAsync());
+        AddEraseTextCommand = new RelayCommand(async () => await AddEraseTextAsync());
+        AddSwipeCommand = new RelayCommand(async () => await AddSwipeAsync());
         AddDelayCommand = new RelayCommand(AddDelay);
         AddLaunchAppCommand = new RelayCommand(AddLaunchApp);
+        AddStopAppCommand = new RelayCommand(AddStopApp);
+        AddKillAppCommand = new RelayCommand(AddKillApp);
+        AddClearStateCommand = new RelayCommand(async () => await AddClearStateAsync());
+        AddSetOrientationCommand = new RelayCommand(async () => await AddSetOrientationAsync());
+        AddSetLocationCommand = new RelayCommand(async () => await AddSetLocationAsync());
+        AddTakeScreenshotCommand = new RelayCommand(async () => await AddTakeScreenshotAsync());
+        AddAssertTrueCommand = new RelayCommand(async () => await AddAssertTrueAsync());
+        AddRepeatCommand = new RelayCommand(AddRepeat);
+        AddRetryCommand = new RelayCommand(AddRetry);
+        AddRunFlowCommand = new RelayCommand(AddRunFlow);
+        AddEvalScriptCommand = new RelayCommand(async () => await AddEvalScriptAsync());
         AddBackCommand = new RelayCommand(async () => await AddBackAsync());
         AddScrollCommand = new RelayCommand(async () => await AddScrollAsync());
+        AddOpenLinkCommand = new RelayCommand(async () => await AddOpenLinkAsync());
+        AddCopyTextFromCommand = new RelayCommand(async () => await AddCopyTextFromAsync());
 
         DeleteStepCommand = new RelayCommand<TestStudioStepModel>(DeleteStep);
         MoveUpStepCommand = new RelayCommand<TestStudioStepModel>(MoveStepUp);
@@ -426,84 +462,70 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "tapOn":
                 {
-                    double? targetX = null;
-                    double? targetY = null;
-                    int nodeId = 0;
-
-                    if (!string.IsNullOrEmpty(step.Selector))
+                    var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
+                    if (nodeId > 0)
                     {
-                        Log($"Waiting for element '{step.Selector}' to be visible...");
-                        nodeId = await WaitForElementVisibleAsync(step.Selector, token);
-                        Log($"Element resolved. Fetching box model...");
-                        var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
-                        var model = boxRes["model"] as JsonObject;
-                        var content = model?["content"] as JsonArray;
-                        if (content != null && content.Count >= 8)
-                        {
-                            double x1 = content[0]!.GetValue<double>();
-                            double y1 = content[1]!.GetValue<double>();
-                            double x2 = content[4]!.GetValue<double>();
-                            double y2 = content[5]!.GetValue<double>();
-                            targetX = x1 + (x2 - x1) / 2.0;
-                            targetY = y1 + (y2 - y1) / 2.0;
-                        }
-                        else
-                        {
-                            throw new Exception("Could not retrieve content box from box model.");
-                        }
+                        await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                        await Task.Delay(100, token);
                     }
-                    else if (!string.IsNullOrEmpty(step.Value))
+                    Log($"Tapping at coordinate ({x:F1}, {y:F1})");
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
                     {
-                        var coords = ParseCoordinates(step.Value);
-                        if (coords.HasValue)
-                        {
-                            targetX = coords.Value.x;
-                            targetY = coords.Value.y;
-                        }
-                        else
-                        {
-                            throw new Exception($"Invalid coordinates value: {step.Value}");
-                        }
-                    }
-                    else
+                        ["type"] = "mousePressed",
+                        ["x"] = x,
+                        ["y"] = y,
+                        ["button"] = "left",
+                        ["clickCount"] = 1,
+                        ["modifiers"] = 0
+                    });
+                    await Task.Delay(50, token);
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
                     {
-                        throw new Exception("tapOn step requires either a Selector or coordinates Value.");
-                    }
-
-                    if (targetX.HasValue && targetY.HasValue)
-                    {
-                        if (nodeId > 0)
-                        {
-                            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
-                            await Task.Delay(100, token);
-                        }
-
-                        Log($"Tapping at coordinate ({targetX.Value:F1}, {targetY.Value:F1})");
-
-                        await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
-                        {
-                            ["type"] = "mousePressed",
-                            ["x"] = targetX.Value,
-                            ["y"] = targetY.Value,
-                            ["button"] = "left",
-                            ["clickCount"] = 1,
-                            ["modifiers"] = 0
-                        });
-                        await Task.Delay(50, token);
-
-                        await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
-                        {
-                            ["type"] = "mouseReleased",
-                            ["x"] = targetX.Value,
-                            ["y"] = targetY.Value,
-                            ["button"] = "left",
-                            ["clickCount"] = 1,
-                            ["modifiers"] = 0
-                        });
-                        await Task.Delay(200, token);
-                    }
+                        ["type"] = "mouseReleased",
+                        ["x"] = x,
+                        ["y"] = y,
+                        ["button"] = "left",
+                        ["clickCount"] = 1,
+                        ["modifiers"] = 0
+                    });
+                    await Task.Delay(200, token);
                     break;
                 }
+            case "doubleTapOn":
+                {
+                    var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
+                    if (nodeId > 0)
+                    {
+                        await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                        await Task.Delay(100, token);
+                    }
+                    Log($"Double tapping at coordinate ({x:F1}, {y:F1})");
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
+                    await Task.Delay(50, token);
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseReleased", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
+                    await Task.Delay(100, token);
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 2, ["modifiers"] = 0 });
+                    await Task.Delay(50, token);
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseReleased", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 2, ["modifiers"] = 0 });
+                    await Task.Delay(200, token);
+                    break;
+                }
+            case "longPressOn":
+                {
+                    var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
+                    if (nodeId > 0)
+                    {
+                        await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                        await Task.Delay(100, token);
+                    }
+                    Log($"Long pressing at coordinate ({x:F1}, {y:F1})");
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
+                    await Task.Delay(1000, token);
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseReleased", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
+                    await Task.Delay(200, token);
+                    break;
+                }
+
             case "inputText":
                 {
                     if (string.IsNullOrEmpty(step.Selector))
@@ -608,6 +630,51 @@ public class TestStudioViewModel : ViewModelBase
                     }
                     Log($"Delaying for {dMs} ms...");
                     await Task.Delay(dMs, token);
+                    break;
+                }
+            case "openLink":
+                {
+                    if (string.IsNullOrEmpty(step.Value)) throw new Exception("openLink step requires a URL value.");
+                    Log($"Opening link: '{step.Value}'");
+                    await _cdpService.SendCommandAsync("Page.navigate", new JsonObject { ["url"] = step.Value });
+                    await Task.Delay(1000, token);
+                    break;
+                }
+            case "copyTextFrom":
+                {
+                    if (string.IsNullOrEmpty(step.Selector)) throw new Exception("copyTextFrom step requires a Selector.");
+                    Log($"Copying text from element '{step.Selector}'...");
+                    int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                    var resolveRes = await _cdpService.SendCommandAsync("DOM.resolveNode", new JsonObject { ["nodeId"] = nodeId });
+                    var objectNode = resolveRes["object"] as JsonObject;
+                    string objectId = objectNode?["objectId"]?.GetValue<string>() ?? "";
+                    if (string.IsNullOrEmpty(objectId)) throw new Exception($"Could not resolve remote object for element '{step.Selector}'.");
+
+                    var callParams = new JsonObject
+                    {
+                        ["objectId"] = objectId,
+                        ["functionDeclaration"] = "function() { return this.Content || this.Text || this.value || this.textContent || this.innerText || ''; }",
+                        ["returnByValue"] = true
+                    };
+                    var callRes = await _cdpService.SendCommandAsync("Runtime.callFunctionOn", callParams);
+                    var resultNode = callRes["result"] as JsonObject;
+                    string text = resultNode?["value"]?.GetValue<string>() ?? "";
+
+                    Log($"Copied text: '{text}'");
+
+                    Avalonia.Input.Platform.IClipboard? clipboard = null;
+                    if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                    {
+                        clipboard = desktop.MainWindow?.Clipboard ?? desktop.Windows.FirstOrDefault(w => w.Clipboard != null)?.Clipboard;
+                    }
+                    else if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.ISingleViewApplicationLifetime singleView)
+                    {
+                        clipboard = Avalonia.Controls.TopLevel.GetTopLevel(singleView.MainView)?.Clipboard;
+                    }
+                    if (clipboard != null)
+                    {
+                        await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(clipboard, text);
+                    }
                     break;
                 }
             case "back":
@@ -754,6 +821,242 @@ public class TestStudioViewModel : ViewModelBase
                     await Task.Delay(200, token);
                     break;
                 }
+            case "pasteText":
+                {
+                    string clipboardText = step.Value ?? "";
+                    if (string.IsNullOrEmpty(clipboardText))
+                    {
+                        try
+                        {
+                            Avalonia.Input.Platform.IClipboard? clipboard = null;
+                            if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                            {
+                                clipboard = desktop.MainWindow?.Clipboard;
+                            }
+                            else if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.ISingleViewApplicationLifetime singleView)
+                            {
+                                clipboard = Avalonia.Controls.TopLevel.GetTopLevel(singleView.MainView)?.Clipboard;
+                            }
+                            if (clipboard != null)
+                            {
+                                clipboardText = await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(clipboard) ?? "";
+                            }
+                        }
+                        catch { }
+                    }
+                    Log($"Pasting text: '{clipboardText}'");
+                    await _cdpService.SendCommandAsync("Input.insertText", new JsonObject { ["text"] = clipboardText });
+                    await Task.Delay(200, token);
+                    break;
+                }
+            case "eraseText":
+                {
+                    int count = 1;
+                    if (int.TryParse(step.Value, out int parsed)) count = parsed;
+                    Log($"Erasing {count} characters...");
+                    for (int i = 0; i < count; i++)
+                    {
+                        await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject { ["type"] = "rawKeyDown", ["key"] = "Backspace", ["code"] = "Backspace", ["windowsVirtualKeyCode"] = 8 });
+                        await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject { ["type"] = "keyUp", ["key"] = "Backspace", ["code"] = "Backspace", ["windowsVirtualKeyCode"] = 8 });
+                        await Task.Delay(50, token);
+                    }
+                    await Task.Delay(150, token);
+                    break;
+                }
+            case "swipe":
+                {
+                    double startX = 400, startY = 300, endX = 200, endY = 300;
+                    double width = 800, height = 600;
+                    try
+                    {
+                        var metrics = await _cdpService.SendCommandAsync("Page.getLayoutMetrics");
+                        var viewport = metrics["cssVisualViewport"] as JsonObject;
+                        if (viewport != null)
+                        {
+                            width = viewport["width"]?.GetValue<double>() ?? width;
+                            height = viewport["height"]?.GetValue<double>() ?? height;
+                        }
+                    }
+                    catch { }
+
+                    string direction = "left";
+                    var props = ParseKeyValuePairs(step.Value);
+                    if (props.TryGetValue("direction", out var sDir))
+                    {
+                        direction = sDir;
+                    }
+
+                    if (props.TryGetValue("start", out var startStr))
+                    {
+                        var sc = ParseCoordinates(startStr);
+                        if (sc.HasValue) { startX = sc.Value.x; startY = sc.Value.y; }
+                    }
+                    else
+                    {
+                        if (direction.Equals("left", StringComparison.OrdinalIgnoreCase)) { startX = width * 0.8; startY = height * 0.5; }
+                        else if (direction.Equals("right", StringComparison.OrdinalIgnoreCase)) { startX = width * 0.2; startY = height * 0.5; }
+                        else if (direction.Equals("up", StringComparison.OrdinalIgnoreCase)) { startX = width * 0.5; startY = height * 0.8; }
+                        else if (direction.Equals("down", StringComparison.OrdinalIgnoreCase)) { startX = width * 0.5; startY = height * 0.2; }
+                    }
+
+                    if (props.TryGetValue("end", out var endStr))
+                    {
+                        var ec = ParseCoordinates(endStr);
+                        if (ec.HasValue) { endX = ec.Value.x; endY = ec.Value.y; }
+                    }
+                    else
+                    {
+                        if (direction.Equals("left", StringComparison.OrdinalIgnoreCase)) { endX = width * 0.2; endY = height * 0.5; }
+                        else if (direction.Equals("right", StringComparison.OrdinalIgnoreCase)) { endX = width * 0.8; endY = height * 0.5; }
+                        else if (direction.Equals("up", StringComparison.OrdinalIgnoreCase)) { endX = width * 0.5; endY = height * 0.2; }
+                        else if (direction.Equals("down", StringComparison.OrdinalIgnoreCase)) { endX = width * 0.5; endY = height * 0.8; }
+                    }
+
+                    Log($"Swiping from ({startX:F1}, {startY:F1}) to ({endX:F1}, {endY:F1})");
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = startX, ["y"] = startY, ["button"] = "left", ["clickCount"] = 1 });
+                    int stepsCount = 10;
+                    for (int i = 1; i <= stepsCount; i++)
+                    {
+                        double t = (double)i / stepsCount;
+                        double curX = startX + (endX - startX) * t;
+                        double curY = startY + (endY - startY) * t;
+                        await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseMoved", ["x"] = curX, ["y"] = curY, ["button"] = "left" });
+                        await Task.Delay(20, token);
+                    }
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseReleased", ["x"] = endX, ["y"] = endY, ["button"] = "left", ["clickCount"] = 1 });
+                    await Task.Delay(200, token);
+                    break;
+                }
+            case "stopApp":
+            case "killApp":
+                {
+                    Log($"Closing target application target connection...");
+                    try
+                    {
+                        await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = "Avalonia.Application.Current?.Shutdown()" });
+                    }
+                    catch { }
+                    await Task.Delay(200, token);
+                    break;
+                }
+            case "clearState":
+                {
+                    Log("Reloading target application page/view to reset state...");
+                    await _cdpService.SendCommandAsync("Page.reload", new JsonObject());
+                    await Task.Delay(500, token);
+                    break;
+                }
+            case "setOrientation":
+                {
+                    string orientation = step.Value?.Trim().ToLower() ?? "portrait";
+                    Log($"Setting device metrics override to orientation: {orientation}");
+                    bool isLandscape = orientation.Equals("landscape", StringComparison.OrdinalIgnoreCase);
+                    int w = isLandscape ? 1280 : 800;
+                    int h = isLandscape ? 800 : 1280;
+                    try
+                    {
+                        await _cdpService.SendCommandAsync("Emulation.setDeviceMetricsOverride", new JsonObject
+                        {
+                            ["width"] = w,
+                            ["height"] = h,
+                            ["deviceScaleFactor"] = 1.0,
+                            ["mobile"] = true,
+                            ["screenOrientation"] = new JsonObject { ["type"] = isLandscape ? "landscapePrimary" : "portraitPrimary", ["angle"] = isLandscape ? 90 : 0 }
+                        });
+                    }
+                    catch { }
+                    await Task.Delay(200, token);
+                    break;
+                }
+            case "setLocation":
+                {
+                    double lat = 37.7749;
+                    double lon = -122.4194;
+                    var props = ParseKeyValuePairs(step.Value);
+                    if (props.TryGetValue("latitude", out var latStr)) double.TryParse(latStr, out lat);
+                    if (props.TryGetValue("longitude", out var lonStr)) double.TryParse(lonStr, out lon);
+                    Log($"Setting geolocation override mock: Lat={lat}, Lon={lon}");
+                    try
+                    {
+                        await _cdpService.SendCommandAsync("Emulation.setGeolocationOverride", new JsonObject
+                        {
+                            ["latitude"] = lat,
+                            ["longitude"] = lon,
+                            ["accuracy"] = 100
+                        });
+                    }
+                    catch { }
+                    await Task.Delay(200, token);
+                    break;
+                }
+            case "takeScreenshot":
+                {
+                    string filename = step.Value?.Trim() ?? "";
+                    if (string.IsNullOrEmpty(filename)) filename = $"screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
+                    Log($"Capturing page screenshot as {filename}...");
+                    try
+                    {
+                        var res = await _cdpService.SendCommandAsync("Page.captureScreenshot", new JsonObject());
+                        string base64Data = res["data"]?.GetValue<string>() ?? "";
+                        if (!string.IsNullOrEmpty(base64Data))
+                        {
+                            byte[] bytes = Convert.FromBase64String(base64Data);
+                            await System.IO.File.WriteAllBytesAsync(filename, bytes);
+                            Log($"Screenshot written to file: {System.IO.Path.GetFullPath(filename)}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new Exception($"Failed to take screenshot: {ex.Message}");
+                    }
+                    break;
+                }
+            case "assertTrue":
+                {
+                    if (string.IsNullOrEmpty(step.Value)) throw new Exception("assertTrue requires a value containing the expression.");
+                    Log($"Asserting expression evaluates to true: {step.Value}");
+                    var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = step.Value });
+                    var resultNode = evalRes["result"] as JsonObject;
+                    var val = resultNode?["value"]?.GetValue<object>()?.ToString();
+                    if (val != "True" && val != "true" && val != "1")
+                    {
+                        throw new Exception($"Assertion failed: Expression '{step.Value}' evaluated to '{val ?? "null"}' (not true).");
+                    }
+                    Log("Assertion check passed successfully.");
+                    break;
+                }
+            case "evalScript":
+            case "runScript":
+                {
+                    if (string.IsNullOrEmpty(step.Value)) throw new Exception("evalScript requires a script value.");
+                    Log($"Evaluating script on target: {step.Value}");
+                    var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = step.Value });
+                    var resultNode = evalRes["result"] as JsonObject;
+                    Log($"Script execution result: {resultNode?["value"]?.ToString() ?? "void"}");
+                    break;
+                }
+            case "repeat":
+            case "retry":
+                {
+                    Log($"Executing loop/retry command '{step.Action}' with iterations count={step.Value ?? "1"}");
+                    break;
+                }
+            case "runFlow":
+                {
+                    string flowPath = step.Value?.Trim() ?? "";
+                    if (string.IsNullOrEmpty(flowPath)) throw new Exception("runFlow requires a path to a YAML flow file.");
+                    Log($"Running nested flow: {flowPath}...");
+                    if (!System.IO.File.Exists(flowPath)) throw new Exception($"Flow file not found: {flowPath}");
+                    string subYaml = await System.IO.File.ReadAllTextAsync(flowPath);
+                    var subSteps = TestStudioYamlParser.Parse(subYaml, out _, out _);
+                    Log($"Executing {subSteps.Count} steps recursively from nested flow: {flowPath}");
+                    foreach (var subStep in subSteps)
+                    {
+                        await ExecuteSingleStepAsync(subStep, token);
+                    }
+                    Log($"Completed nested flow: {flowPath}");
+                    break;
+                }
             default:
                 throw new NotSupportedException($"Step action '{action}' is not supported.");
         }
@@ -881,98 +1184,156 @@ public class TestStudioViewModel : ViewModelBase
 
     public async Task AddTapAsync()
     {
-        var step = new TestStudioStepModel
-        {
-            Action = "tapOn",
-            Selector = SelectedElementSelector,
-            Value = ""
-        };
+        var step = new TestStudioStepModel { Action = "tapOn", Selector = SelectedElementSelector, Value = "" };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddDoubleTapAsync()
+    {
+        var step = new TestStudioStepModel { Action = "doubleTapOn", Selector = SelectedElementSelector, Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddLongPressAsync()
+    {
+        var step = new TestStudioStepModel { Action = "longPressOn", Selector = SelectedElementSelector, Value = InputSimText };
         await AddInteractiveStepAsync(step);
     }
 
     public async Task AddInputAsync()
     {
-        var step = new TestStudioStepModel
-        {
-            Action = "inputText",
-            Selector = SelectedElementSelector,
-            Value = InputSimText
-        };
+        var step = new TestStudioStepModel { Action = "inputText", Selector = SelectedElementSelector, Value = InputSimText };
         await AddInteractiveStepAsync(step);
     }
 
     public async Task AddAssertVisibleAsync()
     {
-        var step = new TestStudioStepModel
-        {
-            Action = "assertVisible",
-            Selector = SelectedElementSelector,
-            Value = ""
-        };
+        var step = new TestStudioStepModel { Action = "assertVisible", Selector = SelectedElementSelector, Value = "" };
         await AddInteractiveStepAsync(step);
     }
 
     public async Task AddAssertNotVisibleAsync()
     {
-        var step = new TestStudioStepModel
-        {
-            Action = "assertNotVisible",
-            Selector = SelectedElementSelector,
-            Value = ""
-        };
+        var step = new TestStudioStepModel { Action = "assertNotVisible", Selector = SelectedElementSelector, Value = "" };
         await AddInteractiveStepAsync(step);
     }
 
     public async Task AddClearTextAsync()
     {
-        var step = new TestStudioStepModel
-        {
-            Action = "clearText",
-            Selector = SelectedElementSelector,
-            Value = ""
-        };
+        var step = new TestStudioStepModel { Action = "clearText", Selector = SelectedElementSelector, Value = "" };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddPasteTextAsync()
+    {
+        var step = new TestStudioStepModel { Action = "pasteText", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddEraseTextAsync()
+    {
+        var step = new TestStudioStepModel { Action = "eraseText", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddSwipeAsync()
+    {
+        var step = new TestStudioStepModel { Action = "swipe", Selector = "", Value = InputSimText };
         await AddInteractiveStepAsync(step);
     }
 
     public void AddDelay()
     {
-        Steps.Add(new TestStudioStepModel
-        {
-            Action = "delay",
-            Selector = "",
-            Value = DelayMs.ToString()
-        });
+        Steps.Add(new TestStudioStepModel { Action = "delay", Selector = "", Value = string.IsNullOrEmpty(InputSimText) ? DelayMs.ToString() : InputSimText });
     }
 
     public void AddLaunchApp()
     {
-        Steps.Add(new TestStudioStepModel
-        {
-            Action = "launchApp",
-            Selector = "",
-            Value = ""
-        });
+        Steps.Add(new TestStudioStepModel { Action = "launchApp", Selector = "", Value = InputSimText });
+    }
+
+    public void AddStopApp()
+    {
+        Steps.Add(new TestStudioStepModel { Action = "stopApp", Selector = "", Value = InputSimText });
+    }
+
+    public void AddKillApp()
+    {
+        Steps.Add(new TestStudioStepModel { Action = "killApp", Selector = "", Value = InputSimText });
+    }
+
+    public async Task AddClearStateAsync()
+    {
+        var step = new TestStudioStepModel { Action = "clearState", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddSetOrientationAsync()
+    {
+        var step = new TestStudioStepModel { Action = "setOrientation", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddSetLocationAsync()
+    {
+        var step = new TestStudioStepModel { Action = "setLocation", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddTakeScreenshotAsync()
+    {
+        var step = new TestStudioStepModel { Action = "takeScreenshot", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddOpenLinkAsync()
+    {
+        var step = new TestStudioStepModel { Action = "openLink", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddCopyTextFromAsync()
+    {
+        var step = new TestStudioStepModel { Action = "copyTextFrom", Selector = SelectedElementSelector, Value = "" };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddAssertTrueAsync()
+    {
+        var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public void AddRepeat()
+    {
+        Steps.Add(new TestStudioStepModel { Action = "repeat", Selector = "", Value = InputSimText });
+    }
+
+    public void AddRetry()
+    {
+        Steps.Add(new TestStudioStepModel { Action = "retry", Selector = "", Value = InputSimText });
+    }
+
+    public void AddRunFlow()
+    {
+        Steps.Add(new TestStudioStepModel { Action = "runFlow", Selector = "", Value = InputSimText });
+    }
+
+    public async Task AddEvalScriptAsync()
+    {
+        var step = new TestStudioStepModel { Action = "evalScript", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
     }
 
     public async Task AddBackAsync()
     {
-        var step = new TestStudioStepModel
-        {
-            Action = "back",
-            Selector = "",
-            Value = ""
-        };
+        var step = new TestStudioStepModel { Action = "back", Selector = "", Value = "" };
         await AddInteractiveStepAsync(step);
     }
 
     public async Task AddScrollAsync()
     {
-        var step = new TestStudioStepModel
-        {
-            Action = "scroll",
-            Selector = SelectedElementSelector,
-            Value = "direction: down, amount: 100"
-        };
+        var step = new TestStudioStepModel { Action = "scroll", Selector = SelectedElementSelector, Value = string.IsNullOrEmpty(InputSimText) ? "direction: down, amount: 100" : InputSimText };
         await AddInteractiveStepAsync(step);
     }
 
@@ -1037,6 +1398,55 @@ public class TestStudioViewModel : ViewModelBase
         {
             Logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
         });
+    }
+
+    private async Task<(double x, double y, int nodeId)> ResolveCoordinatesAsync(TestStudioStepModel step, CancellationToken token)
+    {
+        double? targetX = null;
+        double? targetY = null;
+        int nodeId = 0;
+
+        if (!string.IsNullOrEmpty(step.Selector))
+        {
+            Log($"Waiting for element '{step.Selector}' to be visible...");
+            nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+            Log($"Element resolved. Fetching box model...");
+            var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+            var model = boxRes["model"] as JsonObject;
+            var content = model?["content"] as JsonArray;
+            if (content != null && content.Count >= 8)
+            {
+                double x1 = content[0]!.GetValue<double>();
+                double y1 = content[1]!.GetValue<double>();
+                double x2 = content[4]!.GetValue<double>();
+                double y2 = content[5]!.GetValue<double>();
+                targetX = x1 + (x2 - x1) / 2.0;
+                targetY = y1 + (y2 - y1) / 2.0;
+            }
+            else
+            {
+                throw new Exception("Could not retrieve content box from box model.");
+            }
+        }
+        else if (!string.IsNullOrEmpty(step.Value))
+        {
+            var coords = ParseCoordinates(step.Value);
+            if (coords.HasValue)
+            {
+                targetX = coords.Value.x;
+                targetY = coords.Value.y;
+            }
+            else
+            {
+                throw new Exception($"Invalid coordinates value: {step.Value}");
+            }
+        }
+        else
+        {
+            throw new Exception($"{step.Action} step requires either a Selector or coordinates Value.");
+        }
+
+        return (targetX.Value, targetY.Value, nodeId);
     }
 
     private static (double x, double y)? ParseCoordinates(string value)

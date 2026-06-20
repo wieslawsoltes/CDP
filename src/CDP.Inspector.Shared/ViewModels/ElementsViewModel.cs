@@ -601,6 +601,7 @@ public class ElementsViewModel : ViewModelBase
             StyleTextInputText = "";
             ClearAxDetails();
             ResetLayoutInfo();
+            SelectorService.Instance.UpdateSelectors(null);
         });
     }
 
@@ -617,6 +618,7 @@ public class ElementsViewModel : ViewModelBase
             {
                 RootNodes.Clear();
                 RootNodes.Add(rootModel);
+                SelectorService.Instance.UpdateSelectors(rootModel);
             });
         }
         catch (Exception ex)

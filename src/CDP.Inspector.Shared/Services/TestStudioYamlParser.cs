@@ -19,8 +19,11 @@ public static class TestStudioYamlParser
         {
             "launchApp", "back", "clearText", "scroll", "tapOn", "inputText", "assertVisible", 
             "assertNotVisible", "delay", "scrollUntilVisible", "pressKey",
+            "doubleTapOn", "longPressOn", "pasteText", "eraseText", "swipe", "stopApp", "killApp",
+            "clearState", "setOrientation", "setLocation", "takeScreenshot", "assertTrue",
+            "runFlow", "repeat", "retry", "evalScript", "runScript", "openLink", "copyTextFrom",
             "selector", "text", "value", "direction", "amount", "maxScrolls",
-            "appId", "description"
+            "appId", "description", "start", "end", "latitude", "longitude", "accuracy", "orientation", "key"
         };
 
         public ForceDoubleQuoteEmitter(IEventEmitter nextEmitter) : base(nextEmitter) { }
@@ -59,7 +62,6 @@ public static class TestStudioYamlParser
         }
         catch
         {
-            // If parsing fails, return whatever we have or empty list
             return steps;
         }
 
@@ -113,7 +115,6 @@ public static class TestStudioYamlParser
             string inlineValue = "";
             var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            // Try to find a known action first
             foreach (var entry in mappingNode.Children)
             {
                 if (entry.Key is YamlScalarNode scalarKey && scalarKey.Value != null && IsKnownAction(scalarKey.Value))
@@ -140,7 +141,6 @@ public static class TestStudioYamlParser
                 }
             }
 
-            // If no known action is found, fallback to the first entry
             if (action == null && mappingNode.Children.Count > 0)
             {
                 var firstEntry = mappingNode.Children[0];
@@ -164,19 +164,6 @@ public static class TestStudioYamlParser
                             }
                         }
                     }
-
-                    // Gather sibling keys at the root level of the mapping
-                    for (int i = 1; i < mappingNode.Children.Count; i++)
-                    {
-                        var sibling = mappingNode.Children[i];
-                        if (sibling.Key is YamlScalarNode siblingKey && sibling.Value is YamlScalarNode siblingVal)
-                        {
-                            if (siblingKey.Value != null)
-                            {
-                                dict[siblingKey.Value] = siblingVal.Value ?? "";
-                            }
-                        }
-                    }
                 }
             }
 
@@ -195,15 +182,34 @@ public static class TestStudioYamlParser
     {
         return action.Equals("launchApp", StringComparison.OrdinalIgnoreCase)
             || action.Equals("tapOn", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("doubleTapOn", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("longPressOn", StringComparison.OrdinalIgnoreCase)
             || action.Equals("inputText", StringComparison.OrdinalIgnoreCase)
             || action.Equals("clearText", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("pasteText", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("eraseText", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("swipe", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("stopApp", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("killApp", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("clearState", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("setOrientation", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("setLocation", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("takeScreenshot", StringComparison.OrdinalIgnoreCase)
             || action.Equals("assertVisible", StringComparison.OrdinalIgnoreCase)
             || action.Equals("assertNotVisible", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("assertTrue", StringComparison.OrdinalIgnoreCase)
             || action.Equals("delay", StringComparison.OrdinalIgnoreCase)
             || action.Equals("scroll", StringComparison.OrdinalIgnoreCase)
             || action.Equals("scrollUntilVisible", StringComparison.OrdinalIgnoreCase)
             || action.Equals("back", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("pressKey", StringComparison.OrdinalIgnoreCase);
+            || action.Equals("pressKey", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("repeat", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("retry", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("runFlow", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("evalScript", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("runScript", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("openLink", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("copyTextFrom", StringComparison.OrdinalIgnoreCase);
     }
 
     private static TestStudioStepModel BuildStepModel(string action, string inlineValue, Dictionary<string, string>? dict = null)
@@ -216,11 +222,14 @@ public static class TestStudioYamlParser
             case "launchapp":
                 model.Action = "launchApp";
                 model.Selector = "";
-                model.Value = "";
+                model.Value = inlineValue;
                 break;
 
             case "tapon":
-                model.Action = "tapOn";
+            case "doubletapon":
+            case "longpresson":
+                model.Action = action.Equals("doubleTapOn", StringComparison.OrdinalIgnoreCase) ? "doubleTapOn" :
+                               action.Equals("longPressOn", StringComparison.OrdinalIgnoreCase) ? "longPressOn" : "tapOn";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
                     model.Selector = inlineValue;
@@ -270,6 +279,88 @@ public static class TestStudioYamlParser
                 model.Value = "";
                 break;
 
+            case "pastetext":
+                model.Action = "pasteText";
+                model.Selector = "";
+                model.Value = inlineValue;
+                break;
+
+            case "erasetext":
+                model.Action = "eraseText";
+                model.Selector = "";
+                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("value", dict.GetValueOrDefault("amount", "1"));
+                break;
+
+            case "swipe":
+                model.Action = "swipe";
+                model.Selector = "";
+                if (!string.IsNullOrEmpty(inlineValue))
+                {
+                    model.Value = inlineValue;
+                }
+                else
+                {
+                    var parts = new List<string>();
+                    if (dict.TryGetValue("start", out var start)) parts.Add($"start: {start}");
+                    if (dict.TryGetValue("end", out var end)) parts.Add($"end: {end}");
+                    if (dict.TryGetValue("direction", out var sDir)) parts.Add($"direction: {sDir}");
+                    model.Value = string.Join(", ", parts);
+                }
+                break;
+
+            case "stopapp":
+            case "killapp":
+                model.Action = action.Equals("stopApp", StringComparison.OrdinalIgnoreCase) ? "stopApp" : "killApp";
+                model.Selector = "";
+                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("appId", "");
+                break;
+
+            case "clearstate":
+                model.Action = "clearState";
+                model.Selector = "";
+                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("appId", "");
+                break;
+
+            case "setorientation":
+                model.Action = "setOrientation";
+                model.Selector = "";
+                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("orientation", "");
+                break;
+
+            case "setlocation":
+                model.Action = "setLocation";
+                model.Selector = "";
+                if (!string.IsNullOrEmpty(inlineValue))
+                {
+                    model.Value = inlineValue;
+                }
+                else
+                {
+                    var parts = new List<string>();
+                    if (dict.TryGetValue("latitude", out var lat)) parts.Add($"latitude: {lat}");
+                    if (dict.TryGetValue("longitude", out var lon)) parts.Add($"longitude: {lon}");
+                    model.Value = string.Join(", ", parts);
+                }
+                break;
+
+            case "takescreenshot":
+                model.Action = "takeScreenshot";
+                model.Selector = "";
+                model.Value = inlineValue;
+                break;
+
+            case "openlink":
+                model.Action = "openLink";
+                model.Selector = "";
+                model.Value = inlineValue;
+                break;
+
+            case "copytextfrom":
+                model.Action = "copyTextFrom";
+                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("selector", "");
+                model.Value = "";
+                break;
+
             case "assertvisible":
                 model.Action = "assertVisible";
                 model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("selector", "");
@@ -280,6 +371,12 @@ public static class TestStudioYamlParser
                 model.Action = "assertNotVisible";
                 model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("selector", "");
                 model.Value = "";
+                break;
+
+            case "asserttrue":
+                model.Action = "assertTrue";
+                model.Selector = "";
+                model.Value = inlineValue;
                 break;
 
             case "delay":
@@ -340,6 +437,26 @@ public static class TestStudioYamlParser
                 }
                 break;
 
+            case "repeat":
+            case "retry":
+                model.Action = action.Equals("repeat", StringComparison.OrdinalIgnoreCase) ? "repeat" : "retry";
+                model.Selector = "";
+                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("times", dict.GetValueOrDefault("value", ""));
+                break;
+
+            case "runflow":
+                model.Action = "runFlow";
+                model.Selector = "";
+                model.Value = inlineValue;
+                break;
+
+            case "evalscript":
+            case "runscript":
+                model.Action = action.Equals("evalScript", StringComparison.OrdinalIgnoreCase) ? "evalScript" : "runScript";
+                model.Selector = "";
+                model.Value = inlineValue;
+                break;
+
             default:
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
@@ -392,13 +509,20 @@ public static class TestStudioYamlParser
 
                 if (action == "launchApp" || action == "back")
                 {
-                    stepsList.Add(action);
+                    if (!string.IsNullOrEmpty(step.Value))
+                    {
+                        stepsList.Add(new Dictionary<string, string> { { action, step.Value } });
+                    }
+                    else
+                    {
+                        stepsList.Add(action);
+                    }
                 }
-                else if (action == "tapOn")
+                else if (action == "tapOn" || action == "doubleTapOn" || action == "longPressOn")
                 {
                     if (!string.IsNullOrEmpty(step.Selector))
                     {
-                        stepsList.Add(new Dictionary<string, string> { { "tapOn", step.Selector } });
+                        stepsList.Add(new Dictionary<string, string> { { action, step.Selector } });
                     }
                     else if (!string.IsNullOrEmpty(step.Value))
                     {
@@ -410,7 +534,7 @@ public static class TestStudioYamlParser
                             stepsList.Add(new Dictionary<string, object>
                             {
                                 {
-                                    "tapOn", new Dictionary<string, object>
+                                    action, new Dictionary<string, object>
                                     {
                                         { "x", xVal },
                                         { "y", yVal }
@@ -420,12 +544,12 @@ public static class TestStudioYamlParser
                         }
                         else
                         {
-                            stepsList.Add(new Dictionary<string, string> { { "tapOn", step.Value } });
+                            stepsList.Add(new Dictionary<string, string> { { action, step.Value } });
                         }
                     }
                     else
                     {
-                        stepsList.Add("tapOn");
+                        stepsList.Add(action);
                     }
                 }
                 else if (action == "inputText")
@@ -457,6 +581,69 @@ public static class TestStudioYamlParser
                     else
                     {
                         stepsList.Add("clearText");
+                    }
+                }
+                else if (action == "pasteText")
+                {
+                    if (!string.IsNullOrEmpty(step.Value))
+                    {
+                        stepsList.Add(new Dictionary<string, string> { { "pasteText", step.Value } });
+                    }
+                    else
+                    {
+                        stepsList.Add("pasteText");
+                    }
+                }
+                else if (action == "eraseText")
+                {
+                    object val = int.TryParse(step.Value, out int count) ? count : (object)(step.Value ?? "1");
+                    stepsList.Add(new Dictionary<string, object> { { "eraseText", val } });
+                }
+                else if (action == "swipe")
+                {
+                    var props = ParseKeyValuePairs(step.Value);
+                    if (props.Count > 0)
+                    {
+                        var swipeDict = new Dictionary<string, object>();
+                        foreach (var kv in props)
+                        {
+                            swipeDict[kv.Key] = kv.Value;
+                        }
+                        stepsList.Add(new Dictionary<string, object> { { "swipe", swipeDict } });
+                    }
+                    else
+                    {
+                        stepsList.Add(new Dictionary<string, string> { { "swipe", step.Value ?? "" } });
+                    }
+                }
+                 else if (action == "stopApp" || action == "killApp" || action == "clearState" || action == "setOrientation" || action == "takeScreenshot" || action == "assertTrue" || action == "runFlow" || action == "evalScript" || action == "runScript" || action == "openLink")
+                 {
+                     stepsList.Add(new Dictionary<string, string> { { action, step.Value ?? "" } });
+                 }
+                 else if (action == "copyTextFrom")
+                 {
+                     stepsList.Add(new Dictionary<string, string> { { "copyTextFrom", step.Selector ?? "" } });
+                 }
+                else if (action == "repeat" || action == "retry")
+                {
+                    object val = int.TryParse(step.Value, out int count) ? count : (object)(step.Value ?? "1");
+                    stepsList.Add(new Dictionary<string, object> { { action, val } });
+                }
+                else if (action == "setLocation")
+                {
+                    var props = ParseKeyValuePairs(step.Value);
+                    if (props.Count > 0)
+                    {
+                        var locDict = new Dictionary<string, object>();
+                        foreach (var kv in props)
+                        {
+                            locDict[kv.Key] = double.TryParse(kv.Value, out double val) ? val : (object)kv.Value;
+                        }
+                        stepsList.Add(new Dictionary<string, object> { { "setLocation", locDict } });
+                    }
+                    else
+                    {
+                        stepsList.Add(new Dictionary<string, string> { { "setLocation", step.Value ?? "" } });
                     }
                 }
                 else if (action == "assertVisible" || action == "assertNotVisible")

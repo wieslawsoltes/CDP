@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:models="clr-namespace:CdpInspectorApp.Models"
+             xmlns:services="clr-namespace:CdpInspectorApp.Services"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:CompileBindings="False">
     <Grid ColumnDefinitions="*, 4, *">
@@ -60,42 +61,82 @@
                 </ListBox>
             </Grid>
 
-            <!-- Quick-Add / Element Action panel -->
+            <!-- Maestro Command Toolbox -->
             <Border Grid.Row="2" Classes="panel-card" Margin="0,10,0,0">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Add Element Action" Classes="panel-header" Margin="0,0,0,4"/>
+                    <TextBlock Text="Maestro Command Toolbox" Classes="panel-header" Margin="0,0,0,4"/>
                     
+                    <!-- Target Selector using AutoCompleteBox -->
                     <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
                         <TextBlock Grid.Column="0" Text="Target Selector: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                        <TextBox Grid.Column="1" Text="{Binding Recorder.TestStudio.SelectedElementSelector}" IsReadOnly="False" FontSize="11" Margin="4,0,0,0"/>
+                        <AutoCompleteBox Grid.Column="1" 
+                                         Text="{Binding Recorder.TestStudio.SelectedElementSelector, Mode=TwoWay}"
+                                         ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
+                                         FilterMode="Contains"
+                                         FontSize="11" 
+                                         Margin="4,0,0,0"
+                                         PlaceholderText="Type or select a selector..."/>
+                    </Grid>
+ 
+                    <!-- Parameters Input -->
+                    <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
+                        <TextBlock Grid.Column="0" Text="Value / Text: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                        <TextBox Grid.Column="1" Text="{Binding Recorder.TestStudio.InputSimText, Mode=TwoWay}" PlaceholderText="Value, text, expression, or delay..." FontSize="11" Margin="4,0,0,0"/>
                     </Grid>
 
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Content="Tap" Command="{Binding Recorder.TestStudio.AddTapCommand}"/>
-                        <Button Content="Clear Text" Command="{Binding Recorder.TestStudio.AddClearTextCommand}"/>
-                        <Button Content="Assert Visible" Command="{Binding Recorder.TestStudio.AddAssertVisibleCommand}"/>
-                        <Button Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}"/>
-                    </StackPanel>
+                    <!-- Categories TabControl -->
+                    <TabControl Background="Transparent" BorderThickness="0" Margin="0,4,0,0" MinHeight="100">
+                        <!-- Interactions Tab -->
+                        <TabItem Header="Interactions" FontSize="11">
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Tap" Command="{Binding Recorder.TestStudio.AddTapCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Double Tap" Command="{Binding Recorder.TestStudio.AddDoubleTapCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Long Press" Command="{Binding Recorder.TestStudio.AddLongPressCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Input Text" Command="{Binding Recorder.TestStudio.AddInputCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Clear Text" Command="{Binding Recorder.TestStudio.AddClearTextCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Paste Text" Command="{Binding Recorder.TestStudio.AddPasteTextCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Erase Text" Command="{Binding Recorder.TestStudio.AddEraseTextCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Swipe" Command="{Binding Recorder.TestStudio.AddSwipeCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Scroll" Command="{Binding Recorder.TestStudio.AddScrollCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Copy Text" Command="{Binding Recorder.TestStudio.AddCopyTextFromCommand}" Margin="0,0,6,6"/>
+                            </WrapPanel>
+                        </TabItem>
+                        
+                        <!-- Assertions Tab -->
+                        <TabItem Header="Assertions" FontSize="11">
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Assert Visible" Command="{Binding Recorder.TestStudio.AddAssertVisibleCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Assert True" Command="{Binding Recorder.TestStudio.AddAssertTrueCommand}" Margin="0,0,6,6"/>
+                            </WrapPanel>
+                        </TabItem>
+                        
+                        <!-- App & Device Tab -->
+                        <TabItem Header="App &amp; Device" FontSize="11">
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Launch App" Command="{Binding Recorder.TestStudio.AddLaunchAppCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Stop App" Command="{Binding Recorder.TestStudio.AddStopAppCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Kill App" Command="{Binding Recorder.TestStudio.AddKillAppCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Clear State" Command="{Binding Recorder.TestStudio.AddClearStateCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Set Orientation" Command="{Binding Recorder.TestStudio.AddSetOrientationCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Set Location" Command="{Binding Recorder.TestStudio.AddSetLocationCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Take Screenshot" Command="{Binding Recorder.TestStudio.AddTakeScreenshotCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Go Back" Command="{Binding Recorder.TestStudio.AddBackCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Delay (ms)" Command="{Binding Recorder.TestStudio.AddDelayCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Open Link" Command="{Binding Recorder.TestStudio.AddOpenLinkCommand}" Margin="0,0,6,6"/>
+                            </WrapPanel>
+                        </TabItem>
 
-                    <Grid ColumnDefinitions="*, Auto" Margin="0,4,0,0">
-                        <TextBox Grid.Column="0" PlaceholderText="Text for input action..." Text="{Binding Recorder.TestStudio.InputSimText}" FontSize="11" Margin="0,0,6,0"/>
-                        <Button Grid.Column="1" Content="Input Text" Command="{Binding Recorder.TestStudio.AddInputCommand}"/>
-                    </Grid>
-
-                    <Separator Height="1" Background="#3c4043" Margin="0,4"/>
-
-                    <TextBlock Text="Generic Actions" Classes="panel-header" Margin="0,0,0,4"/>
-
-                    <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,4">
-                        <NumericUpDown Grid.Column="0" Value="{Binding Recorder.TestStudio.DelayMs}" Minimum="0" Maximum="60000" Increment="100" FormatString="0 ms" FontSize="11" Margin="0,0,6,0"/>
-                        <Button Grid.Column="1" Content="Add Delay" Command="{Binding Recorder.TestStudio.AddDelayCommand}"/>
-                    </Grid>
-
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Content="Launch App" Command="{Binding Recorder.TestStudio.AddLaunchAppCommand}"/>
-                        <Button Content="Go Back" Command="{Binding Recorder.TestStudio.AddBackCommand}"/>
-                        <Button Content="Scroll" Command="{Binding Recorder.TestStudio.AddScrollCommand}"/>
-                    </StackPanel>
+                        <!-- Logic Tab -->
+                        <TabItem Header="Logic" FontSize="11">
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Content="Repeat" Command="{Binding Recorder.TestStudio.AddRepeatCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Retry" Command="{Binding Recorder.TestStudio.AddRetryCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Run Flow" Command="{Binding Recorder.TestStudio.AddRunFlowCommand}" Margin="0,0,6,6"/>
+                                <Button Content="Eval Script" Command="{Binding Recorder.TestStudio.AddEvalScriptCommand}" Margin="0,0,6,6"/>
+                            </WrapPanel>
+                        </TabItem>
+                    </TabControl>
                 </StackPanel>
             </Border>
         </Grid>
