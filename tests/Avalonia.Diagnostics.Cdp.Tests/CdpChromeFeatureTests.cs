@@ -575,7 +575,11 @@ public class CdpChromeFeatureTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" }
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnRight", Button = "right" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnMiddle", Button = "middle" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnDouble", ClickCount = 2 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnTriple", ClickCount = 3 }
         };
 
         var generator = new SeleniumCSharpGenerator();
@@ -591,6 +595,11 @@ public class CdpChromeFeatureTests
         Assert.Contains("element_3.SendKeys(\"hello \\\"world\\\" \\\\ test\");", generated);
         Assert.Contains("Assert.IsTrue(_driver.FindElement(By.CssSelector(\"#btnClick\")).Displayed);", generated);
         Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
+        Assert.Contains("_actions.ContextClick(_driver.FindElement(By.CssSelector(\"#btnRight\"))).Perform();", generated);
+        Assert.Contains("((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent('click', {button: 1}));\", _driver.FindElement(By.CssSelector(\"#btnMiddle\")));", generated);
+        Assert.Contains("_actions.DoubleClick(_driver.FindElement(By.CssSelector(\"#btnDouble\"))).Perform();", generated);
+        Assert.Contains("var element_9 = _driver.FindElement(By.CssSelector(\"#btnTriple\"));", generated);
+        Assert.Contains("for (int c_9 = 0; c_9 < 3; c_9++)", generated);
     }
 
     [Fact]
@@ -603,7 +612,11 @@ public class CdpChromeFeatureTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" }
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnRight", Button = "right" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnMiddle", Button = "middle" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnDouble", ClickCount = 2 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnTriple", ClickCount = 3 }
         };
 
         var generator = new AppiumCSharpGenerator();
@@ -619,6 +632,11 @@ public class CdpChromeFeatureTests
         Assert.Contains("element_3.SendKeys(\"hello \\\"world\\\" \\\\ test\");", generated);
         Assert.Contains("Assert.IsTrue(_driver.FindElementByAccessibilityId(\"btnClick\").Displayed);", generated);
         Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
+        Assert.Contains("new Actions(_driver).ContextClick(_driver.FindElementByAccessibilityId(\"btnRight\")).Perform();", generated);
+        Assert.Contains("new Actions(_driver).Click(_driver.FindElementByAccessibilityId(\"btnMiddle\")).Perform();", generated);
+        Assert.Contains("new Actions(_driver).DoubleClick(_driver.FindElementByAccessibilityId(\"btnDouble\")).Perform();", generated);
+        Assert.Contains("var element_9 = _driver.FindElementByAccessibilityId(\"btnTriple\");", generated);
+        Assert.Contains("for (int c_9 = 0; c_9 < 3; c_9++)", generated);
     }
 
     [Fact]
