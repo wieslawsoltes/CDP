@@ -70,9 +70,25 @@ public class AppiumCSharpGenerator : ICodeGenerator
             else if (step.Type == "click")
             {
                 string elementExpr = GetAppiumElementExpression(step.Selector);
-                if (step.ClickCount == 2)
+                if (step.Button == "right")
+                {
+                    sb.AppendLine($"            new Actions(_driver).ContextClick({elementExpr}).Perform();");
+                }
+                else if (step.Button == "middle")
+                {
+                    sb.AppendLine($"            new Actions(_driver).Click({elementExpr}).Perform();");
+                }
+                else if (step.ClickCount == 2)
                 {
                     sb.AppendLine($"            new Actions(_driver).DoubleClick({elementExpr}).Perform();");
+                }
+                else if (step.ClickCount > 2)
+                {
+                    sb.AppendLine($"            var element_{i} = {elementExpr};");
+                    sb.AppendLine($"            for (int c_{i} = 0; c_{i} < {step.ClickCount}; c_{i}++)");
+                    sb.AppendLine($"            {{");
+                    sb.AppendLine($"                element_{i}.Click();");
+                    sb.AppendLine($"            }}");
                 }
                 else if (step.Modifiers > 0)
                 {

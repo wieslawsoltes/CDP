@@ -83,9 +83,25 @@ public class SeleniumCSharpGenerator : ICodeGenerator
             else if (step.Type == "click")
             {
                 string selectorEscaped = EscapeCSharpString(step.Selector);
-                if (step.ClickCount == 2)
+                if (step.Button == "right")
+                {
+                    sb.AppendLine($"            _actions.ContextClick(_driver.FindElement(By.CssSelector(\"{selectorEscaped}\"))).Perform();");
+                }
+                else if (step.Button == "middle")
+                {
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent('click', {{button: 1}}));\", _driver.FindElement(By.CssSelector(\"{selectorEscaped}\")));");
+                }
+                else if (step.ClickCount == 2)
                 {
                     sb.AppendLine($"            _actions.DoubleClick(_driver.FindElement(By.CssSelector(\"{selectorEscaped}\"))).Perform();");
+                }
+                else if (step.ClickCount > 2)
+                {
+                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.CssSelector(\"{selectorEscaped}\"));");
+                    sb.AppendLine($"            for (int c_{i} = 0; c_{i} < {step.ClickCount}; c_{i}++)");
+                    sb.AppendLine($"            {{");
+                    sb.AppendLine($"                element_{i}.Click();");
+                    sb.AppendLine($"            }}");
                 }
                 else if (step.Modifiers > 0)
                 {
