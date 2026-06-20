@@ -115,22 +115,24 @@ public static class RecordingParser
             var varToSelector = new Dictionary<string, string>();
             var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-            var selectorRegex = new Regex(@"const\s+(\w+)\s*=\s*await\s+page\.waitForSelector\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
-            var pwLocatorRegex = new Regex(@"const\s+(\w+)\s*=\s*page\.locator\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
+            const string strPattern = @"(?:'((?:[^'\\]|\\.)*)'|""((?:[^""\\]|\\.)*)"")";
+
+            var selectorRegex = new Regex(@"const\s+(\w+)\s*=\s*await\s+page\.waitForSelector\(" + strPattern + @"\);", RegexOptions.Compiled);
+            var pwLocatorRegex = new Regex(@"const\s+(\w+)\s*=\s*page\.locator\(" + strPattern + @"\);", RegexOptions.Compiled);
             var clickRegex = new Regex(@"await\s+(\w+)\.click\((.*?)\);", RegexOptions.Compiled);
-            var typeRegex = new Regex(@"await\s+(\w+)\.type\(['""]([^'""]*)['""]\);", RegexOptions.Compiled);
-            var pwFillRegex = new Regex(@"await\s+(\w+)\.fill\(['""]([^'""]*)['""]\);", RegexOptions.Compiled);
+            var typeRegex = new Regex(@"await\s+(\w+)\.type\(" + strPattern + @"\);", RegexOptions.Compiled);
+            var pwFillRegex = new Regex(@"await\s+(\w+)\.fill\(" + strPattern + @"\);", RegexOptions.Compiled);
             var viewportRegex = new Regex(@"await\s+page\.setViewport\(\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}\);", RegexOptions.Compiled);
             var pwViewportRegex = new Regex(@"await\s+page\.setViewportSize\(\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}\);", RegexOptions.Compiled);
-            var gotoRegex = new Regex(@"await\s+page\.goto\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
-            var keypressRegex = new Regex(@"await\s+page\.keyboard\.press\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
+            var gotoRegex = new Regex(@"await\s+page\.goto\(" + strPattern + @"\);", RegexOptions.Compiled);
+            var keypressRegex = new Regex(@"await\s+page\.keyboard\.press\(" + strPattern + @"\);", RegexOptions.Compiled);
             var dragRegex = new Regex(@"await\s+(\w+)\.dragTo\((\w+)\);", RegexOptions.Compiled);
-            var keyDownRegex = new Regex(@"await\s+page\.keyboard\.down\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
-            var keyUpRegex = new Regex(@"await\s+page\.keyboard\.up\(['""]([^'""]+)['""]\);", RegexOptions.Compiled);
-            var pwAssertVisibleRegex = new Regex(@"await\s+expect\(page\.locator\(['""]([^'""]+)['""]\)\)\.toBeVisible\(\);", RegexOptions.Compiled);
-            var pwAssertHiddenRegex = new Regex(@"await\s+expect\(page\.locator\(['""]([^'""]+)['""]\)\)\.toBeHidden\(\);", RegexOptions.Compiled);
-            var pupAssertVisibleRegex = new Regex(@"await\s+page\.waitForSelector\(['""]([^'""]+)['""]\s*,\s*\{\s*visible:\s*true\s*\}\);", RegexOptions.Compiled);
-            var pupAssertHiddenRegex = new Regex(@"await\s+page\.waitForSelector\(['""]([^'""]+)['""]\s*,\s*\{\s*hidden:\s*true\s*\}\);", RegexOptions.Compiled);
+            var keyDownRegex = new Regex(@"await\s+page\.keyboard\.down\(" + strPattern + @"\);", RegexOptions.Compiled);
+            var keyUpRegex = new Regex(@"await\s+page\.keyboard\.up\(" + strPattern + @"\);", RegexOptions.Compiled);
+            var pwAssertVisibleRegex = new Regex(@"await\s+expect\(page\.locator\(" + strPattern + @"\)\)\.toBeVisible\(\);", RegexOptions.Compiled);
+            var pwAssertHiddenRegex = new Regex(@"await\s+expect\(page\.locator\(" + strPattern + @"\)\)\.toBeHidden\(\);", RegexOptions.Compiled);
+            var pupAssertVisibleRegex = new Regex(@"await\s+page\.waitForSelector\(" + strPattern + @"\s*,\s*\{\s*visible:\s*true\s*\}\);", RegexOptions.Compiled);
+            var pupAssertHiddenRegex = new Regex(@"await\s+page\.waitForSelector\(" + strPattern + @"\s*,\s*\{\s*hidden:\s*true\s*\}\);", RegexOptions.Compiled);
 
             int currentModifiers = 0;
 
@@ -139,7 +141,7 @@ public static class RecordingParser
                 var kdMatch = keyDownRegex.Match(line);
                 if (kdMatch.Success)
                 {
-                    string modKey = kdMatch.Groups[1].Value.ToLowerInvariant();
+                    string modKey = GetStringGroup(kdMatch, 1).ToLowerInvariant();
                     if (modKey == "alt") currentModifiers |= 1;
                     else if (modKey == "control") currentModifiers |= 2;
                     else if (modKey == "shift") currentModifiers |= 4;
@@ -150,7 +152,7 @@ public static class RecordingParser
                 var kuMatch = keyUpRegex.Match(line);
                 if (kuMatch.Success)
                 {
-                    string modKey = kuMatch.Groups[1].Value.ToLowerInvariant();
+                    string modKey = GetStringGroup(kuMatch, 1).ToLowerInvariant();
                     if (modKey == "alt") currentModifiers &= ~1;
                     else if (modKey == "control") currentModifiers &= ~2;
                     else if (modKey == "shift") currentModifiers &= ~4;
@@ -176,7 +178,7 @@ public static class RecordingParser
                     steps.Add(new ParsedStep
                     {
                         Type = "assertVisible",
-                        Selector = pwAvMatch.Groups[1].Value
+                        Selector = GetStringGroup(pwAvMatch, 1)
                     });
                     continue;
                 }
@@ -187,7 +189,7 @@ public static class RecordingParser
                     steps.Add(new ParsedStep
                     {
                         Type = "assertNotVisible",
-                        Selector = pwAhMatch.Groups[1].Value
+                        Selector = GetStringGroup(pwAhMatch, 1)
                     });
                     continue;
                 }
@@ -198,7 +200,7 @@ public static class RecordingParser
                     steps.Add(new ParsedStep
                     {
                         Type = "assertVisible",
-                        Selector = pupAvMatch.Groups[1].Value
+                        Selector = GetStringGroup(pupAvMatch, 1)
                     });
                     continue;
                 }
@@ -209,7 +211,7 @@ public static class RecordingParser
                     steps.Add(new ParsedStep
                     {
                         Type = "assertNotVisible",
-                        Selector = pupAhMatch.Groups[1].Value
+                        Selector = GetStringGroup(pupAhMatch, 1)
                     });
                     continue;
                 }
@@ -232,7 +234,7 @@ public static class RecordingParser
                     steps.Add(new ParsedStep
                     {
                         Type = "navigate",
-                        Url = gotoMatch.Groups[1].Value
+                        Url = GetStringGroup(gotoMatch, 1)
                     });
                     continue;
                 }
@@ -243,7 +245,7 @@ public static class RecordingParser
                     steps.Add(new ParsedStep
                     {
                         Type = "keydown",
-                        Key = kpMatch.Groups[1].Value,
+                        Key = GetStringGroup(kpMatch, 1),
                         Modifiers = currentModifiers
                     });
                     continue;
@@ -253,7 +255,7 @@ public static class RecordingParser
                 if (selMatch.Success)
                 {
                     string varName = selMatch.Groups[1].Value;
-                    string selector = selMatch.Groups[2].Value;
+                    string selector = GetStringGroup(selMatch, 2);
                     varToSelector[varName] = selector;
                     continue;
                 }
@@ -262,7 +264,7 @@ public static class RecordingParser
                 if (pwSelMatch.Success)
                 {
                     string varName = pwSelMatch.Groups[1].Value;
-                    string selector = pwSelMatch.Groups[2].Value;
+                    string selector = GetStringGroup(pwSelMatch, 2);
                     varToSelector[varName] = selector;
                     continue;
                 }
@@ -334,7 +336,7 @@ public static class RecordingParser
                 if (typeMatch.Success)
                 {
                     string varName = typeMatch.Groups[1].Value;
-                    string textVal = typeMatch.Groups[2].Value;
+                    string textVal = GetStringGroup(typeMatch, 2);
                     if (varToSelector.TryGetValue(varName, out string? selector))
                     {
                         steps.Add(new ParsedStep
@@ -351,7 +353,7 @@ public static class RecordingParser
                 if (pwFillMatch.Success)
                 {
                     string varName = pwFillMatch.Groups[1].Value;
-                    string textVal = pwFillMatch.Groups[2].Value;
+                    string textVal = GetStringGroup(pwFillMatch, 2);
                     if (varToSelector.TryGetValue(varName, out string? selector))
                     {
                         steps.Add(new ParsedStep
@@ -367,5 +369,30 @@ public static class RecordingParser
         }
 
         return steps;
+    }
+
+    private static string GetStringGroup(Match match, int groupIndexStart)
+    {
+        var g1 = match.Groups[groupIndexStart];
+        if (g1.Success) return UnescapeJsString(g1.Value);
+        var g2 = match.Groups[groupIndexStart + 1];
+        if (g2.Success) return UnescapeJsString(g2.Value);
+        return "";
+    }
+
+    private static string UnescapeJsString(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+
+        string unescaped = value;
+        unescaped = unescaped.Replace("\\\\", "\x00"); // Temporarily place backslashes
+        unescaped = unescaped.Replace("\\'", "'");
+        unescaped = unescaped.Replace("\\\"", "\"");
+        unescaped = unescaped.Replace("\\n", "\n");
+        unescaped = unescaped.Replace("\\r", "\r");
+        unescaped = unescaped.Replace("\\t", "\t");
+        unescaped = unescaped.Replace("\x00", "\\");
+
+        return unescaped;
     }
 }

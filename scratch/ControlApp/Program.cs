@@ -596,10 +596,10 @@ description: ""Verify new commands execution""
                 {
                     new RecordedStepModel { Type = "setViewport", Width = 1024, Height = 768 },
                     new RecordedStepModel { Type = "navigate", Url = "http://127.0.0.1:9236/" },
-                    new RecordedStepModel { Type = "click", Selector = "#btnTarget", Button = "left", ClickCount = 1 },
-                    new RecordedStepModel { Type = "change", Selector = "#txtTarget", Value = "E2E Playwright Text" },
-                    new RecordedStepModel { Type = "assertVisible", Selector = "#btnTarget" },
-                    new RecordedStepModel { Type = "assertNotVisible", Selector = "#nonexistent" }
+                    new RecordedStepModel { Type = "click", Selector = ":contains(\"Click Me\")", Button = "left", ClickCount = 1 },
+                    new RecordedStepModel { Type = "change", Selector = "#txtTarget", Value = "E2E Playwright ' Text with backslash \\" },
+                    new RecordedStepModel { Type = "assertVisible", Selector = ":contains(\"Click Me\")" },
+                    new RecordedStepModel { Type = "assertNotVisible", Selector = ":contains('Cancel')" }
                 });
             });
 
@@ -608,14 +608,14 @@ description: ""Verify new commands execution""
 
             if (!pwGeneratedCode.Contains("import { test, expect, chromium } from '@playwright/test';") ||
                 !pwGeneratedCode.Contains("test.describe('CDP Recorded Tests', () => {") ||
-                !pwGeneratedCode.Contains("await test.step('Click on element #btnTarget', async () => {") ||
-                !pwGeneratedCode.Contains("await test.step('Assert element #btnTarget is visible', async () => {") ||
-                !pwGeneratedCode.Contains("await expect(page.locator('#btnTarget')).toBeVisible();") ||
-                !pwGeneratedCode.Contains("await expect(page.locator('#nonexistent')).toBeHidden();") ||
+                !pwGeneratedCode.Contains("await test.step('Click on element :contains(\"Click Me\")', async () => {") ||
+                !pwGeneratedCode.Contains("await test.step('Assert element :contains(\"Click Me\") is visible', async () => {") ||
+                !pwGeneratedCode.Contains("await expect(page.locator(':contains(\"Click Me\")')).toBeVisible();") ||
+                !pwGeneratedCode.Contains("await expect(page.locator(':contains(\\'Cancel\\')')).toBeHidden();") ||
                 !pwGeneratedCode.Contains("chromium.connectOverCDP('http://127.0.0.1:9236')") ||
-                !pwGeneratedCode.Contains("page.locator('#btnTarget')") ||
+                !pwGeneratedCode.Contains("page.locator(':contains(\"Click Me\")')") ||
                 !pwGeneratedCode.Contains("page.locator('#txtTarget')") ||
-                !pwGeneratedCode.Contains("fill('E2E Playwright Text')"))
+                !pwGeneratedCode.Contains("fill('E2E Playwright \\' Text with backslash \\\\')"))
             {
                 throw new Exception("Generated Playwright code is missing some expected structures!");
             }
@@ -630,10 +630,10 @@ description: ""Verify new commands execution""
 
             if (parsedStepsFromPlaywright[0].Type != "setViewport" ||
                 parsedStepsFromPlaywright[1].Type != "navigate" ||
-                parsedStepsFromPlaywright[2].Type != "click" || parsedStepsFromPlaywright[2].Selector != "#btnTarget" ||
-                parsedStepsFromPlaywright[3].Type != "change" || parsedStepsFromPlaywright[3].Selector != "#txtTarget" || parsedStepsFromPlaywright[3].Value != "E2E Playwright Text" ||
-                parsedStepsFromPlaywright[4].Type != "assertVisible" || parsedStepsFromPlaywright[4].Selector != "#btnTarget" ||
-                parsedStepsFromPlaywright[5].Type != "assertNotVisible" || parsedStepsFromPlaywright[5].Selector != "#nonexistent")
+                parsedStepsFromPlaywright[2].Type != "click" || parsedStepsFromPlaywright[2].Selector != ":contains(\"Click Me\")" ||
+                parsedStepsFromPlaywright[3].Type != "change" || parsedStepsFromPlaywright[3].Selector != "#txtTarget" || parsedStepsFromPlaywright[3].Value != "E2E Playwright ' Text with backslash \\" ||
+                parsedStepsFromPlaywright[4].Type != "assertVisible" || parsedStepsFromPlaywright[4].Selector != ":contains(\"Click Me\")" ||
+                parsedStepsFromPlaywright[5].Type != "assertNotVisible" || parsedStepsFromPlaywright[5].Selector != ":contains('Cancel')")
             {
                 throw new Exception("Parsed steps from Playwright script do not match expected actions/properties.");
             }

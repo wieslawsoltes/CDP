@@ -374,7 +374,7 @@ public class RecorderViewModel : ViewModelBase
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
                 }
-                sb.AppendLine($"  const element_{RecordedSteps.IndexOf(step)} = await page.waitForSelector('{step.Selector}');");
+                sb.AppendLine($"  const element_{RecordedSteps.IndexOf(step)} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
                 sb.AppendLine($"  await element_{RecordedSteps.IndexOf(step)}.click({optStr});");
                 if (step.Modifiers > 0)
                 {
@@ -384,8 +384,8 @@ public class RecorderViewModel : ViewModelBase
             else if (step.Type == "change")
             {
                 sb.AppendLine($"  // Type text in element");
-                sb.AppendLine($"  const element_{RecordedSteps.IndexOf(step)} = await page.waitForSelector('{step.Selector}');");
-                sb.AppendLine($"  await element_{RecordedSteps.IndexOf(step)}.type('{step.Value}');");
+                sb.AppendLine($"  const element_{RecordedSteps.IndexOf(step)} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
+                sb.AppendLine($"  await element_{RecordedSteps.IndexOf(step)}.type('{EscapeJsString(step.Value)}');");
             }
             else if (step.Type == "setViewport")
             {
@@ -393,7 +393,7 @@ public class RecorderViewModel : ViewModelBase
             }
             else if (step.Type == "navigate")
             {
-                sb.AppendLine($"  await page.goto('{step.Url}');");
+                sb.AppendLine($"  await page.goto('{EscapeJsString(step.Url)}');");
             }
             else if (step.Type == "keydown")
             {
@@ -401,7 +401,7 @@ public class RecorderViewModel : ViewModelBase
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
                 }
-                sb.AppendLine($"  await page.keyboard.press('{step.Key}');");
+                sb.AppendLine($"  await page.keyboard.press('{EscapeJsString(step.Key)}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
@@ -410,8 +410,8 @@ public class RecorderViewModel : ViewModelBase
             else if (step.Type == "dragAndDrop")
             {
                 sb.AppendLine($"  // Drag and drop");
-                sb.AppendLine($"  const source_{RecordedSteps.IndexOf(step)} = await page.waitForSelector('{step.Selector}');");
-                sb.AppendLine($"  const target_{RecordedSteps.IndexOf(step)} = await page.waitForSelector('{step.TargetSelector}');");
+                sb.AppendLine($"  const source_{RecordedSteps.IndexOf(step)} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
+                sb.AppendLine($"  const target_{RecordedSteps.IndexOf(step)} = await page.waitForSelector('{EscapeJsString(step.TargetSelector)}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
@@ -425,12 +425,12 @@ public class RecorderViewModel : ViewModelBase
             else if (step.Type == "assertVisible")
             {
                 sb.AppendLine($"  // Assert element is visible");
-                sb.AppendLine($"  await page.waitForSelector('{step.Selector}', {{ visible: true }});");
+                sb.AppendLine($"  await page.waitForSelector('{EscapeJsString(step.Selector)}', {{ visible: true }});");
             }
             else if (step.Type == "assertNotVisible")
             {
                 sb.AppendLine($"  // Assert element is hidden");
-                sb.AppendLine($"  await page.waitForSelector('{step.Selector}', {{ hidden: true }});");
+                sb.AppendLine($"  await page.waitForSelector('{EscapeJsString(step.Selector)}', {{ hidden: true }});");
             }
             sb.AppendLine();
         }
@@ -463,7 +463,7 @@ public class RecorderViewModel : ViewModelBase
             host = host.Substring(0, host.Length - 1);
         }
 
-        sb.AppendLine($"    const browser = await chromium.connectOverCDP('{host}');");
+        sb.AppendLine($"    const browser = await chromium.connectOverCDP('{EscapeJsString(host)}');");
         sb.AppendLine("    const context = browser.contexts()[0];");
         sb.AppendLine("    const page = context.pages()[0];");
         sb.AppendLine();
@@ -480,7 +480,7 @@ public class RecorderViewModel : ViewModelBase
         if (!hasNavigateStep)
         {
             sb.AppendLine("    await test.step('Navigate to application', async () => {");
-            sb.AppendLine($"      await page.goto('{host}/');");
+            sb.AppendLine($"      await page.goto('{EscapeJsString(host)}/');");
             sb.AppendLine("    });");
         }
 
@@ -499,16 +499,16 @@ public class RecorderViewModel : ViewModelBase
                 }
                 string optStr = options.Count > 0 ? $"{{ {string.Join(", ", options)} }}" : "";
 
-                sb.AppendLine($"    await test.step('Click on element {step.Selector}', async () => {{");
-                sb.AppendLine($"      const element_{RecordedSteps.IndexOf(step)} = page.locator('{step.Selector}');");
+                sb.AppendLine($"    await test.step('Click on element {EscapeJsString(step.Selector)}', async () => {{");
+                sb.AppendLine($"      const element_{RecordedSteps.IndexOf(step)} = page.locator('{EscapeJsString(step.Selector)}');");
                 sb.AppendLine($"      await element_{RecordedSteps.IndexOf(step)}.click({optStr});");
                 sb.AppendLine("    });");
             }
             else if (step.Type == "change")
             {
-                sb.AppendLine($"    await test.step('Type text in element {step.Selector}', async () => {{");
-                sb.AppendLine($"      const element_{RecordedSteps.IndexOf(step)} = page.locator('{step.Selector}');");
-                sb.AppendLine($"      await element_{RecordedSteps.IndexOf(step)}.fill('{step.Value}');");
+                sb.AppendLine($"    await test.step('Type text in element {EscapeJsString(step.Selector)}', async () => {{");
+                sb.AppendLine($"      const element_{RecordedSteps.IndexOf(step)} = page.locator('{EscapeJsString(step.Selector)}');");
+                sb.AppendLine($"      await element_{RecordedSteps.IndexOf(step)}.fill('{EscapeJsString(step.Value)}');");
                 sb.AppendLine("    });");
             }
             else if (step.Type == "setViewport")
@@ -519,18 +519,18 @@ public class RecorderViewModel : ViewModelBase
             }
             else if (step.Type == "navigate")
             {
-                sb.AppendLine($"    await test.step('Navigate to {step.Url}', async () => {{");
-                sb.AppendLine($"      await page.goto('{step.Url}');");
+                sb.AppendLine($"    await test.step('Navigate to {EscapeJsString(step.Url)}', async () => {{");
+                sb.AppendLine($"      await page.goto('{EscapeJsString(step.Url)}');");
                 sb.AppendLine("    });");
             }
             else if (step.Type == "keydown")
             {
-                sb.AppendLine($"    await test.step('Press key {step.Key}', async () => {{");
+                sb.AppendLine($"    await test.step('Press key {EscapeJsString(step.Key)}', async () => {{");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.down('{mod}');");
                 }
-                sb.AppendLine($"      await page.keyboard.press('{step.Key}');");
+                sb.AppendLine($"      await page.keyboard.press('{EscapeJsString(step.Key)}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.up('{mod}');");
@@ -539,9 +539,9 @@ public class RecorderViewModel : ViewModelBase
             }
             else if (step.Type == "dragAndDrop")
             {
-                sb.AppendLine($"    await test.step('Drag element {step.Selector} to {step.TargetSelector}', async () => {{");
-                sb.AppendLine($"      const source_{RecordedSteps.IndexOf(step)} = page.locator('{step.Selector}');");
-                sb.AppendLine($"      const target_{RecordedSteps.IndexOf(step)} = page.locator('{step.TargetSelector}');");
+                sb.AppendLine($"    await test.step('Drag element {EscapeJsString(step.Selector)} to {EscapeJsString(step.TargetSelector)}', async () => {{");
+                sb.AppendLine($"      const source_{RecordedSteps.IndexOf(step)} = page.locator('{EscapeJsString(step.Selector)}');");
+                sb.AppendLine($"      const target_{RecordedSteps.IndexOf(step)} = page.locator('{EscapeJsString(step.TargetSelector)}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.down('{mod}');");
@@ -555,14 +555,14 @@ public class RecorderViewModel : ViewModelBase
             }
             else if (step.Type == "assertVisible")
             {
-                sb.AppendLine($"    await test.step('Assert element {step.Selector} is visible', async () => {{");
-                sb.AppendLine($"      await expect(page.locator('{step.Selector}')).toBeVisible();");
+                sb.AppendLine($"    await test.step('Assert element {EscapeJsString(step.Selector)} is visible', async () => {{");
+                sb.AppendLine($"      await expect(page.locator('{EscapeJsString(step.Selector)}')).toBeVisible();");
                 sb.AppendLine("    });");
             }
             else if (step.Type == "assertNotVisible")
             {
-                sb.AppendLine($"    await test.step('Assert element {step.Selector} is hidden', async () => {{");
-                sb.AppendLine($"      await expect(page.locator('{step.Selector}')).toBeHidden();");
+                sb.AppendLine($"    await test.step('Assert element {EscapeJsString(step.Selector)} is hidden', async () => {{");
+                sb.AppendLine($"      await expect(page.locator('{EscapeJsString(step.Selector)}')).toBeHidden();");
                 sb.AppendLine("    });");
             }
         }
@@ -583,6 +583,17 @@ public class RecorderViewModel : ViewModelBase
         if ((modifiers & 4) != 0) list.Add("Shift");
         if ((modifiers & 8) != 0) list.Add("Meta");
         return list;
+    }
+
+    private static string EscapeJsString(string? value)
+    {
+        if (value == null) return "";
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("'", "\\'")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t");
     }
 
     public async Task ReplayAsync()

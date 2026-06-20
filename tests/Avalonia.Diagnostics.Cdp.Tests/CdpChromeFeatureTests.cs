@@ -498,6 +498,72 @@ public class CdpChromeFeatureTests
         Assert.Contains("modifiers: ['Control', 'Shift']", generated);
     }
 
+    [Fact]
+    public void TestEscapedStringLiteralParsingAndGeneration()
+    {
+        // 1. Parser verification for mixed/escaped quotes
+        string jsInput = @"
+        const element_0 = await page.waitForSelector(':contains(""Save"")');
+        await element_0.type('don\'t');
+        const element_1 = page.locator("":contains('Cancel')"");
+        await element_1.fill(""I said \""yes\"" and backslash \\ test"");
+        await page.goto('http://localhost:9222/foo?x=\'bar\'');
+        await expect(page.locator("":contains('Save')"")).toBeVisible();
+        await page.waitForSelector(':contains(""Cancel"")', { hidden: true });
+        ";
+
+        var parsed = RecordingParser.Parse(jsInput);
+        Assert.Equal(5, parsed.Count);
+
+        Assert.Equal("change", parsed[0].Type);
+        Assert.Equal(":contains(\"Save\")", parsed[0].Selector);
+        Assert.Equal("don't", parsed[0].Value);
+
+        Assert.Equal("change", parsed[1].Type);
+        Assert.Equal(":contains('Cancel')", parsed[1].Selector);
+        Assert.Equal("I said \"yes\" and backslash \\ test", parsed[1].Value);
+
+        Assert.Equal("navigate", parsed[2].Type);
+        Assert.Equal("http://localhost:9222/foo?x='bar'", parsed[2].Url);
+
+        Assert.Equal("assertVisible", parsed[3].Type);
+        Assert.Equal(":contains('Save')", parsed[3].Selector);
+
+        Assert.Equal("assertNotVisible", parsed[4].Type);
+        Assert.Equal(":contains(\"Cancel\")", parsed[4].Selector);
+
+        // 2. Generator verification (Playwright format)
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel 
+            { 
+                Type = "change", 
+                Selector = ":contains(\"Save\")", 
+                Value = "don't" 
+            },
+            new CdpInspectorApp.Models.RecordedStepModel 
+            { 
+                Type = "change", 
+                Selector = ":contains('Cancel')", 
+                Value = "I said \"yes\" and backslash \\ test" 
+            }
+        };
+
+        var vm = new RecorderViewModel(new AccessibilitySearchTests.MockCdpService(), () => "localhost:9222");
+        vm.SelectedFormat = RecordingFormat.PlaywrightTest;
+        vm.LoadParsedSteps(steps);
+
+        string generated = vm.GeneratedCode;
+
+        Assert.Contains(@"await test.step('Type text in element :contains(""Save"")', async () => {", generated);
+        Assert.Contains(@"page.locator(':contains(""Save"")')", generated);
+        Assert.Contains(@"fill('don\'t')", generated);
+
+        Assert.Contains(@"await test.step('Type text in element :contains(\'Cancel\')', async () => {", generated);
+        Assert.Contains(@"page.locator(':contains(\'Cancel\')')", generated);
+        Assert.Contains(@"fill('I said ""yes"" and backslash \\ test')", generated);
+    }
+
     [AvaloniaFact]
     public void TestRecorderDragAndDropTargetResolution()
     {
