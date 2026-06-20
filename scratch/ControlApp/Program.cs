@@ -715,6 +715,46 @@ description: ""Verify new commands execution""
             mainVm.Recorder.SelectedFormat = RecordingFormat.Puppeteer;
             Console.WriteLine("Scenario 11 PASSED.");
 
+            // 15. Test Scenario 12: Avalonia Headless xUnit Code Generation E2E
+            Console.WriteLine("Testing Scenario 12: Avalonia Headless xUnit code generation...");
+            mainVm.Recorder.SelectedFormat = RecordingFormat.AvaloniaHeadlessXUnit;
+
+            // Check properties
+            if (mainVm.Recorder.ScriptTabHeader != "Avalonia Headless" ||
+                mainVm.Recorder.ScriptTitleText != "Generated Avalonia Headless xUnit Test" ||
+                mainVm.Recorder.ExportButtonText != "Export Headless Test")
+            {
+                throw new Exception("Avalonia Headless UI properties are incorrect!");
+            }
+
+            string headlessCode = mainVm.Recorder.GeneratedCode;
+            Console.WriteLine($"Generated Avalonia Headless Code:\n{headlessCode}");
+
+            if (!headlessCode.Contains("using Avalonia.Headless.XUnit;") ||
+                !headlessCode.Contains("using Avalonia.Diagnostics.Cdp;") ||
+                !headlessCode.Contains("using Avalonia.Input;") ||
+                !headlessCode.Contains("var window = new CdpSampleApp.MainWindow();") ||
+                !headlessCode.Contains("window.Width = 1024;") ||
+                !headlessCode.Contains("window.Height = 768;") ||
+                !headlessCode.Contains("mainWin.Navigate(\"http://127.0.0.1:9236/\");") ||
+                !headlessCode.Contains("var element_2 = SelectorEngine.QuerySelector(window, \":contains(\\\"Click Me\\\")\") as Control;") ||
+                !headlessCode.Contains("ClickControl(window, element_2, MouseButton.Left, RawInputModifiers.None);") ||
+                !headlessCode.Contains("var element_3 = SelectorEngine.QuerySelector(window, \"#txtTarget\") as Control;") ||
+                !headlessCode.Contains("element_3.Focus();") ||
+                !headlessCode.Contains("window.KeyTextInput(\"E2E Playwright ' Text with backslash \\\\\");") ||
+                !headlessCode.Contains("Assert.True(element_4.IsVisible);") ||
+                !headlessCode.Contains("Assert.True(element_5 == null || !element_5.IsVisible);") ||
+                !headlessCode.Contains("private static void ClickControl(Window window, Control control, MouseButton button, RawInputModifiers modifiers)") ||
+                !headlessCode.Contains("private static void DragAndDrop(Window window, Control source, Control target)"))
+            {
+                throw new Exception("Generated Avalonia Headless code is missing expected structures/statements!");
+            }
+            Console.WriteLine("Avalonia Headless code generation verified.");
+
+            // Reset back to Puppeteer default
+            mainVm.Recorder.SelectedFormat = RecordingFormat.Puppeteer;
+            Console.WriteLine("Scenario 12 PASSED.");
+
             // Clean up
             if (mainVm.Recorder.IsRecording)
             {
