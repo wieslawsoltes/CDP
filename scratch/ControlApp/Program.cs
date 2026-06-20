@@ -23,6 +23,10 @@ public class App : Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
+        Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://ControlApp/"))
+        {
+            Source = new Uri("avares://CDP.Inspector.Shared/Styles.axaml")
+        });
     }
 }
 

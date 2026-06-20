@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:models="clr-namespace:CdpInspectorApp.Models"
              xmlns:services="clr-namespace:CdpInspectorApp.Services"
+             xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:CompileBindings="False">
     <Grid ColumnDefinitions="*, 4, *">
@@ -153,7 +154,7 @@
                     <Button Grid.Column="1" Content="Apply YAML" Command="{Binding Recorder.TestStudio.ApplyYamlCommand}" Classes="accent"/>
                 </Grid>
                 <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                    <TextBox Text="{Binding Recorder.TestStudio.YamlCode}" AcceptsReturn="True" BorderThickness="0" Background="Transparent" FontFamily="Courier New,Consolas,Monospace" FontSize="12"/>
+                    <ae:TextEditor Name="txtYamlCode" Background="Transparent" BorderThickness="0" FontFamily="Courier New,Consolas,Monospace" FontSize="12" Foreground="#e8eaed" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
                 </Border>
             </Grid>
 

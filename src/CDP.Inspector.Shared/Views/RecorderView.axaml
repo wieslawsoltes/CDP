@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:CdpInspectorApp.Views"
+             xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              x:Class="CdpInspectorApp.Views.RecorderView"
              x:CompileBindings="False">
     <Grid RowDefinitions="Auto, *" Margin="10">
@@ -59,16 +60,16 @@
                         </Grid>
                         
                         <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="10">
-                            <TextBox Name="txtGeneratedCode" 
-                                     Text="{Binding Recorder.GeneratedCode}"
-                                     Background="Transparent" 
-                                     BorderThickness="0" 
-                                     Foreground="#e8eaed" 
-                                     FontFamily="Courier New,Consolas,Monospace" 
-                                     FontSize="12" 
-                                     IsReadOnly="True" 
-                                     AcceptsReturn="True" 
-                                     TextWrapping="NoWrap"/>
+                            <ae:TextEditor Name="txtGeneratedCode" 
+                                           Background="Transparent" 
+                                           BorderThickness="0" 
+                                           Foreground="#e8eaed" 
+                                           FontFamily="Courier New,Consolas,Monospace" 
+                                           FontSize="12" 
+                                           IsReadOnly="True" 
+                                           ShowLineNumbers="True"
+                                           HorizontalScrollBarVisibility="Auto" 
+                                           VerticalScrollBarVisibility="Auto"/>
                         </Border>
                     </Grid>
                 </TabItem>
