@@ -75,6 +75,8 @@ class Program
                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top
                 };
+                textBox.SetValue(Avalonia.Automation.AutomationProperties.AutomationIdProperty, "txtTargetId");
+
                 button = new Button
                 {
                     Name = "btnTarget",
@@ -84,6 +86,7 @@ class Program
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
                     Content = "Click Me"
                 };
+                button.SetValue(Avalonia.Automation.AutomationProperties.AutomationIdProperty, "btnTargetId");
                 button.Click += (s, e) => buttonClicked = true;
 
                 scrollViewer = new ScrollViewer
@@ -754,6 +757,63 @@ description: ""Verify new commands execution""
             // Reset back to Puppeteer default
             mainVm.Recorder.SelectedFormat = RecordingFormat.Puppeteer;
             Console.WriteLine("Scenario 12 PASSED.");
+
+            // 16. Test Scenario 13: DOM vs. Automation Selectors E2E
+            Console.WriteLine("Testing Scenario 13: DOM vs. Automation Selectors E2E...");
+            
+            // Set connection to use automation selectors
+            mainVm.Connection.UseAutomationSelectors = true;
+
+            // Find the TextBox node in Elements view model
+            var rootDoc = mainVm.Elements.RootNodes.FirstOrDefault();
+            if (rootDoc == null)
+            {
+                throw new Exception("DOM tree root node is null!");
+            }
+
+            Func<DomNodeModel, string, DomNodeModel?> findNodeByName = null;
+            findNodeByName = (root, name) =>
+            {
+                if (root.NodeName == name) return root;
+                foreach (var child in root.Children)
+                {
+                    var found = findNodeByName(child, name);
+                    if (found != null) return found;
+                }
+                return null;
+            };
+
+            var txtNode = findNodeByName(rootDoc, "TextBox");
+            if (txtNode == null)
+            {
+                throw new Exception("TextBox node not found in DOM tree!");
+            }
+
+            // Verify it has AccessibilityId attribute
+            var accessIdAttr = txtNode.AttributesList.FirstOrDefault(a => a.Name == "AccessibilityId");
+            if (accessIdAttr == null || accessIdAttr.Value != "txtTargetId")
+            {
+                throw new Exception($"Expected AccessibilityId attribute 'txtTargetId', got '{accessIdAttr?.Value}'");
+            }
+            Console.WriteLine("AccessibilityId attribute successfully serialized in DOM tree.");
+
+            // Select node and verify SelectedElementSelector changes to the automation selector
+            mainVm.Elements.SelectedNode = txtNode;
+            if (mainVm.Recorder.TestStudio.SelectedElementSelector != "[AccessibilityId=\"txtTargetId\"]")
+            {
+                throw new Exception($"Expected SelectedElementSelector to be '[AccessibilityId=\"txtTargetId\"]', got '{mainVm.Recorder.TestStudio.SelectedElementSelector}'");
+            }
+            Console.WriteLine("Client-side automation selector generation verified.");
+
+            // Switch UseAutomationSelectors back to false and verify it changes back to DOM selector (#txtTarget)
+            mainVm.Connection.UseAutomationSelectors = false;
+            if (mainVm.Recorder.TestStudio.SelectedElementSelector != "#txtTarget")
+            {
+                throw new Exception($"Expected SelectedElementSelector to be '#txtTarget', got '{mainVm.Recorder.TestStudio.SelectedElementSelector}'");
+            }
+            Console.WriteLine("Client-side DOM selector fallback verified.");
+
+            Console.WriteLine("Scenario 13 PASSED.");
 
             // Clean up
             if (mainVm.Recorder.IsRecording)

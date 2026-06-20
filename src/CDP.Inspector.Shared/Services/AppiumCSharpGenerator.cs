@@ -181,6 +181,22 @@ public class AppiumCSharpGenerator : ICodeGenerator
 
     private static string GetAppiumElementExpression(string selector)
     {
+        if (selector.StartsWith("[AccessibilityId=\"") && selector.EndsWith("\"]"))
+        {
+            var value = selector.Substring("[AccessibilityId=\"".Length, selector.Length - "[AccessibilityId=\"".Length - "\"]".Length);
+            return $"_driver.FindElementByAccessibilityId(\"{EscapeCSharpString(value)}\")";
+        }
+        else if (selector.Contains("[AccessibilityId=\""))
+        {
+            int start = selector.IndexOf("[AccessibilityId=\"") + "[AccessibilityId=\"".Length;
+            int end = selector.IndexOf("\"]", start);
+            if (end > start)
+            {
+                var value = selector.Substring(start, end - start);
+                return $"_driver.FindElementByAccessibilityId(\"{EscapeCSharpString(value)}\")";
+            }
+        }
+
         string escaped = EscapeCSharpString(selector);
         if (selector.StartsWith("#"))
         {
