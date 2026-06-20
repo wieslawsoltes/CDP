@@ -234,7 +234,7 @@ description: ""E2E Yaml Parse Test""
                 step3.Action != "inputText" || step3.Selector != "#txtTarget" || step3.Value != "Headless Input" ||
                 step4.Action != "assertVisible" || step4.Selector != "#txtTarget" ||
                 step5.Action != "assertNotVisible" || step5.Selector != "#nonexistent" ||
-                step6.Action != "scroll" || !step6.Value.Contains("direction: down") ||
+                step6.Action != "scroll" || step6.Value?.Contains("direction: down") != true ||
                 step7.Action != "clearText" || step7.Selector != "#txtTarget")
             {
                 throw new Exception("Parsed steps do not match expected actions/properties.");

@@ -740,19 +740,19 @@ public static class TestStudioYamlParser
                     {
                         var actionDict = new Dictionary<string, object>
                         {
-                            { "selector", step.Selector }
+                            { "selector", step.Selector ?? "" }
                         };
                         var props = ParseKeyValuePairs(step.Value);
                         if (props.Count > 0)
                         {
                             foreach (var kv in props)
                             {
-                                actionDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)kv.Value;
+                                actionDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)(kv.Value ?? "");
                             }
                         }
                         else
                         {
-                            actionDict["value"] = step.Value;
+                            actionDict["value"] = step.Value ?? "";
                         }
                         stepsList.Add(new Dictionary<string, object> { { action, actionDict } });
                     }
