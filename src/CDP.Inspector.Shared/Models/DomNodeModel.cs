@@ -26,6 +26,7 @@ public class DomNodeModel : System.ComponentModel.INotifyPropertyChanged
     public int NodeId { get; }
     public string NodeName { get; }
     public string DisplayName { get; set; } = "";
+    public DomNodeModel? Parent { get; set; }
     public ObservableCollection<DomNodeModel> Children { get; } = new();
     public ObservableCollection<AttributeModel> AttributesList { get; } = new();
 
