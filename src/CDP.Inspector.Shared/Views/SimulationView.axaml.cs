@@ -137,9 +137,23 @@ public partial class SimulationView : UserControl
 
         if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
         {
-            var button = pointerPoint.Properties.IsLeftButtonPressed ? "left" :
+            var button = "none";
+            if (type == "mouseReleased")
+            {
+                button = pointerPoint.Properties.PointerUpdateKind switch
+                {
+                    PointerUpdateKind.LeftButtonReleased => "left",
+                    PointerUpdateKind.RightButtonReleased => "right",
+                    PointerUpdateKind.MiddleButtonReleased => "middle",
+                    _ => "left"
+                };
+            }
+            else
+            {
+                button = pointerPoint.Properties.IsLeftButtonPressed ? "left" :
                          pointerPoint.Properties.IsRightButtonPressed ? "right" :
                          pointerPoint.Properties.IsMiddleButtonPressed ? "middle" : "none";
+            }
 
             int modifiers = 0;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)) modifiers |= 1;

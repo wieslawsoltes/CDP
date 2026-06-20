@@ -242,16 +242,35 @@ public class CdpSession
 
         if (Window != null)
         {
-            _isVisibleSubscription = Window.GetObservable(Visual.IsVisibleProperty).Subscribe(new AnonymousObserver<bool>(visible =>
+            if (Dispatcher.UIThread.CheckAccess())
             {
-                if (_screencastEnabled)
+                _isVisibleSubscription = Window.GetObservable(Visual.IsVisibleProperty).Subscribe(new AnonymousObserver<bool>(visible =>
                 {
-                    _ = SendEventAsync("Page.screencastVisibilityChanged", new JsonObject
+                    if (_screencastEnabled)
                     {
-                        ["visible"] = visible
-                    });
-                }
-            }));
+                        _ = SendEventAsync("Page.screencastVisibilityChanged", new JsonObject
+                        {
+                            ["visible"] = visible
+                        });
+                    }
+                }));
+            }
+            else
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _isVisibleSubscription = Window.GetObservable(Visual.IsVisibleProperty).Subscribe(new AnonymousObserver<bool>(visible =>
+                    {
+                        if (_screencastEnabled)
+                        {
+                            _ = SendEventAsync("Page.screencastVisibilityChanged", new JsonObject
+                            {
+                                ["visible"] = visible
+                            });
+                        }
+                    }));
+                });
+            }
         }
     }
 
@@ -437,7 +456,7 @@ public class CdpSession
     private int? _screencastMaxHeight;
     private int? _screencastEveryNthFrame;
     private int _screencastFrameCounter;
-    private readonly IDisposable? _isVisibleSubscription;
+    private IDisposable? _isVisibleSubscription;
 
     private byte[]? _lastSentFrameBytes;
     private readonly MemoryStream _captureStream = new();

@@ -835,6 +835,18 @@ public static class InputDomain
                     modifiers
                 );
                 inputHandler.Invoke(keyArgs);
+
+                if (type == "keyDown" && !string.IsNullOrEmpty(text))
+                {
+                    var textArgs = (RawTextInputEventArgs)Activator.CreateInstance(
+                        typeof(RawTextInputEventArgs),
+                        keyboardDevice,
+                        timestamp,
+                        inputRoot,
+                        text
+                    )!;
+                    inputHandler.Invoke(textArgs);
+                }
             }
             else if (type == "char")
             {
