@@ -548,16 +548,28 @@ public class TestStudioViewModel : ViewModelBase
                 {
                     if (!string.IsNullOrEmpty(step.Selector))
                     {
-                        Log($"Waiting for element '{step.Selector}' to be visible...");
-                        int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
-
-                        Log($"Focusing element and typing '{step.Value}'");
-                        try
+                        int retryCount = 0;
+                        bool success = false;
+                        while (retryCount < 3 && !success)
                         {
-                            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
-                            await Task.Delay(100, token);
+                            token.ThrowIfCancellationRequested();
+                            try
+                            {
+                                Log($"Waiting for element '{step.Selector}' to be visible...");
+                                int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+
+                                Log($"Focusing element and typing '{step.Value}'");
+                                await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                                await Task.Delay(100, token);
+                                success = true;
+                            }
+                            catch (Exception ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase) && retryCount < 2)
+                            {
+                                Log($"Focus failed due to Node ID invalidation: {ex.Message}. Retrying...");
+                                retryCount++;
+                                await Task.Delay(100, token);
+                            }
                         }
-                        catch { }
                     }
                     else
                     {
@@ -571,16 +583,28 @@ public class TestStudioViewModel : ViewModelBase
                 {
                     if (!string.IsNullOrEmpty(step.Selector))
                     {
-                        Log($"Waiting for element '{step.Selector}' to be visible...");
-                        int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
-
-                        Log("Focusing element and clearing text...");
-                        try
+                        int retryCount = 0;
+                        bool success = false;
+                        while (retryCount < 3 && !success)
                         {
-                            await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
-                            await Task.Delay(100, token);
+                            token.ThrowIfCancellationRequested();
+                            try
+                            {
+                                Log($"Waiting for element '{step.Selector}' to be visible...");
+                                int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+
+                                Log("Focusing element and clearing text...");
+                                await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                                await Task.Delay(100, token);
+                                success = true;
+                            }
+                            catch (Exception ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase) && retryCount < 2)
+                            {
+                                Log($"Focus failed due to Node ID invalidation: {ex.Message}. Retrying...");
+                                retryCount++;
+                                await Task.Delay(100, token);
+                            }
                         }
-                        catch { }
                     }
                     else
                     {
@@ -1561,51 +1585,66 @@ public class TestStudioViewModel : ViewModelBase
 
     private async Task<(double x, double y, int nodeId)> ResolveCoordinatesAsync(TestStudioStepModel step, CancellationToken token)
     {
-        double? targetX = null;
-        double? targetY = null;
-        int nodeId = 0;
+        int retryCount = 0;
+        while (retryCount < 3)
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                double? targetX = null;
+                double? targetY = null;
+                int nodeId = 0;
 
-        if (!string.IsNullOrEmpty(step.Selector))
-        {
-            Log($"Waiting for element '{step.Selector}' to be visible...");
-            nodeId = await WaitForElementVisibleAsync(step.Selector, token);
-            Log($"Element resolved. Fetching box model...");
-            var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
-            var model = boxRes["model"] as JsonObject;
-            var content = model?["content"] as JsonArray;
-            if (content != null && content.Count >= 8)
-            {
-                double x1 = content[0]!.GetValue<double>();
-                double y1 = content[1]!.GetValue<double>();
-                double x2 = content[4]!.GetValue<double>();
-                double y2 = content[5]!.GetValue<double>();
-                targetX = x1 + (x2 - x1) / 2.0;
-                targetY = y1 + (y2 - y1) / 2.0;
-            }
-            else
-            {
-                throw new Exception("Could not retrieve content box from box model.");
-            }
-        }
-        else if (!string.IsNullOrEmpty(step.Value))
-        {
-            var coords = ParseCoordinates(step.Value);
-            if (coords.HasValue)
-            {
-                targetX = coords.Value.x;
-                targetY = coords.Value.y;
-            }
-            else
-            {
-                throw new Exception($"Invalid coordinates value: {step.Value}");
-            }
-        }
-        else
-        {
-            throw new Exception($"{step.Action} step requires either a Selector or coordinates Value.");
-        }
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    Log($"Waiting for element '{step.Selector}' to be visible...");
+                    nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                    Log($"Element resolved. Fetching box model...");
+                    var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+                    var model = boxRes["model"] as JsonObject;
+                    var content = model?["content"] as JsonArray;
+                    if (content != null && content.Count >= 8)
+                    {
+                        double x1 = content[0]!.GetValue<double>();
+                        double y1 = content[1]!.GetValue<double>();
+                        double x2 = content[4]!.GetValue<double>();
+                        double y2 = content[5]!.GetValue<double>();
+                        targetX = x1 + (x2 - x1) / 2.0;
+                        targetY = y1 + (y2 - y1) / 2.0;
+                    }
+                    else
+                    {
+                        throw new Exception("Could not retrieve content box from box model.");
+                    }
+                }
+                else if (!string.IsNullOrEmpty(step.Value))
+                {
+                    var coords = ParseCoordinates(step.Value);
+                    if (coords.HasValue)
+                    {
+                        targetX = coords.Value.x;
+                        targetY = coords.Value.y;
+                    }
+                    else
+                    {
+                        throw new Exception($"Invalid coordinates value: {step.Value}");
+                    }
+                }
+                else
+                {
+                    throw new Exception($"{step.Action} step requires either a Selector or coordinates Value.");
+                }
 
-        return (targetX.Value, targetY.Value, nodeId);
+                return (targetX.Value, targetY.Value, nodeId);
+            }
+            catch (Exception ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase) && retryCount < 2)
+            {
+                Log($"Resolution failed due to Node ID invalidation: {ex.Message}. Retrying...");
+                retryCount++;
+                await Task.Delay(100, token);
+            }
+        }
+        throw new Exception($"Failed to resolve coordinates for step.");
     }
 
     private static (double x, double y)? ParseCoordinates(string value)
