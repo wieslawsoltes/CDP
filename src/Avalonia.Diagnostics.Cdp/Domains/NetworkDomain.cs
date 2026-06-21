@@ -25,6 +25,58 @@ public static class NetworkDomain
     private static double _downloadThroughput = -1;
     private static double _uploadThroughput = -1;
 
+    public static bool Offline => _offline;
+    public static double Latency => _latency;
+    public static double DownloadThroughput => _downloadThroughput;
+    public static double UploadThroughput => _uploadThroughput;
+
+    private static readonly object _blockedUrlsLock = new();
+    private static List<string> _blockedUrls = new();
+
+    public static void SetBlockedUrls(IEnumerable<string> urls)
+    {
+        lock (_blockedUrlsLock)
+        {
+            _blockedUrls = new List<string>(urls);
+        }
+    }
+
+    public static bool IsBlocked(string url)
+    {
+        List<string> currentPatterns;
+        lock (_blockedUrlsLock)
+        {
+            currentPatterns = _blockedUrls;
+        }
+
+        if (currentPatterns.Count == 0) return false;
+
+        foreach (var pattern in currentPatterns)
+        {
+            if (MatchesPattern(url, pattern))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool MatchesPattern(string url, string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern)) return false;
+        if (pattern == "*") return true;
+
+        var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
+        try
+        {
+            return System.Text.RegularExpressions.Regex.IsMatch(url, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static void Initialize()
     {
         try
@@ -138,12 +190,27 @@ public static class NetworkDomain
                     return Task.FromResult(new JsonObject { ["result"] = true });
                 }
 
+            case "setBlockedURLs":
+                {
+                    var urlsArray = @params["urls"]?.AsArray();
+                    var list = new List<string>();
+                    if (urlsArray != null)
+                    {
+                        foreach (var urlNode in urlsArray)
+                        {
+                            var u = urlNode?.GetValue<string>();
+                            if (u != null) list.Add(u);
+                        }
+                    }
+                    SetBlockedUrls(list);
+                    return Task.FromResult(new JsonObject());
+                }
+
             case "clearBrowserCache":
             case "clearBrowserCookies":
             case "setCacheDisabled":
             case "setExtraHTTPHeaders":
             case "setUserAgentOverride":
-            case "setBlockedURLs":
             case "setRequestInterception":
             case "setAcceptedEncodings":
             case "clearAcceptedEncodingsOverride":
@@ -458,7 +525,7 @@ internal class InterceptingHttpContent : HttpContent
 
     protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
     {
-        using var trackingStream = new TrackingStream(stream, this);
+        using var trackingStream = new TrackingStream(stream, this, leaveOpen: true);
         await _inner.CopyToAsync(trackingStream, context, cancellationToken).ConfigureAwait(false);
         OnComplete();
     }
@@ -497,15 +564,18 @@ internal class TrackingStream : Stream
     private readonly InterceptingHttpContent _parent;
     private bool _completed;
 
-    public TrackingStream(Stream inner, InterceptingHttpContent parent)
+    private readonly bool _leaveOpen;
+
+    public TrackingStream(Stream inner, InterceptingHttpContent parent, bool leaveOpen = false)
     {
         _inner = inner;
         _parent = parent;
+        _leaveOpen = leaveOpen;
     }
 
     public override bool CanRead => _inner.CanRead;
     public override bool CanSeek => _inner.CanSeek;
-    public override bool CanWrite => false;
+    public override bool CanWrite => _inner.CanWrite;
     public override long Length => _inner.Length;
     public override long Position
     {
@@ -516,7 +586,39 @@ internal class TrackingStream : Stream
     public override void Flush() => _inner.Flush();
     public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
     public override void SetLength(long value) => _inner.SetLength(value);
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        _inner.Write(buffer, offset, count);
+        if (count > 0)
+        {
+            _parent.TrackData(new ReadOnlySpan<byte>(buffer, offset, count));
+        }
+    }
+
+    public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+    {
+        await _inner.WriteAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
+        if (count > 0)
+        {
+            _parent.TrackData(new ReadOnlySpan<byte>(buffer, offset, count));
+        }
+    }
+
+    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        await _inner.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+        if (buffer.Length > 0)
+        {
+            _parent.TrackData(buffer.Span);
+        }
+    }
+
+    public override void WriteByte(byte value)
+    {
+        _inner.WriteByte(value);
+        _parent.TrackData(new ReadOnlySpan<byte>(ref value));
+    }
 
     public override int Read(byte[] buffer, int offset, int count)
     {
@@ -567,7 +669,10 @@ internal class TrackingStream : Stream
     {
         if (disposing)
         {
-            _inner.Dispose();
+            if (!_leaveOpen)
+            {
+                _inner.Dispose();
+            }
             Complete();
         }
         base.Dispose(disposing);
