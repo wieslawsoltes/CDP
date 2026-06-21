@@ -15,6 +15,7 @@ namespace CdpInspectorApp.ViewModels;
 public class ElementsViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
+    private readonly Dictionary<string, JsonObject> _axNodeDetailsMap = new();
     private ObservableCollection<DomNodeModel> _rootNodes = new();
     private ObservableCollection<AxNodeModel> _axRootNodes = new();
     private ObservableCollection<AttributeModel> _attributes = new();
@@ -310,6 +311,7 @@ public class ElementsViewModel : ViewModelBase
             if (RaiseAndSetIfChanged(ref _selectedAxNode, value))
             {
                 SyncDomSelectionFromAx();
+                UpdateAxDetailsFromSelectedAxNode(value);
             }
         }
     }
@@ -1185,9 +1187,45 @@ public class ElementsViewModel : ViewModelBase
         if (AxSearchQuery != _lastAxSearchQuery)
         {
             _axSearchResults.Clear();
-            FindMatchingAxNodes(AxRootNodes, AxSearchQuery, _axSearchResults);
-            _axSearchIndex = _axSearchResults.Count > 0 ? 0 : -1;
             _lastAxSearchQuery = AxSearchQuery;
+            _axSearchIndex = -1;
+
+            try
+            {
+                var response = await _cdpService.SendCommandAsync("Accessibility.queryAXTree", new JsonObject
+                {
+                    ["accessibleName"] = AxSearchQuery
+                });
+                var nodes = response["nodes"] as JsonArray;
+                if (nodes != null)
+                {
+                    foreach (var node in nodes)
+                    {
+                        if (node is JsonObject nodeObj)
+                        {
+                            string nodeId = nodeObj["nodeId"]?.GetValue<string>() ?? "";
+                            if (!string.IsNullOrEmpty(nodeId))
+                            {
+                                var path = new List<AxNodeModel>();
+                                if (FindAxNodePathById(AxRootNodes, nodeId, path) && path.Count > 0)
+                                {
+                                    _axSearchResults.Add(path[^1]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error doing server AX search: {ex.Message}");
+            }
+
+            if (_axSearchResults.Count == 0)
+            {
+                FindMatchingAxNodes(AxRootNodes, AxSearchQuery, _axSearchResults);
+            }
+            _axSearchIndex = _axSearchResults.Count > 0 ? 0 : -1;
         }
         else if (_axSearchResults.Count > 0)
         {
@@ -1199,7 +1237,6 @@ public class ElementsViewModel : ViewModelBase
             var match = _axSearchResults[_axSearchIndex];
             SelectAxNodeById(match.NodeId);
         }
-        await Task.CompletedTask;
     }
 
     private void FindMatchingAxNodes(IEnumerable<AxNodeModel> nodes, string query, List<AxNodeModel> matches)
@@ -1316,6 +1353,7 @@ public class ElementsViewModel : ViewModelBase
             var nodes = response["nodes"] as JsonArray;
             if (nodes == null) return;
 
+            _axNodeDetailsMap.Clear();
             var nodesMap = new Dictionary<string, AxNodeModel>();
             var rootList = new List<AxNodeModel>();
             var parents = new Dictionary<string, string>();
@@ -1325,6 +1363,10 @@ public class ElementsViewModel : ViewModelBase
                 if (node is JsonObject nodeObj)
                 {
                     string nodeId = nodeObj["nodeId"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrEmpty(nodeId))
+                    {
+                        _axNodeDetailsMap[nodeId] = nodeObj;
+                    }
                     var roleObj = nodeObj["role"] as JsonObject;
                     string role = roleObj?["value"]?.GetValue<string>() ?? "Unknown";
                     var nameObj = nodeObj["name"] as JsonObject;
@@ -1372,6 +1414,7 @@ public class ElementsViewModel : ViewModelBase
                 {
                     _axRootNodes.Add(root);
                 }
+                SyncAxSelectionFromDom();
             });
         }
         catch (Exception ex)
@@ -1427,6 +1470,7 @@ public class ElementsViewModel : ViewModelBase
         try
         {
             SelectNodeById(SelectedAxNode.BackendDOMNodeId.Value);
+            _ = TriggerHighlightAsync();
         }
         finally
         {
@@ -1451,11 +1495,57 @@ public class ElementsViewModel : ViewModelBase
                 path[^1].IsSelected = true;
                 _selectedAxNode = path[^1];
                 OnPropertyChanged(nameof(SelectedAxNode));
+                UpdateAxDetailsFromSelectedAxNode(_selectedAxNode);
             }
         }
         finally
         {
             Dispatcher.UIThread.Post(() => _isSelectingProgrammatically = false);
+        }
+    }
+
+    private void UpdateAxDetailsFromSelectedAxNode(AxNodeModel? selectedAxNode)
+    {
+        if (selectedAxNode == null)
+        {
+            ClearAxDetails();
+            return;
+        }
+
+        if (_axNodeDetailsMap.TryGetValue(selectedAxNode.NodeId, out var matchedNode) && matchedNode != null)
+        {
+            var roleObj = matchedNode["role"] as JsonObject;
+            AxRoleText = roleObj?["value"]?.GetValue<string>() ?? selectedAxNode.Role;
+            
+            var nameObj = matchedNode["name"] as JsonObject;
+            AxNameText = nameObj?["value"]?.GetValue<string>() ?? selectedAxNode.Name ?? "None";
+
+            var descObj = matchedNode["description"] as JsonObject;
+            AxDescriptionText = descObj?["value"]?.GetValue<string>() ?? "None";
+
+            AxIgnoredText = (matchedNode["ignored"]?.GetValue<bool>() ?? false) ? "True" : "False";
+            AxParentIdText = matchedNode["parentId"]?.GetValue<string>() ?? "None";
+
+            var childIds = matchedNode["childIds"] as JsonArray;
+            if (childIds != null && childIds.Count > 0)
+            {
+                AxChildIdsText = string.Join(", ", childIds.Select(c => c?.GetValue<string>() ?? ""));
+            }
+            else
+            {
+                AxChildIdsText = "None";
+            }
+        }
+        else
+        {
+            AxRoleText = selectedAxNode.Role;
+            AxNameText = selectedAxNode.Name ?? "None";
+            AxDescriptionText = "None";
+            AxIgnoredText = selectedAxNode.Ignored ? "True" : "False";
+            AxParentIdText = "None";
+            AxChildIdsText = selectedAxNode.Children.Count > 0 
+                ? string.Join(", ", selectedAxNode.Children.Select(c => c.NodeId)) 
+                : "None";
         }
     }
 

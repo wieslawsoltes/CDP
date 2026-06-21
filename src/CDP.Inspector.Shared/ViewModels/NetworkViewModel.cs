@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using System.ComponentModel;
 using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
@@ -30,8 +31,18 @@ public class NetworkViewModel : ViewModelBase
     };
     private ThrottlingProfile? _selectedProfile;
 
+    private ObservableCollection<BlockedUrlModel> _blockedUrls = new();
+    private ObservableCollection<MockRuleModel> _mockRules = new();
+
     public ObservableCollection<NetworkRequestModel> NetworkRequests => _networkRequests;
     public ObservableCollection<ThrottlingProfile> ThrottlingProfiles => _throttlingProfiles;
+    public ObservableCollection<BlockedUrlModel> BlockedUrls => _blockedUrls;
+    public ObservableCollection<MockRuleModel> MockRules => _mockRules;
+
+    public ICommand AddBlockedUrlCommand { get; }
+    public ICommand RemoveBlockedUrlCommand { get; }
+    public ICommand AddMockRuleCommand { get; }
+    public ICommand RemoveMockRuleCommand { get; }
 
     public ThrottlingProfile? SelectedProfile
     {
@@ -81,6 +92,8 @@ public class NetworkViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _selectedResponseBody, value);
     }
 
+    public bool AutoFulfillEnabled { get; set; } = true;
+
     public ICommand ClearNetworkCommand { get; }
 
     public NetworkViewModel(ICdpService cdpService)
@@ -91,6 +104,11 @@ public class NetworkViewModel : ViewModelBase
 
         _selectedProfile = _throttlingProfiles[0];
         ClearNetworkCommand = new RelayCommand(ClearNetwork);
+
+        AddBlockedUrlCommand = new RelayCommand(AddBlockedUrl);
+        RemoveBlockedUrlCommand = new RelayCommand<BlockedUrlModel>(RemoveBlockedUrl);
+        AddMockRuleCommand = new RelayCommand(AddMockRule);
+        RemoveMockRuleCommand = new RelayCommand<MockRuleModel>(RemoveMockRule);
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -113,7 +131,9 @@ public class NetworkViewModel : ViewModelBase
         try
         {
             await _cdpService.SendCommandAsync("Network.enable");
+            await _cdpService.SendCommandAsync("Fetch.enable");
             await ApplyThrottlingAsync();
+            await SyncBlockedUrlsAsync();
         }
         catch (Exception ex)
         {
@@ -147,12 +167,22 @@ public class NetworkViewModel : ViewModelBase
                     var existing = NetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
                     if (existing == null)
                     {
+                        string initialStatus = "Pending";
+                        if (BlockedUrls.Any(b => MatchesPattern(url, b.Pattern)))
+                        {
+                            initialStatus = "Blocked";
+                        }
+                        else if (MockRules.Any(r => r.IsActive && MatchesPattern(url, r.UrlPattern)))
+                        {
+                            initialStatus = "Mocked";
+                        }
+
                         NetworkRequests.Add(new NetworkRequestModel
                         {
                             RequestId = requestId,
                             Url = url,
                             Method = method,
-                            Status = "Pending",
+                            Status = initialStatus,
                             Time = "--",
                             RequestHeaders = sbHeaders.ToString()
                         });
@@ -185,7 +215,17 @@ public class NetworkViewModel : ViewModelBase
                     var existing = NetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
                     if (existing != null)
                     {
-                        existing.Status = $"{status} {statusText}";
+                        string finalStatus = $"{status} {statusText}";
+                        if (BlockedUrls.Any(b => MatchesPattern(existing.Url, b.Pattern)))
+                        {
+                            finalStatus = "Blocked";
+                        }
+                        else if (MockRules.Any(r => r.IsActive && MatchesPattern(existing.Url, r.UrlPattern)))
+                        {
+                            finalStatus = "Mocked";
+                        }
+
+                        existing.Status = finalStatus;
                         existing.ResponseHeaders = sbHeaders.ToString();
                         if (SelectedRequest == existing)
                         {
@@ -207,6 +247,27 @@ public class NetworkViewModel : ViewModelBase
                     _ = FetchResponseBodyAsync(existing);
                 }
             });
+        }
+        else if (e.Method == "Fetch.requestPaused" && e.Params != null)
+        {
+            if (!AutoFulfillEnabled) return;
+            string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
+            var request = e.Params["request"] as JsonObject;
+            if (request != null && !string.IsNullOrEmpty(requestId))
+            {
+                string url = request["url"]?.GetValue<string>() ?? "";
+                string method = request["method"]?.GetValue<string>() ?? "GET";
+
+                var matchingRule = MockRules.FirstOrDefault(r => r.IsActive && MatchesPattern(url, r.UrlPattern));
+                if (matchingRule != null)
+                {
+                    _ = FulfillPausedRequestAsync(requestId, matchingRule);
+                }
+                else
+                {
+                    _ = ContinuePausedRequestAsync(requestId);
+                }
+            }
         }
     }
 
@@ -285,6 +346,151 @@ public class NetworkViewModel : ViewModelBase
         catch (Exception ex)
         {
             Console.WriteLine($"Error applying network throttling: {ex.Message}");
+        }
+    }
+
+    private void AddBlockedUrl()
+    {
+        var item = new BlockedUrlModel { Pattern = "*google-analytics.com*" };
+        item.PropertyChanged += BlockedUrl_PropertyChanged;
+        BlockedUrls.Add(item);
+        _ = SyncBlockedUrlsAsync();
+    }
+
+    private void RemoveBlockedUrl(BlockedUrlModel? item)
+    {
+        if (item != null)
+        {
+            item.PropertyChanged -= BlockedUrl_PropertyChanged;
+            BlockedUrls.Remove(item);
+            _ = SyncBlockedUrlsAsync();
+        }
+    }
+
+    private void BlockedUrl_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BlockedUrlModel.Pattern))
+        {
+            _ = SyncBlockedUrlsAsync();
+        }
+    }
+
+    private void AddMockRule()
+    {
+        var rule = new MockRuleModel
+        {
+            UrlPattern = "*api/v1/users*",
+            StatusCode = 200,
+            MockBody = "{\"mocked\": true}",
+            ResponseHeaders = "Content-Type: application/json"
+        };
+        MockRules.Add(rule);
+    }
+
+    private void RemoveMockRule(MockRuleModel? rule)
+    {
+        if (rule != null)
+        {
+            MockRules.Remove(rule);
+        }
+    }
+
+    private async Task SyncBlockedUrlsAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+
+        try
+        {
+            var urlsArray = new JsonArray();
+            foreach (var blocked in BlockedUrls)
+            {
+                if (!string.IsNullOrEmpty(blocked.Pattern))
+                {
+                    urlsArray.Add(blocked.Pattern);
+                }
+            }
+
+            await _cdpService.SendCommandAsync("Network.setBlockedURLs", new JsonObject
+            {
+                ["urls"] = urlsArray
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating blocked URLs: {ex.Message}");
+        }
+    }
+
+    private async Task FulfillPausedRequestAsync(string requestId, MockRuleModel rule)
+    {
+        try
+        {
+            var headersArray = new JsonArray();
+            if (!string.IsNullOrEmpty(rule.ResponseHeaders))
+            {
+                var lines = rule.ResponseHeaders.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    var parts = line.Split(new[] { ':' }, 2);
+                    if (parts.Length == 2)
+                    {
+                        headersArray.Add(new JsonObject
+                        {
+                            ["name"] = parts[0].Trim(),
+                            ["value"] = parts[1].Trim()
+                        });
+                    }
+                }
+            }
+
+            string base64Body = "";
+            if (!string.IsNullOrEmpty(rule.MockBody))
+            {
+                base64Body = Convert.ToBase64String(Encoding.UTF8.GetBytes(rule.MockBody));
+            }
+
+            await _cdpService.SendCommandAsync("Fetch.fulfillRequest", new JsonObject
+            {
+                ["requestId"] = requestId,
+                ["responseCode"] = rule.StatusCode,
+                ["responseHeaders"] = headersArray,
+                ["body"] = base64Body
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fulfilling request: {ex.Message}");
+        }
+    }
+
+    private async Task ContinuePausedRequestAsync(string requestId)
+    {
+        try
+        {
+            await _cdpService.SendCommandAsync("Fetch.continueRequest", new JsonObject
+            {
+                ["requestId"] = requestId
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error continuing request: {ex.Message}");
+        }
+    }
+
+    private bool MatchesPattern(string url, string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern)) return false;
+        if (pattern == "*") return true;
+
+        var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
+        try
+        {
+            return System.Text.RegularExpressions.Regex.IsMatch(url, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+        catch
+        {
+            return false;
         }
     }
 }

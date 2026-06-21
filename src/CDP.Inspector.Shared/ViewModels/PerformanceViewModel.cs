@@ -19,6 +19,13 @@ public class PerformanceViewModel : ViewModelBase
     private string _perfDocumentsText = "--";
     private string _perfPidText = "--";
     private string _perfOsText = "--";
+    private string _perfCpuText = "--";
+    private string _perfFpsText = "--";
+    private string _perfFrameDurationText = "--";
+    private string _perfLayoutCountText = "--";
+    private string _perfLayoutDurationText = "--";
+    private string _perfQueueDelayText = "--";
+    private string _perfBlockingTimeText = "--";
     private ObservableCollection<ControlCountModel> _liveControls = new();
     private List<double>? _memoryHistory = new();
 
@@ -58,6 +65,48 @@ public class PerformanceViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _perfOsText, value);
     }
 
+    public string PerfCpuText
+    {
+        get => _perfCpuText;
+        private set => RaiseAndSetIfChanged(ref _perfCpuText, value);
+    }
+
+    public string PerfFpsText
+    {
+        get => _perfFpsText;
+        private set => RaiseAndSetIfChanged(ref _perfFpsText, value);
+    }
+
+    public string PerfFrameDurationText
+    {
+        get => _perfFrameDurationText;
+        private set => RaiseAndSetIfChanged(ref _perfFrameDurationText, value);
+    }
+
+    public string PerfLayoutCountText
+    {
+        get => _perfLayoutCountText;
+        private set => RaiseAndSetIfChanged(ref _perfLayoutCountText, value);
+    }
+
+    public string PerfLayoutDurationText
+    {
+        get => _perfLayoutDurationText;
+        private set => RaiseAndSetIfChanged(ref _perfLayoutDurationText, value);
+    }
+
+    public string PerfQueueDelayText
+    {
+        get => _perfQueueDelayText;
+        private set => RaiseAndSetIfChanged(ref _perfQueueDelayText, value);
+    }
+
+    public string PerfBlockingTimeText
+    {
+        get => _perfBlockingTimeText;
+        private set => RaiseAndSetIfChanged(ref _perfBlockingTimeText, value);
+    }
+
     public ObservableCollection<ControlCountModel> LiveControls => _liveControls;
 
     public List<double>? MemoryHistory
@@ -74,6 +123,7 @@ public class PerformanceViewModel : ViewModelBase
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
+        _cdpService.EventReceived += CdpService_EventReceived;
 
         RefreshMetricsCommand = new RelayCommand(async () => await RefreshMetricsAsync(), () => _cdpService.IsConnected);
         CollectGarbageCommand = new RelayCommand(async () => await CollectGarbageAsync(), () => _cdpService.IsConnected);
@@ -98,6 +148,18 @@ public class PerformanceViewModel : ViewModelBase
         }
     }
 
+    private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
+    {
+        if (e.Method == "Performance.metrics" && e.Params != null)
+        {
+            var metrics = e.Params["metrics"] as JsonArray;
+            if (metrics != null)
+            {
+                Dispatcher.UIThread.Post(() => UpdateMetrics(metrics));
+            }
+        }
+    }
+
     private async Task InitializePerformanceAsync()
     {
         try
@@ -112,6 +174,59 @@ public class PerformanceViewModel : ViewModelBase
         }
     }
 
+    private void UpdateMetrics(JsonArray metrics)
+    {
+        var newHistory = MemoryHistory != null ? new List<double>(MemoryHistory) : new List<double>();
+        foreach (var m in metrics)
+        {
+            string name = m?["name"]?.GetValue<string>() ?? "";
+            double val = m?["value"]?.GetValue<double>() ?? 0;
+            if (name == "Nodes")
+            {
+                PerfNodesText = val.ToString("0");
+            }
+            else if (name == "JSHeapUsedSize")
+            {
+                PerfMemoryText = $"{(val / 1024 / 1024):F2} MB";
+                newHistory.Add(val / 1024 / 1024);
+                if (newHistory.Count > 30) newHistory.RemoveAt(0);
+            }
+            else if (name == "JSHeapTotalSize")
+            {
+                PerfGcText = $"{(val / 1024 / 1024):F2} MB";
+            }
+            else if (name == "CPUUsage")
+            {
+                PerfCpuText = $"{val:F1} %";
+            }
+            else if (name == "LayoutCount")
+            {
+                PerfLayoutCountText = val.ToString("0");
+            }
+            else if (name == "LayoutDuration")
+            {
+                PerfLayoutDurationText = $"{val:F3} s";
+            }
+            else if (name == "FPS")
+            {
+                PerfFpsText = $"{val:F1} FPS";
+            }
+            else if (name == "FrameDuration")
+            {
+                PerfFrameDurationText = $"{val:F3} s";
+            }
+            else if (name == "DispatcherQueueDelay")
+            {
+                PerfQueueDelayText = $"{val:F3} s";
+            }
+            else if (name == "UIThreadBlockingTime")
+            {
+                PerfBlockingTimeText = $"{val:F3} s";
+            }
+        }
+        MemoryHistory = newHistory;
+    }
+
     public async Task RefreshMetricsAsync()
     {
         if (!_cdpService.IsConnected) return;
@@ -122,27 +237,7 @@ public class PerformanceViewModel : ViewModelBase
             var metrics = perfRes["metrics"] as JsonArray;
             if (metrics != null)
             {
-                var newHistory = MemoryHistory != null ? new List<double>(MemoryHistory) : new List<double>();
-                foreach (var m in metrics)
-                {
-                    string name = m?["name"]?.GetValue<string>() ?? "";
-                    double val = m?["value"]?.GetValue<double>() ?? 0;
-                    if (name == "Nodes")
-                    {
-                        PerfNodesText = val.ToString("0");
-                    }
-                    else if (name == "JSHeapUsedSize")
-                    {
-                        PerfMemoryText = $"{(val / 1024 / 1024):F2} MB";
-                        newHistory.Add(val / 1024 / 1024);
-                        if (newHistory.Count > 30) newHistory.RemoveAt(0);
-                    }
-                    else if (name == "JSHeapTotalSize")
-                    {
-                        PerfGcText = $"{(val / 1024 / 1024):F2} MB";
-                    }
-                }
-                MemoryHistory = newHistory;
+                UpdateMetrics(metrics);
             }
 
             try
@@ -245,6 +340,13 @@ public class PerformanceViewModel : ViewModelBase
             PerfDocumentsText = "--";
             PerfPidText = "--";
             PerfOsText = "--";
+            PerfCpuText = "--";
+            PerfFpsText = "--";
+            PerfFrameDurationText = "--";
+            PerfLayoutCountText = "--";
+            PerfLayoutDurationText = "--";
+            PerfQueueDelayText = "--";
+            PerfBlockingTimeText = "--";
             LiveControls.Clear();
             MemoryHistory = null;
         });

@@ -37,6 +37,34 @@
                         <TextBlock Text="Operating System:" Foreground="#9aa0a6"/>
                         <TextBlock Name="lblPerfOs" Grid.Column="1" Text="{Binding Performance.PerfOsText}" TextWrapping="Wrap" Foreground="#e8eaed"/>
                     </Grid>
+                    <Grid ColumnDefinitions="150, *">
+                        <TextBlock Text="CPU Usage:" Foreground="#9aa0a6"/>
+                        <TextBlock Name="lblPerfCpu" Grid.Column="1" Text="{Binding Performance.PerfCpuText}" FontWeight="Bold" Foreground="#e8eaed"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="150, *">
+                        <TextBlock Text="Frame Rate (FPS):" Foreground="#9aa0a6"/>
+                        <TextBlock Name="lblPerfFps" Grid.Column="1" Text="{Binding Performance.PerfFpsText}" FontWeight="Bold" Foreground="#e8eaed"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="150, *">
+                        <TextBlock Text="Frame Duration:" Foreground="#9aa0a6"/>
+                        <TextBlock Name="lblPerfFrameDuration" Grid.Column="1" Text="{Binding Performance.PerfFrameDurationText}" FontWeight="Bold" Foreground="#e8eaed"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="150, *">
+                        <TextBlock Text="Layout passes:" Foreground="#9aa0a6"/>
+                        <TextBlock Name="lblPerfLayoutCount" Grid.Column="1" Text="{Binding Performance.PerfLayoutCountText}" FontWeight="Bold" Foreground="#e8eaed"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="150, *">
+                        <TextBlock Text="Layout duration:" Foreground="#9aa0a6"/>
+                        <TextBlock Name="lblPerfLayoutDuration" Grid.Column="1" Text="{Binding Performance.PerfLayoutDurationText}" FontWeight="Bold" Foreground="#e8eaed"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="150, *">
+                        <TextBlock Text="Dispatcher Delay:" Foreground="#9aa0a6"/>
+                        <TextBlock Name="lblPerfQueueDelay" Grid.Column="1" Text="{Binding Performance.PerfQueueDelayText}" FontWeight="Bold" Foreground="#e8eaed"/>
+                    </Grid>
+                    <Grid ColumnDefinitions="150, *">
+                        <TextBlock Text="UI Thread Blocking:" Foreground="#9aa0a6"/>
+                        <TextBlock Name="lblPerfBlockingTime" Grid.Column="1" Text="{Binding Performance.PerfBlockingTimeText}" FontWeight="Bold" Foreground="#e8eaed"/>
+                    </Grid>
                     <Button Name="btnCloseTarget" Command="{Binding Performance.CloseTargetCommand}" Content="Kill Target App" Background="#c5221f" Foreground="White" BorderBrush="#c5221f" Margin="0,15,0,0"/>
                 </StackPanel>
             </ScrollViewer>

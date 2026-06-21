@@ -299,10 +299,112 @@ public class ConsoleViewModel : ViewModelBase
             }
 
             ConsoleHistory.Add(new ConsoleItemModel(expr, displayResult, false));
+            if (_historyLines.Count == 0 || _historyLines[^1] != expr)
+            {
+                _historyLines.Add(expr);
+            }
+            _historyIndex = _historyLines.Count;
         }
         catch (Exception ex)
         {
             ConsoleHistory.Add(new ConsoleItemModel(expr, ex.Message, true));
+        }
+    }
+
+    private readonly List<string> _historyLines = new();
+    private int _historyIndex = -1;
+
+    private ObservableCollection<string> _completions = new();
+    private bool _isCompletionActive;
+    private int _selectedCompletionIndex = -1;
+
+    public ObservableCollection<string> Completions => _completions;
+
+    public bool IsCompletionActive
+    {
+        get => _isCompletionActive;
+        set => RaiseAndSetIfChanged(ref _isCompletionActive, value);
+    }
+
+    public int SelectedCompletionIndex
+    {
+        get => _selectedCompletionIndex;
+        set => RaiseAndSetIfChanged(ref _selectedCompletionIndex, value);
+    }
+
+    public string? GetPreviousHistoryLine()
+    {
+        if (_historyLines.Count == 0) return null;
+        if (_historyIndex > 0)
+        {
+            _historyIndex--;
+        }
+        return _historyLines[_historyIndex];
+    }
+
+    public string? GetNextHistoryLine()
+    {
+        if (_historyIndex < _historyLines.Count - 1)
+        {
+            _historyIndex++;
+            return _historyLines[_historyIndex];
+        }
+        _historyIndex = _historyLines.Count;
+        return null;
+    }
+
+    public async Task QueryCompletionsAsync(string expression, int cursorPosition)
+    {
+        if (string.IsNullOrEmpty(expression) || !_cdpService.IsConnected)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                Completions.Clear();
+                IsCompletionActive = false;
+            });
+            return;
+        }
+
+        try
+        {
+            var res = await _cdpService.SendCommandAsync("Runtime.getCompletions", new JsonObject
+            {
+                ["expression"] = expression,
+                ["cursorPosition"] = cursorPosition
+            });
+
+            var completionsArr = res["completions"] as JsonArray;
+            Dispatcher.UIThread.Post(() =>
+            {
+                Completions.Clear();
+                if (completionsArr != null && completionsArr.Count > 0)
+                {
+                    foreach (var itemNode in completionsArr)
+                    {
+                        var displayText = itemNode?["displayText"]?.GetValue<string>();
+                        if (!string.IsNullOrEmpty(displayText))
+                        {
+                            Completions.Add(displayText);
+                        }
+                    }
+                    IsCompletionActive = true;
+                    SelectedCompletionIndex = 0;
+                }
+                else
+                {
+                    IsCompletionActive = false;
+                    SelectedCompletionIndex = -1;
+                }
+            });
+        }
+        catch
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                Completions.Clear();
+                IsCompletionActive = false;
+                SelectedCompletionIndex = -1;
+            });
         }
     }
 }

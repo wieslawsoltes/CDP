@@ -8,6 +8,7 @@
             <StackPanel Spacing="8" Margin="0,0,0,10">
                 <Button Name="btnTakeSnapshot" Command="{Binding Memory.TakeSnapshotCommand}" Content="Take Heap Snapshot" Classes="accent" HorizontalAlignment="Stretch"/>
                 <Button Name="btnGcCollect" Command="{Binding Memory.CollectGarbageCommand}" Content="Collect Garbage" HorizontalAlignment="Stretch" Background="#2e7d32" Foreground="White" BorderBrush="#2e7d32"/>
+                <Button Name="btnExportSnapshot" Command="{Binding Memory.ExportSnapshotCommand}" Content="Export V8 JSON" HorizontalAlignment="Stretch"/>
             </StackPanel>
             
             <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
@@ -54,51 +55,85 @@
             <!-- Table content -->
             <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
                 <Grid>
-                    <!-- Summary mode list -->
-                    <Grid RowDefinitions="Auto, *" IsVisible="{Binding !Memory.IsComparisonMode}">
-                        <!-- Headers -->
-                        <Grid ColumnDefinitions="*, 120" Margin="10,5,10,5">
-                            <TextBlock Text="Control Type / Constructor" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
-                            <TextBlock Grid.Column="1" Text="Live Instances Count" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                        </Grid>
-                        <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
-                        
-                        <ListBox Grid.Row="1" ItemsSource="{Binding Memory.CurrentEntries}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ColumnDefinitions="*, 120" Margin="2">
-                                        <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Count}" FontSize="12" Foreground="#8ab4f8" FontWeight="Bold" HorizontalAlignment="Right"/>
+                    <TabControl IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <!-- Live Counts Tab -->
+                        <TabItem Header="Live Counts">
+                            <Grid>
+                                <!-- Summary mode list -->
+                                <Grid RowDefinitions="Auto, *" IsVisible="{Binding !Memory.IsComparisonMode}">
+                                    <!-- Headers -->
+                                    <Grid ColumnDefinitions="*, 120" Margin="10,5,10,5">
+                                        <TextBlock Text="Control Type / Constructor" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
+                                        <TextBlock Grid.Column="1" Text="Live Instances Count" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
                                     </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Grid>
+                                    <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
+                                    
+                                    <ListBox Grid.Row="1" ItemsSource="{Binding Memory.CurrentEntries}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ColumnDefinitions="*, 120" Margin="2">
+                                                    <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Count}" FontSize="12" Foreground="#8ab4f8" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
 
-                    <!-- Comparison mode list -->
-                    <Grid RowDefinitions="Auto, *" IsVisible="{Binding Memory.IsComparisonMode}">
-                        <!-- Headers -->
-                        <Grid ColumnDefinitions="*, 100, 100, 100" Margin="10,5,10,5">
-                            <TextBlock Text="Control Type / Constructor" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
-                            <TextBlock Grid.Column="1" Text="Baseline" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                            <TextBlock Grid.Column="2" Text="Current" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                            <TextBlock Grid.Column="3" Text="Delta" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                        </Grid>
-                        <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
-                        
-                        <ListBox Grid.Row="1" ItemsSource="{Binding Memory.ComparisonEntries}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ColumnDefinitions="*, 100, 100, 100" Margin="2">
-                                        <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding BaselineCount}" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding SnapshotCount}" FontSize="12" Foreground="#e8eaed" HorizontalAlignment="Right"/>
-                                        <TextBlock Grid.Column="3" Text="{Binding DeltaText}" FontSize="12" Foreground="#f28b82" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                <!-- Comparison mode list -->
+                                <Grid RowDefinitions="Auto, *" IsVisible="{Binding Memory.IsComparisonMode}">
+                                    <!-- Headers -->
+                                    <Grid ColumnDefinitions="*, 100, 100, 100" Margin="10,5,10,5">
+                                        <TextBlock Text="Control Type / Constructor" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
+                                        <TextBlock Grid.Column="1" Text="Baseline" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                                        <TextBlock Grid.Column="2" Text="Current" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                                        <TextBlock Grid.Column="3" Text="Delta" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
                                     </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Grid>
+                                    <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
+                                    
+                                    <ListBox Grid.Row="1" ItemsSource="{Binding Memory.ComparisonEntries}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ColumnDefinitions="*, 100, 100, 100" Margin="2">
+                                                    <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding BaselineCount}" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding SnapshotCount}" FontSize="12" Foreground="#e8eaed" HorizontalAlignment="Right"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding DeltaText}" FontSize="12" Foreground="#f28b82" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+                            </Grid>
+                        </TabItem>
+
+                        <!-- Detached Controls Tab -->
+                        <TabItem Header="Detached Controls (Leaked)">
+                            <Grid RowDefinitions="Auto, *">
+                                <!-- Headers -->
+                                <Grid ColumnDefinitions="*, *, 120, 150" Margin="10,5,10,5">
+                                    <TextBlock Text="Control Type" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
+                                    <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
+                                    <TextBlock Grid.Column="2" Text="Detached Duration" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="3" Text="DataContext VM" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
+                                
+                                <ListBox Grid.Row="1" ItemsSource="{Binding Memory.DetachedControls}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="*, *, 120, 150" Margin="2">
+                                                <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Foreground="#9aa0a6"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding DetachedDurationMs, StringFormat='{}{0} ms'}" FontSize="12" Foreground="#f28b82" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding DataContextType}" FontSize="12" Foreground="#8ab4f8" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
                     
                     <!-- Empty state -->
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNull}}">
