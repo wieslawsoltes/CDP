@@ -21,5 +21,10 @@
     <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
     <PackageVersion Include="AvaloniaEdit.TextMate" Version="12.0.0" />
     <PackageVersion Include="TextMateSharp.Grammars" Version="2.0.4" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Features" Version="4.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Features" Version="4.12.0" />
   </ItemGroup>
 </Project>

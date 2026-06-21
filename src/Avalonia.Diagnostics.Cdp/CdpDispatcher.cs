@@ -22,7 +22,7 @@ public static class CdpDispatcher
         {
             if (domain != "DOM" && domain != "CSS" && domain != "Page" && domain != "Overlay" &&
                 domain != "Runtime" && domain != "Accessibility" && domain != "Log" && domain != "Performance" &&
-                domain != "Network" && domain != "Recorder" && domain != "Console")
+                domain != "Network" && domain != "Recorder" && domain != "Console" && domain != "Fetch")
             {
                 return new JsonObject();
             }
@@ -38,6 +38,8 @@ public static class CdpDispatcher
                 return await MemoryDomain.HandleAsync(session, action, @params);
             case "Network":
                 return await NetworkDomain.HandleAsync(session, action, @params);
+            case "Fetch":
+                return await FetchDomain.HandleAsync(session, action, @params);
             case "Sources":
                 return await SourcesDomain.HandleAsync(session, action, @params);
             case "Application":
@@ -64,6 +66,8 @@ public static class CdpDispatcher
                 return await ConsoleDomain.HandleAsync(session, action, @params);
             case "Performance":
                 return await PerformanceDomain.HandleAsync(session, action, @params);
+            case "Tracing":
+                return await TracingDomain.HandleAsync(session, action, @params);
             case "Browser":
                 return await BrowserDomain.HandleAsync(session, action, @params);
             case "SystemInfo":

@@ -158,6 +158,9 @@ public static class CdpServer
         // Initialize Network diagnostic listener
         Avalonia.Diagnostics.Cdp.Domains.NetworkDomain.Initialize();
 
+        // Initialize Memory diagnostic tracker
+        Avalonia.Diagnostics.Cdp.Domains.MemoryDomain.Initialize();
+
         // Integrate CDP Log domain hook
         var originalSink = Avalonia.Logging.Logger.Sink;
         var cdpSink = new Avalonia.Diagnostics.Cdp.Domains.CdpLogSink();
@@ -209,8 +212,10 @@ public static class CdpServer
         _redirectedOut = null;
         _redirectedError = null;
 
-        // Shutdown Network diagnostic listener
+        // Shutdown Network diagnostic listener and Fetch interceptions
         Avalonia.Diagnostics.Cdp.Domains.NetworkDomain.Shutdown();
+        Avalonia.Diagnostics.Cdp.Domains.FetchDomain.Shutdown();
+        Avalonia.Diagnostics.Cdp.Domains.MemoryDomain.Shutdown();
 
         // Restore original log sink
         if (Avalonia.Logging.Logger.Sink is Avalonia.Diagnostics.Cdp.Domains.CompositeLogSink composite)
