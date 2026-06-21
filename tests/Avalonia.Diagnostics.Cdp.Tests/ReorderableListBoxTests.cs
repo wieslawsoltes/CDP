@@ -29,6 +29,15 @@ public class ReorderableListBoxTests
         return null;
     }
 
+    private static void SetDraggedItem(ReorderableListBox listBox, object? value)
+    {
+        var t = listBox.GetType();
+        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
+        fDraggedItem?.SetValue(listBox, value);
+        var fStaticDraggedItem = t.GetField("s_draggedItem", BindingFlags.NonPublic | BindingFlags.Static);
+        fStaticDraggedItem?.SetValue(null, value);
+    }
+
     [AvaloniaFact]
     public async Task PointerPressed_LeftButton_StartsDragState()
     {
@@ -197,9 +206,7 @@ public class ReorderableListBoxTests
         Assert.NotNull(item2);
 
         // Set dragged item state via reflection
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step A");
+        SetDraggedItem(listBox, "Step A");
 
         var dropArgs = new DragEventArgs(
             DragDrop.DropEvent,
@@ -213,6 +220,7 @@ public class ReorderableListBoxTests
         Assert.Equal("Step B", list[0]);
         Assert.Equal("Step A", list[1]);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -233,9 +241,7 @@ public class ReorderableListBoxTests
         Assert.NotNull(item2);
 
         // Set dragged item state via reflection (drag Step B)
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step B");
+        SetDraggedItem(listBox, "Step B");
 
         var dropArgs = new DragEventArgs(
             DragDrop.DropEvent,
@@ -249,6 +255,7 @@ public class ReorderableListBoxTests
         Assert.Equal("Step B", list[0]);
         Assert.Equal("Step A", list[1]);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -264,9 +271,7 @@ public class ReorderableListBoxTests
         await Task.Delay(50);
 
         // Set dragged item state via reflection (drag "Step A")
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step A");
+        SetDraggedItem(listBox, "Step A");
 
         // Simulate dropping on the ListBox itself (representing empty area)
         var dropArgs = new DragEventArgs(
@@ -283,6 +288,7 @@ public class ReorderableListBoxTests
         Assert.Equal("Step C", list[1]);
         Assert.Equal("Step A", list[2]);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -303,9 +309,7 @@ public class ReorderableListBoxTests
         Assert.NotNull(item2);
 
         // Set dragged item state via reflection
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step A");
+        SetDraggedItem(listBox, "Step A");
 
         var dragOverArgs = new DragEventArgs(
             DragDrop.DragOverEvent,
@@ -319,6 +323,7 @@ public class ReorderableListBoxTests
         Assert.Contains("drag-over-above", item2.Classes);
         Assert.DoesNotContain("drag-over-below", item2.Classes);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -339,9 +344,7 @@ public class ReorderableListBoxTests
         Assert.NotNull(item2);
 
         // Set dragged item state via reflection
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step A");
+        SetDraggedItem(listBox, "Step A");
 
         var dragOverArgs = new DragEventArgs(
             DragDrop.DragOverEvent,
@@ -355,6 +358,7 @@ public class ReorderableListBoxTests
         Assert.DoesNotContain("drag-over-above", item2.Classes);
         Assert.Contains("drag-over-below", item2.Classes);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -373,9 +377,7 @@ public class ReorderableListBoxTests
         Assert.NotNull(item2);
 
         // Set dragged item state via reflection
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step A");
+        SetDraggedItem(listBox, "Step A");
 
         // DragOver first to set class
         var dragOverArgs = new DragEventArgs(
@@ -400,6 +402,7 @@ public class ReorderableListBoxTests
         Assert.DoesNotContain("drag-over-above", item2.Classes);
         Assert.DoesNotContain("drag-over-below", item2.Classes);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -418,9 +421,7 @@ public class ReorderableListBoxTests
         Assert.NotNull(item2);
 
         // Set dragged item state via reflection
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step A");
+        SetDraggedItem(listBox, "Step A");
 
         // DragOver first to set class
         var dragOverArgs = new DragEventArgs(
@@ -445,6 +446,7 @@ public class ReorderableListBoxTests
         Assert.DoesNotContain("drag-over-above", item2.Classes);
         Assert.DoesNotContain("drag-over-below", item2.Classes);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -471,9 +473,7 @@ public class ReorderableListBoxTests
         await Task.Delay(20);
 
         // Set dragged item state via reflection
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step 0");
+        SetDraggedItem(listBox, "Step 0");
 
         // Drag over near top edge (Point(0, 5))
         var dragOverArgs = new DragEventArgs(
@@ -485,12 +485,14 @@ public class ReorderableListBoxTests
         listBox.RaiseEvent(dragOverArgs);
 
         // Call the tick handler using reflection to simulate timer tick
+        var t = listBox.GetType();
         var mTick = t.GetMethod("AutoScrollTimer_Tick", BindingFlags.NonPublic | BindingFlags.Instance);
         Assert.NotNull(mTick);
         mTick.Invoke(listBox, new object[] { listBox, EventArgs.Empty });
 
         Assert.True(scrollViewer.Offset.Y < 50, $"Expected Offset Y to be less than 50, but was {scrollViewer.Offset.Y}");
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -517,9 +519,7 @@ public class ReorderableListBoxTests
         await Task.Delay(20);
 
         // Set dragged item state via reflection
-        var t = listBox.GetType();
-        var fDraggedItem = t.GetField("_draggedItem", BindingFlags.NonPublic | BindingFlags.Instance);
-        fDraggedItem?.SetValue(listBox, "Step 0");
+        SetDraggedItem(listBox, "Step 0");
 
         double bottomEdgeY = listBox.Bounds.Height - 5;
         Assert.True(bottomEdgeY > 0);
@@ -534,12 +534,14 @@ public class ReorderableListBoxTests
         listBox.RaiseEvent(dragOverArgs);
 
         // Call the tick handler using reflection to simulate timer tick
+        var t = listBox.GetType();
         var mTick = t.GetMethod("AutoScrollTimer_Tick", BindingFlags.NonPublic | BindingFlags.Instance);
         Assert.NotNull(mTick);
         mTick.Invoke(listBox, new object[] { listBox, EventArgs.Empty });
 
         Assert.True(scrollViewer.Offset.Y > 0, $"Expected Offset Y to be greater than 0, but was {scrollViewer.Offset.Y}");
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 }
