@@ -10,19 +10,28 @@ public class DomSelectorGenerator : ISelectorGenerator
 {
     public string GenerateSelector(Visual visual, bool useLogicalTree = false)
     {
-        if (visual is Control c && !string.IsNullOrEmpty(c.Name) && !c.Name.StartsWith("PART_"))
-        {
-            return $"#{c.Name}";
-        }
-
         // Walk up to find if there is any named ancestor (ignoring PART_ names)
         Visual? current = visual;
+        var pathParts = new List<string>();
         while (current != null)
         {
-            if (current is Control ctrl && !string.IsNullOrEmpty(ctrl.Name) && !ctrl.Name.StartsWith("PART_"))
+            string part = current.GetType().Name;
+            if (current is Control ctrl)
             {
-                return $"#{ctrl.Name}";
+                var validClasses = ctrl.Classes.Where(cls => !cls.StartsWith(":")).ToList();
+                if (validClasses.Count > 0)
+                {
+                    part += "." + string.Join(".", validClasses);
+                }
+
+                if (!string.IsNullOrEmpty(ctrl.Name) && !ctrl.Name.StartsWith("PART_"))
+                {
+                    pathParts.Insert(0, $"#{ctrl.Name}");
+                    return string.Join(" > ", pathParts);
+                }
             }
+
+            pathParts.Insert(0, part);
             current = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
         }
 

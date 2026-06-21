@@ -11,13 +11,28 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
     {
         // 1. Walk up to find if there is any named ancestor (has id/Name attribute)
         DomNodeModel? current = node;
+        var pathParts = new List<string>();
         while (current != null)
         {
+            string part = current.NodeName;
+            var classAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Class", StringComparison.OrdinalIgnoreCase));
+            if (classAttr != null && !string.IsNullOrEmpty(classAttr.Value))
+            {
+                var firstClass = classAttr.Value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                if (!string.IsNullOrEmpty(firstClass) && !firstClass.StartsWith(":"))
+                {
+                    part += "." + firstClass;
+                }
+            }
+
             var idAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
             if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value) && !idAttr.Value.StartsWith("PART_"))
             {
-                return $"#{idAttr.Value}";
+                pathParts.Insert(0, $"#{idAttr.Value}");
+                return string.Join(" > ", pathParts);
             }
+
+            pathParts.Insert(0, part);
             current = current.Parent;
         }
 
