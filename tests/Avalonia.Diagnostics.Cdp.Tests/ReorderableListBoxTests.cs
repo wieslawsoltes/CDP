@@ -38,6 +38,16 @@ public class ReorderableListBoxTests
         fStaticDraggedItem?.SetValue(null, value);
     }
 
+    private static void StopAutoScrollTimer(ReorderableListBox listBox)
+    {
+        var t = listBox.GetType();
+        var fShouldAutoScroll = t.GetField("_shouldAutoScroll", BindingFlags.NonPublic | BindingFlags.Instance);
+        fShouldAutoScroll?.SetValue(listBox, false);
+        var fTimer = t.GetField("_autoScrollTimer", BindingFlags.NonPublic | BindingFlags.Instance);
+        var timer = fTimer?.GetValue(listBox) as Avalonia.Threading.DispatcherTimer;
+        timer?.Stop();
+    }
+
     [AvaloniaFact]
     public async Task PointerPressed_LeftButton_StartsDragState()
     {
@@ -73,6 +83,7 @@ public class ReorderableListBoxTests
         Assert.Equal("Step A", fDraggedItem.GetValue(listBox));
         Assert.True((bool)fIsMouseDown.GetValue(listBox)!);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -186,6 +197,7 @@ public class ReorderableListBoxTests
         Assert.Equal("Step A", fDraggedItem?.GetValue(listBox));
         Assert.True((bool)fIsMouseDown?.GetValue(listBox)!);
 
+        SetDraggedItem(listBox, null);
         window.Close();
     }
 
@@ -493,6 +505,7 @@ public class ReorderableListBoxTests
         Assert.True(scrollViewer.Offset.Y < 50, $"Expected Offset Y to be less than 50, but was {scrollViewer.Offset.Y}");
 
         SetDraggedItem(listBox, null);
+        StopAutoScrollTimer(listBox);
         window.Close();
     }
 
@@ -542,6 +555,7 @@ public class ReorderableListBoxTests
         Assert.True(scrollViewer.Offset.Y > 0, $"Expected Offset Y to be greater than 0, but was {scrollViewer.Offset.Y}");
 
         SetDraggedItem(listBox, null);
+        StopAutoScrollTimer(listBox);
         window.Close();
     }
 }
