@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:CdpInspectorApp.Views"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.RecorderView"
              x:CompileBindings="False">
     <Grid RowDefinitions="Auto, *" Margin="10">
@@ -25,7 +26,7 @@
                 
                 <Grid Grid.Row="1" RowDefinitions="Auto, *">
                     <TextBlock Text="Recorded Steps" Classes="panel-header" Margin="0,0,0,8" Foreground="#e8eaed" FontSize="14" FontWeight="Bold"/>
-                    <ListBox Name="lstRecordedSteps" ItemsSource="{Binding Recorder.RecordedSteps}" Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <controls:ReorderableListBox Name="lstRecordedSteps" ItemsSource="{Binding Recorder.RecordedSteps}" Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Border Margin="4" Padding="10" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
@@ -41,7 +42,7 @@
                                 </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
-                    </ListBox>
+                    </controls:ReorderableListBox>
                 </Grid>
             </Grid>
             
