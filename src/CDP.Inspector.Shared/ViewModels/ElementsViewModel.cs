@@ -554,18 +554,54 @@ public class ElementsViewModel : ViewModelBase
             int backendNodeId = e.Params["backendNodeId"]?.GetValue<int>() ?? 0;
             if (backendNodeId > 0)
             {
-                Dispatcher.UIThread.Post(() =>
+                Dispatcher.UIThread.Post(async () =>
                 {
+                    bool found = false;
                     if (SelectedTreeTabIndex == 1)
                     {
-                        SelectAxNodeByBackendDomId(backendNodeId);
+                        found = SelectAxNodeByBackendDomId(backendNodeId);
                     }
                     else
                     {
-                        SelectNodeById(backendNodeId);
+                        found = SelectNodeById(backendNodeId);
+                    }
+
+                    if (!found)
+                    {
+                        await RefreshDomTreeAsync();
+                        await RefreshAxTreeAsync();
+
+                        if (SelectedTreeTabIndex == 1)
+                        {
+                            SelectAxNodeByBackendDomId(backendNodeId);
+                        }
+                        else
+                        {
+                            SelectNodeById(backendNodeId);
+                        }
                     }
                 });
             }
+        }
+        else if (e.Method == "DOM.documentUpdated" || e.Method == "DOM.childNodeInserted" || e.Method == "DOM.childNodeRemoved")
+        {
+            Dispatcher.UIThread.Post(async () =>
+            {
+                int? savedNodeId = SelectedNode?.NodeId;
+                string? savedAxNodeId = SelectedAxNode?.NodeId;
+
+                await RefreshDomTreeAsync();
+                await RefreshAxTreeAsync();
+
+                if (savedNodeId.HasValue)
+                {
+                    SelectNodeById(savedNodeId.Value);
+                }
+                if (!string.IsNullOrEmpty(savedAxNodeId))
+                {
+                    SelectAxNodeById(savedAxNodeId);
+                }
+            });
         }
     }
 
@@ -1294,7 +1330,7 @@ public class ElementsViewModel : ViewModelBase
         return false;
     }
 
-    public void SelectNodeById(int nodeId)
+    public bool SelectNodeById(int nodeId)
     {
         _isSelectingProgrammatically = true;
         try
@@ -1310,7 +1346,9 @@ public class ElementsViewModel : ViewModelBase
                 }
                 path[^1].IsSelected = true;
                 SelectedNode = path[^1];
+                return true;
             }
+            return false;
         }
         finally
         {
@@ -1478,7 +1516,7 @@ public class ElementsViewModel : ViewModelBase
         }
     }
 
-    public void SelectAxNodeByBackendDomId(int backendDomId)
+    public bool SelectAxNodeByBackendDomId(int backendDomId)
     {
         _isSelectingProgrammatically = true;
         try
@@ -1496,7 +1534,9 @@ public class ElementsViewModel : ViewModelBase
                 _selectedAxNode = path[^1];
                 OnPropertyChanged(nameof(SelectedAxNode));
                 UpdateAxDetailsFromSelectedAxNode(_selectedAxNode);
+                return true;
             }
+            return false;
         }
         finally
         {
