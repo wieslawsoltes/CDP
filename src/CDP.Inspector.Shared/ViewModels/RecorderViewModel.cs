@@ -147,7 +147,7 @@ public class RecorderViewModel : ViewModelBase
         _ => ""
     };
 
-    private bool _isTestStudioActive;
+    private bool _isTestStudioActive = true;
     public bool IsTestStudioActive
     {
         get => _isTestStudioActive;
