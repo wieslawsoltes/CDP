@@ -14,6 +14,9 @@ using Avalonia.Headless;
 using Avalonia.Themes.Fluent;
 using Avalonia.Media;
 using Avalonia.Diagnostics.Cdp;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
+using Avalonia.VisualTree;
 using CdpInspectorApp.ViewModels;
 using CdpInspectorApp.Services;
 using CdpInspectorApp.Models;
@@ -108,7 +111,7 @@ class Program
                     scrollDeltaY = scrollViewer.Offset.Y;
                 };
 
-                var containerCanvas = new Canvas { Width = 400, Height = 500 };
+                var containerCanvas = new Canvas { Name = "pnlContainer", Width = 400, Height = 500 };
                 Canvas.SetLeft(textBox, 0); Canvas.SetTop(textBox, 0);
                 Canvas.SetLeft(button, 150); Canvas.SetTop(button, 0);
                 Canvas.SetLeft(scrollViewer, 0); Canvas.SetTop(scrollViewer, 100);
@@ -1111,7 +1114,28 @@ description: ""Verify new commands execution""
 
             Console.WriteLine("Scenario 15 PASSED.");
 
-            // Early exit for Scenario 15 validation
+            // Go to Scenario 17
+            goto Scenario17Start;
+
+        Scenario17Start:
+            await RunScenario17Async(cdpService, mainVm, window!, textBox!, button!, textBoxId);
+
+        Scenario18Start:
+            await RunScenario18Async(cdpService, mainVm);
+
+        Scenario19Start:
+            await RunScenario19Async(cdpService, mainVm);
+
+        Scenario20Start:
+            await RunScenario20Async(cdpService, mainVm);
+
+        Scenario21Start:
+            await RunScenario21Async(cdpService, mainVm);
+
+        Scenario22Start:
+            await RunScenario22Async(cdpService, mainVm, window!);
+
+            // Cleanup & successful exit
             await cdpService.DisconnectAsync();
             CdpServer.Stop();
             Console.WriteLine("=== ALL TASK-SPECIFIC E2E VERIFICATIONS SUCCESSFUL! ===");
@@ -1731,6 +1755,245 @@ description: ""Verify new commands execution""
         return null;
     }
 
+
+    private static System.Collections.Generic.List<T> FindVisualChildren<T>(Visual visual) where T : Visual
+    {
+        var list = new System.Collections.Generic.List<T>();
+        foreach (var child in visual.GetVisualChildren())
+        {
+            if (child is T t)
+            {
+                list.Add(t);
+            }
+            list.AddRange(FindVisualChildren<T>(child));
+        }
+        return list;
+    }
+
+    private static async Task RunScenario17Async(CdpService cdpService, MainWindowViewModel mainVm, Window window, TextBox textBox, Button button, int textBoxId)
+    {
+        Console.WriteLine("Testing Scenario 17: Element Selection & Selector Path E2E...");
+
+        // 1. Verify selector generation relative to a named ancestor
+        Button? namelessBtn = null;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            namelessBtn = new Button
+            {
+                Width = 80,
+                Height = 40,
+                Content = "Nameless"
+            };
+            Canvas.SetLeft(namelessBtn, 10);
+            Canvas.SetTop(namelessBtn, 300);
+
+            var panel = (Canvas)window!.Content;
+            panel.Children.Add(namelessBtn);
+
+            window!.Measure(new Size(400, 500));
+            window!.Arrange(new Rect(0, 0, 400, 500));
+        });
+
+        // Wait for visual tree update
+        await Task.Delay(200);
+
+        // Now, get selector of namelessBtn
+        string namelessBtnSelector = "";
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            namelessBtnSelector = SelectorEngine.GetSelector(namelessBtn, useLogicalTree: false);
+        });
+
+        Console.WriteLine($"Generated selector for namelessBtn: {namelessBtnSelector}");
+        if (namelessBtnSelector != "#pnlContainer > Button")
+        {
+            throw new Exception($"Expected selector '#pnlContainer > Button', got '{namelessBtnSelector}'");
+        }
+        Console.WriteLine("Selector relative to named ancestor verified.");
+
+        // 2. Verify selector generation client-side (DomClientSelectorGenerator)
+        await mainVm.Elements.RefreshDomTreeAsync();
+        DomNodeModel? namelessBtnModel = null;
+        void FindNamelessButton(DomNodeModel parent)
+        {
+            if (parent.NodeName == "Button")
+            {
+                var idAttr = parent.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+                if (idAttr == null || idAttr.Value != "btnTarget")
+                {
+                    namelessBtnModel = parent;
+                    return;
+                }
+            }
+            foreach (var child in parent.Children)
+            {
+                FindNamelessButton(child);
+                if (namelessBtnModel != null) return;
+            }
+        }
+        FindNamelessButton(mainVm.Elements.RootNodes[0]);
+
+        if (namelessBtnModel == null)
+        {
+            throw new Exception("Could not find nameless Button node in client's DOM tree!");
+        }
+        var clientGenerator = new DomClientSelectorGenerator();
+        string clientSelector = clientGenerator.GenerateSelector(namelessBtnModel);
+        Console.WriteLine($"Client generated selector: {clientSelector}");
+        if (clientSelector != "#pnlContainer > Button")
+        {
+            throw new Exception($"Expected client selector '#pnlContainer > Button', got '{clientSelector}'");
+        }
+        Console.WriteLine("Client selector relative to named ancestor verified.");
+
+        // 3. Verify that templated child resolves to its logical parent control in recorder
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var session = CdpServer.Sessions.First();
+            session.InspectModeEnabled = false;
+        });
+
+        await cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = "dom" });
+        Console.WriteLine("Recorder started.");
+
+        TextBlock? buttonText = null;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            buttonText = FindVisualChildren<TextBlock>(button).FirstOrDefault();
+        });
+
+        if (buttonText == null)
+        {
+            throw new Exception("Could not find TextBlock inside btnTarget!");
+        }
+
+        var stepAddedTcs = new TaskCompletionSource<JsonObject>();
+        EventHandler<CdpEventEventArgs> stepAddedHandler = (s, e) =>
+        {
+            if (e.Method == "Recorder.stepAdded")
+            {
+                var step = e.Params?["step"] as JsonObject;
+                if (step?["type"]?.GetValue<string>() == "click")
+                {
+                    stepAddedTcs.TrySetResult(step);
+                }
+            }
+        };
+        cdpService.EventReceived += stepAddedHandler;
+
+        try
+        {
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                var mouseDevice = typeof(MouseDevice).GetProperty("Primary", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(null) as IInputDevice;
+                var inputRoot = typeof(TopLevel).GetProperty("InputRoot", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.GetValue(window) as IInputRoot;
+                var inputHandler = typeof(TopLevel).GetProperty("PlatformImpl", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.GetValue(window)?.GetType().GetProperty("Input", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(typeof(TopLevel).GetProperty("PlatformImpl", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.GetValue(window)) as Action<RawInputEventArgs>;
+
+                if (mouseDevice != null && inputRoot != null && inputHandler != null)
+                {
+                    var pos = buttonText.TranslatePoint(new Point(5, 5), window) ?? new Point(155, 5);
+                    var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                    var pressArgs = (RawPointerEventArgs)Activator.CreateInstance(
+                        typeof(RawPointerEventArgs),
+                        mouseDevice,
+                        timestamp,
+                        inputRoot,
+                        RawPointerEventType.LeftButtonDown,
+                        pos,
+                        RawInputModifiers.None
+                    )!;
+                    inputHandler(pressArgs);
+
+                    var releaseArgs = (RawPointerEventArgs)Activator.CreateInstance(
+                        typeof(RawPointerEventArgs),
+                        mouseDevice,
+                        timestamp + 50,
+                        inputRoot,
+                        RawPointerEventType.LeftButtonUp,
+                        pos,
+                        RawInputModifiers.None
+                    )!;
+                    inputHandler(releaseArgs);
+                }
+            });
+
+            var completedTask = await Task.WhenAny(stepAddedTcs.Task, Task.Delay(3000));
+            if (completedTask != stepAddedTcs.Task)
+            {
+                throw new Exception("Timed out waiting for click step to be recorded!");
+            }
+
+            var recordedStep = stepAddedTcs.Task.Result;
+            var selectorsArray = recordedStep["selectors"] as JsonArray;
+            var firstSelector = selectorsArray?[0]?[0]?.GetValue<string>();
+            Console.WriteLine($"Recorded selector: {firstSelector}");
+
+            if (firstSelector != "#btnTarget")
+            {
+                throw new Exception($"Expected recorded selector to be '#btnTarget', got '{firstSelector}'");
+            }
+            Console.WriteLine("Template-internal clicked element successfully resolved to its logical control in recorder.");
+        }
+        finally
+        {
+            cdpService.EventReceived -= stepAddedHandler;
+            await cdpService.SendCommandAsync("Recorder.stop");
+        }
+
+        // 4. Verify DOM update events & selection restoration
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.SelectNodeById(textBoxId);
+        });
+
+        if (mainVm.Elements.SelectedNode?.NodeId != textBoxId)
+        {
+            throw new Exception("Failed to pre-select textbox in elements view!");
+        }
+        Console.WriteLine("SelectedNode pre-select verified.");
+
+        // Trigger a dynamic visual tree change
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var dynamicBtn = new Button { Name = "btnDynamic", Content = "Dynamic" };
+            var panel = (Canvas)window!.Content;
+            panel.Children.Add(dynamicBtn);
+        });
+
+        // Wait for DOM events to propagate and client to process
+        await Task.Delay(500);
+
+        // Verify that the new button is now in the DOM tree, and SelectedNode is still textbox
+        bool foundDynamic = false;
+        void CheckNodes(DomNodeModel parent)
+        {
+            var nameAttr = parent.AttributesList.FirstOrDefault(a => a.Name == "Name");
+            if (nameAttr?.Value == "btnDynamic")
+            {
+                foundDynamic = true;
+            }
+            foreach (var child in parent.Children) CheckNodes(child);
+        }
+        CheckNodes(mainVm.Elements.RootNodes[0]);
+
+        if (!foundDynamic)
+        {
+            throw new Exception("Dynamic button 'btnDynamic' was not found in the automatically updated client DOM tree!");
+        }
+        Console.WriteLine("DOM.childNodeInserted event successfully triggered DOM tree refresh on client.");
+
+        if (mainVm.Elements.SelectedNode?.NodeId != textBoxId)
+        {
+            throw new Exception($"SelectedNode was lost or changed during DOM update! Expected {textBoxId}, got {mainVm.Elements.SelectedNode?.NodeId}");
+        }
+        Console.WriteLine("Selection successfully preserved/restored across DOM tree updates.");
+
+        Console.WriteLine("Scenario 17 PASSED.");
+    }
+
+
+
     private static void CreateLeakButton()
     {
         var container = _tempWindow?.Content as Canvas;
@@ -1800,6 +2063,764 @@ description: ""Verify new commands execution""
                 idx++;
             }
         }
+    }
+
+    private static async Task RunScenario18Async(CdpService cdpService, MainWindowViewModel mainVm)
+    {
+        Console.WriteLine("Testing Scenario 18: Step Reordering & Inline Editing E2E...");
+
+        var testStudio = mainVm.Recorder.TestStudio;
+        
+        // Clear steps first
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.ClearCommand.Execute(null);
+        });
+
+        if (testStudio.Steps.Count != 0)
+        {
+            throw new Exception($"Expected steps count to be 0 after clear, got {testStudio.Steps.Count}");
+        }
+
+        // Set properties and add some steps
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            testStudio.SelectedElementSelector = "#btnTarget";
+            testStudio.InputSimText = "First Step Value";
+            await testStudio.AddTapAsync();
+
+            testStudio.SelectedElementSelector = "#txtTarget";
+            testStudio.InputSimText = "Second Step Value";
+            await testStudio.AddInputAsync();
+        });
+
+        if (testStudio.Steps.Count != 2)
+        {
+            throw new Exception($"Expected steps count to be 2, got {testStudio.Steps.Count}");
+        }
+
+        var step1 = testStudio.Steps[0];
+        var step2 = testStudio.Steps[1];
+
+        if (step1.Action != "tapOn" || step1.Selector != "#btnTarget" ||
+            step2.Action != "inputText" || step2.Selector != "#txtTarget" || step2.Value != "Second Step Value")
+        {
+            throw new Exception("Steps were not added with correct properties.");
+        }
+
+        Console.WriteLine("Step addition verified.");
+
+        // Verify reordering via Move
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.Steps.Move(0, 1);
+        });
+
+        if (testStudio.Steps[0].Action != "inputText" || testStudio.Steps[1].Action != "tapOn")
+        {
+            throw new Exception("Reordering steps in ObservableCollection failed.");
+        }
+
+        Console.WriteLine("Step reordering inside collection verified.");
+
+        // Verify YAML regeneration after reordering
+        string yamlAfterReorder = testStudio.YamlCode;
+        Console.WriteLine($"YAML after reorder:\n{yamlAfterReorder}");
+        if (!yamlAfterReorder.Contains("- inputText:") || !yamlAfterReorder.Contains("- tapOn: \"#btnTarget\""))
+        {
+            throw new Exception("YAML code did not update correctly after step reordering.");
+        }
+
+        // Now, test editing step properties programmatically (which simulates editing them in TextBoxes via TwoWay binding)
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            // Edit step 1 (now inputText)
+            var editStep = testStudio.Steps[0];
+            editStep.Value = "Modified Value";
+            editStep.Selector = "#newSelector";
+        });
+
+        string yamlAfterEdit = testStudio.YamlCode;
+        Console.WriteLine($"YAML after inline edit:\n{yamlAfterEdit}");
+        if (!yamlAfterEdit.Contains("text: \"Modified Value\"") || !yamlAfterEdit.Contains("selector: \"#newSelector\""))
+        {
+            throw new Exception("YAML code did not update correctly after inline editing step properties.");
+        }
+
+        Console.WriteLine("Inline step editing updates verified.");
+        Console.WriteLine("Scenario 18 PASSED.");
+    }
+
+    private static async Task RunScenario19Async(CdpService cdpService, MainWindowViewModel mainVm)
+    {
+        Console.WriteLine("Testing Scenario 19: Standard Recorder Step Reordering E2E...");
+
+        var recorder = mainVm.Recorder;
+
+        // Clear recorded steps
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            recorder.ClearCommand.Execute(null);
+        });
+
+        if (recorder.RecordedSteps.Count != 0)
+        {
+            throw new Exception($"Expected recorded steps count to be 0 after clear, got {recorder.RecordedSteps.Count}");
+        }
+
+        // Add some steps programmatically
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            // Simulate adding step 1: Click btnTarget
+            var step1 = new RecordedStepModel
+            {
+                Type = "click",
+                Selector = "#btnTarget"
+            };
+            recorder.RecordedSteps.Add(step1);
+
+            // Simulate adding step 2: Click txtTarget
+            var step2 = new RecordedStepModel
+            {
+                Type = "click",
+                Selector = "#txtTarget"
+            };
+            recorder.RecordedSteps.Add(step2);
+        });
+
+        if (recorder.RecordedSteps.Count != 2)
+        {
+            throw new Exception($"Expected recorded steps count to be 2, got {recorder.RecordedSteps.Count}");
+        }
+
+        Console.WriteLine("Standard recorder steps addition verified.");
+
+        // Check original generated code
+        string codeBefore = recorder.GeneratedCode;
+        Console.WriteLine($"Generated script before reorder:\n{codeBefore}");
+        if (!codeBefore.Contains("waitForSelector('#btnTarget')") || !codeBefore.Contains("waitForSelector('#txtTarget')"))
+        {
+            throw new Exception("Original generated code is incorrect.");
+        }
+        int btnIndexBefore = codeBefore.IndexOf("waitForSelector('#btnTarget')");
+        int txtIndexBefore = codeBefore.IndexOf("waitForSelector('#txtTarget')");
+        if (btnIndexBefore > txtIndexBefore)
+        {
+            throw new Exception("Expected btnTarget click step before txtTarget click step originally.");
+        }
+
+        // Reorder steps via Move
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            recorder.RecordedSteps.Move(0, 1);
+        });
+
+        if (recorder.RecordedSteps[0].Selector != "#txtTarget" || recorder.RecordedSteps[1].Selector != "#btnTarget")
+        {
+            throw new Exception("Reordering recorded steps failed.");
+        }
+
+        Console.WriteLine("Standard recorder steps reordering verified.");
+
+        // Check regenerated code
+        string codeAfter = recorder.GeneratedCode;
+        Console.WriteLine($"Generated script after reorder:\n{codeAfter}");
+        if (!codeAfter.Contains("waitForSelector('#btnTarget')") || !codeAfter.Contains("waitForSelector('#txtTarget')"))
+        {
+            throw new Exception("Regenerated code after reorder is incorrect.");
+        }
+        int btnIndexAfter = codeAfter.IndexOf("waitForSelector('#btnTarget')");
+        int txtIndexAfter = codeAfter.IndexOf("waitForSelector('#txtTarget')");
+        if (txtIndexAfter > btnIndexAfter)
+        {
+            throw new Exception("Expected txtTarget click step before btnTarget click step after reorder.");
+        }
+
+        Console.WriteLine("Standard recorder script auto-regeneration verified.");
+        Console.WriteLine("Scenario 19 PASSED.");
+    }
+
+    private static async Task RunScenario20Async(CdpService cdpService, MainWindowViewModel mainVm)
+    {
+        Console.WriteLine("Testing Scenario 20: Drag & Drop State Machine E2E...");
+
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var listBox = new CdpInspectorApp.Controls.ReorderableListBox();
+            var list = new System.Collections.ObjectModel.ObservableCollection<string> { "Item 1", "Item 2" };
+            listBox.ItemsSource = list;
+
+            var t = listBox.GetType();
+            var fDraggedItem = t.GetField("_draggedItem", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var fPressedEventArgs = t.GetField("_pressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var fIsMouseDown = t.GetField("_isMouseDown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var mOnPointerReleased = t.GetMethod("OnPointerReleased", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+            if (fDraggedItem == null || fPressedEventArgs == null || fIsMouseDown == null || mOnPointerReleased == null)
+            {
+                throw new Exception("Could not find ReorderableListBox private fields/methods via reflection.");
+            }
+
+            var testWindow = new Window();
+            testWindow.Content = listBox;
+
+            // Case A: Pointer released when NO drag operation was initiated (e.g. simple click)
+            // Expectation: _draggedItem should be cleared to null.
+            var dummyPressedArgs = new PointerPressedEventArgs(
+                listBox,
+                new Pointer(0, PointerType.Mouse, true),
+                testWindow,
+                new Point(),
+                0,
+                new PointerPointProperties(),
+                KeyModifiers.None);
+
+            fDraggedItem.SetValue(listBox, "Item 1");
+            fIsMouseDown.SetValue(listBox, true);
+            fPressedEventArgs.SetValue(listBox, dummyPressedArgs);
+
+            var dummyReleasedArgs = new PointerReleasedEventArgs(
+                listBox,
+                new Pointer(0, PointerType.Mouse, true),
+                testWindow,
+                new Point(),
+                0,
+                new PointerPointProperties(),
+                KeyModifiers.None,
+                MouseButton.Left);
+
+            mOnPointerReleased.Invoke(listBox, new object[] { dummyReleasedArgs });
+
+            var draggedItemValA = fDraggedItem.GetValue(listBox);
+            var pressedArgsValA = fPressedEventArgs.GetValue(listBox);
+            var isMouseDownValA = (bool)fIsMouseDown.GetValue(listBox)!;
+
+            if (draggedItemValA != null || pressedArgsValA != null || isMouseDownValA)
+            {
+                throw new Exception($"Case A failed: expected fields to be cleared, got draggedItem={draggedItemValA}, pressedArgs={pressedArgsValA}, isMouseDown={isMouseDownValA}");
+            }
+
+            Console.WriteLine("Drag-and-drop state machine Case A (click without drag) passed.");
+
+            // Case B: Pointer released when a drag operation HAS been initiated (e.g. drag active)
+            // Expectation: _draggedItem should NOT be cleared to null.
+            fDraggedItem.SetValue(listBox, "Item 1");
+            fIsMouseDown.SetValue(listBox, false);
+            fPressedEventArgs.SetValue(listBox, null); // OnPointerMoved sets this to null
+
+            mOnPointerReleased.Invoke(listBox, new object[] { dummyReleasedArgs });
+
+            var draggedItemValB = fDraggedItem.GetValue(listBox);
+            var pressedArgsValB = fPressedEventArgs.GetValue(listBox);
+            var isMouseDownValB = (bool)fIsMouseDown.GetValue(listBox)!;
+
+            if (draggedItemValB == null || (string)draggedItemValB != "Item 1" || pressedArgsValB != null || isMouseDownValB)
+            {
+                throw new Exception($"Case B failed: expected draggedItem to be preserved, got draggedItem={draggedItemValB}, pressedArgs={pressedArgsValB}, isMouseDown={isMouseDownValB}");
+            }
+
+            Console.WriteLine("Drag-and-drop state machine Case B (drag active) passed.");
+        });
+
+        Console.WriteLine("Scenario 20 PASSED.");
+    }
+
+    private static async Task RunScenario21Async(CdpService cdpService, MainWindowViewModel mainVm)
+    {
+        Console.WriteLine("Testing Scenario 21: Test Studio Edit Display Name & Escape Shortcut E2E...");
+
+        var testStudio = mainVm.Recorder.TestStudio;
+
+        // Clear steps first
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.ClearCommand.Execute(null);
+        });
+
+        // Add a step
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            testStudio.SelectedElementSelector = "#btnTarget";
+            testStudio.InputSimText = "";
+            await testStudio.AddTapAsync();
+        });
+
+        if (testStudio.Steps.Count != 1)
+        {
+            throw new Exception($"Expected steps count to be 1, got {testStudio.Steps.Count}");
+        }
+
+        var step = testStudio.Steps[0];
+        Console.WriteLine($"Step action Display Name: {step.ActionDisplay}");
+        if (step.ActionDisplay != "Tap On")
+        {
+            throw new Exception($"Expected step ActionDisplay to be 'Tap On', got '{step.ActionDisplay}'");
+        }
+
+        // Verify keydown deselecting step
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.SelectedStep = step;
+        });
+
+        if (testStudio.SelectedStep != step)
+        {
+            throw new Exception("Setting SelectedStep failed.");
+        }
+
+        Console.WriteLine("Step selection verified.");
+
+        // Create TestStudioView and simulate KeyDown (Escape)
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var view = new CdpInspectorApp.Views.TestStudioView();
+            view.DataContext = mainVm;
+
+            var keyEventArgs = new KeyEventArgs
+            {
+                RoutedEvent = InputElement.KeyDownEvent,
+                Key = Key.Escape
+            };
+
+            // Call OnKeyDown override
+            var mOnKeyDown = view.GetType().GetMethod("OnKeyDown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (mOnKeyDown == null)
+            {
+                throw new Exception("Could not find OnKeyDown on TestStudioView.");
+            }
+
+            mOnKeyDown.Invoke(view, new object[] { keyEventArgs });
+        });
+
+        if (testStudio.SelectedStep != null)
+        {
+            throw new Exception("Pressing Escape did not deselect the active step.");
+        }
+
+        Console.WriteLine("Escape key deselect verified.");
+        Console.WriteLine("Scenario 21 PASSED.");
+    }
+
+    private static async Task RunScenario22Async(CdpService cdpService, MainWindowViewModel mainVm, Window window)
+    {
+        Console.WriteLine("Testing Scenario 22: Scroll & Drag E2E Verification...");
+
+        // Remove dynamicBtn and namelessBtn to avoid overlapping issues
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var panel = (Canvas)window.Content;
+            var dynamicBtn = panel.Children.FirstOrDefault(c => c.Name == "btnDynamic");
+            if (dynamicBtn != null)
+            {
+                panel.Children.Remove(dynamicBtn);
+            }
+            var namelessBtn = panel.Children.FirstOrDefault(c => c is Button b && b.Content as string == "Nameless");
+            if (namelessBtn != null)
+            {
+                panel.Children.Remove(namelessBtn);
+            }
+            window.Measure(new Size(400, 500));
+            window.Arrange(new Rect(0, 0, 400, 500));
+            window.UpdateLayout();
+        });
+
+        // Wait for visual tree update
+        await Task.Delay(200);
+
+        var recorder = mainVm.Recorder;
+        var testStudio = recorder.TestStudio;
+
+        // Clear recorded steps first
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            recorder.ClearCommand.Execute(null);
+            testStudio.ClearCommand.Execute(null);
+        });
+
+        // 1. Verify Scroll Capture
+        // Start recording
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (!recorder.IsRecording)
+            {
+                recorder.ToggleRecordCommand.Execute(null);
+            }
+        });
+
+        int waitRecordCount = 0;
+        while (!recorder.IsRecording && waitRecordCount < 30)
+        {
+            await Task.Delay(100);
+            waitRecordCount++;
+        }
+
+        if (!recorder.IsRecording)
+        {
+            throw new Exception("Failed to start recording.");
+        }
+
+        Console.WriteLine("Recording started for Scroll Test.");
+
+        // Resolve target window coordinates for scrollTarget.
+        var docRes = await cdpService.SendCommandAsync("DOM.getDocument", new JsonObject { ["pierce"] = true });
+        int rootNodeId = docRes["root"]?["nodeId"]?.GetValue<int>() ?? 0;
+        if (rootNodeId == 0)
+        {
+            throw new Exception("Failed to get root document node ID.");
+        }
+
+        var qRes = await cdpService.SendCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = rootNodeId,
+            ["selector"] = "#scrollTarget"
+        });
+        int scrollNodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+        if (scrollNodeId == 0)
+        {
+            throw new Exception("Failed to querySelector '#scrollTarget'.");
+        }
+
+        var boxRes = await cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = scrollNodeId });
+        var model = boxRes["model"] as JsonObject;
+        var content = model?["content"] as JsonArray;
+        if (content == null || content.Count < 8)
+        {
+            throw new Exception("Failed to get box model content for '#scrollTarget'.");
+        }
+
+        double x1 = content[0]!.GetValue<double>();
+        double y1 = content[1]!.GetValue<double>();
+        double x2 = content[4]!.GetValue<double>();
+        double y2 = content[5]!.GetValue<double>();
+        double scrollX = x1 + (x2 - x1) / 2.0;
+        double scrollY = y1 + (y2 - y1) / 2.0;
+
+        Console.WriteLine($"Dispatching scroll event at ({scrollX}, {scrollY})...");
+        
+        // Setup stepAdded handler to verify scroll step is recorded
+        var stepAddedTcs = new TaskCompletionSource<JsonObject>();
+        EventHandler<CdpEventEventArgs> stepAddedHandler = (s, e) =>
+        {
+            if (e.Method == "Recorder.stepAdded" && e.Params != null)
+            {
+                var step = e.Params["step"] as JsonObject;
+                if (step != null && step["type"]?.GetValue<string>() == "scroll")
+                {
+                    stepAddedTcs.TrySetResult(step);
+                }
+            }
+        };
+        cdpService.EventReceived += stepAddedHandler;
+
+        try
+        {
+            // Dispatch mouseWheel event
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseWheel",
+                ["x"] = scrollX,
+                ["y"] = scrollY,
+                ["deltaX"] = 0,
+                ["deltaY"] = -50, // scroll down
+                ["button"] = "none",
+                ["modifiers"] = 0
+            });
+
+            // Wait for scroll step to be recorded
+            var timeoutTask = Task.Delay(3000);
+            var completedTask = await Task.WhenAny(stepAddedTcs.Task, timeoutTask);
+            if (completedTask != stepAddedTcs.Task)
+            {
+                throw new Exception("Timed out waiting for 'scroll' step to be recorded.");
+            }
+
+            var recordedScrollStep = await stepAddedTcs.Task;
+            double recordedDeltaY = recordedScrollStep["deltaY"]?.GetValue<double>() ?? 0;
+            Console.WriteLine($"Recorded scroll deltaY: {recordedDeltaY}");
+            if (recordedDeltaY >= 0)
+            {
+                throw new Exception($"Expected recorded scroll deltaY to be negative (scrolling down), got {recordedDeltaY}");
+            }
+        }
+        finally
+        {
+            cdpService.EventReceived -= stepAddedHandler;
+        }
+
+        Console.WriteLine("Scroll capture verified.");
+
+        // Clear recorded steps for Drag and Drop
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            recorder.ClearCommand.Execute(null);
+            testStudio.ClearCommand.Execute(null);
+        });
+
+        // 2. Verify Drag and Drop Capture
+        var sourceQRes = await cdpService.SendCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = rootNodeId,
+            ["selector"] = "#txtTarget"
+        });
+        int srcNodeId = sourceQRes["nodeId"]?.GetValue<int>() ?? 0;
+
+        var targetQRes = await cdpService.SendCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = rootNodeId,
+            ["selector"] = "#btnTarget"
+        });
+        int tgtNodeId = targetQRes["nodeId"]?.GetValue<int>() ?? 0;
+
+        var srcBox = await cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = srcNodeId });
+        var srcModel = srcBox["model"] as JsonObject;
+        var srcBorder = srcModel?["border"] as JsonArray;
+
+        var tgtBox = await cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = tgtNodeId });
+        var tgtModel = tgtBox["model"] as JsonObject;
+        var tgtBorder = tgtModel?["border"] as JsonArray;
+
+        if (srcBorder == null || tgtBorder == null)
+        {
+            throw new Exception("Failed to get box models for drag source or target.");
+        }
+
+        double startX = srcBorder[0]!.GetValue<double>() + 20;
+        double startY = srcBorder[1]!.GetValue<double>() + 20;
+        double endX = tgtBorder[0]!.GetValue<double>() + 20;
+        double endY = tgtBorder[1]!.GetValue<double>() + 20;
+
+        Console.WriteLine($"Simulating E2E Drag from ({startX}, {startY}) to ({endX}, {endY})...");
+
+        var dragStepAddedTcs = new TaskCompletionSource<JsonObject>();
+        stepAddedHandler = (s, e) =>
+        {
+            if (e.Method == "Recorder.stepAdded" && e.Params != null)
+            {
+                var step = e.Params["step"] as JsonObject;
+                if (step != null && step["type"]?.GetValue<string>() == "dragAndDrop")
+                {
+                    dragStepAddedTcs.TrySetResult(step);
+                }
+            }
+        };
+        cdpService.EventReceived += stepAddedHandler;
+
+        try
+        {
+            // mousePressed
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mousePressed",
+                ["x"] = startX,
+                ["y"] = startY,
+                ["button"] = "left",
+                ["clickCount"] = 1
+            });
+            await Task.Delay(100);
+
+            // mouseMoved (drag start threshold > 10 pixels)
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseMoved",
+                ["x"] = startX + 15,
+                ["y"] = startY + 15,
+                ["button"] = "left"
+            });
+            await Task.Delay(100);
+
+            // mouseMoved (drag to target)
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseMoved",
+                ["x"] = endX,
+                ["y"] = endY,
+                ["button"] = "left"
+            });
+            await Task.Delay(100);
+
+            // mouseReleased
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseReleased",
+                ["x"] = endX,
+                ["y"] = endY,
+                ["button"] = "left",
+                ["clickCount"] = 1
+            });
+
+            // Wait for dragAndDrop step to be recorded
+            var timeoutTask = Task.Delay(3000);
+            var completedTask = await Task.WhenAny(dragStepAddedTcs.Task, timeoutTask);
+            if (completedTask != dragStepAddedTcs.Task)
+            {
+                throw new Exception("Timed out waiting for 'dragAndDrop' step to be recorded.");
+            }
+
+            var recordedDragStep = await dragStepAddedTcs.Task;
+            Console.WriteLine($"Recorded dragAndDrop step: {recordedDragStep.ToJsonString()}");
+            double dragOffsetX = recordedDragStep["offsetX"]?.GetValue<double>() ?? 0;
+            double dragOffsetY = recordedDragStep["offsetY"]?.GetValue<double>() ?? 0;
+
+            if (Math.Abs(dragOffsetX - 20) > 2.0 || Math.Abs(dragOffsetY - 20) > 2.0)
+            {
+                throw new Exception($"Incorrect drag start offsets recorded: got ({dragOffsetX}, {dragOffsetY}), expected (20, 20).");
+            }
+        }
+        finally
+        {
+            cdpService.EventReceived -= stepAddedHandler;
+        }
+
+        Console.WriteLine("Drag and Drop capture offsets verified.");
+
+        // 3. Verify Test Studio integration
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            recorder.IsTestStudioActive = true;
+            recorder.ClearCommand.Execute(null);
+            testStudio.ClearCommand.Execute(null);
+        });
+
+        // Trigger scroll recording again
+        stepAddedTcs = new TaskCompletionSource<JsonObject>();
+        cdpService.EventReceived += stepAddedHandler;
+        try
+        {
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseWheel",
+                ["x"] = scrollX,
+                ["y"] = scrollY,
+                ["deltaX"] = 0,
+                ["deltaY"] = -50,
+                ["button"] = "none",
+                ["modifiers"] = 0
+            });
+            await Task.WhenAny(stepAddedTcs.Task, Task.Delay(3000));
+        }
+        finally
+        {
+            cdpService.EventReceived -= stepAddedHandler;
+        }
+
+        // Trigger drag recording again
+        dragStepAddedTcs = new TaskCompletionSource<JsonObject>();
+        cdpService.EventReceived += stepAddedHandler;
+        try
+        {
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mousePressed",
+                ["x"] = startX,
+                ["y"] = startY,
+                ["button"] = "left",
+                ["clickCount"] = 1
+            });
+            await Task.Delay(100);
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseMoved",
+                ["x"] = startX + 15,
+                ["y"] = startY + 15,
+                ["button"] = "left"
+            });
+            await Task.Delay(100);
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseMoved",
+                ["x"] = endX,
+                ["y"] = endY,
+                ["button"] = "left"
+            });
+            await Task.Delay(100);
+            await cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseReleased",
+                ["x"] = endX,
+                ["y"] = endY,
+                ["button"] = "left",
+                ["clickCount"] = 1
+            });
+            await Task.WhenAny(dragStepAddedTcs.Task, Task.Delay(3000));
+        }
+        finally
+        {
+            cdpService.EventReceived -= stepAddedHandler;
+        }
+
+        if (testStudio.Steps.Count != 2)
+        {
+            throw new Exception($"Expected 2 steps in Test Studio, got {testStudio.Steps.Count}");
+        }
+
+        var tsScroll = testStudio.Steps[0];
+        var tsDrag = testStudio.Steps[1];
+
+        Console.WriteLine($"Test Studio Step 1: Action={tsScroll.Action}, Selector={tsScroll.Selector}, Value={tsScroll.Value}");
+        Console.WriteLine($"Test Studio Step 2: Action={tsDrag.Action}, Selector={tsDrag.Selector}, Value={tsDrag.Value}");
+
+        if (tsScroll.Action != "scroll" || tsDrag.Action != "dragAndDrop")
+        {
+            throw new Exception($"Unexpected Test Studio actions: Action1={tsScroll.Action}, Action2={tsDrag.Action}");
+        }
+
+        // Test YAML serialization round-trip
+        string yaml = testStudio.YamlCode;
+        Console.WriteLine($"Generated YAML:\n{yaml}");
+
+        if (!yaml.Contains("scroll") || !yaml.Contains("dragAndDrop"))
+        {
+            throw new Exception("Generated YAML is missing scroll or dragAndDrop steps.");
+        }
+
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.ClearCommand.Execute(null);
+        });
+
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.YamlCode = yaml;
+            testStudio.ApplyYaml();
+        });
+
+        if (testStudio.Steps.Count != 2)
+        {
+            throw new Exception($"Expected 2 steps loaded from YAML, got {testStudio.Steps.Count}");
+        }
+
+        if (testStudio.Steps[0].Action != "scroll" || testStudio.Steps[1].Action != "dragAndDrop")
+        {
+            throw new Exception($"Incorrect actions loaded from YAML: {testStudio.Steps[0].Action}, {testStudio.Steps[1].Action}");
+        }
+
+        Console.WriteLine("Test Studio YAML Round-trip verified.");
+
+        // 4. Verify Test Studio Replay
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.PlayCommand.Execute(null);
+        });
+
+        int waitCount = 0;
+        while (testStudio.IsExecuting && waitCount < 100)
+        {
+            await Task.Delay(100);
+            waitCount++;
+        }
+
+        if (testStudio.IsExecuting)
+        {
+            throw new Exception("Test Studio replay timed out.");
+        }
+
+        if (testStudio.Steps[0].Status != StepStatus.Passed || testStudio.Steps[1].Status != StepStatus.Passed)
+        {
+            throw new Exception($"Replay failed: Step1={testStudio.Steps[0].Status}, Step2={testStudio.Steps[1].Status}");
+        }
+
+        Console.WriteLine("Test Studio Replay verified.");
+        Console.WriteLine("Scenario 22 PASSED.");
     }
 }
 
