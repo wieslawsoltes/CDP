@@ -14,6 +14,8 @@ public class ReorderableListBox : ListBox
     private object? _draggedItem;
     private PointerPressedEventArgs? _pressedEventArgs;
 
+    private static object? s_draggedItem;
+
     protected override Type StyleKeyOverride => typeof(ListBox);
 
     public ReorderableListBox()
@@ -60,6 +62,7 @@ public class ReorderableListBox : ListBox
             _isMouseDown = true;
             _dragStartPoint = e.GetPosition(this);
             _draggedItem = listBoxItem.DataContext;
+            s_draggedItem = _draggedItem;
             _pressedEventArgs = e;
             Console.WriteLine($"[DEBUG ReorderableListBox] OnPointerPressed: Drag target candidate set: {_draggedItem.GetType().Name}");
         }
@@ -87,6 +90,7 @@ public class ReorderableListBox : ListBox
             var result = await DragDrop.DoDragDropAsync(triggerEvent, dragData, DragDropEffects.Move);
             Console.WriteLine($"[DEBUG ReorderableListBox] OnPointerMoved: DoDragDropAsync completed with result={result}");
             _draggedItem = null;
+            s_draggedItem = null;
         }
     }
 
@@ -100,14 +104,16 @@ public class ReorderableListBox : ListBox
         if (_pressedEventArgs != null)
         {
             _draggedItem = null;
+            s_draggedItem = null;
             _pressedEventArgs = null;
         }
     }
 
     private void LstSteps_DragOver(object? sender, DragEventArgs e)
     {
-        Console.WriteLine($"[DEBUG ReorderableListBox] LstSteps_DragOver: _draggedItem={_draggedItem != null}");
-        if (_draggedItem != null)
+        var draggedItem = s_draggedItem ?? _draggedItem;
+        Console.WriteLine($"[DEBUG ReorderableListBox] LstSteps_DragOver: draggedItem={draggedItem != null}");
+        if (draggedItem != null)
         {
             e.DragEffects = DragDropEffects.Move;
         }
@@ -120,8 +126,9 @@ public class ReorderableListBox : ListBox
 
     private void LstSteps_Drop(object? sender, DragEventArgs e)
     {
-        Console.WriteLine($"[DEBUG ReorderableListBox] LstSteps_Drop: _draggedItem={_draggedItem != null}, Source={e.Source?.GetType().Name}");
-        if (_draggedItem == null) return;
+        var draggedItem = s_draggedItem ?? _draggedItem;
+        Console.WriteLine($"[DEBUG ReorderableListBox] LstSteps_Drop: draggedItem={draggedItem != null}, Source={e.Source?.GetType().Name}");
+        if (draggedItem == null) return;
 
         ListBoxItem? destListBoxItem = null;
         var current = e.Source as Avalonia.Visual;
@@ -139,22 +146,27 @@ public class ReorderableListBox : ListBox
             current = current.GetVisualParent();
         }
 
-        if (destListBoxItem == null || destListBoxItem.DataContext == null)
-        {
-            Console.WriteLine("[DEBUG ReorderableListBox] LstSteps_Drop: Destination item not found.");
-            return;
-        }
-        var destItem = destListBoxItem.DataContext;
-        if (_draggedItem == destItem)
-        {
-            Console.WriteLine("[DEBUG ReorderableListBox] LstSteps_Drop: Source and destination are the same.");
-            return;
-        }
-
         if (ItemsSource is IList list && !list.IsReadOnly)
         {
-            int sourceIdx = list.IndexOf(_draggedItem);
-            int destIdx = list.IndexOf(destItem);
+            int sourceIdx = list.IndexOf(draggedItem);
+            int destIdx = -1;
+
+            if (destListBoxItem != null && destListBoxItem.DataContext != null)
+            {
+                var destItem = destListBoxItem.DataContext;
+                if (draggedItem == destItem)
+                {
+                    Console.WriteLine("[DEBUG ReorderableListBox] LstSteps_Drop: Source and destination are the same.");
+                    return;
+                }
+                destIdx = list.IndexOf(destItem);
+            }
+            else
+            {
+                destIdx = list.Count - 1;
+                Console.WriteLine($"[DEBUG ReorderableListBox] LstSteps_Drop: Empty area drop, defaulting to last index: {destIdx}");
+            }
+
             Console.WriteLine($"[DEBUG ReorderableListBox] LstSteps_Drop: Moving from idx={sourceIdx} to idx={destIdx}");
 
             if (sourceIdx >= 0 && destIdx >= 0 && sourceIdx != destIdx)
@@ -180,7 +192,7 @@ public class ReorderableListBox : ListBox
                     try
                     {
                         list.RemoveAt(sourceIdx);
-                        list.Insert(destIdx, _draggedItem);
+                        list.Insert(destIdx, draggedItem);
                         Console.WriteLine("[DEBUG ReorderableListBox] LstSteps_Drop: Moved via RemoveAt/Insert");
                     }
                     catch (Exception ex)

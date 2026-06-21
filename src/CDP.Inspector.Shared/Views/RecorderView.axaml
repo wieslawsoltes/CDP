@@ -27,9 +27,22 @@
                 <Grid Grid.Row="1" RowDefinitions="Auto, *">
                     <TextBlock Text="Recorded Steps" Classes="panel-header" Margin="0,0,0,8" Foreground="#e8eaed" FontSize="14" FontWeight="Bold"/>
                     <controls:ReorderableListBox Name="lstRecordedSteps" ItemsSource="{Binding Recorder.RecordedSteps}" Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                        <controls:ReorderableListBox.Styles>
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Padding" Value="0"/>
+                            </Style>
+                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                <Setter Property="Background" Value="Transparent"/>
+                            </Style>
+                            <Style Selector="ListBoxItem:selected Border#ItemCard">
+                                <Setter Property="BorderBrush" Value="#1a73e8"/>
+                                <Setter Property="Background" Value="#292a2d"/>
+                            </Style>
+                        </controls:ReorderableListBox.Styles>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="4" Padding="10" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                <Border Name="ItemCard" Margin="4" Padding="10" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
                                     <Grid RowDefinitions="Auto, Auto">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <Border Background="#3c4043" CornerRadius="2" Padding="4,2">
