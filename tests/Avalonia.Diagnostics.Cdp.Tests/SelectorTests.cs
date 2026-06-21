@@ -123,7 +123,7 @@ public class SelectorTests
         var clientDomGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("dom");
         var clientAutoGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("automation");
 
-        Assert.Equal("#myBorder", clientDomGen.GenerateSelector(clientBtn));
+        Assert.Equal("#myBorder > Button", clientDomGen.GenerateSelector(clientBtn));
         Assert.Equal("[AccessibilityId=\"myBtnId\"]", clientAutoGen.GenerateSelector(clientBtn));
     }
 }
