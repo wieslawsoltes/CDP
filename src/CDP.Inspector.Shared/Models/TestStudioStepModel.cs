@@ -107,6 +107,7 @@ public class TestStudioStepModel : ViewModelBase
                 "scroll" => "Scroll",
                 "scrollUntilVisible" => "Scroll Until Visible",
                 "pressKey" => "Press Key",
+                "dragAndDrop" => "Drag And Drop",
                 _ => char.ToUpper(Action[0]) + Action.Substring(1)
             };
         }

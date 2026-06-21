@@ -377,7 +377,7 @@ public static class SelectorEngine
         if (tokenIndex < 0) return true;
 
         var simpleSelector = tokens[tokenIndex];
-        if (!MatchesSimple(visual, simpleSelector)) return false;
+        if (!MatchesSimple(visual, simpleSelector, useLogicalTree)) return false;
 
         if (tokenIndex == 0) return true;
 
@@ -406,9 +406,37 @@ public static class SelectorEngine
         return false;
     }
 
-    private static bool MatchesSimple(Visual visual, string selector)
+    private static bool MatchesSimple(Visual visual, string selector, bool useLogicalTree = false)
     {
         if (selector == "*") return true;
+
+        int nthChildIndex = selector.IndexOf(":nth-child(", StringComparison.OrdinalIgnoreCase);
+        if (nthChildIndex >= 0)
+        {
+            int start = nthChildIndex + ":nth-child(".Length;
+            int end = selector.IndexOf(')', start);
+            if (end >= 0)
+            {
+                string indexStr = selector.Substring(start, end - start).Trim();
+                if (int.TryParse(indexStr, out int targetIndex))
+                {
+                    var parent = useLogicalTree ? GetLogicalParent(visual) : visual.GetVisualParent();
+                    int actualIndex = 1;
+                    if (parent != null)
+                    {
+                        var siblings = (useLogicalTree ? GetLogicalChildren(parent) : parent.GetVisualChildren()).ToList();
+                        actualIndex = siblings.IndexOf(visual) + 1;
+                    }
+                    if (actualIndex != targetIndex)
+                    {
+                        return false;
+                    }
+                }
+            }
+            string before = selector.Substring(0, nthChildIndex);
+            string after = (end >= 0 && end + 1 < selector.Length) ? selector.Substring(end + 1) : "";
+            selector = before + after;
+        }
 
         var containsTexts = new List<string>();
         while (true)
@@ -619,7 +647,7 @@ public static class SelectorEngine
         return generator.GenerateSelector(visual, useLogicalTree);
     }
 
-    private static IEnumerable<Visual> GetLogicalChildren(Visual visual)
+    internal static IEnumerable<Visual> GetLogicalChildren(Visual visual)
     {
         if (visual is ILogical logical)
         {

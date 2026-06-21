@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -25,7 +26,28 @@ public class AutomationSelectorGenerator : ISelectorGenerator
                     return string.Join(" > ", pathParts);
                 }
             }
-            pathParts.Insert(0, current.GetType().Name);
+            
+            string part = current.GetType().Name;
+            var parent = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            if (parent != null)
+            {
+                var siblings = (useLogicalTree ? SelectorEngine.GetLogicalChildren(parent) : parent.GetVisualChildren()).ToList();
+                int sameTypeCount = 0;
+                foreach (var sib in siblings)
+                {
+                    if (sib.GetType().Name == part)
+                    {
+                        sameTypeCount++;
+                    }
+                }
+                if (sameTypeCount > 1)
+                {
+                    int actualIndex = siblings.IndexOf(current) + 1;
+                    part += $":nth-child({actualIndex})";
+                }
+            }
+
+            pathParts.Insert(0, part);
             current = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
         }
 

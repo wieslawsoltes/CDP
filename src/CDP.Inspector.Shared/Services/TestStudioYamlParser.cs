@@ -23,7 +23,8 @@ public static class TestStudioYamlParser
             "clearState", "setOrientation", "setLocation", "takeScreenshot", "assertTrue",
             "runFlow", "repeat", "retry", "evalScript", "runScript", "openLink", "copyTextFrom",
             "selector", "text", "value", "direction", "amount", "maxScrolls",
-            "appId", "description", "start", "end", "latitude", "longitude", "accuracy", "orientation", "key"
+            "appId", "description", "start", "end", "latitude", "longitude", "accuracy", "orientation", "key",
+            "dragAndDrop", "targetSelector", "offsetX", "offsetY", "targetOffsetX", "targetOffsetY"
         };
 
         public ForceDoubleQuoteEmitter(IEventEmitter nextEmitter) : base(nextEmitter) { }
@@ -202,7 +203,8 @@ public static class TestStudioYamlParser
             || action.Equals("evalScript", StringComparison.OrdinalIgnoreCase)
             || action.Equals("runScript", StringComparison.OrdinalIgnoreCase)
             || action.Equals("openLink", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("copyTextFrom", StringComparison.OrdinalIgnoreCase);
+            || action.Equals("copyTextFrom", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("dragAndDrop", StringComparison.OrdinalIgnoreCase);
     }
 
     private static TestStudioStepModel BuildStepModel(string action, string inlineValue, Dictionary<string, string>? dict = null)
@@ -282,6 +284,26 @@ public static class TestStudioYamlParser
                 model.Action = "eraseText";
                 model.Selector = "";
                 model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("value", dict.GetValueOrDefault("amount", "1"));
+                break;
+
+            case "draganddrop":
+                model.Action = "dragAndDrop";
+                if (!string.IsNullOrEmpty(inlineValue))
+                {
+                    model.Selector = inlineValue;
+                    model.Value = "";
+                }
+                else
+                {
+                    model.Selector = dict.GetValueOrDefault("selector", "");
+                    var parts = new List<string>();
+                    if (dict.TryGetValue("targetSelector", out var targetSelector)) parts.Add($"targetSelector: {targetSelector}");
+                    if (dict.TryGetValue("offsetX", out var ox)) parts.Add($"offsetX: {ox}");
+                    if (dict.TryGetValue("offsetY", out var oy)) parts.Add($"offsetY: {oy}");
+                    if (dict.TryGetValue("targetOffsetX", out var tox)) parts.Add($"targetOffsetX: {tox}");
+                    if (dict.TryGetValue("targetOffsetY", out var toy)) parts.Add($"targetOffsetY: {toy}");
+                    model.Value = string.Join(", ", parts);
+                }
                 break;
 
             case "swipe":
@@ -607,6 +629,38 @@ public static class TestStudioYamlParser
                     else
                     {
                         stepsList.Add(new Dictionary<string, string> { { "swipe", step.Value ?? "" } });
+                    }
+                }
+                else if (action == "dragAndDrop")
+                {
+                    var props = ParseKeyValuePairs(step.Value);
+                    if (props.Count > 0 || !string.IsNullOrEmpty(step.Selector))
+                    {
+                        var dragDict = new Dictionary<string, object>();
+                        if (!string.IsNullOrEmpty(step.Selector))
+                        {
+                            dragDict["selector"] = step.Selector;
+                        }
+                        foreach (var kv in props)
+                        {
+                            if (kv.Key == "offsetX" || kv.Key == "offsetY" || kv.Key == "targetOffsetX" || kv.Key == "targetOffsetY")
+                            {
+                                dragDict[kv.Key] = double.TryParse(kv.Value, out double val) ? val : (object)kv.Value;
+                            }
+                            else
+                            {
+                                dragDict[kv.Key] = kv.Value;
+                            }
+                        }
+                        stepsList.Add(new Dictionary<string, object> { { "dragAndDrop", dragDict } });
+                    }
+                    else if (!string.IsNullOrEmpty(step.Value))
+                    {
+                        stepsList.Add(new Dictionary<string, string> { { "dragAndDrop", step.Value } });
+                    }
+                    else
+                    {
+                        stepsList.Add("dragAndDrop");
                     }
                 }
                  else if (action == "stopApp" || action == "killApp" || action == "clearState" || action == "setOrientation" || action == "takeScreenshot" || action == "assertTrue" || action == "runFlow" || action == "evalScript" || action == "runScript" || action == "openLink")

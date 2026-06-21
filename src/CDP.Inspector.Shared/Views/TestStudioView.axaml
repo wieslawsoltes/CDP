@@ -3,6 +3,7 @@
              xmlns:models="clr-namespace:CdpInspectorApp.Models"
              xmlns:services="clr-namespace:CdpInspectorApp.Services"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:CompileBindings="False">
     <Grid ColumnDefinitions="*, 4, *">
@@ -27,39 +28,88 @@
             <!-- Steps List -->
             <Grid Grid.Row="1" RowDefinitions="Auto, *">
                 <TextBlock Grid.Row="0" Text="Test Steps" Classes="panel-header" Foreground="#e8eaed" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
-                <ListBox Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.Steps}" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                <controls:ReorderableListBox Name="lstSteps" Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.Steps}" SelectedItem="{Binding Recorder.TestStudio.SelectedStep, Mode=TwoWay}" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <controls:ReorderableListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                            <Setter Property="Background" Value="Transparent"/>
+                        </Style>
+                        <Style Selector="ListBoxItem:selected Border#ItemCard">
+                            <Setter Property="BorderBrush" Value="#1a73e8"/>
+                            <Setter Property="Background" Value="#292a2d"/>
+                        </Style>
+                    </controls:ReorderableListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="4" Padding="8" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                                <DockPanel LastChildFill="True">
-                                    <!-- Step Actions -->
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                        <Button Content="▲" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
-                                        <Button Content="▼" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
-                                        <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10" Foreground="#ff6b6b" BorderBrush="#ff6b6b"/>
-                                    </StackPanel>
-
-                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                        <!-- Status indicator icon -->
-                                        <Ellipse Width="8" Height="8" Fill="#9aa0a6" VerticalAlignment="Center" IsVisible="{Binding IsPending}"/>
-                                        <Ellipse Width="8" Height="8" Fill="#1a73e8" VerticalAlignment="Center" IsVisible="{Binding IsRunning}"/>
-                                        <TextBlock Text="✔" Foreground="#0f9d58" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsPassed}"/>
-                                        <TextBlock Text="✘" Foreground="#c5221f" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsFailed}"/>
-
-                                        <StackPanel Spacing="2">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <TextBlock Text="{Binding ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12"/>
-                                                <TextBlock Text="{Binding Selector}" Foreground="#8ab4f8" FontSize="12" IsVisible="{Binding Selector, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding DetailDisplay}" FontSize="11" Foreground="#9aa0a6" IsVisible="{Binding DetailDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap"/>
+                            <Border Name="ItemCard" Margin="4" Padding="8" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                <Grid>
+                                    <!-- Read-only View Panel (visible when NOT selected) -->
+                                    <DockPanel LastChildFill="True" IsVisible="{Binding !IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}">
+                                        <!-- Step Actions -->
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                            <Button Content="▲" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                            <Button Content="▼" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                            <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10" Foreground="#ff6b6b" BorderBrush="#ff6b6b"/>
                                         </StackPanel>
-                                    </StackPanel>
-                                </DockPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <!-- Status indicator icon -->
+                                            <Ellipse Width="8" Height="8" Fill="#9aa0a6" VerticalAlignment="Center" IsVisible="{Binding IsPending}"/>
+                                            <Ellipse Width="8" Height="8" Fill="#1a73e8" VerticalAlignment="Center" IsVisible="{Binding IsRunning}"/>
+                                            <TextBlock Text="✔" Foreground="#0f9d58" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsPassed}"/>
+                                            <TextBlock Text="✘" Foreground="#c5221f" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsFailed}"/>
+
+                                            <StackPanel Spacing="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{Binding ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12"/>
+                                                    <TextBlock Text="{Binding Selector}" Foreground="#8ab4f8" FontSize="12" IsVisible="{Binding Selector, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding DetailDisplay}" FontSize="11" Foreground="#9aa0a6" IsVisible="{Binding DetailDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                <TextBlock Text="{Binding ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <!-- Editable Panel (visible when Selected) -->
+                                    <DockPanel LastChildFill="True" IsVisible="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}">
+                                        <!-- Step Actions -->
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top" Margin="4,0,0,0">
+                                            <Button Content="▲" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                            <Button Content="▼" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                            <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10" Foreground="#ff6b6b" BorderBrush="#ff6b6b"/>
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="6" Margin="0,0,8,0">
+                                            <!-- Step Type Name Header -->
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+                                                <Border Background="#1a73e8" CornerRadius="2" Padding="4,2">
+                                                    <TextBlock Text="EDIT" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <Grid ColumnDefinitions="80, *">
+                                                <TextBlock Grid.Column="0" Text="Action:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Grid.Column="1" Text="{Binding Action, Mode=TwoWay}" PlaceholderText="e.g. tapOn, inputText, delay..." FontSize="11" Height="24" Padding="4,2"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="80, *">
+                                                <TextBlock Grid.Column="0" Text="Selector:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Grid.Column="1" Text="{Binding Selector, Mode=TwoWay}" PlaceholderText="e.g. #btnClick, .input-class..." FontSize="11" Height="24" Padding="4,2"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="80, *">
+                                                <TextBlock Grid.Column="0" Text="Value:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" PlaceholderText="e.g. text value or delay ms..." FontSize="11" Height="24" Padding="4,2"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
-                </ListBox>
+                </controls:ReorderableListBox>
             </Grid>
 
             <!-- Maestro Command Toolbox -->

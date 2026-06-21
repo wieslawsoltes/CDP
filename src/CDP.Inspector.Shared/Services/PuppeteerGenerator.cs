@@ -113,6 +113,29 @@ public class PuppeteerGenerator : ICodeGenerator
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
                 }
             }
+            else if (step.Type == "scroll")
+            {
+                sb.AppendLine($"  // Scroll element or page");
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
+                    sb.AppendLine($"  await element_{i}.evaluate(el => {{");
+                    sb.AppendLine($"    let parent = el;");
+                    sb.AppendLine($"    while (parent) {{");
+                    sb.AppendLine($"      if (parent.scrollHeight > parent.clientHeight && window.getComputedStyle(parent).overflowY !== 'visible') {{");
+                    sb.AppendLine($"        parent.scrollBy({-step.OffsetX}, {-step.OffsetY});");
+                    sb.AppendLine($"        return;");
+                    sb.AppendLine($"      }}");
+                    sb.AppendLine($"      parent = parent.parentElement;");
+                    sb.AppendLine($"    }}");
+                    sb.AppendLine($"    window.scrollBy({-step.OffsetX}, {-step.OffsetY});");
+                    sb.AppendLine($"  }});");
+                }
+                else
+                {
+                    sb.AppendLine($"  await page.evaluate(() => window.scrollBy({-step.OffsetX}, {-step.OffsetY}));");
+                }
+            }
             else if (step.Type == "assertVisible")
             {
                 sb.AppendLine($"  // Assert element is visible");

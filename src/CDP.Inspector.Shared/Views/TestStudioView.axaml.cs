@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
 using TextMateSharp.Grammars;
@@ -70,6 +71,22 @@ public partial class TestStudioView : UserControl
                 }
             });
         };
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key == Key.Escape)
+        {
+            if (DataContext is MainWindowViewModel vm)
+            {
+                if (vm.Recorder.TestStudio.SelectedStep != null)
+                {
+                    vm.Recorder.TestStudio.SelectedStep = null;
+                    e.Handled = true;
+                }
+            }
+        }
     }
 
     private void TestStudio_PropertyChanged(object? sender, PropertyChangedEventArgs e)

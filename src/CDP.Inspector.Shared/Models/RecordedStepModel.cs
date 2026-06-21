@@ -29,6 +29,7 @@ public class RecordedStepModel
             if (Type == "navigate") return "Navigation";
             if (Type == "keydown") return "Keyboard";
             if (Type == "dragAndDrop") return $"Drag: {Selector} -> {TargetSelector}";
+            if (Type == "scroll") return $"Scroll: {Selector}";
             return string.IsNullOrEmpty(Selector) ? "Window" : Selector;
         }
     }
@@ -58,6 +59,10 @@ public class RecordedStepModel
                 var details = $"From: x={OffsetX:0.0}, y={OffsetY:0.0} | To: x={TargetOffsetX:0.0}, y={TargetOffsetY:0.0}";
                 if (Modifiers > 0) details += $" | Modifiers: {GetModifiersString(Modifiers)}";
                 return details;
+            }
+            if (Type == "scroll")
+            {
+                return $"DeltaX: {OffsetX:0.0} | DeltaY: {OffsetY:0.0}";
             }
             return "";
         }

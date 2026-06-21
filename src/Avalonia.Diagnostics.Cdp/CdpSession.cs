@@ -854,7 +854,6 @@ public class CdpSession
             }
         }
         _classesHandlers.Clear();
-        NodeMap.Clear();
     }
 
     private void SubscribeToVisual(Visual visual)

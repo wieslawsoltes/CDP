@@ -128,6 +128,30 @@ public class PlaywrightGenerator : ICodeGenerator
                 }
                 sb.AppendLine("    });");
             }
+            else if (step.Type == "scroll")
+            {
+                sb.AppendLine($"    await test.step('Scroll element or page', async () => {{");
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(step.Selector)}');");
+                    sb.AppendLine($"      await element_{i}.evaluate(el => {{");
+                    sb.AppendLine($"        let parent = el;");
+                    sb.AppendLine($"        while (parent) {{");
+                    sb.AppendLine($"          if (parent.scrollHeight > parent.clientHeight && window.getComputedStyle(parent).overflowY !== 'visible') {{");
+                    sb.AppendLine($"            parent.scrollBy({-step.OffsetX}, {-step.OffsetY});");
+                    sb.AppendLine($"            return;");
+                    sb.AppendLine($"          }}");
+                    sb.AppendLine($"          parent = parent.parentElement;");
+                    sb.AppendLine($"        }}");
+                    sb.AppendLine($"        window.scrollBy({-step.OffsetX}, {-step.OffsetY});");
+                    sb.AppendLine($"      }});");
+                }
+                else
+                {
+                    sb.AppendLine($"      await page.evaluate(() => window.scrollBy({-step.OffsetX}, {-step.OffsetY}));");
+                }
+                sb.AppendLine("    });");
+            }
             else if (step.Type == "assertVisible")
             {
                 sb.AppendLine($"    await test.step('Assert element {EscapeJsString(step.Selector)} is visible', async () => {{");
