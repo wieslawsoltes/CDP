@@ -157,7 +157,7 @@ public class AppiumCSharpGenerator : ICodeGenerator
                 {
                     string elementExpr = GetAppiumElementExpression(step.Selector);
                     sb.AppendLine($"            var element_{i} = {elementExpr};");
-                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].scrollBy({-step.OffsetX}, {-step.OffsetY});\", element_{i});");
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"var el = arguments[0]; while (el) {{ if (el.scrollHeight > el.clientHeight && window.getComputedStyle(el).overflowY !== 'visible') {{ el.scrollBy({-step.OffsetX}, {-step.OffsetY}); return; }} el = el.parentElement; }} window.scrollBy({-step.OffsetX}, {-step.OffsetY});\", element_{i});");
                 }
                 else
                 {

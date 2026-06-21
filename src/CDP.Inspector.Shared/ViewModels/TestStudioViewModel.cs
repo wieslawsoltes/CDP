@@ -812,10 +812,12 @@ public class TestStudioViewModel : ViewModelBase
                     var srcBoxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = sourceNodeId });
                     var srcModel = srcBoxRes["model"] as JsonObject;
                     var srcContent = srcModel?["content"] as JsonArray;
+                    var srcBorder = srcModel?["border"] as JsonArray ?? srcContent;
 
                     var tgtBoxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = targetNodeId });
                     var tgtModel = tgtBoxRes["model"] as JsonObject;
                     var tgtContent = tgtModel?["content"] as JsonArray;
+                    var tgtBorder = tgtModel?["border"] as JsonArray ?? tgtContent;
 
                     if (srcContent == null || srcContent.Count < 8 || tgtContent == null || tgtContent.Count < 8)
                     {
@@ -823,17 +825,17 @@ public class TestStudioViewModel : ViewModelBase
                     }
 
                     double srcX = (offsetX != 0.0 || offsetY != 0.0) 
-                        ? srcContent[0]!.GetValue<double>() + offsetX 
+                        ? srcBorder[0]!.GetValue<double>() + offsetX 
                         : srcContent[0]!.GetValue<double>() + (srcContent[4]!.GetValue<double>() - srcContent[0]!.GetValue<double>()) / 2.0;
                     double srcY = (offsetX != 0.0 || offsetY != 0.0) 
-                        ? srcContent[1]!.GetValue<double>() + offsetY 
+                        ? srcBorder[1]!.GetValue<double>() + offsetY 
                         : srcContent[1]!.GetValue<double>() + (srcContent[5]!.GetValue<double>() - srcContent[1]!.GetValue<double>()) / 2.0;
 
                     double tgtX = (targetOffsetX != 0.0 || targetOffsetY != 0.0) 
-                        ? tgtContent[0]!.GetValue<double>() + targetOffsetX 
+                        ? tgtBorder[0]!.GetValue<double>() + targetOffsetX 
                         : tgtContent[0]!.GetValue<double>() + (tgtContent[4]!.GetValue<double>() - tgtContent[0]!.GetValue<double>()) / 2.0;
                     double tgtY = (targetOffsetX != 0.0 || targetOffsetY != 0.0) 
-                        ? tgtContent[1]!.GetValue<double>() + targetOffsetY 
+                        ? tgtBorder[1]!.GetValue<double>() + targetOffsetY 
                         : tgtContent[1]!.GetValue<double>() + (tgtContent[5]!.GetValue<double>() - tgtContent[1]!.GetValue<double>()) / 2.0;
 
                     Log($"Dragging from ({srcX:F1}, {srcY:F1}) to ({tgtX:F1}, {tgtY:F1})");

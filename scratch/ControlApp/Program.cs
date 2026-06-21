@@ -1805,9 +1805,9 @@ description: ""Verify new commands execution""
         });
 
         Console.WriteLine($"Generated selector for namelessBtn: {namelessBtnSelector}");
-        if (namelessBtnSelector != "#pnlContainer > Button")
+        if (namelessBtnSelector != "#pnlContainer > Button:nth-child(4)")
         {
-            throw new Exception($"Expected selector '#pnlContainer > Button', got '{namelessBtnSelector}'");
+            throw new Exception($"Expected selector '#pnlContainer > Button:nth-child(4)', got '{namelessBtnSelector}'");
         }
         Console.WriteLine("Selector relative to named ancestor verified.");
 
@@ -1816,7 +1816,7 @@ description: ""Verify new commands execution""
         DomNodeModel? namelessBtnModel = null;
         void FindNamelessButton(DomNodeModel parent)
         {
-            if (parent.NodeName == "Button")
+            if (parent.NodeName.StartsWith("Button"))
             {
                 var idAttr = parent.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
                 if (idAttr == null || idAttr.Value != "btnTarget")
@@ -1840,9 +1840,9 @@ description: ""Verify new commands execution""
         var clientGenerator = new DomClientSelectorGenerator();
         string clientSelector = clientGenerator.GenerateSelector(namelessBtnModel);
         Console.WriteLine($"Client generated selector: {clientSelector}");
-        if (clientSelector != "#pnlContainer > Button")
+        if (clientSelector != "#pnlContainer > Button:nth-child(4)")
         {
-            throw new Exception($"Expected client selector '#pnlContainer > Button', got '{clientSelector}'");
+            throw new Exception($"Expected client selector '#pnlContainer > Button:nth-child(4)', got '{clientSelector}'");
         }
         Console.WriteLine("Client selector relative to named ancestor verified.");
 

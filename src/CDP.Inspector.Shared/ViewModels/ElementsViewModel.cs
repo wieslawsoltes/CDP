@@ -652,12 +652,21 @@ public class ElementsViewModel : ViewModelBase
             if (root == null) return;
 
             var rootModel = BuildModel(root);
-            Dispatcher.UIThread.Post(() =>
+            if (Dispatcher.UIThread.CheckAccess())
             {
                 RootNodes.Clear();
                 RootNodes.Add(rootModel);
                 SelectorService.Instance.UpdateSelectors(rootModel);
-            });
+            }
+            else
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    RootNodes.Clear();
+                    RootNodes.Add(rootModel);
+                    SelectorService.Instance.UpdateSelectors(rootModel);
+                });
+            }
         }
         catch (Exception ex)
         {
@@ -1445,7 +1454,7 @@ public class ElementsViewModel : ViewModelBase
                 }
             }
 
-            Dispatcher.UIThread.Post(() =>
+            if (Dispatcher.UIThread.CheckAccess())
             {
                 _axRootNodes.Clear();
                 foreach (var root in rootList)
@@ -1453,7 +1462,19 @@ public class ElementsViewModel : ViewModelBase
                     _axRootNodes.Add(root);
                 }
                 SyncAxSelectionFromDom();
-            });
+            }
+            else
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    _axRootNodes.Clear();
+                    foreach (var root in rootList)
+                    {
+                        _axRootNodes.Add(root);
+                    }
+                    SyncAxSelectionFromDom();
+                });
+            }
         }
         catch (Exception ex)
         {

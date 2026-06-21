@@ -134,7 +134,17 @@ public class PlaywrightGenerator : ICodeGenerator
                 if (!string.IsNullOrEmpty(step.Selector))
                 {
                     sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(step.Selector)}');");
-                    sb.AppendLine($"      await element_{i}.evaluate(el => el.scrollBy({-step.OffsetX}, {-step.OffsetY}));");
+                    sb.AppendLine($"      await element_{i}.evaluate(el => {{");
+                    sb.AppendLine($"        let parent = el;");
+                    sb.AppendLine($"        while (parent) {{");
+                    sb.AppendLine($"          if (parent.scrollHeight > parent.clientHeight && window.getComputedStyle(parent).overflowY !== 'visible') {{");
+                    sb.AppendLine($"            parent.scrollBy({-step.OffsetX}, {-step.OffsetY});");
+                    sb.AppendLine($"            return;");
+                    sb.AppendLine($"          }}");
+                    sb.AppendLine($"          parent = parent.parentElement;");
+                    sb.AppendLine($"        }}");
+                    sb.AppendLine($"        window.scrollBy({-step.OffsetX}, {-step.OffsetY});");
+                    sb.AppendLine($"      }});");
                 }
                 else
                 {

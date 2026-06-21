@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
@@ -8,6 +9,20 @@ namespace Avalonia.Diagnostics.Cdp;
 
 public class DomSelectorGenerator : ISelectorGenerator
 {
+    private string GetSimpleSelector(Visual visual)
+    {
+        string part = visual.GetType().Name;
+        if (visual is Control ctrl)
+        {
+            var validClasses = ctrl.Classes.Where(cls => !cls.StartsWith(":")).ToList();
+            if (validClasses.Count > 0)
+            {
+                part += "." + string.Join(".", validClasses);
+            }
+        }
+        return part;
+    }
+
     public string GenerateSelector(Visual visual, bool useLogicalTree = false)
     {
         // Walk up to find if there is any named ancestor (ignoring PART_ names)
@@ -15,19 +30,29 @@ public class DomSelectorGenerator : ISelectorGenerator
         var pathParts = new List<string>();
         while (current != null)
         {
-            string part = current.GetType().Name;
-            if (current is Control ctrl)
+            if (current is Control ctrl && !string.IsNullOrEmpty(ctrl.Name) && !ctrl.Name.StartsWith("PART_"))
             {
-                var validClasses = ctrl.Classes.Where(cls => !cls.StartsWith(":")).ToList();
-                if (validClasses.Count > 0)
-                {
-                    part += "." + string.Join(".", validClasses);
-                }
+                pathParts.Insert(0, $"#{ctrl.Name}");
+                return string.Join(" > ", pathParts);
+            }
 
-                if (!string.IsNullOrEmpty(ctrl.Name) && !ctrl.Name.StartsWith("PART_"))
+            string part = GetSimpleSelector(current);
+            var parent = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            if (parent != null)
+            {
+                var siblings = (useLogicalTree ? SelectorEngine.GetLogicalChildren(parent) : parent.GetVisualChildren()).ToList();
+                int sameTypeCount = 0;
+                foreach (var sib in siblings)
                 {
-                    pathParts.Insert(0, $"#{ctrl.Name}");
-                    return string.Join(" > ", pathParts);
+                    if (GetSimpleSelector(sib) == part)
+                    {
+                        sameTypeCount++;
+                    }
+                }
+                if (sameTypeCount > 1)
+                {
+                    int actualIndex = siblings.IndexOf(current) + 1;
+                    part += $":nth-child({actualIndex})";
                 }
             }
 
@@ -40,13 +65,23 @@ public class DomSelectorGenerator : ISelectorGenerator
         current = visual;
         while (current != null)
         {
-            string part = current.GetType().Name;
-            if (current is Control ctrlWithClasses)
+            string part = GetSimpleSelector(current);
+            var parent = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            if (parent != null)
             {
-                var validClasses = ctrlWithClasses.Classes.Where(cls => !cls.StartsWith(":")).ToList();
-                if (validClasses.Count > 0)
+                var siblings = (useLogicalTree ? SelectorEngine.GetLogicalChildren(parent) : parent.GetVisualChildren()).ToList();
+                int sameTypeCount = 0;
+                foreach (var sib in siblings)
                 {
-                    part += "." + string.Join(".", validClasses);
+                    if (GetSimpleSelector(sib) == part)
+                    {
+                        sameTypeCount++;
+                    }
+                }
+                if (sameTypeCount > 1)
+                {
+                    int actualIndex = siblings.IndexOf(current) + 1;
+                    part += $":nth-child({actualIndex})";
                 }
             }
 

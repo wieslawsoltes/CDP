@@ -782,6 +782,15 @@ public class RecorderViewModel : ViewModelBase
                         stepObj["targetOffsetY"] = s.TargetOffsetY;
                         if (s.Modifiers > 0) stepObj["modifiers"] = s.Modifiers;
                     }
+                    else if (s.Type == "scroll")
+                    {
+                        if (!string.IsNullOrEmpty(s.Selector))
+                        {
+                            stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };
+                        }
+                        stepObj["offsetX"] = s.OffsetX;
+                        stepObj["offsetY"] = s.OffsetY;
+                    }
                     else // click, change
                     {
                         stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };

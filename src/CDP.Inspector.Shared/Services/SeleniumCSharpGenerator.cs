@@ -169,7 +169,7 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                 if (!string.IsNullOrEmpty(step.Selector))
                 {
                     sb.AppendLine($"            var element_{i} = _driver.FindElement(By.CssSelector(\"{EscapeCSharpString(step.Selector)}\"));");
-                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].scrollBy({-step.OffsetX}, {-step.OffsetY});\", element_{i});");
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"var el = arguments[0]; while (el) {{ if (el.scrollHeight > el.clientHeight && window.getComputedStyle(el).overflowY !== 'visible') {{ el.scrollBy({-step.OffsetX}, {-step.OffsetY}); return; }} el = el.parentElement; }} window.scrollBy({-step.OffsetX}, {-step.OffsetY});\", element_{i});");
                 }
                 else
                 {
