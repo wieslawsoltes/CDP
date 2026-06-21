@@ -35,14 +35,31 @@
                             <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
                                 <Setter Property="Background" Value="Transparent"/>
                             </Style>
+                            <Style Selector="ListBoxItem Border#ItemCard">
+                                <Setter Property="Background" Value="#202124"/>
+                                <Setter Property="BorderBrush" Value="#3c4043"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Setter Property="Margin" Value="4"/>
+                                <Setter Property="CornerRadius" Value="4"/>
+                            </Style>
                             <Style Selector="ListBoxItem:selected Border#ItemCard">
                                 <Setter Property="BorderBrush" Value="#1a73e8"/>
                                 <Setter Property="Background" Value="#292a2d"/>
                             </Style>
+                            <Style Selector="ListBoxItem.drag-over-above Border#ItemCard">
+                                <Setter Property="BorderBrush" Value="#1a73e8"/>
+                                <Setter Property="BorderThickness" Value="1,3,1,1"/>
+                                <Setter Property="Margin" Value="4,2,4,4"/>
+                            </Style>
+                            <Style Selector="ListBoxItem.drag-over-below Border#ItemCard">
+                                <Setter Property="BorderBrush" Value="#1a73e8"/>
+                                <Setter Property="BorderThickness" Value="1,1,1,3"/>
+                                <Setter Property="Margin" Value="4,4,4,2"/>
+                            </Style>
                         </controls:ReorderableListBox.Styles>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Name="ItemCard" Margin="4" Padding="10" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                <Border Name="ItemCard" Padding="10">
                                     <Grid RowDefinitions="Auto, Auto">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <Border Background="#3c4043" CornerRadius="2" Padding="4,2">
