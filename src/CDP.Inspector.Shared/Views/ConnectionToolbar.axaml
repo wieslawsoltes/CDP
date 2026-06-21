@@ -42,6 +42,7 @@
                 <Button Name="btnConnect" Command="{Binding Connection.ConnectCommand}" Content="Connect" Background="#1b5e20" Foreground="White" BorderBrush="#1b5e20" Height="28" Padding="15,0" VerticalAlignment="Center"/>
                 <Button Name="btnDisconnect" Command="{Binding Connection.DisconnectCommand}" Content="Disconnect" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Height="28" Padding="15,0" VerticalAlignment="Center"/>
                 <ToggleButton Name="btnInspect" IsChecked="{Binding Connection.IsInspectModeActive, Mode=TwoWay}" IsEnabled="{Binding Connection.IsConnected}" Content="Select Element" Background="#e65100" Foreground="White" BorderBrush="#e65100" Height="28" Padding="15,0" VerticalAlignment="Center"/>
+                <CheckBox Name="chkUseAutomationSelectors" IsChecked="{Binding Connection.UseAutomationSelectors, Mode=TwoWay}" Content="Use Automation Selectors" Foreground="#9aa0a6" VerticalAlignment="Center" Margin="10,0,0,0"/>
                 <Button Name="btnReload" Command="{Binding Connection.ReloadCommand}" Content="Reload" Background="#4a148c" Foreground="White" BorderBrush="#4a148c" Height="28" Padding="15,0" VerticalAlignment="Center"/>
                 <TextBlock Name="txtConnectionStatus" Text="{Binding Connection.ConnectionStatusText}" Foreground="{Binding Connection.ConnectionStatusBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
             </StackPanel>

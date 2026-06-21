@@ -20,7 +20,8 @@ public static class RecorderDomain
         switch (action)
         {
             case "start":
-                StartRecording(session);
+                string? selectorMode = @params["selectorMode"]?.GetValue<string>();
+                StartRecording(session, selectorMode);
                 return Task.FromResult(new JsonObject());
             case "stop":
                 StopRecording(session);
@@ -35,11 +36,12 @@ public static class RecorderDomain
         StopRecording(session);
     }
 
-    private static void StartRecording(CdpSession session)
+    private static void StartRecording(CdpSession session, string? selectorMode = null)
     {
         if (_states.ContainsKey(session)) return;
 
-        var state = new SessionRecorderState(session);
+        bool useAutomation = selectorMode == "automation";
+        var state = new SessionRecorderState(session, useAutomation);
         if (_states.TryAdd(session, state))
         {
             state.Attach();
@@ -58,6 +60,7 @@ public static class RecorderDomain
 internal class SessionRecorderState
 {
     private readonly CdpSession _session;
+    private readonly bool _useAutomation;
     private readonly EventHandler<PointerPressedEventArgs> _pointerPressedHandler;
     private readonly EventHandler<PointerEventArgs> _pointerMovedHandler;
     private readonly EventHandler<PointerReleasedEventArgs> _pointerReleasedHandler;
@@ -72,9 +75,10 @@ internal class SessionRecorderState
     private bool _isDragging = false;
     private int _clickCount = 1;
 
-    public SessionRecorderState(CdpSession session)
+    public SessionRecorderState(CdpSession session, bool useAutomation = false)
     {
         _session = session;
+        _useAutomation = useAutomation;
         _pointerPressedHandler = OnPointerPressed;
         _pointerMovedHandler = OnPointerMoved;
         _pointerReleasedHandler = OnPointerReleased;
@@ -229,8 +233,8 @@ internal class SessionRecorderState
         if (_isDragging)
         {
             _isDragging = false;
-            string sourceSelector = SelectorEngine.GetSelector(startControl);
-            string targetSelector = SelectorEngine.GetSelector(endControl);
+            string sourceSelector = SelectorEngine.GetSelector(startControl, useAutomation: _useAutomation);
+            string targetSelector = SelectorEngine.GetSelector(endControl, useAutomation: _useAutomation);
 
             var startPos = e.GetPosition(startControl);
             var endPos = e.GetPosition(endControl);
@@ -256,7 +260,7 @@ internal class SessionRecorderState
         else
         {
             var pos = e.GetPosition(startControl);
-            string selector = SelectorEngine.GetSelector(startControl);
+            string selector = SelectorEngine.GetSelector(startControl, useAutomation: _useAutomation);
 
             var point = e.GetCurrentPoint(startControl);
             string button = "left";
@@ -322,7 +326,7 @@ internal class SessionRecorderState
                 var currentText = textBox.Text ?? "";
                 if (currentText != initialText)
                 {
-                    string selector = SelectorEngine.GetSelector(textBox);
+                    string selector = SelectorEngine.GetSelector(textBox, useAutomation: _useAutomation);
                     var step = new JsonObject
                     {
                         ["type"] = "change",

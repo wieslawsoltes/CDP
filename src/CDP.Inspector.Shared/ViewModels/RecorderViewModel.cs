@@ -28,6 +28,7 @@ public class RecorderViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
     private readonly Func<string> _getHostAddress;
+    private readonly Func<bool>? _useAutomationProvider;
     private ObservableCollection<RecordedStepModel> _recordedSteps = new();
     private bool _isRecording;
     private string _generatedCode = "";
@@ -165,10 +166,11 @@ public class RecorderViewModel : ViewModelBase
     public ICommand ReplayCommand { get; }
     public ICommand ClearCommand { get; }
 
-    public RecorderViewModel(ICdpService cdpService, Func<string> getHostAddress)
+    public RecorderViewModel(ICdpService cdpService, Func<string> getHostAddress, Func<bool>? useAutomationProvider = null)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _getHostAddress = getHostAddress ?? throw new ArgumentNullException(nameof(getHostAddress));
+        _useAutomationProvider = useAutomationProvider;
 
         TestStudio = new TestStudioViewModel(_cdpService);
 
@@ -218,7 +220,8 @@ public class RecorderViewModel : ViewModelBase
         {
             if (!IsRecording)
             {
-                await _cdpService.SendCommandAsync("Recorder.start");
+                var mode = _useAutomationProvider?.Invoke() == true ? "automation" : "dom";
+                await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
                 IsRecording = true;
             }
             else
@@ -586,7 +589,8 @@ public class RecorderViewModel : ViewModelBase
             {
                 try
                 {
-                    await _cdpService.SendCommandAsync("Recorder.start");
+                    var mode = _useAutomationProvider?.Invoke() == true ? "automation" : "dom";
+                    await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
                 }
                 catch (Exception ex)
                 {

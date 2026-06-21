@@ -16,11 +16,18 @@ public class ConnectionViewModel : ViewModelBase
     private ObservableCollection<TargetItem> _targets = new();
     private TargetItem? _selectedTarget;
     private bool _isInspectModeActive;
+    private bool _useAutomationSelectors;
 
     public string HostAddress
     {
         get => _hostAddress;
         set => RaiseAndSetIfChanged(ref _hostAddress, value);
+    }
+
+    public bool UseAutomationSelectors
+    {
+        get => _useAutomationSelectors;
+        set => RaiseAndSetIfChanged(ref _useAutomationSelectors, value);
     }
 
     public ObservableCollection<TargetItem> Targets

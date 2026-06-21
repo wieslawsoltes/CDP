@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
 using Avalonia.LogicalTree;
+using Avalonia.Automation;
 
 namespace Avalonia.Diagnostics.Cdp;
 
@@ -445,6 +446,34 @@ public static class SelectorEngine
             selector = before + after;
         }
 
+        // Match attribute selectors like [AccessibilityId="value"]
+        var attrMatches = new List<(string name, string val)>();
+        while (true)
+        {
+            int startIdx = selector.IndexOf('[');
+            if (startIdx < 0) break;
+            int endIdx = selector.IndexOf(']', startIdx);
+            if (endIdx < 0) break;
+
+            string attrExpr = selector.Substring(startIdx + 1, endIdx - startIdx - 1);
+            int eqIdx = attrExpr.IndexOf('=');
+            if (eqIdx >= 0)
+            {
+                string attrName = attrExpr.Substring(0, eqIdx).Trim();
+                string attrVal = attrExpr.Substring(eqIdx + 1).Trim();
+                
+                // Strip quotes around value
+                if ((attrVal.StartsWith("\"") && attrVal.EndsWith("\"") && attrVal.Length >= 2) ||
+                    (attrVal.StartsWith("'") && attrVal.EndsWith("'") && attrVal.Length >= 2))
+                {
+                    attrVal = attrVal.Substring(1, attrVal.Length - 2);
+                }
+                attrMatches.Add((attrName, attrVal));
+            }
+
+            selector = selector.Substring(0, startIdx) + ((endIdx + 1 < selector.Length) ? selector.Substring(endIdx + 1) : "");
+        }
+
         if (string.IsNullOrWhiteSpace(selector))
         {
             selector = "*";
@@ -538,6 +567,38 @@ public static class SelectorEngine
             }
         }
 
+        // Match Attributes
+        if (baseMatch && attrMatches.Count > 0)
+        {
+            if (visual is Control control)
+            {
+                foreach (var attr in attrMatches)
+                {
+                    if (attr.name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var val = control.GetValue(AutomationProperties.AutomationIdProperty) as string;
+                        if (val != attr.val)
+                        {
+                            baseMatch = false;
+                            break;
+                        }
+                    }
+                    else if (attr.name.Equals("id", StringComparison.OrdinalIgnoreCase) || attr.name.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (control.Name != attr.val)
+                        {
+                            baseMatch = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                baseMatch = false;
+            }
+        }
+
         if (!baseMatch) return false;
 
         // Check containsText conditions
@@ -552,44 +613,10 @@ public static class SelectorEngine
         return true;
     }
 
-    public static string GetSelector(Visual visual, bool useLogicalTree = false)
+    public static string GetSelector(Visual visual, bool useLogicalTree = false, bool useAutomation = false)
     {
-        if (visual is Control c && !string.IsNullOrEmpty(c.Name) && !c.Name.StartsWith("PART_"))
-        {
-            return $"#{c.Name}";
-        }
-
-        // Walk up to find if there is any named ancestor (ignoring PART_ names)
-        Visual? current = visual;
-        while (current != null)
-        {
-            if (current is Control ctrl && !string.IsNullOrEmpty(ctrl.Name) && !ctrl.Name.StartsWith("PART_"))
-            {
-                return $"#{ctrl.Name}";
-            }
-            current = useLogicalTree ? GetLogicalParent(current) : current.GetVisualParent();
-        }
-
-        // Fallback to structural path if no named ancestor is found
-        var parts = new List<string>();
-        current = visual;
-        while (current != null)
-        {
-            string part = current.GetType().Name;
-            if (current is Control ctrlWithClasses)
-            {
-                var validClasses = ctrlWithClasses.Classes.Where(cls => !cls.StartsWith(":")).ToList();
-                if (validClasses.Count > 0)
-                {
-                    part += "." + string.Join(".", validClasses);
-                }
-            }
-
-            parts.Insert(0, part);
-            current = useLogicalTree ? GetLogicalParent(current) : current.GetVisualParent();
-        }
-
-        return string.Join(" > ", parts);
+        var generator = SelectorRegistry.GetGenerator(useAutomation ? "automation" : "dom");
+        return generator.GenerateSelector(visual, useLogicalTree);
     }
 
     private static IEnumerable<Visual> GetLogicalChildren(Visual visual)
@@ -601,7 +628,7 @@ public static class SelectorEngine
         return Enumerable.Empty<Visual>();
     }
 
-    private static Visual? GetLogicalParent(Visual visual)
+    internal static Visual? GetLogicalParent(Visual visual)
     {
         var current = (visual as ILogical)?.LogicalParent;
         while (current != null)

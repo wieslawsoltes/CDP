@@ -72,7 +72,15 @@ public class MainWindowViewModel : ViewModelBase
         Application = new ApplicationViewModel(CdpService);
         Audits = new AuditsViewModel(CdpService, nodeId => Elements.SelectNodeById(nodeId));
         Simulation = new SimulationViewModel(CdpService, () => Elements.SelectedNode);
-        Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress);
+        Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress, () => Connection.UseAutomationSelectors);
+
+        Connection.PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(ConnectionViewModel.UseAutomationSelectors))
+            {
+                UpdateSelectedSelector();
+            }
+        };
 
         // Notify simulation command availability when element selection changes, and exit inspect mode
         Elements.PropertyChanged += (sender, e) =>
@@ -88,40 +96,34 @@ public class MainWindowViewModel : ViewModelBase
 
             if (e.PropertyName == nameof(ElementsViewModel.SelectedNode))
             {
-                var node = Elements.SelectedNode;
-                if (node != null)
-                {
-                    string selector = "";
-                    var visualProp = node.GetType().GetProperty("Visual");
-                    if (visualProp != null && visualProp.GetValue(node) is Avalonia.Visual visual)
-                    {
-                        selector = SelectorEngine.GetSelector(visual);
-                    }
-
-                    if (string.IsNullOrEmpty(selector))
-                    {
-                        var idAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
-                        if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value))
-                        {
-                            selector = $"#{idAttr.Value}";
-                        }
-                        else
-                        {
-                            var classAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Class", StringComparison.OrdinalIgnoreCase));
-                            if (classAttr != null && !string.IsNullOrEmpty(classAttr.Value))
-                            {
-                                selector = $"{node.NodeName}.{classAttr.Value.Split(' ').FirstOrDefault()}";
-                            }
-                            else
-                            {
-                                selector = node.NodeName;
-                            }
-                        }
-                    }
-
-                    Recorder.TestStudio.SelectedElementSelector = selector ?? "";
-                }
+                UpdateSelectedSelector();
             }
         };
+    }
+
+    private void UpdateSelectedSelector()
+    {
+        var node = Elements.SelectedNode;
+        if (node != null)
+        {
+            string selector = "";
+            var visualProp = node.GetType().GetProperty("Visual");
+            if (visualProp != null && visualProp.GetValue(node) is Avalonia.Visual visual)
+            {
+                selector = SelectorEngine.GetSelector(visual, useAutomation: Connection.UseAutomationSelectors);
+            }
+
+            if (string.IsNullOrEmpty(selector))
+            {
+                var generator = ClientSelectorRegistry.GetGenerator(Connection.UseAutomationSelectors ? "automation" : "dom");
+                selector = generator.GenerateSelector(node);
+            }
+
+            Recorder.TestStudio.SelectedElementSelector = selector ?? "";
+        }
+        else
+        {
+            Recorder.TestStudio.SelectedElementSelector = "";
+        }
     }
 }

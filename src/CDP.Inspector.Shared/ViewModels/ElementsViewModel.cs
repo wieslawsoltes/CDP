@@ -627,12 +627,12 @@ public class ElementsViewModel : ViewModelBase
         }
     }
 
-    private DomNodeModel BuildModel(JsonObject nodeJson)
+    private DomNodeModel BuildModel(JsonObject nodeJson, DomNodeModel? parent = null)
     {
         int nodeId = nodeJson["nodeId"]?.GetValue<int>() ?? 0;
         string nodeName = nodeJson["nodeName"]?.GetValue<string>() ?? "";
         
-        var model = new DomNodeModel(nodeId, nodeName);
+        var model = new DomNodeModel(nodeId, nodeName) { Parent = parent };
 
         // Attributes
         var attrsNode = nodeJson["attributes"] as JsonArray;
@@ -654,7 +654,7 @@ public class ElementsViewModel : ViewModelBase
             {
                 if (child is JsonObject childObj)
                 {
-                    model.Children.Add(BuildModel(childObj));
+                    model.Children.Add(BuildModel(childObj, model));
                 }
             }
         }

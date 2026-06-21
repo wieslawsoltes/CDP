@@ -11,16 +11,16 @@
                 <ScrollViewer Margin="10">
                     <StackPanel Spacing="15">
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Button Name="btnClickMe" Content="Click Me" Width="100"/>
-                            <Button Name="btnSendHttp" Content="Send HTTP Request" Width="150"/>
+                            <Button Name="btnClickMe" AutomationProperties.AutomationId="btnClickMe" Content="Click Me" Width="100"/>
+                            <Button Name="btnSendHttp" AutomationProperties.AutomationId="btnSendHttp" Content="Send HTTP Request" Width="150"/>
                             <TextBlock Name="txtStatus" Text="Not Clicked" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         </StackPanel>
                         
-                        <TextBox Name="txtInput" PlaceholderText="Type text here..." Width="300" HorizontalAlignment="Left"/>
+                        <TextBox Name="txtInput" AutomationProperties.AutomationId="txtTarget" PlaceholderText="Type text here..." Width="300" HorizontalAlignment="Left"/>
                         
-                        <CheckBox Name="chkToggle" Content="Enable Option"/>
+                        <CheckBox Name="chkToggle" AutomationProperties.AutomationId="chkToggle" Content="Enable Option"/>
                         
-                        <Slider Name="sliderValue" Minimum="0" Maximum="100" Value="50" Width="300" HorizontalAlignment="Left"/>
+                        <Slider Name="sliderValue" AutomationProperties.AutomationId="sliderValue" Minimum="0" Maximum="100" Value="50" Width="300" HorizontalAlignment="Left"/>
                         
                         <TextBlock Name="txtSliderVal" Text="{Binding #sliderValue.Value, StringFormat='Slider Value: {0:0}'}"/>
                         
