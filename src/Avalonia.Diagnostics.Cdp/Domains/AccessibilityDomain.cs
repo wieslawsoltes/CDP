@@ -360,6 +360,49 @@ public static class AccessibilityDomain
         return $"synthetic-{peer.GetHashCode()}";
     }
 
+    private static string MapAutomationRole(AutomationControlType controlType, Visual? visual, AutomationPeer? peer)
+    {
+        if (visual != null)
+        {
+            var overrideType = AutomationProperties.GetControlTypeOverride(visual);
+            if (overrideType.HasValue)
+            {
+                controlType = overrideType.Value;
+            }
+        }
+
+        switch (controlType)
+        {
+            case AutomationControlType.Button: return "button";
+            case AutomationControlType.CheckBox: return "checkbox";
+            case AutomationControlType.ComboBox: return "combobox";
+            case AutomationControlType.Edit: return "textbox";
+            case AutomationControlType.List: return "list";
+            case AutomationControlType.ListItem: return "listitem";
+            case AutomationControlType.Slider: return "slider";
+            case AutomationControlType.Text: return "StaticText";
+            case AutomationControlType.Header: return "heading";
+            case AutomationControlType.Menu: return "menu";
+            case AutomationControlType.MenuItem: return "menuitem";
+            case AutomationControlType.ProgressBar: return "progressbar";
+            case AutomationControlType.RadioButton: return "radio";
+            case AutomationControlType.ScrollBar: return "scrollbar";
+            case AutomationControlType.Tab: return "tab";
+            case AutomationControlType.TabItem: return "tab";
+            case AutomationControlType.ToolTip: return "tooltip";
+            case AutomationControlType.Tree: return "tree";
+            case AutomationControlType.TreeItem: return "treeitem";
+            case AutomationControlType.Window: return "window";
+            default:
+                if (peer != null)
+                {
+                    string? className = peer.GetClassName();
+                    if (!string.IsNullOrEmpty(className)) return className;
+                }
+                return visual?.GetType().Name ?? "Unknown";
+        }
+    }
+
     private static JsonObject BuildAXNode(CdpSession session, AutomationPeer peer)
     {
         Visual? visual = null;
@@ -389,19 +432,7 @@ public static class AccessibilityDomain
             ignored = true;
         }
 
-        string roleStr = peer.GetAutomationControlType().ToString();
-        if (roleStr == "None" || roleStr == "Custom")
-        {
-            if (visual != null)
-            {
-                var overrideType = AutomationProperties.GetControlTypeOverride(visual);
-                roleStr = overrideType?.ToString() ?? peer.GetClassName() ?? visual.GetType().Name;
-            }
-            else
-            {
-                roleStr = peer.GetClassName() ?? "Unknown";
-            }
-        }
+        string roleStr = MapAutomationRole(peer.GetAutomationControlType(), visual, peer);
         var roleJson = new JsonObject
         {
             ["type"] = "role",
@@ -771,7 +802,9 @@ public static class AccessibilityDomain
         }
 
         var overrideTypeVal = AutomationProperties.GetControlTypeOverride(visual);
-        string roleStr = overrideTypeVal?.ToString() ?? visual.GetType().Name;
+        string roleStr = overrideTypeVal.HasValue
+            ? MapAutomationRole(overrideTypeVal.Value, visual, null)
+            : visual.GetType().Name;
         var roleJson = new JsonObject
         {
             ["type"] = "role",

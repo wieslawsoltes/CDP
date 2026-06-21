@@ -20,8 +20,11 @@ public class MemoryViewModel : ViewModelBase
     private MemorySnapshotModel? _selectedBaseline;
     private ObservableCollection<ControlCountModel> _currentEntries = new();
     private ObservableCollection<MemoryComparisonModel> _comparisonEntries = new();
+    private ObservableCollection<DetachedControlModel> _detachedControls = new();
     private bool _isComparisonMode;
     private int _snapshotCounter = 1;
+
+    public ObservableCollection<DetachedControlModel> DetachedControls => _detachedControls;
 
     public ObservableCollection<MemorySnapshotModel> Snapshots => _snapshots;
 
@@ -70,6 +73,8 @@ public class MemoryViewModel : ViewModelBase
     public ICommand TakeSnapshotCommand { get; }
     public ICommand ClearSnapshotsCommand { get; }
     public ICommand CollectGarbageCommand { get; }
+    public ICommand ExportSnapshotCommand { get; }
+    public Func<string, Task>? SaveFileCallback { get; set; }
 
     public MemoryViewModel(ICdpService cdpService)
     {
@@ -79,6 +84,7 @@ public class MemoryViewModel : ViewModelBase
         TakeSnapshotCommand = new RelayCommand(async () => await TakeSnapshotAsync(), () => _cdpService.IsConnected);
         ClearSnapshotsCommand = new RelayCommand(ClearSnapshots);
         CollectGarbageCommand = new RelayCommand(async () => await CollectGarbageAsync(), () => _cdpService.IsConnected);
+        ExportSnapshotCommand = new RelayCommand(async () => await ExportSnapshotAsync(), () => _cdpService.IsConnected);
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -91,6 +97,7 @@ public class MemoryViewModel : ViewModelBase
             }
             ((RelayCommand)TakeSnapshotCommand).RaiseCanExecuteChanged();
             ((RelayCommand)CollectGarbageCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)ExportSnapshotCommand).RaiseCanExecuteChanged();
         }
     }
 
@@ -101,10 +108,12 @@ public class MemoryViewModel : ViewModelBase
         try
         {
             var response = await _cdpService.SendCommandAsync("Memory.getLiveControls");
+            var detachedResponse = await _cdpService.SendCommandAsync("Memory.getDetachedControls");
+
+            var entries = new List<ControlCountModel>();
             if (response != null)
             {
                 var controls = response["controls"] as JsonArray;
-                var entries = new List<ControlCountModel>();
                 if (controls != null)
                 {
                     foreach (var node in controls)
@@ -119,27 +128,72 @@ public class MemoryViewModel : ViewModelBase
                         }
                     }
                 }
-
-                // Sort by count desc
-                entries = entries.OrderByDescending(e => e.Count).ToList();
-
-                var snapshot = new MemorySnapshotModel
-                {
-                    Name = $"Snapshot {_snapshotCounter++}",
-                    Timestamp = DateTime.Now,
-                    Entries = entries
-                };
-
-                Dispatcher.UIThread.Post(() =>
-                {
-                    Snapshots.Add(snapshot);
-                    SelectedSnapshot = snapshot;
-                });
             }
+
+            var detachedEntries = new List<DetachedControlModel>();
+            if (detachedResponse != null)
+            {
+                var controls = detachedResponse["detachedControls"] as JsonArray;
+                if (controls != null)
+                {
+                    foreach (var node in controls)
+                    {
+                        if (node is JsonObject obj)
+                        {
+                            detachedEntries.Add(new DetachedControlModel
+                            {
+                                Id = obj["id"]?.GetValue<string>() ?? "",
+                                Type = obj["type"]?.GetValue<string>() ?? "",
+                                Name = obj["name"]?.GetValue<string>() ?? "",
+                                HashCode = obj["hashCode"]?.GetValue<int>() ?? 0,
+                                DetachedDurationMs = obj["detachedDurationMs"]?.GetValue<long>() ?? 0,
+                                HasDataContext = obj["hasDataContext"]?.GetValue<bool>() ?? false,
+                                DataContextType = obj["dataContextType"]?.GetValue<string>() ?? ""
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Sort by count desc
+            entries = entries.OrderByDescending(e => e.Count).ToList();
+
+            var snapshot = new MemorySnapshotModel
+            {
+                Name = $"Snapshot {_snapshotCounter++}",
+                Timestamp = DateTime.Now,
+                Entries = entries,
+                DetachedEntries = detachedEntries
+            };
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                Snapshots.Add(snapshot);
+                SelectedSnapshot = snapshot;
+            });
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error taking heap snapshot: {ex.Message}");
+        }
+    }
+
+    public async Task ExportSnapshotAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Memory.takeHeapSnapshot");
+            if (response != null && SaveFileCallback != null)
+            {
+                string snapshotJson = response.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                await SaveFileCallback(snapshotJson);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error exporting heap snapshot: {ex.Message}");
         }
     }
 
@@ -167,6 +221,7 @@ public class MemoryViewModel : ViewModelBase
             SelectedBaseline = null;
             CurrentEntries.Clear();
             ComparisonEntries.Clear();
+            DetachedControls.Clear();
             _snapshotCounter = 1;
         });
     }
@@ -176,11 +231,16 @@ public class MemoryViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             CurrentEntries.Clear();
+            DetachedControls.Clear();
             if (SelectedSnapshot != null && !IsComparisonMode)
             {
                 foreach (var entry in SelectedSnapshot.Entries)
                 {
                     CurrentEntries.Add(entry);
+                }
+                foreach (var entry in SelectedSnapshot.DetachedEntries)
+                {
+                    DetachedControls.Add(entry);
                 }
             }
         });

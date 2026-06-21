@@ -57,6 +57,17 @@
             
             <Grid ColumnDefinitions="*, Auto">
                 <TextBox Name="txtConsoleInput" Text="{Binding Console.ConsoleInputText, Mode=TwoWay}" PlaceholderText="Enter C# Interactive command (use inspected $0 variable)..." Height="28" VerticalContentAlignment="Center"/>
+                <Popup IsOpen="{Binding Console.IsCompletionActive, Mode=TwoWay}" PlacementTarget="{Binding ElementName=txtConsoleInput}" Placement="Top" IsLightDismissEnabled="True">
+                    <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" MaxHeight="200" Width="250">
+                        <ListBox ItemsSource="{Binding Console.Completions}" SelectedIndex="{Binding Console.SelectedCompletionIndex, Mode=TwoWay}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" FontSize="12" Foreground="#e8eaed"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                </Popup>
                 <Button Name="btnSendConsole" Command="{Binding Console.EvaluateCommand}" Grid.Column="1" Content="Evaluate" Margin="5,0,0,0" Padding="15,0" Height="28" Classes="accent"/>
             </Grid>
         </Grid>

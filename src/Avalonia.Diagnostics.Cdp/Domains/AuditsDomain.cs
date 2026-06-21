@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -75,6 +76,81 @@ public static class AuditsDomain
         }
     }
 
+    private static Color ResolveCompositeBackground(Visual startVisual)
+    {
+        double rAcc = 0, gAcc = 0, bAcc = 0, aAcc = 0;
+        var current = startVisual;
+        while (current != null)
+        {
+            var backgroundProp = current.GetType().GetProperty("Background");
+            if (backgroundProp != null)
+            {
+                var brush = backgroundProp.GetValue(current) as ISolidColorBrush;
+                if (brush == null)
+                {
+                    brush = backgroundProp.GetValue(current) as SolidColorBrush;
+                }
+                if (brush != null && brush.Color.A > 0)
+                {
+                    var color = brush.Color;
+                    double alpha = color.A / 255.0;
+                    if (aAcc == 0)
+                    {
+                        rAcc = color.R;
+                        gAcc = color.G;
+                        bAcc = color.B;
+                        aAcc = alpha;
+                    }
+                    else
+                    {
+                        double newA = aAcc + alpha * (1.0 - aAcc);
+                        if (newA > 0)
+                        {
+                            rAcc = (rAcc * aAcc + color.R * alpha * (1.0 - aAcc)) / newA;
+                            gAcc = (gAcc * aAcc + color.G * alpha * (1.0 - aAcc)) / newA;
+                            bAcc = (bAcc * aAcc + color.B * alpha * (1.0 - aAcc)) / newA;
+                        }
+                        aAcc = newA;
+                    }
+
+                    if (aAcc >= 0.999)
+                    {
+                        break;
+                    }
+                }
+            }
+            current = current.GetVisualParent();
+        }
+
+        if (aAcc > 0)
+        {
+            if (aAcc < 0.999)
+            {
+                rAcc = rAcc * aAcc + 255.0 * (1.0 - aAcc);
+                gAcc = gAcc * aAcc + 255.0 * (1.0 - aAcc);
+                bAcc = bAcc * aAcc + 255.0 * (1.0 - aAcc);
+                aAcc = 1.0;
+            }
+            return Color.FromArgb((byte)Math.Clamp(aAcc * 255.0, 0, 255), (byte)Math.Clamp(rAcc, 0, 255), (byte)Math.Clamp(gAcc, 0, 255), (byte)Math.Clamp(bAcc, 0, 255));
+        }
+
+        return Colors.White;
+    }
+
+    private static double GetRelativeLuminance(Color color)
+    {
+        double r = ConvertChannel(color.R);
+        double g = ConvertChannel(color.G);
+        double b = ConvertChannel(color.B);
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+
+    private static double ConvertChannel(byte channelValue)
+    {
+        double c = channelValue / 255.0;
+        return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+    }
+
     private static void RunDiagnosticAudits(
         Visual visual, 
         int depth, 
@@ -85,6 +161,7 @@ public static class AuditsDomain
         NodeMap nodeMap)
     {
         string typeName = visual.GetType().Name;
+        string nameOrType = (visual is Avalonia.StyledElement se2 && !string.IsNullOrEmpty(se2.Name)) ? se2.Name : typeName;
         int nodeId = nodeMap.GetOrAdd(visual);
 
         // Rule 1: Accessibility (A11y)
@@ -118,9 +195,106 @@ public static class AuditsDomain
                         ["severity"] = "warning",
                         ["nodeId"] = nodeId,
                         ["controlType"] = typeName,
-                        ["message"] = $"Interactive control '{typeName}' is missing an accessible name (AutomationProperties.Name)."
+                        ["message"] = $"Interactive control '{nameOrType}' is missing an accessible name (AutomationProperties.Name)."
                     });
                     a11yScore = Math.Max(0, a11yScore - 15);
+                }
+            }
+        }
+
+        // WCAG Color Contrast Calculator
+        if (visual is Avalonia.Controls.TextBlock textBlock && !string.IsNullOrWhiteSpace(textBlock.Text))
+        {
+            if (textBlock.Foreground is ISolidColorBrush solidFore)
+            {
+                var foreColor = solidFore.Color;
+                var backColor = ResolveCompositeBackground(textBlock);
+
+                if (foreColor.A < 255)
+                {
+                    double fAlpha = foreColor.A / 255.0;
+                    double rComp = foreColor.R * fAlpha + backColor.R * (1.0 - fAlpha);
+                    double gComp = foreColor.G * fAlpha + backColor.G * (1.0 - fAlpha);
+                    double bComp = foreColor.B * fAlpha + backColor.B * (1.0 - fAlpha);
+                    foreColor = Color.FromArgb(255, (byte)Math.Clamp(rComp, 0, 255), (byte)Math.Clamp(gComp, 0, 255), (byte)Math.Clamp(bComp, 0, 255));
+                }
+
+                double l1 = GetRelativeLuminance(foreColor);
+                double l2 = GetRelativeLuminance(backColor);
+                double ratio = (Math.Max(l1, l2) + 0.05) / (Math.Min(l1, l2) + 0.05);
+
+                double minRatio = 4.5;
+                bool isBold = textBlock.FontWeight >= FontWeight.Bold;
+                if (textBlock.FontSize >= 18 || (textBlock.FontSize >= 14 && isBold))
+                {
+                    minRatio = 3.0;
+                }
+
+                if (ratio < minRatio)
+                {
+                    issues.Add(new JsonObject
+                    {
+                        ["category"] = "Accessibility",
+                        ["severity"] = "warning",
+                        ["nodeId"] = nodeId,
+                        ["controlType"] = typeName,
+                        ["message"] = $"Text contrast ratio {ratio:F2}:1 is below the required WCAG AA threshold of {minRatio}:1."
+                    });
+                    a11yScore = Math.Max(0, a11yScore - 15);
+                }
+            }
+        }
+
+        // Keyboard Focus Flow Validation
+        if (visual is Avalonia.Input.InputElement ie)
+        {
+            // Focus Order Analysis
+            if (isInteractive && !ie.Focusable)
+            {
+                issues.Add(new JsonObject
+                {
+                    ["category"] = "Accessibility",
+                    ["severity"] = "warning",
+                    ["nodeId"] = nodeId,
+                    ["controlType"] = typeName,
+                    ["message"] = $"Interactive control '{typeName}' is not keyboard focusable (Focusable = false)."
+                });
+                a11yScore = Math.Max(0, a11yScore - 10);
+            }
+
+            // Offscreen Focusable Check
+            if (ie.Focusable)
+            {
+                bool isHidden = !visual.IsVisible || visual.Bounds.Width == 0 || visual.Bounds.Height == 0;
+                if (isHidden)
+                {
+                    issues.Add(new JsonObject
+                    {
+                        ["category"] = "Accessibility",
+                        ["severity"] = "warning",
+                        ["nodeId"] = nodeId,
+                        ["controlType"] = typeName,
+                        ["message"] = $"Focusable element '{typeName}' is hidden or has zero size. This can disrupt screen reader users."
+                    });
+                    a11yScore = Math.Max(0, a11yScore - 10);
+                }
+            }
+
+            // Circular Loops & Disconnected Paths
+            if (ie is Avalonia.Input.InputElement inputElement)
+            {
+                var tabNav = Avalonia.Input.KeyboardNavigation.GetTabNavigation(inputElement);
+                if (tabNav == Avalonia.Input.KeyboardNavigationMode.Cycle)
+                {
+                    issues.Add(new JsonObject
+                    {
+                        ["category"] = "Accessibility",
+                        ["severity"] = "warning",
+                        ["nodeId"] = nodeId,
+                        ["controlType"] = typeName,
+                        ["message"] = $"Circular navigation loop / focus trap detected at '{typeName}' due to KeyboardNavigation.TabNavigation='Cycle'."
+                    });
+                    a11yScore = Math.Max(0, a11yScore - 10);
                 }
             }
         }

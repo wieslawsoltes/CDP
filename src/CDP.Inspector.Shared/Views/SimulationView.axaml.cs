@@ -102,6 +102,7 @@ public partial class SimulationView : UserControl
 
         double imageWidth = img.Bounds.Width;
         double imageHeight = img.Bounds.Height;
+        if (imageWidth <= 0 || imageHeight <= 0) return;
 
         double targetX = pos.X;
         double targetY = pos.Y;
@@ -110,6 +111,12 @@ public partial class SimulationView : UserControl
 
         if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
         {
+            var simVm = mainVm.Simulation;
+            if (simVm.DeviceWidth > 0 && simVm.DeviceHeight > 0)
+            {
+                targetX = pos.X * (simVm.DeviceWidth / imageWidth);
+                targetY = pos.Y * (simVm.DeviceHeight / imageHeight);
+            }
             _ = mainVm.Simulation.SendWheelEventAsync(targetX, targetY, e.Delta.Y);
         }
         e.Handled = true;
@@ -125,6 +132,7 @@ public partial class SimulationView : UserControl
 
         double imageWidth = img.Bounds.Width;
         double imageHeight = img.Bounds.Height;
+        if (imageWidth <= 0 || imageHeight <= 0) return;
 
         double targetX = pos.X;
         double targetY = pos.Y;
@@ -137,6 +145,13 @@ public partial class SimulationView : UserControl
 
         if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
         {
+            var simVm = mainVm.Simulation;
+            if (simVm.DeviceWidth > 0 && simVm.DeviceHeight > 0)
+            {
+                targetX = pos.X * (simVm.DeviceWidth / imageWidth);
+                targetY = pos.Y * (simVm.DeviceHeight / imageHeight);
+            }
+
             var button = "none";
             if (type == "mouseReleased")
             {

@@ -194,6 +194,12 @@ public static class DomDomain
                     return new JsonObject();
                 }
 
+            case "highlightNode":
+                return await OverlayDomain.HandleAsync(session, "highlightNode", @params);
+
+            case "hideHighlight":
+                return await OverlayDomain.HandleAsync(session, "hideHighlight", @params);
+
             case "setAttributeValue":
                 {
                     int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;

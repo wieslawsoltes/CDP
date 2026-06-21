@@ -64,12 +64,58 @@ public class HighlightAdorner : Control
         double x = pStart.Value.X;
         double y = pStart.Value.Y;
 
-        var bounds = new Rect(x, y, w, h);
+        Thickness margin = default;
+        Thickness padding = default;
+        Thickness borderThickness = default;
 
-        // Content box: blue semi-transparent fill
+        if (_adornedVisual is Avalonia.Layout.Layoutable layoutable)
+        {
+            margin = layoutable.Margin;
+        }
+
+        var propBorder = _adornedVisual.GetType().GetProperty("BorderThickness");
+        if (propBorder != null && propBorder.PropertyType == typeof(Thickness))
+        {
+            borderThickness = (Thickness)propBorder.GetValue(_adornedVisual)!;
+        }
+
+        var propPadding = _adornedVisual.GetType().GetProperty("Padding");
+        if (propPadding != null && propPadding.PropertyType == typeof(Thickness))
+        {
+            padding = (Thickness)propPadding.GetValue(_adornedVisual)!;
+        }
+
+        // 1. Draw Margin Rect (Orange)
+        if (margin != default)
+        {
+            var marginRect = new Rect(x - margin.Left, y - margin.Top, w + margin.Left + margin.Right, h + margin.Top + margin.Bottom);
+            var marginBrush = new SolidColorBrush(Color.FromArgb(32, 246, 178, 107));
+            context.DrawRectangle(marginBrush, null, marginRect);
+        }
+
+        // 2. Draw Border Rect (Yellow-green)
+        var borderRect = new Rect(x, y, w, h);
+        var borderBrush = new SolidColorBrush(Color.FromArgb(32, 255, 229, 153));
+        context.DrawRectangle(borderBrush, null, borderRect);
+
+        // 3. Draw Padding Rect (Green)
+        double innerX = x + borderThickness.Left;
+        double innerY = y + borderThickness.Top;
+        double innerW = Math.Max(0, w - borderThickness.Left - borderThickness.Right);
+        double innerH = Math.Max(0, h - borderThickness.Top - borderThickness.Bottom);
+        var paddingRect = new Rect(innerX, innerY, innerW, innerH);
+        var paddingBrush = new SolidColorBrush(Color.FromArgb(32, 147, 196, 125));
+        context.DrawRectangle(paddingBrush, null, paddingRect);
+
+        // 4. Draw Content Rect (Blue with solid border line)
+        double contentX = innerX + padding.Left;
+        double contentY = innerY + padding.Top;
+        double contentW = Math.Max(0, innerW - padding.Left - padding.Right);
+        double contentH = Math.Max(0, innerH - padding.Top - padding.Bottom);
+        var contentRect = new Rect(contentX, contentY, contentW, contentH);
         var contentBrush = new SolidColorBrush(Color.FromArgb(64, 120, 170, 240));
         var borderPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 120, 170, 240)), 1.5);
-        context.DrawRectangle(contentBrush, borderPen, bounds);
+        context.DrawRectangle(contentBrush, borderPen, contentRect);
 
         // Draw tooltip: "Type | Width x Height | Role: ... Name: ..."
         var peer = _adornedVisual is Control control ? ControlAutomationPeer.CreatePeerForElement(control) : null;

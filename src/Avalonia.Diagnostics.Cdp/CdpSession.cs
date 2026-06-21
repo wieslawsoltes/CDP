@@ -55,6 +55,7 @@ public class CdpSession
     public ConcurrentDictionary<string, string> CompilationCache { get; } = new();
     public System.Collections.Generic.List<JsonObject> NavigationHistory { get; } = new();
     public int NavigationHistoryIndex { get; set; } = -1;
+    public object? ScriptSession { get; set; }
 
     private bool _useLogicalTree = false;
     public bool UseLogicalTree
@@ -774,6 +775,7 @@ public class CdpSession
         InspectModeEnabled = false;
         Domains.LogDomain.RemoveSession(this);
         Domains.NetworkDomain.RemoveSession(this);
+        Domains.FetchDomain.RemoveSession(this);
         Domains.RecorderDomain.RemoveSession(this);
         NodeMap.Clear();
         RemoteObjects.Clear();
@@ -782,6 +784,8 @@ public class CdpSession
             HighlightOverlayManager.HideHighlight(Window);
         }
         Domains.CssDomain.CleanupSession(this);
+        Domains.PerformanceDomain.CleanupSession(this);
+        Domains.TracingDomain.CleanupSession(this);
         _isVisibleSubscription?.Dispose();
         _captureStream.Dispose();
         _ackSignal.Dispose();

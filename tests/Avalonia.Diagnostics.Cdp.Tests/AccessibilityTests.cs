@@ -56,7 +56,7 @@ public class AccessibilityTests
         var roleVal = buttonNode["role"] as JsonObject;
         Assert.NotNull(roleVal);
         Assert.Equal("role", roleVal["type"]?.GetValue<string>());
-        Assert.Equal("Button", roleVal["value"]?.GetValue<string>());
+        Assert.Equal("button", roleVal["value"]?.GetValue<string>());
 
         var nameVal = buttonNode["name"] as JsonObject;
         Assert.NotNull(nameVal);

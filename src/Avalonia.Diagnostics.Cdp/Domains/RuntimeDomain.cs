@@ -7,6 +7,12 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Threading;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Completion;
+using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.Scripting;
+using System.Collections.Generic;
+using System.Dynamic;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -37,14 +43,73 @@ public static class RuntimeDomain
                     string expression = @params["expression"]?.GetValue<string>() ?? "";
                     bool returnByValue = @params["returnByValue"]?.GetValue<bool>() ?? false;
 
-                    var result = await Dispatcher.UIThread.InvokeAsync(() =>
+                    var preprocessed = ScriptPreprocessor.Preprocess(expression);
+                    var result = await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
-                        var val = EvaluateExpression(session, session.Window, expression);
-                        return returnByValue 
-                            ? new JsonObject { ["result"] = new JsonObject { ["value"] = JsonValue.Create(val) } }
-                            : new JsonObject { ["result"] = CreateRemoteObject(session, val) };
+                        try
+                        {
+                            var val = await EvaluateAsync(session, preprocessed);
+                            return returnByValue 
+                                ? new JsonObject { ["result"] = new JsonObject { ["value"] = val == null ? null : (val is JsonNode jNode ? jNode.DeepClone() : JsonValue.Create(val)) } }
+                                : new JsonObject { ["result"] = CreateRemoteObject(session, val) };
+                        }
+                        catch (Exception ex)
+                        {
+                            return new JsonObject
+                            {
+                                ["result"] = new JsonObject
+                                {
+                                    ["type"] = "object",
+                                    ["subtype"] = "error",
+                                    ["className"] = ex.GetType().FullName,
+                                    ["description"] = ex.Message
+                                },
+                                ["exceptionDetails"] = new JsonObject
+                                {
+                                    ["text"] = ex.Message,
+                                    ["exception"] = new JsonObject
+                                    {
+                                        ["type"] = "object",
+                                        ["className"] = ex.GetType().FullName,
+                                        ["description"] = ex.Message
+                                    }
+                                }
+                            };
+                        }
                     });
                     return result;
+                }
+
+            case "getCompletions":
+                {
+                    string expression = @params["expression"]?.GetValue<string>() ?? "";
+                    int cursorPosition = @params["cursorPosition"]?.GetValue<int>() ?? expression.Length;
+
+                    var preprocessed = ScriptPreprocessor.Preprocess(expression);
+                    int diff = preprocessed.Length - expression.Length;
+                    int adjustedCursor = cursorPosition + diff;
+                    if (adjustedCursor < 0) adjustedCursor = 0;
+                    if (adjustedCursor > preprocessed.Length) adjustedCursor = preprocessed.Length;
+
+                    var completions = await AutocompleteEngine.GetCompletionsAsync(preprocessed, adjustedCursor);
+                    var list = new JsonArray();
+                    foreach (var item in completions)
+                    {
+                        var kind = "Property";
+                        if (item.Tags.Contains("Property")) kind = "Property";
+                        else if (item.Tags.Contains("Method")) kind = "Method";
+                        else if (item.Tags.Contains("Field")) kind = "Field";
+                        else if (item.Tags.Contains("Class")) kind = "Class";
+                        else if (item.Tags.Contains("Keyword")) kind = "Keyword";
+
+                        list.Add(new JsonObject
+                        {
+                            ["displayText"] = item.DisplayText,
+                            ["insertionText"] = item.DisplayText,
+                            ["kind"] = kind
+                        });
+                    }
+                    return new JsonObject { ["completions"] = list };
                 }
 
             case "callFunctionOn":
@@ -624,5 +689,243 @@ public static class RuntimeDomain
         {
             return value;
         }
+    }
+
+    private static async Task<object?> EvaluateAsync(CdpSession session, string code)
+    {
+        Console.WriteLine($"[CDP EVAL DEBUG] Evaluating code: '{code}'");
+        var inspectedNode = session.NodeMap.GetVisual(session.InspectedNodeId);
+        Console.WriteLine($"[CDP EVAL DEBUG] InspectedNodeId: {session.InspectedNodeId}, Visual: {inspectedNode?.GetType().Name ?? "null"}");
+        if (inspectedNode is Avalonia.Controls.Control ctrl)
+        {
+            Console.WriteLine($"[CDP EVAL DEBUG] Control DataContext: {ctrl.DataContext?.GetType().FullName ?? "null"}");
+        }
+
+        var globals = new ReplGlobals(session);
+        var options = ScriptOptions.Default
+            .WithReferences(AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+                .Select(a => a.Location))
+            .WithImports(
+                "System",
+                "System.Collections.Generic",
+                "System.Linq",
+                "System.Threading.Tasks",
+                "Avalonia",
+                "Avalonia.Controls",
+                "Avalonia.VisualTree",
+                "Avalonia.LogicalTree"
+            );
+
+        if (session.ScriptSession is ScriptState<object> state)
+        {
+            state = await state.ContinueWithAsync(code, options).ConfigureAwait(false);
+            session.ScriptSession = state;
+            var val = state.ReturnValue;
+            if (val is ReflectionDynamicObject wrapper)
+            {
+                return wrapper.Target;
+            }
+            return val;
+        }
+        else
+        {
+            var newState = await CSharpScript.RunAsync(code, options, globals, typeof(ReplGlobals)).ConfigureAwait(false);
+            session.ScriptSession = newState;
+            var val = newState.ReturnValue;
+            if (val is ReflectionDynamicObject wrapper)
+            {
+                return wrapper.Target;
+            }
+            return val;
+        }
+    }
+}
+
+public class ReplGlobals
+{
+    private readonly CdpSession _session;
+
+    public ReplGlobals(CdpSession session)
+    {
+        _session = session;
+    }
+
+    public dynamic? SelectedNode => _session.NodeMap.GetVisual(_session.InspectedNodeId);
+    public dynamic? Control => SelectedNode as Avalonia.Controls.Control;
+    public dynamic? DataContext => Control?.DataContext != null ? new ReflectionDynamicObject(Control.DataContext) : null;
+    public dynamic? ViewModel => DataContext;
+    public dynamic? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
+
+    public void Print(object? obj) => Console.WriteLine(obj);
+
+    public Visual? Query(string selector)
+    {
+        var root = (Visual?)SelectedNode ?? _session.Window;
+        return root != null ? Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, selector, _session.UseLogicalTree) : null;
+    }
+
+    public IEnumerable<Visual> QueryAll(string selector)
+    {
+        var root = (Visual?)SelectedNode ?? _session.Window;
+        return root != null ? Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(root, selector, _session.UseLogicalTree) : Enumerable.Empty<Visual>();
+    }
+}
+
+public static class ScriptPreprocessor
+{
+    public static string Preprocess(string expression)
+    {
+        if (string.IsNullOrWhiteSpace(expression)) return expression;
+
+        var processed = System.Text.RegularExpressions.Regex.Replace(expression, @"(?<!\w)\$0\b", "SelectedNode");
+        processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$vm\b", "DataContext");
+        processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$dc\b", "DataContext");
+
+        return processed;
+    }
+}
+
+public static class AutocompleteEngine
+{
+    public static async Task<List<CompletionItem>> GetCompletionsAsync(string scriptText, int cursorPosition)
+    {
+        var header = "using System; using System.Collections.Generic; using System.Linq; using Avalonia; using Avalonia.Controls; using Avalonia.Layout; using Avalonia.Input; TextBox SelectedNode = null; object DataContext = null; ";
+        var fullText = header + scriptText;
+        int adjustedCursor = cursorPosition + header.Length;
+
+        var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var documentId = DocumentId.CreateNewId(projectId);
+
+        var solution = workspace.CurrentSolution
+            .AddProject(projectId, "ReplProject", "ReplProject", LanguageNames.CSharp)
+            .AddMetadataReferences(projectId, AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+                .Select(a => MetadataReference.CreateFromFile(a.Location)))
+            .AddDocument(documentId, "ReplScript.cs", fullText);
+
+        var document = solution.GetDocument(documentId);
+        if (document == null) return new List<CompletionItem>();
+
+        var completionService = CompletionService.GetService(document);
+        if (completionService == null) return new List<CompletionItem>();
+
+        var results = await completionService.GetCompletionsAsync(document, adjustedCursor);
+        return results != null ? results.Items.ToList() : new List<CompletionItem>();
+    }
+}
+
+public class ReflectionDynamicObject : System.Dynamic.DynamicObject
+{
+    private readonly object _target;
+
+    public ReflectionDynamicObject(object target)
+    {
+        _target = target;
+    }
+
+    public object Target => _target;
+
+    public override bool TryGetMember(System.Dynamic.GetMemberBinder binder, out object? result)
+    {
+        Console.WriteLine($"[CDP EVAL DEBUG] TryGetMember: Name='{binder.Name}' on target of type '{_target.GetType().FullName}'");
+        var prop = _target.GetType().GetProperty(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+        if (prop != null)
+        {
+            result = prop.GetValue(_target);
+            Console.WriteLine($"[CDP EVAL DEBUG] TryGetMember: Property value found: '{result}'");
+            result = WrapIfNeeded(result);
+            return true;
+        }
+
+        var field = _target.GetType().GetField(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+        if (field != null)
+        {
+            result = field.GetValue(_target);
+            Console.WriteLine($"[CDP EVAL DEBUG] TryGetMember: Field value found: '{result}'");
+            result = WrapIfNeeded(result);
+            return true;
+        }
+
+        Console.WriteLine($"[CDP EVAL DEBUG] TryGetMember: Member '{binder.Name}' not found!");
+        result = null;
+        return false;
+    }
+
+    public override bool TrySetMember(System.Dynamic.SetMemberBinder binder, object? value)
+    {
+        var prop = _target.GetType().GetProperty(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+        if (prop != null && prop.CanWrite)
+        {
+            prop.SetValue(_target, Unwrap(value));
+            return true;
+        }
+
+        var field = _target.GetType().GetField(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+        if (field != null)
+        {
+            field.SetValue(_target, Unwrap(value));
+            return true;
+        }
+
+        return false;
+    }
+
+    public override bool TryInvokeMember(System.Dynamic.InvokeMemberBinder binder, object?[]? args, out object? result)
+    {
+        var unwrappedArgs = args?.Select(Unwrap).ToArray();
+        var argTypes = unwrappedArgs?.Select(a => a?.GetType() ?? typeof(object)).ToArray() ?? Type.EmptyTypes;
+        
+        var method = _target.GetType().GetMethod(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase, null, argTypes, null);
+        if (method == null)
+        {
+            var methods = _target.GetType().GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase)
+                .Where(m => string.Equals(m.Name, binder.Name, StringComparison.OrdinalIgnoreCase) && m.GetParameters().Length == (args?.Length ?? 0))
+                .ToArray();
+            if (methods.Length > 0)
+            {
+                method = methods[0];
+            }
+        }
+
+        if (method != null)
+        {
+            result = method.Invoke(_target, unwrappedArgs);
+            result = WrapIfNeeded(result);
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
+    private static object? WrapIfNeeded(object? obj)
+    {
+        if (obj == null) return null;
+        var type = obj.GetType();
+        if (type.IsPrimitive || type == typeof(string) || type == typeof(decimal) || type == typeof(DateTime) || type == typeof(TimeSpan) || type.IsEnum)
+        {
+            return obj;
+        }
+        if (obj is System.Dynamic.DynamicObject)
+        {
+            return obj;
+        }
+        return new ReflectionDynamicObject(obj);
+    }
+
+    private static object? Unwrap(object? obj)
+    {
+        if (obj is ReflectionDynamicObject wrapper)
+        {
+            return wrapper.Target;
+        }
+        return obj;
+    }
+
+    public override string? ToString()
+    {
+        return _target.ToString();
     }
 }

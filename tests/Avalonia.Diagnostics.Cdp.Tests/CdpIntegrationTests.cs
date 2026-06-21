@@ -536,7 +536,7 @@ public class CdpIntegrationTests
                 Assert.True(reqProp["value"]?["value"]?.GetValue<bool>());
 
                 // Find the CheckBox node in full AX tree
-                var chkAXNode = nodes.FirstOrDefault(n => n?["role"]?["value"]?.GetValue<string>() == "CheckBox") as JsonObject;
+                var chkAXNode = nodes.FirstOrDefault(n => n?["role"]?["value"]?.GetValue<string>() == "checkbox") as JsonObject;
                 Assert.NotNull(chkAXNode);
                 var chkProps = chkAXNode["properties"] as JsonArray;
                 Assert.NotNull(chkProps);
@@ -555,7 +555,7 @@ public class CdpIntegrationTests
                 Assert.NotEmpty(partialNodes);
 
                 // Sibling slider should be included in relatives
-                var sldAXNode = partialNodes.FirstOrDefault(n => n?["role"]?["value"]?.GetValue<string>() == "Slider");
+                var sldAXNode = partialNodes.FirstOrDefault(n => n?["role"]?["value"]?.GetValue<string>() == "slider");
                 Assert.NotNull(sldAXNode);
 
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
