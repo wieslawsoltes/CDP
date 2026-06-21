@@ -1790,7 +1790,7 @@ public class TestStudioViewModel : ViewModelBase
         var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrEmpty(value)) return dict;
 
-        var parts = value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = value.Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries);
         foreach (var part in parts)
         {
             var idx = part.IndexOfAny(new[] { ':', '=' });

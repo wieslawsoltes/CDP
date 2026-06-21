@@ -208,6 +208,8 @@ public class RecorderViewModel : ViewModelBase
     {
         if (e.Method == "Recorder.stepAdded" && e.Params != null)
         {
+            if (TestStudio.IsExecuting) return;
+
             var step = e.Params["step"] as JsonObject;
             if (step != null)
             {
@@ -366,7 +368,7 @@ public class RecorderViewModel : ViewModelBase
                 {
                     Action = "scroll",
                     Selector = selector,
-                    Value = $"direction: {dir} | amount: {amt}"
+                    Value = $"direction: {dir}, amount: {amt}"
                 };
             }
             else if (type == "dragAndDrop")
