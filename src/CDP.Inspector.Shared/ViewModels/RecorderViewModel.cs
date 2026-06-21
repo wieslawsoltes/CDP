@@ -181,6 +181,13 @@ public class RecorderViewModel : ViewModelBase
         ReplayCommand = new RelayCommand(async () => await ReplayAsync(), () => _cdpService.IsConnected && RecordedSteps.Count > 0);
         ClearCommand = new RelayCommand(ClearRecording);
 
+        RecordedSteps.CollectionChanged += (sender, args) =>
+        {
+            UpdateGeneratedCode();
+            IsReplayEnabled = RecordedSteps.Count > 0;
+            ((RelayCommand)ReplayCommand).RaiseCanExecuteChanged();
+        };
+
         UpdateGeneratedCode();
     }
 
@@ -243,6 +250,11 @@ public class RecorderViewModel : ViewModelBase
         string value = stepJson["value"]?.GetValue<string>() ?? "";
         double offsetX = stepJson["offsetX"]?.GetValue<double>() ?? 0;
         double offsetY = stepJson["offsetY"]?.GetValue<double>() ?? 0;
+        if (type == "scroll")
+        {
+            offsetX = stepJson["deltaX"]?.GetValue<double>() ?? 0;
+            offsetY = stepJson["deltaY"]?.GetValue<double>() ?? 0;
+        }
         double width = stepJson["width"]?.GetValue<double>() ?? 0;
         double height = stepJson["height"]?.GetValue<double>() ?? 0;
         string url = stepJson["url"]?.GetValue<string>() ?? "";
@@ -333,6 +345,50 @@ public class RecorderViewModel : ViewModelBase
                     Action = "pressKey",
                     Selector = "",
                     Value = keyVal
+                };
+            }
+            else if (type == "scroll")
+            {
+                string dir = "down";
+                double amt = 0;
+                if (Math.Abs(offsetY) >= Math.Abs(offsetX))
+                {
+                    dir = offsetY < 0 ? "down" : "up";
+                    amt = Math.Abs(offsetY);
+                }
+                else
+                {
+                    dir = offsetX < 0 ? "right" : "left";
+                    amt = Math.Abs(offsetX);
+                }
+
+                tsStep = new TestStudioStepModel
+                {
+                    Action = "scroll",
+                    Selector = selector,
+                    Value = $"direction: {dir} | amount: {amt}"
+                };
+            }
+            else if (type == "dragAndDrop")
+            {
+                var parts = new List<string>();
+                parts.Add($"targetSelector: {targetSelector}");
+                if (offsetX != 0.0 || offsetY != 0.0)
+                {
+                    parts.Add($"offsetX: {offsetX}");
+                    parts.Add($"offsetY: {offsetY}");
+                }
+                if (targetOffsetX != 0.0 || targetOffsetY != 0.0)
+                {
+                    parts.Add($"targetOffsetX: {targetOffsetX}");
+                    parts.Add($"targetOffsetY: {targetOffsetY}");
+                }
+
+                tsStep = new TestStudioStepModel
+                {
+                    Action = "dragAndDrop",
+                    Selector = selector,
+                    Value = string.Join(", ", parts)
                 };
             }
 
@@ -576,6 +632,42 @@ public class RecorderViewModel : ViewModelBase
                             await Task.Delay(300);
                         }
                     }
+                }
+                else if (step.Type == "scroll")
+                {
+                    var qParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = step.Selector };
+                    var qRes = await _cdpService.SendCommandAsync("DOM.querySelector", qParams);
+                    int nodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+                    double scrollX = 400;
+                    double scrollY = 300;
+
+                    if (nodeId > 0)
+                    {
+                        var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+                        var model = boxRes["model"] as JsonObject;
+                        var content = model?["content"] as JsonArray;
+                        if (content != null && content.Count >= 8)
+                        {
+                            double x1 = content[0]!.GetValue<double>();
+                            double y1 = content[1]!.GetValue<double>();
+                            double x2 = content[4]!.GetValue<double>();
+                            double y2 = content[5]!.GetValue<double>();
+                            scrollX = x1 + (x2 - x1) / 2.0;
+                            scrollY = y1 + (y2 - y1) / 2.0;
+                        }
+                    }
+
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                    {
+                        ["type"] = "mouseWheel",
+                        ["x"] = scrollX,
+                        ["y"] = scrollY,
+                        ["deltaX"] = step.OffsetX,
+                        ["deltaY"] = step.OffsetY,
+                        ["button"] = "none",
+                        ["modifiers"] = step.Modifiers
+                    });
+                    await Task.Delay(200);
                 }
             }
         }

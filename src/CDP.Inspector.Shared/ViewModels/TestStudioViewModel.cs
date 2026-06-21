@@ -24,6 +24,7 @@ public class TestStudioViewModel : ViewModelBase
     private string _selectedElementSelector = "";
     private string _inputSimText = "";
     private int _delayMs = 1000;
+    private TestStudioStepModel? _selectedStep;
 
     private int _currentStepIndex = 0;
     private CancellationTokenSource? _executionCts;
@@ -85,6 +86,12 @@ public class TestStudioViewModel : ViewModelBase
     {
         get => _delayMs;
         set => RaiseAndSetIfChanged(ref _delayMs, value);
+    }
+
+    public TestStudioStepModel? SelectedStep
+    {
+        get => _selectedStep;
+        set => RaiseAndSetIfChanged(ref _selectedStep, value);
     }
 
     public ICommand PlayCommand { get; }
@@ -757,6 +764,121 @@ public class TestStudioViewModel : ViewModelBase
                     {
                         throw new Exception("No back history available.");
                     }
+                    break;
+                }
+            case "dragAndDrop":
+                {
+                    if (string.IsNullOrEmpty(step.Selector))
+                    {
+                        throw new Exception("dragAndDrop step requires a Selector.");
+                    }
+
+                    string targetSelector = "";
+                    double offsetX = 0;
+                    double offsetY = 0;
+                    double targetOffsetX = 0;
+                    double targetOffsetY = 0;
+
+                    if (!string.IsNullOrEmpty(step.Value))
+                    {
+                        var props = ParseKeyValuePairs(step.Value);
+                        if (props.TryGetValue("targetselector", out var ts)) targetSelector = ts;
+                        else if (props.TryGetValue("targetSelector", out var ts2)) targetSelector = ts2;
+
+                        if (props.TryGetValue("offsetx", out var ox) && double.TryParse(ox, out double oxVal)) offsetX = oxVal;
+                        else if (props.TryGetValue("offsetX", out var ox2) && double.TryParse(ox2, out double oxVal2)) offsetX = oxVal2;
+
+                        if (props.TryGetValue("offsety", out var oy) && double.TryParse(oy, out double oyVal)) offsetY = oyVal;
+                        else if (props.TryGetValue("offsetY", out var oy2) && double.TryParse(oy2, out double oyVal2)) offsetY = oyVal2;
+
+                        if (props.TryGetValue("targetoffsetx", out var tox) && double.TryParse(tox, out double toxVal)) targetOffsetX = toxVal;
+                        else if (props.TryGetValue("targetOffsetX", out var tox2) && double.TryParse(tox2, out double toxVal2)) targetOffsetX = toxVal2;
+
+                        if (props.TryGetValue("targetoffsety", out var toy) && double.TryParse(toy, out double toyVal)) targetOffsetY = toyVal;
+                        else if (props.TryGetValue("targetOffsetY", out var toy2) && double.TryParse(toy2, out double toyVal2)) targetOffsetY = toyVal2;
+                    }
+
+                    if (string.IsNullOrEmpty(targetSelector))
+                    {
+                        throw new Exception("dragAndDrop step requires a targetSelector.");
+                    }
+
+                    Log($"Waiting for drag source element '{step.Selector}' to be visible...");
+                    var sourceNodeId = await WaitForElementVisibleAsync(step.Selector, token);
+
+                    Log($"Waiting for drag target element '{targetSelector}' to be visible...");
+                    var targetNodeId = await WaitForElementVisibleAsync(targetSelector, token);
+
+                    var srcBoxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = sourceNodeId });
+                    var srcModel = srcBoxRes["model"] as JsonObject;
+                    var srcContent = srcModel?["content"] as JsonArray;
+
+                    var tgtBoxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = targetNodeId });
+                    var tgtModel = tgtBoxRes["model"] as JsonObject;
+                    var tgtContent = tgtModel?["content"] as JsonArray;
+
+                    if (srcContent == null || srcContent.Count < 8 || tgtContent == null || tgtContent.Count < 8)
+                    {
+                        throw new Exception("Failed to retrieve box model content for source or target element.");
+                    }
+
+                    double srcX = (offsetX != 0.0 || offsetY != 0.0) 
+                        ? srcContent[0]!.GetValue<double>() + offsetX 
+                        : srcContent[0]!.GetValue<double>() + (srcContent[4]!.GetValue<double>() - srcContent[0]!.GetValue<double>()) / 2.0;
+                    double srcY = (offsetX != 0.0 || offsetY != 0.0) 
+                        ? srcContent[1]!.GetValue<double>() + offsetY 
+                        : srcContent[1]!.GetValue<double>() + (srcContent[5]!.GetValue<double>() - srcContent[1]!.GetValue<double>()) / 2.0;
+
+                    double tgtX = (targetOffsetX != 0.0 || targetOffsetY != 0.0) 
+                        ? tgtContent[0]!.GetValue<double>() + targetOffsetX 
+                        : tgtContent[0]!.GetValue<double>() + (tgtContent[4]!.GetValue<double>() - tgtContent[0]!.GetValue<double>()) / 2.0;
+                    double tgtY = (targetOffsetX != 0.0 || targetOffsetY != 0.0) 
+                        ? tgtContent[1]!.GetValue<double>() + targetOffsetY 
+                        : tgtContent[1]!.GetValue<double>() + (tgtContent[5]!.GetValue<double>() - tgtContent[1]!.GetValue<double>()) / 2.0;
+
+                    Log($"Dragging from ({srcX:F1}, {srcY:F1}) to ({tgtX:F1}, {tgtY:F1})");
+
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                    {
+                        ["type"] = "mouseMoved",
+                        ["x"] = srcX,
+                        ["y"] = srcY,
+                        ["button"] = "none",
+                        ["modifiers"] = 0
+                    });
+                    await Task.Delay(100, token);
+
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                    {
+                        ["type"] = "mousePressed",
+                        ["x"] = srcX,
+                        ["y"] = srcY,
+                        ["button"] = "left",
+                        ["clickCount"] = 1,
+                        ["modifiers"] = 0
+                    });
+                    await Task.Delay(200, token);
+
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                    {
+                        ["type"] = "mouseMoved",
+                        ["x"] = tgtX,
+                        ["y"] = tgtY,
+                        ["button"] = "left",
+                        ["modifiers"] = 0
+                    });
+                    await Task.Delay(200, token);
+
+                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                    {
+                        ["type"] = "mouseReleased",
+                        ["x"] = tgtX,
+                        ["y"] = tgtY,
+                        ["button"] = "left",
+                        ["clickCount"] = 1,
+                        ["modifiers"] = 0
+                    });
+                    await Task.Delay(300, token);
                     break;
                 }
             case "scroll":
