@@ -163,6 +163,19 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                 sb.AppendLine($"            var target_{i} = _driver.FindElement(By.CssSelector(\"{targetSelectorEscaped}\"));");
                 sb.AppendLine($"            _actions.DragAndDrop(source_{i}, target_{i}).Perform();");
             }
+            else if (step.Type == "scroll")
+            {
+                sb.AppendLine($"            // Scroll element or page");
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.CssSelector(\"{EscapeCSharpString(step.Selector)}\"));");
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].scrollBy({-step.OffsetX}, {-step.OffsetY});\", element_{i});");
+                }
+                else
+                {
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"window.scrollBy({-step.OffsetX}, {-step.OffsetY});\");");
+                }
+            }
             else if (step.Type == "assertVisible")
             {
                 string selectorEscaped = EscapeCSharpString(step.Selector);

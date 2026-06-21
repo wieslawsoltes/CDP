@@ -26,6 +26,7 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
         sb.AppendLine("using Avalonia.Headless;");
         sb.AppendLine("using Avalonia.Headless.XUnit;");
         sb.AppendLine("using Avalonia.Input;");
+        sb.AppendLine("using Avalonia.VisualTree;");
         sb.AppendLine("using Xunit;");
         sb.AppendLine();
         sb.AppendLine("namespace HeadlessRecordedTests");
@@ -109,6 +110,20 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
                 sb.AppendLine($"            Assert.NotNull(source_{i});");
                 sb.AppendLine($"            Assert.NotNull(target_{i});");
                 sb.AppendLine($"            DragAndDrop(window, source_{i}, target_{i});");
+            }
+            else if (step.Type == "scroll")
+            {
+                string selectorEscaped = EscapeCSharpString(step.Selector);
+                sb.AppendLine($"            // Scroll element or page");
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                    sb.AppendLine($"            if (element_{i} != null)");
+                    sb.AppendLine($"            {{");
+                    sb.AppendLine($"                var sv_{i} = element_{i} is ScrollViewer ? (ScrollViewer)element_{i} : element_{i}.FindAncestorOfType<ScrollViewer>();");
+                    sb.AppendLine($"                if (sv_{i} != null) sv_{i}.Offset = new Vector(sv_{i}.Offset.X - {step.OffsetX}, sv_{i}.Offset.Y - {step.OffsetY});");
+                    sb.AppendLine($"            }}");
+                }
             }
             else if (step.Type == "assertVisible")
             {

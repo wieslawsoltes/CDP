@@ -64,6 +64,7 @@ internal class SessionRecorderState
     private readonly EventHandler<PointerPressedEventArgs> _pointerPressedHandler;
     private readonly EventHandler<PointerEventArgs> _pointerMovedHandler;
     private readonly EventHandler<PointerReleasedEventArgs> _pointerReleasedHandler;
+    private readonly EventHandler<PointerWheelEventArgs> _pointerWheelChangedHandler;
     private readonly EventHandler<RoutedEventArgs> _gotFocusHandler;
     private readonly EventHandler<RoutedEventArgs> _lostFocusHandler;
     private readonly EventHandler<KeyEventArgs> _keyDownHandler;
@@ -72,6 +73,7 @@ internal class SessionRecorderState
     private bool _isPointerDown = false;
     private Control? _dragStartControl = null;
     private Point _dragStartPos;
+    private Point _dragStartLocalPos;
     private bool _isDragging = false;
     private int _clickCount = 1;
 
@@ -82,6 +84,7 @@ internal class SessionRecorderState
         _pointerPressedHandler = OnPointerPressed;
         _pointerMovedHandler = OnPointerMoved;
         _pointerReleasedHandler = OnPointerReleased;
+        _pointerWheelChangedHandler = OnPointerWheelChanged;
         _gotFocusHandler = OnGotFocus;
         _lostFocusHandler = OnLostFocus;
         _keyDownHandler = OnKeyDown;
@@ -92,6 +95,7 @@ internal class SessionRecorderState
         _session.Window.AddHandler(InputElement.PointerPressedEvent, _pointerPressedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
         _session.Window.AddHandler(InputElement.PointerMovedEvent, _pointerMovedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
         _session.Window.AddHandler(InputElement.PointerReleasedEvent, _pointerReleasedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _session.Window.AddHandler(InputElement.PointerWheelChangedEvent, _pointerWheelChangedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
         _session.Window.AddHandler(InputElement.GotFocusEvent, _gotFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
         _session.Window.AddHandler(InputElement.LostFocusEvent, _lostFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
         _session.Window.AddHandler(InputElement.KeyDownEvent, _keyDownHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -124,6 +128,7 @@ internal class SessionRecorderState
         _session.Window.RemoveHandler(InputElement.PointerPressedEvent, _pointerPressedHandler);
         _session.Window.RemoveHandler(InputElement.PointerMovedEvent, _pointerMovedHandler);
         _session.Window.RemoveHandler(InputElement.PointerReleasedEvent, _pointerReleasedHandler);
+        _session.Window.RemoveHandler(InputElement.PointerWheelChangedEvent, _pointerWheelChangedHandler);
         _session.Window.RemoveHandler(InputElement.GotFocusEvent, _gotFocusHandler);
         _session.Window.RemoveHandler(InputElement.LostFocusEvent, _lostFocusHandler);
         _session.Window.RemoveHandler(InputElement.KeyDownEvent, _keyDownHandler);
@@ -164,12 +169,18 @@ internal class SessionRecorderState
     {
         if (_session.InspectModeEnabled) return;
 
-        var control = e.Source as Control;
+        var hit = _session.Window.InputHitTest(e.GetPosition(_session.Window)) as Visual;
+        var visual = hit ?? (e.Source as Visual);
+        if (visual == null) return;
+
+        var logical = _session.FindLogicalNode(visual);
+        var control = (logical as Control) ?? (visual as Control);
         if (control == null) return;
 
         _isPointerDown = true;
         _dragStartControl = control;
         _dragStartPos = e.GetPosition(_session.Window);
+        _dragStartLocalPos = e.GetPosition(control);
         _isDragging = false;
         _clickCount = e.ClickCount;
     }
@@ -200,8 +211,14 @@ internal class SessionRecorderState
         if (startControl == null) return;
 
         var releasePos = e.GetPosition(_session.Window);
-        var hitControl = _session.Window.InputHitTest(releasePos) as Control;
-        var endControl = hitControl ?? (e.Source as Control);
+        var hit = _session.Window.InputHitTest(releasePos) as Visual;
+        var endVisual = hit ?? (e.Source as Visual);
+        Control? endControl = null;
+        if (endVisual != null)
+        {
+            var logical = _session.FindLogicalNode(endVisual);
+            endControl = (logical as Control) ?? (endVisual as Control);
+        }
 
         if (endControl != null)
         {
@@ -236,7 +253,6 @@ internal class SessionRecorderState
             string sourceSelector = SelectorEngine.GetSelector(startControl, useAutomation: _useAutomation);
             string targetSelector = SelectorEngine.GetSelector(endControl, useAutomation: _useAutomation);
 
-            var startPos = e.GetPosition(startControl);
             var endPos = e.GetPosition(endControl);
 
             var step = new JsonObject
@@ -245,8 +261,8 @@ internal class SessionRecorderState
                 ["target"] = "main",
                 ["selectors"] = new JsonArray { new JsonArray { sourceSelector } },
                 ["targetSelectors"] = new JsonArray { new JsonArray { targetSelector } },
-                ["offsetX"] = startPos.X,
-                ["offsetY"] = startPos.Y,
+                ["offsetX"] = _dragStartLocalPos.X,
+                ["offsetY"] = _dragStartLocalPos.Y,
                 ["targetOffsetX"] = endPos.X,
                 ["targetOffsetY"] = endPos.Y,
                 ["modifiers"] = modifiers
@@ -279,6 +295,39 @@ internal class SessionRecorderState
                 ["button"] = button,
                 ["clickCount"] = _clickCount > 0 ? _clickCount : 1,
                 ["modifiers"] = modifiers
+            };
+
+            _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
+            {
+                ["step"] = step
+            });
+        }
+    }
+
+    private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (_session.InspectModeEnabled) return;
+
+        var hit = _session.Window.InputHitTest(e.GetPosition(_session.Window)) as Visual;
+        var visual = hit ?? (e.Source as Visual);
+        if (visual == null) return;
+
+        var logical = _session.FindLogicalNode(visual);
+        var control = (logical as Control) ?? (visual as Control);
+        if (control == null) return;
+
+        string selector = SelectorEngine.GetSelector(control, useAutomation: _useAutomation);
+        var delta = e.Delta;
+
+        if (delta.X != 0.0 || delta.Y != 0.0)
+        {
+            var step = new JsonObject
+            {
+                ["type"] = "scroll",
+                ["target"] = "main",
+                ["selectors"] = new JsonArray { new JsonArray { selector } },
+                ["deltaX"] = delta.X * 100.0,
+                ["deltaY"] = delta.Y * 100.0
             };
 
             _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject

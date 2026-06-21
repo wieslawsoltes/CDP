@@ -113,6 +113,19 @@ public class PuppeteerGenerator : ICodeGenerator
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
                 }
             }
+            else if (step.Type == "scroll")
+            {
+                sb.AppendLine($"  // Scroll element or page");
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
+                    sb.AppendLine($"  await element_{i}.evaluate(el => el.scrollBy({-step.OffsetX}, {-step.OffsetY}));");
+                }
+                else
+                {
+                    sb.AppendLine($"  await page.evaluate(() => window.scrollBy({-step.OffsetX}, {-step.OffsetY}));");
+                }
+            }
             else if (step.Type == "assertVisible")
             {
                 sb.AppendLine($"  // Assert element is visible");

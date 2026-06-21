@@ -150,6 +150,20 @@ public class AppiumCSharpGenerator : ICodeGenerator
                 sb.AppendLine($"            var target_{i} = {targetExpr};");
                 sb.AppendLine($"            new Actions(_driver).DragAndDrop(source_{i}, target_{i}).Perform();");
             }
+            else if (step.Type == "scroll")
+            {
+                sb.AppendLine($"            // Scroll element or page");
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    string elementExpr = GetAppiumElementExpression(step.Selector);
+                    sb.AppendLine($"            var element_{i} = {elementExpr};");
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].scrollBy({-step.OffsetX}, {-step.OffsetY});\", element_{i});");
+                }
+                else
+                {
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"window.scrollBy({-step.OffsetX}, {-step.OffsetY});\");");
+                }
+            }
             else if (step.Type == "assertVisible")
             {
                 string elementExpr = GetAppiumElementExpression(step.Selector);

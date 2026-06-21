@@ -128,6 +128,20 @@ public class PlaywrightGenerator : ICodeGenerator
                 }
                 sb.AppendLine("    });");
             }
+            else if (step.Type == "scroll")
+            {
+                sb.AppendLine($"    await test.step('Scroll element or page', async () => {{");
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(step.Selector)}');");
+                    sb.AppendLine($"      await element_{i}.evaluate(el => el.scrollBy({-step.OffsetX}, {-step.OffsetY}));");
+                }
+                else
+                {
+                    sb.AppendLine($"      await page.evaluate(() => window.scrollBy({-step.OffsetX}, {-step.OffsetY}));");
+                }
+                sb.AppendLine("    });");
+            }
             else if (step.Type == "assertVisible")
             {
                 sb.AppendLine($"    await test.step('Assert element {EscapeJsString(step.Selector)} is visible', async () => {{");
