@@ -1,8 +1,11 @@
 using System;
 using System.Collections;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace CdpInspectorApp.Controls;
@@ -16,6 +19,11 @@ public class ReorderableListBox : ListBox
 
     private static object? s_draggedItem;
 
+    private ListBoxItem? _lastDropTarget;
+    private DispatcherTimer? _autoScrollTimer;
+    private Point _lastDragPosition;
+    private bool _shouldAutoScroll;
+
     protected override Type StyleKeyOverride => typeof(ListBox);
 
     public ReorderableListBox()
@@ -23,12 +31,40 @@ public class ReorderableListBox : ListBox
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, LstSteps_DragOver);
         AddHandler(DragDrop.DropEvent, LstSteps_Drop);
+        AddHandler(DragDrop.DragLeaveEvent, LstSteps_DragLeave);
+
+        _autoScrollTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(50)
+        };
+        _autoScrollTimer.Tick += AutoScrollTimer_Tick;
+
+        // Register handlers to process events even if they were handled by child controls (like ListBoxItems)
+        AddHandler(PointerPressedEvent, (s, e) => { if (e.Handled) ProcessPointerPressed(e); }, RoutingStrategies.Bubble, true);
+        AddHandler(PointerMovedEvent, (s, e) => { if (e.Handled) ProcessPointerMoved(e); }, RoutingStrategies.Bubble, true);
+        AddHandler(PointerReleasedEvent, (s, e) => { if (e.Handled) ProcessPointerReleased(e); }, RoutingStrategies.Bubble, true);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        ProcessPointerPressed(e);
+    }
 
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        ProcessPointerMoved(e);
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        ProcessPointerReleased(e);
+    }
+
+    private void ProcessPointerPressed(PointerPressedEventArgs e)
+    {
         _isMouseDown = false;
         _draggedItem = null;
         _pressedEventArgs = null;
@@ -68,10 +104,8 @@ public class ReorderableListBox : ListBox
         }
     }
 
-    protected override async void OnPointerMoved(PointerEventArgs e)
+    private async void ProcessPointerMoved(PointerEventArgs e)
     {
-        base.OnPointerMoved(e);
-
         if (!_isMouseDown || _draggedItem == null || _pressedEventArgs == null) return;
 
         var currentPoint = e.GetPosition(this);
@@ -91,12 +125,19 @@ public class ReorderableListBox : ListBox
             Console.WriteLine($"[DEBUG ReorderableListBox] OnPointerMoved: DoDragDropAsync completed with result={result}");
             _draggedItem = null;
             s_draggedItem = null;
+            _shouldAutoScroll = false;
+            _autoScrollTimer?.Stop();
+            if (_lastDropTarget != null)
+            {
+                _lastDropTarget.Classes.Remove("drag-over-above");
+                _lastDropTarget.Classes.Remove("drag-over-below");
+                _lastDropTarget = null;
+            }
         }
     }
 
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    private void ProcessPointerReleased(PointerReleasedEventArgs e)
     {
-        base.OnPointerReleased(e);
         Console.WriteLine($"[DEBUG ReorderableListBox] OnPointerReleased: _isMouseDown={_isMouseDown}, _draggedItem={_draggedItem != null}, _pressedEventArgs={_pressedEventArgs != null}");
 
         _isMouseDown = false;
@@ -116,16 +157,99 @@ public class ReorderableListBox : ListBox
         if (draggedItem != null)
         {
             e.DragEffects = DragDropEffects.Move;
+
+            ListBoxItem? destListBoxItem = null;
+            var current = e.Source as Avalonia.Visual;
+            while (current != null)
+            {
+                if (current is ListBoxItem item)
+                {
+                    destListBoxItem = item;
+                    break;
+                }
+                if (current == this)
+                {
+                    break;
+                }
+                current = current.GetVisualParent();
+            }
+
+            if (_lastDropTarget != null && _lastDropTarget != destListBoxItem)
+            {
+                _lastDropTarget.Classes.Remove("drag-over-above");
+                _lastDropTarget.Classes.Remove("drag-over-below");
+            }
+
+            if (destListBoxItem != null)
+            {
+                var position = e.GetPosition(destListBoxItem);
+                bool isAbove = position.Y < destListBoxItem.Bounds.Height / 2.0;
+
+                destListBoxItem.Classes.Set("drag-over-above", isAbove);
+                destListBoxItem.Classes.Set("drag-over-below", !isAbove);
+
+                _lastDropTarget = destListBoxItem;
+            }
+            else
+            {
+                _lastDropTarget = null;
+            }
+
+            // Update drag positions for auto-scrolling
+            _lastDragPosition = e.GetPosition(this);
+            _shouldAutoScroll = true;
+            if (_autoScrollTimer != null && !_autoScrollTimer.IsEnabled)
+            {
+                _autoScrollTimer.Start();
+            }
         }
         else
         {
             e.DragEffects = DragDropEffects.None;
+            if (_lastDropTarget != null)
+            {
+                _lastDropTarget.Classes.Remove("drag-over-above");
+                _lastDropTarget.Classes.Remove("drag-over-below");
+                _lastDropTarget = null;
+            }
+            _shouldAutoScroll = false;
+            _autoScrollTimer?.Stop();
         }
         e.Handled = true;
     }
 
+    private void LstSteps_DragLeave(object? sender, DragEventArgs e)
+    {
+        // Check if the pointer is actually outside the bounds of the ListBox
+        var position = e.GetPosition(this);
+        var bounds = Bounds;
+        bool isOutside = position.X < 0 || position.X > bounds.Width ||
+                         position.Y < 0 || position.Y > bounds.Height;
+
+        if (isOutside)
+        {
+            if (_lastDropTarget != null)
+            {
+                _lastDropTarget.Classes.Remove("drag-over-above");
+                _lastDropTarget.Classes.Remove("drag-over-below");
+                _lastDropTarget = null;
+            }
+            _shouldAutoScroll = false;
+            _autoScrollTimer?.Stop();
+        }
+    }
+
     private void LstSteps_Drop(object? sender, DragEventArgs e)
     {
+        if (_lastDropTarget != null)
+        {
+            _lastDropTarget.Classes.Remove("drag-over-above");
+            _lastDropTarget.Classes.Remove("drag-over-below");
+            _lastDropTarget = null;
+        }
+        _shouldAutoScroll = false;
+        _autoScrollTimer?.Stop();
+
         var draggedItem = s_draggedItem ?? _draggedItem;
         Console.WriteLine($"[DEBUG ReorderableListBox] LstSteps_Drop: draggedItem={draggedItem != null}, Source={e.Source?.GetType().Name}");
         if (draggedItem == null) return;
@@ -159,7 +283,23 @@ public class ReorderableListBox : ListBox
                     Console.WriteLine("[DEBUG ReorderableListBox] LstSteps_Drop: Source and destination are the same.");
                     return;
                 }
-                destIdx = list.IndexOf(destItem);
+
+                int targetIdx = list.IndexOf(destItem);
+                var position = e.GetPosition(destListBoxItem);
+                bool isAbove = position.Y < destListBoxItem.Bounds.Height / 2.0;
+
+                if (sourceIdx < targetIdx)
+                {
+                    destIdx = isAbove ? targetIdx - 1 : targetIdx;
+                }
+                else if (sourceIdx > targetIdx)
+                {
+                    destIdx = isAbove ? targetIdx : targetIdx + 1;
+                }
+                else
+                {
+                    destIdx = sourceIdx;
+                }
             }
             else
             {
@@ -203,5 +343,39 @@ public class ReorderableListBox : ListBox
             }
         }
         e.Handled = true;
+    }
+
+    private void AutoScrollTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!_shouldAutoScroll)
+        {
+            _autoScrollTimer?.Stop();
+            return;
+        }
+
+        var scrollViewer = this.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (scrollViewer == null) return;
+
+        double threshold = 30.0;
+        double positionY = _lastDragPosition.Y;
+        double scrollSpeed = 0.0;
+
+        if (positionY < threshold)
+        {
+            scrollSpeed = -5.0 * (1.0 - (Math.Max(0.0, positionY) / threshold));
+        }
+        else if (positionY > Bounds.Height - threshold)
+        {
+            double distFromBottom = Bounds.Height - positionY;
+            scrollSpeed = 5.0 * (1.0 - (Math.Max(0.0, distFromBottom) / threshold));
+        }
+
+        if (Math.Abs(scrollSpeed) > 0.1)
+        {
+            double newOffset = scrollViewer.Offset.Y + scrollSpeed;
+            double maxOffset = scrollViewer.Extent.Height - scrollViewer.Viewport.Height;
+            newOffset = Math.Max(0.0, Math.Min(maxOffset, newOffset));
+            scrollViewer.Offset = new Vector(scrollViewer.Offset.X, newOffset);
+        }
     }
 }
