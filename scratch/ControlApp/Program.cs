@@ -2993,7 +2993,7 @@ description: ""Verify new commands execution""
                 DragDrop.DragOverEvent,
                 new DataTransfer(),
                 item2,
-                new Point(0, 0), // Top edge of item2 (above center)
+                new Point(0, -5), // Top edge of item2 (above center)
                 KeyModifiers.None);
             item2.RaiseEvent(dragOverAboveArgs);
 

@@ -241,7 +241,7 @@ public class ReorderableListBoxTests
             DragDrop.DropEvent,
             new DataTransfer(),
             item1,
-            new Point(0, 0), // Above center
+            new Point(0, -5), // Above center
             KeyModifiers.None);
 
         item1.RaiseEvent(dropArgs);
@@ -311,7 +311,7 @@ public class ReorderableListBoxTests
             DragDrop.DragOverEvent,
             new DataTransfer(),
             item2,
-            new Point(0, 0), // Above center
+            new Point(0, -5), // Above center
             KeyModifiers.None);
 
         item2.RaiseEvent(dragOverArgs);
@@ -382,7 +382,7 @@ public class ReorderableListBoxTests
             DragDrop.DragOverEvent,
             new DataTransfer(),
             item2,
-            new Point(0, 0),
+            new Point(0, -5),
             KeyModifiers.None);
         item2.RaiseEvent(dragOverArgs);
 
@@ -427,7 +427,7 @@ public class ReorderableListBoxTests
             DragDrop.DragOverEvent,
             new DataTransfer(),
             item2,
-            new Point(0, 0),
+            new Point(0, -5),
             KeyModifiers.None);
         item2.RaiseEvent(dragOverArgs);
 
@@ -438,7 +438,7 @@ public class ReorderableListBoxTests
             DragDrop.DropEvent,
             new DataTransfer(),
             item2,
-            new Point(0, 0),
+            new Point(0, -5),
             KeyModifiers.None);
         item2.RaiseEvent(dropArgs);
 
