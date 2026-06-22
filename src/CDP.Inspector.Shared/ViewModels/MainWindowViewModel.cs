@@ -71,7 +71,12 @@ public class MainWindowViewModel : ViewModelBase
         Memory = new MemoryViewModel(CdpService);
         Application = new ApplicationViewModel(CdpService);
         Audits = new AuditsViewModel(CdpService, nodeId => Elements.SelectNodeById(nodeId));
-        Simulation = new SimulationViewModel(CdpService, () => Elements.SelectedNode);
+        Simulation = new SimulationViewModel(
+            CdpService,
+            getSelectedNodeFunc: () => Elements.SelectedNode,
+            isHighlightActiveFunc: () => Elements.IsHighlightActive,
+            getAxDetailsFunc: nodeId => Elements.FindAxDetails(nodeId)
+        );
         Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress, () => Connection.UseAutomationSelectors);
 
         Connection.PropertyChanged += (sender, e) =>
@@ -97,6 +102,11 @@ public class MainWindowViewModel : ViewModelBase
             if (e.PropertyName == nameof(ElementsViewModel.SelectedNode))
             {
                 UpdateSelectedSelector();
+                _ = Simulation.TriggerHighlightRefreshAsync();
+            }
+            else if (e.PropertyName == nameof(ElementsViewModel.IsHighlightActive))
+            {
+                _ = Simulation.TriggerHighlightRefreshAsync();
             }
         };
     }

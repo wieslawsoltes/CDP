@@ -15,6 +15,14 @@ public class SimulationViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
     private readonly Func<DomNodeModel?> _getSelectedNodeFunc;
+    private readonly Func<bool> _isHighlightActiveFunc;
+    private readonly Func<int, (string? Role, string? Name)> _getAxDetailsFunc;
+
+    private JsonObject? _highlightBoxModel;
+    private string? _highlightElementType;
+    private string? _highlightAxRole;
+    private string? _highlightAxName;
+    private bool _isHighlightOverlayVisible;
     
     private string _inputSimText = "";
     private string _selectedKey = "Enter";
@@ -164,6 +172,36 @@ public class SimulationViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _deviceHeight, value);
     }
 
+    public JsonObject? HighlightBoxModel
+    {
+        get => _highlightBoxModel;
+        set => RaiseAndSetIfChanged(ref _highlightBoxModel, value);
+    }
+
+    public string? HighlightElementType
+    {
+        get => _highlightElementType;
+        set => RaiseAndSetIfChanged(ref _highlightElementType, value);
+    }
+
+    public string? HighlightAxRole
+    {
+        get => _highlightAxRole;
+        set => RaiseAndSetIfChanged(ref _highlightAxRole, value);
+    }
+
+    public string? HighlightAxName
+    {
+        get => _highlightAxName;
+        set => RaiseAndSetIfChanged(ref _highlightAxName, value);
+    }
+
+    public bool IsHighlightOverlayVisible
+    {
+        get => _isHighlightOverlayVisible;
+        set => RaiseAndSetIfChanged(ref _isHighlightOverlayVisible, value);
+    }
+
     public string NavigateUrlText
     {
         get => _navigateUrlText;
@@ -262,10 +300,16 @@ public class SimulationViewModel : ViewModelBase
     public ICommand MouseDragCommand { get; }
     public ICommand RotateDeviceCommand { get; }
 
-    public SimulationViewModel(ICdpService cdpService, Func<DomNodeModel?> getSelectedNodeFunc)
+    public SimulationViewModel(
+        ICdpService cdpService,
+        Func<DomNodeModel?> getSelectedNodeFunc,
+        Func<bool> isHighlightActiveFunc,
+        Func<int, (string? Role, string? Name)> getAxDetailsFunc)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _getSelectedNodeFunc = getSelectedNodeFunc ?? throw new ArgumentNullException(nameof(getSelectedNodeFunc));
+        _isHighlightActiveFunc = isHighlightActiveFunc ?? throw new ArgumentNullException(nameof(isHighlightActiveFunc));
+        _getAxDetailsFunc = getAxDetailsFunc ?? throw new ArgumentNullException(nameof(getAxDetailsFunc));
 
         _selectedDevicePreset = _devicePresets[0];
 
@@ -836,9 +880,10 @@ public class SimulationViewModel : ViewModelBase
                     byte[] bytes = Convert.FromBase64String(base64);
                     using var ms = new MemoryStream(bytes);
                     var bitmap = new Bitmap(ms);
-                    Dispatcher.UIThread.Post(() =>
+                    Dispatcher.UIThread.Post(async () =>
                     {
                         ScreenshotImage = bitmap;
+                        await TriggerHighlightRefreshAsync();
                     });
                 }
 
@@ -932,6 +977,46 @@ public class SimulationViewModel : ViewModelBase
         catch (Exception ex)
         {
             Console.WriteLine($"Interactive key event failed: {ex.Message}");
+        }
+    }
+
+    public async Task TriggerHighlightRefreshAsync()
+    {
+        var selectedNode = _getSelectedNodeFunc();
+        bool isHighlightActive = _isHighlightActiveFunc();
+        if (selectedNode == null || !isHighlightActive || !_cdpService.IsConnected)
+        {
+            HighlightBoxModel = null;
+            HighlightElementType = null;
+            HighlightAxRole = null;
+            HighlightAxName = null;
+            IsHighlightOverlayVisible = false;
+            return;
+        }
+
+        try
+        {
+            var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = selectedNode.NodeId });
+            var model = boxRes["model"] as JsonObject;
+            if (model != null)
+            {
+                var axDetails = _getAxDetailsFunc(selectedNode.NodeId);
+                HighlightElementType = selectedNode.NodeName;
+                HighlightAxRole = axDetails.Role;
+                HighlightAxName = axDetails.Name;
+                HighlightBoxModel = model;
+                IsHighlightOverlayVisible = true;
+            }
+            else
+            {
+                HighlightBoxModel = null;
+                IsHighlightOverlayVisible = false;
+            }
+        }
+        catch
+        {
+            HighlightBoxModel = null;
+            IsHighlightOverlayVisible = false;
         }
     }
 }
