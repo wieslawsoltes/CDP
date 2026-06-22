@@ -18,6 +18,7 @@ public class AccessibilitySearchTests
         public string ConnectionStatus => "";
         public string ConnectedHost => "";
         public string ConnectedTargetId => "";
+        public bool IsPreviewScreencastActive { get; set; } = false;
 
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<CdpEventEventArgs>? EventReceived;

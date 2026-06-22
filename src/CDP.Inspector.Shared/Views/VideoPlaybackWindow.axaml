@@ -1,0 +1,123 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CdpInspectorApp.Views.VideoPlaybackWindow"
+        Title="Test Studio - Video Playback"
+        Width="1024" Height="768"
+        Background="#0f1015"
+        WindowStartupLocation="CenterOwner"
+        RequestedThemeVariant="Dark">
+    <Grid RowDefinitions="Auto, *, Auto" Margin="12">
+        <!-- Top Summary Bar -->
+        <Border Grid.Row="0" Background="#161821" CornerRadius="8" Padding="12" Margin="0,0,0,12" BorderBrush="#2d313f" BorderThickness="1">
+            <Grid ColumnDefinitions="*, Auto">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="Test Studio Run Playback" FontSize="16" FontWeight="Bold" Foreground="#3b82f6"/>
+                    <TextBlock Name="txtRunTitle" Text="CDP Target Application Run" FontSize="11" Foreground="#8a8f98" Margin="0,4,0,0"/>
+                </StackPanel>
+                
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="24" VerticalAlignment="Center">
+                    <!-- Stat Card: Total Steps -->
+                    <StackPanel>
+                        <TextBlock Text="TOTAL STEPS" FontSize="9" Foreground="#8a8f98" FontWeight="SemiBold"/>
+                        <TextBlock Name="txtTotalSteps" Text="0" FontSize="16" FontWeight="Bold" Foreground="#e8eaed" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    
+                    <!-- Stat Card: Passed/Failed -->
+                    <StackPanel>
+                        <TextBlock Text="PASSED / FAILED" FontSize="9" Foreground="#8a8f98" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
+                            <TextBlock Name="txtPassedSteps" Text="0" FontSize="16" FontWeight="Bold" Foreground="#10b981"/>
+                            <TextBlock Text="/" FontSize="16" Foreground="#8a8f98"/>
+                            <TextBlock Name="txtFailedSteps" Text="0" FontSize="16" FontWeight="Bold" Foreground="#ef4444"/>
+                        </StackPanel>
+                    </StackPanel>
+                    
+                    <!-- Stat Card: Success Rate -->
+                    <StackPanel>
+                        <TextBlock Text="SUCCESS RATE" FontSize="9" Foreground="#8a8f98" FontWeight="SemiBold"/>
+                        <TextBlock Name="txtSuccessRate" Text="100%" FontSize="16" FontWeight="Bold" Foreground="#10b981" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    
+                    <!-- Stat Card: Duration -->
+                    <StackPanel>
+                        <TextBlock Text="DURATION" FontSize="9" Foreground="#8a8f98" FontWeight="SemiBold"/>
+                        <TextBlock Name="txtDuration" Text="0.00s" FontSize="16" FontWeight="Bold" Foreground="#e8eaed" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Workspace (Split Steps list and Video player) -->
+        <Grid Grid.Row="1" ColumnDefinitions="320, *">
+            <!-- Left Panel: Execution Steps List -->
+            <Border Grid.Column="0" Background="#161821" CornerRadius="8" BorderBrush="#2d313f" BorderThickness="1" Margin="0,0,12,0" Padding="12">
+                <Grid RowDefinitions="Auto, *">
+                    <TextBlock Grid.Row="0" Text="Execution Steps" FontSize="13" FontWeight="Bold" Foreground="#e8eaed" Margin="0,0,0,10"/>
+                    <ScrollViewer Grid.Row="1">
+                        <ListBox Name="listSteps" Background="Transparent" BorderThickness="0" SelectionMode="Single">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#1f2230" CornerRadius="6" Padding="10" Margin="0,0,0,8" BorderBrush="#2d313f" BorderThickness="1">
+                                        <Grid RowDefinitions="Auto, Auto, Auto">
+                                            <!-- Row 0: Header -->
+                                            <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto">
+                                                <TextBlock Grid.Column="0" Text="{Binding DisplayIndex}" Foreground="#3b82f6" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding ActionDisplay}" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                <Border Grid.Column="2" Background="{Binding StatusBg}" CornerRadius="4" Padding="6,2">
+                                                    <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusFg}" FontSize="8" FontWeight="Bold"/>
+                                                </Border>
+                                            </Grid>
+                                            
+                                            <!-- Row 1: Details -->
+                                            <StackPanel Grid.Row="1" Margin="20,6,0,0" Spacing="3">
+                                                <TextBlock Text="{Binding SelectorText}" Foreground="#8a8f98" FontSize="10" TextWrapping="Wrap" IsVisible="{Binding !!Selector}"/>
+                                                <TextBlock Text="{Binding ValueText}" Foreground="#8a8f98" FontSize="10" TextWrapping="Wrap" IsVisible="{Binding !!Value}"/>
+                                                <TextBlock Text="{Binding DurationText}" Foreground="#8a8f98" FontSize="10"/>
+                                            </StackPanel>
+                                            
+                                            <!-- Row 2: Thumbnail -->
+                                            <Image Grid.Row="2" Source="{Binding Screenshot}" MaxHeight="60" Stretch="Uniform" Margin="20,8,0,0" HorizontalAlignment="Left" IsVisible="{Binding !!Screenshot}"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel: Video Frame View -->
+            <Border Grid.Column="1" Background="Black" CornerRadius="8" ClipToBounds="True" BorderBrush="#2d313f" BorderThickness="1">
+                <Image Name="imgFrame" Stretch="Uniform"/>
+            </Border>
+        </Grid>
+
+        <!-- Controls panel -->
+        <Border Grid.Row="2" Background="#161821" BorderBrush="#2d313f" BorderThickness="1" CornerRadius="8" Margin="0,12,0,0" Padding="12">
+            <Grid RowDefinitions="Auto, Auto">
+                <!-- Seek Slider + Time Display -->
+                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,6">
+                    <Slider Name="sliderSeek" Grid.Column="0" Minimum="0" Maximum="100" Value="0" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBlock Name="txtTime" Grid.Column="1" Text="00:00.0 / 00:00.0" Foreground="#e8eaed" FontFamily="Courier New,Consolas" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Playback controls -->
+                <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, Auto, *, Auto">
+                    <Button Name="btnPlay" Grid.Column="0" Content="▶ Play" Width="90" Margin="0,0,8,0"/>
+                    <Button Name="btnStop" Grid.Column="1" Content="■ Stop" Width="60" Margin="0,0,8,0"/>
+                    
+                    <!-- Speed Control -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="Speed:" Foreground="#8a8f98" VerticalAlignment="Center" FontSize="11" Margin="6,0,6,0"/>
+                        <Button Name="btnSpeed1x" Content="1x" Padding="6,3" FontSize="10"/>
+                        <Button Name="btnSpeed2x" Content="2x" Padding="6,3" FontSize="10"/>
+                        <Button Name="btnSpeed4x" Content="4x" Padding="6,3" FontSize="10"/>
+                    </StackPanel>
+
+                    <!-- Frame metadata or extra details -->
+                    <TextBlock Name="txtMetadata" Grid.Column="4" Text="" Foreground="#8a8f98" FontSize="10" VerticalAlignment="Center"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

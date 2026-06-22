@@ -159,7 +159,7 @@ class Program
             var target = targets.First(t => t.Id == targetId.ToString());
             await cdpService.ConnectAsync("http://127.0.0.1:9303", target);
             Console.WriteLine("CdpService client connected successfully.");
-            goto Scenario15Start;
+            goto Scenario25Start;
 
             // 4. Test Scenario 1: Interactive Step Construction & Auto-YAML generation
             Console.WriteLine("Testing Scenario 1: Interactive step construction & auto-YAML synchronization...");
@@ -1143,6 +1143,9 @@ description: ""Verify new commands execution""
 
         Scenario25Start:
             await RunScenario25Async(cdpService, mainVm);
+
+        Scenario26Start:
+            await RunScenario26Async(cdpService, mainVm);
 
             // Cleanup & successful exit
             await cdpService.DisconnectAsync();
@@ -3272,6 +3275,165 @@ description: ""Verify new commands execution""
         Console.WriteLine("Inspect mode exiting successfully cleared hover highlight.");
 
         Console.WriteLine("Scenario 25 PASSED.");
+    }
+
+    private static async Task RunScenario26Async(CdpService cdpService, MainWindowViewModel mainVm)
+    {
+        Console.WriteLine("Testing Scenario 26: Test Studio Report Generation & Video Recording E2E...");
+
+        var testStudio = mainVm.Recorder.TestStudio;
+
+        // Set configuration options
+        var tempReportDir = Path.Combine(Directory.GetCurrentDirectory(), "TempTestReports");
+        if (Directory.Exists(tempReportDir))
+        {
+            try { Directory.Delete(tempReportDir, true); } catch { }
+        }
+        Directory.CreateDirectory(tempReportDir);
+
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.OutputDirectory = tempReportDir;
+            testStudio.IsRecordVideoEnabled = true;
+            testStudio.IsGenerateReportEnabled = true;
+            testStudio.Steps.Clear();
+        });
+
+        // Load some steps to execute
+        string yaml = @"- launchApp
+- delay: 200
+- assertTrue: ""1 == 1""
+";
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            testStudio.YamlCode = yaml;
+            testStudio.ApplyYaml();
+        });
+
+        if (testStudio.Steps.Count != 3)
+        {
+            throw new Exception($"Expected 3 steps, got {testStudio.Steps.Count}");
+        }
+
+        // Start playback
+        Console.WriteLine("Running playback with reporting and video enabled...");
+        await testStudio.PlayAsync();
+
+        // Wait for execution to finish
+        int elapsedMs = 0;
+        while (testStudio.IsExecuting && elapsedMs < 10000)
+        {
+            await Task.Delay(100);
+            elapsedMs += 100;
+        }
+
+        if (testStudio.IsExecuting)
+        {
+            throw new Exception("Test execution timed out!");
+        }
+
+        // Verify step statuses
+        for (int i = 0; i < testStudio.Steps.Count; i++)
+        {
+            var step = testStudio.Steps[i];
+            if (step.Status != StepStatus.Passed)
+            {
+                throw new Exception($"Step {i + 1} ({step.ActionDisplay}) failed with error: {step.ErrorMessage}");
+            }
+        }
+        Console.WriteLine("All steps executed successfully.");
+
+        // Verify cached steps and RelativeStartMs
+        var cachedStepsField = typeof(TestStudioViewModel).GetField("_lastRunSteps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var cachedSteps = cachedStepsField?.GetValue(testStudio) as System.Collections.IList;
+        if (cachedSteps == null || cachedSteps.Count != 3)
+        {
+            throw new Exception($"Expected 3 cached steps in _lastRunSteps, got {cachedSteps?.Count ?? 0}");
+        }
+        Console.WriteLine("Cached steps count verified.");
+
+        foreach (var item in cachedSteps)
+        {
+            var relativeStartMsProp = item.GetType().GetProperty("RelativeStartMs");
+            var relativeStartMs = (double)(relativeStartMsProp?.GetValue(item) ?? -1.0);
+            if (relativeStartMs < 0)
+            {
+                throw new Exception($"Expected RelativeStartMs to be >= 0, got {relativeStartMs}");
+            }
+        }
+        Console.WriteLine("RelativeStartMs timings verified on all steps.");
+
+        // Verify generated reports and artifacts
+        if (!testStudio.HasLastRunRecording)
+        {
+            throw new Exception("HasLastRunRecording is false after run!");
+        }
+
+        if (string.IsNullOrEmpty(testStudio.LastReportPath) || !File.Exists(testStudio.LastReportPath))
+        {
+            throw new Exception($"HTML report file not found at: {testStudio.LastReportPath}");
+        }
+        Console.WriteLine($"HTML report verified: {testStudio.LastReportPath}");
+
+        if (string.IsNullOrEmpty(testStudio.LastPdfReportPath) || !File.Exists(testStudio.LastPdfReportPath))
+        {
+            throw new Exception($"PDF report file not found at: {testStudio.LastPdfReportPath}");
+        }
+        Console.WriteLine($"PDF report verified: {testStudio.LastPdfReportPath}");
+
+        // Assert size > 0
+        var pdfInfo = new FileInfo(testStudio.LastPdfReportPath);
+        if (pdfInfo.Length == 0)
+        {
+            throw new Exception("Generated PDF report is empty (0 bytes)!");
+        }
+        Console.WriteLine($"PDF report size: {pdfInfo.Length} bytes.");
+
+        var htmlContent = await File.ReadAllTextAsync(testStudio.LastReportPath);
+        if (!htmlContent.Contains("Test Run Report") || !htmlContent.Contains("assertTrue"))
+        {
+            throw new Exception("Generated HTML report does not contain expected title or step content!");
+        }
+        Console.WriteLine("HTML report contents verified.");
+
+        // Check captured images
+        var imagesDir = Path.Combine(Path.GetDirectoryName(testStudio.LastReportPath)!, "images");
+        if (!Directory.Exists(imagesDir))
+        {
+            throw new Exception($"Images directory not found at: {imagesDir}");
+        }
+
+        var images = Directory.GetFiles(imagesDir);
+        Console.WriteLine($"Found {images.Length} captured artifact files (screenshots and frames).");
+        if (images.Length == 0)
+        {
+            throw new Exception("No step screenshots or video frames were captured!");
+        }
+
+        bool hasScreenshot = images.Any(img => img.Contains("step_") && img.EndsWith(".png"));
+        bool hasFrame = images.Any(img => img.Contains("frame_") && img.EndsWith(".jpg"));
+
+        if (!hasScreenshot)
+        {
+            throw new Exception("No step screenshots were captured!");
+        }
+        Console.WriteLine("Step screenshot files verified.");
+
+        if (!hasFrame)
+        {
+            throw new Exception("No video frame files were captured!");
+        }
+        Console.WriteLine("Video frame files verified.");
+
+        // Clean up temp directory
+        try
+        {
+            Directory.Delete(tempReportDir, true);
+            Console.WriteLine("Temporary test reports cleaned up.");
+        }
+        catch { }
+
+        Console.WriteLine("Scenario 26 PASSED.");
     }
 }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -31,6 +32,80 @@ public class TestStudioViewModel : ViewModelBase
     private string _appId = "";
     private string _description = "";
     private bool _isUpdatingYaml = false;
+
+    private bool _isRecordVideoEnabled = true;
+    private bool _isGenerateReportEnabled = true;
+    private string _outputDirectory = "TestReports";
+    private bool _hasLastRunRecording = false;
+    private string _lastReportPath = "";
+    private string _lastPdfReportPath = "";
+
+    private readonly List<VideoFrameItem> _lastRunVideoFrames = new();
+    private readonly List<byte[]> _lastRunRawFrameBytes = new();
+    private readonly List<double> _lastRunFrameTimestamps = new();
+    private readonly List<StepReportItem> _lastRunSteps = new();
+    private bool _isRecordingVideo = false;
+    private DateTime _playbackStartTime = DateTime.MinValue;
+    private readonly Dictionary<int, StepReportItem> _stepReports = new();
+    private bool _isFinalizing = false;
+
+    public bool IsRecordVideoEnabled
+    {
+        get => _isRecordVideoEnabled;
+        set => RaiseAndSetIfChanged(ref _isRecordVideoEnabled, value);
+    }
+
+    public bool IsGenerateReportEnabled
+    {
+        get => _isGenerateReportEnabled;
+        set => RaiseAndSetIfChanged(ref _isGenerateReportEnabled, value);
+    }
+
+    public string OutputDirectory
+    {
+        get => _outputDirectory;
+        set => RaiseAndSetIfChanged(ref _outputDirectory, value);
+    }
+
+    public bool HasLastRunRecording
+    {
+        get => _hasLastRunRecording;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _hasLastRunRecording, value))
+            {
+                RaiseCommandCanExecuteChanged();
+            }
+        }
+    }
+
+    public string LastReportPath
+    {
+        get => _lastReportPath;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _lastReportPath, value))
+            {
+                RaiseCommandCanExecuteChanged();
+            }
+        }
+    }
+
+    public string LastPdfReportPath
+    {
+        get => _lastPdfReportPath;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _lastPdfReportPath, value))
+            {
+                RaiseCommandCanExecuteChanged();
+            }
+        }
+    }
+
+    public ICommand OpenLastReportCommand { get; }
+    public ICommand OpenLastPdfReportCommand { get; }
+    public ICommand ReplayLastVideoCommand { get; }
 
     public ObservableCollection<TestStudioStepModel> Steps
     {
@@ -139,8 +214,8 @@ public class TestStudioViewModel : ViewModelBase
         Steps.CollectionChanged += OnStepsCollectionChanged;
 
         PlayCommand = new RelayCommand(async () => await PlayAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused));
-        PauseCommand = new RelayCommand(Pause, () => IsExecuting && !IsPaused);
-        StopCommand = new RelayCommand(Stop, () => IsExecuting);
+        PauseCommand = new RelayCommand(Pause, () => IsExecuting && !IsPaused && !_isFinalizing);
+        StopCommand = new RelayCommand(Stop, () => IsExecuting && !_isFinalizing);
         StepOverCommand = new RelayCommand(async () => await StepOverAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused));
         ClearCommand = new RelayCommand(ClearAll);
 
@@ -177,6 +252,12 @@ public class TestStudioViewModel : ViewModelBase
         MoveDownStepCommand = new RelayCommand<TestStudioStepModel>(MoveStepDown);
 
         ApplyYamlCommand = new RelayCommand(ApplyYaml, () => !IsExecuting);
+
+        OpenLastReportCommand = new RelayCommand(OpenLastReport, () => HasLastRunRecording && !string.IsNullOrEmpty(LastReportPath) && File.Exists(LastReportPath));
+        OpenLastPdfReportCommand = new RelayCommand(OpenLastPdfReport, () => HasLastRunRecording && !string.IsNullOrEmpty(LastPdfReportPath) && File.Exists(LastPdfReportPath));
+        ReplayLastVideoCommand = new RelayCommand<object>(ReplayLastVideo, _ => HasLastRunRecording && _lastRunRawFrameBytes.Count > 0);
+
+        _cdpService.EventReceived += CdpService_EventReceived;
     }
 
     private void CdpService_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -200,6 +281,9 @@ public class TestStudioViewModel : ViewModelBase
             ((RelayCommand)StopCommand).RaiseCanExecuteChanged();
             ((RelayCommand)StepOverCommand).RaiseCanExecuteChanged();
             ((RelayCommand)ApplyYamlCommand).RaiseCanExecuteChanged();
+            if (OpenLastReportCommand is RelayCommand olr) olr.RaiseCanExecuteChanged();
+            if (OpenLastPdfReportCommand is RelayCommand olp) olp.RaiseCanExecuteChanged();
+            if (ReplayLastVideoCommand is RelayCommand<object> rlv) rlv.RaiseCanExecuteChanged();
         });
     }
 
@@ -299,6 +383,38 @@ public class TestStudioViewModel : ViewModelBase
                 step.IsCurrent = false;
             }
             _currentStepIndex = 0;
+
+            // Start Recording Session
+            _lastRunVideoFrames.Clear();
+            lock (_lastRunRawFrameBytes)
+            {
+                _lastRunRawFrameBytes.Clear();
+                _lastRunFrameTimestamps.Clear();
+            }
+            lock (_stepReports)
+            {
+                _stepReports.Clear();
+            }
+            _playbackStartTime = DateTime.UtcNow;
+
+            if (IsRecordVideoEnabled && _cdpService.IsConnected)
+            {
+                _isRecordingVideo = true;
+                try
+                {
+                    Log("Starting video recording...");
+                    await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+                    {
+                        ["format"] = "jpeg",
+                        ["quality"] = 80,
+                        ["everyNthFrame"] = 1
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log($"Warning: Failed to start screencast: {ex.Message}");
+                }
+            }
         }
 
         IsExecuting = true;
@@ -323,7 +439,17 @@ public class TestStudioViewModel : ViewModelBase
         {
             if (!IsPaused)
             {
-                IsExecuting = false;
+                _isFinalizing = true;
+                RaiseCommandCanExecuteChanged();
+                try
+                {
+                    await FinalizeRecordingAndGenerateReportsAsync();
+                }
+                finally
+                {
+                    _isFinalizing = false;
+                    IsExecuting = false;
+                }
             }
             RaiseCommandCanExecuteChanged();
         }
@@ -339,7 +465,7 @@ public class TestStudioViewModel : ViewModelBase
 
     public void Stop()
     {
-        IsExecuting = false;
+        bool wasPaused = IsPaused;
         IsPaused = false;
         _executionCts?.Cancel();
         _currentStepIndex = 0;
@@ -350,7 +476,29 @@ public class TestStudioViewModel : ViewModelBase
             step.IsCurrent = false;
         }
         Log("Execution stopped.");
-        RaiseCommandCanExecuteChanged();
+
+        if (wasPaused)
+        {
+            _isFinalizing = true;
+            RaiseCommandCanExecuteChanged();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await FinalizeRecordingAndGenerateReportsAsync();
+                }
+                finally
+                {
+                    _isFinalizing = false;
+                    IsExecuting = false;
+                    RaiseCommandCanExecuteChanged();
+                }
+            });
+        }
+        else
+        {
+            RaiseCommandCanExecuteChanged();
+        }
     }
 
     public async Task StepOverAsync()
@@ -423,11 +571,21 @@ public class TestStudioViewModel : ViewModelBase
             step.Status = StepStatus.Running;
             Log($"Running step {_currentStepIndex + 1}: {step.ActionDisplay}...");
 
+            var stepStartTime = DateTime.UtcNow;
+
             try
             {
                 await ExecuteSingleStepAsync(step, token);
+                var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
+                var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
                 step.Status = StepStatus.Passed;
                 Log($"Step {_currentStepIndex + 1} passed.");
+                
+                if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
+                {
+                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
+                }
+
                 _currentStepIndex++;
             }
             catch (OperationCanceledException)
@@ -438,9 +596,17 @@ public class TestStudioViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
+                var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
+                var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
                 step.Status = StepStatus.Failed;
                 step.ErrorMessage = ex.Message;
                 Log($"Step {_currentStepIndex + 1} failed: {ex.Message}");
+                
+                if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
+                {
+                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
+                }
+
                 throw;
             }
             finally
@@ -1819,5 +1985,315 @@ public class TestStudioViewModel : ViewModelBase
             val = val.Substring(1, val.Length - 2);
         }
         return val;
+    }
+
+    private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
+    {
+        if (e.Method == "Page.screencastFrame" && _isRecordingVideo)
+        {
+            try
+            {
+                var base64 = e.Params["data"]?.GetValue<string>() ?? "";
+                var sessionId = e.Params["sessionId"]?.GetValue<int>() ?? 0;
+                if (!string.IsNullOrEmpty(base64))
+                {
+                    byte[] bytes = Convert.FromBase64String(base64);
+                    double relTimeMs = (DateTime.UtcNow - _playbackStartTime).TotalMilliseconds;
+
+                    lock (_lastRunRawFrameBytes)
+                    {
+                        _lastRunRawFrameBytes.Add(bytes);
+                        _lastRunFrameTimestamps.Add(relTimeMs);
+                    }
+                }
+
+                // Send ACK to keep target sending frames only if preview screencast is not already doing it
+                if (!_cdpService.IsPreviewScreencastActive && sessionId != 0)
+                {
+                    _ = _cdpService.SendCommandAsync("Page.screencastFrameAck", new JsonObject { ["sessionId"] = sessionId });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error capturing frame: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task CaptureStepDetailsAsync(TestStudioStepModel step, int index, double durationMs, double relativeStartMs)
+    {
+        try
+        {
+            await Task.Delay(200);
+
+            string url = "";
+            try
+            {
+                var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = "window.location.href" });
+                url = evalRes["result"]?["value"]?.GetValue<string>() ?? "";
+            }
+            catch { }
+
+            string screenshotBase64 = "";
+            try
+            {
+                var res = await _cdpService.SendCommandAsync("Page.captureScreenshot", new JsonObject());
+                screenshotBase64 = res["data"]?.GetValue<string>() ?? "";
+            }
+            catch (Exception ex)
+            {
+                Log($"Warning: Failed to capture step screenshot: {ex.Message}");
+            }
+
+            var reportItem = new StepReportItem
+            {
+                Index = index + 1,
+                Action = step.Action,
+                ActionDisplay = step.ActionDisplay,
+                Selector = step.Selector ?? "",
+                Value = step.Value ?? "",
+                Status = step.Status.ToString(),
+                DurationMs = durationMs,
+                ErrorMessage = step.ErrorMessage ?? "",
+                Url = url,
+                ScreenshotFileName = screenshotBase64, // Store base64 temporarily
+                RelativeStartMs = relativeStartMs
+            };
+
+            lock (_stepReports)
+            {
+                _stepReports[index] = reportItem;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Warning: Failed to capture step details: {ex.Message}");
+        }
+    }
+
+    private async Task FinalizeRecordingAndGenerateReportsAsync()
+    {
+        _isRecordingVideo = false;
+        if (IsRecordVideoEnabled && _cdpService.IsConnected)
+        {
+            try
+            {
+                if (_cdpService.IsPreviewScreencastActive)
+                {
+                    Log("Restoring simulator preview screencast...");
+                    // Restore PNG format for the simulator preview
+                    await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+                    {
+                        ["format"] = "png",
+                        ["everyNthFrame"] = 1
+                    });
+                }
+                else
+                {
+                    Log("Stopping video recording...");
+                    await _cdpService.SendCommandAsync("Page.stopScreencast");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Warning: Failed to manage screencast: {ex.Message}");
+            }
+        }
+
+        // Extract step reports from dictionary
+        List<StepReportItem> tempReports;
+        lock (_stepReports)
+        {
+            tempReports = _stepReports.OrderBy(k => k.Key).Select(k => k.Value).ToList();
+            _stepReports.Clear();
+        }
+
+        // Cache steps in memory for replay window
+        lock (_lastRunSteps)
+        {
+            _lastRunSteps.Clear();
+            _lastRunSteps.AddRange(tempReports);
+        }
+
+        // If video frames were recorded, mark as available for native replay regardless of HTML/PDF report option
+        if (IsRecordVideoEnabled && _lastRunRawFrameBytes.Count > 0)
+        {
+            HasLastRunRecording = true;
+        }
+
+        if (!IsGenerateReportEnabled) return;
+
+        try
+        {
+            Log("Generating test run reports...");
+            var runFolder = $"Run_{DateTime.Now:yyyyMMdd_HHmmss_fff}";
+            var outputFolder = Path.Combine(OutputDirectory, runFolder);
+            Directory.CreateDirectory(outputFolder);
+            var imagesFolder = Path.Combine(outputFolder, "images");
+            Directory.CreateDirectory(imagesFolder);
+
+            // 1. Save step screenshots and build report items list
+            var stepReportItems = new List<StepReportItem>();
+            lock (_lastRunSteps)
+            {
+                foreach (var item in _lastRunSteps)
+                {
+                    if (!string.IsNullOrEmpty(item.ScreenshotFileName) && !item.ScreenshotFileName.StartsWith("images/"))
+                    {
+                        try
+                        {
+                            var filename = $"step_{item.Index}_screenshot.png";
+                            var filepath = Path.Combine(imagesFolder, filename);
+                            byte[] bytes = Convert.FromBase64String(item.ScreenshotFileName);
+                            File.WriteAllBytes(filepath, bytes);
+                            item.ScreenshotFileName = $"images/{filename}"; // relative path
+                        }
+                        catch
+                        {
+                            // Keep base64 or empty
+                        }
+                    }
+                    stepReportItems.Add(item);
+                }
+            }
+
+
+            // 2. Save video frames
+            var videoFrameItems = new List<VideoFrameItem>();
+            lock (_lastRunRawFrameBytes)
+            {
+                for (int i = 0; i < _lastRunRawFrameBytes.Count; i++)
+                {
+                    try
+                    {
+                        var filename = $"frame_{i}.jpg";
+                        var filepath = Path.Combine(imagesFolder, filename);
+                        File.WriteAllBytes(filepath, _lastRunRawFrameBytes[i]);
+                        videoFrameItems.Add(new VideoFrameItem
+                        {
+                            FileName = $"images/{filename}", // relative path
+                            TimestampMs = _lastRunFrameTimestamps[i]
+                        });
+                    }
+                    catch { }
+                }
+            }
+
+            // 3. Generate HTML report
+            var endTime = DateTime.UtcNow;
+            var testName = string.IsNullOrEmpty(_description) ? "Test Studio Run" : _description;
+            
+            TestStudioReportGenerator.GenerateHtmlReport(
+                outputFolder,
+                testName,
+                _description,
+                _appId,
+                stepReportItems,
+                videoFrameItems,
+                _playbackStartTime,
+                endTime
+            );
+
+            // 4. Generate PDF report
+            var pdfPath = Path.Combine(outputFolder, "report.pdf");
+            TestStudioReportGenerator.GeneratePdfReport(pdfPath, testName, stepReportItems);
+
+            LastReportPath = Path.GetFullPath(Path.Combine(outputFolder, "index.html"));
+            LastPdfReportPath = Path.GetFullPath(pdfPath);
+            HasLastRunRecording = true;
+
+            Log($"HTML Report generated: {LastReportPath}");
+            Log($"PDF Report generated: {LastPdfReportPath}");
+        }
+        catch (Exception ex)
+        {
+            Log($"Failed to generate reports: {ex.Message}");
+        }
+    }
+
+    public void OpenLastReport()
+    {
+        if (string.IsNullOrEmpty(LastReportPath) || !File.Exists(LastReportPath)) return;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = LastReportPath,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            Log($"Failed to open report: {ex.Message}");
+        }
+    }
+
+    public void OpenLastPdfReport()
+    {
+        if (string.IsNullOrEmpty(LastPdfReportPath) || !File.Exists(LastPdfReportPath)) return;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = LastPdfReportPath,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            Log($"Failed to open PDF report: {ex.Message}");
+        }
+    }
+
+    public void ReplayLastVideo(object? ownerWindow)
+    {
+        var playbackFrames = new List<CdpInspectorApp.Views.PlaybackFrame>();
+        lock (_lastRunRawFrameBytes)
+        {
+            for (int i = 0; i < _lastRunRawFrameBytes.Count; i++)
+            {
+                playbackFrames.Add(new CdpInspectorApp.Views.PlaybackFrame
+                {
+                    Data = _lastRunRawFrameBytes[i],
+                    TimestampMs = _lastRunFrameTimestamps[i]
+                });
+            }
+        }
+
+        if (playbackFrames.Count == 0)
+        {
+            Log("No video frames available to replay.");
+            return;
+        }
+
+        List<StepReportItem> playbackSteps;
+        lock (_lastRunSteps)
+        {
+            playbackSteps = _lastRunSteps.ToList();
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                var win = new CdpInspectorApp.Views.VideoPlaybackWindow();
+                win.SetFramesAndSteps(playbackFrames, playbackSteps, LastPdfReportPath);
+                
+                if (ownerWindow is Avalonia.Controls.Window parentWin)
+                {
+                    win.Show(parentWin);
+                }
+                else
+                {
+                    win.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Failed to open video playback window: {ex.Message}");
+            }
+        });
     }
 }

@@ -25,6 +25,7 @@ public interface ICdpService : INotifyPropertyChanged
     string ConnectionStatus { get; }
     string ConnectedHost { get; }
     string ConnectedTargetId { get; }
+    bool IsPreviewScreencastActive { get; set; }
 
     event EventHandler<CdpEventEventArgs>? EventReceived;
 

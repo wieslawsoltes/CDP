@@ -858,6 +858,7 @@ public class SimulationViewModel : ViewModelBase
                 ["format"] = "png",
                 ["everyNthFrame"] = 1
             });
+            _cdpService.IsPreviewScreencastActive = true;
         }
         catch (Exception ex)
         {
