@@ -12,12 +12,12 @@
             <!-- Debugger Toolbar -->
             <Border Grid.Row="0" Classes="panel-card" Margin="0,0,0,10">
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="▶ Play" Command="{Binding Recorder.TestStudio.PlayCommand}" Classes="accent"/>
-                    <Button Content="⏸ Pause" Command="{Binding Recorder.TestStudio.PauseCommand}"/>
-                    <Button Content="■ Stop" Command="{Binding Recorder.TestStudio.StopCommand}"/>
-                    <Button Content="↷ Step" Command="{Binding Recorder.TestStudio.StepOverCommand}"/>
-                    <Button Content="Clear" Command="{Binding Recorder.TestStudio.ClearCommand}"/>
-                    <Button Command="{Binding Recorder.ToggleRecordCommand}"
+                    <Button Name="btnTestStudioPlay" Content="▶ Play" Command="{Binding Recorder.TestStudio.PlayCommand}" Classes="accent"/>
+                    <Button Name="btnTestStudioPause" Content="⏸ Pause" Command="{Binding Recorder.TestStudio.PauseCommand}"/>
+                    <Button Name="btnTestStudioStop" Content="■ Stop" Command="{Binding Recorder.TestStudio.StopCommand}"/>
+                    <Button Name="btnTestStudioStep" Content="↷ Step" Command="{Binding Recorder.TestStudio.StepOverCommand}"/>
+                    <Button Name="btnTestStudioClear" Content="Clear" Command="{Binding Recorder.TestStudio.ClearCommand}"/>
+                    <Button Name="btnTestStudioToggleRecord" Command="{Binding Recorder.ToggleRecordCommand}"
                             Content="{Binding Recorder.ToggleRecordButtonText}"
                             Background="{Binding Recorder.ToggleRecordButtonBackground}"
                             BorderBrush="{Binding Recorder.ToggleRecordButtonBorderBrush}"
@@ -30,13 +30,13 @@
                 <Grid RowDefinitions="Auto, Auto" Margin="0">
                     <!-- Checkboxes -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" Margin="0,0,0,8">
-                        <CheckBox Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0"/>
-                        <CheckBox Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0"/>
+                        <CheckBox Name="chkTestStudioRecordVideo" Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0"/>
+                        <CheckBox Name="chkTestStudioGenerateReports" Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0"/>
                     </StackPanel>
                     
                     <!-- Path and Browse button, View buttons -->
                     <Grid Grid.Row="1" ColumnDefinitions="*, Auto, Auto, Auto, Auto">
-                        <TextBox Grid.Column="0" Text="{Binding Recorder.TestStudio.OutputDirectory, Mode=TwoWay}" PlaceholderText="Output directory..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
+                        <TextBox Name="txtTestStudioOutputDirectory" Grid.Column="0" Text="{Binding Recorder.TestStudio.OutputDirectory, Mode=TwoWay}" PlaceholderText="Output directory..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
                         <Button Name="btnBrowseReportDir" Grid.Column="1" Content="Browse..." FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
                         <Button Name="btnViewHtmlReport" Grid.Column="2" Content="HTML Report" Command="{Binding Recorder.TestStudio.OpenLastReportCommand}" FontSize="10" Padding="6,3" Margin="8,0,0,0" VerticalAlignment="Center"/>
                         <Button Name="btnViewPdfReport" Grid.Column="3" Content="PDF Report" Command="{Binding Recorder.TestStudio.OpenLastPdfReportCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
@@ -157,7 +157,7 @@
                     <!-- Target Selector using AutoCompleteBox -->
                     <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
                         <TextBlock Grid.Column="0" Text="Target Selector: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                        <AutoCompleteBox Grid.Column="1" 
+                        <AutoCompleteBox Name="acbTestStudioTargetSelector" Grid.Column="1" 
                                          Text="{Binding Recorder.TestStudio.SelectedElementSelector, Mode=TwoWay}"
                                          ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
                                          FilterMode="Contains"
@@ -169,7 +169,7 @@
                     <!-- Parameters Input -->
                     <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
                         <TextBlock Grid.Column="0" Text="Value / Text: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                        <TextBox Grid.Column="1" Text="{Binding Recorder.TestStudio.InputSimText, Mode=TwoWay}" PlaceholderText="Value, text, expression, or delay..." FontSize="11" Margin="4,0,0,0"/>
+                        <TextBox Name="txtTestStudioInputValue" Grid.Column="1" Text="{Binding Recorder.TestStudio.InputSimText, Mode=TwoWay}" PlaceholderText="Value, text, expression, or delay..." FontSize="11" Margin="4,0,0,0"/>
                     </Grid>
 
                     <!-- Categories TabControl -->
@@ -177,25 +177,25 @@
                         <!-- Interactions Tab -->
                         <TabItem Header="Interactions" FontSize="11">
                             <WrapPanel Margin="0,8,0,0">
-                                <Button Content="Tap" Command="{Binding Recorder.TestStudio.AddTapCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Double Tap" Command="{Binding Recorder.TestStudio.AddDoubleTapCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Long Press" Command="{Binding Recorder.TestStudio.AddLongPressCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Input Text" Command="{Binding Recorder.TestStudio.AddInputCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Clear Text" Command="{Binding Recorder.TestStudio.AddClearTextCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Paste Text" Command="{Binding Recorder.TestStudio.AddPasteTextCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Erase Text" Command="{Binding Recorder.TestStudio.AddEraseTextCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Swipe" Command="{Binding Recorder.TestStudio.AddSwipeCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Scroll" Command="{Binding Recorder.TestStudio.AddScrollCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Copy Text" Command="{Binding Recorder.TestStudio.AddCopyTextFromCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddTap" Content="Tap" Command="{Binding Recorder.TestStudio.AddTapCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddDoubleTap" Content="Double Tap" Command="{Binding Recorder.TestStudio.AddDoubleTapCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddLongPress" Content="Long Press" Command="{Binding Recorder.TestStudio.AddLongPressCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddInputText" Content="Input Text" Command="{Binding Recorder.TestStudio.AddInputCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddClearText" Content="Clear Text" Command="{Binding Recorder.TestStudio.AddClearTextCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddPasteText" Content="Paste Text" Command="{Binding Recorder.TestStudio.AddPasteTextCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddEraseText" Content="Erase Text" Command="{Binding Recorder.TestStudio.AddEraseTextCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddSwipe" Content="Swipe" Command="{Binding Recorder.TestStudio.AddSwipeCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddScroll" Content="Scroll" Command="{Binding Recorder.TestStudio.AddScrollCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddCopyText" Content="Copy Text" Command="{Binding Recorder.TestStudio.AddCopyTextFromCommand}" Margin="0,0,6,6"/>
                             </WrapPanel>
                         </TabItem>
                         
                         <!-- Assertions Tab -->
                         <TabItem Header="Assertions" FontSize="11">
                             <WrapPanel Margin="0,8,0,0">
-                                <Button Content="Assert Visible" Command="{Binding Recorder.TestStudio.AddAssertVisibleCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Assert True" Command="{Binding Recorder.TestStudio.AddAssertTrueCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddAssertVisible" Content="Assert Visible" Command="{Binding Recorder.TestStudio.AddAssertVisibleCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddAssertNotVisible" Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}" Margin="0,0,6,6"/>
+                                <Button Name="btnTestStudioAddAssertTrue" Content="Assert True" Command="{Binding Recorder.TestStudio.AddAssertTrueCommand}" Margin="0,0,6,6"/>
                             </WrapPanel>
                         </TabItem>
                         
@@ -238,7 +238,7 @@
             <Grid Grid.Row="0" RowDefinitions="Auto, *" Margin="0,0,0,6">
                 <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
                     <TextBlock Grid.Column="0" Text="YAML Configuration" Classes="panel-header" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
-                    <Button Grid.Column="1" Content="Apply YAML" Command="{Binding Recorder.TestStudio.ApplyYamlCommand}" Classes="accent"/>
+                    <Button Name="btnTestStudioApplyYaml" Grid.Column="1" Content="Apply YAML" Command="{Binding Recorder.TestStudio.ApplyYamlCommand}" Classes="accent"/>
                 </Grid>
                 <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
                     <ae:TextEditor Name="txtYamlCode" Background="Transparent" BorderThickness="0" FontFamily="Courier New,Consolas,Monospace" FontSize="12" Foreground="#e8eaed" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>

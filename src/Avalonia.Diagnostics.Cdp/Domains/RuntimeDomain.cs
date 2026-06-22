@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Completion;
@@ -756,6 +757,8 @@ public class ReplGlobals
     public dynamic? DataContext => Control?.DataContext != null ? new ReflectionDynamicObject(Control.DataContext) : null;
     public dynamic? ViewModel => DataContext;
     public dynamic? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
+    public dynamic window => new CdpRuntimeWindow(_session);
+    public CdpRuntimeDocument document => new(_session);
 
     public void Print(object? obj) => Console.WriteLine(obj);
 
@@ -769,6 +772,310 @@ public class ReplGlobals
     {
         var root = (Visual?)SelectedNode ?? _session.Window;
         return root != null ? Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(root, selector, _session.UseLogicalTree) : Enumerable.Empty<Visual>();
+    }
+}
+
+public sealed class CdpRuntimeWindow : DynamicObject
+{
+    private readonly CdpSession _session;
+
+    public CdpRuntimeWindow(CdpSession session)
+    {
+        _session = session;
+    }
+
+    public CdpRuntimeDocument document => new(_session);
+    public Avalonia.Controls.Window? visual => _session.Window as Avalonia.Controls.Window;
+
+    public override bool TryGetMember(GetMemberBinder binder, out object? result)
+    {
+        if (binder.Name.Equals(nameof(document), StringComparison.OrdinalIgnoreCase))
+        {
+            result = document;
+            return true;
+        }
+
+        if (binder.Name.Equals(nameof(visual), StringComparison.OrdinalIgnoreCase))
+        {
+            result = visual;
+            return true;
+        }
+
+        if (visual == null)
+        {
+            result = null;
+            return false;
+        }
+
+        var property = visual.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (property != null)
+        {
+            result = property.GetValue(visual);
+            return true;
+        }
+
+        var field = visual.GetType().GetField(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (field != null)
+        {
+            result = field.GetValue(visual);
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
+    public override bool TrySetMember(SetMemberBinder binder, object? value)
+    {
+        if (visual == null)
+        {
+            return false;
+        }
+
+        var property = visual.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (property != null && property.CanWrite)
+        {
+            property.SetValue(visual, ConvertDynamicValue(value, property.PropertyType));
+            return true;
+        }
+
+        var field = visual.GetType().GetField(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (field != null)
+        {
+            field.SetValue(visual, ConvertDynamicValue(value, field.FieldType));
+            return true;
+        }
+
+        return false;
+    }
+
+    public override bool TryInvokeMember(InvokeMemberBinder binder, object?[]? args, out object? result)
+    {
+        if (visual == null)
+        {
+            result = null;
+            return false;
+        }
+
+        var argumentTypes = args?.Select(arg => arg?.GetType() ?? typeof(object)).ToArray() ?? Type.EmptyTypes;
+        var method = visual.GetType().GetMethod(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase, null, argumentTypes, null);
+        if (method == null)
+        {
+            method = visual.GetType()
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase)
+                .FirstOrDefault(candidate => string.Equals(candidate.Name, binder.Name, StringComparison.OrdinalIgnoreCase) &&
+                                             candidate.GetParameters().Length == (args?.Length ?? 0));
+        }
+
+        if (method == null)
+        {
+            result = null;
+            return false;
+        }
+
+        var convertedArgs = ConvertDynamicArguments(args, method.GetParameters());
+        result = method.Invoke(visual, convertedArgs);
+        return true;
+    }
+
+    private static object?[]? ConvertDynamicArguments(object?[]? args, ParameterInfo[] parameters)
+    {
+        if (args == null)
+        {
+            return null;
+        }
+
+        var converted = new object?[args.Length];
+        for (int i = 0; i < args.Length; i++)
+        {
+            converted[i] = i < parameters.Length
+                ? ConvertDynamicValue(args[i], parameters[i].ParameterType)
+                : args[i];
+        }
+
+        return converted;
+    }
+
+    private static object? ConvertDynamicValue(object? value, Type targetType)
+    {
+        if (value == null)
+        {
+            return null;
+        }
+
+        var sourceType = value.GetType();
+        if (targetType.IsAssignableFrom(sourceType))
+        {
+            return value;
+        }
+
+        var conversionType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (conversionType.IsEnum)
+        {
+            return value is string enumText
+                ? Enum.Parse(conversionType, enumText, ignoreCase: true)
+                : Enum.ToObject(conversionType, value);
+        }
+
+        var converter = TypeDescriptor.GetConverter(conversionType);
+        if (converter.CanConvertFrom(sourceType))
+        {
+            return converter.ConvertFrom(null, CultureInfo.InvariantCulture, value);
+        }
+
+        if (value is IConvertible)
+        {
+            return Convert.ChangeType(value, conversionType, CultureInfo.InvariantCulture);
+        }
+
+        return value;
+    }
+}
+
+public sealed class CdpRuntimeDocument
+{
+    private readonly CdpSession _session;
+
+    public CdpRuntimeDocument(CdpSession session)
+    {
+        _session = session;
+    }
+
+    public CdpRuntimeElement? querySelector(string selector)
+    {
+        var root = _session.Window;
+        if (root == null)
+        {
+            return null;
+        }
+
+        var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, selector, _session.UseLogicalTree);
+        return visual != null ? new CdpRuntimeElement(_session, visual) : null;
+    }
+
+    public CdpRuntimeElement[] querySelectorAll(string selector)
+    {
+        var root = _session.Window;
+        if (root == null)
+        {
+            return Array.Empty<CdpRuntimeElement>();
+        }
+
+        return Avalonia.Diagnostics.Cdp.SelectorEngine
+            .QuerySelectorAll(root, selector, _session.UseLogicalTree)
+            .Select(visual => new CdpRuntimeElement(_session, visual))
+            .ToArray();
+    }
+
+    public CdpRuntimeElement? getElementById(string id)
+    {
+        var escaped = id.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+        return querySelector($"[id=\"{escaped}\"]");
+    }
+}
+
+public sealed class CdpRuntimeElement
+{
+    private readonly CdpSession _session;
+    private readonly Visual _visual;
+
+    public CdpRuntimeElement(CdpSession session, Visual visual)
+    {
+        _session = session;
+        _visual = visual;
+    }
+
+    public int nodeId => _session.NodeMap.GetOrAdd(_visual);
+    public int nodeType => 1;
+    public string nodeName => _visual.GetType().Name;
+    public string tagName => nodeName;
+    public string localName => _visual.GetType().Name;
+    public string id => getAttribute("id") ?? "";
+    public string name => getAttribute("Name") ?? "";
+    public string textContent => getAttribute("text") ?? "";
+    public string innerText => textContent;
+    public string value => getAttribute("Text") ?? "";
+    public bool isVisible => string.Equals(getAttribute("IsVisible"), "true", StringComparison.OrdinalIgnoreCase);
+    public bool isEnabled => string.Equals(getAttribute("IsEnabled"), "true", StringComparison.OrdinalIgnoreCase);
+    public object visual => _visual;
+
+    public string? getAttribute(string name)
+    {
+        var attributes = DomDomain.BuildAttributes(_visual);
+        for (int i = 0; i + 1 < attributes.Count; i += 2)
+        {
+            var key = attributes[i]?.GetValue<string>();
+            if (string.Equals(key, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return attributes[i + 1]?.GetValue<string>();
+            }
+        }
+
+        return null;
+    }
+
+    public bool matches(string selector)
+    {
+        return Avalonia.Diagnostics.Cdp.SelectorEngine.Matches(_visual, selector, _session.UseLogicalTree);
+    }
+
+    public CdpRuntimeElement? querySelector(string selector)
+    {
+        foreach (var child in GetSearchChildren())
+        {
+            var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(child, selector, _session.UseLogicalTree);
+            if (visual != null)
+            {
+                return new CdpRuntimeElement(_session, visual);
+            }
+        }
+
+        return null;
+    }
+
+    public CdpRuntimeElement[] querySelectorAll(string selector)
+    {
+        var results = new List<CdpRuntimeElement>();
+        foreach (var child in GetSearchChildren())
+        {
+            foreach (var visual in Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(child, selector, _session.UseLogicalTree))
+            {
+                results.Add(new CdpRuntimeElement(_session, visual));
+            }
+        }
+
+        return results.ToArray();
+    }
+
+    public CdpRuntimeElement? closest(string selector)
+    {
+        Visual? current = _visual;
+        while (current != null)
+        {
+            if (Avalonia.Diagnostics.Cdp.SelectorEngine.Matches(current, selector, _session.UseLogicalTree))
+            {
+                return new CdpRuntimeElement(_session, current);
+            }
+
+            current = _session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(current)
+                : current.GetVisualParent();
+        }
+
+        return null;
+    }
+
+    private IEnumerable<Visual> GetSearchChildren()
+    {
+        return _session.UseLogicalTree
+            ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalChildren(_visual)
+            : _visual.GetVisualChildren();
+    }
+
+    public override string ToString()
+    {
+        var idValue = id;
+        return string.IsNullOrEmpty(idValue) ? $"<{nodeName}>" : $"<{nodeName} id=\"{idValue}\">";
     }
 }
 

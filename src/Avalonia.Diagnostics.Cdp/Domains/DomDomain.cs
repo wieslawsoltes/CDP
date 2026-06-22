@@ -743,6 +743,16 @@ public static class DomDomain
             {
                 isMatch = true;
             }
+            else if (c.GetValue(AutomationProperties.AutomationIdProperty) is string automationId &&
+                     automationId.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
+            else if (GetControlTextOrContent(c) is string controlText &&
+                     controlText.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
             else if (c is TextBlock tb && !string.IsNullOrEmpty(tb.Text) && tb.Text.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 isMatch = true;
@@ -796,6 +806,8 @@ public static class DomDomain
     public static JsonArray BuildAttributes(Visual visual)
     {
         var attributes = new JsonArray();
+        attributes.Add("type");
+        attributes.Add(visual.GetType().FullName ?? visual.GetType().Name);
         attributes.Add("Type");
         attributes.Add(visual.GetType().FullName ?? visual.GetType().Name);
 
@@ -803,6 +815,8 @@ public static class DomDomain
         {
             if (!string.IsNullOrEmpty(control.Name))
             {
+                attributes.Add("id");
+                attributes.Add(control.Name);
                 attributes.Add("Name");
                 attributes.Add(control.Name);
                 attributes.Add("Id");
@@ -811,13 +825,21 @@ public static class DomDomain
 
             if (control.Classes.Count > 0)
             {
-                attributes.Add("Class");
-                attributes.Add(string.Join(" ", control.Classes));
+                var classValue = string.Join(" ", control.Classes.Where(cls => !cls.StartsWith(":", StringComparison.Ordinal)));
+                if (!string.IsNullOrEmpty(classValue))
+                {
+                    attributes.Add("class");
+                    attributes.Add(classValue);
+                    attributes.Add("Class");
+                    attributes.Add(classValue);
+                }
             }
 
             string? text = GetControlTextOrContent(control);
             if (!string.IsNullOrEmpty(text))
             {
+                attributes.Add("text");
+                attributes.Add(text);
                 attributes.Add("Text");
                 attributes.Add(text);
             }
@@ -849,6 +871,12 @@ public static class DomDomain
             if (!string.IsNullOrEmpty(accessibilityId))
             {
                 attributes.Add("AccessibilityId");
+                attributes.Add(accessibilityId);
+                attributes.Add("AutomationId");
+                attributes.Add(accessibilityId);
+                attributes.Add("AutomationProperties.AutomationId");
+                attributes.Add(accessibilityId);
+                attributes.Add("automation-id");
                 attributes.Add(accessibilityId);
             }
         }

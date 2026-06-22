@@ -17,6 +17,27 @@ public static class SelectorEngine
     private static readonly object s_lock = new();
     private static bool s_initializedTypes = false;
 
+    private enum AttributeSelectorOperator
+    {
+        Exists,
+        Equals,
+        ContainsWord
+    }
+
+    private readonly struct AttributeSelector
+    {
+        public AttributeSelector(string name, AttributeSelectorOperator op, string? value)
+        {
+            Name = name;
+            Operator = op;
+            Value = value;
+        }
+
+        public string Name { get; }
+        public AttributeSelectorOperator Operator { get; }
+        public string? Value { get; }
+    }
+
     private static void EnsureInitializedTypes()
     {
         if (s_initializedTypes) return;
@@ -222,6 +243,191 @@ public static class SelectorEngine
         }
 
         return false;
+    }
+
+    private static bool TryGetVisualText(Visual visual, out string value)
+    {
+        value = "";
+
+        if (visual is TextBlock textBlock)
+        {
+            value = textBlock.Text ?? "";
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (visual is TextBox textBox)
+        {
+            value = textBox.Text ?? "";
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (visual is ContentControl contentControl && contentControl.Content is string contentStr)
+        {
+            value = contentStr;
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (visual is HeaderedContentControl headeredContentControl && headeredContentControl.Header is string headerStr)
+        {
+            value = headerStr;
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (visual is HeaderedItemsControl headeredItemsControl && headeredItemsControl.Header is string itemsHeaderStr)
+        {
+            value = itemsHeaderStr;
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (visual is Avalonia.Controls.Presenters.ContentPresenter contentPresenter && contentPresenter.Content is string presenterContentStr)
+        {
+            value = presenterContentStr;
+            return !string.IsNullOrEmpty(value);
+        }
+
+        return false;
+    }
+
+    private static bool TryGetAttributeValue(Visual visual, string attributeName, out string value)
+    {
+        value = "";
+        var normalizedName = attributeName.Trim();
+
+        if (normalizedName.Equals("Type", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("nodeName", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("localName", StringComparison.OrdinalIgnoreCase))
+        {
+            value = visual.GetType().Name;
+            return true;
+        }
+
+        if (normalizedName.Equals("FullType", StringComparison.OrdinalIgnoreCase))
+        {
+            value = visual.GetType().FullName ?? visual.GetType().Name;
+            return true;
+        }
+
+        if (normalizedName.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("Content", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("Header", StringComparison.OrdinalIgnoreCase))
+        {
+            return TryGetVisualText(visual, out value);
+        }
+
+        if (visual is not Control control)
+        {
+            return false;
+        }
+
+        if (normalizedName.Equals("id", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("Name", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control.Name ?? "";
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (normalizedName.Equals("class", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("Class", StringComparison.OrdinalIgnoreCase))
+        {
+            value = string.Join(" ", control.Classes.Where(cls => !cls.StartsWith(":", StringComparison.Ordinal)));
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (normalizedName.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("AutomationId", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("AutomationProperties.AutomationId", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("automation-id", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control.GetValue(AutomationProperties.AutomationIdProperty) as string ?? "";
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (normalizedName.Equals("AccessibilityName", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("AutomationName", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control.GetValue(AutomationProperties.NameProperty) ?? "";
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (normalizedName.Equals("AccessibilityHelp", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("HelpText", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control.GetValue(AutomationProperties.HelpTextProperty) ?? "";
+            return !string.IsNullOrEmpty(value);
+        }
+
+        if (normalizedName.Equals("IsEnabled", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control.IsEnabled.ToString().ToLowerInvariant();
+            return true;
+        }
+
+        if (normalizedName.Equals("IsVisible", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control.IsVisible.ToString().ToLowerInvariant();
+            return true;
+        }
+
+        if (normalizedName.Equals("Bounds", StringComparison.OrdinalIgnoreCase))
+        {
+            value = $"{control.Bounds.X},{control.Bounds.Y},{control.Bounds.Width},{control.Bounds.Height}";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseAttributeSelector(string attributeExpression, out AttributeSelector selector)
+    {
+        selector = default;
+        var expression = attributeExpression.Trim();
+        if (expression.Length == 0)
+        {
+            return false;
+        }
+
+        var op = AttributeSelectorOperator.Exists;
+        var operatorIndex = expression.IndexOf("~=", StringComparison.Ordinal);
+        var operatorLength = 2;
+        if (operatorIndex >= 0)
+        {
+            op = AttributeSelectorOperator.ContainsWord;
+        }
+        else
+        {
+            operatorIndex = expression.IndexOf('=');
+            operatorLength = 1;
+            if (operatorIndex >= 0)
+            {
+                op = AttributeSelectorOperator.Equals;
+            }
+        }
+
+        string name;
+        string? value = null;
+        if (operatorIndex >= 0)
+        {
+            name = expression.Substring(0, operatorIndex).Trim();
+            value = expression.Substring(operatorIndex + operatorLength).Trim();
+            if ((value.StartsWith("\"") && value.EndsWith("\"") && value.Length >= 2) ||
+                (value.StartsWith("'") && value.EndsWith("'") && value.Length >= 2))
+            {
+                value = value.Substring(1, value.Length - 2);
+            }
+        }
+        else
+        {
+            name = expression;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        selector = new AttributeSelector(name, op, value);
+        return true;
     }
 
     public static Visual? QuerySelector(Visual root, string selector, bool useLogicalTree = false)
@@ -474,8 +680,8 @@ public static class SelectorEngine
             selector = before + after;
         }
 
-        // Match attribute selectors like [AccessibilityId="value"]
-        var attrMatches = new List<(string name, string val)>();
+        // Match attribute selectors like [id], [Name="value"], [AccessibilityId="value"], [class~="primary"].
+        var attrMatches = new List<AttributeSelector>();
         while (true)
         {
             int startIdx = selector.IndexOf('[');
@@ -484,19 +690,13 @@ public static class SelectorEngine
             if (endIdx < 0) break;
 
             string attrExpr = selector.Substring(startIdx + 1, endIdx - startIdx - 1);
-            int eqIdx = attrExpr.IndexOf('=');
-            if (eqIdx >= 0)
+            if (TryParseAttributeSelector(attrExpr, out var attrSelector))
             {
-                string attrName = attrExpr.Substring(0, eqIdx).Trim();
-                string attrVal = attrExpr.Substring(eqIdx + 1).Trim();
-                
-                // Strip quotes around value
-                if ((attrVal.StartsWith("\"") && attrVal.EndsWith("\"") && attrVal.Length >= 2) ||
-                    (attrVal.StartsWith("'") && attrVal.EndsWith("'") && attrVal.Length >= 2))
-                {
-                    attrVal = attrVal.Substring(1, attrVal.Length - 2);
-                }
-                attrMatches.Add((attrName, attrVal));
+                attrMatches.Add(attrSelector);
+            }
+            else
+            {
+                return false;
             }
 
             selector = selector.Substring(0, startIdx) + ((endIdx + 1 < selector.Length) ? selector.Substring(endIdx + 1) : "");
@@ -598,32 +798,36 @@ public static class SelectorEngine
         // Match Attributes
         if (baseMatch && attrMatches.Count > 0)
         {
-            if (visual is Control control)
+            foreach (var attr in attrMatches)
             {
-                foreach (var attr in attrMatches)
+                if (!TryGetAttributeValue(visual, attr.Name, out var attrValue))
                 {
-                    if (attr.name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase))
+                    baseMatch = false;
+                    break;
+                }
+
+                if (attr.Operator == AttributeSelectorOperator.Exists)
+                {
+                    continue;
+                }
+
+                var expected = attr.Value ?? "";
+                if (attr.Operator == AttributeSelectorOperator.Equals &&
+                    !string.Equals(attrValue, expected, StringComparison.Ordinal))
+                {
+                    baseMatch = false;
+                    break;
+                }
+
+                if (attr.Operator == AttributeSelectorOperator.ContainsWord)
+                {
+                    var words = attrValue.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (!words.Contains(expected, StringComparer.Ordinal))
                     {
-                        var val = control.GetValue(AutomationProperties.AutomationIdProperty) as string;
-                        if (val != attr.val)
-                        {
-                            baseMatch = false;
-                            break;
-                        }
-                    }
-                    else if (attr.name.Equals("id", StringComparison.OrdinalIgnoreCase) || attr.name.Equals("Name", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (control.Name != attr.val)
-                        {
-                            baseMatch = false;
-                            break;
-                        }
+                        baseMatch = false;
+                        break;
                     }
                 }
-            }
-            else
-            {
-                baseMatch = false;
             }
         }
 

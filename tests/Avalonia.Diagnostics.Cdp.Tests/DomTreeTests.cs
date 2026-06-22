@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using System.Net.WebSockets;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Diagnostics.Cdp.Domains;
@@ -102,6 +103,74 @@ public class DomTreeTests
 
         // Verify content boundaries are offset from padding by padding
         Assert.Equal(paddingQuad[0]!.GetValue<double>() + 5, contentQuad![0]!.GetValue<double>(), 1);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void TestBuildAttributesExposeBrowserAndAvaloniaAliases()
+    {
+        var button = new Button { Name = "btnClickMe", Content = "Click Me" };
+        button.Classes.Add("primary");
+        button.SetValue(AutomationProperties.AutomationIdProperty, "btnAutomation");
+
+        var attributes = DomDomain.BuildAttributes(button);
+        var pairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i + 1 < attributes.Count; i += 2)
+        {
+            pairs[attributes[i]!.GetValue<string>()] = attributes[i + 1]!.GetValue<string>();
+        }
+
+        Assert.Equal("btnClickMe", pairs["id"]);
+        Assert.Equal("btnClickMe", pairs["Name"]);
+        Assert.Equal("primary", pairs["class"]);
+        Assert.Equal("Click Me", pairs["text"]);
+        Assert.Equal("btnAutomation", pairs["AccessibilityId"]);
+        Assert.Equal("btnAutomation", pairs["AutomationId"]);
+        Assert.Equal("btnAutomation", pairs["AutomationProperties.AutomationId"]);
+    }
+
+    [AvaloniaFact]
+    public void TestRuntimeDocumentAndElementQueryHelpers()
+    {
+        var window = new Window { Title = "Runtime Helpers Test" };
+        var panel = new StackPanel { Name = "panelRoot" };
+        var button = new Button { Name = "btnClickMe", Content = "Click Me" };
+        button.SetValue(AutomationProperties.AutomationIdProperty, "btnAutomation");
+        panel.Children.Add(button);
+        window.Content = panel;
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+        var document = new CdpRuntimeDocument(session);
+        var runtimeWindow = new CdpRuntimeWindow(session);
+        dynamic runtimeWindowDynamic = runtimeWindow;
+        Assert.Same(window, runtimeWindow.visual);
+        Assert.Same(window, runtimeWindowDynamic.visual);
+        Assert.Equal("Runtime Helpers Test", runtimeWindowDynamic.Title);
+        runtimeWindowDynamic.Width = 640;
+        Assert.Equal(640, window.Width);
+
+        var panelElement = document.querySelector("#panelRoot");
+        Assert.NotNull(panelElement);
+        Assert.Equal("panelRoot", panelElement!.id);
+
+        var buttonElement = document.getElementById("btnClickMe");
+        Assert.NotNull(buttonElement);
+        Assert.Same(button, buttonElement!.visual);
+        Assert.Same(button, runtimeWindow.document.getElementById("btnClickMe")!.visual);
+        Assert.Same(button, runtimeWindowDynamic.document.getElementById("btnClickMe")!.visual);
+        Assert.Equal(1, buttonElement.nodeType);
+        Assert.Equal("Button", buttonElement.tagName);
+        Assert.Equal("btnAutomation", buttonElement.getAttribute("AutomationProperties.AutomationId"));
+        Assert.True(buttonElement.matches("[AutomationProperties.AutomationId=\"btnAutomation\"]"));
+
+        var scopedButton = panelElement.querySelector("Button");
+        Assert.NotNull(scopedButton);
+        Assert.Same(button, scopedButton!.visual);
+        Assert.Single(panelElement.querySelectorAll("Button"));
+        Assert.Null(panelElement.querySelector("#panelRoot"));
 
         window.Close();
     }

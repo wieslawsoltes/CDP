@@ -1,48 +1,33 @@
 ---
 name: cdp-avalonia
-description: Guide and instructions for installing, configuring, inspecting, and writing E2E tests for Avalonia applications using Chrome DevTools Protocol (CDP) support.
+description: Install, inspect, automate, record, replay, and verify Avalonia applications through Chrome DevTools Protocol (CDP), including dual-CDP orchestration of CdpInspectorApp and CdpSampleApp.
 ---
 
-# CDP for Avalonia - Coding Agents Integration & E2E Testing Guide
+# CDP Avalonia Skill
 
-This skill equips coding agents (such as Gemini, Claude, Copilot, and Codex) with the knowledge and recipes to install, inspect, debug, and automate Avalonia applications using the **Chrome DevTools Protocol (CDP)**.
+Use this skill whenever a task involves `Avalonia.Diagnostics.Cdp`, `CDP.Avalonia`, `CDP.DiagnosticTools`, `CdpInspectorApp`, `CdpSampleApp`, Test Studio, recorder/replay behavior, visual tree inspection, accessibility inspection, or agent-driven Avalonia UI automation.
 
----
+## Core Mental Model
 
-## 1. Overview & Key Use Cases
+`Avalonia.Diagnostics.Cdp` embeds a lightweight CDP server inside an Avalonia app. Agents connect to the app over WebSocket using the endpoint returned by `/json`, then use CDP domains to inspect and control the UI.
 
-`CDP.Avalonia` (implemented via `Avalonia.Diagnostics.Cdp`) embeds a lightweight CDP Server directly inside an Avalonia application. This enables external clients, automated scripts, and AI agents to connect via WebSockets and remote-control the GUI.
+Important defaults in this repository:
 
-### Primary Use Cases:
-- **Headless E2E Test Automation**: Run fast UI automation in CI/CD environments (e.g. GitHub Actions) without heavy/brittle platform-dependent drivers (like Appium or FlaUI).
-- **Remote GUI Inspection**: Browse the visual tree, inspect element bounds, styles, and data contexts.
-- **Accessibility (a11y) Audits**: Programmatically query accessibility trees, roles, and properties to verify compliance.
-- **Self-Inspection / Dual-CDP Orchestration**: Inspect the debugger client itself while it inspects the target application.
+- `CdpSampleApp` listens on `http://127.0.0.1:9222`.
+- `CdpInspectorApp` listens on `http://127.0.0.1:9223`.
+- `CdpInspectorApp` can connect to `CdpSampleApp` and also be controlled through its own CDP endpoint.
+- `Runtime.evaluate` executes C# script, with browser-like helper aliases for agents.
+- Test Studio report output defaults to `TestReports`, relative to the process working directory unless the UI changes it.
 
----
+## Installation Patterns
 
-## 2. Installation & Configuration
+Use `CDP.DiagnosticTools` when the app should expose F12 inspector tooling:
 
-### Step A: Install the NuGet Package
-Add the appropriate CDP package to your Avalonia desktop application project:
-
-If using the automatic **F12** keybinding and embedded inspector client (Option 1):
 ```shell
 dotnet add package CDP.DiagnosticTools
 ```
 
-If using the lightweight programmatic CDP Server directly (Option 2):
-```shell
-dotnet add package CDP.Avalonia
-```
-
-### Step B: Initialize the CDP Server in Code
-Enable the protocol in your main window code-behind (`MainWindow.axaml.cs`) or startup lifecycle:
-
-#### Option 1: Quick Extension Method (Auto F12 Keybinding)
-Using the extension method automatically starts the server and binds **F12** to open the embedded inspector:
 ```csharp
-using Avalonia;
 using Avalonia.Controls;
 
 public partial class MainWindow : Window
@@ -50,135 +35,291 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        // Starts CDP Server on port 9222, opens Inspector window on F12 keypress
         this.AttachCdpInspector(port: 9222);
     }
 }
 ```
 
-#### Option 2: Programmatic Manual Server Start
-For custom startup scripts, headless integration, or manual target registrations:
+Use `CDP.Avalonia` when the app needs only a programmatic CDP server:
+
+```shell
+dotnet add package CDP.Avalonia
+```
+
 ```csharp
 using Avalonia.Diagnostics.Cdp;
 
-// Start server on desired port
 CdpServer.Start(9222);
-
-// Register a window target to be discoverable
-var targetId = CdpServer.Register(mainWindow, "My Target App Window");
-
-// Stop the server on application exit
-CdpServer.Stop();
+var targetId = CdpServer.Register(mainWindow, "Main Window");
 ```
 
----
+## Discovery And Connection
 
-## 3. Remote Debugging & Target Discovery
+Agents should discover targets with:
 
-Once the CDP server starts, it exposes a local HTTP JSON target discovery server.
-
-- **Target JSON Discovery Endpoint**: `http://localhost:9222/json` or `http://localhost:9222/json/list`
-- **Response Format**:
-  ```json
-  [
-    {
-      "description": "My Target App Window",
-      "id": "c3e64f43-5095-43f4-8bef-e097d0c8dc1f",
-      "title": "My Target App Window",
-      "type": "page",
-      "webSocketDebuggerUrl": "ws://localhost:9222/devtools/page/c3e64f43-5095-43f4-8bef-e097d0c8dc1f"
-    }
-  ]
-  ```
-- **Web Browser Inspect**: Open Google Chrome or any Chromium browser, navigate to `chrome://inspect`, configure network targets to include `localhost:9222`, and click "inspect" under the discovered target list.
-
----
-
-## 4. E2E Test Automation & Dual-CDP Orchestration
-
-To run automated integration tests, configure a control harness (e.g. a console test runner or xUnit integration) that connects to the WebSockets of both the target and the client applications.
-
-```
-       ┌────────────────────────┐
-       │   Control App (Agent)  │
-       └────┬──────────────┬────┘
-            │              │
-   CDP: 9223│              │CDP: 9222
-            ▼              ▼
- ┌──────────────┐     ┌──────────────┐
- │ CdpInspector │     │  CdpSample   │
- │    Client    │     │  Target App  │
- └──────┬───────┘     └──────────────┘
-        │                    ▲
-        └────────────────────┘
-          CDP WebSocket Connection
+```text
+GET http://127.0.0.1:9222/json
+GET http://127.0.0.1:9222/json/list
 ```
 
-### Flow Checklist for Coding Agents:
-1. **Connect**: Open WebSocket connections to both target (`9222`) and client (`9223`) URLs retrieved from `/json`.
-2. **Setup**: Send `DOM.enable` to parse the visual tree.
-3. **Inspect**: Query element bounds via `DOM.querySelector` followed by `DOM.getBoxModel`.
-4. **Interact**: Calculate element centers and dispatch simulated inputs via `Input.dispatchMouseEvent`.
-5. **Verify**: Retrieve states or screenshot verification via `Page.captureScreenshot`.
+Target response shape:
 
----
-
-## 5. Coding Agent JSON-RPC Reference Recipes
-
-### Target DOM Query & Center-Click:
 ```json
-// 1. Query Node ID of a button
-{ "id": 1, "method": "DOM.querySelector", "params": { "nodeId": 1, "selector": "#btnSubmit" } }
-
-// 2. Get bounding box model for the Node ID
-{ "id": 2, "method": "DOM.getBoxModel", "params": { "nodeId": 10 } }
-
-// 3. Dispatch simulated mouse press/release at calculated center coordinates (x, y)
-{
-  "id": 3,
-  "method": "Input.dispatchMouseEvent",
-  "params": { "type": "mousePressed", "x": 150.5, "y": 25.0, "button": "left", "clickCount": 1 }
-}
+[
+  {
+    "description": "Main Window",
+    "id": "target-id",
+    "title": "Main Window",
+    "type": "page",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/page/target-id"
+  }
+]
 ```
 
-### Accessibility Auditing:
-```json
-// Query full accessibility tree mapping
-{ "id": 4, "method": "Accessibility.getFullAXTree" }
+After opening the WebSocket, enable the required domains:
 
-// Query partial AXTree for a specific node with relatives
+```json
+{ "id": 1, "method": "DOM.enable" }
+{ "id": 2, "method": "Input.enable" }
+{ "id": 3, "method": "Runtime.enable" }
+{ "id": 4, "method": "Page.enable" }
+```
+
+## Selector Contract
+
+Selectors intentionally look browser-like, while mapping to Avalonia controls.
+
+Use these first:
+
+- `#btnClickMe` for `Control.Name == "btnClickMe"`.
+- `[id="btnClickMe"]`, `[Id="btnClickMe"]`, or `[Name="btnClickMe"]` for `Control.Name`.
+- `[AccessibilityId="txtTarget"]`, `[AutomationId="txtTarget"]`, or `[AutomationProperties.AutomationId="txtTarget"]` for `AutomationProperties.AutomationId`.
+- `[class~="primary"]` for Avalonia classes.
+- `TextBlock:contains("Ready")`, `[Text="Ready"]`, or plain quoted text for text/content/header.
+
+Correctness rules:
+
+- Unknown attribute selectors must not match arbitrary controls.
+- Presence selectors such as `[id]` and `[AutomationId]` must only match controls that expose those attributes.
+- Prefer stable `Name` and `AutomationId` selectors over structural selectors.
+- Avoid hard-coded coordinates except after resolving an element through `DOM.getBoxModel`.
+
+## Basic Automation Recipes
+
+Get the document and query a node:
+
+```json
+{ "id": 10, "method": "DOM.getDocument", "params": { "pierce": true, "depth": -1 } }
+{ "id": 11, "method": "DOM.querySelector", "params": { "nodeId": 1, "selector": "#btnClickMe" } }
+```
+
+Get coordinates:
+
+```json
+{ "id": 12, "method": "DOM.getBoxModel", "params": { "nodeId": 42 } }
+```
+
+Click the element center using the returned `model.content` quad:
+
+```json
+{ "id": 13, "method": "Input.dispatchMouseEvent", "params": { "type": "mouseMoved", "x": 82.0, "y": 119.0, "button": "none" } }
+{ "id": 14, "method": "Input.dispatchMouseEvent", "params": { "type": "mousePressed", "x": 82.0, "y": 119.0, "button": "left", "clickCount": 1 } }
+{ "id": 15, "method": "Input.dispatchMouseEvent", "params": { "type": "mouseReleased", "x": 82.0, "y": 119.0, "button": "left", "clickCount": 1 } }
+```
+
+Focus and type:
+
+```json
+{ "id": 16, "method": "DOM.focus", "params": { "nodeId": 49 } }
+{ "id": 17, "method": "Input.insertText", "params": { "text": "Agent demo input" } }
+```
+
+Take a screenshot:
+
+```json
+{ "id": 18, "method": "Page.captureScreenshot" }
+```
+
+## Runtime Evaluation
+
+`Runtime.evaluate` runs C# script, not JavaScript. Available globals include:
+
+- `Window`
+- `SelectedNode`
+- `Control`
+- `DataContext`
+- `ViewModel`
+- `Query(selector)`
+- `QueryAll(selector)`
+- `document.querySelector(selector)`
+- `document.querySelectorAll(selector)`
+- `document.getElementById(id)`
+
+Useful expressions:
+
+```csharp
+document.querySelector("#btnRefreshTargets").id
+document.querySelector("#btnReplayLastVideo").isVisible
+Window.DataContext.Connection.IsConnected
+((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps.Count
+```
+
+When using LINQ with view-model collections, cast `Window.DataContext` to the concrete view model first. C# dynamic dispatch cannot accept lambda expressions reliably.
+
+## Dual-CDP Inspector Workflow
+
+Use this for end-to-end inspector scenarios.
+
+1. Start `CdpSampleApp` and `CdpInspectorApp`.
+2. Connect to both CDP endpoints.
+3. Enable `DOM`, `Input`, `Runtime`, and any required domains.
+4. On the inspector endpoint, click `#btnRefreshTargets`.
+5. On the inspector endpoint, click `#btnConnect`.
+6. Assert `Window.DataContext.Connection.IsConnected == true`.
+7. Open the recorder with `#TabRecorder`.
+8. Assert `document.querySelector("#imgScreenshot")` exists and its image source is non-null.
+9. Record, interact, replay, and verify through inspector state and generated artifacts.
+
+Stable inspector selectors:
+
+- `#btnTogglePreview`
+- `#btnRefreshTargets`
+- `#cbTargets`
+- `#btnConnect`
+- `#btnDisconnect`
+- `#btnInspect`
+- `#chkUseAutomationSelectors`
+- `#TabRecorder`
+- `#imgScreenshot`
+- `#btnTestStudioToggleRecord`
+- `#btnTestStudioPlay`
+- `#btnTestStudioPause`
+- `#btnTestStudioStop`
+- `#btnTestStudioStep`
+- `#btnTestStudioClear`
+- `#chkTestStudioRecordVideo`
+- `#chkTestStudioGenerateReports`
+- `#txtTestStudioOutputDirectory`
+- `#btnReplayLastVideo`
+- `#lstSteps`
+- `#acbTestStudioTargetSelector`
+- `#txtTestStudioInputValue`
+- `#btnTestStudioAddTap`
+- `#btnTestStudioAddInputText`
+- `#btnTestStudioAddScroll`
+- `#btnTestStudioAddAssertVisible`
+- `#btnTestStudioApplyYaml`
+
+## Recording Through The Visual Preview
+
+When a user asks for a live demo of the inspector controlling the sample, record through the inspector preview instead of directly clicking the sample endpoint.
+
+Recommended flow:
+
+1. Start Test Studio recording by clicking `#btnTestStudioToggleRecord`.
+2. Discover the target element in the sample endpoint with `DOM.querySelector`.
+3. Read the target box with `DOM.getBoxModel`.
+4. Read the sample viewport with `Page.getLayoutMetrics`.
+5. Read inspector preview bounds with `DOM.getBoxModel` on `#imgScreenshot`.
+6. Map sample coordinates into preview image coordinates.
+7. Dispatch mouse events to the inspector endpoint at the mapped preview coordinates.
+8. For text, focus through the preview click and send `Input.insertText` to the inspector endpoint.
+9. Stop recording by clicking `#btnTestStudioToggleRecord`.
+10. Assert `Recorder.RecordedSteps.Count` and `Recorder.TestStudio.Steps.Count`.
+
+Expected verification:
+
+```csharp
+var vm = ((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext);
+vm.Recorder.RecordedSteps.Count
+vm.Recorder.TestStudio.Steps.Count
+string.Join("|", vm.Recorder.TestStudio.Steps.Select((s, i) => $"{i + 1}:{s.Action}:{s.Selector}:{s.Value}"))
+```
+
+If string interpolation or dynamic LINQ causes script compilation issues, rewrite the expression using explicit concatenation and a concrete view-model cast.
+
+## Test Studio Replay Verification
+
+After clicking `#btnTestStudioPlay`, poll:
+
+```csharp
+var root = ((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext);
+var vm = root.Recorder.TestStudio;
+"exec=" + vm.IsExecuting +
+";recording=" + vm.HasLastRunRecording +
+";steps=" + vm.Steps.Count +
+";passed=" + vm.Steps.Count(s => s.Status.ToString() == "Passed") +
+";failed=" + vm.Steps.Count(s => s.Status.ToString() == "Failed") +
+";report=" + vm.LastReportPath +
+";pdf=" + vm.LastPdfReportPath
+```
+
+Success criteria:
+
+- `IsExecuting == false`
+- `HasLastRunRecording == true`
+- `failed == 0`
+- `passed == steps`
+- `LastReportPath` exists
+- `LastPdfReportPath` exists
+- `images/frame_*.jpg` count is greater than zero when video is enabled
+- `images/step_*_screenshot.png` count covers the replayed steps
+
+Optionally click `#btnReplayLastVideo` and assert the inspector remains responsive.
+
+## Accessibility Recipes
+
+Full accessibility tree:
+
+```json
+{ "id": 20, "method": "Accessibility.getFullAXTree" }
+```
+
+Partial tree for a DOM node:
+
+```json
 {
-  "id": 5,
+  "id": 21,
   "method": "Accessibility.getPartialAXTree",
-  "params": { "nodeId": 10, "fetchRelatives": true }
+  "params": { "nodeId": 42, "fetchRelatives": true }
 }
 ```
 
-### Screen Capture Verification:
-```json
-{ "id": 6, "method": "Page.captureScreenshot" }
-// Returns base64 encoded png string in: result.data
-```
+Verify roles and properties for controls such as `Button`, `CheckBox`, `Slider`, `ProgressBar`, `TextBox`, and `TabItem`. For selection synchronization work, verify both DOM selection and AX selection.
 
----
+## Coding Guidelines For CDP Work
 
-## 6. Coding Agent Instructions & Best Practices
+For `Avalonia.Diagnostics.Cdp`:
 
-When writing or extending code in projects utilizing `CDP.Avalonia`, coding agents must strictly adhere to the following directives:
+- Keep protocol domains focused and small.
+- Keep selector behavior deterministic.
+- Do not introduce broad fallbacks that return the wrong node.
+- Preserve browser-compatible CDP response shapes where practical.
+- Use UI-thread dispatch for Avalonia UI interaction.
+- Avoid allocations in hot paths such as traversal, dispatch, and recorder event handling when reasonable.
+- Cover selector and protocol behavior with focused tests.
 
-- **Codex (Code Generation)**:
-  - Do not change control `Name` attributes in XAML files. E2E verification test scripts rely on stable element names/selectors.
-  - When generating custom control layouts, ensure PascalCase property names are preserved since remote object queries map them directly.
+For inspector UI work:
 
-- **Claude (Refactoring & Architecture)**:
-  - Keep code-behind windows thin. Delegate CDP network/socket lifecycles and business VM logic to separate service classes (e.g. `ICdpService`).
-  - Use ViewModel databindings (`{Binding ...}`) and `ICommand` rather than direct code-behind DOM element manipulation.
+- Keep code-behind thin.
+- Put behavior in view models and services.
+- Route CDP networking through `ICdpService`.
+- Add stable `Name` attributes to controls that agents need to click or inspect.
+- Do not rename existing automation-critical controls.
 
-- **Copilot (Interactive Commands)**:
-  - Query target properties via `Runtime.evaluate` expression scripts rather than relying on coordinates.
-  - Ensure all async background WebSocket loops are wrapped in structured exception handling to prevent unhandled app crashes.
+For verification:
 
-- **Gemini (Verification & Auditing)**:
-  - When implementing new app features, **always** write custom E2E scenarios in `ControlApp/Program.cs` that target the specific updates.
-  - Use `JsonNode.DeepClone()` when broadcasting payloads to multiple sessions to prevent JsonNode parent-ownership exceptions.
-  - Use `CdpServer.OriginalOut` instead of `Console.WriteLine` when tracing messages from within CDP WebSocket response hooks to prevent infinite redirection loops.
+- Build task-specific scenarios.
+- Use `scratch/ControlApp` only when that mode fits the task and is not prohibited by the user.
+- For live demo requests, launch the real processes and drive their CDP endpoints directly.
+- Always include concrete logs or summarized output in the final walkthrough.
+
+## Common Failure Diagnosis
+
+- `DOM.querySelector("[Unknown=\"x\"]")` returns a node: attribute matching is too permissive.
+- `[id]` returns most nodes: presence selector support is broken.
+- `#btnTestStudioPlay` cannot be found: Test Studio stable names are missing or the recorder tab is not active.
+- `document.querySelector(...)` fails in `Runtime.evaluate`: runtime document facade or imports are broken.
+- Preview clicks record generic containers such as `#tabContainer`: coordinate mapping is off or the element is obscured/not visible.
+- Replay passes but no frames are generated: check `IsRecordVideoEnabled`, `Page.startScreencast`, and report finalization.
+- Direct sample clicks do not demonstrate inspector preview control: drive `#imgScreenshot` on the inspector endpoint.
