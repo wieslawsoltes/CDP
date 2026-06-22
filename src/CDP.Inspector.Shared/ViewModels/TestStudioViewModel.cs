@@ -47,6 +47,7 @@ public class TestStudioViewModel : ViewModelBase
     private bool _isRecordingVideo = false;
     private DateTime _playbackStartTime = DateTime.MinValue;
     private readonly Dictionary<int, StepReportItem> _stepReports = new();
+    private bool _isFinalizing = false;
 
     public bool IsRecordVideoEnabled
     {
@@ -213,8 +214,8 @@ public class TestStudioViewModel : ViewModelBase
         Steps.CollectionChanged += OnStepsCollectionChanged;
 
         PlayCommand = new RelayCommand(async () => await PlayAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused));
-        PauseCommand = new RelayCommand(Pause, () => IsExecuting && !IsPaused);
-        StopCommand = new RelayCommand(Stop, () => IsExecuting);
+        PauseCommand = new RelayCommand(Pause, () => IsExecuting && !IsPaused && !_isFinalizing);
+        StopCommand = new RelayCommand(Stop, () => IsExecuting && !_isFinalizing);
         StepOverCommand = new RelayCommand(async () => await StepOverAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused));
         ClearCommand = new RelayCommand(ClearAll);
 
@@ -438,8 +439,17 @@ public class TestStudioViewModel : ViewModelBase
         {
             if (!IsPaused)
             {
-                IsExecuting = false;
-                await FinalizeRecordingAndGenerateReportsAsync();
+                _isFinalizing = true;
+                RaiseCommandCanExecuteChanged();
+                try
+                {
+                    await FinalizeRecordingAndGenerateReportsAsync();
+                }
+                finally
+                {
+                    _isFinalizing = false;
+                    IsExecuting = false;
+                }
             }
             RaiseCommandCanExecuteChanged();
         }
@@ -456,7 +466,6 @@ public class TestStudioViewModel : ViewModelBase
     public void Stop()
     {
         bool wasPaused = IsPaused;
-        IsExecuting = false;
         IsPaused = false;
         _executionCts?.Cancel();
         _currentStepIndex = 0;
@@ -467,11 +476,28 @@ public class TestStudioViewModel : ViewModelBase
             step.IsCurrent = false;
         }
         Log("Execution stopped.");
-        RaiseCommandCanExecuteChanged();
 
         if (wasPaused)
         {
-            _ = Task.Run(FinalizeRecordingAndGenerateReportsAsync);
+            _isFinalizing = true;
+            RaiseCommandCanExecuteChanged();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await FinalizeRecordingAndGenerateReportsAsync();
+                }
+                finally
+                {
+                    _isFinalizing = false;
+                    IsExecuting = false;
+                    RaiseCommandCanExecuteChanged();
+                }
+            });
+        }
+        else
+        {
+            RaiseCommandCanExecuteChanged();
         }
     }
 
@@ -2100,7 +2126,7 @@ public class TestStudioViewModel : ViewModelBase
         try
         {
             Log("Generating test run reports...");
-            var runFolder = $"Run_{DateTime.Now:yyyyMMdd_HHmmss}";
+            var runFolder = $"Run_{DateTime.Now:yyyyMMdd_HHmmss_fff}";
             var outputFolder = Path.Combine(OutputDirectory, runFolder);
             Directory.CreateDirectory(outputFolder);
             var imagesFolder = Path.Combine(outputFolder, "images");

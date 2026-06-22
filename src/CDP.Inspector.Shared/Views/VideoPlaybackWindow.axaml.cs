@@ -52,6 +52,7 @@ public partial class VideoPlaybackWindow : Window
 {
     private List<PlaybackFrame> _frames = new();
     private readonly Dictionary<int, Bitmap> _bitmapCache = new();
+    private readonly List<int> _cacheKeysOrder = new();
     private readonly List<PlaybackStepViewModel> _stepViewModels = new();
     
     private readonly DispatcherTimer _timer;
@@ -100,6 +101,7 @@ public partial class VideoPlaybackWindow : Window
             bmp.Dispose();
         }
         _bitmapCache.Clear();
+        _cacheKeysOrder.Clear();
 
         // 2. Load and build step view models
         _stepViewModels.Clear();
@@ -283,11 +285,32 @@ public partial class VideoPlaybackWindow : Window
 
         try
         {
-            if (!_bitmapCache.TryGetValue(index, out var bmp))
+            Bitmap bmp;
+            if (_bitmapCache.TryGetValue(index, out var cachedBmp))
+            {
+                bmp = cachedBmp;
+                // Move key to the end of insertion order to keep it hot (LRU)
+                _cacheKeysOrder.Remove(index);
+                _cacheKeysOrder.Add(index);
+            }
+            else
             {
                 using var ms = new MemoryStream(_frames[index].Data);
                 bmp = new Bitmap(ms);
                 _bitmapCache[index] = bmp;
+                _cacheKeysOrder.Add(index);
+
+                // Keep cache size bounded (e.g. max 50 frame bitmaps)
+                if (_cacheKeysOrder.Count > 50)
+                {
+                    int oldestIndex = _cacheKeysOrder[0];
+                    _cacheKeysOrder.RemoveAt(0);
+                    if (_bitmapCache.TryGetValue(oldestIndex, out var oldestBmp))
+                    {
+                        oldestBmp.Dispose();
+                        _bitmapCache.Remove(oldestIndex);
+                    }
+                }
             }
 
             imgFrame.Source = bmp;
@@ -394,6 +417,7 @@ public partial class VideoPlaybackWindow : Window
             bmp.Dispose();
         }
         _bitmapCache.Clear();
+        _cacheKeysOrder.Clear();
         
         foreach (var vm in _stepViewModels)
         {
