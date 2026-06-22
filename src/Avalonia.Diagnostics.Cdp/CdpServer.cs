@@ -113,6 +113,15 @@ public static class CdpServer
         }
     }
 
+    public static void BroadcastDomainsUpdated()
+    {
+        foreach (var session in _sessions.Keys)
+        {
+            _ = session.SendEventAsync("Schema.domainsUpdated", new JsonObject());
+        }
+    }
+
+
     public static void UpdateTitle(TopLevel window, string newTitle)
     {
         var key = _windows.FirstOrDefault(x => x.Value.Window == window).Key;
