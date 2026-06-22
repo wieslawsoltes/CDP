@@ -71,7 +71,14 @@ public class MainWindowViewModel : ViewModelBase
         Memory = new MemoryViewModel(CdpService);
         Application = new ApplicationViewModel(CdpService);
         Audits = new AuditsViewModel(CdpService, nodeId => Elements.SelectNodeById(nodeId));
-        Simulation = new SimulationViewModel(CdpService, () => Elements.SelectedNode);
+        Simulation = new SimulationViewModel(
+            CdpService,
+            getSelectedNodeFunc: () => Elements.SelectedNode,
+            isHighlightActiveFunc: () => Elements.IsHighlightActive,
+            getAxDetailsFunc: nodeId => Elements.FindAxDetails(nodeId),
+            isInspectModeActiveFunc: () => Connection.IsInspectModeActive,
+            getDomNodeFunc: nodeId => Elements.FindDomNode(nodeId)
+        );
         Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress, () => Connection.UseAutomationSelectors);
 
         Connection.PropertyChanged += (sender, e) =>
@@ -79,6 +86,18 @@ public class MainWindowViewModel : ViewModelBase
             if (e.PropertyName == nameof(ConnectionViewModel.UseAutomationSelectors))
             {
                 UpdateSelectedSelector();
+            }
+            else if (e.PropertyName == nameof(ConnectionViewModel.IsInspectModeActive))
+            {
+                if (!Connection.IsInspectModeActive)
+                {
+                    Simulation.ClearInspectHover();
+                    _ = Simulation.TriggerHighlightRefreshAsync();
+                }
+                else
+                {
+                    Simulation.ResetInspectHoverCache();
+                }
             }
         };
 
@@ -88,7 +107,7 @@ public class MainWindowViewModel : ViewModelBase
             if (e.PropertyName == nameof(ElementsViewModel.SelectedNode) || e.PropertyName == nameof(ElementsViewModel.SelectedAxNode))
             {
                 Simulation.RaiseCanExecuteChangedForAll();
-                if (Connection.IsInspectModeActive)
+                if (Connection.IsInspectModeActive && !Elements.IsSelectingProgrammatically)
                 {
                     Connection.IsInspectModeActive = false;
                 }
@@ -97,6 +116,15 @@ public class MainWindowViewModel : ViewModelBase
             if (e.PropertyName == nameof(ElementsViewModel.SelectedNode))
             {
                 UpdateSelectedSelector();
+                _ = Simulation.TriggerHighlightRefreshAsync();
+            }
+            else if (e.PropertyName == nameof(ElementsViewModel.IsHighlightActive))
+            {
+                _ = Simulation.TriggerHighlightRefreshAsync();
+            }
+            else if (e.PropertyName == nameof(ElementsViewModel.ShowVisualTree) || e.PropertyName == nameof(ElementsViewModel.SelectedTreeTabIndex))
+            {
+                Simulation.ResetInspectHoverCache();
             }
         };
     }

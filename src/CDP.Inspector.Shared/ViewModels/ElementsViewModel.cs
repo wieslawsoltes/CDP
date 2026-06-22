@@ -466,6 +466,8 @@ public class ElementsViewModel : ViewModelBase
         }
     }
 
+    public bool IsSelectingProgrammatically => _isSelectingProgrammatically;
+
     private int _selectedTreeTabIndex = 0;
     public int SelectedTreeTabIndex
     {
@@ -1636,4 +1638,43 @@ public class ElementsViewModel : ViewModelBase
         }
         return false;
     }
+
+    public (string? Role, string? Name) FindAxDetails(int backendDomNodeId)
+    {
+        foreach (var kvp in _axNodeDetailsMap)
+        {
+            var nodeObj = kvp.Value;
+            var backendNodeId = nodeObj["backendDOMNodeId"]?.GetValue<int>();
+            if (backendNodeId == backendDomNodeId)
+            {
+                var roleObj = nodeObj["role"] as JsonObject;
+                string? role = roleObj?["value"]?.GetValue<string>();
+                var nameObj = nodeObj["name"] as JsonObject;
+                string? name = nameObj?["value"]?.GetValue<string>();
+                return (role, name);
+            }
+        }
+        return (null, null);
+    }
+
+    public DomNodeModel? FindDomNode(int nodeId)
+    {
+        DomNodeModel? FindNode(DomNodeModel parent)
+        {
+            if (parent.NodeId == nodeId) return parent;
+            foreach (var child in parent.Children)
+            {
+                var found = FindNode(child);
+                if (found != null) return found;
+            }
+            return null;
+        }
+        foreach (var root in RootNodes)
+        {
+            var found = FindNode(root);
+            if (found != null) return found;
+        }
+        return null;
+    }
 }
+

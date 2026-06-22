@@ -1141,6 +1141,9 @@ description: ""Verify new commands execution""
         Scenario24Start:
             await RunScenario24Async(cdpService, mainVm);
 
+        Scenario25Start:
+            await RunScenario25Async(cdpService, mainVm);
+
             // Cleanup & successful exit
             await cdpService.DisconnectAsync();
             CdpServer.Stop();
@@ -3092,6 +3095,183 @@ description: ""Verify new commands execution""
         });
 
         Console.WriteLine("Scenario 24 PASSED.");
+    }
+
+    private static async Task RunScenario25Async(CdpService cdpService, MainWindowViewModel mainVm)
+    {
+        Console.WriteLine("Testing Scenario 25: Visual Preview Highlight Adorners & Hover Highlight E2E...");
+
+        var elements = mainVm.Elements;
+        var simulation = mainVm.Simulation;
+
+        await elements.RefreshDomTreeAsync();
+        await elements.RefreshAxTreeAsync();
+
+        DomNodeModel? btnNode = null;
+        void FindBtnTarget(DomNodeModel parent)
+        {
+            var idAttr = parent.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+            if (idAttr != null && idAttr.Value == "btnTarget")
+            {
+                btnNode = parent;
+                return;
+            }
+            foreach (var child in parent.Children)
+            {
+                FindBtnTarget(child);
+                if (btnNode != null) return;
+            }
+        }
+
+        if (elements.RootNodes.Count > 0)
+        {
+            FindBtnTarget(elements.RootNodes[0]);
+        }
+
+        if (btnNode == null)
+        {
+            throw new Exception("Could not find btnTarget in DOM tree.");
+        }
+
+        // Test 25.1: Selected node highlight (IsHighlightActive = true)
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            elements.IsHighlightActive = true;
+            elements.SelectedNode = btnNode;
+        });
+
+        await simulation.TriggerHighlightRefreshAsync();
+
+        if (!simulation.IsHighlightOverlayVisible || simulation.HighlightBoxModel == null)
+        {
+            throw new Exception("Selected node highlight not visible in visual preview.");
+        }
+        if (simulation.HighlightElementType != "Button" || simulation.HighlightAxRole != "button")
+        {
+            throw new Exception($"Expected selected element highlight to be Button (button), got {simulation.HighlightElementType} ({simulation.HighlightAxRole})");
+        }
+        Console.WriteLine("Selected Node Highlight verified.");
+
+        // Clear selection & highlight active state to clean up
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            elements.IsHighlightActive = false;
+            elements.SelectedNode = null;
+        });
+        await simulation.TriggerHighlightRefreshAsync();
+
+        if (simulation.IsHighlightOverlayVisible)
+        {
+            throw new Exception("Expected highlight overlay to be hidden after cleanup.");
+        }
+
+        // Test 25.2: Inspect mode hover highlight
+        // First get btnTarget coordinates via DOM.getBoxModel
+        var boxRes = await cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = btnNode.NodeId });
+        var model = boxRes["model"] as JsonObject;
+        var contentQuad = model?["content"] as JsonArray;
+        if (contentQuad == null || contentQuad.Count < 8)
+        {
+            throw new Exception("Could not retrieve btnTarget box model content quad.");
+        }
+        double x1 = contentQuad[0]!.GetValue<double>();
+        double y1 = contentQuad[1]!.GetValue<double>();
+        double x3 = contentQuad[4]!.GetValue<double>();
+        double y3 = contentQuad[5]!.GetValue<double>();
+        double cx = (x1 + x3) / 2;
+        double cy = (y1 + y3) / 2;
+
+        // Turn on Inspect Mode (Select Element)
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Connection.IsInspectModeActive = true;
+        });
+
+        // Simulate hover by sending mouseMoved event
+        await simulation.SendMouseEventAsync("mouseMoved", cx, cy, "none", 0);
+        
+        // Wait for hover query to process
+        await Task.Delay(300);
+
+        if (!simulation.IsHighlightOverlayVisible || simulation.HighlightBoxModel == null)
+        {
+            throw new Exception("Hover highlight not visible in visual preview during inspect mode.");
+        }
+        if (simulation.HighlightElementType != "Button" || simulation.HighlightAxRole != "button")
+        {
+            throw new Exception($"Expected hovered element highlight to be Button (button), got {simulation.HighlightElementType} ({simulation.HighlightAxRole})");
+        }
+        Console.WriteLine($"Hover Highlight verified: Type={simulation.HighlightElementType}, Role={simulation.HighlightAxRole}, Name={simulation.HighlightAxName}");
+
+        // Test 25.3: Visual Tree Mode hover highlight
+        Console.WriteLine("Verifying Hover Highlight in Visual Tree Mode...");
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.ShowVisualTree = true;
+        });
+        // Wait for DOM tree refresh
+        await Task.Delay(300);
+
+        // Simulate hover by sending mouseMoved event
+        await simulation.SendMouseEventAsync("mouseMoved", cx, cy, "none", 0);
+        await Task.Delay(300);
+
+        if (!simulation.IsHighlightOverlayVisible || simulation.HighlightBoxModel == null)
+        {
+            throw new Exception("Hover highlight not visible in visual preview during visual tree mode.");
+        }
+        Console.WriteLine($"Visual Tree Mode Hover Highlight verified: Type={simulation.HighlightElementType}");
+
+        // Reset ShowVisualTree to false
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.ShowVisualTree = false;
+        });
+        await Task.Delay(300);
+
+        // Test 25.4: Accessibility/Automation Tree Mode hover highlight
+        Console.WriteLine("Verifying Hover Highlight in Accessibility/Automation Tree Mode...");
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.SelectedTreeTabIndex = 1;
+        });
+
+        // Simulate hover by sending mouseMoved event
+        await simulation.SendMouseEventAsync("mouseMoved", cx, cy, "none", 0);
+        await Task.Delay(300);
+
+        if (!simulation.IsHighlightOverlayVisible || simulation.HighlightBoxModel == null)
+        {
+            throw new Exception("Hover highlight not visible in visual preview during accessibility tree mode.");
+        }
+        if (simulation.HighlightElementType != "Button" || simulation.HighlightAxRole != "button")
+        {
+            throw new Exception($"Expected hovered AX element highlight to be Button (button), got {simulation.HighlightElementType} ({simulation.HighlightAxRole})");
+        }
+        Console.WriteLine($"Accessibility Tree Mode Hover Highlight verified: Type={simulation.HighlightElementType}, Role={simulation.HighlightAxRole}, Name={simulation.HighlightAxName}");
+
+        // Reset tab index
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.SelectedTreeTabIndex = 0;
+        });
+
+        // Turn off Inspect Mode (Select Element)
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Connection.IsInspectModeActive = false;
+        });
+
+        // Wait for cleanup
+        await Task.Delay(100);
+
+        if (simulation.IsHighlightOverlayVisible)
+        {
+            throw new Exception("Expected highlight overlay to be hidden after exiting inspect mode.");
+        }
+        Console.WriteLine("Inspect mode exiting successfully cleared hover highlight.");
+
+        Console.WriteLine("Scenario 25 PASSED.");
     }
 }
 

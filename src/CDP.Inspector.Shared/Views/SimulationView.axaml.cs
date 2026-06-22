@@ -24,6 +24,7 @@ public partial class SimulationView : UserControl
             img.PointerReleased += Image_PointerReleased;
             img.PointerMoved += Image_PointerMoved;
             img.PointerWheelChanged += Image_PointerWheelChanged;
+            img.PointerExited += Image_PointerExited;
         }
 
         var border = this.Find<Border>("borderScreenshot");
@@ -120,6 +121,15 @@ public partial class SimulationView : UserControl
             _ = mainVm.Simulation.SendWheelEventAsync(targetX, targetY, e.Delta.Y);
         }
         e.Handled = true;
+    }
+
+    private void Image_PointerExited(object? sender, PointerEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            mainVm.Simulation.ClearInspectHover();
+            _ = mainVm.Simulation.TriggerHighlightRefreshAsync();
+        }
     }
 
     private void SendMouseEvent(string type, PointerEventArgs e)

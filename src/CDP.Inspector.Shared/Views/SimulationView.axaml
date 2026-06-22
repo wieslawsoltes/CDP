@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.SimulationView"
              x:CompileBindings="False">
     <Grid RowDefinitions="Auto, Auto, *, Auto" Background="#202124">
@@ -65,7 +66,10 @@
         <Border Grid.Row="2" Background="#202124" Focusable="True" Name="borderScreenshot">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                 <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Margin="15" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Width="{Binding Simulation.DeviceWidth}" Height="{Binding Simulation.DeviceHeight}" Stretch="Uniform"/>
+                    <Grid>
+                        <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Width="{Binding Simulation.DeviceWidth}" Height="{Binding Simulation.DeviceHeight}" Stretch="Uniform"/>
+                        <controls:PreviewHighlightOverlay Simulation="{Binding Simulation}" Width="{Binding Simulation.DeviceWidth}" Height="{Binding Simulation.DeviceHeight}" IsHitTestVisible="False"/>
+                    </Grid>
                 </Border>
             </ScrollViewer>
         </Border>

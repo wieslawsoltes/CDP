@@ -15,6 +15,24 @@ public class SimulationViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
     private readonly Func<DomNodeModel?> _getSelectedNodeFunc;
+    private readonly Func<bool> _isHighlightActiveFunc;
+    private readonly Func<int, (string? Role, string? Name)> _getAxDetailsFunc;
+    private readonly Func<bool> _isInspectModeActiveFunc;
+    private readonly Func<int, DomNodeModel?> _getDomNodeFunc;
+
+    private JsonObject? _highlightBoxModel;
+    private string? _highlightElementType;
+    private string? _highlightAxRole;
+    private string? _highlightAxName;
+    private bool _isHighlightOverlayVisible;
+
+    private bool _isInspectQueryInFlight;
+    private double _lastInspectX;
+    private double _lastInspectY;
+    private bool _hasPendingInspect;
+    private double _pendingInspectX;
+    private double _pendingInspectY;
+    private int _hoverGeneration;
     
     private string _inputSimText = "";
     private string _selectedKey = "Enter";
@@ -164,6 +182,36 @@ public class SimulationViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _deviceHeight, value);
     }
 
+    public JsonObject? HighlightBoxModel
+    {
+        get => _highlightBoxModel;
+        set => RaiseAndSetIfChanged(ref _highlightBoxModel, value);
+    }
+
+    public string? HighlightElementType
+    {
+        get => _highlightElementType;
+        set => RaiseAndSetIfChanged(ref _highlightElementType, value);
+    }
+
+    public string? HighlightAxRole
+    {
+        get => _highlightAxRole;
+        set => RaiseAndSetIfChanged(ref _highlightAxRole, value);
+    }
+
+    public string? HighlightAxName
+    {
+        get => _highlightAxName;
+        set => RaiseAndSetIfChanged(ref _highlightAxName, value);
+    }
+
+    public bool IsHighlightOverlayVisible
+    {
+        get => _isHighlightOverlayVisible;
+        set => RaiseAndSetIfChanged(ref _isHighlightOverlayVisible, value);
+    }
+
     public string NavigateUrlText
     {
         get => _navigateUrlText;
@@ -262,10 +310,20 @@ public class SimulationViewModel : ViewModelBase
     public ICommand MouseDragCommand { get; }
     public ICommand RotateDeviceCommand { get; }
 
-    public SimulationViewModel(ICdpService cdpService, Func<DomNodeModel?> getSelectedNodeFunc)
+    public SimulationViewModel(
+        ICdpService cdpService,
+        Func<DomNodeModel?> getSelectedNodeFunc,
+        Func<bool> isHighlightActiveFunc,
+        Func<int, (string? Role, string? Name)> getAxDetailsFunc,
+        Func<bool> isInspectModeActiveFunc,
+        Func<int, DomNodeModel?> getDomNodeFunc)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _getSelectedNodeFunc = getSelectedNodeFunc ?? throw new ArgumentNullException(nameof(getSelectedNodeFunc));
+        _isHighlightActiveFunc = isHighlightActiveFunc ?? throw new ArgumentNullException(nameof(isHighlightActiveFunc));
+        _getAxDetailsFunc = getAxDetailsFunc ?? throw new ArgumentNullException(nameof(getAxDetailsFunc));
+        _isInspectModeActiveFunc = isInspectModeActiveFunc ?? throw new ArgumentNullException(nameof(isInspectModeActiveFunc));
+        _getDomNodeFunc = getDomNodeFunc ?? throw new ArgumentNullException(nameof(getDomNodeFunc));
 
         _selectedDevicePreset = _devicePresets[0];
 
@@ -836,9 +894,10 @@ public class SimulationViewModel : ViewModelBase
                     byte[] bytes = Convert.FromBase64String(base64);
                     using var ms = new MemoryStream(bytes);
                     var bitmap = new Bitmap(ms);
-                    Dispatcher.UIThread.Post(() =>
+                    Dispatcher.UIThread.Post(async () =>
                     {
                         ScreenshotImage = bitmap;
+                        await TriggerHighlightRefreshAsync();
                     });
                 }
 
@@ -857,6 +916,11 @@ public class SimulationViewModel : ViewModelBase
     public async Task SendMouseEventAsync(string type, double x, double y, string button, int modifiers, int buttons = 0)
     {
         if (!_cdpService.IsConnected) return;
+
+        if (type == "mouseMoved" && _isInspectModeActiveFunc())
+        {
+            _ = UpdateInspectHoverAsync(x, y);
+        }
 
         int clickCount = 0;
         if (type == "mousePressed" || type == "mouseReleased")
@@ -933,6 +997,174 @@ public class SimulationViewModel : ViewModelBase
         {
             Console.WriteLine($"Interactive key event failed: {ex.Message}");
         }
+    }
+
+    public async Task TriggerHighlightRefreshAsync()
+    {
+        if (_isInspectModeActiveFunc()) return;
+
+        var selectedNode = _getSelectedNodeFunc();
+        bool isHighlightActive = _isHighlightActiveFunc();
+        if (selectedNode == null || !isHighlightActive || !_cdpService.IsConnected)
+        {
+            HighlightBoxModel = null;
+            HighlightElementType = null;
+            HighlightAxRole = null;
+            HighlightAxName = null;
+            IsHighlightOverlayVisible = false;
+            return;
+        }
+
+        try
+        {
+            var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = selectedNode.NodeId });
+            
+            // Re-validate selection and highlight active state to avoid race conditions or stale overrides
+            var currentNode = _getSelectedNodeFunc();
+            var isHighlightActiveNow = _isHighlightActiveFunc();
+            if (currentNode != selectedNode || !isHighlightActiveNow || !_cdpService.IsConnected)
+            {
+                if (currentNode == null || !isHighlightActiveNow)
+                {
+                    HighlightBoxModel = null;
+                    HighlightElementType = null;
+                    HighlightAxRole = null;
+                    HighlightAxName = null;
+                    IsHighlightOverlayVisible = false;
+                }
+                return;
+            }
+
+            var model = boxRes["model"] as JsonObject;
+            if (model != null)
+            {
+                var axDetails = _getAxDetailsFunc(selectedNode.NodeId);
+                HighlightElementType = selectedNode.NodeName;
+                HighlightAxRole = axDetails.Role;
+                HighlightAxName = axDetails.Name;
+                HighlightBoxModel = model;
+                IsHighlightOverlayVisible = true;
+            }
+            else
+            {
+                HighlightBoxModel = null;
+                IsHighlightOverlayVisible = false;
+            }
+        }
+        catch
+        {
+            HighlightBoxModel = null;
+            IsHighlightOverlayVisible = false;
+        }
+    }
+    public async Task UpdateInspectHoverAsync(double x, double y)
+    {
+        if (!_cdpService.IsConnected) return;
+
+        if (_isInspectQueryInFlight)
+        {
+            _pendingInspectX = x;
+            _pendingInspectY = y;
+            _hasPendingInspect = true;
+            return;
+        }
+
+        // Throttle: only query if mouse moved by at least 2 pixels
+        if (Math.Abs(x - _lastInspectX) < 2 && Math.Abs(y - _lastInspectY) < 2) return;
+
+        _lastInspectX = x;
+        _lastInspectY = y;
+        _isInspectQueryInFlight = true;
+        int currentGen = _hoverGeneration;
+
+        try
+        {
+            Console.WriteLine($"[DEBUG HOVER] UpdateInspectHoverAsync x={x}, y={y}");
+            var nodeRes = await _cdpService.SendCommandAsync("DOM.getNodeForLocation", new JsonObject
+            {
+                ["x"] = (int)x,
+                ["y"] = (int)y
+            });
+            Console.WriteLine($"[DEBUG HOVER] getNodeForLocation result: {nodeRes.ToJsonString()}");
+            
+            // Re-validate inspect mode active state and generation
+            if (currentGen != _hoverGeneration || !_isInspectModeActiveFunc() || !_cdpService.IsConnected)
+            {
+                ClearInspectHover();
+                return;
+            }
+
+            var nodeId = nodeRes["nodeId"]?.GetValue<int>() ?? 0;
+            if (nodeId > 0)
+            {
+                var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+                Console.WriteLine($"[DEBUG HOVER] getBoxModel result: {boxRes.ToJsonString()}");
+                
+                // Re-validate inspect mode active state and generation
+                if (currentGen != _hoverGeneration || !_isInspectModeActiveFunc() || !_cdpService.IsConnected)
+                {
+                    ClearInspectHover();
+                    return;
+                }
+
+                var model = boxRes["model"] as JsonObject;
+                if (model != null)
+                {
+                    var domNode = _getDomNodeFunc(nodeId);
+                    var axDetails = _getAxDetailsFunc(nodeId);
+                    Console.WriteLine($"[DEBUG HOVER] domNode found: {(domNode != null ? domNode.NodeName : "null")}, axRole={axDetails.Role}, axName={axDetails.Name}");
+
+                    HighlightElementType = domNode?.NodeName ?? "Visual";
+                    HighlightAxRole = axDetails.Role;
+                    HighlightAxName = axDetails.Name;
+                    HighlightBoxModel = model;
+                    IsHighlightOverlayVisible = true;
+                }
+                else
+                {
+                    Console.WriteLine("[DEBUG HOVER] box model is null");
+                    ClearInspectHover();
+                }
+            }
+            else
+            {
+                Console.WriteLine("[DEBUG HOVER] nodeId is 0");
+                ClearInspectHover();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG HOVER] Exception: {ex.Message}");
+            ClearInspectHover();
+        }
+        finally
+        {
+            _isInspectQueryInFlight = false;
+            if (currentGen == _hoverGeneration && _hasPendingInspect && _cdpService.IsConnected && _isInspectModeActiveFunc())
+            {
+                double px = _pendingInspectX;
+                double py = _pendingInspectY;
+                _hasPendingInspect = false;
+                _ = UpdateInspectHoverAsync(px, py);
+            }
+        }
+    }
+
+    public void ClearInspectHover()
+    {
+        _hoverGeneration++;
+        HighlightBoxModel = null;
+        HighlightElementType = null;
+        HighlightAxRole = null;
+        HighlightAxName = null;
+        IsHighlightOverlayVisible = false;
+    }
+
+    public void ResetInspectHoverCache()
+    {
+        _hoverGeneration++;
+        _lastInspectX = -999;
+        _lastInspectY = -999;
     }
 }
 
