@@ -91,6 +91,38 @@ public static class CdpServer
         return id;
     }
 
+    private static void NotifyTargetInfoChanged(string targetId, string title)
+    {
+        foreach (var session in _sessions.Keys)
+        {
+            if (session.DiscoverTargetsEnabled)
+            {
+                _ = session.SendEventAsync("Target.targetInfoChanged", new JsonObject
+                {
+                    ["targetInfo"] = new JsonObject
+                    {
+                        ["targetId"] = targetId,
+                        ["type"] = "page",
+                        ["title"] = title,
+                        ["url"] = $"http://localhost:{_port}/",
+                        ["attached"] = true,
+                        ["browserContextId"] = "1"
+                    }
+                });
+            }
+        }
+    }
+
+    public static void UpdateTitle(TopLevel window, string newTitle)
+    {
+        var key = _windows.FirstOrDefault(x => x.Value.Window == window).Key;
+        if (key != null)
+        {
+            _windows[key] = (window, newTitle);
+            NotifyTargetInfoChanged(key, newTitle);
+        }
+    }
+
     public static void Unregister(TopLevel window)
     {
         var key = _windows.FirstOrDefault(x => x.Value.Window == window).Key;

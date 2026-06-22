@@ -476,7 +476,11 @@ public class NewDomainTests
         var targetId = createRes["targetId"]?.GetValue<string>();
         Assert.NotEmpty(targetId ?? "");
 
-        var attachRes = await TargetDomain.HandleAsync(session, "attachToTarget", new JsonObject { ["targetId"] = targetId });
+        var attachRes = await TargetDomain.HandleAsync(session, "attachToTarget", new JsonObject 
+        { 
+            ["targetId"] = targetId,
+            ["flatten"] = true
+        });
         Assert.NotNull(attachRes);
         var sessionId = attachRes["sessionId"]?.GetValue<string>();
         Assert.NotEmpty(sessionId ?? "");
@@ -924,6 +928,77 @@ public class NewDomainTests
         vm.SelectedTarget = targetA;
         await Task.Delay(50);
         Assert.Equal("id-a", service.ConnectedTargetId);
+    }
+
+    [AvaloniaFact]
+    public async Task TestTargetAttachToTargetFlattenValidation()
+    {
+        var window = new Window { Title = "Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Attempt attach with flatten=false (should throw exception)
+        var attachParams1 = new JsonObject
+        {
+            ["targetId"] = "dummy-target-id",
+            ["flatten"] = false
+        };
+
+        var ex = await Assert.ThrowsAsync<Exception>(() => TargetDomain.HandleAsync(session, "attachToTarget", attachParams1));
+        Assert.Contains("Only flattened target attachments are supported", ex.Message);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestWindowChromeSetTitleUpdatesMetadata()
+    {
+        var window = new Window { Title = "Old Title" };
+        window.Show();
+        var id = CdpServer.Register(window, "Old Title");
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+        session.DiscoverTargetsEnabled = true;
+        CdpServer.AddSession(session);
+
+        var newTitleBroadcasted = "";
+
+        session.EventSentForTesting += (e) =>
+        {
+            if (e["method"]?.GetValue<string>() == "Target.targetInfoChanged")
+            {
+                var targetInfo = e["params"]?["targetInfo"] as JsonObject;
+                if (targetInfo != null && targetInfo["targetId"]?.GetValue<string>() == id)
+                {
+                    newTitleBroadcasted = targetInfo["title"]?.GetValue<string>() ?? "";
+                }
+            }
+        };
+
+        // Change title using WindowChrome domain
+        var setParams = new JsonObject
+        {
+            ["title"] = "New Awesome Title"
+        };
+
+        await WindowChromeDomain.HandleAsync(session, "setTitle", setParams);
+
+        // Verify local window title updated
+        Assert.Equal("New Awesome Title", window.Title);
+
+        // Verify CdpServer registration was updated
+        var winInfo = CdpServer.GetWindows().FirstOrDefault(w => w.Id == id);
+        Assert.Equal("New Awesome Title", winInfo.Title);
+
+        // Verify standard CDP event targetInfoChanged was fired
+        Assert.Equal("New Awesome Title", newTitleBroadcasted);
+
+        CdpServer.RemoveSession(session);
+        CdpServer.Unregister(window);
+        window.Close();
     }
 }
 

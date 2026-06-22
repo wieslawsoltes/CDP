@@ -69,6 +69,7 @@ public static class WindowChromeDomain
                         if (targetWindow is Window win)
                         {
                             win.Title = title;
+                            CdpServer.UpdateTitle(win, title);
                         }
                     });
                     return new JsonObject { ["success"] = true };

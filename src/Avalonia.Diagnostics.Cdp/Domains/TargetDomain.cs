@@ -141,6 +141,12 @@ public static class TargetDomain
 
             case "attachToTarget":
                 {
+                    bool flatten = @params["flatten"]?.GetValue<bool>() ?? false;
+                    if (!flatten)
+                    {
+                        throw new Exception("Only flattened target attachments are supported. Please set flatten=true.");
+                    }
+
                     string? targetId = @params["targetId"]?.GetValue<string>();
                     if (string.IsNullOrEmpty(targetId))
                     {

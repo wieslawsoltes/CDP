@@ -24,6 +24,7 @@ public class CdpSession
     private readonly WebSocket _webSocket;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
+    public event Action<JsonObject>? EventSentForTesting;
 
     private readonly ConcurrentDictionary<string, CdpTargetSession> _attachedTargets = new();
     private readonly CdpTargetSession? _defaultTargetSession;
@@ -480,6 +481,7 @@ public class CdpSession
 
     private async Task SendJsonAsync(JsonObject node)
     {
+        EventSentForTesting?.Invoke(node);
         if (_webSocket.State != WebSocketState.Open) return;
         var bytes = Encoding.UTF8.GetBytes(node.ToJsonString());
         try
