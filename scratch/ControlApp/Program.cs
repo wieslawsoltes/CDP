@@ -3203,6 +3203,59 @@ description: ""Verify new commands execution""
         }
         Console.WriteLine($"Hover Highlight verified: Type={simulation.HighlightElementType}, Role={simulation.HighlightAxRole}, Name={simulation.HighlightAxName}");
 
+        // Test 25.3: Visual Tree Mode hover highlight
+        Console.WriteLine("Verifying Hover Highlight in Visual Tree Mode...");
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.ShowVisualTree = true;
+        });
+        // Wait for DOM tree refresh
+        await Task.Delay(300);
+
+        // Simulate hover by sending mouseMoved event
+        await simulation.SendMouseEventAsync("mouseMoved", cx, cy, "none", 0);
+        await Task.Delay(300);
+
+        if (!simulation.IsHighlightOverlayVisible || simulation.HighlightBoxModel == null)
+        {
+            throw new Exception("Hover highlight not visible in visual preview during visual tree mode.");
+        }
+        Console.WriteLine($"Visual Tree Mode Hover Highlight verified: Type={simulation.HighlightElementType}");
+
+        // Reset ShowVisualTree to false
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.ShowVisualTree = false;
+        });
+        await Task.Delay(300);
+
+        // Test 25.4: Accessibility/Automation Tree Mode hover highlight
+        Console.WriteLine("Verifying Hover Highlight in Accessibility/Automation Tree Mode...");
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.SelectedTreeTabIndex = 1;
+        });
+
+        // Simulate hover by sending mouseMoved event
+        await simulation.SendMouseEventAsync("mouseMoved", cx, cy, "none", 0);
+        await Task.Delay(300);
+
+        if (!simulation.IsHighlightOverlayVisible || simulation.HighlightBoxModel == null)
+        {
+            throw new Exception("Hover highlight not visible in visual preview during accessibility tree mode.");
+        }
+        if (simulation.HighlightElementType != "Button" || simulation.HighlightAxRole != "button")
+        {
+            throw new Exception($"Expected hovered AX element highlight to be Button (button), got {simulation.HighlightElementType} ({simulation.HighlightAxRole})");
+        }
+        Console.WriteLine($"Accessibility Tree Mode Hover Highlight verified: Type={simulation.HighlightElementType}, Role={simulation.HighlightAxRole}, Name={simulation.HighlightAxName}");
+
+        // Reset tab index
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            mainVm.Elements.SelectedTreeTabIndex = 0;
+        });
+
         // Turn off Inspect Mode (Select Element)
         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {

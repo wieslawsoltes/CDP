@@ -466,6 +466,8 @@ public class ElementsViewModel : ViewModelBase
         }
     }
 
+    public bool IsSelectingProgrammatically => _isSelectingProgrammatically;
+
     private int _selectedTreeTabIndex = 0;
     public int SelectedTreeTabIndex
     {

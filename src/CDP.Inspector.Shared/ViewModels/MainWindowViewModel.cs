@@ -94,6 +94,10 @@ public class MainWindowViewModel : ViewModelBase
                     Simulation.ClearInspectHover();
                     _ = Simulation.TriggerHighlightRefreshAsync();
                 }
+                else
+                {
+                    Simulation.ResetInspectHoverCache();
+                }
             }
         };
 
@@ -103,7 +107,7 @@ public class MainWindowViewModel : ViewModelBase
             if (e.PropertyName == nameof(ElementsViewModel.SelectedNode) || e.PropertyName == nameof(ElementsViewModel.SelectedAxNode))
             {
                 Simulation.RaiseCanExecuteChangedForAll();
-                if (Connection.IsInspectModeActive)
+                if (Connection.IsInspectModeActive && !Elements.IsSelectingProgrammatically)
                 {
                     Connection.IsInspectModeActive = false;
                 }
@@ -117,6 +121,10 @@ public class MainWindowViewModel : ViewModelBase
             else if (e.PropertyName == nameof(ElementsViewModel.IsHighlightActive))
             {
                 _ = Simulation.TriggerHighlightRefreshAsync();
+            }
+            else if (e.PropertyName == nameof(ElementsViewModel.ShowVisualTree) || e.PropertyName == nameof(ElementsViewModel.SelectedTreeTabIndex))
+            {
+                Simulation.ResetInspectHoverCache();
             }
         };
     }
