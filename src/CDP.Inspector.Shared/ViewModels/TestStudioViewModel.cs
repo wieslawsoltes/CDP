@@ -540,13 +540,6 @@ public class TestStudioViewModel : ViewModelBase
             Log($"Running step {_currentStepIndex + 1}: {step.ActionDisplay}...");
 
             var stepStartTime = DateTime.UtcNow;
-            string currentUrl = "";
-            try
-            {
-                var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = "window.location.href" });
-                currentUrl = evalRes["result"]?["value"]?.GetValue<string>() ?? "";
-            }
-            catch { }
 
             try
             {
@@ -558,7 +551,7 @@ public class TestStudioViewModel : ViewModelBase
                 
                 if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
                 {
-                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, currentUrl, relativeStartMs);
+                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
                 }
 
                 _currentStepIndex++;
@@ -579,7 +572,7 @@ public class TestStudioViewModel : ViewModelBase
                 
                 if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
                 {
-                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, currentUrl, relativeStartMs);
+                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
                 }
 
                 throw;
@@ -1982,8 +1975,11 @@ public class TestStudioViewModel : ViewModelBase
                     }
                 }
 
-                // Send ACK to keep target sending frames
-                _ = _cdpService.SendCommandAsync("Page.screencastFrameAck", new JsonObject { ["sessionId"] = sessionId });
+                // Send ACK to keep target sending frames only if preview screencast is not already doing it
+                if (!_cdpService.IsPreviewScreencastActive && sessionId != 0)
+                {
+                    _ = _cdpService.SendCommandAsync("Page.screencastFrameAck", new JsonObject { ["sessionId"] = sessionId });
+                }
             }
             catch (Exception ex)
             {
@@ -1992,11 +1988,19 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
-    private async Task CaptureStepDetailsAsync(TestStudioStepModel step, int index, double durationMs, string url, double relativeStartMs)
+    private async Task CaptureStepDetailsAsync(TestStudioStepModel step, int index, double durationMs, double relativeStartMs)
     {
         try
         {
             await Task.Delay(200);
+
+            string url = "";
+            try
+            {
+                var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = "window.location.href" });
+                url = evalRes["result"]?["value"]?.GetValue<string>() ?? "";
+            }
+            catch { }
 
             string screenshotBase64 = "";
             try

@@ -21,6 +21,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
     private int _messageId = 1;
     private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonObject>> _pendingRequests = new();
     private readonly HttpClient _httpClient = new();
+    private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
 
     private bool _isConnected;
     private string _connectionStatus = "Disconnected";
@@ -188,7 +189,16 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         _pendingRequests[id] = tcs;
 
         var bytes = Encoding.UTF8.GetBytes(request.ToJsonString());
-        await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        
+        await _sendSemaphore.WaitAsync();
+        try
+        {
+            await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        }
+        finally
+        {
+            _sendSemaphore.Release();
+        }
 
         var response = await tcs.Task;
         if (response.ContainsKey("error"))
