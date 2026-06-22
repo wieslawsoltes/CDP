@@ -140,6 +140,86 @@ public class NewDomainTests
     }
 
     [AvaloniaFact]
+    public async Task TestDynamicSchemaGenerationAndDiscovery()
+    {
+        var customDomainName = "CustomTest";
+        var customVersion = "2.0";
+        var handlerCalled = false;
+        var customHandler = new Func<CdpSession, string, JsonObject, Task<JsonObject>>((session, action, @params) =>
+        {
+            handlerCalled = true;
+            Assert.Equal("sayHello", action);
+            Assert.Equal("world", @params["name"]?.GetValue<string>());
+            return Task.FromResult(new JsonObject { ["message"] = "Hello, world!" });
+        });
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var initialDomainsResult = await SchemaDomain.HandleAsync(session, "getDomains", new JsonObject());
+        var initialDomains = initialDomainsResult["domains"] as JsonArray;
+        Assert.NotNull(initialDomains);
+        Assert.DoesNotContain(initialDomains, d => d?["name"]?.GetValue<string>() == customDomainName);
+
+        CdpDomainRegistry.Register(customDomainName, customHandler, customVersion);
+
+        try
+        {
+            var updatedDomainsResult = await SchemaDomain.HandleAsync(session, "getDomains", new JsonObject());
+            var updatedDomains = updatedDomainsResult["domains"] as JsonArray;
+            Assert.NotNull(updatedDomains);
+            var customDomain = updatedDomains.FirstOrDefault(d => d?["name"]?.GetValue<string>() == customDomainName);
+            Assert.NotNull(customDomain);
+            Assert.Equal(customVersion, customDomain["version"]?.GetValue<string>());
+
+            var dispatchResult = await CdpDispatcher.DispatchAsync(session, "CustomTest.sayHello", new JsonObject { ["name"] = "world" });
+            Assert.True(handlerCalled);
+            Assert.NotNull(dispatchResult);
+            Assert.Equal("Hello, world!", dispatchResult["message"]?.GetValue<string>());
+        }
+        finally
+        {
+            CdpDomainRegistry.Unregister(customDomainName);
+        }
+
+        var finalDomainsResult = await SchemaDomain.HandleAsync(session, "getDomains", new JsonObject());
+        var finalDomains = finalDomainsResult["domains"] as JsonArray;
+        Assert.NotNull(finalDomains);
+        Assert.DoesNotContain(finalDomains, d => d?["name"]?.GetValue<string>() == customDomainName);
+    }
+
+    [AvaloniaFact]
+    public async Task TestDynamicSchemaBroadcast()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        var eventReceived = false;
+        session.EventSentForTesting += (evt) =>
+        {
+            if (evt?["method"]?.GetValue<string>() == "Schema.domainsUpdated")
+            {
+                eventReceived = true;
+            }
+        };
+
+        CdpServer.AddSession(session);
+
+        try
+        {
+            CdpDomainRegistry.Register("BroadcastTest", (s, a, p) => Task.FromResult(new JsonObject()));
+            CdpDomainRegistry.Unregister("BroadcastTest");
+
+            Assert.True(eventReceived);
+        }
+        finally
+        {
+            CdpServer.RemoveSession(session);
+        }
+    }
+
+
+    [AvaloniaFact]
     public async Task TestSystemInfoDomain()
     {
         using var clientWs = new ClientWebSocket();
