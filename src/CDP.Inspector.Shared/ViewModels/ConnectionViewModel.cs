@@ -39,7 +39,17 @@ public class ConnectionViewModel : ViewModelBase
     public TargetItem? SelectedTarget
     {
         get => _selectedTarget;
-        set => RaiseAndSetIfChanged(ref _selectedTarget, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedTarget, value))
+            {
+                ((RelayCommand)ConnectCommand).RaiseCanExecuteChanged();
+                if (IsConnected && value != null && value.Id != _cdpService.ConnectedTargetId)
+                {
+                    _ = ConnectAsync();
+                }
+            }
+        }
     }
 
     public bool IsConnected => _cdpService.IsConnected;
@@ -93,7 +103,7 @@ public class ConnectionViewModel : ViewModelBase
         _cdpService.EventReceived += CdpService_EventReceived;
 
         RefreshTargetsCommand = new RelayCommand(async () => await RefreshTargetsAsync());
-        ConnectCommand = new RelayCommand(async () => await ConnectAsync(), () => SelectedTarget != null && IsNotConnected);
+        ConnectCommand = new RelayCommand(async () => await ConnectAsync(), () => SelectedTarget != null && (IsNotConnected || SelectedTarget.Id != _cdpService.ConnectedTargetId));
         DisconnectCommand = new RelayCommand(async () => await DisconnectAsync(), () => IsConnected);
         ReloadCommand = new RelayCommand(async () => await ReloadAsync(), () => IsConnected);
 
@@ -152,7 +162,8 @@ public class ConnectionViewModel : ViewModelBase
             }
             if (Targets.Count > 0)
             {
-                SelectedTarget = Targets[0];
+                var currentConnected = System.Linq.Enumerable.FirstOrDefault(Targets, t => t.Id == _cdpService.ConnectedTargetId);
+                SelectedTarget = currentConnected ?? Targets[0];
             }
             ((RelayCommand)ConnectCommand).RaiseCanExecuteChanged();
         }

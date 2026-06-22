@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
@@ -7,6 +8,9 @@ using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp.Domains;
 using Avalonia.Headless.XUnit;
 using Xunit;
+using CdpInspectorApp.Models;
+using CdpInspectorApp.Services;
+using CdpInspectorApp.ViewModels;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -829,6 +833,97 @@ public class NewDomainTests
 
         window1.Close();
         window2.Close();
+    }
+
+    public class MockInspectorCdpService : ICdpService
+    {
+        public bool IsConnected { get; set; }
+        public string ConnectionStatus { get; set; } = "Disconnected";
+        public string ConnectedHost { get; set; } = "";
+        public string ConnectedTargetId { get; set; } = "";
+        public bool IsPreviewScreencastActive { get; set; }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        public event EventHandler<CdpEventEventArgs>? EventReceived;
+
+        private void NotifyPropertyChanged(string name)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+
+        public Task<System.Collections.Generic.List<TargetItem>> GetTargetsAsync(string host)
+        {
+            return Task.FromResult(new System.Collections.Generic.List<TargetItem>());
+        }
+
+        public Task ConnectAsync(string host, TargetItem target)
+        {
+            ConnectedHost = host;
+            ConnectedTargetId = target.Id;
+            IsConnected = true;
+            ConnectionStatus = "Connected";
+            NotifyPropertyChanged(nameof(IsConnected));
+            NotifyPropertyChanged(nameof(ConnectedTargetId));
+            NotifyPropertyChanged(nameof(ConnectionStatus));
+            return Task.CompletedTask;
+        }
+
+        public Task DisconnectAsync()
+        {
+            ConnectedHost = "";
+            ConnectedTargetId = "";
+            IsConnected = false;
+            ConnectionStatus = "Disconnected";
+            NotifyPropertyChanged(nameof(IsConnected));
+            NotifyPropertyChanged(nameof(ConnectedTargetId));
+            NotifyPropertyChanged(nameof(ConnectionStatus));
+            return Task.CompletedTask;
+        }
+
+        public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
+        {
+            return Task.FromResult(new JsonObject());
+        }
+    }
+
+    [Fact]
+    public async Task TestConnectionViewModelTargetSwitching()
+    {
+        var service = new MockInspectorCdpService();
+        var vm = new ConnectionViewModel(service);
+
+        var targetA = new TargetItem("Window A", "ws://localhost:9222/a", "id-a");
+        var targetB = new TargetItem("Window B", "ws://localhost:9222/b", "id-b");
+
+        vm.Targets.Add(targetA);
+        vm.Targets.Add(targetB);
+
+        // 1. Initial State
+        Assert.False(vm.IsConnected);
+        Assert.Null(vm.SelectedTarget);
+
+        // 2. Select targetA and connect manually
+        vm.SelectedTarget = targetA;
+        Assert.True(vm.ConnectCommand.CanExecute(null));
+        await vm.ConnectAsync();
+
+        Assert.True(vm.IsConnected);
+        Assert.Equal("id-a", service.ConnectedTargetId);
+
+        // 3. Select targetB while connected
+        // This should auto-trigger ConnectAsync to target B
+        vm.SelectedTarget = targetB;
+        
+        // Wait a small moment for async task to run
+        await Task.Delay(50);
+
+        Assert.True(vm.IsConnected);
+        Assert.Equal("id-b", service.ConnectedTargetId);
+
+        // 4. ConnectCommand should still be executable if selecting target A again
+        vm.SelectedTarget = targetA;
+        await Task.Delay(50);
+        Assert.Equal("id-a", service.ConnectedTargetId);
     }
 }
 
