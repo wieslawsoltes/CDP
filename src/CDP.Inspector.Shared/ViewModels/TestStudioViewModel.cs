@@ -2038,13 +2038,32 @@ public class TestStudioViewModel : ViewModelBase
         {
             try
             {
-                Log("Stopping video recording...");
-                await _cdpService.SendCommandAsync("Page.stopScreencast");
+                if (_cdpService.IsPreviewScreencastActive)
+                {
+                    Log("Restoring simulator preview screencast...");
+                    // Restore PNG format for the simulator preview
+                    await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+                    {
+                        ["format"] = "png",
+                        ["everyNthFrame"] = 1
+                    });
+                }
+                else
+                {
+                    Log("Stopping video recording...");
+                    await _cdpService.SendCommandAsync("Page.stopScreencast");
+                }
             }
             catch (Exception ex)
             {
-                Log($"Warning: Failed to stop screencast: {ex.Message}");
+                Log($"Warning: Failed to manage screencast: {ex.Message}");
             }
+        }
+
+        // If video frames were recorded, mark as available for native replay regardless of HTML/PDF report option
+        if (IsRecordVideoEnabled && _lastRunRawFrameBytes.Count > 0)
+        {
+            HasLastRunRecording = true;
         }
 
         if (!IsGenerateReportEnabled) return;

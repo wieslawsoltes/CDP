@@ -51,6 +51,13 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         private set { _connectedTargetId = value; OnPropertyChanged(nameof(ConnectedTargetId)); }
     }
 
+    private bool _isPreviewScreencastActive;
+    public bool IsPreviewScreencastActive
+    {
+        get => _isPreviewScreencastActive;
+        set { _isPreviewScreencastActive = value; OnPropertyChanged(nameof(IsPreviewScreencastActive)); }
+    }
+
     public event EventHandler<CdpEventEventArgs>? EventReceived;
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -157,6 +164,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             ConnectionStatus = "Disconnected";
             ConnectedHost = "";
             ConnectedTargetId = "";
+            IsPreviewScreencastActive = false;
         }
     }
 
