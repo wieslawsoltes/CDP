@@ -149,6 +149,8 @@ public class DomTreeTests
         Assert.Same(window, runtimeWindow.visual);
         Assert.Same(window, runtimeWindowDynamic.visual);
         Assert.Equal("Runtime Helpers Test", runtimeWindowDynamic.Title);
+        runtimeWindowDynamic.Width = 640;
+        Assert.Equal(640, window.Width);
 
         var panelElement = document.querySelector("#panelRoot");
         Assert.NotNull(panelElement);

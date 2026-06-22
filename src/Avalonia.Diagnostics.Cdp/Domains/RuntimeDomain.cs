@@ -835,14 +835,14 @@ public sealed class CdpRuntimeWindow : DynamicObject
         var property = visual.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
         if (property != null && property.CanWrite)
         {
-            property.SetValue(visual, value);
+            property.SetValue(visual, ConvertDynamicValue(value, property.PropertyType));
             return true;
         }
 
         var field = visual.GetType().GetField(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
         if (field != null)
         {
-            field.SetValue(visual, value);
+            field.SetValue(visual, ConvertDynamicValue(value, field.FieldType));
             return true;
         }
 
@@ -873,8 +873,62 @@ public sealed class CdpRuntimeWindow : DynamicObject
             return false;
         }
 
-        result = method.Invoke(visual, args);
+        var convertedArgs = ConvertDynamicArguments(args, method.GetParameters());
+        result = method.Invoke(visual, convertedArgs);
         return true;
+    }
+
+    private static object?[]? ConvertDynamicArguments(object?[]? args, ParameterInfo[] parameters)
+    {
+        if (args == null)
+        {
+            return null;
+        }
+
+        var converted = new object?[args.Length];
+        for (int i = 0; i < args.Length; i++)
+        {
+            converted[i] = i < parameters.Length
+                ? ConvertDynamicValue(args[i], parameters[i].ParameterType)
+                : args[i];
+        }
+
+        return converted;
+    }
+
+    private static object? ConvertDynamicValue(object? value, Type targetType)
+    {
+        if (value == null)
+        {
+            return null;
+        }
+
+        var sourceType = value.GetType();
+        if (targetType.IsAssignableFrom(sourceType))
+        {
+            return value;
+        }
+
+        var conversionType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (conversionType.IsEnum)
+        {
+            return value is string enumText
+                ? Enum.Parse(conversionType, enumText, ignoreCase: true)
+                : Enum.ToObject(conversionType, value);
+        }
+
+        var converter = TypeDescriptor.GetConverter(conversionType);
+        if (converter.CanConvertFrom(sourceType))
+        {
+            return converter.ConvertFrom(null, CultureInfo.InvariantCulture, value);
+        }
+
+        if (value is IConvertible)
+        {
+            return Convert.ChangeType(value, conversionType, CultureInfo.InvariantCulture);
+        }
+
+        return value;
     }
 }
 
