@@ -160,5 +160,7 @@ public class SelectorTests
 
         Assert.Null(SelectorEngine.QuerySelector(panel, "[AutomationId=\"missing\"]"));
         Assert.Null(SelectorEngine.QuerySelector(panel, "[UnknownAttribute=\"btnAutomation\"]"));
+        Assert.Null(SelectorEngine.QuerySelector(panel, "[]"));
+        Assert.Null(SelectorEngine.QuerySelector(panel, "[=btnAutomation]"));
     }
 }

@@ -127,5 +127,40 @@ public class DomTreeTests
         Assert.Equal("Click Me", pairs["text"]);
         Assert.Equal("btnAutomation", pairs["AccessibilityId"]);
         Assert.Equal("btnAutomation", pairs["AutomationId"]);
+        Assert.Equal("btnAutomation", pairs["AutomationProperties.AutomationId"]);
+    }
+
+    [AvaloniaFact]
+    public void TestRuntimeDocumentAndElementQueryHelpers()
+    {
+        var window = new Window { Title = "Runtime Helpers Test" };
+        var panel = new StackPanel { Name = "panelRoot" };
+        var button = new Button { Name = "btnClickMe", Content = "Click Me" };
+        button.SetValue(AutomationProperties.AutomationIdProperty, "btnAutomation");
+        panel.Children.Add(button);
+        window.Content = panel;
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+        var document = new CdpRuntimeDocument(session);
+
+        var panelElement = document.querySelector("#panelRoot");
+        Assert.NotNull(panelElement);
+        Assert.Equal("panelRoot", panelElement!.id);
+
+        var buttonElement = document.getElementById("btnClickMe");
+        Assert.NotNull(buttonElement);
+        Assert.Same(button, buttonElement!.visual);
+        Assert.Equal("btnAutomation", buttonElement.getAttribute("AutomationProperties.AutomationId"));
+        Assert.True(buttonElement.matches("[AutomationProperties.AutomationId=\"btnAutomation\"]"));
+
+        var scopedButton = panelElement.querySelector("Button");
+        Assert.NotNull(scopedButton);
+        Assert.Same(button, scopedButton!.visual);
+        Assert.Single(panelElement.querySelectorAll("Button"));
+        Assert.Null(panelElement.querySelector("#panelRoot"));
+
+        window.Close();
     }
 }

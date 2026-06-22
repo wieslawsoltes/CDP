@@ -860,6 +860,34 @@ public sealed class CdpRuntimeElement
         return Avalonia.Diagnostics.Cdp.SelectorEngine.Matches(_visual, selector, _session.UseLogicalTree);
     }
 
+    public CdpRuntimeElement? querySelector(string selector)
+    {
+        foreach (var child in GetSearchChildren())
+        {
+            var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(child, selector, _session.UseLogicalTree);
+            if (visual != null)
+            {
+                return new CdpRuntimeElement(_session, visual);
+            }
+        }
+
+        return null;
+    }
+
+    public CdpRuntimeElement[] querySelectorAll(string selector)
+    {
+        var results = new List<CdpRuntimeElement>();
+        foreach (var child in GetSearchChildren())
+        {
+            foreach (var visual in Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(child, selector, _session.UseLogicalTree))
+            {
+                results.Add(new CdpRuntimeElement(_session, visual));
+            }
+        }
+
+        return results.ToArray();
+    }
+
     public CdpRuntimeElement? closest(string selector)
     {
         Visual? current = _visual;
@@ -876,6 +904,13 @@ public sealed class CdpRuntimeElement
         }
 
         return null;
+    }
+
+    private IEnumerable<Visual> GetSearchChildren()
+    {
+        return _session.UseLogicalTree
+            ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalChildren(_visual)
+            : _visual.GetVisualChildren();
     }
 
     public override string ToString()

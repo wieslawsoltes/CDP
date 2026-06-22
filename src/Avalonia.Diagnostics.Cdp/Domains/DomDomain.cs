@@ -874,6 +874,8 @@ public static class DomDomain
                 attributes.Add(accessibilityId);
                 attributes.Add("AutomationId");
                 attributes.Add(accessibilityId);
+                attributes.Add("AutomationProperties.AutomationId");
+                attributes.Add(accessibilityId);
                 attributes.Add("automation-id");
                 attributes.Add(accessibilityId);
             }

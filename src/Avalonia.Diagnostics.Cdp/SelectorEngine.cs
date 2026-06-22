@@ -694,6 +694,10 @@ public static class SelectorEngine
             {
                 attrMatches.Add(attrSelector);
             }
+            else
+            {
+                return false;
+            }
 
             selector = selector.Substring(0, startIdx) + ((endIdx + 1 < selector.Length) ? selector.Substring(endIdx + 1) : "");
         }
