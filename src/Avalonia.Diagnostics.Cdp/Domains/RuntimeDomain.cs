@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Completion;
@@ -756,6 +757,8 @@ public class ReplGlobals
     public dynamic? DataContext => Control?.DataContext != null ? new ReflectionDynamicObject(Control.DataContext) : null;
     public dynamic? ViewModel => DataContext;
     public dynamic? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
+    public dynamic? window => Window;
+    public CdpRuntimeDocument document => new(_session);
 
     public void Print(object? obj) => Console.WriteLine(obj);
 
@@ -769,6 +772,116 @@ public class ReplGlobals
     {
         var root = (Visual?)SelectedNode ?? _session.Window;
         return root != null ? Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(root, selector, _session.UseLogicalTree) : Enumerable.Empty<Visual>();
+    }
+}
+
+public sealed class CdpRuntimeDocument
+{
+    private readonly CdpSession _session;
+
+    public CdpRuntimeDocument(CdpSession session)
+    {
+        _session = session;
+    }
+
+    public CdpRuntimeElement? querySelector(string selector)
+    {
+        var root = _session.Window;
+        if (root == null)
+        {
+            return null;
+        }
+
+        var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, selector, _session.UseLogicalTree);
+        return visual != null ? new CdpRuntimeElement(_session, visual) : null;
+    }
+
+    public CdpRuntimeElement[] querySelectorAll(string selector)
+    {
+        var root = _session.Window;
+        if (root == null)
+        {
+            return Array.Empty<CdpRuntimeElement>();
+        }
+
+        return Avalonia.Diagnostics.Cdp.SelectorEngine
+            .QuerySelectorAll(root, selector, _session.UseLogicalTree)
+            .Select(visual => new CdpRuntimeElement(_session, visual))
+            .ToArray();
+    }
+
+    public CdpRuntimeElement? getElementById(string id)
+    {
+        var escaped = id.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+        return querySelector($"[id=\"{escaped}\"]");
+    }
+}
+
+public sealed class CdpRuntimeElement
+{
+    private readonly CdpSession _session;
+    private readonly Visual _visual;
+
+    public CdpRuntimeElement(CdpSession session, Visual visual)
+    {
+        _session = session;
+        _visual = visual;
+    }
+
+    public int nodeId => _session.NodeMap.GetOrAdd(_visual);
+    public string nodeName => _visual.GetType().Name;
+    public string localName => _visual.GetType().Name;
+    public string id => getAttribute("id") ?? "";
+    public string name => getAttribute("Name") ?? "";
+    public string textContent => getAttribute("text") ?? "";
+    public string innerText => textContent;
+    public string value => getAttribute("Text") ?? "";
+    public bool isVisible => string.Equals(getAttribute("IsVisible"), "true", StringComparison.OrdinalIgnoreCase);
+    public bool isEnabled => string.Equals(getAttribute("IsEnabled"), "true", StringComparison.OrdinalIgnoreCase);
+    public object visual => _visual;
+
+    public string? getAttribute(string name)
+    {
+        var attributes = DomDomain.BuildAttributes(_visual);
+        for (int i = 0; i + 1 < attributes.Count; i += 2)
+        {
+            var key = attributes[i]?.GetValue<string>();
+            if (string.Equals(key, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return attributes[i + 1]?.GetValue<string>();
+            }
+        }
+
+        return null;
+    }
+
+    public bool matches(string selector)
+    {
+        return Avalonia.Diagnostics.Cdp.SelectorEngine.Matches(_visual, selector, _session.UseLogicalTree);
+    }
+
+    public CdpRuntimeElement? closest(string selector)
+    {
+        Visual? current = _visual;
+        while (current != null)
+        {
+            if (Avalonia.Diagnostics.Cdp.SelectorEngine.Matches(current, selector, _session.UseLogicalTree))
+            {
+                return new CdpRuntimeElement(_session, current);
+            }
+
+            current = _session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(current)
+                : current.GetVisualParent();
+        }
+
+        return null;
+    }
+
+    public override string ToString()
+    {
+        var idValue = id;
+        return string.IsNullOrEmpty(idValue) ? $"<{nodeName}>" : $"<{nodeName} id=\"{idValue}\">";
     }
 }
 
