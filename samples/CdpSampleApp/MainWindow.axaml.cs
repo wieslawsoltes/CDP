@@ -26,6 +26,12 @@ public partial class MainWindow : Window
             btnHttp.Click += ButtonHttp_Click;
         }
 
+        var btnOpenSecond = this.FindControl<Button>("btnOpenSecond");
+        if (btnOpenSecond != null)
+        {
+            btnOpenSecond.Click += ButtonOpenSecond_Click;
+        }
+
         var btnBack = this.FindControl<Button>("btnGoBack");
         if (btnBack != null)
         {
@@ -75,5 +81,26 @@ public partial class MainWindow : Window
         {
             if (status != null) status.Text = $"HTTP Failed: {ex.Message}";
         }
+    }
+
+    private void ButtonOpenSecond_Click(object? sender, RoutedEventArgs e)
+    {
+        var secondWin = new Window
+        {
+            Title = "Sample Second Window",
+            Width = 400,
+            Height = 300,
+            Content = new StackPanel
+            {
+                Spacing = 15,
+                Margin = new Avalonia.Thickness(20),
+                Children =
+                {
+                    new TextBlock { Text = "This is the second window!", FontSize = 16, FontWeight = Avalonia.Media.FontWeight.Bold },
+                    new Button { Name = "btnSecondClick", Content = "Click Me Second" }
+                }
+            }
+        };
+        secondWin.Show();
     }
 }

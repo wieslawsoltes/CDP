@@ -13,6 +13,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Button Name="btnClickMe" AutomationProperties.AutomationId="btnClickMe" Content="Click Me" Width="100"/>
                             <Button Name="btnSendHttp" AutomationProperties.AutomationId="btnSendHttp" Content="Send HTTP Request" Width="150"/>
+                            <Button Name="btnOpenSecond" AutomationProperties.AutomationId="btnOpenSecond" Content="Open Second Window" Width="150"/>
                             <TextBlock Name="txtStatus" Text="Not Clicked" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         </StackPanel>
                         
