@@ -17,12 +17,18 @@ public class SimulationViewModel : ViewModelBase
     private readonly Func<DomNodeModel?> _getSelectedNodeFunc;
     private readonly Func<bool> _isHighlightActiveFunc;
     private readonly Func<int, (string? Role, string? Name)> _getAxDetailsFunc;
+    private readonly Func<bool> _isInspectModeActiveFunc;
+    private readonly Func<int, DomNodeModel?> _getDomNodeFunc;
 
     private JsonObject? _highlightBoxModel;
     private string? _highlightElementType;
     private string? _highlightAxRole;
     private string? _highlightAxName;
     private bool _isHighlightOverlayVisible;
+
+    private bool _isInspectQueryInFlight;
+    private double _lastInspectX;
+    private double _lastInspectY;
     
     private string _inputSimText = "";
     private string _selectedKey = "Enter";
@@ -304,12 +310,16 @@ public class SimulationViewModel : ViewModelBase
         ICdpService cdpService,
         Func<DomNodeModel?> getSelectedNodeFunc,
         Func<bool> isHighlightActiveFunc,
-        Func<int, (string? Role, string? Name)> getAxDetailsFunc)
+        Func<int, (string? Role, string? Name)> getAxDetailsFunc,
+        Func<bool> isInspectModeActiveFunc,
+        Func<int, DomNodeModel?> getDomNodeFunc)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _getSelectedNodeFunc = getSelectedNodeFunc ?? throw new ArgumentNullException(nameof(getSelectedNodeFunc));
         _isHighlightActiveFunc = isHighlightActiveFunc ?? throw new ArgumentNullException(nameof(isHighlightActiveFunc));
         _getAxDetailsFunc = getAxDetailsFunc ?? throw new ArgumentNullException(nameof(getAxDetailsFunc));
+        _isInspectModeActiveFunc = isInspectModeActiveFunc ?? throw new ArgumentNullException(nameof(isInspectModeActiveFunc));
+        _getDomNodeFunc = getDomNodeFunc ?? throw new ArgumentNullException(nameof(getDomNodeFunc));
 
         _selectedDevicePreset = _devicePresets[0];
 
@@ -903,6 +913,11 @@ public class SimulationViewModel : ViewModelBase
     {
         if (!_cdpService.IsConnected) return;
 
+        if (type == "mouseMoved" && _isInspectModeActiveFunc())
+        {
+            _ = UpdateInspectHoverAsync(x, y);
+        }
+
         int clickCount = 0;
         if (type == "mousePressed" || type == "mouseReleased")
         {
@@ -982,6 +997,8 @@ public class SimulationViewModel : ViewModelBase
 
     public async Task TriggerHighlightRefreshAsync()
     {
+        if (_isInspectModeActiveFunc()) return;
+
         var selectedNode = _getSelectedNodeFunc();
         bool isHighlightActive = _isHighlightActiveFunc();
         if (selectedNode == null || !isHighlightActive || !_cdpService.IsConnected)
@@ -1035,6 +1052,84 @@ public class SimulationViewModel : ViewModelBase
             HighlightBoxModel = null;
             IsHighlightOverlayVisible = false;
         }
+    }
+    public async Task UpdateInspectHoverAsync(double x, double y)
+    {
+        if (!_cdpService.IsConnected || _isInspectQueryInFlight) return;
+
+        // Throttle: only query if mouse moved by at least 2 pixels
+        if (Math.Abs(x - _lastInspectX) < 2 && Math.Abs(y - _lastInspectY) < 2) return;
+
+        _lastInspectX = x;
+        _lastInspectY = y;
+        _isInspectQueryInFlight = true;
+
+        try
+        {
+            var nodeRes = await _cdpService.SendCommandAsync("DOM.getNodeForLocation", new JsonObject
+            {
+                ["x"] = (int)x,
+                ["y"] = (int)y
+            });
+            
+            // Re-validate inspect mode active state
+            if (!_isInspectModeActiveFunc() || !_cdpService.IsConnected)
+            {
+                ClearInspectHover();
+                return;
+            }
+
+            var nodeId = nodeRes["nodeId"]?.GetValue<int>() ?? 0;
+            if (nodeId > 0)
+            {
+                var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+                
+                // Re-validate inspect mode active state
+                if (!_isInspectModeActiveFunc() || !_cdpService.IsConnected)
+                {
+                    ClearInspectHover();
+                    return;
+                }
+
+                var model = boxRes["model"] as JsonObject;
+                if (model != null)
+                {
+                    var domNode = _getDomNodeFunc(nodeId);
+                    var axDetails = _getAxDetailsFunc(nodeId);
+
+                    HighlightElementType = domNode?.NodeName ?? "Visual";
+                    HighlightAxRole = axDetails.Role;
+                    HighlightAxName = axDetails.Name;
+                    HighlightBoxModel = model;
+                    IsHighlightOverlayVisible = true;
+                }
+                else
+                {
+                    ClearInspectHover();
+                }
+            }
+            else
+            {
+                ClearInspectHover();
+            }
+        }
+        catch
+        {
+            ClearInspectHover();
+        }
+        finally
+        {
+            _isInspectQueryInFlight = false;
+        }
+    }
+
+    public void ClearInspectHover()
+    {
+        HighlightBoxModel = null;
+        HighlightElementType = null;
+        HighlightAxRole = null;
+        HighlightAxName = null;
+        IsHighlightOverlayVisible = false;
     }
 }
 

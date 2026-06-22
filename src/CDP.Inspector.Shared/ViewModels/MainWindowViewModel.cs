@@ -75,7 +75,9 @@ public class MainWindowViewModel : ViewModelBase
             CdpService,
             getSelectedNodeFunc: () => Elements.SelectedNode,
             isHighlightActiveFunc: () => Elements.IsHighlightActive,
-            getAxDetailsFunc: nodeId => Elements.FindAxDetails(nodeId)
+            getAxDetailsFunc: nodeId => Elements.FindAxDetails(nodeId),
+            isInspectModeActiveFunc: () => Connection.IsInspectModeActive,
+            getDomNodeFunc: nodeId => Elements.FindDomNode(nodeId)
         );
         Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress, () => Connection.UseAutomationSelectors);
 
@@ -84,6 +86,14 @@ public class MainWindowViewModel : ViewModelBase
             if (e.PropertyName == nameof(ConnectionViewModel.UseAutomationSelectors))
             {
                 UpdateSelectedSelector();
+            }
+            else if (e.PropertyName == nameof(ConnectionViewModel.IsInspectModeActive))
+            {
+                if (!Connection.IsInspectModeActive)
+                {
+                    Simulation.ClearInspectHover();
+                    _ = Simulation.TriggerHighlightRefreshAsync();
+                }
             }
         };
 
