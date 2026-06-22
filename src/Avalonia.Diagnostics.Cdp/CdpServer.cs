@@ -29,6 +29,8 @@ public static class CdpServer
     private static System.IO.TextWriter? _originalError;
     private static ConsoleRedirector? _redirectedOut;
     private static ConsoleRedirector? _redirectedError;
+    private static IDisposable? _windowOpenedSub;
+    private static IDisposable? _windowClosedSub;
 
     public static void AddSession(CdpSession session)
     {
@@ -95,6 +97,10 @@ public static class CdpServer
         if (key != null)
         {
             _windows.TryRemove(key, out _);
+            foreach (var session in _sessions.Keys)
+            {
+                session.DetachTargetById(key);
+            }
             NotifyTargetDestroyed(key);
         }
     }
@@ -190,6 +196,15 @@ public static class CdpServer
             _listener.Start();
         }
 
+        _windowOpenedSub = Window.WindowOpenedEvent.AddClassHandler<Window>((w, e) =>
+        {
+            Register(w, w.Title ?? w.GetType().Name);
+        });
+        _windowClosedSub = Window.WindowClosedEvent.AddClassHandler<Window>((w, e) =>
+        {
+            Unregister(w);
+        });
+
         Task.Run(ListenLoopAsync);
     }
 
@@ -222,6 +237,11 @@ public static class CdpServer
         {
             Avalonia.Logging.Logger.Sink = composite.OriginalSink;
         }
+
+        _windowOpenedSub?.Dispose();
+        _windowOpenedSub = null;
+        _windowClosedSub?.Dispose();
+        _windowClosedSub = null;
 
         try
         {

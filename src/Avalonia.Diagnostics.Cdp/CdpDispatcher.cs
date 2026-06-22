@@ -70,6 +70,8 @@ public static class CdpDispatcher
                 return await TracingDomain.HandleAsync(session, action, @params);
             case "Browser":
                 return await BrowserDomain.HandleAsync(session, action, @params);
+            case "WindowChrome":
+                return await WindowChromeDomain.HandleAsync(session, action, @params);
             case "SystemInfo":
                 return await SystemInfoDomain.HandleAsync(session, action, @params);
             case "Schema":

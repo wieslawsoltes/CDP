@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
@@ -7,6 +8,9 @@ using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp.Domains;
 using Avalonia.Headless.XUnit;
 using Xunit;
+using CdpInspectorApp.Models;
+using CdpInspectorApp.Services;
+using CdpInspectorApp.ViewModels;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -469,11 +473,159 @@ public class NewDomainTests
 
         var createRes = await TargetDomain.HandleAsync(session, "createTarget", new JsonObject());
         Assert.NotNull(createRes);
-        Assert.NotEmpty(createRes["targetId"]?.GetValue<string>() ?? "");
+        var targetId = createRes["targetId"]?.GetValue<string>();
+        Assert.NotEmpty(targetId ?? "");
 
-        var attachRes = await TargetDomain.HandleAsync(session, "attachToTarget", new JsonObject());
+        var attachRes = await TargetDomain.HandleAsync(session, "attachToTarget", new JsonObject { ["targetId"] = targetId });
         Assert.NotNull(attachRes);
-        Assert.Equal("session-1", attachRes["sessionId"]?.GetValue<string>());
+        var sessionId = attachRes["sessionId"]?.GetValue<string>();
+        Assert.NotEmpty(sessionId ?? "");
+
+        var foundSessionId = session.GetSessionIdForTarget(targetId!);
+        Assert.Equal(sessionId, foundSessionId);
+
+        var detachRes = await TargetDomain.HandleAsync(session, "detachFromTarget", new JsonObject { ["sessionId"] = sessionId });
+        Assert.NotNull(detachRes);
+        Assert.Null(session.GetSessionIdForTarget(targetId!));
+    }
+
+    [AvaloniaFact]
+    public async Task TestTargetDiscoveryAndEvents()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        // 1. Enable discover targets
+        var discoverRes = await TargetDomain.HandleAsync(session, "setDiscoverTargets", new JsonObject
+        {
+            ["discover"] = true
+        });
+        Assert.NotNull(discoverRes);
+        Assert.True(session.DiscoverTargetsEnabled);
+
+        // 2. Get active targets
+        var targetsRes = await TargetDomain.HandleAsync(session, "getTargets", new JsonObject());
+        Assert.NotNull(targetsRes);
+        var targetInfos = targetsRes["targetInfos"] as JsonArray;
+        Assert.NotNull(targetInfos);
+        
+        // 3. Register a new window dynamically
+        var win = new Window { Title = "Test Dynamic Window" };
+        var targetId = CdpServer.Register(win, "Test Dynamic Window");
+        Assert.NotEmpty(targetId);
+
+        // 4. Verify we can get target info
+        var infoRes = await TargetDomain.HandleAsync(session, "getTargetInfo", new JsonObject { ["targetId"] = targetId });
+        Assert.NotNull(infoRes);
+        var targetInfo = infoRes["targetInfo"] as JsonObject;
+        Assert.NotNull(targetInfo);
+        Assert.Equal(targetId, targetInfo["targetId"]?.GetValue<string>());
+        Assert.Equal("Test Dynamic Window", targetInfo["title"]?.GetValue<string>());
+
+        // 5. Close/Unregister target
+        var closeRes = await TargetDomain.HandleAsync(session, "closeTarget", new JsonObject { ["targetId"] = targetId });
+        Assert.NotNull(closeRes);
+        Assert.True(closeRes["success"]?.GetValue<bool>());
+
+        // Clean up
+        CdpServer.Unregister(win);
+    }
+
+    [AvaloniaFact]
+    public async Task TestWindowChromeAndTargetActivation()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        // Create a test window
+        var win = new Window { Title = "Window Chrome Test Title", Width = 400, Height = 300 };
+        var targetId = CdpServer.Register(win, "Window Chrome Test Title");
+        int windowId = Math.Abs(win.GetHashCode());
+
+        // 1. Test Target.activateTarget via Dispatcher
+        var activateTargetRes = await CdpDispatcher.DispatchAsync(session, "Target.activateTarget", new JsonObject { ["targetId"] = targetId });
+        Assert.NotNull(activateTargetRes);
+
+        // 2. Test WindowChrome.setTitle via Dispatcher
+        var setTitleRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.setTitle", new JsonObject
+        {
+            ["windowId"] = windowId,
+            ["title"] = "Updated Dynamic Title"
+        });
+        Assert.NotNull(setTitleRes);
+        Assert.True(setTitleRes["success"]?.GetValue<bool>());
+        Assert.Equal("Updated Dynamic Title", win.Title);
+
+        // 3. Test WindowChrome.setTopmost
+        var setTopmostRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.setTopmost", new JsonObject
+        {
+            ["windowId"] = windowId,
+            ["topmost"] = true
+        });
+        Assert.NotNull(setTopmostRes);
+        Assert.True(setTopmostRes["success"]?.GetValue<bool>());
+        Assert.True(win.Topmost);
+
+        // 4. Test WindowChrome.setOpacity
+        var setOpacityRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.setOpacity", new JsonObject
+        {
+            ["windowId"] = windowId,
+            ["opacity"] = 0.75
+        });
+        Assert.NotNull(setOpacityRes);
+        Assert.True(setOpacityRes["success"]?.GetValue<bool>());
+        Assert.Equal(0.75, win.Opacity);
+
+        // 5. Test WindowChrome.dragWindow
+        var initialPos = win.Position;
+        var dragRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.dragWindow", new JsonObject
+        {
+            ["windowId"] = windowId,
+            ["deltaX"] = 50,
+            ["deltaY"] = 50
+        });
+        Assert.NotNull(dragRes);
+        Assert.True(dragRes["success"]?.GetValue<bool>());
+        Assert.Equal(initialPos.X + 50, win.Position.X);
+        Assert.Equal(initialPos.Y + 50, win.Position.Y);
+
+        // 6. Test WindowChrome.minimize / maximize / restore
+        var minRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.minimize", new JsonObject { ["windowId"] = windowId });
+        Assert.NotNull(minRes);
+        Assert.True(minRes["success"]?.GetValue<bool>());
+        Assert.Equal(WindowState.Minimized, win.WindowState);
+
+        var maxRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.maximize", new JsonObject { ["windowId"] = windowId });
+        Assert.NotNull(maxRes);
+        Assert.True(maxRes["success"]?.GetValue<bool>());
+        Assert.Equal(WindowState.Maximized, win.WindowState);
+
+        var restoreRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.restore", new JsonObject { ["windowId"] = windowId });
+        Assert.NotNull(restoreRes);
+        Assert.True(restoreRes["success"]?.GetValue<bool>());
+        Assert.Equal(WindowState.Normal, win.WindowState);
+
+        // 7. Test WindowChrome.activate
+        var actRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.activate", new JsonObject { ["windowId"] = windowId });
+        Assert.NotNull(actRes);
+        Assert.True(actRes["success"]?.GetValue<bool>());
+
+        // 7.5. Test WindowChrome.getWindowDetails
+        var detailsRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.getWindowDetails", new JsonObject { ["windowId"] = windowId });
+        Assert.NotNull(detailsRes);
+        Assert.True(detailsRes["success"]?.GetValue<bool>());
+        Assert.True(detailsRes["topmost"]?.GetValue<bool>());
+        Assert.Equal(0.75, detailsRes["opacity"]?.GetValue<double>());
+        Assert.Equal("Updated Dynamic Title", detailsRes["title"]?.GetValue<string>());
+        Assert.Equal("normal", detailsRes["windowState"]?.GetValue<string>());
+
+        // 8. Test WindowChrome.close
+        var closeRes = await CdpDispatcher.DispatchAsync(session, "WindowChrome.close", new JsonObject { ["windowId"] = windowId });
+        Assert.NotNull(closeRes);
+        Assert.True(closeRes["success"]?.GetValue<bool>());
+
+        // Clean up
+        CdpServer.Unregister(win);
     }
 
     [AvaloniaFact]
@@ -681,6 +833,97 @@ public class NewDomainTests
 
         window1.Close();
         window2.Close();
+    }
+
+    public class MockInspectorCdpService : ICdpService
+    {
+        public bool IsConnected { get; set; }
+        public string ConnectionStatus { get; set; } = "Disconnected";
+        public string ConnectedHost { get; set; } = "";
+        public string ConnectedTargetId { get; set; } = "";
+        public bool IsPreviewScreencastActive { get; set; }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        public event EventHandler<CdpEventEventArgs>? EventReceived;
+
+        private void NotifyPropertyChanged(string name)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+
+        public Task<System.Collections.Generic.List<TargetItem>> GetTargetsAsync(string host)
+        {
+            return Task.FromResult(new System.Collections.Generic.List<TargetItem>());
+        }
+
+        public Task ConnectAsync(string host, TargetItem target)
+        {
+            ConnectedHost = host;
+            ConnectedTargetId = target.Id;
+            IsConnected = true;
+            ConnectionStatus = "Connected";
+            NotifyPropertyChanged(nameof(IsConnected));
+            NotifyPropertyChanged(nameof(ConnectedTargetId));
+            NotifyPropertyChanged(nameof(ConnectionStatus));
+            return Task.CompletedTask;
+        }
+
+        public Task DisconnectAsync()
+        {
+            ConnectedHost = "";
+            ConnectedTargetId = "";
+            IsConnected = false;
+            ConnectionStatus = "Disconnected";
+            NotifyPropertyChanged(nameof(IsConnected));
+            NotifyPropertyChanged(nameof(ConnectedTargetId));
+            NotifyPropertyChanged(nameof(ConnectionStatus));
+            return Task.CompletedTask;
+        }
+
+        public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
+        {
+            return Task.FromResult(new JsonObject());
+        }
+    }
+
+    [Fact]
+    public async Task TestConnectionViewModelTargetSwitching()
+    {
+        var service = new MockInspectorCdpService();
+        var vm = new ConnectionViewModel(service);
+
+        var targetA = new TargetItem("Window A", "ws://localhost:9222/a", "id-a");
+        var targetB = new TargetItem("Window B", "ws://localhost:9222/b", "id-b");
+
+        vm.Targets.Add(targetA);
+        vm.Targets.Add(targetB);
+
+        // 1. Initial State
+        Assert.False(vm.IsConnected);
+        Assert.Null(vm.SelectedTarget);
+
+        // 2. Select targetA and connect manually
+        vm.SelectedTarget = targetA;
+        Assert.True(vm.ConnectCommand.CanExecute(null));
+        await vm.ConnectAsync();
+
+        Assert.True(vm.IsConnected);
+        Assert.Equal("id-a", service.ConnectedTargetId);
+
+        // 3. Select targetB while connected
+        // This should auto-trigger ConnectAsync to target B
+        vm.SelectedTarget = targetB;
+        
+        // Wait a small moment for async task to run
+        await Task.Delay(50);
+
+        Assert.True(vm.IsConnected);
+        Assert.Equal("id-b", service.ConnectedTargetId);
+
+        // 4. ConnectCommand should still be executable if selecting target A again
+        vm.SelectedTarget = targetA;
+        await Task.Delay(50);
+        Assert.Equal("id-a", service.ConnectedTargetId);
     }
 }
 

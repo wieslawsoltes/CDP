@@ -26,6 +26,17 @@ public class CdpIntegrationTests
         return port;
     }
 
+    private static ClientWebSocket CreateClientWebSocket()
+    {
+        var ws = new ClientWebSocket();
+        ws.Options.DangerousDeflateOptions = new WebSocketDeflateOptions
+        {
+            ClientMaxWindowBits = 15,
+            ServerMaxWindowBits = 15
+        };
+        return ws;
+    }
+
     [AvaloniaFact]
     public void TestWebSocketConnectionAndGetDocument()
     {
@@ -46,10 +57,10 @@ public class CdpIntegrationTests
             // Start client WebSocket operations on a background thread pool thread
             var clientTask = Task.Run(async () =>
             {
+                var ws = CreateClientWebSocket();
                 try
                 {
                     Console.WriteLine("INTEGRATION_TEST_CLIENT: Initializing ClientWebSocket");
-                    using var ws = new ClientWebSocket();
                     var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
                     Console.WriteLine($"INTEGRATION_TEST_CLIENT: Connecting to {uri}");
                     await ws.ConnectAsync(uri, CancellationToken.None);
@@ -119,6 +130,10 @@ public class CdpIntegrationTests
                     Console.WriteLine($"INTEGRATION_TEST_CLIENT ERROR: {ex}");
                     throw;
                 }
+                finally
+                {
+                    ws.Dispose();
+                }
             });
 
             // Pump dispatcher queue on UI thread until client task completes
@@ -175,7 +190,7 @@ public class CdpIntegrationTests
 
             var clientTask = Task.Run(async () =>
             {
-                using var ws = new ClientWebSocket();
+                using var ws = CreateClientWebSocket();
                 var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
                 await ws.ConnectAsync(uri, CancellationToken.None);
 
@@ -311,7 +326,7 @@ public class CdpIntegrationTests
 
             var clientTask = Task.Run(async () =>
             {
-                using var ws = new ClientWebSocket();
+                using var ws = CreateClientWebSocket();
                 var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
                 await ws.ConnectAsync(uri, CancellationToken.None);
 
@@ -430,7 +445,7 @@ public class CdpIntegrationTests
 
             var clientTask = Task.Run(async () =>
             {
-                using var ws = new ClientWebSocket();
+                using var ws = CreateClientWebSocket();
                 var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
                 await ws.ConnectAsync(uri, CancellationToken.None);
 
@@ -504,7 +519,7 @@ public class CdpIntegrationTests
 
             var clientTask = Task.Run(async () =>
             {
-                using var ws = new ClientWebSocket();
+                using var ws = CreateClientWebSocket();
                 var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
                 await ws.ConnectAsync(uri, CancellationToken.None);
 
@@ -598,4 +613,7 @@ public class CdpIntegrationTests
         }
         task.GetAwaiter().GetResult();
     }
+
+
 }
+

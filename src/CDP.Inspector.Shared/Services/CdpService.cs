@@ -119,6 +119,9 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
             // Start reader thread
             _ = Task.Run(ReceiveLoopAsync);
+
+            // Enable real-time target discovery
+            _ = SendCommandAsync("Target.setDiscoverTargets", new JsonObject { ["discover"] = true });
         }
         catch (Exception ex)
         {

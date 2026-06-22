@@ -1,6 +1,8 @@
 using System;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using System.Linq;
+using Avalonia.Controls;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -40,7 +42,7 @@ public static class TargetDomain
                                         ["type"] = targetObj["type"]?.GetValue<string>(),
                                         ["title"] = targetObj["title"]?.GetValue<string>(),
                                         ["url"] = targetObj["url"]?.GetValue<string>(),
-                                        ["attached"] = targetObj["attached"]?.GetValue<bool>() ?? true,
+                                        ["attached"] = targetObj["attached"]?.GetValue<bool>() ?? false, // default false for discovery
                                         ["browserContextId"] = targetObj["browserContextId"]?.GetValue<string>()
                                     }
                                 });
@@ -96,30 +98,113 @@ public static class TargetDomain
                             ["browserContextId"] = "1"
                         };
                     }
-                    return new JsonObject { ["targetInfo"] = found };
+                    return new JsonObject { ["targetInfo"] = found?.DeepClone() };
                 }
 
             case "activateTarget":
-            case "detachFromTarget":
+                {
+                    string? targetId = @params["targetId"]?.GetValue<string>();
+                    if (!string.IsNullOrEmpty(targetId))
+                    {
+                        var targetWin = CdpServer.GetWindows().FirstOrDefault(w => w.Id == targetId);
+                        if (targetWin.Window is Window win)
+                        {
+                            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => win.Activate());
+                        }
+                    }
+                    return new JsonObject();
+                }
+
             case "exposeDevToolsProtocol":
             case "sendMessageToTarget":
                 {
                     return new JsonObject();
                 }
 
+            case "detachFromTarget":
+                {
+                    string? sessionId = @params["sessionId"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(sessionId))
+                    {
+                        string? targetId = @params["targetId"]?.GetValue<string>();
+                        if (!string.IsNullOrEmpty(targetId))
+                        {
+                            sessionId = session.GetSessionIdForTarget(targetId);
+                        }
+                    }
+                    if (!string.IsNullOrEmpty(sessionId))
+                    {
+                        session.DetachTarget(sessionId);
+                    }
+                    return new JsonObject();
+                }
+
             case "attachToTarget":
                 {
-                    return new JsonObject { ["sessionId"] = "session-1" };
+                    string? targetId = @params["targetId"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(targetId))
+                    {
+                        throw new Exception("Missing targetId parameter");
+                    }
+
+                    var targetWin = CdpServer.GetWindows().FirstOrDefault(w => w.Id == targetId);
+                    if (targetWin.Window == null)
+                    {
+                        throw new Exception($"Target not found: {targetId}");
+                    }
+
+                    var sessionId = Guid.NewGuid().ToString();
+                    var targetSession = new CdpTargetSession(session, sessionId, targetId, targetWin.Window);
+                    session.AttachTarget(sessionId, targetSession);
+
+                    _ = session.SendEventAsync("Target.attachedToTarget", new JsonObject
+                    {
+                        ["sessionId"] = sessionId,
+                        ["targetInfo"] = new JsonObject
+                        {
+                            ["targetId"] = targetId,
+                            ["type"] = "page",
+                            ["title"] = targetWin.Title,
+                            ["url"] = $"http://localhost:{CdpServer.Port}/",
+                            ["attached"] = true,
+                            ["browserContextId"] = "1"
+                        },
+                        ["waitingForDebugger"] = false
+                    });
+
+                    return new JsonObject { ["sessionId"] = sessionId };
                 }
 
             case "closeTarget":
                 {
-                    return new JsonObject { ["success"] = true };
+                    string? targetId = @params["targetId"]?.GetValue<string>();
+                    if (!string.IsNullOrEmpty(targetId))
+                    {
+                        var targetWin = CdpServer.GetWindows().FirstOrDefault(w => w.Id == targetId);
+                        if (targetWin.Window is Window win)
+                        {
+                            _ = Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => win.Close());
+                            return new JsonObject { ["success"] = true };
+                        }
+                    }
+                    return new JsonObject { ["success"] = false };
                 }
 
             case "createTarget":
                 {
-                    return new JsonObject { ["targetId"] = Guid.NewGuid().ToString() };
+                    var newWin = await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var w = new Window
+                        {
+                            Title = "Dynamic CDP Window",
+                            Width = 400,
+                            Height = 300
+                        };
+                        w.Show();
+                        return w;
+                    });
+                    var targetId = CdpServer.Register(newWin, "Dynamic CDP Window");
+                    return new JsonObject { ["targetId"] = targetId };
                 }
 
             default:

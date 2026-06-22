@@ -1,0 +1,123 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpInspectorApp.Views.WindowControlView"
+             x:CompileBindings="False">
+    <ScrollViewer>
+        <Grid RowDefinitions="Auto, *" Margin="15" MaxWidth="800" HorizontalAlignment="Left">
+            <!-- 1. Header -->
+            <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,20">
+                <TextBlock Text="Window Chrome &amp; Bounds Control" FontSize="18" FontWeight="Bold" Foreground="#e8eaed"/>
+                <TextBlock Text="Simulates and mutates window positioning, chrome styling, and OS state across Windows, macOS, and Linux." Foreground="#9aa0a6" FontSize="12"/>
+            </StackPanel>
+
+            <!-- 2. Content Cards Grid -->
+            <Grid Grid.Row="1" RowDefinitions="Auto, Auto, Auto" ColumnDefinitions="*, *" RowSpacing="15" ColumnSpacing="15">
+                <!-- Card: Bounds & Position -->
+                <Border Classes="panel-card" Grid.Row="0" Grid.Column="0" Padding="15" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="DIMENSIONS &amp; POSITION" FontSize="12" FontWeight="Bold" Foreground="#8ab4f8" LetterSpacing="1.1"/>
+                        <Separator Background="#3c4043" Margin="0,0,0,5"/>
+                        
+                        <Grid RowDefinitions="Auto, Auto" ColumnDefinitions="*, *" RowSpacing="10" ColumnSpacing="10">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="Left (X)" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBox Text="{Binding Connection.WindowX, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="3">
+                                <TextBlock Text="Top (Y)" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBox Text="{Binding Connection.WindowY, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Spacing="3">
+                                <TextBlock Text="Width" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBox Text="{Binding Connection.WindowWidth, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3">
+                                <TextBlock Text="Height" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBox Text="{Binding Connection.WindowHeight, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Card: Appearance (Opacity & Topmost) -->
+                <Border Classes="panel-card" Grid.Row="0" Grid.Column="1" Padding="15" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="WINDOW APPEARANCE" FontSize="12" FontWeight="Bold" Foreground="#8ab4f8" LetterSpacing="1.1"/>
+                        <Separator Background="#3c4043" Margin="0,0,0,5"/>
+
+                        <!-- Opacity Slider -->
+                        <StackPanel Spacing="3">
+                            <Grid ColumnDefinitions="*, Auto">
+                                <TextBlock Text="Opacity" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Connection.WindowOpacity, StringFormat='{}{0:P0}'}" FontSize="10" Foreground="#e8eaed" FontWeight="SemiBold"/>
+                            </Grid>
+                            <Slider Minimum="0.1" Maximum="1.0" Value="{Binding Connection.WindowOpacity, Mode=TwoWay}" Margin="0,-5,0,0"/>
+                        </StackPanel>
+
+                        <!-- Topmost Toggle -->
+                        <CheckBox IsChecked="{Binding Connection.IsTopmost, Mode=TwoWay}" Margin="0,5,0,0">
+                            <TextBlock Text="Always on Top (Topmost)" FontSize="11" Foreground="#e8eaed"/>
+                        </CheckBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Card: Title & WindowState -->
+                <Border Classes="panel-card" Grid.Row="1" Grid.Column="0" Padding="15" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="TITLE &amp; STATE" FontSize="12" FontWeight="Bold" Foreground="#8ab4f8" LetterSpacing="1.1"/>
+                        <Separator Background="#3c4043" Margin="0,0,0,5"/>
+
+                        <!-- Window Title -->
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Window Title" FontSize="10" Foreground="#9aa0a6"/>
+                            <TextBox Text="{Binding Connection.WindowTitle, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- WindowState Display -->
+                        <StackPanel Spacing="5" Margin="0,5,0,0">
+                            <TextBlock Text="Window State Commands" FontSize="10" Foreground="#9aa0a6"/>
+                            <Grid ColumnDefinitions="*, *, *" ColumnSpacing="8">
+                                <Button Command="{Binding Connection.MinimizeWindowCommand}" Content="Minimize" Height="28" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                <Button Grid.Column="1" Command="{Binding Connection.MaximizeWindowCommand}" Content="Maximize" Height="28" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                <Button Grid.Column="2" Command="{Binding Connection.RestoreWindowCommand}" Content="Restore" Height="28" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Card: Manual Delta Dragging -->
+                <Border Classes="panel-card" Grid.Row="1" Grid.Column="1" Padding="15" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="SIMULATED WINDOW DRAGGING" FontSize="12" FontWeight="Bold" Foreground="#8ab4f8" LetterSpacing="1.1"/>
+                        <Separator Background="#3c4043" Margin="0,0,0,5"/>
+
+                        <Grid ColumnDefinitions="*, *" ColumnSpacing="10">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="Delta X (Pixels)" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBox Text="{Binding Connection.DragDeltaX, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="3">
+                                <TextBlock Text="Delta Y (Pixels)" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBox Text="{Binding Connection.DragDeltaY, Mode=TwoWay}" Height="28" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Button Command="{Binding Connection.DragWindowCommand}" Content="Apply Relative Drag Move" Classes="accent" Height="30" Margin="0,5,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Card: Global Window Actions -->
+                <Border Classes="panel-card" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Padding="15" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <Grid ColumnDefinitions="Auto, *, Auto" VerticalAlignment="Center">
+                        <Button Command="{Binding Connection.RefreshWindowDetailsCommand}" Content="Sync from Target Window" Classes="accent" Height="30" Padding="15,0"/>
+                        
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+                            <Button Command="{Binding Connection.ActivateWindowCommand}" Content="Activate / Focus" Background="#1b5e20" Foreground="White" BorderBrush="#1b5e20" Height="30" Padding="15,0"/>
+                            <Button Command="{Binding Connection.CloseWindowCommand}" Content="Close Window" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Height="30" Padding="15,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
