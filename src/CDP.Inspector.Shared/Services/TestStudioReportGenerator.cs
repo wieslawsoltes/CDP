@@ -924,7 +924,15 @@ public static class TestStudioReportGenerator
             
             // Check remaining space
             float requiredHeight = 110;
-            bool hasScreenshot = !string.IsNullOrEmpty(step.ScreenshotFileName) && File.Exists(step.ScreenshotFileName);
+            string? screenshotFullPath = null;
+            if (!string.IsNullOrEmpty(step.ScreenshotFileName))
+            {
+                var reportDir = Path.GetDirectoryName(pdfPath);
+                screenshotFullPath = Path.IsPathRooted(step.ScreenshotFileName)
+                    ? step.ScreenshotFileName
+                    : Path.Combine(reportDir ?? "", step.ScreenshotFileName);
+            }
+            bool hasScreenshot = !string.IsNullOrEmpty(screenshotFullPath) && File.Exists(screenshotFullPath);
             if (hasScreenshot)
             {
                 requiredHeight += 120;
@@ -987,12 +995,12 @@ public static class TestStudioReportGenerator
                 currentCanvas.DrawText($"Error: {step.ErrorMessage}", cx, cy, errPaint);
             }
 
-            if (hasScreenshot)
+            if (hasScreenshot && !string.IsNullOrEmpty(screenshotFullPath))
             {
                 cy += 15;
                 try
                 {
-                    using var bitmap = SKBitmap.Decode(step.ScreenshotFileName);
+                    using var bitmap = SKBitmap.Decode(screenshotFullPath);
                     if (bitmap != null)
                     {
                         // Scale bitmap to fit
