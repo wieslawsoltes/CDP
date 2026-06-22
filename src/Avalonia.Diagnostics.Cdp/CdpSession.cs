@@ -485,20 +485,34 @@ public class CdpSession
 
     public void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null)
     {
-        if (_screencastEnabled) return;
-        _screencastEnabled = true;
         _screencastFormat = format;
         _screencastQuality = quality;
         _screencastMaxWidth = maxWidth;
         _screencastMaxHeight = maxHeight;
         _screencastEveryNthFrame = everyNthFrame;
+        _screencastDirty = true;
+        _lastSentFrameBytes = null; // force fresh capture & transmission
+
+        if (_screencastEnabled)
+        {
+            try
+            {
+                if (_ackSignal.CurrentCount == 0)
+                {
+                    _ackSignal.Release();
+                }
+            }
+            catch { }
+            RequestScreencastFrame();
+            return;
+        }
+
+        _screencastEnabled = true;
         _screencastFrameCounter = 0;
         _lastScreencastFrameId = 0;
         _ackedFrameId = 0;
-        _screencastDirty = true;
         _lastFrameCaptureTime = DateTime.MinValue;
         _lastFrameSentTime = DateTime.UtcNow;
-        _lastSentFrameBytes = null;
 
         // Reset the ACK signal count to 1
         try
