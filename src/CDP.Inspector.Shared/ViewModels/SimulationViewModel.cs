@@ -997,6 +997,23 @@ public class SimulationViewModel : ViewModelBase
         try
         {
             var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = selectedNode.NodeId });
+            
+            // Re-validate selection and highlight active state to avoid race conditions or stale overrides
+            var currentNode = _getSelectedNodeFunc();
+            var isHighlightActiveNow = _isHighlightActiveFunc();
+            if (currentNode != selectedNode || !isHighlightActiveNow || !_cdpService.IsConnected)
+            {
+                if (currentNode == null || !isHighlightActiveNow)
+                {
+                    HighlightBoxModel = null;
+                    HighlightElementType = null;
+                    HighlightAxRole = null;
+                    HighlightAxName = null;
+                    IsHighlightOverlayVisible = false;
+                }
+                return;
+            }
+
             var model = boxRes["model"] as JsonObject;
             if (model != null)
             {
