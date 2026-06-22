@@ -293,6 +293,15 @@ public class CdpSession
         return _attachedTargets.FirstOrDefault(x => x.Value.TargetId == targetId).Key;
     }
 
+    public void DetachTargetById(string targetId)
+    {
+        var sessionId = GetSessionIdForTarget(targetId);
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            DetachTarget(sessionId);
+        }
+    }
+
     public string RegisterObject(object obj)
     {
         string id = $"object:{Interlocked.Increment(ref _nextObjectId)}";

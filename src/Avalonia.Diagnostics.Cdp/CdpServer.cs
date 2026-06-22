@@ -97,6 +97,10 @@ public static class CdpServer
         if (key != null)
         {
             _windows.TryRemove(key, out _);
+            foreach (var session in _sessions.Keys)
+            {
+                session.DetachTargetById(key);
+            }
             NotifyTargetDestroyed(key);
         }
     }

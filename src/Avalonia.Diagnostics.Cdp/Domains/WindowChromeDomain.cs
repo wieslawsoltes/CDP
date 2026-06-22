@@ -11,14 +11,18 @@ public static class WindowChromeDomain
 {
     public static async Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
     {
+        bool hasWindowId = @params.ContainsKey("windowId") && @params["windowId"] != null;
         int windowId = @params["windowId"]?.GetValue<int>() ?? 0;
         TopLevel? targetWindow = null;
 
         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
-            var windows = CdpServer.GetWindows().ToList();
-            targetWindow = windows.Select(w => w.Window).FirstOrDefault(w => Math.Abs(w.GetHashCode()) == windowId);
-            if (targetWindow == null)
+            if (hasWindowId && windowId != 0)
+            {
+                var windows = CdpServer.GetWindows().ToList();
+                targetWindow = windows.Select(w => w.Window).FirstOrDefault(w => Math.Abs(w.GetHashCode()) == windowId);
+            }
+            else
             {
                 targetWindow = session.Window;
             }
@@ -26,7 +30,7 @@ public static class WindowChromeDomain
 
         if (targetWindow == null)
         {
-            throw new Exception("Target window not found");
+            throw new Exception(hasWindowId && windowId != 0 ? $"Target window with ID {windowId} not found" : "Target window not found");
         }
 
         switch (action)
