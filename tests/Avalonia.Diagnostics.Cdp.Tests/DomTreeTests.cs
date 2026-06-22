@@ -144,6 +144,7 @@ public class DomTreeTests
         using var clientWs = new ClientWebSocket();
         var session = new CdpSession(clientWs, window);
         var document = new CdpRuntimeDocument(session);
+        var runtimeWindow = new CdpRuntimeWindow(session);
 
         var panelElement = document.querySelector("#panelRoot");
         Assert.NotNull(panelElement);
@@ -152,6 +153,9 @@ public class DomTreeTests
         var buttonElement = document.getElementById("btnClickMe");
         Assert.NotNull(buttonElement);
         Assert.Same(button, buttonElement!.visual);
+        Assert.Same(button, runtimeWindow.document.getElementById("btnClickMe")!.visual);
+        Assert.Equal(1, buttonElement.nodeType);
+        Assert.Equal("Button", buttonElement.tagName);
         Assert.Equal("btnAutomation", buttonElement.getAttribute("AutomationProperties.AutomationId"));
         Assert.True(buttonElement.matches("[AutomationProperties.AutomationId=\"btnAutomation\"]"));
 

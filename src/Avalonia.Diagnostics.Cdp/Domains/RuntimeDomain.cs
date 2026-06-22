@@ -757,7 +757,7 @@ public class ReplGlobals
     public dynamic? DataContext => Control?.DataContext != null ? new ReflectionDynamicObject(Control.DataContext) : null;
     public dynamic? ViewModel => DataContext;
     public dynamic? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
-    public dynamic? window => Window;
+    public CdpRuntimeWindow window => new(_session);
     public CdpRuntimeDocument document => new(_session);
 
     public void Print(object? obj) => Console.WriteLine(obj);
@@ -773,6 +773,19 @@ public class ReplGlobals
         var root = (Visual?)SelectedNode ?? _session.Window;
         return root != null ? Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(root, selector, _session.UseLogicalTree) : Enumerable.Empty<Visual>();
     }
+}
+
+public sealed class CdpRuntimeWindow
+{
+    private readonly CdpSession _session;
+
+    public CdpRuntimeWindow(CdpSession session)
+    {
+        _session = session;
+    }
+
+    public CdpRuntimeDocument document => new(_session);
+    public Avalonia.Controls.Window? visual => _session.Window as Avalonia.Controls.Window;
 }
 
 public sealed class CdpRuntimeDocument
@@ -829,7 +842,9 @@ public sealed class CdpRuntimeElement
     }
 
     public int nodeId => _session.NodeMap.GetOrAdd(_visual);
+    public int nodeType => 1;
     public string nodeName => _visual.GetType().Name;
+    public string tagName => nodeName;
     public string localName => _visual.GetType().Name;
     public string id => getAttribute("id") ?? "";
     public string name => getAttribute("Name") ?? "";
