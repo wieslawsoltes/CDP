@@ -1141,6 +1141,9 @@ description: ""Verify new commands execution""
         Scenario24Start:
             await RunScenario24Async(cdpService, mainVm);
 
+        Scenario25Start:
+            await RunScenario25Async(cdpService, mainVm);
+
             // Cleanup & successful exit
             await cdpService.DisconnectAsync();
             CdpServer.Stop();
@@ -3092,6 +3095,76 @@ description: ""Verify new commands execution""
         });
 
         Console.WriteLine("Scenario 24 PASSED.");
+    }
+
+    private static async Task RunScenario25Async(CdpService cdpService, MainWindowViewModel mainVm)
+    {
+        Console.WriteLine("Testing Scenario 25: Visual Preview Highlight Adorners E2E...");
+
+        var elements = mainVm.Elements;
+        var simulation = mainVm.Simulation;
+
+        await elements.RefreshDomTreeAsync();
+        await elements.RefreshAxTreeAsync();
+
+        DomNodeModel? btnNode = null;
+        void FindBtnTarget(DomNodeModel parent)
+        {
+            var idAttr = parent.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+            if (idAttr != null && idAttr.Value == "btnTarget")
+            {
+                btnNode = parent;
+                return;
+            }
+            foreach (var child in parent.Children)
+            {
+                FindBtnTarget(child);
+                if (btnNode != null) return;
+            }
+        }
+
+        if (elements.RootNodes.Count > 0)
+        {
+            FindBtnTarget(elements.RootNodes[0]);
+        }
+
+        if (btnNode == null)
+        {
+            throw new Exception("Could not find btnTarget in DOM tree.");
+        }
+
+        // Enable highlight
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            elements.IsHighlightActive = true;
+            elements.SelectedNode = btnNode;
+        });
+
+        // Trigger and await highlight refresh
+        await simulation.TriggerHighlightRefreshAsync();
+
+        if (!simulation.IsHighlightOverlayVisible)
+        {
+            throw new Exception("Expected IsHighlightOverlayVisible to be true.");
+        }
+
+        if (simulation.HighlightBoxModel == null)
+        {
+            throw new Exception("Expected HighlightBoxModel to be populated.");
+        }
+
+        if (simulation.HighlightElementType != "Button")
+        {
+            throw new Exception($"Expected HighlightElementType to be 'Button', got '{simulation.HighlightElementType}'");
+        }
+
+        if (simulation.HighlightAxRole != "button")
+        {
+            throw new Exception($"Expected HighlightAxRole to be 'button', got '{simulation.HighlightAxRole}'");
+        }
+
+        Console.WriteLine($"Highlight details: Type={simulation.HighlightElementType}, Role={simulation.HighlightAxRole}, Name={simulation.HighlightAxName}");
+        Console.WriteLine("Scenario 25 PASSED.");
     }
 }
 
