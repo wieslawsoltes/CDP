@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CdpInspectorApp.Views.VideoPlaybackWindow"
+        Title="Test Studio - Video Playback"
+        Width="800" Height="600"
+        Background="#0f1015"
+        WindowStartupLocation="CenterOwner"
+        RequestedThemeVariant="Dark">
+    <Grid RowDefinitions="*, Auto" Margin="10">
+        <!-- Video Frame Image -->
+        <Border Grid.Row="0" Background="Black" CornerRadius="8" ClipToBounds="True" BorderBrush="#3c4043" BorderThickness="1">
+            <Image Name="imgFrame" Stretch="Uniform"/>
+        </Border>
+
+        <!-- Controls panel -->
+        <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="8" Margin="0,10,0,0" Padding="10">
+            <Grid RowDefinitions="Auto, Auto">
+                <!-- Seek Slider + Time Display -->
+                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                    <Slider Name="sliderSeek" Grid.Column="0" Minimum="0" Maximum="100" Value="0" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Name="txtTime" Grid.Column="1" Text="00:00.0 / 00:00.0" Foreground="#e8eaed" FontFamily="Courier New,Consolas" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Playback controls -->
+                <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, Auto, *, Auto">
+                    <Button Name="btnPlay" Grid.Column="0" Content="▶ Play" Width="85" Margin="0,0,8,0"/>
+                    <Button Name="btnStop" Grid.Column="1" Content="■ Stop" Width="60" Margin="0,0,8,0"/>
+                    
+                    <!-- Speed Control -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="Speed:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11" Margin="5,0,5,0"/>
+                        <Button Name="btnSpeed1x" Content="1x" Padding="6,3" FontSize="10"/>
+                        <Button Name="btnSpeed2x" Content="2x" Padding="6,3" FontSize="10"/>
+                        <Button Name="btnSpeed4x" Content="4x" Padding="6,3" FontSize="10"/>
+                    </StackPanel>
+
+                    <!-- Frame metadata or extra details -->
+                    <TextBlock Name="txtMetadata" Grid.Column="4" Text="" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
