@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using System.Net.WebSockets;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Diagnostics.Cdp.Domains;
@@ -104,5 +105,27 @@ public class DomTreeTests
         Assert.Equal(paddingQuad[0]!.GetValue<double>() + 5, contentQuad![0]!.GetValue<double>(), 1);
 
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public void TestBuildAttributesExposeBrowserAndAvaloniaAliases()
+    {
+        var button = new Button { Name = "btnClickMe", Content = "Click Me" };
+        button.Classes.Add("primary");
+        button.SetValue(AutomationProperties.AutomationIdProperty, "btnAutomation");
+
+        var attributes = DomDomain.BuildAttributes(button);
+        var pairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i + 1 < attributes.Count; i += 2)
+        {
+            pairs[attributes[i]!.GetValue<string>()] = attributes[i + 1]!.GetValue<string>();
+        }
+
+        Assert.Equal("btnClickMe", pairs["id"]);
+        Assert.Equal("btnClickMe", pairs["Name"]);
+        Assert.Equal("primary", pairs["class"]);
+        Assert.Equal("Click Me", pairs["text"]);
+        Assert.Equal("btnAutomation", pairs["AccessibilityId"]);
+        Assert.Equal("btnAutomation", pairs["AutomationId"]);
     }
 }

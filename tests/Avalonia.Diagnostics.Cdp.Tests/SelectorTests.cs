@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Automation;
 using Avalonia.Headless.XUnit;
 using Xunit;
 
@@ -126,5 +127,38 @@ public class SelectorTests
         Assert.Equal("#myBorder > Button", clientDomGen.GenerateSelector(clientBtn));
         Assert.Equal("[AccessibilityId=\"myBtnId\"]", clientAutoGen.GenerateSelector(clientBtn));
     }
-}
 
+    [AvaloniaFact]
+    public void TestAttributeSelectorsAreStrictAndAgentFriendly()
+    {
+        var panel = new StackPanel();
+        var namedButton = new Button { Name = "btnClickMe", Content = "Click Me" };
+        namedButton.Classes.Add("primary");
+        namedButton.SetValue(AutomationProperties.AutomationIdProperty, "btnAutomation");
+
+        var unnamedButton = new Button { Content = "Other" };
+        panel.Children.Add(namedButton);
+        panel.Children.Add(unnamedButton);
+
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "#btnClickMe"));
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "[id=\"btnClickMe\"]"));
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "[Id=\"btnClickMe\"]"));
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "[Name=\"btnClickMe\"]"));
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "[AccessibilityId=\"btnAutomation\"]"));
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "[AutomationId=\"btnAutomation\"]"));
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "[AutomationProperties.AutomationId=\"btnAutomation\"]"));
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "[class~=\"primary\"]"));
+        Assert.Same(namedButton, SelectorEngine.QuerySelector(panel, "[Text=\"Click Me\"]"));
+
+        var idMatches = SelectorEngine.QuerySelectorAll(panel, "[id]");
+        Assert.Single(idMatches);
+        Assert.Same(namedButton, idMatches[0]);
+
+        var automationMatches = SelectorEngine.QuerySelectorAll(panel, "[AutomationId]");
+        Assert.Single(automationMatches);
+        Assert.Same(namedButton, automationMatches[0]);
+
+        Assert.Null(SelectorEngine.QuerySelector(panel, "[AutomationId=\"missing\"]"));
+        Assert.Null(SelectorEngine.QuerySelector(panel, "[UnknownAttribute=\"btnAutomation\"]"));
+    }
+}
