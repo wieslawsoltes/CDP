@@ -757,7 +757,7 @@ public class ReplGlobals
     public dynamic? DataContext => Control?.DataContext != null ? new ReflectionDynamicObject(Control.DataContext) : null;
     public dynamic? ViewModel => DataContext;
     public dynamic? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
-    public CdpRuntimeWindow window => new(_session);
+    public dynamic window => new CdpRuntimeWindow(_session);
     public CdpRuntimeDocument document => new(_session);
 
     public void Print(object? obj) => Console.WriteLine(obj);
@@ -775,7 +775,7 @@ public class ReplGlobals
     }
 }
 
-public sealed class CdpRuntimeWindow
+public sealed class CdpRuntimeWindow : DynamicObject
 {
     private readonly CdpSession _session;
 
@@ -786,6 +786,84 @@ public sealed class CdpRuntimeWindow
 
     public CdpRuntimeDocument document => new(_session);
     public Avalonia.Controls.Window? visual => _session.Window as Avalonia.Controls.Window;
+
+    public override bool TryGetMember(GetMemberBinder binder, out object? result)
+    {
+        if (visual == null)
+        {
+            result = null;
+            return false;
+        }
+
+        var property = visual.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (property != null)
+        {
+            result = property.GetValue(visual);
+            return true;
+        }
+
+        var field = visual.GetType().GetField(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (field != null)
+        {
+            result = field.GetValue(visual);
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
+    public override bool TrySetMember(SetMemberBinder binder, object? value)
+    {
+        if (visual == null)
+        {
+            return false;
+        }
+
+        var property = visual.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (property != null && property.CanWrite)
+        {
+            property.SetValue(visual, value);
+            return true;
+        }
+
+        var field = visual.GetType().GetField(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (field != null)
+        {
+            field.SetValue(visual, value);
+            return true;
+        }
+
+        return false;
+    }
+
+    public override bool TryInvokeMember(InvokeMemberBinder binder, object?[]? args, out object? result)
+    {
+        if (visual == null)
+        {
+            result = null;
+            return false;
+        }
+
+        var argumentTypes = args?.Select(arg => arg?.GetType() ?? typeof(object)).ToArray() ?? Type.EmptyTypes;
+        var method = visual.GetType().GetMethod(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase, null, argumentTypes, null);
+        if (method == null)
+        {
+            method = visual.GetType()
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase)
+                .FirstOrDefault(candidate => string.Equals(candidate.Name, binder.Name, StringComparison.OrdinalIgnoreCase) &&
+                                             candidate.GetParameters().Length == (args?.Length ?? 0));
+        }
+
+        if (method == null)
+        {
+            result = null;
+            return false;
+        }
+
+        result = method.Invoke(visual, args);
+        return true;
+    }
 }
 
 public sealed class CdpRuntimeDocument

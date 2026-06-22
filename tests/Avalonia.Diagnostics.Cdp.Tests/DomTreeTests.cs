@@ -145,6 +145,9 @@ public class DomTreeTests
         var session = new CdpSession(clientWs, window);
         var document = new CdpRuntimeDocument(session);
         var runtimeWindow = new CdpRuntimeWindow(session);
+        dynamic runtimeWindowDynamic = runtimeWindow;
+        Assert.Same(window, runtimeWindow.visual);
+        Assert.Equal("Runtime Helpers Test", runtimeWindowDynamic.Title);
 
         var panelElement = document.querySelector("#panelRoot");
         Assert.NotNull(panelElement);
