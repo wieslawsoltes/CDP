@@ -1654,5 +1654,25 @@ public class ElementsViewModel : ViewModelBase
         }
         return (null, null);
     }
+
+    public DomNodeModel? FindDomNode(int nodeId)
+    {
+        DomNodeModel? FindNode(DomNodeModel parent)
+        {
+            if (parent.NodeId == nodeId) return parent;
+            foreach (var child in parent.Children)
+            {
+                var found = FindNode(child);
+                if (found != null) return found;
+            }
+            return null;
+        }
+        foreach (var root in RootNodes)
+        {
+            var found = FindNode(root);
+            if (found != null) return found;
+        }
+        return null;
+    }
 }
 
