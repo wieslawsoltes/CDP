@@ -3163,6 +3163,26 @@ description: ""Verify new commands execution""
         }
         Console.WriteLine("All steps executed successfully.");
 
+        // Verify cached steps and RelativeStartMs
+        var cachedStepsField = typeof(TestStudioViewModel).GetField("_lastRunSteps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var cachedSteps = cachedStepsField?.GetValue(testStudio) as System.Collections.IList;
+        if (cachedSteps == null || cachedSteps.Count != 3)
+        {
+            throw new Exception($"Expected 3 cached steps in _lastRunSteps, got {cachedSteps?.Count ?? 0}");
+        }
+        Console.WriteLine("Cached steps count verified.");
+
+        foreach (var item in cachedSteps)
+        {
+            var relativeStartMsProp = item.GetType().GetProperty("RelativeStartMs");
+            var relativeStartMs = (double)(relativeStartMsProp?.GetValue(item) ?? -1.0);
+            if (relativeStartMs < 0)
+            {
+                throw new Exception($"Expected RelativeStartMs to be >= 0, got {relativeStartMs}");
+            }
+        }
+        Console.WriteLine("RelativeStartMs timings verified on all steps.");
+
         // Verify generated reports and artifacts
         if (!testStudio.HasLastRunRecording)
         {

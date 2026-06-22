@@ -22,6 +22,7 @@ public class StepReportItem
     public string ScreenshotFileName { get; set; } = "";
     public string Url { get; set; } = "";
     public string ExtraMetadataJson { get; set; } = "{}";
+    public double RelativeStartMs { get; set; }
 }
 
 public class VideoFrameItem
@@ -924,16 +925,40 @@ public static class TestStudioReportGenerator
             
             // Check remaining space
             float requiredHeight = 110;
-            string? screenshotFullPath = null;
+            bool hasScreenshot = false;
+            SKBitmap? screenshotBitmap = null;
             if (!string.IsNullOrEmpty(step.ScreenshotFileName))
             {
-                var reportDir = Path.GetDirectoryName(pdfPath);
-                screenshotFullPath = Path.IsPathRooted(step.ScreenshotFileName)
-                    ? step.ScreenshotFileName
-                    : Path.Combine(reportDir ?? "", step.ScreenshotFileName);
+                // Check if it is base64
+                if (!step.ScreenshotFileName.Contains("/") && !step.ScreenshotFileName.Contains("\\") && step.ScreenshotFileName.Length > 100)
+                {
+                    try
+                    {
+                        byte[] bytes = Convert.FromBase64String(step.ScreenshotFileName);
+                        screenshotBitmap = SKBitmap.Decode(bytes);
+                        hasScreenshot = screenshotBitmap != null;
+                    }
+                    catch { }
+                }
+                else
+                {
+                    var reportDir = Path.GetDirectoryName(pdfPath);
+                    var fullPath = Path.IsPathRooted(step.ScreenshotFileName)
+                        ? step.ScreenshotFileName
+                        : Path.Combine(reportDir ?? "", step.ScreenshotFileName);
+                    if (File.Exists(fullPath))
+                    {
+                        try
+                        {
+                            screenshotBitmap = SKBitmap.Decode(fullPath);
+                            hasScreenshot = screenshotBitmap != null;
+                        }
+                        catch { }
+                    }
+                }
             }
-            bool hasScreenshot = !string.IsNullOrEmpty(screenshotFullPath) && File.Exists(screenshotFullPath);
-            if (hasScreenshot)
+
+            if (hasScreenshot && screenshotBitmap != null)
             {
                 requiredHeight += 120;
             }
@@ -995,30 +1020,30 @@ public static class TestStudioReportGenerator
                 currentCanvas.DrawText($"Error: {step.ErrorMessage}", cx, cy, errPaint);
             }
 
-            if (hasScreenshot && !string.IsNullOrEmpty(screenshotFullPath))
+            if (hasScreenshot && screenshotBitmap != null)
             {
                 cy += 15;
                 try
                 {
-                    using var bitmap = SKBitmap.Decode(screenshotFullPath);
-                    if (bitmap != null)
-                    {
-                        // Scale bitmap to fit
-                        float maxImgW = pageWidth - margin * 2 - 30;
-                        float maxImgH = 100;
-                        float scale = Math.Min(maxImgW / bitmap.Width, maxImgH / bitmap.Height);
-                        float imgW = bitmap.Width * scale;
-                        float imgH = bitmap.Height * scale;
+                    // Scale bitmap to fit
+                    float maxImgW = pageWidth - margin * 2 - 30;
+                    float maxImgH = 100;
+                    float scale = Math.Min(maxImgW / screenshotBitmap.Width, maxImgH / screenshotBitmap.Height);
+                    float imgW = screenshotBitmap.Width * scale;
+                    float imgH = screenshotBitmap.Height * scale;
 
-                        // Center horizontally
-                        float imgX = margin + (pageWidth - margin * 2 - imgW) / 2.0f;
-                        var imgRect = new SKRect(imgX, cy, imgX + imgW, cy + imgH);
-                        currentCanvas.DrawBitmap(bitmap, imgRect);
-                    }
+                    // Center horizontally
+                    float imgX = margin + (pageWidth - margin * 2 - imgW) / 2.0f;
+                    var imgRect = new SKRect(imgX, cy, imgX + imgW, cy + imgH);
+                    currentCanvas.DrawBitmap(screenshotBitmap, imgRect);
                 }
                 catch (Exception)
                 {
                     // Ignore drawing failed images
+                }
+                finally
+                {
+                    screenshotBitmap.Dispose();
                 }
             }
 

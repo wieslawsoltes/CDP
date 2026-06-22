@@ -43,6 +43,7 @@ public class TestStudioViewModel : ViewModelBase
     private readonly List<VideoFrameItem> _lastRunVideoFrames = new();
     private readonly List<byte[]> _lastRunRawFrameBytes = new();
     private readonly List<double> _lastRunFrameTimestamps = new();
+    private readonly List<StepReportItem> _lastRunSteps = new();
     private bool _isRecordingVideo = false;
     private DateTime _playbackStartTime = DateTime.MinValue;
     private readonly Dictionary<int, StepReportItem> _stepReports = new();
@@ -551,12 +552,13 @@ public class TestStudioViewModel : ViewModelBase
             {
                 await ExecuteSingleStepAsync(step, token);
                 var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
+                var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
                 step.Status = StepStatus.Passed;
                 Log($"Step {_currentStepIndex + 1} passed.");
                 
-                if (IsGenerateReportEnabled && _cdpService.IsConnected)
+                if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
                 {
-                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, currentUrl);
+                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, currentUrl, relativeStartMs);
                 }
 
                 _currentStepIndex++;
@@ -570,13 +572,14 @@ public class TestStudioViewModel : ViewModelBase
             catch (Exception ex)
             {
                 var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
+                var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
                 step.Status = StepStatus.Failed;
                 step.ErrorMessage = ex.Message;
                 Log($"Step {_currentStepIndex + 1} failed: {ex.Message}");
                 
-                if (IsGenerateReportEnabled && _cdpService.IsConnected)
+                if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
                 {
-                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, currentUrl);
+                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, currentUrl, relativeStartMs);
                 }
 
                 throw;
@@ -1989,7 +1992,7 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
-    private async Task CaptureStepDetailsAsync(TestStudioStepModel step, int index, double durationMs, string url)
+    private async Task CaptureStepDetailsAsync(TestStudioStepModel step, int index, double durationMs, string url, double relativeStartMs)
     {
         try
         {
@@ -2017,7 +2020,8 @@ public class TestStudioViewModel : ViewModelBase
                 DurationMs = durationMs,
                 ErrorMessage = step.ErrorMessage ?? "",
                 Url = url,
-                ScreenshotFileName = screenshotBase64 // Store base64 temporarily
+                ScreenshotFileName = screenshotBase64, // Store base64 temporarily
+                RelativeStartMs = relativeStartMs
             };
 
             lock (_stepReports)
@@ -2060,6 +2064,21 @@ public class TestStudioViewModel : ViewModelBase
             }
         }
 
+        // Extract step reports from dictionary
+        List<StepReportItem> tempReports;
+        lock (_stepReports)
+        {
+            tempReports = _stepReports.OrderBy(k => k.Key).Select(k => k.Value).ToList();
+            _stepReports.Clear();
+        }
+
+        // Cache steps in memory for replay window
+        lock (_lastRunSteps)
+        {
+            _lastRunSteps.Clear();
+            _lastRunSteps.AddRange(tempReports);
+        }
+
         // If video frames were recorded, mark as available for native replay regardless of HTML/PDF report option
         if (IsRecordVideoEnabled && _lastRunRawFrameBytes.Count > 0)
         {
@@ -2078,33 +2097,30 @@ public class TestStudioViewModel : ViewModelBase
             Directory.CreateDirectory(imagesFolder);
 
             // 1. Save step screenshots and build report items list
-            List<StepReportItem> tempReports;
-            lock (_stepReports)
+            var stepReportItems = new List<StepReportItem>();
+            lock (_lastRunSteps)
             {
-                tempReports = _stepReports.OrderBy(k => k.Key).Select(k => k.Value).ToList();
-                _stepReports.Clear();
+                foreach (var item in _lastRunSteps)
+                {
+                    if (!string.IsNullOrEmpty(item.ScreenshotFileName) && !item.ScreenshotFileName.StartsWith("images/"))
+                    {
+                        try
+                        {
+                            var filename = $"step_{item.Index}_screenshot.png";
+                            var filepath = Path.Combine(imagesFolder, filename);
+                            byte[] bytes = Convert.FromBase64String(item.ScreenshotFileName);
+                            File.WriteAllBytes(filepath, bytes);
+                            item.ScreenshotFileName = $"images/{filename}"; // relative path
+                        }
+                        catch
+                        {
+                            // Keep base64 or empty
+                        }
+                    }
+                    stepReportItems.Add(item);
+                }
             }
 
-            var stepReportItems = new List<StepReportItem>();
-            foreach (var item in tempReports)
-            {
-                if (!string.IsNullOrEmpty(item.ScreenshotFileName))
-                {
-                    try
-                    {
-                        var filename = $"step_{item.Index}_screenshot.png";
-                        var filepath = Path.Combine(imagesFolder, filename);
-                        byte[] bytes = Convert.FromBase64String(item.ScreenshotFileName);
-                        await File.WriteAllBytesAsync(filepath, bytes);
-                        item.ScreenshotFileName = $"images/{filename}"; // relative path
-                    }
-                    catch
-                    {
-                        item.ScreenshotFileName = "";
-                    }
-                }
-                stepReportItems.Add(item);
-            }
 
             // 2. Save video frames
             var videoFrameItems = new List<VideoFrameItem>();
@@ -2216,12 +2232,18 @@ public class TestStudioViewModel : ViewModelBase
             return;
         }
 
+        List<StepReportItem> playbackSteps;
+        lock (_lastRunSteps)
+        {
+            playbackSteps = _lastRunSteps.ToList();
+        }
+
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             try
             {
                 var win = new CdpInspectorApp.Views.VideoPlaybackWindow();
-                win.SetFrames(playbackFrames);
+                win.SetFramesAndSteps(playbackFrames, playbackSteps, LastPdfReportPath);
                 
                 if (ownerWindow is Avalonia.Controls.Window parentWin)
                 {

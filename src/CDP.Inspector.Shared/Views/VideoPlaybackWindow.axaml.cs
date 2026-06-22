@@ -6,6 +6,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using CdpInspectorApp.Services;
 
 namespace CdpInspectorApp.Views;
 
@@ -15,10 +16,43 @@ public class PlaybackFrame
     public double TimestampMs { get; set; }
 }
 
+public class PlaybackStepViewModel
+{
+    public int Index { get; }
+    public string DisplayIndex => $"#{Index}";
+    public string Action { get; }
+    public string ActionDisplay { get; }
+    public string StatusText { get; }
+    public string StatusFg => StatusText == "PASSED" ? "#10b981" : "#ef4444";
+    public string StatusBg => StatusText == "PASSED" ? "#1e293b" : "#450a0a";
+    public string Selector { get; }
+    public string SelectorText => string.IsNullOrEmpty(Selector) ? "" : $"Selector: {Selector}";
+    public string Value { get; }
+    public string ValueText => string.IsNullOrEmpty(Value) ? "" : $"Value: {Value}";
+    public double DurationMs { get; }
+    public string DurationText => $"Duration: {DurationMs:F0} ms";
+    public double RelativeStartMs { get; }
+    public Bitmap? Screenshot { get; }
+
+    public PlaybackStepViewModel(StepReportItem item, Bitmap? screenshot)
+    {
+        Index = item.Index;
+        Action = item.Action;
+        ActionDisplay = item.ActionDisplay;
+        StatusText = item.Status.ToUpper();
+        Selector = item.Selector;
+        Value = item.Value;
+        DurationMs = item.DurationMs;
+        RelativeStartMs = item.RelativeStartMs;
+        Screenshot = screenshot;
+    }
+}
+
 public partial class VideoPlaybackWindow : Window
 {
     private List<PlaybackFrame> _frames = new();
     private readonly Dictionary<int, Bitmap> _bitmapCache = new();
+    private readonly List<PlaybackStepViewModel> _stepViewModels = new();
     
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _stopwatch = new();
@@ -27,6 +61,7 @@ public partial class VideoPlaybackWindow : Window
     private double _currentPositionMs = 0;
     private double _playbackSpeed = 1.0;
     private bool _isSeeking = false;
+    private bool _isUpdatingSelectionFromPlayback = false;
     private double _totalDurationMs = 0;
 
     public VideoPlaybackWindow()
@@ -48,27 +83,79 @@ public partial class VideoPlaybackWindow : Window
         btnSpeed4x.Click += (s, e) => SetSpeed(4.0);
 
         sliderSeek.PropertyChanged += SliderSeek_PropertyChanged;
+        listSteps.SelectionChanged += ListSteps_SelectionChanged;
         
         Closed += VideoPlaybackWindow_Closed;
         
         UpdateSpeedButtons();
     }
 
-    public void SetFrames(List<PlaybackFrame> frames)
+    public void SetFramesAndSteps(List<PlaybackFrame> frames, List<StepReportItem> steps, string? pdfReportPath)
     {
         _frames = frames ?? new List<PlaybackFrame>();
         
-        // Clear old cache
+        // 1. Clear old cache
         foreach (var bmp in _bitmapCache.Values)
         {
             bmp.Dispose();
         }
         _bitmapCache.Clear();
 
+        // 2. Load and build step view models
+        _stepViewModels.Clear();
+        foreach (var step in steps)
+        {
+            Bitmap? bmp = null;
+            if (!string.IsNullOrEmpty(step.ScreenshotFileName))
+            {
+                try
+                {
+                    // Check if it is base64 string
+                    if (!step.ScreenshotFileName.Contains("/") && !step.ScreenshotFileName.Contains("\\") && step.ScreenshotFileName.Length > 100)
+                    {
+                        byte[] bytes = Convert.FromBase64String(step.ScreenshotFileName);
+                        using var ms = new MemoryStream(bytes);
+                        bmp = new Bitmap(ms);
+                    }
+                    else
+                    {
+                        // Resolve relative to report path
+                        var path = step.ScreenshotFileName;
+                        if (!Path.IsPathRooted(path) && !string.IsNullOrEmpty(pdfReportPath))
+                        {
+                            var reportDir = Path.GetDirectoryName(pdfReportPath);
+                            path = Path.Combine(reportDir ?? "", path);
+                        }
+                        if (File.Exists(path))
+                        {
+                            bmp = new Bitmap(path);
+                        }
+                    }
+                }
+                catch { }
+            }
+            _stepViewModels.Add(new PlaybackStepViewModel(step, bmp));
+        }
+
+        listSteps.ItemsSource = _stepViewModels;
+
+        // 3. Update overall summary stats
+        int total = steps.Count;
+        int passed = steps.Count(s => s.Status.Equals("Passed", StringComparison.OrdinalIgnoreCase));
+        int failed = steps.Count(s => s.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase));
+        int successRate = total > 0 ? (passed * 100 / total) : 100;
+
+        txtTotalSteps.Text = total.ToString();
+        txtPassedSteps.Text = passed.ToString();
+        txtFailedSteps.Text = failed.ToString();
+        txtSuccessRate.Text = $"{successRate}%";
+
+        // 4. Configure seek timeline
         if (_frames.Count > 0)
         {
             _totalDurationMs = _frames.Last().TimestampMs;
             sliderSeek.Maximum = _frames.Count - 1;
+            txtDuration.Text = $"{(_totalDurationMs / 1000.0):F2}s";
             
             // Show first frame
             ShowFrame(0);
@@ -77,6 +164,7 @@ public partial class VideoPlaybackWindow : Window
         {
             _totalDurationMs = 0;
             sliderSeek.Maximum = 0;
+            txtDuration.Text = "0.00s";
         }
 
         UpdateStatusText();
@@ -132,6 +220,11 @@ public partial class VideoPlaybackWindow : Window
         sliderSeek.Value = 0;
         ShowFrame(0);
         UpdateStatusText();
+
+        // Clear highlight
+        _isUpdatingSelectionFromPlayback = true;
+        listSteps.SelectedItem = null;
+        _isUpdatingSelectionFromPlayback = false;
     }
 
     private void Timer_Tick(object? sender, EventArgs e)
@@ -159,6 +252,7 @@ public partial class VideoPlaybackWindow : Window
 
         ShowFrame(frameIndex);
         UpdateStatusText();
+        SyncStepHighlight();
     }
 
     private int FindFrameIndexAtTime(double timeMs)
@@ -215,7 +309,48 @@ public partial class VideoPlaybackWindow : Window
                 _currentPositionMs = _frames[index].TimestampMs;
                 ShowFrame(index);
                 UpdateStatusText();
+                SyncStepHighlight();
             }
+        }
+    }
+
+    private void ListSteps_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingSelectionFromPlayback || _frames.Count == 0) return;
+
+        if (listSteps.SelectedItem is PlaybackStepViewModel stepVm)
+        {
+            SeekToTime(stepVm.RelativeStartMs);
+        }
+    }
+
+    private void SeekToTime(double timeMs)
+    {
+        _currentPositionMs = Math.Max(0, Math.Min(timeMs, _totalDurationMs));
+        int frameIndex = FindFrameIndexAtTime(_currentPositionMs);
+        
+        _isSeeking = true;
+        sliderSeek.Value = frameIndex;
+        _isSeeking = false;
+
+        ShowFrame(frameIndex);
+        UpdateStatusText();
+    }
+
+    private void SyncStepHighlight()
+    {
+        if (_stepViewModels.Count == 0) return;
+
+        var currentStep = _stepViewModels
+            .OrderBy(s => s.RelativeStartMs)
+            .LastOrDefault(s => s.RelativeStartMs <= _currentPositionMs);
+
+        if (currentStep != null && listSteps.SelectedItem != currentStep)
+        {
+            _isUpdatingSelectionFromPlayback = true;
+            listSteps.SelectedItem = currentStep;
+            listSteps.ScrollIntoView(currentStep);
+            _isUpdatingSelectionFromPlayback = false;
         }
     }
 
@@ -259,5 +394,11 @@ public partial class VideoPlaybackWindow : Window
             bmp.Dispose();
         }
         _bitmapCache.Clear();
+        
+        foreach (var vm in _stepViewModels)
+        {
+            vm.Screenshot?.Dispose();
+        }
+        _stepViewModels.Clear();
     }
 }
