@@ -39,17 +39,7 @@ public class ConnectionViewModel : ViewModelBase
     public TargetItem? SelectedTarget
     {
         get => _selectedTarget;
-        set
-        {
-            if (RaiseAndSetIfChanged(ref _selectedTarget, value))
-            {
-                ((RelayCommand)ConnectCommand).RaiseCanExecuteChanged();
-                if (IsConnected && value != null && value.Id != _cdpService.ConnectedTargetId)
-                {
-                    _ = ConnectAsync();
-                }
-            }
-        }
+        set => RaiseAndSetIfChanged(ref _selectedTarget, value);
     }
 
     public bool IsConnected => _cdpService.IsConnected;
@@ -101,6 +91,7 @@ public class ConnectionViewModel : ViewModelBase
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
+        this.PropertyChanged += ConnectionViewModel_PropertyChanged;
 
         RefreshTargetsCommand = new RelayCommand(async () => await RefreshTargetsAsync());
         ConnectCommand = new RelayCommand(async () => await ConnectAsync(), () => SelectedTarget != null && (IsNotConnected || SelectedTarget.Id != _cdpService.ConnectedTargetId));
@@ -147,6 +138,18 @@ public class ConnectionViewModel : ViewModelBase
         {
             OnPropertyChanged(nameof(ConnectionStatusText));
             OnPropertyChanged(nameof(ConnectionStatusBrush));
+        }
+    }
+
+    private void ConnectionViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SelectedTarget))
+        {
+            ((RelayCommand)ConnectCommand).RaiseCanExecuteChanged();
+            if (IsConnected && SelectedTarget != null && SelectedTarget.Id != _cdpService.ConnectedTargetId)
+            {
+                _ = ConnectAsync();
+            }
         }
     }
 
