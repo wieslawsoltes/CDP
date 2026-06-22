@@ -455,6 +455,7 @@ public class TestStudioViewModel : ViewModelBase
 
     public void Stop()
     {
+        bool wasPaused = IsPaused;
         IsExecuting = false;
         IsPaused = false;
         _executionCts?.Cancel();
@@ -467,6 +468,11 @@ public class TestStudioViewModel : ViewModelBase
         }
         Log("Execution stopped.");
         RaiseCommandCanExecuteChanged();
+
+        if (wasPaused)
+        {
+            _ = Task.Run(FinalizeRecordingAndGenerateReportsAsync);
+        }
     }
 
     public async Task StepOverAsync()

@@ -45,13 +45,18 @@ public static class TestStudioReportGenerator
     {
         Directory.CreateDirectory(outputFolder);
 
+        var encTestName = System.Net.WebUtility.HtmlEncode(testName ?? "");
+        var encDescription = System.Net.WebUtility.HtmlEncode(description ?? "");
+        var encAppId = System.Net.WebUtility.HtmlEncode(appId ?? "");
+
         var totalDuration = (endTime - startTime).TotalSeconds;
         var passedCount = steps.Count(s => s.Status.Equals("Passed", StringComparison.OrdinalIgnoreCase));
         var failedCount = steps.Count(s => s.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase));
         var totalSteps = steps.Count;
         var successRate = totalSteps > 0 ? (int)Math.Round((double)passedCount / totalSteps * 100) : 0;
-        var statusText = failedCount > 0 ? "FAILED" : "PASSED";
-        var statusClass = failedCount > 0 ? "status-failed" : "status-passed";
+        var isAllPassed = passedCount == totalSteps && totalSteps > 0;
+        var statusText = isAllPassed ? "PASSED" : "FAILED";
+        var statusClass = isAllPassed ? "status-passed" : "status-failed";
 
         var stepsJson = JsonSerializer.Serialize(steps, new JsonSerializerOptions { WriteIndented = false });
         var framesJson = JsonSerializer.Serialize(videoFrames, new JsonSerializerOptions { WriteIndented = false });
@@ -62,7 +67,7 @@ public static class TestStudioReportGenerator
 <head>
     <meta charset=""UTF-8"">
     <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Test Run Report - {testName}</title>
+    <title>Test Run Report - {encTestName}</title>
     <link href=""https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"" rel=""stylesheet"">
     <style>
         :root {{
@@ -440,56 +445,84 @@ public static class TestStudioReportGenerator
             font-size: 0.85rem;
             font-family: monospace;
             color: var(--text-muted);
-            min-width: 80px;
-            text-align: right;
+            gap: 0.75rem;
+            background: rgba(22, 25, 35, 0.4);
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 12px;
         }}
 
-        .buttons-row {{
+        .controls-row {{
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            width: 100%;
+            justify-content: space-between;
+            gap: 1rem;
+        }}
+
+        .controls-left {{
+            display: flex;
+            align-items: center;
+            gap: 1rem;
         }}
 
         .play-btn {{
             background: var(--primary);
             color: #fff;
             border: none;
-            padding: 0.4rem 1.2rem;
+            padding: 0.4rem 1rem;
             border-radius: 6px;
             font-weight: 600;
-            font-size: 0.9rem;
             cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 4px 12px var(--primary-glow);
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
         }}
 
         .play-btn:hover {{
-            opacity: 0.9;
-            transform: translateY(-1px);
+            background: #3b82f6;
+            box-shadow: 0 0 12px var(--primary-glow);
+        }}
+
+        .time-display {{
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }}
+
+        .seek-bar {{
+            flex-grow: 1;
+            accent-color: var(--primary);
+            height: 4px;
+            border-radius: 2px;
+            cursor: pointer;
         }}
 
         .speed-control {{
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 0.85rem;
+            gap: 0.25rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
         }}
 
         .speed-btn {{
-            background: rgba(255, 255, 255, 0.05);
+            background: transparent;
             border: 1px solid var(--border-color);
-            color: var(--text-main);
+            color: var(--text-muted);
             padding: 0.2rem 0.5rem;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 0.8rem;
+            font-weight: 500;
+            font-size: 0.75rem;
+            transition: all 0.15s ease;
         }}
 
-        .speed-btn.active {{
-            background: var(--primary);
-            border-color: var(--primary);
+        .speed-btn:hover, .speed-btn.active {{
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.2);
         }}
 
         /* Modal styling */
@@ -497,32 +530,23 @@ public static class TestStudioReportGenerator
             display: none;
             position: fixed;
             z-index: 9999;
-            top: 0;
             left: 0;
+            top: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background-color: rgba(0, 0, 0, 0.9);
             align-items: center;
             justify-content: center;
             cursor: zoom-out;
+            backdrop-filter: blur(8px);
         }}
 
         .modal-content {{
             max-width: 90%;
             max-height: 90%;
             border-radius: 8px;
-            box-shadow: 0 0 30px rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.1);
-        }}
-
-        .no-video {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-muted);
-            height: 100%;
-            font-size: 0.95rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }}
     </style>
 </head>
@@ -530,8 +554,8 @@ public static class TestStudioReportGenerator
     <div class=""container"">
         <header>
             <div class=""header-left"">
-                <h1>{testName}</h1>
-                <p>App ID: {appId} | {description}</p>
+                <h1>{encTestName}</h1>
+                <p>App ID: {encAppId} | {encDescription}</p>
             </div>
             <div class=""status-badge {statusClass}"">
                 {statusText}
@@ -544,8 +568,12 @@ public static class TestStudioReportGenerator
                 <span class=""value"">{totalSteps}</span>
             </div>
             <div class=""stat-card"">
-                <span class=""label"">Passed / Failed</span>
-                <span class=""value""><span style=""color:var(--passed)"">{passedCount}</span> / <span style=""color:var(--failed)"">{failedCount}</span></span>
+                <span class=""label"">Passed</span>
+                <span class=""value"" style=""color: var(--passed)"">{passedCount}</span>
+            </div>
+            <div class=""stat-card"">
+                <span class=""label"">Failed</span>
+                <span class=""value"" style=""color: var(--failed)"">{failedCount}</span>
             </div>
             <div class=""stat-card"">
                 <span class=""label"">Success Rate</span>
@@ -576,13 +604,21 @@ public static class TestStudioReportGenerator
             var hasError = !string.IsNullOrEmpty(step.ErrorMessage);
             var hasScreenshot = !string.IsNullOrEmpty(step.ScreenshotFileName);
 
+            var encActionDisplay = System.Net.WebUtility.HtmlEncode(step.ActionDisplay ?? "");
+            var encSelector = System.Net.WebUtility.HtmlEncode(step.Selector ?? "");
+            var encAction = System.Net.WebUtility.HtmlEncode(step.Action ?? "");
+            var encValue = System.Net.WebUtility.HtmlEncode(step.Value ?? "");
+            var encUrl = System.Net.WebUtility.HtmlEncode(step.Url ?? "");
+            var encErrorMsg = System.Net.WebUtility.HtmlEncode(step.ErrorMessage ?? "");
+            var encScreenshotFile = System.Net.WebUtility.HtmlEncode(step.ScreenshotFileName ?? "");
+
             sb.Append($@"                    <div class=""step-card {stepStatusClass}"" id=""step-card-{i}"">
                         <div class=""step-header"" onclick=""toggleStep({i})"">
                             <div class=""step-info"">
                                 <div class=""step-status-indicator""></div>
                                 <span class=""step-index"">#{i + 1}</span>
-                                <span class=""step-action"">{step.ActionDisplay}</span>
-                                {(hasSelector ? $"<span class=\"step-selector\">{step.Selector}</span>" : "")}
+                                <span class=""step-action"">{encActionDisplay}</span>
+                                {(hasSelector ? $"<span class=\"step-selector\">{encSelector}</span>" : "")}
                             </div>
                             <span class=""step-duration"">{(step.DurationMs):F0} ms</span>
                         </div>
@@ -592,16 +628,16 @@ public static class TestStudioReportGenerator
                                     <table class=""metadata-table"">
                                         <tr>
                                             <td class=""label"">Action:</td>
-                                            <td class=""value"">{step.Action}</td>
+                                            <td class=""value"">{encAction}</td>
                                         </tr>
-                                        {(hasSelector ? $"<tr><td class=\"label\">Selector:</td><td class=\"value\">{step.Selector}</td></tr>" : "")}
-                                        {(!string.IsNullOrEmpty(step.Value) ? $"<tr><td class=\"label\">Value:</td><td class=\"value\">{step.Value}</td></tr>" : "")}
-                                        {(!string.IsNullOrEmpty(step.Url) ? $"<tr><td class=\"label\">Active URL:</td><td class=\"value\"><a href=\"{step.Url}\" target=\"_blank\" style=\"color:#8ab4f8\">{step.Url}</a></td></tr>" : "")}
+                                        {(hasSelector ? $"<tr><td class=\"label\">Selector:</td><td class=\"value\">{encSelector}</td></tr>" : "")}
+                                        {(!string.IsNullOrEmpty(step.Value) ? $"<tr><td class=\"label\">Value:</td><td class=\"value\">{encValue}</td></tr>" : "")}
+                                        {(!string.IsNullOrEmpty(step.Url) ? $"<tr><td class=\"label\">Active URL:</td><td class=\"value\"><a href=\"{encUrl}\" target=\"_blank\" style=\"color:#8ab4f8\">{encUrl}</a></td></tr>" : "")}
                                     </table>
-                                    {(hasError ? $"<div class=\"error-message\">{step.ErrorMessage}</div>" : "")}
+                                    {(hasError ? $"<div class=\"error-message\">{encErrorMsg}</div>" : "")}
                                 </div>
                                 <div class=""step-screenshot-container"">
-                                    {(hasScreenshot ? $@"<img src=""{step.ScreenshotFileName}"" class=""step-screenshot"" onclick=""openModal('{step.ScreenshotFileName}')"" alt=""Step Screenshot"">" : "<span style='color:var(--text-muted); font-size:0.9rem'>No screenshot captured</span>")}
+                                    {(hasScreenshot ? $@"<img src=""{encScreenshotFile}"" class=""step-screenshot"" onclick=""openModal('{encScreenshotFile}')"" alt=""Step Screenshot"">" : "<span style='color:var(--text-muted); font-size:0.9rem'>No screenshot captured</span>")}
                                 </div>
                             </div>
                         </div>
