@@ -71,6 +71,31 @@ public partial class TestStudioView : UserControl
                 }
             });
         };
+
+        var btnBrowse = this.FindControl<Button>("btnBrowseReportDir");
+        if (btnBrowse != null)
+        {
+            btnBrowse.Click += async (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    var topLevel = TopLevel.GetTopLevel(this);
+                    if (topLevel != null)
+                    {
+                        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+                        {
+                            Title = "Select Output Directory",
+                            AllowMultiple = false
+                        });
+                        if (folders != null && folders.Count > 0)
+                        {
+                            var folder = folders[0];
+                            vm.Recorder.TestStudio.OutputDirectory = folder.Path.LocalPath;
+                        }
+                    }
+                }
+            };
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

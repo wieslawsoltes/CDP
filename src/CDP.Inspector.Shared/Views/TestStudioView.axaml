@@ -8,7 +8,7 @@
              x:CompileBindings="False">
     <Grid ColumnDefinitions="*, 4, *">
         <!-- LEFT COLUMN: Steps List + Debugger Toolbar + Quick-Add panel -->
-        <Grid Grid.Column="0" RowDefinitions="Auto, *, Auto" Margin="0,0,10,0">
+        <Grid Grid.Column="0" RowDefinitions="Auto, Auto, *, Auto" Margin="0,0,10,0">
             <!-- Debugger Toolbar -->
             <Border Grid.Row="0" Classes="panel-card" Margin="0,0,0,10">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -25,8 +25,28 @@
                 </StackPanel>
             </Border>
 
+            <!-- Reporting Section -->
+            <Border Grid.Row="1" Classes="panel-card" Margin="0,0,0,10">
+                <Grid RowDefinitions="Auto, Auto" Margin="0">
+                    <!-- Checkboxes -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" Margin="0,0,0,8">
+                        <CheckBox Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0"/>
+                        <CheckBox Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0"/>
+                    </StackPanel>
+                    
+                    <!-- Path and Browse button, View buttons -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*, Auto, Auto, Auto, Auto">
+                        <TextBox Grid.Column="0" Text="{Binding Recorder.TestStudio.OutputDirectory, Mode=TwoWay}" PlaceholderText="Output directory..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
+                        <Button Name="btnBrowseReportDir" Grid.Column="1" Content="Browse..." FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                        <Button Name="btnViewHtmlReport" Grid.Column="2" Content="HTML Report" Command="{Binding Recorder.TestStudio.OpenLastReportCommand}" FontSize="10" Padding="6,3" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        <Button Name="btnViewPdfReport" Grid.Column="3" Content="PDF Report" Command="{Binding Recorder.TestStudio.OpenLastPdfReportCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                        <Button Name="btnReplayLastVideo" Grid.Column="4" Content="Replay Video" Command="{Binding Recorder.TestStudio.ReplayLastVideoCommand}" CommandParameter="{Binding $parent[Window]}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
             <!-- Steps List -->
-            <Grid Grid.Row="1" RowDefinitions="Auto, *">
+            <Grid Grid.Row="2" RowDefinitions="Auto, *">
                 <TextBlock Grid.Row="0" Text="Test Steps" Classes="panel-header" Foreground="#e8eaed" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
                 <controls:ReorderableListBox Name="lstSteps" Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.Steps}" SelectedItem="{Binding Recorder.TestStudio.SelectedStep, Mode=TwoWay}" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
                     <controls:ReorderableListBox.Styles>
@@ -130,7 +150,7 @@
             </Grid>
 
             <!-- Maestro Command Toolbox -->
-            <Border Grid.Row="2" Classes="panel-card" Margin="0,10,0,0">
+            <Border Grid.Row="3" Classes="panel-card" Margin="0,10,0,0">
                 <StackPanel Spacing="8">
                     <TextBlock Text="Maestro Command Toolbox" Classes="panel-header" Margin="0,0,0,4"/>
                     
