@@ -29,6 +29,10 @@ public class SimulationViewModel : ViewModelBase
     private bool _isInspectQueryInFlight;
     private double _lastInspectX;
     private double _lastInspectY;
+    private bool _hasPendingInspect;
+    private double _pendingInspectX;
+    private double _pendingInspectY;
+    private int _hoverGeneration;
     
     private string _inputSimText = "";
     private string _selectedKey = "Enter";
@@ -1055,7 +1059,15 @@ public class SimulationViewModel : ViewModelBase
     }
     public async Task UpdateInspectHoverAsync(double x, double y)
     {
-        if (!_cdpService.IsConnected || _isInspectQueryInFlight) return;
+        if (!_cdpService.IsConnected) return;
+
+        if (_isInspectQueryInFlight)
+        {
+            _pendingInspectX = x;
+            _pendingInspectY = y;
+            _hasPendingInspect = true;
+            return;
+        }
 
         // Throttle: only query if mouse moved by at least 2 pixels
         if (Math.Abs(x - _lastInspectX) < 2 && Math.Abs(y - _lastInspectY) < 2) return;
@@ -1063,6 +1075,7 @@ public class SimulationViewModel : ViewModelBase
         _lastInspectX = x;
         _lastInspectY = y;
         _isInspectQueryInFlight = true;
+        int currentGen = _hoverGeneration;
 
         try
         {
@@ -1074,8 +1087,8 @@ public class SimulationViewModel : ViewModelBase
             });
             Console.WriteLine($"[DEBUG HOVER] getNodeForLocation result: {nodeRes.ToJsonString()}");
             
-            // Re-validate inspect mode active state
-            if (!_isInspectModeActiveFunc() || !_cdpService.IsConnected)
+            // Re-validate inspect mode active state and generation
+            if (currentGen != _hoverGeneration || !_isInspectModeActiveFunc() || !_cdpService.IsConnected)
             {
                 ClearInspectHover();
                 return;
@@ -1087,8 +1100,8 @@ public class SimulationViewModel : ViewModelBase
                 var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
                 Console.WriteLine($"[DEBUG HOVER] getBoxModel result: {boxRes.ToJsonString()}");
                 
-                // Re-validate inspect mode active state
-                if (!_isInspectModeActiveFunc() || !_cdpService.IsConnected)
+                // Re-validate inspect mode active state and generation
+                if (currentGen != _hoverGeneration || !_isInspectModeActiveFunc() || !_cdpService.IsConnected)
                 {
                     ClearInspectHover();
                     return;
@@ -1127,11 +1140,19 @@ public class SimulationViewModel : ViewModelBase
         finally
         {
             _isInspectQueryInFlight = false;
+            if (currentGen == _hoverGeneration && _hasPendingInspect && _cdpService.IsConnected && _isInspectModeActiveFunc())
+            {
+                double px = _pendingInspectX;
+                double py = _pendingInspectY;
+                _hasPendingInspect = false;
+                _ = UpdateInspectHoverAsync(px, py);
+            }
         }
     }
 
     public void ClearInspectHover()
     {
+        _hoverGeneration++;
         HighlightBoxModel = null;
         HighlightElementType = null;
         HighlightAxRole = null;
@@ -1141,6 +1162,7 @@ public class SimulationViewModel : ViewModelBase
 
     public void ResetInspectHoverCache()
     {
+        _hoverGeneration++;
         _lastInspectX = -999;
         _lastInspectY = -999;
     }
