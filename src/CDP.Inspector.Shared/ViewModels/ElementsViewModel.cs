@@ -1636,4 +1636,23 @@ public class ElementsViewModel : ViewModelBase
         }
         return false;
     }
+
+    public (string? Role, string? Name) FindAxDetails(int backendDomNodeId)
+    {
+        foreach (var kvp in _axNodeDetailsMap)
+        {
+            var nodeObj = kvp.Value;
+            var backendNodeId = nodeObj["backendDOMNodeId"]?.GetValue<int>();
+            if (backendNodeId == backendDomNodeId)
+            {
+                var roleObj = nodeObj["role"] as JsonObject;
+                string? role = roleObj?["value"]?.GetValue<string>();
+                var nameObj = nodeObj["name"] as JsonObject;
+                string? name = nameObj?["value"]?.GetValue<string>();
+                return (role, name);
+            }
+        }
+        return (null, null);
+    }
 }
+
