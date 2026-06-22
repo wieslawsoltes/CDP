@@ -147,6 +147,7 @@ public class DomTreeTests
         var runtimeWindow = new CdpRuntimeWindow(session);
         dynamic runtimeWindowDynamic = runtimeWindow;
         Assert.Same(window, runtimeWindow.visual);
+        Assert.Same(window, runtimeWindowDynamic.visual);
         Assert.Equal("Runtime Helpers Test", runtimeWindowDynamic.Title);
 
         var panelElement = document.querySelector("#panelRoot");
@@ -157,6 +158,7 @@ public class DomTreeTests
         Assert.NotNull(buttonElement);
         Assert.Same(button, buttonElement!.visual);
         Assert.Same(button, runtimeWindow.document.getElementById("btnClickMe")!.visual);
+        Assert.Same(button, runtimeWindowDynamic.document.getElementById("btnClickMe")!.visual);
         Assert.Equal(1, buttonElement.nodeType);
         Assert.Equal("Button", buttonElement.tagName);
         Assert.Equal("btnAutomation", buttonElement.getAttribute("AutomationProperties.AutomationId"));

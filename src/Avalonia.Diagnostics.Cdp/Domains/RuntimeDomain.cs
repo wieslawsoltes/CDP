@@ -789,6 +789,18 @@ public sealed class CdpRuntimeWindow : DynamicObject
 
     public override bool TryGetMember(GetMemberBinder binder, out object? result)
     {
+        if (binder.Name.Equals(nameof(document), StringComparison.OrdinalIgnoreCase))
+        {
+            result = document;
+            return true;
+        }
+
+        if (binder.Name.Equals(nameof(visual), StringComparison.OrdinalIgnoreCase))
+        {
+            result = visual;
+            return true;
+        }
+
         if (visual == null)
         {
             result = null;
