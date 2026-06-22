@@ -63,6 +63,10 @@
                     <views:AuditsView Name="AuditsTab"/>
                 </TabItem>
 
+                <!-- Window Control Panel -->
+                <TabItem Header="Window">
+                    <views:WindowControlView Name="WindowControlTab"/>
+                </TabItem>
 
                 <!-- Recorder Panel -->
                 <TabItem Name="TabRecorder" Header="Recorder">
