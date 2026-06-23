@@ -482,7 +482,7 @@ public class TestStudioViewModel : ViewModelBase
         CreateFolderCommand = new RelayCommand<string>(name => CreateFolder(name));
         RenameCommand = new RelayCommand<string>(name => RenameItem(name));
         DeleteCommand = new RelayCommand<string>(path => DeleteItem(path));
-        RunSuiteCommand = new RelayCommand<string>(async path => await RunSuite(path), _ => !IsSuiteExecuting);
+        RunSuiteCommand = new RelayCommand<string>(async path => await RunSuite(path), _ => !IsSuiteExecuting && !IsExecuting);
         SaveYamlCommand = new RelayCommand(SaveYaml, () => !string.IsNullOrEmpty(CurrentFlowFilePath));
 
         SubmitNamePromptCommand = new RelayCommand(() =>
@@ -2085,7 +2085,7 @@ public class TestStudioViewModel : ViewModelBase
                     if (string.IsNullOrEmpty(flowPath)) flowPath = step.Value?.Trim() ?? "";
                     if (string.IsNullOrEmpty(flowPath)) throw new Exception("runFlow requires a path to a YAML flow file.");
 
-                    string? currentFlowPath = _executingFileStack.Count > 0 ? _executingFileStack.Peek() : null;
+                    string? currentFlowPath = _executingFileStack.Count > 0 ? _executingFileStack.Peek() : CurrentFlowFilePath;
                     string resolvedPath = ResolveFlowPath(flowPath, currentFlowPath);
 
                     if (_executingFileStack.Any(p => string.Equals(p, resolvedPath, StringComparison.OrdinalIgnoreCase)))
@@ -4145,7 +4145,7 @@ public class TestStudioViewModel : ViewModelBase
 
     public async Task RunSuite(string? folderPath)
     {
-        if (IsSuiteExecuting)
+        if (IsSuiteExecuting || IsExecuting)
         {
             return;
         }

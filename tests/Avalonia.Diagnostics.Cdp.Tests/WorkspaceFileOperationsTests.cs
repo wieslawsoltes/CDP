@@ -394,4 +394,43 @@ public class WorkspaceFileOperationsTests
             try { Directory.Delete(tempDir, true); } catch {}
         }
     }
+
+    [Fact]
+    public void Test_RunSuiteCommand_Disabled_During_Active_Playback()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        
+        Assert.True(vm.RunSuiteCommand.CanExecute("/some/path"));
+
+        var prop = typeof(TestStudioViewModel).GetProperty("IsExecuting");
+        Assert.NotNull(prop);
+        prop.SetValue(vm, true);
+
+        Assert.False(vm.RunSuiteCommand.CanExecute("/some/path"));
+    }
+
+    [Fact]
+    public void Test_ResolveFlowPath_Falls_Back_To_CurrentFlowFilePath()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile = Path.Combine(tempDir, "main.yaml");
+        var nestedFile = Path.Combine(tempDir, "nested.yaml");
+        File.WriteAllText(testFile, "steps: []");
+        File.WriteAllText(nestedFile, "steps: []");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.CurrentFlowFilePath = testFile;
+
+            var resolved = vm.ResolveFlowPath("nested.yaml", vm.CurrentFlowFilePath);
+            Assert.Equal(nestedFile, resolved);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch {}
+        }
+    }
 }
