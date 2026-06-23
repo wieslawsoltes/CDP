@@ -229,6 +229,7 @@ Agents can drive Test Studio with these selectors:
 - Keep tab-specific state in tab-specific view models.
 - Prefer bindings and commands over direct control mutation.
 - Make new interactive controls discoverable with stable `Name` attributes.
+- Prefer not using XML namespace prefixes in XAML if controls/objects are part of the default Avalonia XAML namespace (`https://github.com/avaloniaui`) (e.g., use `<DataGrid>` instead of `<dg:DataGrid>`).
 
 ### Tests
 
