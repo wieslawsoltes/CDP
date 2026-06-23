@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -16,6 +17,25 @@ public class SourcesViewModel : ViewModelBase
     private string _selectedFileName = "Select a file from workspace";
     private string _selectedFileContent = "";
     private WorkspaceFileNode? _selectedFile;
+    private object? _selectedFileNode;
+
+    public HierarchicalModel<WorkspaceFileNode> HierarchicalWorkspaceFiles { get; }
+
+    public object? SelectedFileNode
+    {
+        get => _selectedFileNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedFileNode, value))
+            {
+                var target = value is HierarchicalNode<WorkspaceFileNode> node ? node.Item : (value as WorkspaceFileNode);
+                if (SelectedFile != target)
+                {
+                    SelectedFile = target;
+                }
+            }
+        }
+    }
 
     public ObservableCollection<WorkspaceFileNode> WorkspaceFiles => _workspaceFiles;
 
@@ -39,6 +59,19 @@ public class SourcesViewModel : ViewModelBase
             if (RaiseAndSetIfChanged(ref _selectedFile, value))
             {
                 _ = LoadFileContentAsync();
+
+                if (value == null)
+                {
+                    SelectedFileNode = null;
+                }
+                else
+                {
+                    var node = HierarchicalWorkspaceFiles.FindNode(value);
+                    if (!Equals(SelectedFileNode, node))
+                    {
+                        SelectedFileNode = node;
+                    }
+                }
             }
         }
     }
@@ -47,6 +80,15 @@ public class SourcesViewModel : ViewModelBase
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
+
+        var options = new HierarchicalOptions<WorkspaceFileNode>
+        {
+            ChildrenSelector = node => node.Children,
+            IsLeafSelector = node => !node.IsDirectory || node.Children == null || node.Children.Count == 0,
+            AutoExpandRoot = true
+        };
+        HierarchicalWorkspaceFiles = new HierarchicalModel<WorkspaceFileNode>(options);
+        HierarchicalWorkspaceFiles.SetRoots(WorkspaceFiles);
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

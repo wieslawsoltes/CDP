@@ -11,7 +11,7 @@ namespace CdpInspectorApp.Views;
 
 public partial class SourcesView : UserControl
 {
-    public TreeView TreeWorkspaceFiles => treeWorkspaceFiles;
+    public DataGrid TreeWorkspaceFiles => treeWorkspaceFiles;
     public TextBlock LblSourceFileName => lblSourceFileName;
     public TextEditor TxtSourceContent => txtSourceContent;
 
