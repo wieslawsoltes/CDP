@@ -59,6 +59,7 @@ public class CdpProtocolComplianceTests
 
         using (var http = new HttpClient())
         {
+            http.Timeout = TimeSpan.FromSeconds(5);
             try
             {
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; CDP-Compliance-Scanner/1.0)");

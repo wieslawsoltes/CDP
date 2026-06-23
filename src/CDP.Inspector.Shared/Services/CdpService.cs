@@ -20,7 +20,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
     private CancellationTokenSource? _cts;
     private int _messageId = 1;
     private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonObject>> _pendingRequests = new();
-    private readonly HttpClient _httpClient = new();
+    private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(5) };
     private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
 
     private bool _isConnected;
@@ -111,7 +111,8 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         ConnectionStatus = "Connecting...";
         try
         {
-            await _ws.ConnectAsync(new Uri(target.WebSocketUrl), CancellationToken.None);
+            using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await _ws.ConnectAsync(new Uri(target.WebSocketUrl), connectCts.Token);
             IsConnected = true;
             ConnectionStatus = "Connected";
             ConnectedHost = host;
@@ -177,7 +178,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         var ws = _ws;
         if (ws == null || ws.State != WebSocketState.Open)
         {
-            throw new Exception("Not connected to a target");
+            throw new Exception($"Not connected to a target (ws is {(ws == null ? "null" : ws.State.ToString())})");
         }
 
         int id = Interlocked.Increment(ref _messageId);

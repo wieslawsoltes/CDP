@@ -315,6 +315,11 @@ public class CdpSession
         return RemoteObjects.TryGetValue(id, out var obj) ? obj : null;
     }
 
+    public void Close()
+    {
+        _cts.Cancel();
+    }
+
     public async Task StartAsync()
     {
         var buffer = new byte[8192];

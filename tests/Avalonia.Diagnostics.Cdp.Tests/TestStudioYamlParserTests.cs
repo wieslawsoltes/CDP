@@ -308,4 +308,86 @@ description: ""Verify new Maestro commands""
 ";
         Assert.ThrowsAny<Exception>(() => TestStudioYamlParser.Parse(invalidYaml, out _, out _));
     }
+
+    [Fact]
+    public void TestAdditionalMaestroCommandsAndNesting()
+    {
+        string yaml = @"appId: ""CdpSampleApp""
+description: ""Verify additional commands and nesting""
+---
+- assertFalse: ""1 == 2""
+- setAirplaneMode: ""on""
+- repeat:
+    times: 5
+    while:
+      notVisible: ""#hiddenBtn""
+    commands:
+      - tapOn: ""#btnNext""
+      - delay: 500
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn: ""#btnRetry""
+";
+
+        var steps = TestStudioYamlParser.Parse(yaml, out var appId, out var description);
+
+        Assert.Equal("CdpSampleApp", appId);
+        Assert.Equal("Verify additional commands and nesting", description);
+        Assert.Equal(4, steps.Count);
+
+        // 1. assertFalse
+        Assert.Equal("assertFalse", steps[0].Action);
+        Assert.Equal("1 == 2", steps[0].Value);
+
+        // 2. setAirplaneMode
+        Assert.Equal("setAirplaneMode", steps[1].Action);
+        Assert.Equal("on", steps[1].Value);
+
+        // 3. repeat
+        Assert.Equal("repeat", steps[2].Action);
+        Assert.Equal("5", steps[2].Value);
+        Assert.Equal("notVisible", steps[2].WhileConditionType);
+        Assert.Equal("#hiddenBtn", steps[2].WhileConditionValue);
+        Assert.NotNull(steps[2].NestedSteps);
+        Assert.Equal(2, steps[2].NestedSteps.Count);
+        Assert.Equal("tapOn", steps[2].NestedSteps[0].Action);
+        Assert.Equal("#btnNext", steps[2].NestedSteps[0].Selector);
+        Assert.Equal("delay", steps[2].NestedSteps[1].Action);
+        Assert.Equal("500", steps[2].NestedSteps[1].Value);
+
+        // 4. retry
+        Assert.Equal("retry", steps[3].Action);
+        Assert.Equal("3", steps[3].Value);
+        Assert.NotNull(steps[3].NestedSteps);
+        Assert.Single(steps[3].NestedSteps);
+        Assert.Equal("tapOn", steps[3].NestedSteps[0].Action);
+        Assert.Equal("#btnRetry", steps[3].NestedSteps[0].Selector);
+
+        // Roundtrip test
+        var gen = TestStudioYamlParser.Generate(steps, appId, description);
+        var stepsGen = TestStudioYamlParser.Parse(gen, out var appIdGen, out var descGen);
+
+        Assert.Equal(appId, appIdGen);
+        Assert.Equal(description, descGen);
+        Assert.Equal(steps.Count, stepsGen.Count);
+
+        Assert.Equal("assertFalse", stepsGen[0].Action);
+        Assert.Equal("1 == 2", stepsGen[0].Value);
+
+        Assert.Equal("setAirplaneMode", stepsGen[1].Action);
+        Assert.Equal("on", stepsGen[1].Value);
+
+        Assert.Equal("repeat", stepsGen[2].Action);
+        Assert.Equal("5", stepsGen[2].Value);
+        Assert.Equal("notVisible", stepsGen[2].WhileConditionType);
+        Assert.Equal("#hiddenBtn", stepsGen[2].WhileConditionValue);
+        Assert.NotNull(stepsGen[2].NestedSteps);
+        Assert.Equal(2, stepsGen[2].NestedSteps.Count);
+
+        Assert.Equal("retry", stepsGen[3].Action);
+        Assert.Equal("3", stepsGen[3].Value);
+        Assert.NotNull(stepsGen[3].NestedSteps);
+        Assert.Single(stepsGen[3].NestedSteps);
+    }
 }

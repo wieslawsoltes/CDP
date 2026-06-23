@@ -1,6 +1,8 @@
 using System;
+using System.Globalization;
 using System.IO;
 using Avalonia.Controls;
+using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using CdpInspectorApp.ViewModels;
@@ -19,8 +21,37 @@ public partial class RecorderView : UserControl
     public Button BtnLoad => btnLoad;
     public Button BtnExportPuppeteer => btnExportPuppeteer;
     public Button BtnExportJson => btnExportJson;
-    public ListBox LstRecordedSteps => lstRecordedSteps;
+    public DataGrid LstRecordedSteps => lstRecordedSteps;
     public TextEditor TxtGeneratedCode => txtGeneratedCode;
+
+    public static readonly IValueConverter IsSelectorVisibleConverter = new StepVisibilityConverter(
+        type => type == "click" || type == "change" || type == "dragAndDrop" || type == "scroll");
+
+    public static readonly IValueConverter IsValueVisibleConverter = new StepVisibilityConverter(
+        type => type == "change");
+
+    public static readonly IValueConverter IsUrlVisibleConverter = new StepVisibilityConverter(
+        type => type == "navigate");
+
+    public static readonly IValueConverter IsKeyVisibleConverter = new StepVisibilityConverter(
+        type => type == "keydown");
+
+    public static readonly IValueConverter IsViewportVisibleConverter = new StepVisibilityConverter(
+        type => type == "setViewport");
+
+    public static readonly IValueConverter IsCoordinatesVisibleConverter = new StepVisibilityConverter(
+        type => type == "click" || type == "scroll");
+
+    public static readonly IValueConverter CoordinatesLabelConverter = new StepLabelConverter();
+
+    public static readonly IValueConverter IsClickDetailsVisibleConverter = new StepVisibilityConverter(
+        type => type == "click");
+
+    public static readonly IValueConverter IsDragDetailsVisibleConverter = new StepVisibilityConverter(
+        type => type == "dragAndDrop");
+
+    public static readonly IValueConverter IsModifiersVisibleConverter = new StepVisibilityConverter(
+        type => type == "click" || type == "keydown" || type == "scroll" || type == "dragAndDrop");
 
     private TextMate.Installation? _textMateInstallation;
     private RegistryOptions? _registryOptions;
@@ -209,4 +240,22 @@ public partial class RecorderView : UserControl
             Console.WriteLine($"Error exporting JSON: {ex.Message}");
         }
     }
+}
+
+public class StepVisibilityConverter : IValueConverter
+{
+    private readonly Func<string, bool> _check;
+    public StepVisibilityConverter(Func<string, bool> check) => _check = check;
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s && _check(s);
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotImplementedException();
+}
+
+public class StepLabelConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s && s == "scroll" ? "Delta X / Y:" : "Coordinates Offset:";
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotImplementedException();
 }

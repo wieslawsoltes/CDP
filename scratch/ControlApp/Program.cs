@@ -30,6 +30,10 @@ public class App : Application
         Styles.Add(new FluentTheme());
         Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://ControlApp/"))
         {
+            Source = new Uri("avares://Avalonia.Controls.DataGrid/Themes/Fluent.v2.xaml")
+        });
+        Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://ControlApp/"))
+        {
             Source = new Uri("avares://CDP.Inspector.Shared/Styles.axaml")
         });
     }
@@ -56,14 +60,7 @@ class Program
         try
         {
             Console.WriteLine("=== STARTING TASK-SPECIFIC TEST STUDIO E2E VERIFICATION ===");
-            var clipboardType = typeof(Avalonia.Input.Platform.IClipboard);
-            Console.WriteLine("IClipboard methods: " + string.Join(", ", clipboardType.GetMethods().Select(m => $"{m.ReturnType.Name} {m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")));
-            var extensionTypes = clipboardType.Assembly.GetTypes().Where(t => t.IsAbstract && t.IsSealed && t.Name.Contains("Clipboard", StringComparison.OrdinalIgnoreCase));
-            foreach (var ext in extensionTypes)
-            {
-                Console.WriteLine($"Extension class: {ext.FullName}");
-                Console.WriteLine("Methods: " + string.Join(", ", ext.GetMethods().Select(m => $"{m.Name}")));
-            }
+
 
             // 1. Create a window and controls
             Window? window = null;
@@ -1126,20 +1123,11 @@ description: ""Verify new commands execution""
         Scenario19Start:
             await RunScenario19Async(cdpService, mainVm);
 
-        Scenario20Start:
-            await RunScenario20Async(cdpService, mainVm);
-
         Scenario21Start:
             await RunScenario21Async(cdpService, mainVm);
 
         Scenario22Start:
             await RunScenario22Async(cdpService, mainVm, window!);
-
-        Scenario23Start:
-            await RunScenario23Async(cdpService, mainVm);
-
-        Scenario24Start:
-            await RunScenario24Async(cdpService, mainVm);
 
         Scenario25Start:
             await RunScenario25Async(cdpService, mainVm);
@@ -2252,90 +2240,7 @@ description: ""Verify new commands execution""
         Console.WriteLine("Scenario 19 PASSED.");
     }
 
-    private static async Task RunScenario20Async(CdpService cdpService, MainWindowViewModel mainVm)
-    {
-        Console.WriteLine("Testing Scenario 20: Drag & Drop State Machine E2E...");
 
-        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            var listBox = new CdpInspectorApp.Controls.ReorderableListBox();
-            var list = new System.Collections.ObjectModel.ObservableCollection<string> { "Item 1", "Item 2" };
-            listBox.ItemsSource = list;
-
-            var t = listBox.GetType();
-            var fDraggedItem = t.GetField("_draggedItem", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var fPressedEventArgs = t.GetField("_pressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var fIsMouseDown = t.GetField("_isMouseDown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var mOnPointerReleased = t.GetMethod("OnPointerReleased", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            if (fDraggedItem == null || fPressedEventArgs == null || fIsMouseDown == null || mOnPointerReleased == null)
-            {
-                throw new Exception("Could not find ReorderableListBox private fields/methods via reflection.");
-            }
-
-            var testWindow = new Window();
-            testWindow.Content = listBox;
-
-            // Case A: Pointer released when NO drag operation was initiated (e.g. simple click)
-            // Expectation: _draggedItem should be cleared to null.
-            var dummyPressedArgs = new PointerPressedEventArgs(
-                listBox,
-                new Pointer(0, PointerType.Mouse, true),
-                testWindow,
-                new Point(),
-                0,
-                new PointerPointProperties(),
-                KeyModifiers.None);
-
-            fDraggedItem.SetValue(listBox, "Item 1");
-            fIsMouseDown.SetValue(listBox, true);
-            fPressedEventArgs.SetValue(listBox, dummyPressedArgs);
-
-            var dummyReleasedArgs = new PointerReleasedEventArgs(
-                listBox,
-                new Pointer(0, PointerType.Mouse, true),
-                testWindow,
-                new Point(),
-                0,
-                new PointerPointProperties(),
-                KeyModifiers.None,
-                MouseButton.Left);
-
-            mOnPointerReleased.Invoke(listBox, new object[] { dummyReleasedArgs });
-
-            var draggedItemValA = fDraggedItem.GetValue(listBox);
-            var pressedArgsValA = fPressedEventArgs.GetValue(listBox);
-            var isMouseDownValA = (bool)fIsMouseDown.GetValue(listBox)!;
-
-            if (draggedItemValA != null || pressedArgsValA != null || isMouseDownValA)
-            {
-                throw new Exception($"Case A failed: expected fields to be cleared, got draggedItem={draggedItemValA}, pressedArgs={pressedArgsValA}, isMouseDown={isMouseDownValA}");
-            }
-
-            Console.WriteLine("Drag-and-drop state machine Case A (click without drag) passed.");
-
-            // Case B: Pointer released when a drag operation HAS been initiated (e.g. drag active)
-            // Expectation: _draggedItem should NOT be cleared to null.
-            fDraggedItem.SetValue(listBox, "Item 1");
-            fIsMouseDown.SetValue(listBox, false);
-            fPressedEventArgs.SetValue(listBox, null); // OnPointerMoved sets this to null
-
-            mOnPointerReleased.Invoke(listBox, new object[] { dummyReleasedArgs });
-
-            var draggedItemValB = fDraggedItem.GetValue(listBox);
-            var pressedArgsValB = fPressedEventArgs.GetValue(listBox);
-            var isMouseDownValB = (bool)fIsMouseDown.GetValue(listBox)!;
-
-            if (draggedItemValB == null || (string)draggedItemValB != "Item 1" || pressedArgsValB != null || isMouseDownValB)
-            {
-                throw new Exception($"Case B failed: expected draggedItem to be preserved, got draggedItem={draggedItemValB}, pressedArgs={pressedArgsValB}, isMouseDown={isMouseDownValB}");
-            }
-
-            Console.WriteLine("Drag-and-drop state machine Case B (drag active) passed.");
-        });
-
-        Console.WriteLine("Scenario 20 PASSED.");
-    }
 
     private static async Task RunScenario21Async(CdpService cdpService, MainWindowViewModel mainVm)
     {
@@ -2835,270 +2740,9 @@ description: ""Verify new commands execution""
         Console.WriteLine("Scenario 22 PASSED.");
     }
 
-    private static async Task RunScenario23Async(CdpService cdpService, MainWindowViewModel mainVm)
-    {
-        Console.WriteLine("Testing Scenario 23: ReorderableListBox Drag & Drop Event Propagation E2E...");
 
-        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            var listBox = new CdpInspectorApp.Controls.ReorderableListBox();
-            var list = new System.Collections.ObjectModel.ObservableCollection<string> { "Step 1", "Step 2" };
-            listBox.ItemsSource = list;
 
-            var testWindow = new Window
-            {
-                Content = listBox,
-                Width = 400,
-                Height = 400
-            };
-            testWindow.Show();
 
-            // Wait for layout and templates to be applied
-            await Task.Delay(100);
-
-            // Find visual containers for Step 1 and Step 2
-            ListBoxItem? item1 = null;
-            ListBoxItem? item2 = null;
-
-            ListBoxItem? FindItem(Visual parent, string dataContextVal)
-            {
-                if (parent is ListBoxItem lbi && lbi.DataContext as string == dataContextVal)
-                    return lbi;
-                foreach (var child in parent.GetVisualChildren())
-                {
-                    var found = FindItem(child, dataContextVal);
-                    if (found != null) return found;
-                }
-                return null;
-            }
-
-            item1 = FindItem(listBox, "Step 1");
-            item2 = FindItem(listBox, "Step 2");
-
-            if (item1 == null || item2 == null)
-            {
-                throw new Exception("Could not find ListBoxItem containers for Step 1 and Step 2.");
-            }
-
-            // Simulate pointer pressed on Step 1 (the source of the drag)
-            // Under normal circumstances, ListBoxItem handles PointerPressed, which sets e.Handled = true.
-            // We want to test that our bubble handler with handledEventsToo=true catches it.
-            var pressedArgs = new PointerPressedEventArgs(
-                item1,
-                new Pointer(0, PointerType.Mouse, true),
-                testWindow,
-                new Point(10, 10),
-                0,
-                new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed),
-                KeyModifiers.None);
-
-            // Set Handled = true to simulate the child ListBoxItem handling the selection/pointer press event
-            pressedArgs.Handled = true;
-
-            item1.RaiseEvent(pressedArgs);
-
-            // Retrieve ReorderableListBox private fields to verify state
-            var t = listBox.GetType();
-            var fDraggedItem = t.GetField("_draggedItem", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var fIsMouseDown = t.GetField("_isMouseDown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            if (fDraggedItem == null || fIsMouseDown == null)
-            {
-                throw new Exception("Could not retrieve ReorderableListBox fields via reflection.");
-            }
-
-            var draggedVal = fDraggedItem.GetValue(listBox);
-            var isMouseDownVal = (bool)fIsMouseDown.GetValue(listBox)!;
-
-            if (draggedVal == null || (string)draggedVal != "Step 1" || !isMouseDownVal)
-            {
-                throw new Exception($"Failed to start drag: expected draggedItem='Step 1', isMouseDown=true. Got draggedItem={draggedVal}, isMouseDown={isMouseDownVal}");
-            }
-
-            Console.WriteLine("PointerPressed bubble propagation to ReorderableListBox verified.");
-
-            // Now, simulate the DropEvent on Step 2.
-            // In LstSteps_Drop, it resolves current from e.Source (which we will set to item2)
-            // and retrieves the dragged item from s_draggedItem or _draggedItem.
-            var dropArgs = new DragEventArgs(
-                DragDrop.DropEvent,
-                new DataTransfer(),
-                item2, // Dropped on Item 2
-                new Point(0, 100),
-                KeyModifiers.None);
-
-            item2.RaiseEvent(dropArgs);
-
-            // The drop handler should reorder the list: Step 1 moves to index 1 (after Step 2)
-            if (list[0] != "Step 2" || list[1] != "Step 1")
-            {
-                throw new Exception($"Failed to reorder items after Drop: index 0={list[0]}, index 1={list[1]}. Expected 0='Step 2', 1='Step 1'.");
-            }
-
-            Console.WriteLine("Drop reordering logic verified successfully.");
-
-            testWindow.Close();
-        });
-
-        Console.WriteLine("Scenario 23 PASSED.");
-    }
-
-    private static async Task RunScenario24Async(CdpService cdpService, MainWindowViewModel mainVm)
-    {
-        Console.WriteLine("Testing Scenario 24: ReorderableListBox Visual Drop Indicators & Auto-Scrolling E2E...");
-
-        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            var listBox = new CdpInspectorApp.Controls.ReorderableListBox();
-            var list = new System.Collections.ObjectModel.ObservableCollection<string>();
-            for (int i = 0; i < 50; i++)
-            {
-                list.Add($"Step {i}");
-            }
-            listBox.ItemsSource = list;
-
-            var testWindow = new Window
-            {
-                Content = listBox,
-                Width = 400,
-                Height = 200
-            };
-            testWindow.Show();
-
-            // Wait for layout
-            await Task.Delay(100);
-
-            // Find item visual containers
-            ListBoxItem? FindItem(Visual parent, string dataContextVal)
-            {
-                if (parent is ListBoxItem lbi && lbi.DataContext as string == dataContextVal)
-                    return lbi;
-                foreach (var child in parent.GetVisualChildren())
-                {
-                    var found = FindItem(child, dataContextVal);
-                    if (found != null) return found;
-                }
-                return null;
-            }
-
-            var item1 = FindItem(listBox, "Step 1");
-            var item2 = FindItem(listBox, "Step 2");
-
-            if (item1 == null || item2 == null)
-            {
-                throw new Exception("Could not find ListBoxItem containers for Step 1 and Step 2.");
-            }
-
-            // Set dragged item via reflection
-            var t = listBox.GetType();
-            var fDraggedItem = t.GetField("_draggedItem", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            fDraggedItem?.SetValue(listBox, "Step 1");
-
-            // --- Test 24.1: DragOver Above Center (sets drag-over-above class) ---
-            var dragOverAboveArgs = new DragEventArgs(
-                DragDrop.DragOverEvent,
-                new DataTransfer(),
-                item2,
-                new Point(0, -5), // Top edge of item2 (above center)
-                KeyModifiers.None);
-            item2.RaiseEvent(dragOverAboveArgs);
-
-            if (!item2.Classes.Contains("drag-over-above") || item2.Classes.Contains("drag-over-below"))
-            {
-                throw new Exception("DragOver above center failed to set drag-over-above or cleared drag-over-below incorrectly.");
-            }
-            Console.WriteLine("E2E Test 24.1: DragOver Above Center passed.");
-
-            // --- Test 24.2: DragOver Below Center (sets drag-over-below class) ---
-            var dragOverBelowArgs = new DragEventArgs(
-                DragDrop.DragOverEvent,
-                new DataTransfer(),
-                item2,
-                new Point(0, 100), // Below center
-                KeyModifiers.None);
-            item2.RaiseEvent(dragOverBelowArgs);
-
-            if (item2.Classes.Contains("drag-over-above") || !item2.Classes.Contains("drag-over-below"))
-            {
-                throw new Exception("DragOver below center failed to set drag-over-below or cleared drag-over-above incorrectly.");
-            }
-            Console.WriteLine("E2E Test 24.2: DragOver Below Center passed.");
-
-            // --- Test 24.3: DragLeave Clears Classes ---
-            var dragLeaveArgs = new DragEventArgs(
-                DragDrop.DragLeaveEvent,
-                new DataTransfer(),
-                listBox,
-                new Point(-10, -10),
-                KeyModifiers.None);
-            listBox.RaiseEvent(dragLeaveArgs);
-
-            if (item2.Classes.Contains("drag-over-above") || item2.Classes.Contains("drag-over-below"))
-            {
-                throw new Exception("DragLeave failed to clear drag-over classes.");
-            }
-            Console.WriteLine("E2E Test 24.3: DragLeave clears classes passed.");
-
-            // --- Test 24.4: Auto-Scroll Near Bottom Edge ---
-            var scrollViewer = listBox.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            if (scrollViewer == null)
-            {
-                throw new Exception("Could not find ScrollViewer inside ReorderableListBox visual tree.");
-            }
-
-            // Start at top (offset = 0)
-            scrollViewer.Offset = new Vector(0, 0);
-            await Task.Delay(20);
-
-            // Drag over near bottom edge
-            double bottomEdgeY = listBox.Bounds.Height - 5;
-            var dragOverBottomArgs = new DragEventArgs(
-                DragDrop.DragOverEvent,
-                new DataTransfer(),
-                listBox,
-                new Point(0, bottomEdgeY),
-                KeyModifiers.None);
-            listBox.RaiseEvent(dragOverBottomArgs);
-
-            // Trigger timer tick via reflection
-            var mTick = t.GetMethod("AutoScrollTimer_Tick", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (mTick == null)
-            {
-                throw new Exception("Could not find AutoScrollTimer_Tick method via reflection.");
-            }
-
-            mTick.Invoke(listBox, new object[] { listBox, EventArgs.Empty });
-
-            if (scrollViewer.Offset.Y <= 0)
-            {
-                throw new Exception($"Auto-scroll down failed: offset remained at {scrollViewer.Offset.Y}");
-            }
-            Console.WriteLine($"E2E Test 24.4: Auto-scroll down passed (Offset Y is now {scrollViewer.Offset.Y}).");
-
-            // --- Test 24.5: Auto-Scroll Near Top Edge ---
-            double initialOffsetY = scrollViewer.Offset.Y;
-            // Drag over near top edge
-            var dragOverTopArgs = new DragEventArgs(
-                DragDrop.DragOverEvent,
-                new DataTransfer(),
-                listBox,
-                new Point(0, 5),
-                KeyModifiers.None);
-            listBox.RaiseEvent(dragOverTopArgs);
-
-            mTick.Invoke(listBox, new object[] { listBox, EventArgs.Empty });
-
-            if (scrollViewer.Offset.Y >= initialOffsetY)
-            {
-                throw new Exception($"Auto-scroll up failed: offset remained at or above {initialOffsetY} (current: {scrollViewer.Offset.Y})");
-            }
-            Console.WriteLine($"E2E Test 24.5: Auto-scroll up passed (Offset Y is now {scrollViewer.Offset.Y}).");
-
-            testWindow.Close();
-        });
-
-        Console.WriteLine("Scenario 24 PASSED.");
-    }
 
     private static async Task RunScenario25Async(CdpService cdpService, MainWindowViewModel mainVm)
     {

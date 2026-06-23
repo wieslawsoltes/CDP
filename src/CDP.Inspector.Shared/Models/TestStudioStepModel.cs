@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using CdpInspectorApp.ViewModels;
 
 namespace CdpInspectorApp.Models;
@@ -19,6 +20,9 @@ public class TestStudioStepModel : ViewModelBase
     private StepStatus _status = StepStatus.Pending;
     private string? _errorMessage;
     private bool _isCurrent;
+    private ObservableCollection<TestStudioStepModel>? _nestedSteps;
+    private string? _whileConditionType;
+    private string? _whileConditionValue;
 
     public string Action
     {
@@ -51,6 +55,42 @@ public class TestStudioStepModel : ViewModelBase
         set
         {
             if (RaiseAndSetIfChanged(ref _value, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public ObservableCollection<TestStudioStepModel>? NestedSteps
+    {
+        get => _nestedSteps;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _nestedSteps, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public string? WhileConditionType
+    {
+        get => _whileConditionType;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _whileConditionType, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public string? WhileConditionValue
+    {
+        get => _whileConditionValue;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _whileConditionValue, value))
             {
                 OnPropertyChanged(nameof(DetailDisplay));
             }
@@ -102,6 +142,8 @@ public class TestStudioStepModel : ViewModelBase
                 "clearText" => "Clear Text",
                 "assertVisible" => "Assert Visible",
                 "assertNotVisible" => "Assert Not Visible",
+                "assertFalse" => "Assert False",
+                "setAirplaneMode" => "Set Airplane Mode",
                 "delay" => "Delay",
                 "back" => "Go Back",
                 "scroll" => "Scroll",
@@ -125,6 +167,15 @@ public class TestStudioStepModel : ViewModelBase
             {
                 return $"{Value} ms";
             }
+            if (Action == "repeat" && !string.IsNullOrEmpty(WhileConditionType))
+            {
+                var cond = $"while {WhileConditionType}: \"{WhileConditionValue}\"";
+                if (NestedSteps != null && NestedSteps.Count > 0)
+                {
+                    return $"{cond} | {NestedSteps.Count} nested commands";
+                }
+                return cond;
+            }
             var parts = new List<string>();
             if (!string.IsNullOrEmpty(Selector))
             {
@@ -133,6 +184,10 @@ public class TestStudioStepModel : ViewModelBase
             if (!string.IsNullOrEmpty(Value))
             {
                 parts.Add($"Value: \"{Value}\"");
+            }
+            if (NestedSteps != null && NestedSteps.Count > 0)
+            {
+                parts.Add($"{NestedSteps.Count} nested commands");
             }
             return string.Join(" | ", parts);
         }

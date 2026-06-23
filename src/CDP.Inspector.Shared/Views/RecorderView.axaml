@@ -3,6 +3,8 @@
              xmlns:views="clr-namespace:CdpInspectorApp.Views"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
+             xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
              x:Class="CdpInspectorApp.Views.RecorderView"
              x:CompileBindings="False">
     <Grid RowDefinitions="Auto, *" Margin="10">
@@ -26,53 +28,165 @@
                 
                 <Grid Grid.Row="1" RowDefinitions="Auto, *">
                     <TextBlock Text="Recorded Steps" Classes="panel-header" Margin="0,0,0,8" Foreground="#e8eaed" FontSize="14" FontWeight="Bold"/>
-                    <controls:ReorderableListBox Name="lstRecordedSteps" ItemsSource="{Binding Recorder.RecordedSteps}" Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                        <controls:ReorderableListBox.Styles>
-                            <Style Selector="ListBoxItem">
-                                <Setter Property="Background" Value="Transparent"/>
-                                <Setter Property="Padding" Value="0"/>
-                            </Style>
-                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                                <Setter Property="Background" Value="Transparent"/>
-                            </Style>
-                            <Style Selector="ListBoxItem Border#ItemCard">
-                                <Setter Property="Background" Value="#202124"/>
-                                <Setter Property="BorderBrush" Value="#3c4043"/>
-                                <Setter Property="BorderThickness" Value="1"/>
-                                <Setter Property="Margin" Value="4"/>
-                                <Setter Property="CornerRadius" Value="4"/>
-                            </Style>
-                            <Style Selector="ListBoxItem:selected Border#ItemCard">
-                                <Setter Property="BorderBrush" Value="#1a73e8"/>
-                                <Setter Property="Background" Value="#292a2d"/>
-                            </Style>
-                            <Style Selector="ListBoxItem.drag-over-above Border#ItemCard">
-                                <Setter Property="BorderBrush" Value="#1a73e8"/>
-                                <Setter Property="BorderThickness" Value="1,3,1,1"/>
-                                <Setter Property="Margin" Value="4,2,4,4"/>
-                            </Style>
-                            <Style Selector="ListBoxItem.drag-over-below Border#ItemCard">
-                                <Setter Property="BorderBrush" Value="#1a73e8"/>
-                                <Setter Property="BorderThickness" Value="1,1,1,3"/>
-                                <Setter Property="Margin" Value="4,4,4,2"/>
-                            </Style>
-                        </controls:ReorderableListBox.Styles>
-                        <ListBox.ItemTemplate>
+                    <dg:DataGrid Name="lstRecordedSteps" Grid.Row="1"
+                                 ItemsSource="{Binding Recorder.RecordedSteps}"
+                                 SelectedItem="{Binding Recorder.SelectedRecordedStep, Mode=TwoWay}"
+                                 CanUserReorderRows="True"
+                                 RowDragHandle="RowHeaderAndRow"
+                                 GridLinesVisibility="Horizontal"
+                                 HeadersVisibility="Column"
+                                 RowDetailsVisibilityMode="VisibleWhenSelected"
+                                 Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                        <dg:DataGrid.RowDropHandler>
+                            <dgdd:DataGridRowReorderHandler />
+                        </dg:DataGrid.RowDropHandler>
+                        <dg:DataGrid.Columns>
+                            <!-- Type Badge Column -->
+                            <dg:DataGridTemplateColumn Header="Type" Width="100">
+                                <dg:DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#3c4043" CornerRadius="2" Padding="4,2" HorizontalAlignment="Left" Margin="4">
+                                            <TextBlock Text="{Binding Type}" FontSize="10" FontWeight="Bold" Foreground="#e8eaed"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </dg:DataGridTemplateColumn.CellTemplate>
+                            </dg:DataGridTemplateColumn>
+
+                            <!-- Target / Selector Column -->
+                            <dg:DataGridTemplateColumn Header="Selector" Width="1.5*">
+                                <dg:DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding SelectorDisplay}" FontWeight="Normal" Foreground="#8ab4f8" FontSize="12" VerticalAlignment="Center" Margin="12,0"/>
+                                    </DataTemplate>
+                                </dg:DataGridTemplateColumn.CellTemplate>
+                            </dg:DataGridTemplateColumn>
+
+                            <!-- Details Column -->
+                            <dg:DataGridTemplateColumn Header="Details" Width="2.5*">
+                                <dg:DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DetailDisplay}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center" Margin="12,0"/>
+                                    </DataTemplate>
+                                </dg:DataGridTemplateColumn.CellTemplate>
+                            </dg:DataGridTemplateColumn>
+                        </dg:DataGrid.Columns>
+
+                        <dg:DataGrid.RowDetailsTemplate>
                             <DataTemplate>
-                                <Border Name="ItemCard" Padding="10">
-                                    <Grid RowDefinitions="Auto, Auto">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Border Background="#3c4043" CornerRadius="2" Padding="4,2">
-                                                <TextBlock Text="{Binding Type}" FontSize="10" FontWeight="Bold" Foreground="#e8eaed"/>
+                                <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="12">
+                                    <StackPanel Spacing="8">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
+                                            <Border Background="#1a73e8" CornerRadius="2" Padding="4,2">
+                                                <TextBlock Text="EDIT" FontSize="9" FontWeight="Bold" Foreground="White"/>
                                             </Border>
-                                            <TextBlock Text="{Binding SelectorDisplay}" FontWeight="SemiBold" Foreground="#e8eaed" FontSize="12"/>
+                                            <TextBlock Text="{Binding Type}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center"/>
                                         </StackPanel>
-                                        <TextBlock Grid.Row="1" Text="{Binding DetailDisplay}" FontSize="11" Foreground="#9aa0a6" Margin="0,4,0,0"/>
-                                    </Grid>
+
+                                        <!-- Type Field -->
+                                        <Grid ColumnDefinitions="120, *">
+                                            <TextBlock Grid.Column="0" Text="Type:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Type, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                        </Grid>
+
+                                        <!-- Selector Field -->
+                                        <Grid ColumnDefinitions="120, *" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsSelectorVisibleConverter}}">
+                                            <TextBlock Grid.Column="0" Text="Selector:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Selector, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                        </Grid>
+
+                                        <!-- Value Field -->
+                                        <Grid ColumnDefinitions="120, *" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsValueVisibleConverter}}">
+                                            <TextBlock Grid.Column="0" Text="Value:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                        </Grid>
+
+                                        <!-- URL Field -->
+                                        <Grid ColumnDefinitions="120, *" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsUrlVisibleConverter}}">
+                                            <TextBlock Grid.Column="0" Text="URL:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Url, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                        </Grid>
+
+                                        <!-- Key Field -->
+                                        <Grid ColumnDefinitions="120, *" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsKeyVisibleConverter}}">
+                                            <TextBlock Grid.Column="0" Text="Key:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Key, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                        </Grid>
+
+                                        <!-- Width / Height Fields -->
+                                        <Grid ColumnDefinitions="120, *" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsViewportVisibleConverter}}">
+                                            <TextBlock Grid.Column="0" Text="Width x Height:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                                <TextBox Text="{Binding Width, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                                <TextBlock Text="x" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Text="{Binding Height, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- OffsetX / OffsetY Coordinates -->
+                                        <Grid ColumnDefinitions="120, *" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsCoordinatesVisibleConverter}}">
+                                            <TextBlock Grid.Column="0" Text="{Binding Type, Converter={x:Static views:RecorderView.CoordinatesLabelConverter}}" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="X:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Text="{Binding OffsetX, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                                <TextBlock Text="Y:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Text="{Binding OffsetY, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Click Details (Button / ClickCount) -->
+                                        <Grid ColumnDefinitions="120, *" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsClickDetailsVisibleConverter}}">
+                                            <TextBlock Grid.Column="0" Text="Click Details:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="Button:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Text="{Binding Button, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                                <TextBlock Text="Clicks:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Text="{Binding ClickCount, Mode=TwoWay}" FontSize="11" Height="24" Width="50" Padding="4,2"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Drag and Drop Details -->
+                                        <StackPanel Spacing="8" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsDragDetailsVisibleConverter}}">
+                                            <Grid ColumnDefinitions="120, *">
+                                                <TextBlock Grid.Column="0" Text="Target Selector:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <TextBox Grid.Column="1" Text="{Binding TargetSelector, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="120, *">
+                                                <TextBlock Grid.Column="0" Text="Source Offset:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="X:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                    <TextBox Text="{Binding OffsetX, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                                    <TextBlock Text="Y:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                    <TextBox Text="{Binding OffsetY, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                                </StackPanel>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="120, *">
+                                                <TextBlock Grid.Column="0" Text="Target Offset:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="X:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                    <TextBox Text="{Binding TargetOffsetX, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                                    <TextBlock Text="Y:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                    <TextBox Text="{Binding TargetOffsetY, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- Modifiers -->
+                                        <Grid ColumnDefinitions="120, *" IsVisible="{Binding Type, Converter={x:Static views:RecorderView.IsModifiersVisibleConverter}}">
+                                            <TextBlock Grid.Column="0" Text="Modifiers Mask:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Modifiers, Mode=TwoWay}" FontSize="11" Height="24" Width="80" Padding="4,2" HorizontalAlignment="Left"/>
+                                        </Grid>
+
+                                        <!-- Action Buttons -->
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                            <Button Content="▲" Command="{Binding $parent[UserControl].DataContext.Recorder.MoveUpStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                            <Button Content="▼" Command="{Binding $parent[UserControl].DataContext.Recorder.MoveDownStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10"/>
+                                            <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.DeleteStepCommand}" CommandParameter="{Binding}" Padding="6,2" FontSize="10" Foreground="#ff6b6b" BorderBrush="#ff6b6b"/>
+                                        </StackPanel>
+                                    </StackPanel>
                                 </Border>
                             </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </controls:ReorderableListBox>
+                        </dg:DataGrid.RowDetailsTemplate>
+                    </dg:DataGrid>
                 </Grid>
             </Grid>
             

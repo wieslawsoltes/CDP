@@ -11,6 +11,9 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using ProDataGrid;
+using Avalonia.Controls;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -26,6 +29,7 @@ public class TestStudioViewModel : ViewModelBase
     private string _inputSimText = "";
     private int _delayMs = 1000;
     private TestStudioStepModel? _selectedStep;
+    private object? _selectedStepNode;
 
     private int _currentStepIndex = 0;
     private CancellationTokenSource? _executionCts;
@@ -113,6 +117,8 @@ public class TestStudioViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _steps, value);
     }
 
+    public HierarchicalModel<TestStudioStepModel> HierarchicalSteps { get; }
+
     public string YamlCode
     {
         get => _yamlCode;
@@ -166,7 +172,32 @@ public class TestStudioViewModel : ViewModelBase
     public TestStudioStepModel? SelectedStep
     {
         get => _selectedStep;
-        set => RaiseAndSetIfChanged(ref _selectedStep, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedStep, value))
+            {
+                if (value == null)
+                {
+                    SelectedStepNode = null;
+                }
+            }
+        }
+    }
+
+    public object? SelectedStepNode
+    {
+        get => _selectedStepNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedStepNode, value))
+            {
+                var targetModel = value is HierarchicalNode<TestStudioStepModel> node ? node.Item : (value as TestStudioStepModel);
+                if (_selectedStep != targetModel)
+                {
+                    SelectedStep = targetModel;
+                }
+            }
+        }
     }
 
     public ICommand PlayCommand { get; }
@@ -193,6 +224,8 @@ public class TestStudioViewModel : ViewModelBase
     public ICommand AddSetLocationCommand { get; }
     public ICommand AddTakeScreenshotCommand { get; }
     public ICommand AddAssertTrueCommand { get; }
+    public ICommand AddAssertFalseCommand { get; }
+    public ICommand AddSetAirplaneModeCommand { get; }
     public ICommand AddRepeatCommand { get; }
     public ICommand AddRetryCommand { get; }
     public ICommand AddRunFlowCommand { get; }
@@ -212,6 +245,15 @@ public class TestStudioViewModel : ViewModelBase
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
 
         Steps.CollectionChanged += OnStepsCollectionChanged;
+
+        var options = new HierarchicalOptions<TestStudioStepModel>
+        {
+            ChildrenSelector = step => step.NestedSteps,
+            IsLeafSelector = step => step.NestedSteps == null,
+            AutoExpandRoot = true
+        };
+        HierarchicalSteps = new HierarchicalModel<TestStudioStepModel>(options);
+        HierarchicalSteps.SetRoots(Steps);
 
         PlayCommand = new RelayCommand(async () => await PlayAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused));
         PauseCommand = new RelayCommand(Pause, () => IsExecuting && !IsPaused && !_isFinalizing);
@@ -238,6 +280,8 @@ public class TestStudioViewModel : ViewModelBase
         AddSetLocationCommand = new RelayCommand(async () => await AddSetLocationAsync());
         AddTakeScreenshotCommand = new RelayCommand(async () => await AddTakeScreenshotAsync());
         AddAssertTrueCommand = new RelayCommand(async () => await AddAssertTrueAsync());
+        AddAssertFalseCommand = new RelayCommand(async () => await AddAssertFalseAsync());
+        AddSetAirplaneModeCommand = new RelayCommand(async () => await AddSetAirplaneModeAsync());
         AddRepeatCommand = new RelayCommand(AddRepeat);
         AddRetryCommand = new RelayCommand(AddRetry);
         AddRunFlowCommand = new RelayCommand(AddRunFlow);
@@ -293,18 +337,65 @@ public class TestStudioViewModel : ViewModelBase
         {
             foreach (TestStudioStepModel oldStep in e.OldItems)
             {
-                oldStep.PropertyChanged -= OnStepPropertyChanged;
+                UnsubscribeStep(oldStep);
             }
         }
         if (e.NewItems != null)
         {
             foreach (TestStudioStepModel newStep in e.NewItems)
             {
-                newStep.PropertyChanged += OnStepPropertyChanged;
+                SubscribeStep(newStep);
             }
         }
         UpdateYaml();
         RaiseCommandCanExecuteChanged();
+    }
+
+    private void SubscribeStep(TestStudioStepModel step)
+    {
+        step.PropertyChanged -= OnStepPropertyChanged;
+        step.PropertyChanged += OnStepPropertyChanged;
+        if (step.NestedSteps != null)
+        {
+            step.NestedSteps.CollectionChanged -= OnNestedStepsCollectionChanged;
+            step.NestedSteps.CollectionChanged += OnNestedStepsCollectionChanged;
+            foreach (var nested in step.NestedSteps)
+            {
+                SubscribeStep(nested);
+            }
+        }
+    }
+
+    private void UnsubscribeStep(TestStudioStepModel step)
+    {
+        step.PropertyChanged -= OnStepPropertyChanged;
+        if (step.NestedSteps != null)
+        {
+            step.NestedSteps.CollectionChanged -= OnNestedStepsCollectionChanged;
+            foreach (var nested in step.NestedSteps)
+            {
+                UnsubscribeStep(nested);
+            }
+        }
+    }
+
+    private void OnNestedStepsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (TestStudioStepModel oldStep in e.OldItems)
+            {
+                UnsubscribeStep(oldStep);
+            }
+        }
+        if (e.NewItems != null)
+        {
+            foreach (TestStudioStepModel newStep in e.NewItems)
+            {
+                SubscribeStep(newStep);
+            }
+        }
+        UpdateYaml();
     }
 
     private void OnStepPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -347,13 +438,13 @@ public class TestStudioViewModel : ViewModelBase
                 // Unsubscribe from old steps
                 foreach (var step in Steps)
                 {
-                    step.PropertyChanged -= OnStepPropertyChanged;
+                    UnsubscribeStep(step);
                 }
 
                 Steps.Clear();
                 foreach (var step in parsed)
                 {
-                    step.PropertyChanged += OnStepPropertyChanged;
+                    SubscribeStep(step);
                     Steps.Add(step);
                 }
             }
@@ -1147,20 +1238,37 @@ public class TestStudioViewModel : ViewModelBase
                     {
                         throw new Exception("pressKey step requires a Value (key).");
                     }
+                    if (!string.IsNullOrEmpty(step.Selector))
+                    {
+                        Log($"Focusing element '{step.Selector}' before pressing key...");
+                        int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                        await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
+                        await Task.Delay(100, token);
+                    }
                     Log($"Pressing key '{step.Value}'");
+                    string keyName = step.Value.Trim();
+                    if (keyName.Equals("enter", StringComparison.OrdinalIgnoreCase)) keyName = "Enter";
+                    else if (keyName.Equals("backspace", StringComparison.OrdinalIgnoreCase)) keyName = "Backspace";
+                    else if (keyName.Equals("escape", StringComparison.OrdinalIgnoreCase)) keyName = "Escape";
+                    else if (keyName.Equals("tab", StringComparison.OrdinalIgnoreCase)) keyName = "Tab";
+                    else if (keyName.Equals("space", StringComparison.OrdinalIgnoreCase)) keyName = "Space";
+                    else if (keyName.Equals("delete", StringComparison.OrdinalIgnoreCase)) keyName = "Delete";
+                    else if (keyName.Equals("home", StringComparison.OrdinalIgnoreCase)) keyName = "Home";
+                    else if (keyName.Equals("end", StringComparison.OrdinalIgnoreCase)) keyName = "End";
+
                     await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
                     {
                         ["type"] = "rawKeyDown",
-                        ["key"] = step.Value,
-                        ["code"] = step.Value,
+                        ["key"] = keyName,
+                        ["code"] = keyName,
                         ["text"] = "",
                         ["modifiers"] = 0
                     });
                     await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
                     {
                         ["type"] = "keyUp",
-                        ["key"] = step.Value,
-                        ["code"] = step.Value,
+                        ["key"] = keyName,
+                        ["code"] = keyName,
                         ["text"] = "",
                         ["modifiers"] = 0
                     });
@@ -1362,6 +1470,11 @@ public class TestStudioViewModel : ViewModelBase
                     if (string.IsNullOrEmpty(step.Value)) throw new Exception("assertTrue requires a value containing the expression.");
                     Log($"Asserting expression evaluates to true: {step.Value}");
                     var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = step.Value });
+                    if (evalRes["exceptionDetails"] != null)
+                    {
+                        var exceptionText = evalRes["exceptionDetails"]?["exception"]?["description"]?.GetValue<string>() ?? "Unknown evaluation error";
+                        throw new Exception($"Expression evaluation failed with exception: {exceptionText}");
+                    }
                     var resultNode = evalRes["result"] as JsonObject;
                     var val = resultNode?["value"]?.GetValue<object>()?.ToString();
                     if (val != "True" && val != "true" && val != "1")
@@ -1369,6 +1482,47 @@ public class TestStudioViewModel : ViewModelBase
                         throw new Exception($"Assertion failed: Expression '{step.Value}' evaluated to '{val ?? "null"}' (not true).");
                     }
                     Log("Assertion check passed successfully.");
+                    break;
+                }
+            case "assertFalse":
+                {
+                    if (string.IsNullOrEmpty(step.Value)) throw new Exception("assertFalse requires a value containing the expression.");
+                    Log($"Asserting expression evaluates to false: {step.Value}");
+                    var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = step.Value });
+                    if (evalRes["exceptionDetails"] != null)
+                    {
+                        var exceptionText = evalRes["exceptionDetails"]?["exception"]?["description"]?.GetValue<string>() ?? "Unknown evaluation error";
+                        throw new Exception($"Expression evaluation failed with exception: {exceptionText}");
+                    }
+                    var resultNode = evalRes["result"] as JsonObject;
+                    var val = resultNode?["value"]?.GetValue<object>()?.ToString();
+                    if (val == "True" || val == "true" || val == "1")
+                    {
+                        throw new Exception($"Assertion failed: Expression '{step.Value}' evaluated to '{val ?? "null"}' (not false).");
+                    }
+                    Log("Assertion check passed successfully.");
+                    break;
+                }
+            case "setAirplaneMode":
+                {
+                    string mode = step.Value?.Trim().ToLower() ?? "off";
+                    bool offline = mode == "on" || mode == "true" || mode == "1";
+                    Log($"Setting network offline/airplane mode to: {offline}");
+                    try
+                    {
+                        await _cdpService.SendCommandAsync("Network.enable", new JsonObject());
+                        await _cdpService.SendCommandAsync("Network.emulateNetworkConditions", new JsonObject
+                        {
+                            ["offline"] = offline,
+                            ["latency"] = 0,
+                            ["downloadThroughput"] = -1,
+                            ["uploadThroughput"] = -1
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"Warning: Network emulation not fully supported: {ex.Message}");
+                    }
                     break;
                 }
             case "evalScript":
@@ -1382,9 +1536,99 @@ public class TestStudioViewModel : ViewModelBase
                     break;
                 }
             case "repeat":
+                {
+                    int times = 1;
+                    if (int.TryParse(step.Value, out int t)) times = t;
+                    Log($"Repeating block up to {times} times...");
+
+                    for (int i = 0; i < times; i++)
+                    {
+                        token.ThrowIfCancellationRequested();
+
+                        if (!string.IsNullOrEmpty(step.WhileConditionType) && !string.IsNullOrEmpty(step.WhileConditionValue))
+                        {
+                            bool conditionMet = await EvaluateConditionAsync(step.WhileConditionType, step.WhileConditionValue, token);
+                            if (!conditionMet)
+                            {
+                                Log($"Condition '{step.WhileConditionType}: {step.WhileConditionValue}' not met. Breaking repeat loop at iteration {i + 1}.");
+                                break;
+                            }
+                        }
+
+                        Log($"Repeat loop iteration {i + 1}/{times}...");
+                        if (step.NestedSteps != null && step.NestedSteps.Count > 0)
+                        {
+                            foreach (var nestedStep in step.NestedSteps)
+                            {
+                                await ExecuteSingleStepAsync(nestedStep, token);
+                            }
+                        }
+                    }
+                    break;
+                }
             case "retry":
                 {
-                    Log($"Executing loop/retry command '{step.Action}' with iterations count={step.Value ?? "1"}");
+                    int maxRetries = 1;
+                    if (int.TryParse(step.Value, out int r)) maxRetries = r;
+                    Log($"Executing retry block (max retries={maxRetries})...");
+
+                    Exception? lastException = null;
+                    bool success = false;
+
+                    for (int attempt = 1; attempt <= 1 + maxRetries; attempt++)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        try
+                        {
+                            if (attempt > 1)
+                            {
+                                Log($"Retrying block: attempt {attempt - 1}/{maxRetries}...");
+                            }
+
+                            if (step.NestedSteps != null && step.NestedSteps.Count > 0)
+                            {
+                                foreach (var nestedStep in step.NestedSteps)
+                                {
+                                    nestedStep.Status = StepStatus.Pending;
+                                    nestedStep.ErrorMessage = null;
+                                }
+
+                                foreach (var nestedStep in step.NestedSteps)
+                                {
+                                    nestedStep.Status = StepStatus.Running;
+                                    await ExecuteSingleStepAsync(nestedStep, token);
+                                    nestedStep.Status = StepStatus.Passed;
+                                }
+                            }
+                            success = true;
+                            break;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            lastException = ex;
+                            Log($"Block execution failed on attempt {attempt}: {ex.Message}");
+                            if (step.NestedSteps != null)
+                            {
+                                foreach (var nestedStep in step.NestedSteps)
+                                {
+                                    if (nestedStep.Status == StepStatus.Running)
+                                    {
+                                        nestedStep.Status = StepStatus.Failed;
+                                        nestedStep.ErrorMessage = ex.Message;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!success)
+                    {
+                        throw new Exception($"Retry block failed after {1 + maxRetries} attempts. Last error: {lastException?.Message}", lastException);
+                    }
                     break;
                 }
             case "runFlow":
@@ -1777,6 +2021,18 @@ public class TestStudioViewModel : ViewModelBase
         await AddInteractiveStepAsync(step);
     }
 
+    public async Task AddAssertFalseAsync()
+    {
+        var step = new TestStudioStepModel { Action = "assertFalse", Selector = "", Value = InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
+    public async Task AddSetAirplaneModeAsync()
+    {
+        var step = new TestStudioStepModel { Action = "setAirplaneMode", Selector = "", Value = string.IsNullOrEmpty(InputSimText) ? "on" : InputSimText };
+        await AddInteractiveStepAsync(step);
+    }
+
     public void AddRepeat()
     {
         Steps.Add(new TestStudioStepModel { Action = "repeat", Selector = "", Value = InputSimText });
@@ -1785,6 +2041,67 @@ public class TestStudioViewModel : ViewModelBase
     public void AddRetry()
     {
         Steps.Add(new TestStudioStepModel { Action = "retry", Selector = "", Value = InputSimText });
+    }
+
+    private async Task<bool> EvaluateConditionAsync(string conditionType, string conditionValue, CancellationToken token)
+    {
+        switch (conditionType.ToLowerInvariant())
+        {
+            case "visible":
+                {
+                    try
+                    {
+                        var nodeId = await CheckElementVisibleAsync(conditionValue);
+                        return nodeId.HasValue;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+            case "notvisible":
+                {
+                    try
+                    {
+                        var nodeId = await CheckElementVisibleAsync(conditionValue);
+                        return !nodeId.HasValue;
+                    }
+                    catch
+                    {
+                        return true;
+                    }
+                }
+            case "asserttrue":
+                {
+                    try
+                    {
+                        var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = conditionValue });
+                        var resultNode = evalRes["result"] as JsonObject;
+                        var val = resultNode?["value"]?.GetValue<object>()?.ToString();
+                        return val == "True" || val == "true" || val == "1";
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+            case "assertfalse":
+                {
+                    try
+                    {
+                        var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = conditionValue });
+                        var resultNode = evalRes["result"] as JsonObject;
+                        var val = resultNode?["value"]?.GetValue<object>()?.ToString();
+                        return val != "True" && val != "true" && val != "1";
+                    }
+                    catch
+                    {
+                        return true;
+                    }
+                }
+            default:
+                throw new NotSupportedException($"Condition type '{conditionType}' is not supported in repeat loops.");
+        }
     }
 
     public void AddRunFlow()
@@ -1812,23 +2129,27 @@ public class TestStudioViewModel : ViewModelBase
 
     private void DeleteStep(TestStudioStepModel? step)
     {
-        if (step != null && Steps.Contains(step))
+        if (step == null) return;
+        var parentCollection = FindParentCollection(step, Steps);
+        if (parentCollection != null && parentCollection.Contains(step))
         {
-            Steps.Remove(step);
+            parentCollection.Remove(step);
         }
     }
 
     private void MoveStepUp(TestStudioStepModel? step)
     {
         if (step == null) return;
-        int idx = Steps.IndexOf(step);
+        var parentCollection = FindParentCollection(step, Steps);
+        if (parentCollection == null) return;
+        int idx = parentCollection.IndexOf(step);
         if (idx > 0)
         {
             _isUpdatingYaml = true;
             try
             {
-                Steps.RemoveAt(idx);
-                Steps.Insert(idx - 1, step);
+                parentCollection.RemoveAt(idx);
+                parentCollection.Insert(idx - 1, step);
             }
             finally
             {
@@ -1841,14 +2162,16 @@ public class TestStudioViewModel : ViewModelBase
     private void MoveStepDown(TestStudioStepModel? step)
     {
         if (step == null) return;
-        int idx = Steps.IndexOf(step);
-        if (idx >= 0 && idx < Steps.Count - 1)
+        var parentCollection = FindParentCollection(step, Steps);
+        if (parentCollection == null) return;
+        int idx = parentCollection.IndexOf(step);
+        if (idx >= 0 && idx < parentCollection.Count - 1)
         {
             _isUpdatingYaml = true;
             try
             {
-                Steps.RemoveAt(idx);
-                Steps.Insert(idx + 1, step);
+                parentCollection.RemoveAt(idx);
+                parentCollection.Insert(idx + 1, step);
             }
             finally
             {
@@ -1856,6 +2179,25 @@ public class TestStudioViewModel : ViewModelBase
             }
             UpdateYaml();
         }
+    }
+
+    private ObservableCollection<TestStudioStepModel>? FindParentCollection(TestStudioStepModel target, ObservableCollection<TestStudioStepModel> currentList)
+    {
+        if (currentList.Contains(target))
+        {
+            return currentList;
+        }
+
+        foreach (var step in currentList)
+        {
+            if (step.NestedSteps != null)
+            {
+                var found = FindParentCollection(target, step.NestedSteps);
+                if (found != null) return found;
+            }
+        }
+
+        return null;
     }
 
     private void ClearAll()
