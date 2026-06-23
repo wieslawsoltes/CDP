@@ -13,6 +13,8 @@ using CdpInspectorApp.ViewModels;
 using CdpInspectorApp.Services;
 using CdpInspectorApp.Models;
 using XamlPlayground.Editor.Minimap.Inline;
+using ProDataGrid;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.Views;
 
@@ -156,14 +158,16 @@ public partial class TestStudioView : UserControl
             };
         }
 
-        var treeWorkspace = this.FindControl<TreeView>("treeWorkspace");
+        var treeWorkspace = this.FindControl<DataGrid>("treeWorkspace");
         if (treeWorkspace != null)
         {
             treeWorkspace.DoubleTapped += (s, e) =>
             {
-                if (DataContext is MainWindowViewModel vm && treeWorkspace.SelectedItem is WorkspaceItemModel item)
+                if (DataContext is MainWindowViewModel vm)
                 {
-                    if (!item.IsFolder)
+                    var selected = treeWorkspace.SelectedItem;
+                    var item = selected is HierarchicalNode<WorkspaceItemModel> node ? node.Item : (selected as WorkspaceItemModel);
+                    if (item != null && !item.IsFolder)
                     {
                         vm.Recorder.TestStudio.LoadFlowFile(item.Path);
                     }

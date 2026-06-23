@@ -8,6 +8,8 @@ using CdpInspectorApp.Models;
 using CdpInspectorApp.ViewModels;
 using CdpInspectorApp.Services;
 using System.Text.Json.Nodes;
+using ProDataGrid;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -174,5 +176,34 @@ public class WorkspaceSidebarTests
 
         Assert.True(vm.IsSidebarCollapsed);
         Assert.Equal("/persisted/path", vm.WorkspaceRootPath);
+    }
+
+    [Fact]
+    public void Test_Workspace_HierarchicalWorkspace_Selection_Mapping()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var item = new WorkspaceItemModel { Name = "test.yaml", Path = "/test.yaml", IsFolder = false };
+        vm.WorkspaceFiles.Add(item);
+
+        Assert.Null(vm.SelectedWorkspaceItem);
+
+        // Simulate ProDataGrid selection setting SelectedWorkspaceNode
+        var options = new HierarchicalOptions<WorkspaceItemModel>
+        {
+            ChildrenSelector = x => x.Children,
+            IsLeafSelector = x => x.Children == null || x.Children.Count == 0,
+            AutoExpandRoot = true
+        };
+        var tree = new HierarchicalModel<WorkspaceItemModel>(options);
+        tree.SetRoots(vm.WorkspaceFiles);
+        var node = new HierarchicalNode<WorkspaceItemModel>(item, null, tree);
+
+        vm.SelectedWorkspaceNode = node;
+
+        Assert.Same(item, vm.SelectedWorkspaceItem);
+
+        // Setting SelectedWorkspaceItem to null should clear SelectedWorkspaceNode
+        vm.SelectedWorkspaceItem = null;
+        Assert.Null(vm.SelectedWorkspaceNode);
     }
 }

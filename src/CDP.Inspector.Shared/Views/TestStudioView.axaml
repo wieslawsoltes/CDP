@@ -17,35 +17,33 @@
                 <Button Name="btnBrowseWorkspace" Grid.Column="1" Content="..." Command="{Binding Recorder.TestStudio.BrowseWorkspaceRootCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
             </Grid>
 
-            <!-- TreeView of files -->
-            <TreeView Name="treeWorkspace" Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.WorkspaceFiles}" SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceItem, Mode=TwoWay}" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                <TreeView.ItemTemplate>
-                    <TreeDataTemplate DataType="models:WorkspaceItemModel" ItemsSource="{Binding Children}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="📁" IsVisible="{Binding IsFolder}" Foreground="#ffca28" VerticalAlignment="Center"/>
-                            <TextBlock Text="📄" IsVisible="{Binding !IsFolder}" Foreground="#8ab4f8" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </TreeDataTemplate>
-                </TreeView.ItemTemplate>
-                <TreeView.ContextMenu>
-                    <ContextMenu>
-                        <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
-                        <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
-                        <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
-                        <MenuItem Header="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}"/>
-                    </ContextMenu>
-                </TreeView.ContextMenu>
-            </TreeView>
+            <!-- Workspace files listing (Hierarchical DataGrid) -->
+            <DataGrid Name="treeWorkspace" Grid.Row="1"
+                      HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalWorkspace}"
+                      SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceNode, Mode=TwoWay}"
+                      CanUserReorderRows="False"
+                      CanUserResizeColumns="True"
+                      HierarchicalRowsEnabled="True"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="None"
+                      Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                <DataGrid.Columns>
+                    <DataGridHierarchicalColumn Width="*">
+                        <DataGridHierarchicalColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
+                                    <TextBlock Text="📁" IsVisible="{Binding Item.IsFolder}" Foreground="#ffca28" VerticalAlignment="Center"/>
+                                    <TextBlock Text="📄" IsVisible="{Binding !Item.IsFolder}" Foreground="#8ab4f8" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Item.Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridHierarchicalColumn.CellTemplate>
+                    </DataGridHierarchicalColumn>
+                </DataGrid.Columns>
+            </DataGrid>
 
-            <!-- Create file/folder/rename/delete buttons and "Run Folder Suite" button -->
-            <StackPanel Grid.Row="2" Margin="0,10,0,0" Spacing="6">
-                <WrapPanel HorizontalAlignment="Center">
-                    <Button Name="btnCreateFile" Content="New File" Command="{Binding Recorder.TestStudio.CreateFileCommand}" FontSize="10" Margin="0,0,4,4"/>
-                    <Button Name="btnCreateFolder" Content="New Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}" FontSize="10" Margin="0,0,4,4"/>
-                    <Button Name="btnRename" Content="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}" FontSize="10" Margin="0,0,4,4"/>
-                    <Button Name="btnDelete" Content="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}" FontSize="10" Margin="0,0,4,4"/>
-                </WrapPanel>
+            <!-- Run Folder Suite button -->
+            <StackPanel Grid.Row="2" Margin="0,10,0,0">
                 <Button Name="btnRunSuite" Content="Run Folder Suite" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent"/>
             </StackPanel>
         </Grid>
@@ -344,18 +342,6 @@
             </Grid>
         </Grid>
 
-        <!-- Inline Name Prompt Overlay -->
-        <Border Grid.ColumnSpan="5" Background="#80000000" IsVisible="{Binding Recorder.TestStudio.IsNamePromptVisible}" ZIndex="100">
-            <Border Background="#2d2d2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="8" Width="300" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="16">
-                <StackPanel Spacing="12">
-                    <TextBlock Text="{Binding Recorder.TestStudio.NamePromptTitle}" FontSize="14" FontWeight="Bold" Foreground="White"/>
-                    <TextBox Text="{Binding Recorder.TestStudio.NamePromptValue, Mode=TwoWay}" Watermark="Enter name..."/>
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                        <Button Content="Cancel" Command="{Binding Recorder.TestStudio.CancelNamePromptCommand}"/>
-                        <Button Content="OK" Command="{Binding Recorder.TestStudio.SubmitNamePromptCommand}" Classes="accent"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </Border>
+
     </Grid>
 </UserControl>

@@ -79,31 +79,23 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
-    private bool _isNamePromptVisible;
-    private string _namePromptTitle = "";
-    private string _namePromptValue = "";
-    private Action<string>? _namePromptCallback;
+    private object? _selectedWorkspaceNode;
 
-    public bool IsNamePromptVisible
+    public object? SelectedWorkspaceNode
     {
-        get => _isNamePromptVisible;
-        set => RaiseAndSetIfChanged(ref _isNamePromptVisible, value);
+        get => _selectedWorkspaceNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedWorkspaceNode, value))
+            {
+                var targetModel = value is HierarchicalNode<WorkspaceItemModel> node ? node.Item : (value as WorkspaceItemModel);
+                if (_selectedWorkspaceItem != targetModel)
+                {
+                    SelectedWorkspaceItem = targetModel;
+                }
+            }
+        }
     }
-
-    public string NamePromptTitle
-    {
-        get => _namePromptTitle;
-        set => RaiseAndSetIfChanged(ref _namePromptTitle, value);
-    }
-
-    public string NamePromptValue
-    {
-        get => _namePromptValue;
-        set => RaiseAndSetIfChanged(ref _namePromptValue, value);
-    }
-
-    public ICommand SubmitNamePromptCommand { get; }
-    public ICommand CancelNamePromptCommand { get; }
 
     public ObservableCollection<WorkspaceItemModel> WorkspaceFiles
     {
@@ -111,10 +103,21 @@ public class TestStudioViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _workspaceFiles, value);
     }
 
+    public HierarchicalModel<WorkspaceItemModel> HierarchicalWorkspace { get; }
+
     public WorkspaceItemModel? SelectedWorkspaceItem
     {
         get => _selectedWorkspaceItem;
-        set => RaiseAndSetIfChanged(ref _selectedWorkspaceItem, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedWorkspaceItem, value))
+            {
+                if (value == null)
+                {
+                    SelectedWorkspaceNode = null;
+                }
+            }
+        }
     }
 
     public int SuitePassCount
@@ -137,10 +140,6 @@ public class TestStudioViewModel : ViewModelBase
 
     public ICommand ToggleSidebarCommand { get; }
     public ICommand BrowseWorkspaceRootCommand { get; }
-    public ICommand CreateFileCommand { get; }
-    public ICommand CreateFolderCommand { get; }
-    public ICommand RenameCommand { get; }
-    public ICommand DeleteCommand { get; }
     public ICommand RunSuiteCommand { get; }
     public ICommand SaveYamlCommand { get; }
 
@@ -427,24 +426,19 @@ public class TestStudioViewModel : ViewModelBase
         OpenLastPdfReportCommand = new RelayCommand(OpenLastPdfReport, () => HasLastRunRecording && !string.IsNullOrEmpty(LastPdfReportPath) && File.Exists(LastPdfReportPath));
         ReplayLastVideoCommand = new RelayCommand<object>(ReplayLastVideo, _ => HasLastRunRecording && _lastRunRawFrameBytes.Count > 0);
 
+        var workspaceOptions = new HierarchicalOptions<WorkspaceItemModel>
+        {
+            ChildrenSelector = item => item.Children,
+            IsLeafSelector = item => item.Children == null || item.Children.Count == 0,
+            AutoExpandRoot = true
+        };
+        HierarchicalWorkspace = new HierarchicalModel<WorkspaceItemModel>(workspaceOptions);
+        HierarchicalWorkspace.SetRoots(WorkspaceFiles);
+
         ToggleSidebarCommand = new RelayCommand(() => IsSidebarCollapsed = !IsSidebarCollapsed);
         BrowseWorkspaceRootCommand = new RelayCommand(async () => await BrowseWorkspaceRootAsync());
-        CreateFileCommand = new RelayCommand<string>(name => CreateFile(name));
-        CreateFolderCommand = new RelayCommand<string>(name => CreateFolder(name));
-        RenameCommand = new RelayCommand<string>(name => RenameItem(name));
-        DeleteCommand = new RelayCommand<string>(path => DeleteItem(path));
         RunSuiteCommand = new RelayCommand<string>(async path => await RunSuite(path));
         SaveYamlCommand = new RelayCommand(SaveYaml, () => !string.IsNullOrEmpty(CurrentFlowFilePath));
-
-        SubmitNamePromptCommand = new RelayCommand(() =>
-        {
-            IsNamePromptVisible = false;
-            _namePromptCallback?.Invoke(NamePromptValue);
-        });
-        CancelNamePromptCommand = new RelayCommand(() =>
-        {
-            IsNamePromptVisible = false;
-        });
 
         _cdpService.EventReceived += CdpService_EventReceived;
     }
@@ -3783,229 +3777,7 @@ public class TestStudioViewModel : ViewModelBase
         return items;
     }
 
-    private string? GetTargetParentDirectory()
-    {
-        if (string.IsNullOrEmpty(WorkspaceRootPath)) return null;
-        if (SelectedWorkspaceItem == null) return WorkspaceRootPath;
-        return SelectedWorkspaceItem.IsFolder ? SelectedWorkspaceItem.Path : Path.GetDirectoryName(SelectedWorkspaceItem.Path);
-    }
 
-    public void CreateFile(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            NamePromptTitle = "Create File";
-            NamePromptValue = "";
-            _namePromptCallback = (val) => CreateFile(val);
-            IsNamePromptVisible = true;
-            return;
-        }
-
-        if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.IndexOfAny(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }) >= 0)
-        {
-            Log("Error: Invalid characters in file name.");
-            return;
-        }
-
-        if (!name.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
-        {
-            name += ".yaml";
-        }
-
-        var parentDir = GetTargetParentDirectory();
-        if (string.IsNullOrEmpty(parentDir))
-        {
-            Log("Error: No workspace root path set.");
-            return;
-        }
-
-        var fullPath = Path.Combine(parentDir, name);
-        if (File.Exists(fullPath) || Directory.Exists(fullPath))
-        {
-            Log($"Error: File or folder '{name}' already exists.");
-            return;
-        }
-
-        try
-        {
-            File.WriteAllText(fullPath, "appId: \"\"\ndescription: \"\"\nsteps: []\n");
-            LoadWorkspaceTree();
-        }
-        catch (Exception ex)
-        {
-            Log($"Error creating file: {ex.Message}");
-        }
-    }
-
-    public void CreateFolder(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            NamePromptTitle = "Create Folder";
-            NamePromptValue = "";
-            _namePromptCallback = (val) => CreateFolder(val);
-            IsNamePromptVisible = true;
-            return;
-        }
-
-        if (name.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || name.Contains("/") || name.Contains("\\"))
-        {
-            Log("Error: Invalid characters in folder name.");
-            return;
-        }
-
-        var parentDir = GetTargetParentDirectory();
-        if (string.IsNullOrEmpty(parentDir))
-        {
-            Log("Error: No workspace root path set.");
-            return;
-        }
-
-        var fullPath = Path.Combine(parentDir, name);
-        if (Directory.Exists(fullPath) || File.Exists(fullPath))
-        {
-            Log($"Error: Folder or file '{name}' already exists.");
-            return;
-        }
-
-        try
-        {
-            Directory.CreateDirectory(fullPath);
-            LoadWorkspaceTree();
-        }
-        catch (Exception ex)
-        {
-            Log($"Error creating folder: {ex.Message}");
-        }
-    }
-
-    public void RenameItem(string? newNameOrPath)
-    {
-        if (string.IsNullOrWhiteSpace(newNameOrPath))
-        {
-            NamePromptTitle = "Rename";
-            NamePromptValue = SelectedWorkspaceItem?.Name ?? (string.IsNullOrEmpty(CurrentFlowFilePath) ? "" : Path.GetFileName(CurrentFlowFilePath));
-            _namePromptCallback = (val) => RenameItem(val);
-            IsNamePromptVisible = true;
-            return;
-        }
-
-        string? oldPath = SelectedWorkspaceItem?.Path ?? CurrentFlowFilePath;
-        if (string.IsNullOrEmpty(oldPath))
-        {
-            Log("Error: No item selected to rename.");
-            return;
-        }
-
-        string newPath;
-        if (Path.IsPathRooted(newNameOrPath) || newNameOrPath.Contains("/") || newNameOrPath.Contains("\\"))
-        {
-            newPath = newNameOrPath;
-        }
-        else
-        {
-            var dir = Path.GetDirectoryName(oldPath);
-            if (string.IsNullOrEmpty(dir))
-            {
-                newPath = newNameOrPath;
-            }
-            else
-            {
-                newPath = Path.Combine(dir, newNameOrPath);
-            }
-        }
-
-        if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        if (File.Exists(newPath) || Directory.Exists(newPath))
-        {
-            Log($"Error: Destination '{newPath}' already exists.");
-            return;
-        }
-
-        try
-        {
-            if (File.Exists(oldPath))
-            {
-                File.Move(oldPath, newPath);
-                if (string.Equals(CurrentFlowFilePath, oldPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    CurrentFlowFilePath = newPath;
-                }
-            }
-            else if (Directory.Exists(oldPath))
-            {
-                Directory.Move(oldPath, newPath);
-            }
-            else
-            {
-                if (string.Equals(CurrentFlowFilePath, oldPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    CurrentFlowFilePath = newPath;
-                }
-            }
-            LoadWorkspaceTree();
-        }
-        catch (UnauthorizedAccessException)
-        {
-            Log("Error: Permission denied.");
-        }
-        catch (Exception ex)
-        {
-            Log($"Error renaming item: {ex.Message}");
-        }
-    }
-
-    public void DeleteItem(string? path)
-    {
-        string? targetPath = path;
-        if (string.IsNullOrEmpty(targetPath))
-        {
-            targetPath = SelectedWorkspaceItem?.Path ?? CurrentFlowFilePath;
-        }
-
-        if (string.IsNullOrEmpty(targetPath))
-        {
-            Log("Error: No item selected to delete.");
-            return;
-        }
-
-        try
-        {
-            if (targetPath.Contains("locked"))
-            {
-                throw new UnauthorizedAccessException("Access denied.");
-            }
-
-            if (File.Exists(targetPath))
-            {
-                File.Delete(targetPath);
-            }
-            else if (Directory.Exists(targetPath))
-            {
-                Directory.Delete(targetPath, true);
-            }
-
-            if (string.Equals(CurrentFlowFilePath, targetPath, StringComparison.OrdinalIgnoreCase))
-            {
-                CurrentFlowFilePath = null;
-                Steps.Clear();
-            }
-
-            LoadWorkspaceTree();
-        }
-        catch (UnauthorizedAccessException)
-        {
-            Log("Error: Permission denied.");
-        }
-        catch (Exception ex)
-        {
-            Log($"Error deleting item: {ex.Message}");
-        }
-    }
 
     public void SaveYaml()
     {
