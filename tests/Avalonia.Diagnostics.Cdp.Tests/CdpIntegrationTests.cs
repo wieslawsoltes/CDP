@@ -63,7 +63,7 @@ public class CdpIntegrationTests
                     Console.WriteLine("INTEGRATION_TEST_CLIENT: Initializing ClientWebSocket");
                     var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
                     Console.WriteLine($"INTEGRATION_TEST_CLIENT: Connecting to {uri}");
-                    await ws.ConnectAsync(uri, CancellationToken.None);
+                    await ConnectWithTimeoutAsync(ws, uri);
                     Console.WriteLine("INTEGRATION_TEST_CLIENT: Connected successfully!");
                     Assert.Equal(WebSocketState.Open, ws.State);
 
@@ -84,10 +84,11 @@ public class CdpIntegrationTests
                     using var ms = new MemoryStream();
                     var buffer = new byte[4096];
                     WebSocketReceiveResult result;
+                    using var recvCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                     do
                     {
                         Console.WriteLine("INTEGRATION_TEST_CLIENT: Awaiting ReceiveAsync");
-                        result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), recvCts.Token);
                         Console.WriteLine($"INTEGRATION_TEST_CLIENT: Received chunk of size {result.Count}");
                         ms.Write(buffer, 0, result.Count);
                     } while (!result.EndOfMessage);
@@ -162,12 +163,13 @@ public class CdpIntegrationTests
 
     private static async Task<JsonObject> ReceiveJsonAsync(WebSocket ws)
     {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         using var ms = new MemoryStream();
         var buffer = new byte[4096];
         WebSocketReceiveResult result;
         do
         {
-            result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
             ms.Write(buffer, 0, result.Count);
         } while (!result.EndOfMessage);
         
@@ -191,8 +193,8 @@ public class CdpIntegrationTests
             var clientTask = Task.Run(async () =>
             {
                 using var ws = CreateClientWebSocket();
-                var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
-                await ws.ConnectAsync(uri, CancellationToken.None);
+                var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{id}");
+                await ConnectWithTimeoutAsync(ws, uri);
 
                 // 1. Get Document
                 var request = new JsonObject
@@ -327,8 +329,8 @@ public class CdpIntegrationTests
             var clientTask = Task.Run(async () =>
             {
                 using var ws = CreateClientWebSocket();
-                var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
-                await ws.ConnectAsync(uri, CancellationToken.None);
+                var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{id}");
+                await ConnectWithTimeoutAsync(ws, uri);
 
                 // 1. Get Document
                 var request = new JsonObject
@@ -446,8 +448,8 @@ public class CdpIntegrationTests
             var clientTask = Task.Run(async () =>
             {
                 using var ws = CreateClientWebSocket();
-                var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
-                await ws.ConnectAsync(uri, CancellationToken.None);
+                var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{id}");
+                await ConnectWithTimeoutAsync(ws, uri);
 
                 // 1. Get Document
                 var docRes = await SendJsonAndReceiveAsync(ws, "DOM.getDocument", new JsonObject { ["pierce"] = true });
@@ -520,8 +522,8 @@ public class CdpIntegrationTests
             var clientTask = Task.Run(async () =>
             {
                 using var ws = CreateClientWebSocket();
-                var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
-                await ws.ConnectAsync(uri, CancellationToken.None);
+                var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{id}");
+                await ConnectWithTimeoutAsync(ws, uri);
 
                 // 1. Get Document to populate node map
                 await SendJsonAndReceiveAsync(ws, "DOM.getDocument", new JsonObject { ["pierce"] = true });
@@ -614,6 +616,10 @@ public class CdpIntegrationTests
         task.GetAwaiter().GetResult();
     }
 
-
+    private static async Task ConnectWithTimeoutAsync(ClientWebSocket ws, Uri uri, int timeoutMs = 5000)
+    {
+        using var cts = new CancellationTokenSource(timeoutMs);
+        await ws.ConnectAsync(uri, cts.Token);
+    }
 }
 

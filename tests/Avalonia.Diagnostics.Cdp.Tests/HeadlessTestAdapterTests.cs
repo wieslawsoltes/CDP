@@ -30,17 +30,24 @@ public class HeadlessTestAdapterTests
     public async Task RunTestAsync_ExecutesYamlSuccessfully()
     {
         var window = new MockWindow();
-        var adapter = new HeadlessTestAdapter();
+        try
+        {
+            var adapter = new HeadlessTestAdapter();
 
-        string yaml = @"appId: ""MockWindow""
+            string yaml = @"appId: ""MockWindow""
 description: ""Headless adapter unit test""
 ---
 - tapOn: ""#btnTest""
 - assertVisible: ""#btnTest""
 ";
 
-        // This should run the test steps successfully on the window using CDP
-        await adapter.RunTestAsync(window, yaml, isYamlContent: true);
+            // This should run the test steps successfully on the window using CDP
+            await adapter.RunTestAsync(window, yaml, isYamlContent: true);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     public class MockWindow2 : Window
@@ -66,9 +73,11 @@ description: ""Headless adapter unit test""
     public async Task RunTestAsync_ExecutesNewMaestroCommands()
     {
         var window = new MockWindow2();
-        var adapter = new HeadlessTestAdapter();
+        try
+        {
+            var adapter = new HeadlessTestAdapter();
 
-        string yaml = @"appId: ""MockWindow2""
+            string yaml = @"appId: ""MockWindow2""
 description: ""Integration test for new commands""
 ---
 - assertFalse: ""1 == 2""
@@ -83,12 +92,17 @@ description: ""Integration test for new commands""
       - tapOn: ""#btnClick""
 ";
 
-        await adapter.RunTestAsync(window, yaml, isYamlContent: true);
+            await adapter.RunTestAsync(window, yaml, isYamlContent: true);
 
-        // ClickCount should be:
-        // - 3 from repeat loop
-        // - 1 from retry block (succeeds on first try)
-        // Total = 4
-        Assert.Equal(4, window.ClickCount);
+            // ClickCount should be:
+            // - 3 from repeat loop
+            // - 1 from retry block (succeeds on first try)
+            // Total = 4
+            Assert.Equal(4, window.ClickCount);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 }
