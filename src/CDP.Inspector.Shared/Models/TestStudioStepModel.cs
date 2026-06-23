@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using CdpInspectorApp.ViewModels;
 
 namespace CdpInspectorApp.Models;
@@ -21,6 +22,7 @@ public class TestStudioStepModel : ViewModelBase
     private string? _errorMessage;
     private bool _isCurrent;
     private ObservableCollection<TestStudioStepModel>? _nestedSteps;
+    private Dictionary<string, object?> _parameters = new(System.StringComparer.OrdinalIgnoreCase);
     private string? _whileConditionType;
     private string? _whileConditionValue;
     private int _startLine;
@@ -87,6 +89,33 @@ public class TestStudioStepModel : ViewModelBase
         }
     }
 
+    public Dictionary<string, object?> Parameters
+    {
+        get => _parameters;
+        set
+        {
+            if (value == null)
+            {
+                value = new Dictionary<string, object?>(System.StringComparer.OrdinalIgnoreCase);
+            }
+            else if (value.Comparer != System.StringComparer.OrdinalIgnoreCase)
+            {
+                value = new Dictionary<string, object?>(value, System.StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (RaiseAndSetIfChanged(ref _parameters, value))
+            {
+                OnPropertyChanged(nameof(HasParameters));
+                OnPropertyChanged(nameof(ParametersDisplay));
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public bool HasParameters => Parameters.Count > 0;
+
+    public string ParametersDisplay => FlowCommandCatalog.BuildValueDisplay(Parameters);
+
     public string? WhileConditionType
     {
         get => _whileConditionType;
@@ -148,24 +177,7 @@ public class TestStudioStepModel : ViewModelBase
         get
         {
             if (string.IsNullOrEmpty(Action)) return "Step";
-            return Action switch
-            {
-                "launchApp" => "Launch App",
-                "tapOn" => "Tap On",
-                "inputText" => "Input Text",
-                "clearText" => "Clear Text",
-                "assertVisible" => "Assert Visible",
-                "assertNotVisible" => "Assert Not Visible",
-                "assertFalse" => "Assert False",
-                "setAirplaneMode" => "Set Airplane Mode",
-                "delay" => "Delay",
-                "back" => "Go Back",
-                "scroll" => "Scroll",
-                "scrollUntilVisible" => "Scroll Until Visible",
-                "pressKey" => "Press Key",
-                "dragAndDrop" => "Drag And Drop",
-                _ => char.ToUpper(Action[0]) + Action.Substring(1)
-            };
+            return FlowCommandCatalog.GetDisplayName(Action);
         }
     }
 
@@ -191,13 +203,33 @@ public class TestStudioStepModel : ViewModelBase
                 return cond;
             }
             var parts = new List<string>();
+            if (Parameters.Count > 0)
+            {
+                var selectorDisplay = FlowCommandCatalog.BuildSelectorDisplay(Parameters);
+                if (!string.IsNullOrEmpty(selectorDisplay))
+                {
+                    parts.Add($"Selector: \"{selectorDisplay}\"");
+                }
+
+                var valueDisplay = FlowCommandCatalog.BuildValueDisplay(Parameters);
+                if (!string.IsNullOrEmpty(valueDisplay))
+                {
+                    parts.Add(valueDisplay);
+                }
+            }
             if (!string.IsNullOrEmpty(Selector))
             {
-                parts.Add($"Selector: \"{Selector}\"");
+                if (!parts.Any(p => p.StartsWith("Selector:", System.StringComparison.Ordinal)))
+                {
+                    parts.Add($"Selector: \"{Selector}\"");
+                }
             }
             if (!string.IsNullOrEmpty(Value))
             {
-                parts.Add($"Value: \"{Value}\"");
+                if (!parts.Contains(Value))
+                {
+                    parts.Add($"Value: \"{Value}\"");
+                }
             }
             if (NestedSteps != null && NestedSteps.Count > 0)
             {

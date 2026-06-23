@@ -42,34 +42,30 @@ public static class YamlIntelliSenseProvider
                 {
                     return GetLiveSelectors(mainVm);
                 }
-                if (command.Equals("scroll", StringComparison.OrdinalIgnoreCase))
+                var inlineValues = FlowCommandCatalog.GetValueCompletions(command, command);
+                if (inlineValues.Count > 0)
                 {
-                    return new List<string> { "down", "up", "left", "right" };
-                }
-                if (command.Equals("setAirplaneMode", StringComparison.OrdinalIgnoreCase))
-                {
-                    return new List<string> { "true", "false" };
-                }
-                if (command.Equals("delay", StringComparison.OrdinalIgnoreCase))
-                {
-                    return new List<string> { "500", "1000", "2000" };
+                    return inlineValues.ToList();
                 }
             }
             else
             {
                 // Typing property values indented under a mapping (e.g. selector: , direction: )
-                if (keyPart.Equals("selector", StringComparison.OrdinalIgnoreCase) ||
+                if (FlowCommandCatalog.IsSelectorKey(keyPart) ||
                     keyPart.Equals("targetSelector", StringComparison.OrdinalIgnoreCase))
                 {
                     return GetLiveSelectors(mainVm);
                 }
-                if (keyPart.Equals("direction", StringComparison.OrdinalIgnoreCase))
-                {
-                    return new List<string> { "down", "up", "left", "right" };
-                }
                 if (keyPart.Equals("while", StringComparison.OrdinalIgnoreCase))
                 {
-                    return new List<string> { "assertTrue:", "assertVisible:", "assertNotVisible:" };
+                    return new List<string> { "visible:", "notVisible:", "assertTrue:", "assertFalse:", "assertVisible:", "assertNotVisible:" };
+                }
+
+                string parentCommand = FindParentCommand(lines, currentLineIndentation);
+                var valueSuggestions = FlowCommandCatalog.GetValueCompletions(parentCommand, keyPart);
+                if (valueSuggestions.Count > 0)
+                {
+                    return valueSuggestions.ToList();
                 }
             }
 
@@ -101,14 +97,7 @@ public static class YamlIntelliSenseProvider
 
     private static bool IsSelectorCommand(string command)
     {
-        var cmd = command.Trim().ToLowerInvariant();
-        return cmd == "tapon"
-            || cmd == "doubletapon"
-            || cmd == "longpresson"
-            || cmd == "cleartext"
-            || cmd == "copytextfrom"
-            || cmd == "assertvisible"
-            || cmd == "assertnotvisible";
+        return FlowCommandCatalog.IsSelectorCommand(command);
     }
 
     private static string FindParentCommand(string[] lines, int currentLineIndentation)
@@ -186,58 +175,18 @@ public static class YamlIntelliSenseProvider
 
     private static List<string> GetCommands()
     {
-        return new List<string>
-        {
-            "launchApp",
-            "tapOn:",
-            "doubleTapOn:",
-            "longPressOn:",
-            "inputText:",
-            "clearText:",
-            "pasteText:",
-            "eraseText:",
-            "swipe:",
-            "dragAndDrop:",
-            "stopApp:",
-            "killApp:",
-            "clearState:",
-            "setOrientation:",
-            "setLocation:",
-            "takeScreenshot:",
-            "assertVisible:",
-            "assertNotVisible:",
-            "assertTrue:",
-            "assertFalse:",
-            "setAirplaneMode:",
-            "delay:",
-            "scroll:",
-            "scrollUntilVisible:",
-            "back",
-            "pressKey:",
-            "repeat:",
-            "retry:",
-            "runFlow:",
-            "evalScript:",
-            "runScript:",
-            "openLink:",
-            "copyTextFrom:"
-        };
+        return FlowCommandCatalog.GetCommandCompletions().ToList();
     }
 
     private static List<string> GetParametersForCommand(string command)
     {
-        return command.ToLowerInvariant() switch
+        var suggestions = FlowCommandCatalog.GetParameterCompletions(command).ToList();
+        if (FlowCommandCatalog.IsSelectorCommand(command))
         {
-            "inputtext" => new List<string> { "selector:", "text:" },
-            "scroll" => new List<string> { "selector:", "direction:", "amount:" },
-            "scrolluntilvisible" => new List<string> { "selector:", "direction:", "maxScrolls:" },
-            "swipe" => new List<string> { "start:", "end:", "direction:" },
-            "draganddrop" => new List<string> { "selector:", "targetSelector:", "offsetX:", "offsetY:", "targetOffsetX:", "targetOffsetY:" },
-            "setlocation" => new List<string> { "latitude:", "longitude:" },
-            "repeat" => new List<string> { "times:", "while:", "commands:" },
-            "retry" => new List<string> { "maxRetries:", "commands:" },
-            _ => new List<string>()
-        };
+            suggestions.AddRange(FlowCommandCatalog.SelectorKeys.Select(key => $"{key}:"));
+        }
+
+        return suggestions.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private static List<string> GetLiveSelectors(MainWindowViewModel? mainVm)
@@ -248,6 +197,20 @@ public static class YamlIntelliSenseProvider
         selectors.Add("\"#btnTarget\"");
         selectors.Add("\"#txtTarget\"");
         selectors.Add("\"#btnClickMe\"");
+        selectors.Add("text: \"Visible text\"");
+        selectors.Add("id: \"automation_id\"");
+        selectors.Add("css: \"#controlName\"");
+        selectors.Add("point: \"50%, 50%\"");
+        selectors.Add("enabled: true");
+        selectors.Add("checked: true");
+        selectors.Add("focused: true");
+        selectors.Add("selected: true");
+        selectors.Add("traits: text");
+        selectors.Add("traits: long-text");
+        selectors.Add("traits: square");
+        selectors.Add("width: 48");
+        selectors.Add("height: 48");
+        selectors.Add("tolerance: 2");
 
         if (mainVm?.Elements != null)
         {
@@ -271,6 +234,7 @@ public static class YamlIntelliSenseProvider
                 if (!string.IsNullOrEmpty(attr.Value))
                 {
                     selectors.Add($"\"#{attr.Value}\"");
+                    selectors.Add($"id: \"{attr.Value}\"");
                 }
             }
             if (attr.Name.Equals("AccessibilityId", System.StringComparison.OrdinalIgnoreCase))
@@ -278,6 +242,16 @@ public static class YamlIntelliSenseProvider
                 if (!string.IsNullOrEmpty(attr.Value))
                 {
                     selectors.Add($"\"[AccessibilityId=\\\"{attr.Value}\\\"]\"");
+                    selectors.Add($"id: \"{attr.Value}\"");
+                }
+            }
+            if (attr.Name.Equals("text", System.StringComparison.OrdinalIgnoreCase) ||
+                attr.Name.Equals("Text", System.StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrEmpty(attr.Value))
+                {
+                    selectors.Add($"text: \"{attr.Value}\"");
+                    selectors.Add($"\"{attr.Value}\"");
                 }
             }
         }
