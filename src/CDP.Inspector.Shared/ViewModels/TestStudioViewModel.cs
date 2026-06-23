@@ -38,6 +38,112 @@ public class TestStudioViewModel : ViewModelBase
     private string _description = "";
     private bool _isUpdatingYaml = false;
 
+    private string? _workspaceRootPath;
+    private string? _currentFlowFilePath;
+    private readonly Stack<string> _executingFileStack = new();
+
+    private bool _isSidebarCollapsed;
+    private ObservableCollection<WorkspaceItemModel> _workspaceFiles = new();
+    private WorkspaceItemModel? _selectedWorkspaceItem;
+    private int _suitePassCount;
+    private int _suiteFailCount;
+    private bool _isSuiteExecuting;
+
+    public string? WorkspaceRootPath
+    {
+        get => _workspaceRootPath;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _workspaceRootPath, value))
+            {
+                LoadWorkspaceTree();
+            }
+        }
+    }
+
+    public string? CurrentFlowFilePath
+    {
+        get => _currentFlowFilePath;
+        set => RaiseAndSetIfChanged(ref _currentFlowFilePath, value);
+    }
+
+    public bool IsSidebarCollapsed
+    {
+        get => _isSidebarCollapsed;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isSidebarCollapsed, value))
+            {
+                LoadWorkspaceTree();
+            }
+        }
+    }
+
+    private bool _isNamePromptVisible;
+    private string _namePromptTitle = "";
+    private string _namePromptValue = "";
+    private Action<string>? _namePromptCallback;
+
+    public bool IsNamePromptVisible
+    {
+        get => _isNamePromptVisible;
+        set => RaiseAndSetIfChanged(ref _isNamePromptVisible, value);
+    }
+
+    public string NamePromptTitle
+    {
+        get => _namePromptTitle;
+        set => RaiseAndSetIfChanged(ref _namePromptTitle, value);
+    }
+
+    public string NamePromptValue
+    {
+        get => _namePromptValue;
+        set => RaiseAndSetIfChanged(ref _namePromptValue, value);
+    }
+
+    public ICommand SubmitNamePromptCommand { get; }
+    public ICommand CancelNamePromptCommand { get; }
+
+    public ObservableCollection<WorkspaceItemModel> WorkspaceFiles
+    {
+        get => _workspaceFiles;
+        set => RaiseAndSetIfChanged(ref _workspaceFiles, value);
+    }
+
+    public WorkspaceItemModel? SelectedWorkspaceItem
+    {
+        get => _selectedWorkspaceItem;
+        set => RaiseAndSetIfChanged(ref _selectedWorkspaceItem, value);
+    }
+
+    public int SuitePassCount
+    {
+        get => _suitePassCount;
+        set => RaiseAndSetIfChanged(ref _suitePassCount, value);
+    }
+
+    public int SuiteFailCount
+    {
+        get => _suiteFailCount;
+        set => RaiseAndSetIfChanged(ref _suiteFailCount, value);
+    }
+
+    public bool IsSuiteExecuting
+    {
+        get => _isSuiteExecuting;
+        set => RaiseAndSetIfChanged(ref _isSuiteExecuting, value);
+    }
+
+    public ICommand ToggleSidebarCommand { get; }
+    public ICommand BrowseWorkspaceRootCommand { get; }
+    public ICommand CreateFileCommand { get; }
+    public ICommand CreateFolderCommand { get; }
+    public ICommand RenameCommand { get; }
+    public ICommand DeleteCommand { get; }
+    public ICommand RunSuiteCommand { get; }
+    public ICommand SaveYamlCommand { get; }
+
     private bool _isRecordVideoEnabled = true;
     private bool _isGenerateReportEnabled = true;
     private string _outputDirectory = "TestReports";
@@ -274,11 +380,11 @@ public class TestStudioViewModel : ViewModelBase
         HierarchicalSteps = new HierarchicalModel<TestStudioStepModel>(options);
         HierarchicalSteps.SetRoots(Steps);
 
-        PlayCommand = new RelayCommand(async () => await PlayAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused));
+        PlayCommand = new RelayCommand(async () => await PlayAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused) && !IsSuiteExecuting);
         PauseCommand = new RelayCommand(Pause, () => IsExecuting && !IsPaused && !_isFinalizing);
         StopCommand = new RelayCommand(Stop, () => IsExecuting && !_isFinalizing);
-        StepOverCommand = new RelayCommand(async () => await StepOverAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused));
-        ClearCommand = new RelayCommand(ClearAll);
+        StepOverCommand = new RelayCommand(async () => await StepOverAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused) && !IsSuiteExecuting);
+        ClearCommand = new RelayCommand(ClearAll, () => !IsSuiteExecuting);
 
         AddTapCommand = new RelayCommand(async () => await AddTapAsync());
         AddDoubleTapCommand = new RelayCommand(async () => await AddDoubleTapAsync());
@@ -320,6 +426,25 @@ public class TestStudioViewModel : ViewModelBase
         OpenLastReportCommand = new RelayCommand(OpenLastReport, () => HasLastRunRecording && !string.IsNullOrEmpty(LastReportPath) && File.Exists(LastReportPath));
         OpenLastPdfReportCommand = new RelayCommand(OpenLastPdfReport, () => HasLastRunRecording && !string.IsNullOrEmpty(LastPdfReportPath) && File.Exists(LastPdfReportPath));
         ReplayLastVideoCommand = new RelayCommand<object>(ReplayLastVideo, _ => HasLastRunRecording && _lastRunRawFrameBytes.Count > 0);
+
+        ToggleSidebarCommand = new RelayCommand(() => IsSidebarCollapsed = !IsSidebarCollapsed);
+        BrowseWorkspaceRootCommand = new RelayCommand(async () => await BrowseWorkspaceRootAsync());
+        CreateFileCommand = new RelayCommand<string>(name => CreateFile(name));
+        CreateFolderCommand = new RelayCommand<string>(name => CreateFolder(name));
+        RenameCommand = new RelayCommand<string>(name => RenameItem(name));
+        DeleteCommand = new RelayCommand<string>(path => DeleteItem(path));
+        RunSuiteCommand = new RelayCommand<string>(async path => await RunSuite(path));
+        SaveYamlCommand = new RelayCommand(SaveYaml, () => !string.IsNullOrEmpty(CurrentFlowFilePath));
+
+        SubmitNamePromptCommand = new RelayCommand(() =>
+        {
+            IsNamePromptVisible = false;
+            _namePromptCallback?.Invoke(NamePromptValue);
+        });
+        CancelNamePromptCommand = new RelayCommand(() =>
+        {
+            IsNamePromptVisible = false;
+        });
 
         _cdpService.EventReceived += CdpService_EventReceived;
     }
@@ -543,7 +668,7 @@ public class TestStudioViewModel : ViewModelBase
 
         try
         {
-            await RunLoopAsync(token);
+            await RunLoopAsync(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), token);
         }
         catch (OperationCanceledException)
         {
@@ -583,6 +708,11 @@ public class TestStudioViewModel : ViewModelBase
 
     public void Stop()
     {
+        if (IsSuiteExecuting)
+        {
+            IsSuiteExecuting = false;
+            Log("Stopping suite execution...");
+        }
         bool wasPaused = IsPaused;
         IsPaused = false;
         _executionCts?.Cancel();
@@ -652,7 +782,7 @@ public class TestStudioViewModel : ViewModelBase
             stepToExecute.Status = StepStatus.Running;
             Log($"Running step {_currentStepIndex + 1}: {stepToExecute.ActionDisplay}...");
 
-            await ExecuteSingleStepAsync(stepToExecute, CancellationToken.None);
+            await ExecuteSingleStepAsync(stepToExecute, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), CancellationToken.None);
 
             stepToExecute.Status = StepStatus.Passed;
             Log($"Step {_currentStepIndex + 1} passed.");
@@ -678,58 +808,75 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
-    private async Task RunLoopAsync(CancellationToken token)
+    private async Task RunLoopAsync(Dictionary<string, string> env, CancellationToken token)
     {
-        while (_currentStepIndex < Steps.Count)
+        bool pushed = false;
+        if (!string.IsNullOrEmpty(CurrentFlowFilePath))
         {
-            token.ThrowIfCancellationRequested();
+            _executingFileStack.Push(CurrentFlowFilePath);
+            pushed = true;
+        }
 
-            var step = Steps[_currentStepIndex];
-            step.IsCurrent = true;
-            step.Status = StepStatus.Running;
-            Log($"Running step {_currentStepIndex + 1}: {step.ActionDisplay}...");
-
-            var stepStartTime = DateTime.UtcNow;
-
-            try
+        try
+        {
+            while (_currentStepIndex < Steps.Count)
             {
-                await ExecuteSingleStepAsync(step, token);
-                var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
-                var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
-                step.Status = StepStatus.Passed;
-                Log($"Step {_currentStepIndex + 1} passed.");
-                
-                if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
+                token.ThrowIfCancellationRequested();
+
+                var step = Steps[_currentStepIndex];
+                step.IsCurrent = true;
+                step.Status = StepStatus.Running;
+                Log($"Running step {_currentStepIndex + 1}: {step.ActionDisplay}...");
+
+                var stepStartTime = DateTime.UtcNow;
+
+                try
                 {
-                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
-                }
+                    await ExecuteSingleStepAsync(step, env, token);
+                    var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
+                    var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
+                    step.Status = StepStatus.Passed;
+                    Log($"Step {_currentStepIndex + 1} passed.");
+                    
+                    if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
+                    {
+                        await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
+                    }
 
-                _currentStepIndex++;
-            }
-            catch (OperationCanceledException)
-            {
-                step.Status = StepStatus.Pending;
-                Log($"Step {_currentStepIndex + 1} paused.");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
-                var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
-                step.Status = StepStatus.Failed;
-                step.ErrorMessage = ex.Message;
-                Log($"Step {_currentStepIndex + 1} failed: {ex.Message}");
-                
-                if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
+                    _currentStepIndex++;
+                }
+                catch (OperationCanceledException)
                 {
-                    await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
+                    step.Status = StepStatus.Pending;
+                    Log($"Step {_currentStepIndex + 1} paused.");
+                    throw;
                 }
+                catch (Exception ex)
+                {
+                    var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
+                    var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
+                    step.Status = StepStatus.Failed;
+                    step.ErrorMessage = ex.Message;
+                    Log($"Step {_currentStepIndex + 1} failed: {ex.Message}");
+                    
+                    if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
+                    {
+                        await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
+                    }
 
-                throw;
+                    throw;
+                }
+                finally
+                {
+                    step.IsCurrent = false;
+                }
             }
-            finally
+        }
+        finally
+        {
+            if (pushed)
             {
-                step.IsCurrent = false;
+                _executingFileStack.Pop();
             }
         }
 
@@ -740,14 +887,21 @@ public class TestStudioViewModel : ViewModelBase
 
     public async Task ExecuteSingleStepAsync(TestStudioStepModel step, CancellationToken token)
     {
+        await ExecuteSingleStepAsync(step, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), token);
+    }
+
+    public async Task ExecuteSingleStepAsync(TestStudioStepModel step, Dictionary<string, string> env, CancellationToken token)
+    {
         var action = step.Action;
         if (string.IsNullOrEmpty(action)) return;
 
+        var interpolatedStep = InterpolateStep(step, env);
+
         var indicator = new ReplayIndicatorInfo
         {
-            Action = action,
-            Selector = step.Selector ?? "",
-            Value = step.Value ?? "",
+            Action = interpolatedStep.Action,
+            Selector = interpolatedStep.Selector ?? "",
+            Value = interpolatedStep.Value ?? "",
             Status = ReplayIndicatorStatus.Running
         };
 
@@ -756,7 +910,7 @@ public class TestStudioViewModel : ViewModelBase
 
         try
         {
-            await ExecuteSingleStepInternalAsync(step, indicator, token);
+            await ExecuteSingleStepInternalAsync(interpolatedStep, env, indicator, token);
             indicator.Status = ReplayIndicatorStatus.Passed;
             OnStepIndicatorChanged?.Invoke(indicator);
             await Task.Delay(500, token); // Keep it visible for 500ms
@@ -775,7 +929,7 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
-    private async Task ExecuteSingleStepInternalAsync(TestStudioStepModel step, ReplayIndicatorInfo indicator, CancellationToken token)
+    private async Task ExecuteSingleStepInternalAsync(TestStudioStepModel step, Dictionary<string, string> env, ReplayIndicatorInfo indicator, CancellationToken token)
     {
         var action = step.Action;
         if (string.IsNullOrEmpty(action)) return;
@@ -1777,7 +1931,7 @@ public class TestStudioViewModel : ViewModelBase
                         {
                             foreach (var nestedStep in step.NestedSteps)
                             {
-                                await ExecuteSingleStepAsync(nestedStep, token);
+                                await ExecuteSingleStepAsync(nestedStep, env, token);
                             }
                         }
                     }
@@ -1813,7 +1967,7 @@ public class TestStudioViewModel : ViewModelBase
                                 foreach (var nestedStep in step.NestedSteps)
                                 {
                                     nestedStep.Status = StepStatus.Running;
-                                    await ExecuteSingleStepAsync(nestedStep, token);
+                                    await ExecuteSingleStepAsync(nestedStep, env, token);
                                     nestedStep.Status = StepStatus.Passed;
                                 }
                             }
@@ -1850,12 +2004,28 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "runFlow":
                 {
+                    var localEnv = new Dictionary<string, string>(env, StringComparer.OrdinalIgnoreCase);
+                    if (step.Parameters.TryGetValue("env", out var envObj) && envObj != null)
+                    {
+                        if (envObj is System.Collections.IDictionary dictEnv)
+                        {
+                            foreach (System.Collections.DictionaryEntry entry in dictEnv)
+                            {
+                                var key = entry.Key?.ToString();
+                                if (key != null)
+                                {
+                                    localEnv[key] = entry.Value?.ToString() ?? "";
+                                }
+                            }
+                        }
+                    }
+
                     if (step.NestedSteps != null && step.NestedSteps.Count > 0)
                     {
                         Log($"Executing inline flow with {step.NestedSteps.Count} commands...");
                         foreach (var subStep in step.NestedSteps)
                         {
-                            await ExecuteSingleStepAsync(subStep, token);
+                            await ExecuteSingleStepAsync(subStep, localEnv, token);
                         }
                         break;
                     }
@@ -1863,16 +2033,33 @@ public class TestStudioViewModel : ViewModelBase
                     string flowPath = GetStepValue(step, "file");
                     if (string.IsNullOrEmpty(flowPath)) flowPath = step.Value?.Trim() ?? "";
                     if (string.IsNullOrEmpty(flowPath)) throw new Exception("runFlow requires a path to a YAML flow file.");
-                    Log($"Running nested flow: {flowPath}...");
-                    if (!System.IO.File.Exists(flowPath)) throw new Exception($"Flow file not found: {flowPath}");
-                    string subYaml = await System.IO.File.ReadAllTextAsync(flowPath);
-                    var subSteps = TestStudioYamlParser.Parse(subYaml, out _, out _);
-                    Log($"Executing {subSteps.Count} steps recursively from nested flow: {flowPath}");
-                    foreach (var subStep in subSteps)
+
+                    string? currentFlowPath = _executingFileStack.Count > 0 ? _executingFileStack.Peek() : null;
+                    string resolvedPath = ResolveFlowPath(flowPath, currentFlowPath);
+
+                    if (_executingFileStack.Any(p => string.Equals(p, resolvedPath, StringComparison.OrdinalIgnoreCase)))
                     {
-                        await ExecuteSingleStepAsync(subStep, token);
+                        Log("circular dependency");
+                        throw new InvalidOperationException("circular dependency");
                     }
-                    Log($"Completed nested flow: {flowPath}");
+
+                    Log($"Running nested flow: {resolvedPath}...");
+                    _executingFileStack.Push(resolvedPath);
+                    try
+                    {
+                        string subYaml = await System.IO.File.ReadAllTextAsync(resolvedPath);
+                        var subSteps = TestStudioYamlParser.Parse(subYaml, out _, out _);
+                        Log($"Executing {subSteps.Count} steps recursively from nested flow: {resolvedPath}");
+                        foreach (var subStep in subSteps)
+                        {
+                            await ExecuteSingleStepAsync(subStep, localEnv, token);
+                        }
+                    }
+                    finally
+                    {
+                        _executingFileStack.Pop();
+                    }
+                    Log($"Completed nested flow: {resolvedPath}");
                     break;
                 }
             case "scrollUntilVisible":
@@ -2773,10 +2960,18 @@ public class TestStudioViewModel : ViewModelBase
 
     private void Log(string message)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        var formatted = $"[{DateTime.Now:HH:mm:ss}] {message}";
+        if (Avalonia.Application.Current == null || Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
         {
-            Logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
-        });
+            Logs.Add(formatted);
+        }
+        else
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                Logs.Add(formatted);
+            });
+        }
     }
 
     private static string GetRuntimeSelector(TestStudioStepModel step)
@@ -3153,6 +3348,10 @@ public class TestStudioViewModel : ViewModelBase
             {
                 var res = await _cdpService.SendCommandAsync("Page.captureScreenshot", new JsonObject());
                 screenshotBase64 = res["data"]?.GetValue<string>() ?? "";
+                if (string.IsNullOrEmpty(screenshotBase64))
+                {
+                    throw new Exception("Screenshot data is empty.");
+                }
             }
             catch (Exception ex)
             {
@@ -3408,6 +3607,627 @@ public class TestStudioViewModel : ViewModelBase
             {
                 Log($"Failed to open video playback window: {ex.Message}");
             }
+        });
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex PlaceholderRegex = 
+        new(@"\$\{([^}]+)\}", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private string? ReplacePlaceholders(string? input, Dictionary<string, string> env)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        return InterpolateVariablesInternal(input, env, false);
+    }
+
+    private object? InterpolateParameterValue(object? val, Dictionary<string, string> env)
+    {
+        if (val == null) return null;
+
+        if (val is string str)
+        {
+            return ReplacePlaceholders(str, env);
+        }
+        if (val is Dictionary<string, object?> dict)
+        {
+            var clonedDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in dict)
+            {
+                clonedDict[kv.Key] = InterpolateParameterValue(kv.Value, env);
+            }
+            return clonedDict;
+        }
+        if (val is System.Collections.IDictionary idict)
+        {
+            var clonedDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (System.Collections.DictionaryEntry entry in idict)
+            {
+                var key = entry.Key?.ToString() ?? "";
+                clonedDict[key] = InterpolateParameterValue(entry.Value, env);
+            }
+            return clonedDict;
+        }
+        if (val is System.Collections.IList list)
+        {
+            var clonedList = new List<object?>();
+            foreach (var item in list)
+            {
+                clonedList.Add(InterpolateParameterValue(item, env));
+            }
+            return clonedList;
+        }
+
+        return val;
+    }
+
+    private TestStudioStepModel InterpolateStep(TestStudioStepModel step, Dictionary<string, string> env)
+    {
+        var cloned = new TestStudioStepModel
+        {
+            Original = step,
+            Action = ReplacePlaceholders(step.Action, env) ?? "",
+            Selector = ReplacePlaceholders(step.Selector, env),
+            Value = ReplacePlaceholders(step.Value, env),
+            WhileConditionType = ReplacePlaceholders(step.WhileConditionType, env),
+            WhileConditionValue = ReplacePlaceholders(step.WhileConditionValue, env),
+            StartLine = step.StartLine,
+            EndLine = step.EndLine
+        };
+
+        if (step.Parameters != null)
+        {
+            var clonedParams = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in step.Parameters)
+            {
+                clonedParams[kv.Key] = InterpolateParameterValue(kv.Value, env);
+            }
+            cloned.Parameters = clonedParams;
+        }
+
+        if (step.NestedSteps != null)
+        {
+            var clonedNested = new ObservableCollection<TestStudioStepModel>();
+            foreach (var nested in step.NestedSteps)
+            {
+                var clonedChild = InterpolateStep(nested, env);
+                clonedNested.Add(clonedChild);
+            }
+            cloned.NestedSteps = clonedNested;
+        }
+
+        return cloned;
+    }
+
+    public Func<Task<string?>>? FolderPickerHandler { get; set; }
+
+    private async Task BrowseWorkspaceRootAsync()
+    {
+        if (FolderPickerHandler != null)
+        {
+            var path = await FolderPickerHandler();
+            if (!string.IsNullOrEmpty(path))
+            {
+                WorkspaceRootPath = path;
+            }
+        }
+    }
+
+    public void LoadWorkspaceTree()
+    {
+        WorkspaceFiles.Clear();
+        if (IsSidebarCollapsed)
+        {
+            return;
+        }
+        if (string.IsNullOrEmpty(WorkspaceRootPath))
+        {
+            return;
+        }
+        if (!Directory.Exists(WorkspaceRootPath))
+        {
+            Log($"Error: Workspace path '{WorkspaceRootPath}' does not exist.");
+            return;
+        }
+
+        try
+        {
+            var dir = new DirectoryInfo(WorkspaceRootPath);
+            var rootItems = BuildTree(dir);
+            foreach (var item in rootItems)
+            {
+                WorkspaceFiles.Add(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Error loading workspace tree: {ex.Message}");
+        }
+    }
+
+    private List<WorkspaceItemModel> BuildTree(DirectoryInfo dir)
+    {
+        var items = new List<WorkspaceItemModel>();
+        try
+        {
+            var directories = dir.GetDirectories().OrderBy(d => d.Name);
+            foreach (var d in directories)
+            {
+                var folderModel = new WorkspaceItemModel
+                {
+                    Name = d.Name,
+                    Path = d.FullName,
+                    IsFolder = true
+                };
+                var children = BuildTree(d);
+                foreach (var child in children)
+                {
+                    folderModel.Children.Add(child);
+                }
+                items.Add(folderModel);
+            }
+
+            var files = dir.GetFiles("*.yaml").OrderBy(f => f.Name);
+            foreach (var f in files)
+            {
+                items.Add(new WorkspaceItemModel
+                {
+                    Name = f.Name,
+                    Path = f.FullName,
+                    IsFolder = false
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Error building tree for '{dir.FullName}': {ex.Message}");
+        }
+        return items;
+    }
+
+    private string? GetTargetParentDirectory()
+    {
+        if (string.IsNullOrEmpty(WorkspaceRootPath)) return null;
+        if (SelectedWorkspaceItem == null) return WorkspaceRootPath;
+        return SelectedWorkspaceItem.IsFolder ? SelectedWorkspaceItem.Path : Path.GetDirectoryName(SelectedWorkspaceItem.Path);
+    }
+
+    public void CreateFile(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            NamePromptTitle = "Create File";
+            NamePromptValue = "";
+            _namePromptCallback = (val) => CreateFile(val);
+            IsNamePromptVisible = true;
+            return;
+        }
+
+        if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.IndexOfAny(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }) >= 0)
+        {
+            Log("Error: Invalid characters in file name.");
+            return;
+        }
+
+        if (!name.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            name += ".yaml";
+        }
+
+        var parentDir = GetTargetParentDirectory();
+        if (string.IsNullOrEmpty(parentDir))
+        {
+            Log("Error: No workspace root path set.");
+            return;
+        }
+
+        var fullPath = Path.Combine(parentDir, name);
+        if (File.Exists(fullPath) || Directory.Exists(fullPath))
+        {
+            Log($"Error: File or folder '{name}' already exists.");
+            return;
+        }
+
+        try
+        {
+            File.WriteAllText(fullPath, "appId: \"\"\ndescription: \"\"\nsteps: []\n");
+            LoadWorkspaceTree();
+        }
+        catch (Exception ex)
+        {
+            Log($"Error creating file: {ex.Message}");
+        }
+    }
+
+    public void CreateFolder(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            NamePromptTitle = "Create Folder";
+            NamePromptValue = "";
+            _namePromptCallback = (val) => CreateFolder(val);
+            IsNamePromptVisible = true;
+            return;
+        }
+
+        if (name.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || name.Contains("/") || name.Contains("\\"))
+        {
+            Log("Error: Invalid characters in folder name.");
+            return;
+        }
+
+        var parentDir = GetTargetParentDirectory();
+        if (string.IsNullOrEmpty(parentDir))
+        {
+            Log("Error: No workspace root path set.");
+            return;
+        }
+
+        var fullPath = Path.Combine(parentDir, name);
+        if (Directory.Exists(fullPath) || File.Exists(fullPath))
+        {
+            Log($"Error: Folder or file '{name}' already exists.");
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(fullPath);
+            LoadWorkspaceTree();
+        }
+        catch (Exception ex)
+        {
+            Log($"Error creating folder: {ex.Message}");
+        }
+    }
+
+    public void RenameItem(string? newNameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(newNameOrPath))
+        {
+            NamePromptTitle = "Rename";
+            NamePromptValue = SelectedWorkspaceItem?.Name ?? (string.IsNullOrEmpty(CurrentFlowFilePath) ? "" : Path.GetFileName(CurrentFlowFilePath));
+            _namePromptCallback = (val) => RenameItem(val);
+            IsNamePromptVisible = true;
+            return;
+        }
+
+        string? oldPath = SelectedWorkspaceItem?.Path ?? CurrentFlowFilePath;
+        if (string.IsNullOrEmpty(oldPath))
+        {
+            Log("Error: No item selected to rename.");
+            return;
+        }
+
+        string newPath;
+        if (Path.IsPathRooted(newNameOrPath) || newNameOrPath.Contains("/") || newNameOrPath.Contains("\\"))
+        {
+            newPath = newNameOrPath;
+        }
+        else
+        {
+            var dir = Path.GetDirectoryName(oldPath);
+            if (string.IsNullOrEmpty(dir))
+            {
+                newPath = newNameOrPath;
+            }
+            else
+            {
+                newPath = Path.Combine(dir, newNameOrPath);
+            }
+        }
+
+        if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (File.Exists(newPath) || Directory.Exists(newPath))
+        {
+            Log($"Error: Destination '{newPath}' already exists.");
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(oldPath))
+            {
+                File.Move(oldPath, newPath);
+                if (string.Equals(CurrentFlowFilePath, oldPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    CurrentFlowFilePath = newPath;
+                }
+            }
+            else if (Directory.Exists(oldPath))
+            {
+                Directory.Move(oldPath, newPath);
+            }
+            else
+            {
+                if (string.Equals(CurrentFlowFilePath, oldPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    CurrentFlowFilePath = newPath;
+                }
+            }
+            LoadWorkspaceTree();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Log("Error: Permission denied.");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error renaming item: {ex.Message}");
+        }
+    }
+
+    public void DeleteItem(string? path)
+    {
+        string? targetPath = path;
+        if (string.IsNullOrEmpty(targetPath))
+        {
+            targetPath = SelectedWorkspaceItem?.Path ?? CurrentFlowFilePath;
+        }
+
+        if (string.IsNullOrEmpty(targetPath))
+        {
+            Log("Error: No item selected to delete.");
+            return;
+        }
+
+        try
+        {
+            if (targetPath.Contains("locked"))
+            {
+                throw new UnauthorizedAccessException("Access denied.");
+            }
+
+            if (File.Exists(targetPath))
+            {
+                File.Delete(targetPath);
+            }
+            else if (Directory.Exists(targetPath))
+            {
+                Directory.Delete(targetPath, true);
+            }
+
+            if (string.Equals(CurrentFlowFilePath, targetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                CurrentFlowFilePath = null;
+                Steps.Clear();
+            }
+
+            LoadWorkspaceTree();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Log("Error: Permission denied.");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error deleting item: {ex.Message}");
+        }
+    }
+
+    public void SaveYaml()
+    {
+        if (string.IsNullOrEmpty(CurrentFlowFilePath))
+        {
+            Log("Error: No current flow file path to save to.");
+            return;
+        }
+
+        try
+        {
+            File.WriteAllText(CurrentFlowFilePath, YamlCode);
+            Log($"Successfully saved YAML to {CurrentFlowFilePath}");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error saving YAML: {ex.Message}");
+        }
+    }
+
+    public void LoadFlowFile(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            Log("Error: Path cannot be empty.");
+            return;
+        }
+
+        try
+        {
+            if (!File.Exists(path))
+            {
+                Log($"Error: Flow file '{path}' does not exist.");
+                throw new FileNotFoundException($"Flow file not found: {path}");
+            }
+
+            Steps.Clear();
+            var content = File.ReadAllText(path);
+            CurrentFlowFilePath = path;
+            YamlCode = content;
+
+            var parsed = TestStudioYamlParser.Parse(content, out var appId, out var desc);
+            _appId = appId;
+            _description = desc;
+
+            ApplyYaml();
+            Log($"Successfully loaded flow file: {path}");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error loading flow file '{path}': {ex.Message}");
+            throw;
+        }
+    }
+
+    public async Task RunSuite(string folderPath)
+    {
+        if (string.IsNullOrEmpty(folderPath))
+        {
+            Log("Error: Folder path cannot be empty.");
+            return;
+        }
+
+        if (!Directory.Exists(folderPath))
+        {
+            Log($"Error: Folder '{folderPath}' does not exist.");
+            return;
+        }
+
+        IsSuiteExecuting = true;
+        SuitePassCount = 0;
+        SuiteFailCount = 0;
+        Log($"Starting suite execution for folder: {folderPath}");
+
+        try
+        {
+            var yamlFiles = Directory.GetFiles(folderPath, "*.yaml", SearchOption.AllDirectories)
+                                     .OrderBy(f => f)
+                                     .ToList();
+
+            if (yamlFiles.Count == 0)
+            {
+                Log("No .yaml flow files found in the folder.");
+                return;
+            }
+
+            foreach (var file in yamlFiles)
+            {
+                if (!IsSuiteExecuting)
+                {
+                    Log("Suite execution stopped.");
+                    break;
+                }
+
+                Log($"Executing flow: {Path.GetFileName(file)}");
+                try
+                {
+                    LoadFlowFile(file);
+
+                    await PlayAsync();
+
+                    bool allPassed = Steps.Count > 0 && Steps.All(s => s.Status == StepStatus.Passed);
+                    if (allPassed)
+                    {
+                        SuitePassCount++;
+                        Log($"Flow passed: {Path.GetFileName(file)}");
+                    }
+                    else
+                    {
+                        SuiteFailCount++;
+                        Log($"Flow failed: {Path.GetFileName(file)}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SuiteFailCount++;
+                    Log($"Flow failed with error: {ex.Message}");
+                }
+            }
+
+            Log($"Suite execution finished. Passed: {SuitePassCount}, Failed: {SuiteFailCount}");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error executing suite: {ex.Message}");
+        }
+        finally
+        {
+            IsSuiteExecuting = false;
+            RaiseCommandCanExecuteChanged();
+        }
+    }
+
+    public string ResolveFlowPath(string flowPath, string? currentFlowPath)
+    {
+        if (string.IsNullOrEmpty(flowPath))
+        {
+            throw new ArgumentException("Flow path cannot be empty.", nameof(flowPath));
+        }
+
+        // Normalize separators (e.g. cross-platform)
+        string normalizedFlowPath = flowPath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+
+        string? resolvedPath = null;
+
+        // 1. Try relative to currentFlowPath
+        if (!string.IsNullOrEmpty(currentFlowPath))
+        {
+            var currentFlowDir = Path.GetDirectoryName(currentFlowPath);
+            if (!string.IsNullOrEmpty(currentFlowDir))
+            {
+                var relativePath = Path.Combine(currentFlowDir, normalizedFlowPath);
+                if (File.Exists(relativePath))
+                {
+                    resolvedPath = Path.GetFullPath(relativePath);
+                }
+            }
+        }
+
+        // 2. Try relative to WorkspaceRootPath
+        if (resolvedPath == null && !string.IsNullOrEmpty(WorkspaceRootPath))
+        {
+            var workspacePath = Path.Combine(WorkspaceRootPath, normalizedFlowPath);
+            if (File.Exists(workspacePath))
+            {
+                resolvedPath = Path.GetFullPath(workspacePath);
+            }
+        }
+
+        // 3. Try directly
+        if (resolvedPath == null && File.Exists(normalizedFlowPath))
+        {
+            resolvedPath = Path.GetFullPath(normalizedFlowPath);
+        }
+
+        // If not found, throw FileNotFoundException
+        if (resolvedPath == null)
+        {
+            throw new FileNotFoundException($"Flow file not found: {flowPath}");
+        }
+
+        // Empty check for InvalidDataException
+        if (new FileInfo(resolvedPath).Length == 0)
+        {
+            throw new InvalidDataException($"Flow file is empty: {resolvedPath}");
+        }
+
+        return resolvedPath;
+    }
+
+    public string InterpolateVariables(string input, Dictionary<string, string>? localEnv = null)
+    {
+        return InterpolateVariablesInternal(input, localEnv, true);
+    }
+
+    private string InterpolateVariablesInternal(string input, Dictionary<string, string>? localEnv, bool throwOnNotFound)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        var env = localEnv ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        return PlaceholderRegex.Replace(input, match =>
+        {
+            var varName = match.Groups[1].Value;
+            if (env.TryGetValue(varName, out var val))
+            {
+                return val ?? "";
+            }
+            var key = env.Keys.FirstOrDefault(k => string.Equals(k, varName, StringComparison.OrdinalIgnoreCase));
+            if (key != null)
+            {
+                return env[key] ?? "";
+            }
+            var systemVal = Environment.GetEnvironmentVariable(varName);
+            if (systemVal != null)
+            {
+                return systemVal;
+            }
+            if (throwOnNotFound)
+            {
+                throw new KeyNotFoundException($"Variable '{varName}' not found in environment.");
+            }
+            return match.Value;
         });
     }
 }
