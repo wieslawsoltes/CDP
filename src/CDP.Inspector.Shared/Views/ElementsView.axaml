@@ -216,7 +216,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
                 </TabItem>
-                <!-- Accessibility subtab -->->
+                <!-- Accessibility subtab -->
                 <TabItem Header="Accessibility">
                     <ScrollViewer Margin="0,5,0,0">
                         <StackPanel Spacing="10" Margin="5">
