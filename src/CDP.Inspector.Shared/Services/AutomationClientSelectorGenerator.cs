@@ -25,10 +25,11 @@ public class AutomationClientSelectorGenerator : IClientSelectorGenerator
 
         string targetPart = node.NodeName;
         var text = ClientSelectorRegistry.GetNodeTextContent(node);
+        string? escapedText = null;
         if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
         {
-            var escaped = text.Replace("\"", "\\\"");
-            targetPart += $":contains(\"{escaped}\")";
+            escapedText = text.Replace("\"", "\\\"");
+            targetPart += $":contains(\"{escapedText}\")";
         }
 
         DomNodeModel? current = node.Parent;
@@ -45,6 +46,11 @@ public class AutomationClientSelectorGenerator : IClientSelectorGenerator
             current = current.Parent;
         }
 
-        return _fallback.GenerateSelector(node);
+        var fallbackSel = _fallback.GenerateSelector(node);
+        if (escapedText != null)
+        {
+            return $"{fallbackSel}:contains(\"{escapedText}\")";
+        }
+        return fallbackSel;
     }
 }

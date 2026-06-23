@@ -185,7 +185,7 @@ public class SelectorTests
         var clientDomGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("dom");
         var clientAutoGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("automation");
 
-        Assert.Equal("Label:contains(\"Submit Form\")", clientDomGen.GenerateSelector(clientLabel));
+        Assert.Equal("Label", clientDomGen.GenerateSelector(clientLabel));
         Assert.Equal("Label:contains(\"Submit Form\")", clientAutoGen.GenerateSelector(clientLabel));
     }
 }

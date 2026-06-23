@@ -37,12 +37,6 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
         }
 
         string targetPart = GetSimpleSelector(node);
-        var text = ClientSelectorRegistry.GetNodeTextContent(node);
-        if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
-        {
-            var escaped = text.Replace("\"", "\\\"");
-            targetPart += $":contains(\"{escaped}\")";
-        }
 
         // 1. Walk up to find if there is any named ancestor (has id/Name attribute)
         DomNodeModel? current = node.Parent;
@@ -60,7 +54,7 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
             var parent = current.Parent;
             if (parent != null)
             {
-                var siblings = parent.Children;
+                var siblings = parent.Children.Where(c => !c.NodeName.StartsWith("#")).ToList();
                 int sameTypeCount = 0;
                 foreach (var sib in siblings)
                 {
@@ -89,7 +83,7 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
             var parent = current.Parent;
             if (parent != null)
             {
-                var siblings = parent.Children;
+                var siblings = parent.Children.Where(c => !c.NodeName.StartsWith("#")).ToList();
                 int sameTypeCount = 0;
                 foreach (var sib in siblings)
                 {
