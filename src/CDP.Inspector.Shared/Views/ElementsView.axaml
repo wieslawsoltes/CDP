@@ -16,21 +16,25 @@
 
                     <!-- treeDom -->
                     <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
-                        <TreeView Name="treeDom" ItemsSource="{Binding Elements.RootNodes}" SelectedItem="{Binding Elements.SelectedNode, Mode=TwoWay}">
-                            <TreeView.Styles>
-                                <Style Selector="TreeViewItem">
-                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
-                                </Style>
-                            </TreeView.Styles>
-                            <TreeView.ItemTemplate>
-                                <TreeDataTemplate ItemsSource="{Binding Children}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="{Binding DisplayName}" Foreground="{Binding ForegroundBrush}" FontSize="12"/>
-                                    </StackPanel>
-                                </TreeDataTemplate>
-                            </TreeView.ItemTemplate>
-                        </TreeView>
+                        <DataGrid Name="treeDom"
+                                     HierarchicalModel="{Binding Elements.HierarchicalRootNodes}"
+                                     SelectedItem="{Binding Elements.SelectedNodeNode, Mode=TwoWay}"
+                                     HierarchicalRowsEnabled="True"
+                                     GridLinesVisibility="None"
+                                     HeadersVisibility="None"
+                                     Background="Transparent" BorderThickness="0">
+                            <DataGrid.Columns>
+                                <DataGridHierarchicalColumn Width="*">
+                                    <DataGridHierarchicalColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
+                                                <TextBlock Text="{Binding Item.DisplayName}" Foreground="{Binding Item.ForegroundBrush}" FontSize="12" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridHierarchicalColumn.CellTemplate>
+                                </DataGridHierarchicalColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </Border>
 
                     <!-- Actions Footer -->
@@ -60,21 +64,25 @@
                     </Grid>
 
                     <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
-                        <TreeView Name="treeAx" ItemsSource="{Binding Elements.AxRootNodes}" SelectedItem="{Binding Elements.SelectedAxNode, Mode=TwoWay}">
-                            <TreeView.Styles>
-                                <Style Selector="TreeViewItem">
-                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
-                                </Style>
-                            </TreeView.Styles>
-                            <TreeView.ItemTemplate>
-                                <TreeDataTemplate ItemsSource="{Binding Children}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="{Binding DisplayName}" Foreground="{Binding ForegroundBrush}" FontSize="12"/>
-                                    </StackPanel>
-                                </TreeDataTemplate>
-                            </TreeView.ItemTemplate>
-                        </TreeView>
+                        <DataGrid Name="treeAx"
+                                     HierarchicalModel="{Binding Elements.HierarchicalAxRootNodes}"
+                                     SelectedItem="{Binding Elements.SelectedAxNodeNode, Mode=TwoWay}"
+                                     HierarchicalRowsEnabled="True"
+                                     GridLinesVisibility="None"
+                                     HeadersVisibility="None"
+                                     Background="Transparent" BorderThickness="0">
+                            <DataGrid.Columns>
+                                <DataGridHierarchicalColumn Width="*">
+                                    <DataGridHierarchicalColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
+                                                <TextBlock Text="{Binding Item.DisplayName}" Foreground="{Binding Item.ForegroundBrush}" FontSize="12" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridHierarchicalColumn.CellTemplate>
+                                </DataGridHierarchicalColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </Border>
                     
                     <!-- Footer -->
@@ -112,19 +120,15 @@
                                     </Grid>
                                 </Border>
 
-                                <ListBox Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding Elements.FilteredCssProperties}">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ColumnDefinitions="*, Auto">
-                                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                                    <TextBlock Text="{Binding Name}" Foreground="#f28b82" FontWeight="SemiBold" FontSize="12"/>
-                                                    <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
-                                                    <TextBlock Text="{Binding Value}" Foreground="#e8eaed" FontSize="12"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                                <DataGrid Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding Elements.FilteredCssProperties}"
+                                          CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="False"
+                                          GridLinesVisibility="None" HeadersVisibility="None"
+                                          Background="Transparent" BorderThickness="0">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" IsReadOnly="True" Width="*" Foreground="#f28b82" FontSize="12" FontWeight="SemiBold"/>
+                                        <DataGridTextColumn Header="Value" Binding="{Binding Value, Mode=TwoWay}" IsReadOnly="False" Width="2*" Foreground="#e8eaed" FontSize="12"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
                                 <Grid Grid.Row="3" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
                                     <TextBox Name="txtStyleText" Text="{Binding Elements.StyleTextInputText, Mode=TwoWay}" PlaceholderText="Add style rule (e.g. background: red)..." Height="28" VerticalContentAlignment="Center"/>
                                     <Button Name="btnApplyStyleText" Command="{Binding Elements.ApplyStyleTextCommand}" Grid.Column="1" Content="Apply" Margin="5,0,0,0" Padding="10,0" Height="28"/>
@@ -134,19 +138,15 @@
                         <TabItem Header="Computed rules">
                             <Grid RowDefinitions="Auto, *" Margin="0,5,0,0">
                                 <TextBox Name="txtComputedSearch" Text="{Binding Elements.ComputedSearchText, Mode=TwoWay}" PlaceholderText="Filter computed styles" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
-                                <ListBox Grid.Row="1" Name="listComputedStyles" ItemsSource="{Binding Elements.FilteredComputedStyles}">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ColumnDefinitions="*, Auto">
-                                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                                    <TextBlock Text="{Binding Name}" Foreground="#81c995" FontWeight="SemiBold" FontSize="12"/>
-                                                    <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
-                                                    <TextBlock Text="{Binding Value}" Foreground="#e8eaed" FontSize="12"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                                <DataGrid Grid.Row="1" Name="listComputedStyles" ItemsSource="{Binding Elements.FilteredComputedStyles}"
+                                          CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="True"
+                                          GridLinesVisibility="None" HeadersVisibility="None"
+                                          Background="Transparent" BorderThickness="0">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" IsReadOnly="True" Width="*" Foreground="#81c995" FontSize="12" FontWeight="SemiBold"/>
+                                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" IsReadOnly="True" Width="2*" Foreground="#e8eaed" FontSize="12"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
                             </Grid>
                         </TabItem>
                     </TabControl>
@@ -156,19 +156,16 @@
                 <TabItem Header="Attributes">
                     <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                         <TextBox Name="txtAttributesSearch" Text="{Binding Elements.AttributeSearchText, Mode=TwoWay}" PlaceholderText="Filter attributes" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
-                        <ListBox Grid.Row="1" Name="listAttributes" ItemsSource="{Binding Elements.FilteredAttributes}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ColumnDefinitions="*, Auto">
-                                        <StackPanel Orientation="Horizontal" Spacing="5">
-                                            <TextBlock Text="{Binding Name}" Foreground="#fdd663" FontWeight="SemiBold" FontSize="12"/>
-                                            <TextBlock Text="=" Foreground="#9aa0a6" FontSize="12"/>
-                                            <TextBlock Text="{Binding Value}" Foreground="#81c995" FontSize="12"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                        <DataGrid Grid.Row="1" Name="listAttributes" ItemsSource="{Binding Elements.FilteredAttributes}"
+                                  SelectedItem="{Binding Elements.SelectedAttribute, Mode=TwoWay}"
+                                  CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="False"
+                                  GridLinesVisibility="None" HeadersVisibility="None"
+                                  Background="Transparent" BorderThickness="0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" IsReadOnly="True" Width="*" Foreground="#fdd663" FontSize="12" FontWeight="SemiBold"/>
+                                <DataGridTextColumn Header="Value" Binding="{Binding Value, Mode=TwoWay}" IsReadOnly="False" Width="2*" Foreground="#81c995" FontSize="12"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
                         <Grid Grid.Row="2" ColumnDefinitions="*, *, Auto, Auto" Margin="0,8,0,0">
                             <TextBox Name="txtAttrName" Text="{Binding Elements.AttributeNameInputText, Mode=TwoWay}" PlaceholderText="Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
                             <TextBox Grid.Column="1" Name="txtAttrValue" Text="{Binding Elements.AttributeValueInputText, Mode=TwoWay}" PlaceholderText="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,4,0"/>
@@ -182,22 +179,17 @@
                 <TabItem Header="Properties">
                     <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                         <TextBox Name="txtPropertiesSearch" Text="{Binding Elements.PropertySearchText, Mode=TwoWay}" PlaceholderText="Filter properties" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
-                        <ListBox Grid.Row="1" Name="listProperties" ItemsSource="{Binding Elements.FilteredProperties}" SelectedItem="{Binding Elements.SelectedProperty, Mode=TwoWay}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ColumnDefinitions="*, Auto">
-                                        <StackPanel Spacing="2">
-                                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                                <TextBlock Text="{Binding Name}" Foreground="#8ab4f8" FontWeight="SemiBold" FontSize="12"/>
-                                                <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
-                                                <TextBlock Text="{Binding Value}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding Type, StringFormat='({0})'}" Foreground="#9aa0a6" FontSize="10"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                        <DataGrid Grid.Row="1" Name="listProperties" ItemsSource="{Binding Elements.FilteredProperties}"
+                                  SelectedItem="{Binding Elements.SelectedProperty, Mode=TwoWay}"
+                                  CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="False"
+                                  GridLinesVisibility="None" HeadersVisibility="None"
+                                  Background="Transparent" BorderThickness="0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" IsReadOnly="True" Width="1.5*" Foreground="#8ab4f8" FontSize="12" FontWeight="SemiBold"/>
+                                <DataGridTextColumn Header="Value" Binding="{Binding Value, Mode=TwoWay}" IsReadOnly="False" Width="2.5*" Foreground="#e8eaed" FontSize="12"/>
+                                <DataGridTextColumn Header="Type" Binding="{Binding Type, StringFormat='({0})'}" IsReadOnly="True" Width="*" Foreground="#9aa0a6" FontSize="10"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
                         <Grid Grid.Row="2" ColumnDefinitions="Auto, Auto, *, Auto" Margin="0,8,0,0">
                             <TextBlock Text="Selected:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,5,0" FontSize="11"/>
                             <TextBlock Grid.Column="1" Name="lblSelectedProperty" Text="{Binding Elements.SelectedPropertyNameText}" FontWeight="Bold" Foreground="#8ab4f8" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"/>
@@ -209,25 +201,18 @@
 
                 <!-- Event Listeners subtab -->
                 <TabItem Header="Event Listeners">
-                    <ListBox Name="listEventListeners" ItemsSource="{Binding Elements.EventListeners}" Margin="0,5,0,0">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ColumnDefinitions="*, Auto">
-                                    <StackPanel Spacing="2" Margin="2">
-                                        <StackPanel Orientation="Horizontal" Spacing="5">
-                                            <TextBlock Text="{Binding Type}" Foreground="#fdd663" FontWeight="SemiBold" FontSize="12"/>
-                                            <TextBlock Text="➔" Foreground="#9aa0a6" FontSize="12"/>
-                                            <TextBlock Text="{Binding HandlerName}" Foreground="#81c995" FontSize="12"/>
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding CaptureText, StringFormat='(Capture: {0})'}" Foreground="#9aa0a6" FontSize="10"/>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <DataGrid Name="listEventListeners" ItemsSource="{Binding Elements.EventListeners}" Margin="0,5,0,0"
+                              CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="True"
+                              GridLinesVisibility="None" HeadersVisibility="None"
+                              Background="Transparent" BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Type" Binding="{Binding Type}" IsReadOnly="True" Width="*" Foreground="#fdd663" FontSize="12" FontWeight="SemiBold"/>
+                            <DataGridTextColumn Header="Handler" Binding="{Binding HandlerName}" IsReadOnly="True" Width="2*" Foreground="#81c995" FontSize="12"/>
+                            <DataGridTextColumn Header="Capture" Binding="{Binding CaptureText, StringFormat='(Capture: {0})'}" IsReadOnly="True" Width="*" Foreground="#9aa0a6" FontSize="10"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </TabItem>
-
-                <!-- Accessibility subtab -->
+                <!-- Accessibility subtab -->->
                 <TabItem Header="Accessibility">
                     <ScrollViewer Margin="0,5,0,0">
                         <StackPanel Spacing="10" Margin="5">

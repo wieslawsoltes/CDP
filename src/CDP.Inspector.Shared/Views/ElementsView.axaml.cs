@@ -7,35 +7,80 @@ public partial class ElementsView : UserControl
 {
     public TextBox TxtSearch => txtSearch;
     public Button BtnSearch => btnSearch;
-    public TreeView TreeDom => treeDom;
+    public DataGrid TreeDom => treeDom;
     public TextBlock TxtSelectedNodeId => txtSelectedNodeId;
     public Button BtnFocus => btnFocus;
     public CheckBox ChkHighlight => chkHighlight;
     public Button BtnDeleteControl => btnDeleteControl;
 
-    public ListBox ListCssProperties => listCssProperties;
+    public DataGrid ListCssProperties => listCssProperties;
     public TextBox TxtStyleText => txtStyleText;
     public Button BtnApplyStyleText => btnApplyStyleText;
 
-    public ListBox ListComputedStyles => listComputedStyles;
+    public DataGrid ListComputedStyles => listComputedStyles;
 
-    public ListBox ListAttributes => listAttributes;
+    public DataGrid ListAttributes => listAttributes;
     public TextBox TxtAttrName => txtAttrName;
     public TextBox TxtAttrValue => txtAttrValue;
     public Button BtnApplyAttr => btnApplyAttr;
     public Button BtnDeleteAttr => btnDeleteAttr;
 
-    public ListBox ListProperties => listProperties;
+    public DataGrid ListProperties => listProperties;
     public TextBlock LblSelectedProperty => lblSelectedProperty;
     public TextBox TxtPropertyValue => txtPropertyValue;
     public Button BtnApplyProperty => btnApplyProperty;
 
-    public ListBox ListEventListeners => listEventListeners;
+    public DataGrid ListEventListeners => listEventListeners;
 
     public ElementsView()
     {
         InitializeComponent();
         treeDom.SelectionChanged += (s, e) => ScrollSelectedIntoView();
+
+        listCssProperties.CellEditEnded += (s, e) =>
+        {
+            if (e.EditAction == DataGridEditAction.Commit && e.Row.DataContext is CdpInspectorApp.Models.CssPropertyModel cssProp)
+            {
+                if (DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel mvm)
+                {
+                    _ = mvm.Elements.UpdateCssPropertyAsync(cssProp);
+                }
+                else if (DataContext is CdpInspectorApp.ViewModels.ElementsViewModel evm)
+                {
+                    _ = evm.UpdateCssPropertyAsync(cssProp);
+                }
+            }
+        };
+
+        listAttributes.CellEditEnded += (s, e) =>
+        {
+            if (e.EditAction == DataGridEditAction.Commit && e.Row.DataContext is CdpInspectorApp.Models.AttributeModel attr)
+            {
+                if (DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel mvm)
+                {
+                    _ = mvm.Elements.UpdateAttributeAsync(attr);
+                }
+                else if (DataContext is CdpInspectorApp.ViewModels.ElementsViewModel evm)
+                {
+                    _ = evm.UpdateAttributeAsync(attr);
+                }
+            }
+        };
+
+        listProperties.CellEditEnded += (s, e) =>
+        {
+            if (e.EditAction == DataGridEditAction.Commit && e.Row.DataContext is CdpInspectorApp.Models.PropertyModel prop)
+            {
+                if (DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel mvm)
+                {
+                    _ = mvm.Elements.UpdatePropertyAsync(prop);
+                }
+                else if (DataContext is CdpInspectorApp.ViewModels.ElementsViewModel evm)
+                {
+                    _ = evm.UpdatePropertyAsync(prop);
+                }
+            }
+        };
     }
 
     private void ScrollSelectedIntoView()
@@ -45,27 +90,7 @@ public partial class ElementsView : UserControl
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var item = FindTreeViewItem(treeDom, selected);
-            if (item != null)
-            {
-                item.BringIntoView();
-            }
+            treeDom.ScrollIntoView(selected, null);
         }, Avalonia.Threading.DispatcherPriority.Background);
-    }
-
-    private TreeViewItem? FindTreeViewItem(Visual parent, object item)
-    {
-        if (parent is TreeViewItem tvi && tvi.DataContext == item)
-        {
-            return tvi;
-        }
-
-        foreach (var child in Avalonia.VisualTree.VisualExtensions.GetVisualChildren(parent))
-        {
-            var result = FindTreeViewItem(child, item);
-            if (result != null) return result;
-        }
-
-        return null;
     }
 }
