@@ -23,7 +23,7 @@ public static class TestStudioYamlParser
                 {
                     "selector", "element", "cropOn", "from", "text", "value", "direction", "amount",
                     "maxScrolls", "timeout", "speed", "visibilityPercentage", "centerElement",
-                    "appId", "description", "env", "tags", "start", "end", "latitude", "longitude",
+                    "appId", "url", "description", "env", "tags", "start", "end", "latitude", "longitude",
                     "accuracy", "orientation", "key", "file", "label", "commands", "while",
                     "visible", "notVisible", "optional", "permissions", "all", "path", "query",
                     "outputVariable", "thresholdPercentage", "repeat", "delay", "retryTapIfNoChange",
@@ -73,7 +73,7 @@ public static class TestStudioYamlParser
                     if (entry.Key is YamlScalarNode scalarKey)
                     {
                         var key = scalarKey.Value;
-                        if (key == "appId" && entry.Value is YamlScalarNode scalarAppId)
+                        if ((key == "appId" || key == "url") && entry.Value is YamlScalarNode scalarAppId)
                         {
                             appId = scalarAppId.Value ?? "";
                         }
@@ -621,7 +621,18 @@ public static class TestStudioYamlParser
         if (hasMetadata)
         {
             var metadata = new Dictionary<string, string>();
-            if (!string.IsNullOrEmpty(appId)) metadata["appId"] = appId;
+            if (!string.IsNullOrEmpty(appId))
+            {
+                if (appId.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    appId.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    metadata["url"] = appId;
+                }
+                else
+                {
+                    metadata["appId"] = appId;
+                }
+            }
             if (!string.IsNullOrEmpty(description)) metadata["description"] = description;
 
             var metadataYaml = serializer.Serialize(metadata);
