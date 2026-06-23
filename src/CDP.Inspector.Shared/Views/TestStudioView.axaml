@@ -5,6 +5,7 @@
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
+             xmlns:map="using:XamlPlayground.Editor.Minimap"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:CompileBindings="False">
     <Grid ColumnDefinitions="*, 4, *">
@@ -238,7 +239,7 @@
                     <Button Name="btnTestStudioApplyYaml" Grid.Column="1" Content="Apply YAML" Command="{Binding Recorder.TestStudio.ApplyYamlCommand}" Classes="accent"/>
                 </Grid>
                 <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                    <ae:TextEditor Name="txtYamlCode" Background="Transparent" BorderThickness="0" FontFamily="Courier New,Consolas,Monospace" FontSize="12" Foreground="#e8eaed" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+                    <map:MinimapTextEditor Name="txtYamlCode" Background="Transparent" BorderThickness="0" FontFamily="Courier New,Consolas,Monospace" FontSize="12" Foreground="#e8eaed" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
                 </Border>
             </Grid>
 

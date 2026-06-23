@@ -4,9 +4,14 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using AvaloniaEdit;
+using AvaloniaEdit.CodeCompletion;
+using AvaloniaEdit.Document;
+using AvaloniaEdit.Editing;
 using AvaloniaEdit.TextMate;
 using TextMateSharp.Grammars;
 using CdpInspectorApp.ViewModels;
+using CdpInspectorApp.Services;
+using XamlPlayground.Editor.Minimap.Inline;
 
 namespace CdpInspectorApp.Views;
 
@@ -56,6 +61,10 @@ public partial class TestStudioView : UserControl
                     }
                 }
             };
+
+            // 2b. Attach auto-completion handlers
+            editor.TextArea.TextEntered += TextArea_TextEntered;
+            editor.TextArea.KeyDown += TextArea_KeyDown;
         }
 
         // 3. Synchronize ViewModel changes to editor
@@ -68,6 +77,37 @@ public partial class TestStudioView : UserControl
                     vm.Recorder.TestStudio.PropertyChanged -= TestStudio_PropertyChanged;
                     vm.Recorder.TestStudio.PropertyChanged += TestStudio_PropertyChanged;
                     UpdateEditorText(vm.Recorder.TestStudio.YamlCode);
+
+                    // Insert Gutter status margin if not already added
+                    var editor = this.FindControl<TextEditor>("txtYamlCode");
+                    if (editor != null)
+                    {
+                        bool alreadyAdded = false;
+                        foreach (var margin in editor.TextArea.LeftMargins)
+                        {
+                            if (margin is ReplayGutterMargin)
+                            {
+                                alreadyAdded = true;
+                                break;
+                            }
+                        }
+
+                        if (!alreadyAdded)
+                        {
+                            var gutter = new ReplayGutterMargin(vm.Recorder.TestStudio, vm.Recorder);
+                            int insertIndex = 0;
+                            for (int i = 0; i < editor.TextArea.LeftMargins.Count; i++)
+                            {
+                                var margin = editor.TextArea.LeftMargins[i];
+                                if (margin.GetType().Name.Contains("LineNumberMargin"))
+                                {
+                                    insertIndex = i + 1;
+                                    break;
+                                }
+                            }
+                            editor.TextArea.LeftMargins.Insert(insertIndex, gutter);
+                        }
+                    }
                 }
             });
         };
@@ -144,5 +184,100 @@ public partial class TestStudioView : UserControl
         {
             _isUpdatingText = false;
         }
+    }
+
+    private CompletionWindow? _completionWindow;
+
+    private void TextArea_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            ShowCompletion(explicitInvocation: true);
+            e.Handled = true;
+        }
+    }
+
+    private void TextArea_TextEntered(object? sender, TextInputEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Text)) return;
+        char trigger = e.Text[^1];
+
+        if (_completionWindow != null) return;
+
+        // Auto-trigger completion on typing letters, digits, spaces, hyphens, colons, quotes, hashes, or brackets
+        if (char.IsLetterOrDigit(trigger) || trigger == '-' || trigger == ' ' || trigger == ':' || trigger == '"' || trigger == '\'' || trigger == '#' || trigger == '[' || trigger == ']')
+        {
+            ShowCompletion(explicitInvocation: false);
+        }
+    }
+
+    private void ShowCompletion(bool explicitInvocation)
+    {
+        var editor = this.FindControl<TextEditor>("txtYamlCode");
+        if (editor == null) return;
+
+        var vm = DataContext as MainWindowViewModel;
+        if (vm == null) return;
+
+        string text = editor.Text ?? "";
+        int caretOffset = editor.CaretOffset;
+
+        var suggestions = YamlIntelliSenseProvider.GetSuggestions(text, caretOffset, vm);
+        if (suggestions == null || suggestions.Count == 0)
+        {
+            CloseCompletionWindow();
+            return;
+        }
+
+        CloseCompletionWindow();
+
+        var completionWindow = new CompletionWindow(editor.TextArea)
+        {
+            CloseAutomatically = true,
+            CloseWhenCaretAtBeginning = false
+        };
+
+        var wordBoundary = GetWordBoundary(text, caretOffset);
+        completionWindow.StartOffset = wordBoundary.start;
+        completionWindow.EndOffset = wordBoundary.end;
+
+        completionWindow.CompletionList.IsFiltering = true;
+        foreach (var suggestion in suggestions)
+        {
+            completionWindow.CompletionList.CompletionData.Add(new YamlCompletionData(suggestion));
+        }
+
+        completionWindow.Closed += (s, e) => _completionWindow = null;
+        _completionWindow = completionWindow;
+        completionWindow.Show();
+    }
+
+    private void CloseCompletionWindow()
+    {
+        if (_completionWindow != null)
+        {
+            _completionWindow.Close();
+            _completionWindow = null;
+        }
+    }
+
+    private (int start, int end) GetWordBoundary(string text, int offset)
+    {
+        int start = offset;
+        while (start > 0 && IsWordChar(text[start - 1]))
+        {
+            start--;
+        }
+        int end = offset;
+        while (end < text.Length && IsWordChar(text[end]))
+        {
+            end++;
+        }
+        return (start, end);
+    }
+
+    private bool IsWordChar(char c)
+    {
+        return char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '#' || c == '"' || c == '[' || c == ']';
     }
 }
