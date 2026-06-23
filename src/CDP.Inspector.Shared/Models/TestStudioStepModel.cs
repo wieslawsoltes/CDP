@@ -27,6 +27,14 @@ public class TestStudioStepModel : ViewModelBase
     private string? _whileConditionValue;
     private int _startLine;
     private int _endLine;
+    private TestStudioStepModel? _original;
+
+    public TestStudioStepModel? Original
+    {
+        get => _original;
+        set => RaiseAndSetIfChanged(ref _original, value);
+    }
+
 
     public int StartLine
     {
@@ -151,6 +159,10 @@ public class TestStudioStepModel : ViewModelBase
                 OnPropertyChanged(nameof(IsRunning));
                 OnPropertyChanged(nameof(IsPassed));
                 OnPropertyChanged(nameof(IsFailed));
+                if (_original != null)
+                {
+                    _original.Status = value;
+                }
             }
         }
     }
@@ -163,13 +175,31 @@ public class TestStudioStepModel : ViewModelBase
     public string? ErrorMessage
     {
         get => _errorMessage;
-        set => RaiseAndSetIfChanged(ref _errorMessage, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _errorMessage, value))
+            {
+                if (_original != null)
+                {
+                    _original.ErrorMessage = value;
+                }
+            }
+        }
     }
 
     public bool IsCurrent
     {
         get => _isCurrent;
-        set => RaiseAndSetIfChanged(ref _isCurrent, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isCurrent, value))
+            {
+                if (_original != null)
+                {
+                    _original.IsCurrent = value;
+                }
+            }
+        }
     }
 
     public string ActionDisplay

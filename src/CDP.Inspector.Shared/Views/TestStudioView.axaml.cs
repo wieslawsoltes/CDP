@@ -11,7 +11,10 @@ using AvaloniaEdit.TextMate;
 using TextMateSharp.Grammars;
 using CdpInspectorApp.ViewModels;
 using CdpInspectorApp.Services;
+using CdpInspectorApp.Models;
 using XamlPlayground.Editor.Minimap.Inline;
+using ProDataGrid;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.Views;
 
@@ -78,6 +81,24 @@ public partial class TestStudioView : UserControl
                     vm.Recorder.TestStudio.PropertyChanged += TestStudio_PropertyChanged;
                     UpdateEditorText(vm.Recorder.TestStudio.YamlCode);
 
+                    vm.Recorder.TestStudio.FolderPickerHandler = async () =>
+                    {
+                        var topLevel = TopLevel.GetTopLevel(this);
+                        if (topLevel != null)
+                        {
+                            var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+                            {
+                                Title = "Select Workspace Root Directory",
+                                AllowMultiple = false
+                            });
+                            if (folders != null && folders.Count > 0)
+                            {
+                                return folders[0].Path.LocalPath;
+                            }
+                        }
+                        return null;
+                    };
+
                     // Insert Gutter status margin if not already added
                     var editor = this.FindControl<TextEditor>("txtYamlCode");
                     if (editor != null)
@@ -131,6 +152,30 @@ public partial class TestStudioView : UserControl
                         {
                             var folder = folders[0];
                             vm.Recorder.TestStudio.OutputDirectory = folder.Path.LocalPath;
+                        }
+                    }
+                }
+            };
+        }
+
+        var treeWorkspace = this.FindControl<DataGrid>("treeWorkspace");
+        if (treeWorkspace != null)
+        {
+            treeWorkspace.DoubleTapped += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    var selected = treeWorkspace.SelectedItem;
+                    var item = selected is HierarchicalNode<WorkspaceItemModel> node ? node.Item : (selected as WorkspaceItemModel);
+                    if (item != null && !item.IsFolder)
+                    {
+                        try
+                        {
+                            vm.Recorder.TestStudio.LoadFlowFile(item.Path);
+                        }
+                        catch (System.Exception ex)
+                        {
+                            vm.Recorder.TestStudio.Log($"Error loading flow file: {ex.Message}");
                         }
                     }
                 }
