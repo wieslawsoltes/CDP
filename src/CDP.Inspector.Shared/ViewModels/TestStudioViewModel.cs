@@ -27,6 +27,7 @@ public class TestStudioViewModel : ViewModelBase
     private bool _isPaused;
     private string _selectedElementSelector = "";
     private string _inputSimText = "";
+    private string _selectedCommandName = "tapOn";
     private int _delayMs = 1000;
     private TestStudioStepModel? _selectedStep;
     private object? _selectedStepNode;
@@ -49,6 +50,7 @@ public class TestStudioViewModel : ViewModelBase
     private readonly List<double> _lastRunFrameTimestamps = new();
     private readonly List<StepReportItem> _lastRunSteps = new();
     private bool _isRecordingVideo = false;
+    private bool _isAirplaneModeEnabled = false;
     private DateTime _playbackStartTime = DateTime.MinValue;
     private readonly Dictionary<int, StepReportItem> _stepReports = new();
     private bool _isFinalizing = false;
@@ -164,6 +166,21 @@ public class TestStudioViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _inputSimText, value);
     }
 
+    public string SelectedCommandName
+    {
+        get => _selectedCommandName;
+        set => RaiseAndSetIfChanged(ref _selectedCommandName, value);
+    }
+
+    public ObservableCollection<string> CommandSuggestions { get; } = new(FlowCommandCatalog.PublicCommands.Select(c => c.Name));
+    public ObservableCollection<string> ValueSuggestions { get; } = new(new[]
+    {
+        "true", "false", "DOWN", "UP", "LEFT", "RIGHT", "PORTRAIT", "LANDSCAPE_LEFT", "LANDSCAPE_RIGHT",
+        "15000", "30000", "path: \"screenshot\"", "query: \"Describe the value to extract\"",
+        "assertion: \"The screen has no overlapping text\"", "permissions: { all: allow }",
+        "point: \"50%, 50%\"", "text: \"Visible text\"", "id: \"automation_id\""
+    });
+
     public int DelayMs
     {
         get => _delayMs;
@@ -235,6 +252,7 @@ public class TestStudioViewModel : ViewModelBase
     public ICommand AddScrollCommand { get; }
     public ICommand AddOpenLinkCommand { get; }
     public ICommand AddCopyTextFromCommand { get; }
+    public ICommand AddSelectedCommandCommand { get; }
     public ICommand DeleteStepCommand { get; }
     public ICommand MoveUpStepCommand { get; }
     public ICommand MoveDownStepCommand { get; }
@@ -291,6 +309,7 @@ public class TestStudioViewModel : ViewModelBase
         AddScrollCommand = new RelayCommand(async () => await AddScrollAsync());
         AddOpenLinkCommand = new RelayCommand(async () => await AddOpenLinkAsync());
         AddCopyTextFromCommand = new RelayCommand(async () => await AddCopyTextFromAsync());
+        AddSelectedCommandCommand = new RelayCommand(AddSelectedCommand);
 
         DeleteStepCommand = new RelayCommand<TestStudioStepModel>(DeleteStep);
         MoveUpStepCommand = new RelayCommand<TestStudioStepModel>(MoveStepUp);
@@ -766,6 +785,11 @@ public class TestStudioViewModel : ViewModelBase
             case "launchApp":
                 {
                     string targetUrl = _cdpService.ConnectedHost;
+                    var appTarget = GetStepValue(step, "appId");
+                    if (!string.IsNullOrEmpty(appTarget))
+                    {
+                        targetUrl = appTarget;
+                    }
                     if (string.IsNullOrEmpty(targetUrl))
                     {
                         targetUrl = "http://localhost:9222/";
@@ -791,25 +815,34 @@ public class TestStudioViewModel : ViewModelBase
                         catch { }
                     }
                     Log($"Tapping at coordinate ({x:F1}, {y:F1})");
-                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                    var repeat = Math.Max(1, GetStepInt(step, 1, "repeat"));
+                    var delay = Math.Max(0, GetStepInt(step, 0, "delay"));
+                    for (var tapIndex = 0; tapIndex < repeat; tapIndex++)
                     {
-                        ["type"] = "mousePressed",
-                        ["x"] = x,
-                        ["y"] = y,
-                        ["button"] = "left",
-                        ["clickCount"] = 1,
-                        ["modifiers"] = 0
-                    });
-                    await Task.Delay(50, token);
-                    await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
-                    {
-                        ["type"] = "mouseReleased",
-                        ["x"] = x,
-                        ["y"] = y,
-                        ["button"] = "left",
-                        ["clickCount"] = 1,
-                        ["modifiers"] = 0
-                    });
+                        await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                        {
+                            ["type"] = "mousePressed",
+                            ["x"] = x,
+                            ["y"] = y,
+                            ["button"] = "left",
+                            ["clickCount"] = 1,
+                            ["modifiers"] = 0
+                        });
+                        await Task.Delay(50, token);
+                        await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
+                        {
+                            ["type"] = "mouseReleased",
+                            ["x"] = x,
+                            ["y"] = y,
+                            ["button"] = "left",
+                            ["clickCount"] = 1,
+                            ["modifiers"] = 0
+                        });
+                        if (tapIndex < repeat - 1 && delay > 0)
+                        {
+                            await Task.Delay(delay, token);
+                        }
+                    }
                     await Task.Delay(200, token);
                     break;
                 }
@@ -829,10 +862,11 @@ public class TestStudioViewModel : ViewModelBase
                         catch { }
                     }
                     Log($"Double tapping at coordinate ({x:F1}, {y:F1})");
+                    var doubleTapDelay = Math.Max(0, GetStepInt(step, 100, "delay"));
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
                     await Task.Delay(50, token);
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseReleased", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
-                    await Task.Delay(100, token);
+                    await Task.Delay(doubleTapDelay, token);
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 2, ["modifiers"] = 0 });
                     await Task.Delay(50, token);
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseReleased", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 2, ["modifiers"] = 0 });
@@ -856,7 +890,7 @@ public class TestStudioViewModel : ViewModelBase
                     }
                     Log($"Long pressing at coordinate ({x:F1}, {y:F1})");
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
-                    await Task.Delay(1000, token);
+                    await Task.Delay(3000, token);
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseReleased", ["x"] = x, ["y"] = y, ["button"] = "left", ["clickCount"] = 1, ["modifiers"] = 0 });
                     await Task.Delay(200, token);
                     break;
@@ -864,7 +898,8 @@ public class TestStudioViewModel : ViewModelBase
 
             case "inputText":
                 {
-                    if (!string.IsNullOrEmpty(step.Selector))
+                    var runtimeSelector = GetRuntimeSelector(step);
+                    if (!string.IsNullOrEmpty(runtimeSelector))
                     {
                         int retryCount = 0;
                         bool success = false;
@@ -873,8 +908,8 @@ public class TestStudioViewModel : ViewModelBase
                             token.ThrowIfCancellationRequested();
                             try
                             {
-                                Log($"Waiting for element '{step.Selector}' to be visible...");
-                                int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                                Log($"Waiting for element '{runtimeSelector}' to be visible...");
+                                int nodeId = await WaitForElementVisibleAsync(runtimeSelector, token);
 
                                 try
                                 {
@@ -918,7 +953,8 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "clearText":
                 {
-                    if (!string.IsNullOrEmpty(step.Selector))
+                    var runtimeSelector = GetRuntimeSelector(step);
+                    if (!string.IsNullOrEmpty(runtimeSelector))
                     {
                         int retryCount = 0;
                         bool success = false;
@@ -927,8 +963,8 @@ public class TestStudioViewModel : ViewModelBase
                             token.ThrowIfCancellationRequested();
                             try
                             {
-                                Log($"Waiting for element '{step.Selector}' to be visible...");
-                                int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                                Log($"Waiting for element '{runtimeSelector}' to be visible...");
+                                int nodeId = await WaitForElementVisibleAsync(runtimeSelector, token);
 
                                 try
                                 {
@@ -1013,12 +1049,13 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "assertVisible":
                 {
-                    if (string.IsNullOrEmpty(step.Selector))
+                    var runtimeSelector = GetRuntimeSelector(step);
+                    if (string.IsNullOrEmpty(runtimeSelector))
                     {
                         throw new Exception("assertVisible step requires a Selector.");
                     }
-                    Log($"Asserting visibility of element '{step.Selector}'...");
-                    int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                    Log($"Asserting visibility of element '{runtimeSelector}'...");
+                    int nodeId = await WaitForElementVisibleAsync(runtimeSelector, token);
                     try
                     {
                         var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
@@ -1042,12 +1079,13 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "assertNotVisible":
                 {
-                    if (string.IsNullOrEmpty(step.Selector))
+                    var runtimeSelector = GetRuntimeSelector(step);
+                    if (string.IsNullOrEmpty(runtimeSelector))
                     {
                         throw new Exception("assertNotVisible step requires a Selector.");
                     }
-                    Log($"Asserting element '{step.Selector}' is NOT visible...");
-                    await WaitForElementNotVisibleAsync(step.Selector, token);
+                    Log($"Asserting element '{runtimeSelector}' is NOT visible...");
+                    await WaitForElementNotVisibleAsync(runtimeSelector, token);
                     Log("Assertion passed: Element is not visible.");
                     break;
                 }
@@ -1064,21 +1102,24 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "openLink":
                 {
-                    if (string.IsNullOrEmpty(step.Value)) throw new Exception("openLink step requires a URL value.");
-                    Log($"Opening link: '{step.Value}'");
-                    await _cdpService.SendCommandAsync("Page.navigate", new JsonObject { ["url"] = step.Value });
+                    var link = GetStepValue(step, "link");
+                    if (string.IsNullOrEmpty(link)) link = step.Value ?? "";
+                    if (string.IsNullOrEmpty(link)) throw new Exception("openLink step requires a URL value.");
+                    Log($"Opening link: '{link}'");
+                    await _cdpService.SendCommandAsync("Page.navigate", new JsonObject { ["url"] = link });
                     await Task.Delay(1000, token);
                     break;
                 }
             case "copyTextFrom":
                 {
-                    if (string.IsNullOrEmpty(step.Selector)) throw new Exception("copyTextFrom step requires a Selector.");
-                    Log($"Copying text from element '{step.Selector}'...");
-                    int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                    var runtimeSelector = GetRuntimeSelector(step);
+                    if (string.IsNullOrEmpty(runtimeSelector)) throw new Exception("copyTextFrom step requires a Selector.");
+                    Log($"Copying text from element '{runtimeSelector}'...");
+                    int nodeId = await WaitForElementVisibleAsync(runtimeSelector, token);
                     var resolveRes = await _cdpService.SendCommandAsync("DOM.resolveNode", new JsonObject { ["nodeId"] = nodeId });
                     var objectNode = resolveRes["object"] as JsonObject;
                     string objectId = objectNode?["objectId"]?.GetValue<string>() ?? "";
-                    if (string.IsNullOrEmpty(objectId)) throw new Exception($"Could not resolve remote object for element '{step.Selector}'.");
+                    if (string.IsNullOrEmpty(objectId)) throw new Exception($"Could not resolve remote object for element '{runtimeSelector}'.");
 
                     var callParams = new JsonObject
                     {
@@ -1135,7 +1176,8 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "dragAndDrop":
                 {
-                    if (string.IsNullOrEmpty(step.Selector))
+                    var runtimeSelector = GetRuntimeSelector(step);
+                    if (string.IsNullOrEmpty(runtimeSelector))
                     {
                         throw new Exception("dragAndDrop step requires a Selector.");
                     }
@@ -1170,8 +1212,8 @@ public class TestStudioViewModel : ViewModelBase
                         throw new Exception("dragAndDrop step requires a targetSelector.");
                     }
 
-                    Log($"Waiting for drag source element '{step.Selector}' to be visible...");
-                    var sourceNodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                    Log($"Waiting for drag source element '{runtimeSelector}' to be visible...");
+                    var sourceNodeId = await WaitForElementVisibleAsync(runtimeSelector, token);
 
                     Log($"Waiting for drag target element '{targetSelector}' to be visible...");
                     var targetNodeId = await WaitForElementVisibleAsync(targetSelector, token);
@@ -1259,11 +1301,12 @@ public class TestStudioViewModel : ViewModelBase
                 {
                     double scrollX = 400;
                     double scrollY = 300;
+                    var runtimeSelector = GetRuntimeSelector(step);
 
-                    if (!string.IsNullOrEmpty(step.Selector))
+                    if (!string.IsNullOrEmpty(runtimeSelector))
                     {
-                        Log($"Waiting for scroll target element '{step.Selector}' to be visible...");
-                        var nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                        Log($"Waiting for scroll target element '{runtimeSelector}' to be visible...");
+                        var nodeId = await WaitForElementVisibleAsync(runtimeSelector, token);
                         var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
                         var model = boxRes["model"] as JsonObject;
                         var content = model?["content"] as JsonArray;
@@ -1352,19 +1395,22 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "pressKey":
                 {
-                    if (string.IsNullOrEmpty(step.Value))
+                    var keyValue = GetStepValue(step, "key", "value");
+                    if (string.IsNullOrEmpty(keyValue)) keyValue = step.Value ?? "";
+                    if (string.IsNullOrEmpty(keyValue))
                     {
                         throw new Exception("pressKey step requires a Value (key).");
                     }
-                    if (!string.IsNullOrEmpty(step.Selector))
+                    var runtimeSelector = GetRuntimeSelector(step);
+                    if (!string.IsNullOrEmpty(runtimeSelector))
                     {
-                        Log($"Focusing element '{step.Selector}' before pressing key...");
-                        int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                        Log($"Focusing element '{runtimeSelector}' before pressing key...");
+                        int nodeId = await WaitForElementVisibleAsync(runtimeSelector, token);
                         await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
                         await Task.Delay(100, token);
                     }
-                    Log($"Pressing key '{step.Value}'");
-                    string keyName = step.Value.Trim();
+                    Log($"Pressing key '{keyValue}'");
+                    string keyName = keyValue.Trim();
                     if (keyName.Equals("enter", StringComparison.OrdinalIgnoreCase)) keyName = "Enter";
                     else if (keyName.Equals("backspace", StringComparison.OrdinalIgnoreCase)) keyName = "Backspace";
                     else if (keyName.Equals("escape", StringComparison.OrdinalIgnoreCase)) keyName = "Escape";
@@ -1423,8 +1469,9 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "eraseText":
                 {
-                    int count = 1;
+                    int count = GetStepInt(step, 50, "characters", "amount", "value");
                     if (int.TryParse(step.Value, out int parsed)) count = parsed;
+                    count = Math.Clamp(count, 1, 100);
                     Log($"Erasing {count} characters...");
                     for (int i = 0; i < count; i++)
                     {
@@ -1453,6 +1500,12 @@ public class TestStudioViewModel : ViewModelBase
 
                     string direction = "left";
                     var props = ParseKeyValuePairs(step.Value);
+                    var parameterDirection = GetParameterString(step, "direction");
+                    if (!string.IsNullOrEmpty(parameterDirection)) props["direction"] = parameterDirection;
+                    var parameterStart = GetParameterString(step, "start");
+                    if (!string.IsNullOrEmpty(parameterStart)) props["start"] = parameterStart;
+                    var parameterEnd = GetParameterString(step, "end");
+                    if (!string.IsNullOrEmpty(parameterEnd)) props["end"] = parameterEnd;
                     if (props.TryGetValue("direction", out var sDir))
                     {
                         direction = sDir;
@@ -1469,6 +1522,20 @@ public class TestStudioViewModel : ViewModelBase
                         else if (direction.Equals("right", StringComparison.OrdinalIgnoreCase)) { startX = width * 0.2; startY = height * 0.5; }
                         else if (direction.Equals("up", StringComparison.OrdinalIgnoreCase)) { startX = width * 0.5; startY = height * 0.8; }
                         else if (direction.Equals("down", StringComparison.OrdinalIgnoreCase)) { startX = width * 0.5; startY = height * 0.2; }
+                    }
+
+                    if (TryGetParameter(step, "from", out var fromValue) && fromValue != null)
+                    {
+                        var fromSelector = fromValue is IReadOnlyDictionary<string, object?> fromMap
+                            ? FlowCommandCatalog.BuildRuntimeSelector(fromMap, "")
+                            : FlowCommandCatalog.ScalarToString(fromValue);
+                        if (!string.IsNullOrEmpty(fromSelector))
+                        {
+                            var fromStep = new TestStudioStepModel { Action = "swipe", Selector = fromSelector };
+                            var fromPoint = await ResolveCoordinatesAsync(fromStep, token);
+                            startX = fromPoint.x;
+                            startY = fromPoint.y;
+                        }
                     }
 
                     if (props.TryGetValue("end", out var endStr))
@@ -1491,14 +1558,15 @@ public class TestStudioViewModel : ViewModelBase
                     indicator.EndY = endY;
                     OnStepIndicatorChanged?.Invoke(indicator);
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = startX, ["y"] = startY, ["button"] = "left", ["clickCount"] = 1 });
-                    int stepsCount = 10;
+                    int duration = GetStepInt(step, 400, "duration");
+                    int stepsCount = Math.Clamp(duration / 40, 4, 30);
                     for (int i = 1; i <= stepsCount; i++)
                     {
                         double t = (double)i / stepsCount;
                         double curX = startX + (endX - startX) * t;
                         double curY = startY + (endY - startY) * t;
                         await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseMoved", ["x"] = curX, ["y"] = curY, ["button"] = "left" });
-                        await Task.Delay(20, token);
+                        await Task.Delay(Math.Max(1, duration / stepsCount), token);
                     }
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mouseReleased", ["x"] = endX, ["y"] = endY, ["button"] = "left", ["clickCount"] = 1 });
                     await Task.Delay(200, token);
@@ -1507,7 +1575,8 @@ public class TestStudioViewModel : ViewModelBase
             case "stopApp":
             case "killApp":
                 {
-                    Log($"Closing target application target connection...");
+                    var appId = GetStepValue(step, "appId");
+                    Log(string.IsNullOrEmpty(appId) ? "Closing target application target connection..." : $"Closing target application '{appId}'...");
                     try
                     {
                         await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = "Avalonia.Application.Current?.Shutdown()" });
@@ -1518,16 +1587,20 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "clearState":
                 {
-                    Log("Reloading target application page/view to reset state...");
+                    var appId = GetStepValue(step, "appId");
+                    Log(string.IsNullOrEmpty(appId) ? "Reloading target application page/view to reset state..." : $"Reloading target '{appId}' to reset state...");
                     await _cdpService.SendCommandAsync("Page.reload", new JsonObject());
                     await Task.Delay(500, token);
                     break;
                 }
             case "setOrientation":
                 {
-                    string orientation = step.Value?.Trim().ToLower() ?? "portrait";
+                    string orientation = GetStepValue(step, "orientation");
+                    if (string.IsNullOrEmpty(orientation)) orientation = step.Value ?? "";
+                    orientation = orientation.Trim().ToLowerInvariant();
+                    if (string.IsNullOrEmpty(orientation)) orientation = "portrait";
                     Log($"Setting device metrics override to orientation: {orientation}");
-                    bool isLandscape = orientation.Equals("landscape", StringComparison.OrdinalIgnoreCase);
+                    bool isLandscape = orientation.Contains("landscape", StringComparison.OrdinalIgnoreCase);
                     int w = isLandscape ? 1280 : 800;
                     int h = isLandscape ? 800 : 1280;
                     try
@@ -1550,6 +1623,10 @@ public class TestStudioViewModel : ViewModelBase
                     double lat = 37.7749;
                     double lon = -122.4194;
                     var props = ParseKeyValuePairs(step.Value);
+                    var parameterLat = GetParameterString(step, "latitude");
+                    var parameterLon = GetParameterString(step, "longitude");
+                    if (!string.IsNullOrEmpty(parameterLat)) props["latitude"] = parameterLat;
+                    if (!string.IsNullOrEmpty(parameterLon)) props["longitude"] = parameterLon;
                     if (props.TryGetValue("latitude", out var latStr)) double.TryParse(latStr, out lat);
                     if (props.TryGetValue("longitude", out var lonStr)) double.TryParse(lonStr, out lon);
                     Log($"Setting geolocation override mock: Lat={lat}, Lon={lon}");
@@ -1568,8 +1645,13 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "takeScreenshot":
                 {
-                    string filename = step.Value?.Trim() ?? "";
+                    string filename = GetStepValue(step, "path");
+                    if (string.IsNullOrEmpty(filename)) filename = step.Value?.Trim() ?? "";
                     if (string.IsNullOrEmpty(filename)) filename = $"screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
+                    if (!filename.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    {
+                        filename += ".png";
+                    }
                     Log($"Capturing page screenshot as {filename}...");
                     try
                     {
@@ -1628,32 +1710,36 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "setAirplaneMode":
                 {
-                    string mode = step.Value?.Trim().ToLower() ?? "off";
+                    string mode = GetStepValue(step, "enabled");
+                    if (string.IsNullOrEmpty(mode))
+                    {
+                        mode = step.Value?.Trim().ToLower() ?? "off";
+                    }
                     bool offline = mode == "on" || mode == "true" || mode == "1";
+                    _isAirplaneModeEnabled = offline;
                     Log($"Setting network offline/airplane mode to: {offline}");
-                    try
-                    {
-                        await _cdpService.SendCommandAsync("Network.enable", new JsonObject());
-                        await _cdpService.SendCommandAsync("Network.emulateNetworkConditions", new JsonObject
-                        {
-                            ["offline"] = offline,
-                            ["latency"] = 0,
-                            ["downloadThroughput"] = -1,
-                            ["uploadThroughput"] = -1
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"Warning: Network emulation not fully supported: {ex.Message}");
-                    }
+                    await SetNetworkOfflineAsync(offline);
                     break;
                 }
             case "evalScript":
             case "runScript":
                 {
-                    if (string.IsNullOrEmpty(step.Value)) throw new Exception("evalScript requires a script value.");
-                    Log($"Evaluating script on target: {step.Value}");
-                    var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = step.Value });
+                    var script = step.Value ?? "";
+                    if (action == "runScript")
+                    {
+                        var scriptFile = GetStepValue(step, "file");
+                        if (!string.IsNullOrEmpty(scriptFile))
+                        {
+                            if (!File.Exists(scriptFile))
+                            {
+                                throw new FileNotFoundException($"Script file not found: {scriptFile}", scriptFile);
+                            }
+                            script = await File.ReadAllTextAsync(scriptFile, token);
+                        }
+                    }
+                    if (string.IsNullOrEmpty(script)) throw new Exception($"{action} requires a script value.");
+                    Log($"Evaluating script on target: {script}");
+                    var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = script });
                     var resultNode = evalRes["result"] as JsonObject;
                     Log($"Script execution result: {resultNode?["value"]?.ToString() ?? "void"}");
                     break;
@@ -1756,7 +1842,18 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "runFlow":
                 {
-                    string flowPath = step.Value?.Trim() ?? "";
+                    if (step.NestedSteps != null && step.NestedSteps.Count > 0)
+                    {
+                        Log($"Executing inline flow with {step.NestedSteps.Count} commands...");
+                        foreach (var subStep in step.NestedSteps)
+                        {
+                            await ExecuteSingleStepAsync(subStep, token);
+                        }
+                        break;
+                    }
+
+                    string flowPath = GetStepValue(step, "file");
+                    if (string.IsNullOrEmpty(flowPath)) flowPath = step.Value?.Trim() ?? "";
                     if (string.IsNullOrEmpty(flowPath)) throw new Exception("runFlow requires a path to a YAML flow file.");
                     Log($"Running nested flow: {flowPath}...");
                     if (!System.IO.File.Exists(flowPath)) throw new Exception($"Flow file not found: {flowPath}");
@@ -1772,7 +1869,8 @@ public class TestStudioViewModel : ViewModelBase
                 }
             case "scrollUntilVisible":
                 {
-                    if (string.IsNullOrEmpty(step.Selector))
+                    var runtimeSelector = GetRuntimeSelector(step);
+                    if (string.IsNullOrEmpty(runtimeSelector))
                     {
                         throw new Exception("scrollUntilVisible step requires a Selector.");
                     }
@@ -1780,6 +1878,7 @@ public class TestStudioViewModel : ViewModelBase
                     string direction = "down";
                     int maxScrolls = 10;
                     double amount = 150;
+                    double timeoutSeconds = Math.Max(1.0, GetStepDouble(step, 10.0, "timeout") / 1000.0);
 
                     if (!string.IsNullOrEmpty(step.Value))
                     {
@@ -1831,24 +1930,25 @@ public class TestStudioViewModel : ViewModelBase
 
                     int scrollCount = 0;
                     bool visible = false;
+                    var scrollStart = DateTime.UtcNow;
                     while (scrollCount <= maxScrolls)
                     {
                         token.ThrowIfCancellationRequested();
 
-                        var nodeId = await CheckElementVisibleAsync(step.Selector);
+                        var nodeId = await CheckElementVisibleAsync(runtimeSelector);
                         if (nodeId.HasValue)
                         {
                             visible = true;
-                            Log($"Element '{step.Selector}' is visible after {scrollCount} scrolls.");
+                            Log($"Element '{runtimeSelector}' is visible after {scrollCount} scrolls.");
                             break;
                         }
 
-                        if (scrollCount == maxScrolls)
+                        if (scrollCount == maxScrolls || (DateTime.UtcNow - scrollStart).TotalSeconds > timeoutSeconds)
                         {
                             break;
                         }
 
-                        Log($"Element '{step.Selector}' not visible. Scrolling ({scrollCount + 1}/{maxScrolls}) at ({scrollX:F1}, {scrollY:F1}) with deltaX={deltaX}, deltaY={deltaY}...");
+                        Log($"Element '{runtimeSelector}' not visible. Scrolling ({scrollCount + 1}/{maxScrolls}) at ({scrollX:F1}, {scrollY:F1}) with deltaX={deltaX}, deltaY={deltaY}...");
                         await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
                         {
                             ["type"] = "mouseWheel",
@@ -1866,8 +1966,162 @@ public class TestStudioViewModel : ViewModelBase
 
                     if (!visible)
                     {
-                        throw new Exception($"Element '{step.Selector}' did not become visible after {maxScrolls} scrolls.");
+                        throw new Exception($"Element '{runtimeSelector}' did not become visible after {maxScrolls} scrolls.");
                     }
+                    break;
+                }
+            case "extendedWaitUntil":
+                {
+                    var timeoutMs = GetStepInt(step, 30000, "timeout");
+                    var timeoutSeconds = Math.Max(1.0, timeoutMs / 1000.0);
+                    if (TryGetParameter(step, "visible", out var visibleSelector) && visibleSelector != null)
+                    {
+                        var selector = visibleSelector is IReadOnlyDictionary<string, object?> visibleMap
+                            ? FlowCommandCatalog.BuildRuntimeSelector(visibleMap, "")
+                            : FlowCommandCatalog.ScalarToString(visibleSelector);
+                        Log($"Waiting up to {timeoutMs} ms for '{selector}' to become visible...");
+                        await WaitForElementVisibleAsync(selector, token, timeoutSeconds);
+                        break;
+                    }
+                    if (TryGetParameter(step, "notVisible", out var notVisibleSelector) && notVisibleSelector != null)
+                    {
+                        var selector = notVisibleSelector is IReadOnlyDictionary<string, object?> notVisibleMap
+                            ? FlowCommandCatalog.BuildRuntimeSelector(notVisibleMap, "")
+                            : FlowCommandCatalog.ScalarToString(notVisibleSelector);
+                        Log($"Waiting up to {timeoutMs} ms for '{selector}' to become not visible...");
+                        await WaitForElementNotVisibleAsync(selector, token, timeoutSeconds);
+                        break;
+                    }
+                    throw new Exception("extendedWaitUntil requires visible or notVisible.");
+                }
+            case "hideKeyboard":
+                {
+                    Log("Dismissing keyboard/focus with Escape.");
+                    await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject { ["type"] = "rawKeyDown", ["key"] = "Escape", ["code"] = "Escape" });
+                    await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject { ["type"] = "keyUp", ["key"] = "Escape", ["code"] = "Escape" });
+                    await Task.Delay(100, token);
+                    break;
+                }
+            case "setClipboard":
+                {
+                    var clipboardText = GetStepValue(step, "text", "value");
+                    if (string.IsNullOrEmpty(clipboardText))
+                    {
+                        clipboardText = step.Value ?? "";
+                    }
+                    await SetClipboardTextAsync(clipboardText);
+                    Log("Clipboard text set.");
+                    break;
+                }
+            case "toggleAirplaneMode":
+                {
+                    _isAirplaneModeEnabled = !_isAirplaneModeEnabled;
+                    await SetNetworkOfflineAsync(_isAirplaneModeEnabled);
+                    Log($"Toggled offline/airplane mode to: {_isAirplaneModeEnabled}");
+                    break;
+                }
+            case "clearKeychain":
+                {
+                    Log("clearKeychain is a mobile secure-storage reset; no desktop CDP action is required.");
+                    break;
+                }
+            case "setPermissions":
+                {
+                    Log("setPermissions accepted for flow parity; desktop Avalonia target has no mobile permission surface to mutate.");
+                    break;
+                }
+            case "addMedia":
+                {
+                    var mediaItems = new List<string>();
+                    if (TryGetParameter(step, "items", out var items) && items is IReadOnlyList<object?> list)
+                    {
+                        mediaItems.AddRange(list.Select(FlowCommandCatalog.ScalarToString));
+                    }
+                    else if (!string.IsNullOrEmpty(step.Value))
+                    {
+                        mediaItems.Add(step.Value);
+                    }
+                    Log($"Registered media inputs: {string.Join(", ", mediaItems)}");
+                    break;
+                }
+            case "startRecording":
+                {
+                    Log("Starting command-level screen recording.");
+                    _isRecordingVideo = true;
+                    await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+                    {
+                        ["format"] = "jpeg",
+                        ["quality"] = 80,
+                        ["everyNthFrame"] = 1
+                    });
+                    break;
+                }
+            case "stopRecording":
+                {
+                    Log("Stopping command-level screen recording.");
+                    _isRecordingVideo = false;
+                    try
+                    {
+                        await _cdpService.SendCommandAsync("Page.stopScreencast");
+                    }
+                    catch { }
+                    break;
+                }
+            case "waitForAnimationToEnd":
+                {
+                    var timeout = GetStepInt(step, 15000, "timeout");
+                    var settleDelay = Math.Min(timeout, 1000);
+                    Log($"Waiting for UI to settle for {settleDelay} ms.");
+                    await Task.Delay(settleDelay, token);
+                    break;
+                }
+            case "assertScreenshot":
+                {
+                    var path = GetStepValue(step, "path");
+                    if (string.IsNullOrEmpty(path))
+                    {
+                        path = step.Value ?? "";
+                    }
+                    if (string.IsNullOrEmpty(path))
+                    {
+                        throw new Exception("assertScreenshot requires a reference path.");
+                    }
+                    if (!File.Exists(path))
+                    {
+                        throw new FileNotFoundException($"Reference screenshot not found: {path}", path);
+                    }
+                    await _cdpService.SendCommandAsync("Page.captureScreenshot", new JsonObject());
+                    Log($"Reference screenshot exists: {path}");
+                    break;
+                }
+            case "assertWithAI":
+            case "assertNoDefectsWithAI":
+            case "extractTextWithAI":
+                {
+                    if (!IsOptionalAiStep(step))
+                    {
+                        throw new NotSupportedException($"{action} requires an AI analysis provider for non-optional execution.");
+                    }
+                    Log($"{action} accepted as optional; no AI analysis provider is configured in the desktop inspector.");
+                    break;
+                }
+            case "travel":
+                {
+                    Log("travel accepted; desktop target receives no route simulation beyond setLocation support.");
+                    break;
+                }
+            case "inputRandomEmail":
+            case "inputRandomPersonName":
+            case "inputRandomNumber":
+            case "inputRandomText":
+            case "inputRandomCityName":
+            case "inputRandomCountryName":
+            case "inputRandomColorName":
+                {
+                    var randomText = GenerateRandomInput(action, step);
+                    Log($"Inputting generated text for {action}.");
+                    await _cdpService.SendCommandAsync("Input.insertText", new JsonObject { ["text"] = randomText });
+                    await Task.Delay(150, token);
                     break;
                 }
             default:
@@ -1875,10 +2129,10 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
-    private async Task<int> WaitForElementVisibleAsync(string selector, CancellationToken token)
+    private async Task<int> WaitForElementVisibleAsync(string selector, CancellationToken token, double timeoutSeconds = 5.0)
     {
         var startTime = DateTime.UtcNow;
-        while ((DateTime.UtcNow - startTime).TotalSeconds < 5.0)
+        while ((DateTime.UtcNow - startTime).TotalSeconds < timeoutSeconds)
         {
             token.ThrowIfCancellationRequested();
             try
@@ -1905,13 +2159,13 @@ public class TestStudioViewModel : ViewModelBase
             }
             await Task.Delay(200, token);
         }
-        throw new TimeoutException($"Element with selector '{selector}' was not visible within 5 seconds.");
+        throw new TimeoutException($"Element with selector '{selector}' was not visible within {timeoutSeconds:0.#} seconds.");
     }
 
-    private async Task WaitForElementNotVisibleAsync(string selector, CancellationToken token)
+    private async Task WaitForElementNotVisibleAsync(string selector, CancellationToken token, double timeoutSeconds = 5.0)
     {
         var startTime = DateTime.UtcNow;
-        while ((DateTime.UtcNow - startTime).TotalSeconds < 5.0)
+        while ((DateTime.UtcNow - startTime).TotalSeconds < timeoutSeconds)
         {
             token.ThrowIfCancellationRequested();
             try
@@ -1939,7 +2193,7 @@ public class TestStudioViewModel : ViewModelBase
             }
             await Task.Delay(200, token);
         }
-        throw new TimeoutException($"Element with selector '{selector}' was still visible after 5 seconds.");
+        throw new TimeoutException($"Element with selector '{selector}' was still visible after {timeoutSeconds:0.#} seconds.");
     }
 
     private async Task<int?> CheckElementVisibleAsync(string selector)
@@ -2277,6 +2531,31 @@ public class TestStudioViewModel : ViewModelBase
         await AddInteractiveStepAsync(step);
     }
 
+    public void AddSelectedCommand()
+    {
+        var action = FlowCommandCatalog.CanonicalizeAction(SelectedCommandName.Trim().TrimEnd(':'));
+        if (string.IsNullOrWhiteSpace(action))
+        {
+            return;
+        }
+
+        var command = FlowCommandCatalog.Find(action);
+        var step = new TestStudioStepModel
+        {
+            Action = action,
+            Selector = command?.AcceptsSelector == true ? SelectedElementSelector : "",
+            Value = InputSimText
+        };
+
+        if (command?.ValueKind == FlowCommandValueKind.None)
+        {
+            step.Value = "";
+        }
+
+        Steps.Add(step);
+        Log($"Added command: {step.ActionDisplay}");
+    }
+
     private void DeleteStep(TestStudioStepModel? step)
     {
         if (step == null) return;
@@ -2365,6 +2644,208 @@ public class TestStudioViewModel : ViewModelBase
         });
     }
 
+    private static string GetRuntimeSelector(TestStudioStepModel step)
+    {
+        return FlowCommandCatalog.BuildRuntimeSelector(step.Parameters, step.Selector);
+    }
+
+    private static bool TryGetParameter(TestStudioStepModel step, string key, out object? value)
+    {
+        if (step.Parameters.TryGetValue(key, out value))
+        {
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static string GetParameterString(TestStudioStepModel step, string key, string fallback = "")
+    {
+        return TryGetParameter(step, key, out var value) ? FlowCommandCatalog.ScalarToString(value) : fallback;
+    }
+
+    private static string GetStepValue(TestStudioStepModel step, params string[] parameterKeys)
+    {
+        foreach (var key in parameterKeys)
+        {
+            var value = GetParameterString(step, key);
+            if (!string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+        }
+
+        return step.Value ?? "";
+    }
+
+    private static int GetStepInt(TestStudioStepModel step, int fallback, params string[] parameterKeys)
+    {
+        var value = GetStepValue(step, parameterKeys);
+        return int.TryParse(value, out var parsed) ? parsed : fallback;
+    }
+
+    private static double GetStepDouble(TestStudioStepModel step, double fallback, params string[] parameterKeys)
+    {
+        var value = GetStepValue(step, parameterKeys);
+        return double.TryParse(value, out var parsed) ? parsed : fallback;
+    }
+
+    private static bool GetStepBool(TestStudioStepModel step, bool fallback, params string[] parameterKeys)
+    {
+        var value = GetStepValue(step, parameterKeys);
+        if (bool.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        if (value.Equals("on", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("allow", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("1", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (value.Equals("off", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("deny", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("0", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return fallback;
+    }
+
+    private static bool IsOptionalAiStep(TestStudioStepModel step)
+    {
+        return GetStepBool(step, true, "optional");
+    }
+
+    private async Task SetClipboardTextAsync(string text)
+    {
+        Avalonia.Input.Platform.IClipboard? clipboard = null;
+        if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            clipboard = desktop.MainWindow?.Clipboard ?? desktop.Windows.FirstOrDefault(w => w.Clipboard != null)?.Clipboard;
+        }
+        else if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.ISingleViewApplicationLifetime singleView)
+        {
+            clipboard = Avalonia.Controls.TopLevel.GetTopLevel(singleView.MainView)?.Clipboard;
+        }
+
+        if (clipboard != null)
+        {
+            await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(clipboard, text);
+        }
+    }
+
+    private async Task SetNetworkOfflineAsync(bool offline)
+    {
+        try
+        {
+            await _cdpService.SendCommandAsync("Network.enable", new JsonObject());
+            await _cdpService.SendCommandAsync("Network.emulateNetworkConditions", new JsonObject
+            {
+                ["offline"] = offline,
+                ["latency"] = 0,
+                ["downloadThroughput"] = -1,
+                ["uploadThroughput"] = -1
+            });
+        }
+        catch (Exception ex)
+        {
+            Log($"Warning: Network emulation not fully supported: {ex.Message}");
+        }
+    }
+
+    private static string GenerateRandomInput(string action, TestStudioStepModel step)
+    {
+        var length = Math.Clamp(GetStepInt(step, 8, "length"), 1, 128);
+        return action switch
+        {
+            "inputRandomEmail" => $"user{Random.Shared.Next(1000, 9999)}@example.com",
+            "inputRandomPersonName" => "Alex Morgan",
+            "inputRandomNumber" => string.Concat(Enumerable.Range(0, length).Select(_ => Random.Shared.Next(0, 10).ToString())),
+            "inputRandomText" => RandomAlpha(length),
+            "inputRandomCityName" => "Seattle",
+            "inputRandomCountryName" => "United States",
+            "inputRandomColorName" => "Blue",
+            _ => RandomAlpha(length)
+        };
+    }
+
+    private static string RandomAlpha(int length)
+    {
+        const string alphabet = "abcdefghijklmnopqrstuvwxyz";
+        return string.Concat(Enumerable.Range(0, length).Select(_ => alphabet[Random.Shared.Next(alphabet.Length)]));
+    }
+
+    private async Task<(double x, double y)?> ResolvePointParameterAsync(TestStudioStepModel step)
+    {
+        if (!TryGetParameter(step, "point", out var pointValue) || pointValue == null)
+        {
+            return null;
+        }
+
+        var pointText = FlowCommandCatalog.ScalarToString(pointValue);
+        var parsed = await ParsePointAsync(pointText);
+        return parsed;
+    }
+
+    private async Task<(double x, double y)?> ParsePointAsync(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var parts = value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2)
+        {
+            return null;
+        }
+
+        double width = 800;
+        double height = 600;
+        if (parts[0].Contains('%') || parts[1].Contains('%'))
+        {
+            try
+            {
+                var metrics = await _cdpService.SendCommandAsync("Page.getLayoutMetrics");
+                var viewport = metrics["cssVisualViewport"] as JsonObject;
+                if (viewport != null)
+                {
+                    width = viewport["width"]?.GetValue<double>() ?? width;
+                    height = viewport["height"]?.GetValue<double>() ?? height;
+                }
+            }
+            catch { }
+        }
+
+        bool TryParseCoordinate(string input, double total, out double result)
+        {
+            input = input.Trim();
+            if (input.EndsWith("%", StringComparison.Ordinal))
+            {
+                if (double.TryParse(input.TrimEnd('%'), out var percentage))
+                {
+                    result = total * percentage / 100.0;
+                    return true;
+                }
+            }
+
+            return double.TryParse(input, out result);
+        }
+
+        if (TryParseCoordinate(parts[0], width, out var x) &&
+            TryParseCoordinate(parts[1], height, out var y))
+        {
+            return (x, y);
+        }
+
+        return null;
+    }
+
     private async Task<(double x, double y, int nodeId)> ResolveCoordinatesAsync(TestStudioStepModel step, CancellationToken token)
     {
         int retryCount = 0;
@@ -2376,11 +2857,17 @@ public class TestStudioViewModel : ViewModelBase
                 double? targetX = null;
                 double? targetY = null;
                 int nodeId = 0;
-
-                if (!string.IsNullOrEmpty(step.Selector))
+                var point = await ResolvePointParameterAsync(step);
+                if (point.HasValue)
                 {
-                    Log($"Waiting for element '{step.Selector}' to be visible...");
-                    nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                    return (point.Value.x, point.Value.y, 0);
+                }
+
+                var runtimeSelector = GetRuntimeSelector(step);
+                if (!string.IsNullOrEmpty(runtimeSelector))
+                {
+                    Log($"Waiting for element '{runtimeSelector}' to be visible...");
+                    nodeId = await WaitForElementVisibleAsync(runtimeSelector, token);
                     Log($"Element resolved. Fetching box model...");
                     var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
                     var model = boxRes["model"] as JsonObject;

@@ -853,6 +853,50 @@ public static class DomDomain
             attributes.Add("IsVisible");
             attributes.Add(control.IsVisible.ToString().ToLowerInvariant());
 
+            attributes.Add("IsFocused");
+            attributes.Add(control.IsFocused.ToString().ToLowerInvariant());
+
+            if (control is Avalonia.Controls.Primitives.ToggleButton toggleButton)
+            {
+                attributes.Add("IsChecked");
+                attributes.Add((toggleButton.IsChecked == true).ToString().ToLowerInvariant());
+            }
+
+            var selectedProperty = control.GetType().GetProperty("IsSelected", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (selectedProperty?.PropertyType == typeof(bool))
+            {
+                attributes.Add("IsSelected");
+                attributes.Add(((bool)(selectedProperty.GetValue(control) ?? false)).ToString().ToLowerInvariant());
+            }
+
+            attributes.Add("Width");
+            attributes.Add(Math.Round(control.Bounds.Width).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            attributes.Add("Height");
+            attributes.Add(Math.Round(control.Bounds.Height).ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+            var traits = new List<string>();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                traits.Add("text");
+                if (text.Length >= 200)
+                {
+                    traits.Add("long-text");
+                }
+            }
+            if (control.Bounds.Width > 0 && control.Bounds.Height > 0)
+            {
+                var larger = Math.Max(control.Bounds.Width, control.Bounds.Height);
+                if (Math.Abs(control.Bounds.Width - control.Bounds.Height) / larger <= 0.03)
+                {
+                    traits.Add("square");
+                }
+            }
+            if (traits.Count > 0)
+            {
+                attributes.Add("Traits");
+                attributes.Add(string.Join(" ", traits));
+            }
+
             var automationName = control.GetValue(AutomationProperties.NameProperty);
             if (!string.IsNullOrEmpty(automationName))
             {

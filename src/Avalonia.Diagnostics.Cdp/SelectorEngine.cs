@@ -357,16 +357,90 @@ public static class SelectorEngine
             return !string.IsNullOrEmpty(value);
         }
 
-        if (normalizedName.Equals("IsEnabled", StringComparison.OrdinalIgnoreCase))
+        if (normalizedName.Equals("IsEnabled", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("enabled", StringComparison.OrdinalIgnoreCase))
         {
             value = control.IsEnabled.ToString().ToLowerInvariant();
             return true;
         }
 
-        if (normalizedName.Equals("IsVisible", StringComparison.OrdinalIgnoreCase))
+        if (normalizedName.Equals("IsVisible", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("visible", StringComparison.OrdinalIgnoreCase))
         {
             value = control.IsVisible.ToString().ToLowerInvariant();
             return true;
+        }
+
+        if (normalizedName.Equals("IsFocused", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("focused", StringComparison.OrdinalIgnoreCase))
+        {
+            value = control.IsFocused.ToString().ToLowerInvariant();
+            return true;
+        }
+
+        if (normalizedName.Equals("IsChecked", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("checked", StringComparison.OrdinalIgnoreCase))
+        {
+            if (control is ToggleButton toggleButton)
+            {
+                value = (toggleButton.IsChecked == true).ToString().ToLowerInvariant();
+                return true;
+            }
+
+            return false;
+        }
+
+        if (normalizedName.Equals("IsSelected", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("selected", StringComparison.OrdinalIgnoreCase))
+        {
+            var selectedProperty = control.GetType().GetProperty("IsSelected", BindingFlags.Public | BindingFlags.Instance);
+            if (selectedProperty?.PropertyType == typeof(bool))
+            {
+                value = ((bool)(selectedProperty.GetValue(control) ?? false)).ToString().ToLowerInvariant();
+                return true;
+            }
+
+            return false;
+        }
+
+        if (normalizedName.Equals("Width", StringComparison.OrdinalIgnoreCase))
+        {
+            value = Math.Round(control.Bounds.Width).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        if (normalizedName.Equals("Height", StringComparison.OrdinalIgnoreCase))
+        {
+            value = Math.Round(control.Bounds.Height).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        if (normalizedName.Equals("Traits", StringComparison.OrdinalIgnoreCase) ||
+            normalizedName.Equals("traits", StringComparison.OrdinalIgnoreCase))
+        {
+            var traits = new List<string>();
+            if (TryGetVisualText(visual, out var text) && !string.IsNullOrWhiteSpace(text))
+            {
+                traits.Add("text");
+                if (text.Length >= 200)
+                {
+                    traits.Add("long-text");
+                }
+            }
+
+            var width = control.Bounds.Width;
+            var height = control.Bounds.Height;
+            if (width > 0 && height > 0)
+            {
+                var larger = Math.Max(width, height);
+                if (Math.Abs(width - height) / larger <= 0.03)
+                {
+                    traits.Add("square");
+                }
+            }
+
+            value = string.Join(" ", traits);
+            return traits.Count > 0;
         }
 
         if (normalizedName.Equals("Bounds", StringComparison.OrdinalIgnoreCase))
