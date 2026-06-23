@@ -64,7 +64,13 @@ public class TestStudioViewModel : ViewModelBase
     public string? CurrentFlowFilePath
     {
         get => _currentFlowFilePath;
-        set => RaiseAndSetIfChanged(ref _currentFlowFilePath, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _currentFlowFilePath, value))
+            {
+                RaiseCommandCanExecuteChanged();
+            }
+        }
     }
 
     public bool IsSidebarCollapsed
@@ -158,7 +164,13 @@ public class TestStudioViewModel : ViewModelBase
     public bool IsSuiteExecuting
     {
         get => _isSuiteExecuting;
-        set => RaiseAndSetIfChanged(ref _isSuiteExecuting, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isSuiteExecuting, value))
+            {
+                RaiseCommandCanExecuteChanged();
+            }
+        }
     }
 
     public ICommand ToggleSidebarCommand { get; }
@@ -470,7 +482,7 @@ public class TestStudioViewModel : ViewModelBase
         CreateFolderCommand = new RelayCommand<string>(name => CreateFolder(name));
         RenameCommand = new RelayCommand<string>(name => RenameItem(name));
         DeleteCommand = new RelayCommand<string>(path => DeleteItem(path));
-        RunSuiteCommand = new RelayCommand<string>(async path => await RunSuite(path));
+        RunSuiteCommand = new RelayCommand<string>(async path => await RunSuite(path), _ => !IsSuiteExecuting);
         SaveYamlCommand = new RelayCommand(SaveYaml, () => !string.IsNullOrEmpty(CurrentFlowFilePath));
 
         SubmitNamePromptCommand = new RelayCommand(() =>
@@ -510,6 +522,8 @@ public class TestStudioViewModel : ViewModelBase
             if (OpenLastReportCommand is RelayCommand olr) olr.RaiseCanExecuteChanged();
             if (OpenLastPdfReportCommand is RelayCommand olp) olp.RaiseCanExecuteChanged();
             if (ReplayLastVideoCommand is RelayCommand<object> rlv) rlv.RaiseCanExecuteChanged();
+            if (SaveYamlCommand is RelayCommand sy) sy.RaiseCanExecuteChanged();
+            if (RunSuiteCommand is RelayCommand<string> rs) rs.RaiseCanExecuteChanged();
         });
     }
 
@@ -2995,7 +3009,7 @@ public class TestStudioViewModel : ViewModelBase
         _currentStepIndex = 0;
     }
 
-    private void Log(string message)
+    public void Log(string message)
     {
         var formatted = $"[{DateTime.Now:HH:mm:ss}] {message}";
         if (Avalonia.Application.Current == null || Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
@@ -3975,7 +3989,24 @@ public class TestStudioViewModel : ViewModelBase
             }
             else if (Directory.Exists(oldPath))
             {
+                bool rebaseFlowFile = false;
+                string relativePath = "";
+                if (!string.IsNullOrEmpty(CurrentFlowFilePath))
+                {
+                    var normalizedOld = oldPath.EndsWith(Path.DirectorySeparatorChar.ToString()) ? oldPath : oldPath + Path.DirectorySeparatorChar;
+                    if (CurrentFlowFilePath.StartsWith(normalizedOld, StringComparison.OrdinalIgnoreCase))
+                    {
+                        rebaseFlowFile = true;
+                        relativePath = Path.GetRelativePath(oldPath, CurrentFlowFilePath);
+                    }
+                }
+
                 Directory.Move(oldPath, newPath);
+
+                if (rebaseFlowFile)
+                {
+                    CurrentFlowFilePath = Path.Combine(newPath, relativePath);
+                }
             }
             else
             {
@@ -4012,9 +4043,21 @@ public class TestStudioViewModel : ViewModelBase
 
         try
         {
-            if (targetPath.Contains("locked"))
+            bool isCurrentFlowAffected = false;
+            if (!string.IsNullOrEmpty(CurrentFlowFilePath))
             {
-                throw new UnauthorizedAccessException("Access denied.");
+                if (string.Equals(CurrentFlowFilePath, targetPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    isCurrentFlowAffected = true;
+                }
+                else if (Directory.Exists(targetPath))
+                {
+                    var normalizedTarget = targetPath.EndsWith(Path.DirectorySeparatorChar.ToString()) ? targetPath : targetPath + Path.DirectorySeparatorChar;
+                    if (CurrentFlowFilePath.StartsWith(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                    {
+                        isCurrentFlowAffected = true;
+                    }
+                }
             }
 
             if (File.Exists(targetPath))
@@ -4026,7 +4069,7 @@ public class TestStudioViewModel : ViewModelBase
                 Directory.Delete(targetPath, true);
             }
 
-            if (string.Equals(CurrentFlowFilePath, targetPath, StringComparison.OrdinalIgnoreCase))
+            if (isCurrentFlowAffected)
             {
                 CurrentFlowFilePath = null;
                 Steps.Clear();
@@ -4100,28 +4143,39 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
-    public async Task RunSuite(string folderPath)
+    public async Task RunSuite(string? folderPath)
     {
-        if (string.IsNullOrEmpty(folderPath))
+        if (IsSuiteExecuting)
+        {
+            return;
+        }
+
+        string? targetPath = folderPath;
+        if (string.IsNullOrEmpty(targetPath))
+        {
+            targetPath = WorkspaceRootPath;
+        }
+
+        if (string.IsNullOrEmpty(targetPath))
         {
             Log("Error: Folder path cannot be empty.");
             return;
         }
 
-        if (!Directory.Exists(folderPath))
+        if (!Directory.Exists(targetPath))
         {
-            Log($"Error: Folder '{folderPath}' does not exist.");
+            Log($"Error: Folder '{targetPath}' does not exist.");
             return;
         }
 
         IsSuiteExecuting = true;
         SuitePassCount = 0;
         SuiteFailCount = 0;
-        Log($"Starting suite execution for folder: {folderPath}");
+        Log($"Starting suite execution for folder: {targetPath}");
 
         try
         {
-            var yamlFiles = Directory.GetFiles(folderPath, "*.yaml", SearchOption.AllDirectories)
+            var yamlFiles = Directory.GetFiles(targetPath, "*.yaml", SearchOption.AllDirectories)
                                      .OrderBy(f => f)
                                      .ToList();
 

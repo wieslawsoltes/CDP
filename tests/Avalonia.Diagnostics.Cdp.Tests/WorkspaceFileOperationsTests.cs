@@ -278,9 +278,120 @@ public class WorkspaceFileOperationsTests
     [Fact]
     public void Test_Edge_File_System_Locking_And_Permissions()
     {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var tempFile = Path.Combine(tempDir, "file.yaml");
+        File.WriteAllText(tempFile, "steps: []");
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                File.SetAttributes(tempFile, FileAttributes.ReadOnly);
+            }
+            else
+            {
+                File.SetUnixFileMode(tempDir, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+            }
+
+            var vm = new TestStudioViewModel(new DummyCdpService());
+            vm.DeleteItem(tempFile);
+            
+            Assert.Contains("denied", string.Join(" ", vm.Logs).ToLower());
+        }
+        finally
+        {
+            try
+            {
+                if (!OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(tempDir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                }
+                else
+                {
+                    File.SetAttributes(tempFile, FileAttributes.Normal);
+                }
+                Directory.Delete(tempDir, true);
+            }
+            catch {}
+        }
+    }
+
+    [Fact]
+    public void Test_Folder_Rename_Rebases_CurrentFlowFilePath()
+    {
         var vm = new TestStudioViewModel(new DummyCdpService());
-        vm.DeleteCommand.Execute("/locked_file.yaml");
-        
-        Assert.Contains("denied", string.Join(" ", vm.Logs).ToLower());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var subDir = Path.Combine(tempDir, "sub");
+        Directory.CreateDirectory(subDir);
+        var testFile = Path.Combine(subDir, "test.yaml");
+        File.WriteAllText(testFile, "steps: []");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.CurrentFlowFilePath = testFile;
+            
+            // Selected item is the sub folder
+            vm.SelectedWorkspaceItem = new WorkspaceItemModel
+            {
+                Name = "sub",
+                Path = subDir,
+                IsFolder = true
+            };
+
+            vm.RenameItem("sub_renamed");
+
+            var expectedNewDir = Path.Combine(tempDir, "sub_renamed");
+            var expectedNewFile = Path.Combine(expectedNewDir, "test.yaml");
+
+            Assert.True(Directory.Exists(expectedNewDir));
+            Assert.True(File.Exists(expectedNewFile));
+            Assert.Equal(expectedNewFile, vm.CurrentFlowFilePath);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch {}
+        }
+    }
+
+    [Fact]
+    public void Test_Folder_Delete_Closes_CurrentFlowFilePath()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var subDir = Path.Combine(tempDir, "sub");
+        Directory.CreateDirectory(subDir);
+        var testFile = Path.Combine(subDir, "test.yaml");
+        File.WriteAllText(testFile, "steps: []");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.CurrentFlowFilePath = testFile;
+            
+            // Add a step so we can verify Steps are cleared too
+            vm.Steps.Add(new TestStudioStepModel { Action = "delay", Value = "10" });
+            Assert.NotEmpty(vm.Steps);
+
+            // Selected item is the sub folder
+            vm.SelectedWorkspaceItem = new WorkspaceItemModel
+            {
+                Name = "sub",
+                Path = subDir,
+                IsFolder = true
+            };
+
+            vm.DeleteItem(subDir);
+
+            Assert.False(Directory.Exists(subDir));
+            Assert.Null(vm.CurrentFlowFilePath);
+            Assert.Empty(vm.Steps);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch {}
+        }
     }
 }

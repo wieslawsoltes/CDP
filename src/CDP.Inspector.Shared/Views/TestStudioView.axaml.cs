@@ -169,7 +169,14 @@ public partial class TestStudioView : UserControl
                     var item = selected is HierarchicalNode<WorkspaceItemModel> node ? node.Item : (selected as WorkspaceItemModel);
                     if (item != null && !item.IsFolder)
                     {
-                        vm.Recorder.TestStudio.LoadFlowFile(item.Path);
+                        try
+                        {
+                            vm.Recorder.TestStudio.LoadFlowFile(item.Path);
+                        }
+                        catch (System.Exception ex)
+                        {
+                            vm.Recorder.TestStudio.Log($"Error loading flow file: {ex.Message}");
+                        }
                     }
                 }
             };
