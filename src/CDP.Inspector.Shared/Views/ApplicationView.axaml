@@ -13,6 +13,8 @@
                          GridLinesVisibility="None"
                          HeadersVisibility="None"
                          Background="Transparent" BorderThickness="0"
+                         CanUserResizeColumns="True"
+                         CanUserSortColumns="False"
                          Grid.Row="1">
                 <DataGrid.Styles>
                     <Style Selector="DataGridCell TextBlock">
@@ -37,7 +39,7 @@
             </Grid>
             
             <DataGrid Name="lstApplicationResources" ItemsSource="{Binding Application.Resources}" SelectedItem="{Binding Application.SelectedResource, Mode=TwoWay}" Grid.Row="1"
-                      CanUserReorderRows="False" CanUserSortColumns="True" IsReadOnly="True"
+                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="Transparent" BorderThickness="0">
                 <DataGrid.Columns>
@@ -73,7 +75,7 @@
             </Grid>
             
             <DataGrid Name="lstStorageItems" ItemsSource="{Binding Application.StorageItems}" SelectedItem="{Binding Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1"
-                      CanUserReorderRows="False" CanUserSortColumns="True" IsReadOnly="True"
+                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="Transparent" BorderThickness="0">
                 <DataGrid.Columns>

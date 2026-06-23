@@ -22,7 +22,9 @@
                                      HierarchicalRowsEnabled="True"
                                      GridLinesVisibility="None"
                                      HeadersVisibility="None"
-                                     Background="Transparent" BorderThickness="0">
+                                     Background="Transparent" BorderThickness="0"
+                                     CanUserResizeColumns="True"
+                                     CanUserSortColumns="False">
                             <DataGrid.Columns>
                                 <DataGridHierarchicalColumn Width="*">
                                     <DataGridHierarchicalColumn.CellTemplate>
@@ -70,7 +72,9 @@
                                      HierarchicalRowsEnabled="True"
                                      GridLinesVisibility="None"
                                      HeadersVisibility="None"
-                                     Background="Transparent" BorderThickness="0">
+                                     Background="Transparent" BorderThickness="0"
+                                     CanUserResizeColumns="True"
+                                     CanUserSortColumns="False">
                             <DataGrid.Columns>
                                 <DataGridHierarchicalColumn Width="*">
                                     <DataGridHierarchicalColumn.CellTemplate>
@@ -121,7 +125,7 @@
                                 </Border>
 
                                 <DataGrid Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding Elements.FilteredCssProperties}"
-                                          CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="False"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                           GridLinesVisibility="None" HeadersVisibility="None"
                                           Background="Transparent" BorderThickness="0">
                                     <DataGrid.Columns>
@@ -139,7 +143,7 @@
                             <Grid RowDefinitions="Auto, *" Margin="0,5,0,0">
                                 <TextBox Name="txtComputedSearch" Text="{Binding Elements.ComputedSearchText, Mode=TwoWay}" PlaceholderText="Filter computed styles" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
                                 <DataGrid Grid.Row="1" Name="listComputedStyles" ItemsSource="{Binding Elements.FilteredComputedStyles}"
-                                          CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="True"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                           GridLinesVisibility="None" HeadersVisibility="None"
                                           Background="Transparent" BorderThickness="0">
                                     <DataGrid.Columns>
@@ -158,7 +162,7 @@
                         <TextBox Name="txtAttributesSearch" Text="{Binding Elements.AttributeSearchText, Mode=TwoWay}" PlaceholderText="Filter attributes" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
                         <DataGrid Grid.Row="1" Name="listAttributes" ItemsSource="{Binding Elements.FilteredAttributes}"
                                   SelectedItem="{Binding Elements.SelectedAttribute, Mode=TwoWay}"
-                                  CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="False"
+                                  CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                   GridLinesVisibility="None" HeadersVisibility="None"
                                   Background="Transparent" BorderThickness="0">
                             <DataGrid.Columns>
@@ -181,7 +185,7 @@
                         <TextBox Name="txtPropertiesSearch" Text="{Binding Elements.PropertySearchText, Mode=TwoWay}" PlaceholderText="Filter properties" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
                         <DataGrid Grid.Row="1" Name="listProperties" ItemsSource="{Binding Elements.FilteredProperties}"
                                   SelectedItem="{Binding Elements.SelectedProperty, Mode=TwoWay}"
-                                  CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="False"
+                                  CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                   GridLinesVisibility="None" HeadersVisibility="None"
                                   Background="Transparent" BorderThickness="0">
                             <DataGrid.Columns>
@@ -202,7 +206,7 @@
                 <!-- Event Listeners subtab -->
                 <TabItem Header="Event Listeners">
                     <DataGrid Name="listEventListeners" ItemsSource="{Binding Elements.EventListeners}" Margin="0,5,0,0"
-                              CanUserReorderRows="False" CanUserSortColumns="False" IsReadOnly="True"
+                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="None" HeadersVisibility="None"
                               Background="Transparent" BorderThickness="0">
                         <DataGrid.Columns>

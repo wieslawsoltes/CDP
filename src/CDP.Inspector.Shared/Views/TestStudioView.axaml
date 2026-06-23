@@ -53,6 +53,7 @@
                              HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalSteps}"
                              SelectedItem="{Binding Recorder.TestStudio.SelectedStepNode, Mode=TwoWay}"
                              CanUserReorderRows="True"
+                             CanUserResizeColumns="True"
                              HierarchicalRowsEnabled="True"
                              RowDragHandle="RowHeaderAndRow"
                              GridLinesVisibility="Horizontal"
