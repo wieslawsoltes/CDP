@@ -19,6 +19,10 @@ public class SimulationViewModel : ViewModelBase
     private readonly Func<int, (string? Role, string? Name)> _getAxDetailsFunc;
     private readonly Func<bool> _isInspectModeActiveFunc;
     private readonly Func<int, DomNodeModel?> _getDomNodeFunc;
+    private readonly Func<bool> _useAutomationSelectorsFunc;
+    private string _lastClickedSelector = "";
+
+    public event EventHandler<InteractionEventArgs>? InteractionDispatched;
 
     private JsonObject? _highlightBoxModel;
     private string? _highlightElementType;
@@ -323,7 +327,8 @@ public class SimulationViewModel : ViewModelBase
         Func<bool> isHighlightActiveFunc,
         Func<int, (string? Role, string? Name)> getAxDetailsFunc,
         Func<bool> isInspectModeActiveFunc,
-        Func<int, DomNodeModel?> getDomNodeFunc)
+        Func<int, DomNodeModel?> getDomNodeFunc,
+        Func<bool> useAutomationSelectorsFunc)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _getSelectedNodeFunc = getSelectedNodeFunc ?? throw new ArgumentNullException(nameof(getSelectedNodeFunc));
@@ -331,6 +336,7 @@ public class SimulationViewModel : ViewModelBase
         _getAxDetailsFunc = getAxDetailsFunc ?? throw new ArgumentNullException(nameof(getAxDetailsFunc));
         _isInspectModeActiveFunc = isInspectModeActiveFunc ?? throw new ArgumentNullException(nameof(isInspectModeActiveFunc));
         _getDomNodeFunc = getDomNodeFunc ?? throw new ArgumentNullException(nameof(getDomNodeFunc));
+        _useAutomationSelectorsFunc = useAutomationSelectorsFunc ?? (() => false);
 
         _selectedDevicePreset = _devicePresets[0];
 
@@ -921,6 +927,33 @@ public class SimulationViewModel : ViewModelBase
         }
     }
 
+    public async Task<string> GetSelectorAtCoordinatesAsync(double x, double y, bool useAutomation)
+    {
+        try
+        {
+            var nodeRes = await _cdpService.SendCommandAsync("DOM.getNodeForLocation", new JsonObject
+            {
+                ["x"] = (int)x,
+                ["y"] = (int)y
+            });
+            var nodeId = nodeRes["nodeId"]?.GetValue<int>() ?? 0;
+            if (nodeId > 0)
+            {
+                var domNode = _getDomNodeFunc(nodeId);
+                if (domNode != null)
+                {
+                    var generator = ClientSelectorRegistry.GetGenerator(useAutomation ? "automation" : "dom");
+                    return generator.GenerateSelector(domNode);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting selector at ({x}, {y}): {ex.Message}");
+        }
+        return "";
+    }
+
     public async Task SendMouseEventAsync(string type, double x, double y, string button, int modifiers, int buttons = 0)
     {
         if (!_cdpService.IsConnected) return;
@@ -948,6 +981,27 @@ public class SimulationViewModel : ViewModelBase
                 ["modifiers"] = modifiers,
                 ["buttons"] = buttons
             });
+
+            if (type == "mouseReleased")
+            {
+                _ = Task.Run(async () =>
+                {
+                    string selector = await GetSelectorAtCoordinatesAsync(x, y, _useAutomationSelectorsFunc());
+                    var step = new JsonObject
+                    {
+                        ["type"] = "click",
+                        ["button"] = button,
+                        ["clickCount"] = clickCount,
+                        ["modifiers"] = modifiers
+                    };
+                    if (!string.IsNullOrEmpty(selector))
+                    {
+                        step["selectors"] = new JsonArray { new JsonArray { selector } };
+                    }
+                    _lastClickedSelector = selector;
+                    InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
+                });
+            }
         }
         catch (Exception ex)
         {
@@ -969,6 +1023,22 @@ public class SimulationViewModel : ViewModelBase
                 ["deltaY"] = deltaY * 100.0,
                 ["modifiers"] = 0
             });
+
+            _ = Task.Run(async () =>
+            {
+                string selector = await GetSelectorAtCoordinatesAsync(x, y, _useAutomationSelectorsFunc());
+                var step = new JsonObject
+                {
+                    ["type"] = "scroll",
+                    ["deltaX"] = 0,
+                    ["deltaY"] = deltaY
+                };
+                if (!string.IsNullOrEmpty(selector))
+                {
+                    step["selectors"] = new JsonArray { new JsonArray { selector } };
+                }
+                InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
+            });
         }
         catch (Exception ex)
         {
@@ -982,6 +1052,17 @@ public class SimulationViewModel : ViewModelBase
         try
         {
             await _cdpService.SendCommandAsync("Input.insertText", new JsonObject { ["text"] = text });
+            
+            var step = new JsonObject
+            {
+                ["type"] = "change",
+                ["value"] = text
+            };
+            if (!string.IsNullOrEmpty(_lastClickedSelector))
+            {
+                step["selectors"] = new JsonArray { new JsonArray { _lastClickedSelector } };
+            }
+            InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
         }
         catch (Exception ex)
         {
@@ -1000,6 +1081,17 @@ public class SimulationViewModel : ViewModelBase
                 ["key"] = key,
                 ["modifiers"] = modifiers
             });
+
+            if (type == "rawKeyDown")
+            {
+                var step = new JsonObject
+                {
+                    ["type"] = "keydown",
+                    ["key"] = key,
+                    ["modifiers"] = modifiers
+                };
+                InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
+            }
         }
         catch (Exception ex)
         {
@@ -1191,5 +1283,14 @@ public class DevicePreset
         Height = height;
         Scale = scale;
         IsMobile = isMobile;
+    }
+}
+
+public class InteractionEventArgs : EventArgs
+{
+    public JsonObject Step { get; }
+    public InteractionEventArgs(JsonObject step)
+    {
+        Step = step;
     }
 }
