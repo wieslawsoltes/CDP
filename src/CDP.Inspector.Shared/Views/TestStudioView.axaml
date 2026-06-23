@@ -8,12 +8,57 @@
              xmlns:map="using:XamlPlayground.Editor.Minimap"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:CompileBindings="False">
-    <Grid ColumnDefinitions="*, 4, *">
+    <Grid ColumnDefinitions="Auto, 4, *, 4, *">
+        <!-- Column 0: Collapsible Workspace Sidebar Panel -->
+        <Grid Grid.Column="0" RowDefinitions="Auto, *, Auto" Width="250" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}">
+            <!-- Path picker TextBox/Browse button -->
+            <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
+                <TextBox Name="txtWorkspacePath" Grid.Column="0" Text="{Binding Recorder.TestStudio.WorkspaceRootPath, Mode=TwoWay}" PlaceholderText="Workspace root path..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
+                <Button Name="btnBrowseWorkspace" Grid.Column="1" Content="..." Command="{Binding Recorder.TestStudio.BrowseWorkspaceRootCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- TreeView of files -->
+            <TreeView Name="treeWorkspace" Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.WorkspaceFiles}" SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceItem, Mode=TwoWay}" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                <TreeView.ItemTemplate>
+                    <TreeDataTemplate DataType="models:WorkspaceItemModel" ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="📁" IsVisible="{Binding IsFolder}" Foreground="#ffca28" VerticalAlignment="Center"/>
+                            <TextBlock Text="📄" IsVisible="{Binding !IsFolder}" Foreground="#8ab4f8" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+                <TreeView.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
+                        <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
+                        <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
+                        <MenuItem Header="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}"/>
+                    </ContextMenu>
+                </TreeView.ContextMenu>
+            </TreeView>
+
+            <!-- Create file/folder/rename/delete buttons and "Run Folder Suite" button -->
+            <StackPanel Grid.Row="2" Margin="0,10,0,0" Spacing="6">
+                <WrapPanel HorizontalAlignment="Center">
+                    <Button Name="btnCreateFile" Content="New File" Command="{Binding Recorder.TestStudio.CreateFileCommand}" FontSize="10" Margin="0,0,4,4"/>
+                    <Button Name="btnCreateFolder" Content="New Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}" FontSize="10" Margin="0,0,4,4"/>
+                    <Button Name="btnRename" Content="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}" FontSize="10" Margin="0,0,4,4"/>
+                    <Button Name="btnDelete" Content="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}" FontSize="10" Margin="0,0,4,4"/>
+                </WrapPanel>
+                <Button Name="btnRunSuite" Content="Run Folder Suite" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Column 1: GridSplitter between Sidebar and Steps -->
+        <GridSplitter Grid.Column="1" Background="#3c4043" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}"/>
+
         <!-- LEFT COLUMN: Steps List + Debugger Toolbar + Quick-Add panel -->
-        <Grid Grid.Column="0" RowDefinitions="Auto, Auto, *, Auto" Margin="0,0,10,0">
+        <Grid Grid.Column="2" RowDefinitions="Auto, Auto, *, Auto" Margin="0,0,10,0">
             <!-- Debugger Toolbar -->
             <Border Grid.Row="0" Classes="panel-card" Margin="0,0,0,10">
                 <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="📁 Project" Command="{Binding Recorder.TestStudio.ToggleSidebarCommand}"/>
                     <Button Name="btnTestStudioPlay" Content="▶ Play" Command="{Binding Recorder.TestStudio.PlayCommand}" Classes="accent"/>
                     <Button Name="btnTestStudioPause" Content="⏸ Pause" Command="{Binding Recorder.TestStudio.PauseCommand}"/>
                     <Button Name="btnTestStudioStop" Content="■ Stop" Command="{Binding Recorder.TestStudio.StopCommand}"/>
@@ -267,15 +312,16 @@
         </Grid>
 
         <!-- GRID SPLITTER -->
-        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+        <GridSplitter Grid.Column="3" Background="#3c4043"/>
 
         <!-- RIGHT COLUMN: YAML Editor + Apply YAML button + execution logs -->
-        <Grid Grid.Column="2" RowDefinitions="*, 4, *" Margin="10,0,0,0">
+        <Grid Grid.Column="4" RowDefinitions="*, 4, *" Margin="10,0,0,0">
             <!-- YAML Editor -->
             <Grid Grid.Row="0" RowDefinitions="Auto, *" Margin="0,0,0,6">
-                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,8">
                     <TextBlock Grid.Column="0" Text="YAML Configuration" Classes="panel-header" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
-                    <Button Name="btnTestStudioApplyYaml" Grid.Column="1" Content="Apply YAML" Command="{Binding Recorder.TestStudio.ApplyYamlCommand}" Classes="accent"/>
+                    <Button Name="btnTestStudioApplyYaml" Grid.Column="1" Content="Apply YAML" Command="{Binding Recorder.TestStudio.ApplyYamlCommand}" Classes="accent" Margin="0,0,8,0"/>
+                    <Button Name="btnTestStudioSaveYaml" Grid.Column="2" Content="Save" Command="{Binding Recorder.TestStudio.SaveYamlCommand}"/>
                 </Grid>
                 <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
                     <map:MinimapTextEditor Name="txtYamlCode" Background="Transparent" BorderThickness="0" FontFamily="Courier New,Consolas,Monospace" FontSize="12" Foreground="#e8eaed" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
@@ -297,5 +343,19 @@
                 </ListBox>
             </Grid>
         </Grid>
+
+        <!-- Inline Name Prompt Overlay -->
+        <Border Grid.ColumnSpan="5" Background="#80000000" IsVisible="{Binding Recorder.TestStudio.IsNamePromptVisible}" ZIndex="100">
+            <Border Background="#2d2d2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="8" Width="300" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="{Binding Recorder.TestStudio.NamePromptTitle}" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                    <TextBox Text="{Binding Recorder.TestStudio.NamePromptValue, Mode=TwoWay}" Watermark="Enter name..."/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Cancel" Command="{Binding Recorder.TestStudio.CancelNamePromptCommand}"/>
+                        <Button Content="OK" Command="{Binding Recorder.TestStudio.SubmitNamePromptCommand}" Classes="accent"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </UserControl>
