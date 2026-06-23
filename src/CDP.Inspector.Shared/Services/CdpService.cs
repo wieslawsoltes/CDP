@@ -177,7 +177,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         var ws = _ws;
         if (ws == null || ws.State != WebSocketState.Open)
         {
-            throw new Exception("Not connected to a target");
+            throw new Exception($"Not connected to a target (ws is {(ws == null ? "null" : ws.State.ToString())})");
         }
 
         int id = Interlocked.Increment(ref _messageId);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -108,6 +109,7 @@ public static class TestStudioYamlParser
             string? action = null;
             string inlineValue = "";
             var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            ObservableCollection<TestStudioStepModel>? nestedSteps = null;
 
             foreach (var entry in mappingNode.Children)
             {
@@ -122,11 +124,37 @@ public static class TestStudioYamlParser
                     {
                         foreach (var nestedEntry in nestedMapping.Children)
                         {
-                            if (nestedEntry.Key is YamlScalarNode nestedKey && nestedEntry.Value is YamlScalarNode nestedVal)
+                            if (nestedEntry.Key is YamlScalarNode nestedKey)
                             {
-                                if (nestedKey.Value != null)
+                                if (nestedEntry.Value is YamlScalarNode nestedVal)
                                 {
-                                    dict[nestedKey.Value] = nestedVal.Value ?? "";
+                                    if (nestedKey.Value != null)
+                                    {
+                                        dict[nestedKey.Value] = nestedVal.Value ?? "";
+                                    }
+                                }
+                                else if (nestedKey.Value == "commands" && nestedEntry.Value is YamlSequenceNode seqNode)
+                                {
+                                    nestedSteps = new ObservableCollection<TestStudioStepModel>();
+                                    foreach (var childNode in seqNode.Children)
+                                    {
+                                        var childStep = ParseStepNode(childNode);
+                                        if (childStep != null)
+                                        {
+                                            nestedSteps.Add(childStep);
+                                        }
+                                    }
+                                }
+                                else if (nestedKey.Value == "while" && nestedEntry.Value is YamlMappingNode whileMapping)
+                                {
+                                    foreach (var whileEntry in whileMapping.Children)
+                                    {
+                                        if (whileEntry.Key is YamlScalarNode whileKey && whileEntry.Value is YamlScalarNode whileVal)
+                                        {
+                                            dict["while_type"] = whileKey.Value ?? "";
+                                            dict["while_value"] = whileVal.Value ?? "";
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -149,11 +177,37 @@ public static class TestStudioYamlParser
                     {
                         foreach (var nestedEntry in nestedMapping.Children)
                         {
-                            if (nestedEntry.Key is YamlScalarNode nestedKey && nestedEntry.Value is YamlScalarNode nestedVal)
+                            if (nestedEntry.Key is YamlScalarNode nestedKey)
                             {
-                                if (nestedKey.Value != null)
+                                if (nestedEntry.Value is YamlScalarNode nestedVal)
                                 {
-                                    dict[nestedKey.Value] = nestedVal.Value ?? "";
+                                    if (nestedKey.Value != null)
+                                    {
+                                        dict[nestedKey.Value] = nestedVal.Value ?? "";
+                                    }
+                                }
+                                else if (nestedKey.Value == "commands" && nestedEntry.Value is YamlSequenceNode seqNode)
+                                {
+                                    nestedSteps = new ObservableCollection<TestStudioStepModel>();
+                                    foreach (var childNode in seqNode.Children)
+                                    {
+                                        var childStep = ParseStepNode(childNode);
+                                        if (childStep != null)
+                                        {
+                                            nestedSteps.Add(childStep);
+                                        }
+                                    }
+                                }
+                                else if (nestedKey.Value == "while" && nestedEntry.Value is YamlMappingNode whileMapping)
+                                {
+                                    foreach (var whileEntry in whileMapping.Children)
+                                    {
+                                        if (whileEntry.Key is YamlScalarNode whileKey && whileEntry.Value is YamlScalarNode whileVal)
+                                        {
+                                            dict["while_type"] = whileKey.Value ?? "";
+                                            dict["while_value"] = whileVal.Value ?? "";
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -166,7 +220,7 @@ public static class TestStudioYamlParser
                 return null;
             }
 
-            return BuildStepModel(action, inlineValue, dict);
+            return BuildStepModel(action, inlineValue, dict, nestedSteps);
         }
 
         return null;
@@ -192,6 +246,8 @@ public static class TestStudioYamlParser
             || action.Equals("assertVisible", StringComparison.OrdinalIgnoreCase)
             || action.Equals("assertNotVisible", StringComparison.OrdinalIgnoreCase)
             || action.Equals("assertTrue", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("assertFalse", StringComparison.OrdinalIgnoreCase)
+            || action.Equals("setAirplaneMode", StringComparison.OrdinalIgnoreCase)
             || action.Equals("delay", StringComparison.OrdinalIgnoreCase)
             || action.Equals("scroll", StringComparison.OrdinalIgnoreCase)
             || action.Equals("scrollUntilVisible", StringComparison.OrdinalIgnoreCase)
@@ -207,7 +263,7 @@ public static class TestStudioYamlParser
             || action.Equals("dragAndDrop", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static TestStudioStepModel BuildStepModel(string action, string inlineValue, Dictionary<string, string>? dict = null)
+    private static TestStudioStepModel BuildStepModel(string action, string inlineValue, Dictionary<string, string>? dict = null, ObservableCollection<TestStudioStepModel>? nestedSteps = null)
     {
         dict ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var model = new TestStudioStepModel { Action = action };
@@ -394,6 +450,18 @@ public static class TestStudioYamlParser
                 model.Value = inlineValue;
                 break;
 
+            case "assertfalse":
+                model.Action = "assertFalse";
+                model.Selector = "";
+                model.Value = inlineValue;
+                break;
+
+            case "setairplanemode":
+                model.Action = "setAirplaneMode";
+                model.Selector = "";
+                model.Value = inlineValue;
+                break;
+
             case "delay":
                 model.Action = "delay";
                 model.Selector = "";
@@ -456,7 +524,16 @@ public static class TestStudioYamlParser
             case "retry":
                 model.Action = action.Equals("repeat", StringComparison.OrdinalIgnoreCase) ? "repeat" : "retry";
                 model.Selector = "";
-                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("times", dict.GetValueOrDefault("value", ""));
+                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("times", dict.GetValueOrDefault("maxRetries", dict.GetValueOrDefault("value", "1")));
+                if (dict.TryGetValue("while_type", out var wt) && dict.TryGetValue("while_value", out var wv))
+                {
+                    model.WhileConditionType = wt;
+                    model.WhileConditionValue = wv;
+                }
+                if (nestedSteps != null)
+                {
+                    model.NestedSteps = nestedSteps;
+                }
                 break;
 
             case "runflow":
@@ -519,294 +596,10 @@ public static class TestStudioYamlParser
             var stepsList = new List<object>();
             foreach (var step in steps)
             {
-                var action = step.Action;
-                if (string.IsNullOrEmpty(action)) continue;
-
-                if (action == "launchApp" || action == "back")
+                var serialized = SerializeStep(step);
+                if (serialized != null && !(serialized is string s && string.IsNullOrEmpty(s)))
                 {
-                    if (!string.IsNullOrEmpty(step.Value))
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { action, step.Value } });
-                    }
-                    else
-                    {
-                        stepsList.Add(action);
-                    }
-                }
-                else if (action == "tapOn" || action == "doubleTapOn" || action == "longPressOn")
-                {
-                    if (!string.IsNullOrEmpty(step.Selector))
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { action, step.Selector } });
-                    }
-                    else if (!string.IsNullOrEmpty(step.Value))
-                    {
-                        var coords = ParseCoordinates(step.Value);
-                        if (coords != null)
-                        {
-                            object xVal = int.TryParse(coords.Value.x, out int xInt) ? xInt : (object)coords.Value.x;
-                            object yVal = int.TryParse(coords.Value.y, out int yInt) ? yInt : (object)coords.Value.y;
-                            stepsList.Add(new Dictionary<string, object>
-                            {
-                                {
-                                    action, new Dictionary<string, object>
-                                    {
-                                        { "x", xVal },
-                                        { "y", yVal }
-                                    }
-                                }
-                            });
-                        }
-                        else
-                        {
-                            stepsList.Add(new Dictionary<string, string> { { action, step.Value } });
-                        }
-                    }
-                    else
-                    {
-                        stepsList.Add(action);
-                    }
-                }
-                else if (action == "inputText")
-                {
-                    if (!string.IsNullOrEmpty(step.Selector))
-                    {
-                        stepsList.Add(new Dictionary<string, object>
-                        {
-                            {
-                                "inputText", new Dictionary<string, string>
-                                {
-                                    { "selector", step.Selector },
-                                    { "text", step.Value ?? "" }
-                                }
-                            }
-                        });
-                    }
-                    else
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { "inputText", step.Value ?? "" } });
-                    }
-                }
-                else if (action == "clearText")
-                {
-                    if (!string.IsNullOrEmpty(step.Selector))
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { "clearText", step.Selector } });
-                    }
-                    else
-                    {
-                        stepsList.Add("clearText");
-                    }
-                }
-                else if (action == "pasteText")
-                {
-                    if (!string.IsNullOrEmpty(step.Value))
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { "pasteText", step.Value } });
-                    }
-                    else
-                    {
-                        stepsList.Add("pasteText");
-                    }
-                }
-                else if (action == "eraseText")
-                {
-                    object val = int.TryParse(step.Value, out int count) ? count : (object)(step.Value ?? "1");
-                    stepsList.Add(new Dictionary<string, object> { { "eraseText", val } });
-                }
-                else if (action == "swipe")
-                {
-                    var props = ParseKeyValuePairs(step.Value);
-                    if (props.Count > 0)
-                    {
-                        var swipeDict = new Dictionary<string, object>();
-                        foreach (var kv in props)
-                        {
-                            swipeDict[kv.Key] = kv.Value;
-                        }
-                        stepsList.Add(new Dictionary<string, object> { { "swipe", swipeDict } });
-                    }
-                    else
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { "swipe", step.Value ?? "" } });
-                    }
-                }
-                else if (action == "dragAndDrop")
-                {
-                    var props = ParseKeyValuePairs(step.Value);
-                    if (props.Count > 0 || !string.IsNullOrEmpty(step.Selector))
-                    {
-                        var dragDict = new Dictionary<string, object>();
-                        if (!string.IsNullOrEmpty(step.Selector))
-                        {
-                            dragDict["selector"] = step.Selector;
-                        }
-                        foreach (var kv in props)
-                        {
-                            if (kv.Key == "offsetX" || kv.Key == "offsetY" || kv.Key == "targetOffsetX" || kv.Key == "targetOffsetY")
-                            {
-                                dragDict[kv.Key] = double.TryParse(kv.Value, out double val) ? val : (object)kv.Value;
-                            }
-                            else
-                            {
-                                dragDict[kv.Key] = kv.Value;
-                            }
-                        }
-                        stepsList.Add(new Dictionary<string, object> { { "dragAndDrop", dragDict } });
-                    }
-                    else if (!string.IsNullOrEmpty(step.Value))
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { "dragAndDrop", step.Value } });
-                    }
-                    else
-                    {
-                        stepsList.Add("dragAndDrop");
-                    }
-                }
-                 else if (action == "stopApp" || action == "killApp" || action == "clearState" || action == "setOrientation" || action == "takeScreenshot" || action == "assertTrue" || action == "runFlow" || action == "evalScript" || action == "runScript" || action == "openLink")
-                 {
-                     stepsList.Add(new Dictionary<string, string> { { action, step.Value ?? "" } });
-                 }
-                 else if (action == "copyTextFrom")
-                 {
-                     stepsList.Add(new Dictionary<string, string> { { "copyTextFrom", step.Selector ?? "" } });
-                 }
-                else if (action == "repeat" || action == "retry")
-                {
-                    object val = int.TryParse(step.Value, out int count) ? count : (object)(step.Value ?? "1");
-                    stepsList.Add(new Dictionary<string, object> { { action, val } });
-                }
-                else if (action == "setLocation")
-                {
-                    var props = ParseKeyValuePairs(step.Value);
-                    if (props.Count > 0)
-                    {
-                        var locDict = new Dictionary<string, object>();
-                        foreach (var kv in props)
-                        {
-                            locDict[kv.Key] = double.TryParse(kv.Value, out double val) ? val : (object)kv.Value;
-                        }
-                        stepsList.Add(new Dictionary<string, object> { { "setLocation", locDict } });
-                    }
-                    else
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { "setLocation", step.Value ?? "" } });
-                    }
-                }
-                else if (action == "assertVisible" || action == "assertNotVisible")
-                {
-                    stepsList.Add(new Dictionary<string, string> { { action, step.Selector ?? "" } });
-                }
-                else if (action == "delay")
-                {
-                    object delayVal = int.TryParse(step.Value, out int delayInt) ? delayInt : (object)(step.Value ?? "0");
-                    stepsList.Add(new Dictionary<string, object> { { "delay", delayVal } });
-                }
-                else if (action == "scroll")
-                {
-                    var props = ParseKeyValuePairs(step.Value);
-                    if (props.Count > 0 || !string.IsNullOrEmpty(step.Selector))
-                    {
-                        var scrollDict = new Dictionary<string, object>();
-                        if (!string.IsNullOrEmpty(step.Selector))
-                        {
-                            scrollDict["selector"] = step.Selector;
-                        }
-                        foreach (var kv in props)
-                        {
-                            scrollDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)kv.Value;
-                        }
-                        stepsList.Add(new Dictionary<string, object> { { "scroll", scrollDict } });
-                    }
-                    else if (!string.IsNullOrEmpty(step.Value))
-                    {
-                        stepsList.Add(new Dictionary<string, object> { { "scroll", int.TryParse(step.Value, out int val) ? val : (object)step.Value } });
-                    }
-                    else
-                    {
-                        stepsList.Add("scroll");
-                    }
-                }
-                else if (action == "scrollUntilVisible")
-                {
-                    var suvDict = new Dictionary<string, object>
-                    {
-                        { "selector", step.Selector ?? "" }
-                    };
-                    var props = ParseKeyValuePairs(step.Value);
-                    foreach (var kv in props)
-                    {
-                        suvDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)kv.Value;
-                    }
-                    stepsList.Add(new Dictionary<string, object> { { "scrollUntilVisible", suvDict } });
-                }
-                else if (action == "pressKey")
-                {
-                    if (!string.IsNullOrEmpty(step.Selector))
-                    {
-                        stepsList.Add(new Dictionary<string, object>
-                        {
-                            {
-                                "pressKey", new Dictionary<string, string>
-                                {
-                                    { "selector", step.Selector },
-                                    { "value", step.Value ?? "" }
-                                }
-                            }
-                        });
-                    }
-                    else
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { "pressKey", step.Value ?? "" } });
-                    }
-                }
-                else
-                {
-                    if (string.IsNullOrEmpty(step.Selector) && string.IsNullOrEmpty(step.Value))
-                    {
-                        stepsList.Add(action);
-                    }
-                    else if (!string.IsNullOrEmpty(step.Selector) && string.IsNullOrEmpty(step.Value))
-                    {
-                        stepsList.Add(new Dictionary<string, string> { { action, step.Selector } });
-                    }
-                    else if (string.IsNullOrEmpty(step.Selector) && !string.IsNullOrEmpty(step.Value))
-                    {
-                        var props = ParseKeyValuePairs(step.Value);
-                        if (props.Count > 0)
-                        {
-                            var actionDict = new Dictionary<string, object>();
-                            foreach (var kv in props)
-                            {
-                                actionDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)kv.Value;
-                            }
-                            stepsList.Add(new Dictionary<string, object> { { action, actionDict } });
-                        }
-                        else
-                        {
-                            stepsList.Add(new Dictionary<string, string> { { action, step.Value } });
-                        }
-                    }
-                    else
-                    {
-                        var actionDict = new Dictionary<string, object>
-                        {
-                            { "selector", step.Selector ?? "" }
-                        };
-                        var props = ParseKeyValuePairs(step.Value);
-                        if (props.Count > 0)
-                        {
-                            foreach (var kv in props)
-                            {
-                                actionDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)(kv.Value ?? "");
-                            }
-                        }
-                        else
-                        {
-                            actionDict["value"] = step.Value ?? "";
-                        }
-                        stepsList.Add(new Dictionary<string, object> { { action, actionDict } });
-                    }
+                    stepsList.Add(serialized);
                 }
             }
 
@@ -815,6 +608,319 @@ public static class TestStudioYamlParser
         }
 
         return sb.ToString();
+    }
+
+    private static object SerializeStep(TestStudioStepModel step)
+    {
+        var action = step.Action;
+        if (string.IsNullOrEmpty(action)) return "";
+
+        if (action == "launchApp" || action == "back")
+        {
+            if (!string.IsNullOrEmpty(step.Value))
+            {
+                return new Dictionary<string, string> { { action, step.Value } };
+            }
+            else
+            {
+                return action;
+            }
+        }
+        else if (action == "tapOn" || action == "doubleTapOn" || action == "longPressOn")
+        {
+            if (!string.IsNullOrEmpty(step.Selector))
+            {
+                return new Dictionary<string, string> { { action, step.Selector } };
+            }
+            else if (!string.IsNullOrEmpty(step.Value))
+            {
+                var coords = ParseCoordinates(step.Value);
+                if (coords != null)
+                {
+                    object xVal = int.TryParse(coords.Value.x, out int xInt) ? xInt : (object)coords.Value.x;
+                    object yVal = int.TryParse(coords.Value.y, out int yInt) ? yInt : (object)coords.Value.y;
+                    return new Dictionary<string, object>
+                    {
+                        {
+                            action, new Dictionary<string, object>
+                            {
+                                { "x", xVal },
+                                { "y", yVal }
+                            }
+                        }
+                    };
+                }
+                else
+                {
+                    return new Dictionary<string, string> { { action, step.Value } };
+                }
+            }
+            else
+            {
+                return action;
+            }
+        }
+        else if (action == "inputText")
+        {
+            if (!string.IsNullOrEmpty(step.Selector))
+            {
+                return new Dictionary<string, object>
+                {
+                    {
+                        "inputText", new Dictionary<string, string>
+                        {
+                            { "selector", step.Selector },
+                            { "text", step.Value ?? "" }
+                        }
+                    }
+                };
+            }
+            else
+            {
+                return new Dictionary<string, string> { { "inputText", step.Value ?? "" } };
+            }
+        }
+        else if (action == "clearText")
+        {
+            if (!string.IsNullOrEmpty(step.Selector))
+            {
+                return new Dictionary<string, string> { { "clearText", step.Selector } };
+            }
+            else
+            {
+                return "clearText";
+            }
+        }
+        else if (action == "pasteText")
+        {
+            if (!string.IsNullOrEmpty(step.Value))
+            {
+                return new Dictionary<string, string> { { "pasteText", step.Value } };
+            }
+            else
+            {
+                return "pasteText";
+            }
+        }
+        else if (action == "eraseText")
+        {
+            object val = int.TryParse(step.Value, out int count) ? count : (object)(step.Value ?? "1");
+            return new Dictionary<string, object> { { "eraseText", val } };
+        }
+        else if (action == "swipe")
+        {
+            var props = ParseKeyValuePairs(step.Value);
+            if (props.Count > 0)
+            {
+                var swipeDict = new Dictionary<string, object>();
+                foreach (var kv in props)
+                {
+                    swipeDict[kv.Key] = kv.Value;
+                }
+                return new Dictionary<string, object> { { "swipe", swipeDict } };
+            }
+            else
+            {
+                return new Dictionary<string, string> { { "swipe", step.Value ?? "" } };
+            }
+        }
+        else if (action == "dragAndDrop")
+        {
+            var props = ParseKeyValuePairs(step.Value);
+            if (props.Count > 0 || !string.IsNullOrEmpty(step.Selector))
+            {
+                var dragDict = new Dictionary<string, object>();
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    dragDict["selector"] = step.Selector;
+                }
+                foreach (var kv in props)
+                {
+                    if (kv.Key == "offsetX" || kv.Key == "offsetY" || kv.Key == "targetOffsetX" || kv.Key == "targetOffsetY")
+                    {
+                        dragDict[kv.Key] = double.TryParse(kv.Value, out double val) ? val : (object)kv.Value;
+                    }
+                    else
+                    {
+                        dragDict[kv.Key] = kv.Value;
+                    }
+                }
+                return new Dictionary<string, object> { { "dragAndDrop", dragDict } };
+            }
+            else if (!string.IsNullOrEmpty(step.Value))
+            {
+                return new Dictionary<string, string> { { "dragAndDrop", step.Value } };
+            }
+            else
+            {
+                return "dragAndDrop";
+            }
+        }
+        else if (action == "stopApp" || action == "killApp" || action == "clearState" || action == "setOrientation" || action == "takeScreenshot" || action == "assertTrue" || action == "assertFalse" || action == "setAirplaneMode" || action == "runFlow" || action == "evalScript" || action == "runScript" || action == "openLink")
+        {
+            return new Dictionary<string, string> { { action, step.Value ?? "" } };
+        }
+        else if (action == "copyTextFrom")
+        {
+            return new Dictionary<string, string> { { "copyTextFrom", step.Selector ?? "" } };
+        }
+        else if (action == "repeat" || action == "retry")
+        {
+            var loopDict = new Dictionary<string, object>();
+            if (action == "repeat")
+            {
+                loopDict["times"] = int.TryParse(step.Value, out int count) ? count : (object)(step.Value ?? "1");
+                if (!string.IsNullOrEmpty(step.WhileConditionType) && !string.IsNullOrEmpty(step.WhileConditionValue))
+                {
+                    loopDict["while"] = new Dictionary<string, string>
+                    {
+                        { step.WhileConditionType, step.WhileConditionValue }
+                    };
+                }
+            }
+            else // retry
+            {
+                loopDict["maxRetries"] = int.TryParse(step.Value, out int count) ? count : (object)(step.Value ?? "1");
+            }
+
+            if (step.NestedSteps != null && step.NestedSteps.Count > 0)
+            {
+                loopDict["commands"] = step.NestedSteps.Select(SerializeStep).ToList();
+            }
+            return new Dictionary<string, object> { { action, loopDict } };
+        }
+        else if (action == "setLocation")
+        {
+            var props = ParseKeyValuePairs(step.Value);
+            if (props.Count > 0)
+            {
+                var locDict = new Dictionary<string, object>();
+                foreach (var kv in props)
+                {
+                    locDict[kv.Key] = double.TryParse(kv.Value, out double val) ? val : (object)kv.Value;
+                }
+                return new Dictionary<string, object> { { "setLocation", locDict } };
+            }
+            else
+            {
+                return new Dictionary<string, string> { { "setLocation", step.Value ?? "" } };
+            }
+        }
+        else if (action == "assertVisible" || action == "assertNotVisible")
+        {
+            return new Dictionary<string, string> { { action, step.Selector ?? "" } };
+        }
+        else if (action == "delay")
+        {
+            object delayVal = int.TryParse(step.Value, out int delayInt) ? delayInt : (object)(step.Value ?? "0");
+            return new Dictionary<string, object> { { "delay", delayVal } };
+        }
+        else if (action == "scroll")
+        {
+            var props = ParseKeyValuePairs(step.Value);
+            if (props.Count > 0 || !string.IsNullOrEmpty(step.Selector))
+            {
+                var scrollDict = new Dictionary<string, object>();
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    scrollDict["selector"] = step.Selector;
+                }
+                foreach (var kv in props)
+                {
+                    scrollDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)kv.Value;
+                }
+                return new Dictionary<string, object> { { "scroll", scrollDict } };
+            }
+            else if (!string.IsNullOrEmpty(step.Value))
+            {
+                return new Dictionary<string, object> { { "scroll", int.TryParse(step.Value, out int val) ? val : (object)step.Value } };
+            }
+            else
+            {
+                return "scroll";
+            }
+        }
+        else if (action == "scrollUntilVisible")
+        {
+            var suvDict = new Dictionary<string, object>
+            {
+                { "selector", step.Selector ?? "" }
+            };
+            var props = ParseKeyValuePairs(step.Value);
+            foreach (var kv in props)
+            {
+                suvDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)kv.Value;
+            }
+            return new Dictionary<string, object> { { "scrollUntilVisible", suvDict } };
+        }
+        else if (action == "pressKey")
+        {
+            if (!string.IsNullOrEmpty(step.Selector))
+            {
+                return new Dictionary<string, object>
+                {
+                    {
+                        "pressKey", new Dictionary<string, string>
+                        {
+                            { "selector", step.Selector },
+                            { "value", step.Value ?? "" }
+                        }
+                    }
+                };
+            }
+            else
+            {
+                return new Dictionary<string, string> { { "pressKey", step.Value ?? "" } };
+            }
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(step.Selector) && string.IsNullOrEmpty(step.Value))
+            {
+                return action;
+            }
+            else if (!string.IsNullOrEmpty(step.Selector) && string.IsNullOrEmpty(step.Value))
+            {
+                return new Dictionary<string, string> { { action, step.Selector } };
+            }
+            else if (string.IsNullOrEmpty(step.Selector) && !string.IsNullOrEmpty(step.Value))
+            {
+                var props = ParseKeyValuePairs(step.Value);
+                if (props.Count > 0)
+                {
+                    var actionDict = new Dictionary<string, object>();
+                    foreach (var kv in props)
+                    {
+                        actionDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)kv.Value;
+                    }
+                    return new Dictionary<string, object> { { action, actionDict } };
+                }
+                else
+                {
+                    return new Dictionary<string, string> { { action, step.Value } };
+                }
+            }
+            else
+            {
+                var actionDict = new Dictionary<string, object>
+                {
+                    { "selector", step.Selector ?? "" }
+                };
+                var props = ParseKeyValuePairs(step.Value);
+                if (props.Count > 0)
+                {
+                    foreach (var kv in props)
+                    {
+                        actionDict[kv.Key] = int.TryParse(kv.Value, out int val) ? val : (object)(kv.Value ?? "");
+                    }
+                }
+                else
+                {
+                    actionDict["value"] = step.Value ?? "";
+                }
+                return new Dictionary<string, object> { { action, actionDict } };
+            }
+        }
     }
 
     private static (string x, string y)? ParseCoordinates(string value)
