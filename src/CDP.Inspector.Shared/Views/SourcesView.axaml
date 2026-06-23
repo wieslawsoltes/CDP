@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             xmlns:map="using:XamlPlayground.Editor.Minimap"
              x:Class="CdpInspectorApp.Views.SourcesView"
              x:CompileBindings="False">
     <Grid ColumnDefinitions="260, 4, *" Margin="10">
@@ -35,7 +36,7 @@
         <!-- Code Viewer -->
         <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
             <TextBlock Name="lblSourceFileName" Text="{Binding Sources.SelectedFileName}" Classes="panel-header"/>
-            <ae:TextEditor Name="txtSourceContent" Grid.Row="1" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#e8eaed" Background="Transparent" BorderThickness="0" ShowLineNumbers="True" IsReadOnly="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+            <map:MinimapTextEditor Name="txtSourceContent" Grid.Row="1" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#e8eaed" Background="Transparent" BorderThickness="0" ShowLineNumbers="True" IsReadOnly="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
         </Grid>
     </Grid>
 </UserControl>

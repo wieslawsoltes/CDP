@@ -1,0 +1,85 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:minimap="using:XamlPlayground.Editor.Minimap"
+        xmlns:inline="using:XamlPlayground.Editor.Minimap.Inline">
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ControlTheme x:Key="{x:Type minimap:MinimapTextEditor}" TargetType="minimap:MinimapTextEditor">
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <minimap:TextEditorMinimap Name="PART_LeftMinimap"
+                                           Grid.Column="0"
+                                           Background="{TemplateBinding MinimapBackground}"
+                                           MinimapEnabled="{TemplateBinding MinimapEnabled}"
+                                           AutoHide="{TemplateBinding MinimapAutoHide}"
+                                           SizeMode="{TemplateBinding MinimapSize}"
+                                           ShowSlider="{TemplateBinding MinimapShowSlider}"
+                                           RenderCharacters="{TemplateBinding MinimapRenderCharacters}"
+                                           MaxColumn="{TemplateBinding MinimapMaxColumn}"
+                                           Scale="{TemplateBinding MinimapScale}"
+                                           ShowRegionSectionHeaders="{TemplateBinding MinimapShowRegionSectionHeaders}"
+                                           ShowMarkSectionHeaders="{TemplateBinding MinimapShowMarkSectionHeaders}"
+                                           MarkSectionHeaderRegex="{TemplateBinding MinimapMarkSectionHeaderRegex}"
+                                           SectionHeaderFontSize="{TemplateBinding MinimapSectionHeaderFontSize}"
+                                           SectionHeaderLetterSpacing="{TemplateBinding MinimapSectionHeaderLetterSpacing}"
+                                           Language="{TemplateBinding MinimapLanguage}"
+                                           TextBrush="{TemplateBinding MinimapForeground}"
+                                           CommentBrush="{TemplateBinding MinimapCommentBrush}"
+                                           KeywordBrush="{TemplateBinding MinimapKeywordBrush}"
+                                           StringBrush="{TemplateBinding MinimapStringBrush}"
+                                           TagBrush="{TemplateBinding MinimapTagBrush}"
+                                           SliderBrush="{TemplateBinding MinimapSliderBrush}"
+                                           SliderPointerOverBrush="{TemplateBinding MinimapSliderPointerOverBrush}"
+                                           SliderActiveBrush="{TemplateBinding MinimapSliderActiveBrush}"
+                                           SectionHeaderForeground="{TemplateBinding MinimapSectionHeaderForeground}"
+                                           SectionHeaderSeparatorBrush="{TemplateBinding MinimapSectionHeaderSeparatorBrush}" />
+                <Grid Grid.Column="1"
+                      ClipToBounds="True">
+                  <ScrollViewer Focusable="False"
+                                Name="PART_ScrollViewer"
+                                VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"
+                                HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                                VerticalContentAlignment="Top"
+                                HorizontalContentAlignment="Left"
+                                Padding="{TemplateBinding Padding}" />
+                  <inline:EditorInlineOverlayPanel Name="PART_InlineOverlayLayer"
+                                                   ClipToBounds="True" />
+                </Grid>
+                <minimap:TextEditorMinimap Name="PART_RightMinimap"
+                                           Grid.Column="2"
+                                           Background="{TemplateBinding MinimapBackground}"
+                                           MinimapEnabled="{TemplateBinding MinimapEnabled}"
+                                           AutoHide="{TemplateBinding MinimapAutoHide}"
+                                           SizeMode="{TemplateBinding MinimapSize}"
+                                           ShowSlider="{TemplateBinding MinimapShowSlider}"
+                                           RenderCharacters="{TemplateBinding MinimapRenderCharacters}"
+                                           MaxColumn="{TemplateBinding MinimapMaxColumn}"
+                                           Scale="{TemplateBinding MinimapScale}"
+                                           ShowRegionSectionHeaders="{TemplateBinding MinimapShowRegionSectionHeaders}"
+                                           ShowMarkSectionHeaders="{TemplateBinding MinimapShowMarkSectionHeaders}"
+                                           MarkSectionHeaderRegex="{TemplateBinding MinimapMarkSectionHeaderRegex}"
+                                           SectionHeaderFontSize="{TemplateBinding MinimapSectionHeaderFontSize}"
+                                           SectionHeaderLetterSpacing="{TemplateBinding MinimapSectionHeaderLetterSpacing}"
+                                           Language="{TemplateBinding MinimapLanguage}"
+                                           TextBrush="{TemplateBinding MinimapForeground}"
+                                           CommentBrush="{TemplateBinding MinimapCommentBrush}"
+                                           KeywordBrush="{TemplateBinding MinimapKeywordBrush}"
+                                           StringBrush="{TemplateBinding MinimapStringBrush}"
+                                           TagBrush="{TemplateBinding MinimapTagBrush}"
+                                           SliderBrush="{TemplateBinding MinimapSliderBrush}"
+                                           SliderPointerOverBrush="{TemplateBinding MinimapSliderPointerOverBrush}"
+                                           SliderActiveBrush="{TemplateBinding MinimapSliderActiveBrush}"
+                                           SectionHeaderForeground="{TemplateBinding MinimapSectionHeaderForeground}"
+                                           SectionHeaderSeparatorBrush="{TemplateBinding MinimapSectionHeaderSeparatorBrush}" />
+              </Grid>
+            </Border>
+          </ControlTemplate>
+        </Setter>
+      </ControlTheme>
+    </ResourceDictionary>
+  </Styles.Resources>
+</Styles>

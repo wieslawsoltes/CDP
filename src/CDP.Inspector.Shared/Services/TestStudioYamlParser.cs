@@ -98,13 +98,13 @@ public static class TestStudioYamlParser
 
     private static TestStudioStepModel? ParseStepNode(YamlNode node)
     {
+        TestStudioStepModel? model = null;
         if (node is YamlScalarNode scalarNode)
         {
             var action = scalarNode.Value ?? "";
-            return BuildStepModel(action, "", null);
+            model = BuildStepModel(action, "", null);
         }
-
-        if (node is YamlMappingNode mappingNode)
+        else if (node is YamlMappingNode mappingNode)
         {
             string? action = null;
             string inlineValue = "";
@@ -215,15 +215,18 @@ public static class TestStudioYamlParser
                 }
             }
 
-            if (action == null)
+            if (action != null)
             {
-                return null;
+                model = BuildStepModel(action, inlineValue, dict, nestedSteps);
             }
-
-            return BuildStepModel(action, inlineValue, dict, nestedSteps);
         }
 
-        return null;
+        if (model != null)
+        {
+            model.StartLine = (int)node.Start.Line;
+            model.EndLine = (int)node.End.Line;
+        }
+        return model;
     }
 
     private static bool IsKnownAction(string action)

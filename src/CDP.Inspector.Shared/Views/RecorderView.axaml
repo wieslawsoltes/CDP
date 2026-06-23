@@ -4,6 +4,7 @@
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
+             xmlns:map="using:XamlPlayground.Editor.Minimap"
              x:Class="CdpInspectorApp.Views.RecorderView"
              x:CompileBindings="False">
     <Grid RowDefinitions="Auto, *" Margin="10">
@@ -208,7 +209,7 @@
                         </Grid>
                         
                         <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="10">
-                            <ae:TextEditor Name="txtGeneratedCode" 
+                            <map:MinimapTextEditor Name="txtGeneratedCode" 
                                            Background="Transparent" 
                                            BorderThickness="0" 
                                            Foreground="#e8eaed" 

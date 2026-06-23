@@ -23,6 +23,20 @@ public class TestStudioStepModel : ViewModelBase
     private ObservableCollection<TestStudioStepModel>? _nestedSteps;
     private string? _whileConditionType;
     private string? _whileConditionValue;
+    private int _startLine;
+    private int _endLine;
+
+    public int StartLine
+    {
+        get => _startLine;
+        set => RaiseAndSetIfChanged(ref _startLine, value);
+    }
+
+    public int EndLine
+    {
+        get => _endLine;
+        set => RaiseAndSetIfChanged(ref _endLine, value);
+    }
 
     public string Action
     {

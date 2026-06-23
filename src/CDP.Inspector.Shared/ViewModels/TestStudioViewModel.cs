@@ -110,6 +110,7 @@ public class TestStudioViewModel : ViewModelBase
     public ICommand OpenLastReportCommand { get; }
     public ICommand OpenLastPdfReportCommand { get; }
     public ICommand ReplayLastVideoCommand { get; }
+    public Action<ReplayIndicatorInfo?>? OnStepIndicatorChanged { get; set; }
 
     public ObservableCollection<TestStudioStepModel> Steps
     {
@@ -415,6 +416,13 @@ public class TestStudioViewModel : ViewModelBase
         try
         {
             YamlCode = TestStudioYamlParser.Generate(Steps.ToList(), _appId, _description);
+            // Re-parse the generated YAML to resolve line coordinates for recorded steps
+            var parsed = TestStudioYamlParser.Parse(YamlCode, out _, out _);
+            for (int i = 0; i < Math.Min(Steps.Count, parsed.Count); i++)
+            {
+                Steps[i].StartLine = parsed[i].StartLine;
+                Steps[i].EndLine = parsed[i].EndLine;
+            }
         }
         finally
         {
@@ -711,7 +719,44 @@ public class TestStudioViewModel : ViewModelBase
         IsPaused = false;
     }
 
-    private async Task ExecuteSingleStepAsync(TestStudioStepModel step, CancellationToken token)
+    public async Task ExecuteSingleStepAsync(TestStudioStepModel step, CancellationToken token)
+    {
+        var action = step.Action;
+        if (string.IsNullOrEmpty(action)) return;
+
+        var indicator = new ReplayIndicatorInfo
+        {
+            Action = action,
+            Selector = step.Selector ?? "",
+            Value = step.Value ?? "",
+            Status = ReplayIndicatorStatus.Running
+        };
+
+        // Notify start of step
+        OnStepIndicatorChanged?.Invoke(indicator);
+
+        try
+        {
+            await ExecuteSingleStepInternalAsync(step, indicator, token);
+            indicator.Status = ReplayIndicatorStatus.Passed;
+            OnStepIndicatorChanged?.Invoke(indicator);
+            await Task.Delay(500, token); // Keep it visible for 500ms
+        }
+        catch (Exception ex)
+        {
+            indicator.Status = ReplayIndicatorStatus.Failed;
+            indicator.ErrorMessage = ex.Message;
+            OnStepIndicatorChanged?.Invoke(indicator);
+            await Task.Delay(1000, token); // Keep error visible for 1000ms
+            throw;
+        }
+        finally
+        {
+            OnStepIndicatorChanged?.Invoke(null);
+        }
+    }
+
+    private async Task ExecuteSingleStepInternalAsync(TestStudioStepModel step, ReplayIndicatorInfo indicator, CancellationToken token)
     {
         var action = step.Action;
         if (string.IsNullOrEmpty(action)) return;
@@ -733,6 +778,9 @@ public class TestStudioViewModel : ViewModelBase
             case "tapOn":
                 {
                     var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
+                    indicator.X = x;
+                    indicator.Y = y;
+                    OnStepIndicatorChanged?.Invoke(indicator);
                     if (nodeId > 0)
                     {
                         try
@@ -768,6 +816,9 @@ public class TestStudioViewModel : ViewModelBase
             case "doubleTapOn":
                 {
                     var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
+                    indicator.X = x;
+                    indicator.Y = y;
+                    OnStepIndicatorChanged?.Invoke(indicator);
                     if (nodeId > 0)
                     {
                         try
@@ -791,6 +842,9 @@ public class TestStudioViewModel : ViewModelBase
             case "longPressOn":
                 {
                     var (x, y, nodeId) = await ResolveCoordinatesAsync(step, token);
+                    indicator.X = x;
+                    indicator.Y = y;
+                    OnStepIndicatorChanged?.Invoke(indicator);
                     if (nodeId > 0)
                     {
                         try
@@ -821,6 +875,25 @@ public class TestStudioViewModel : ViewModelBase
                             {
                                 Log($"Waiting for element '{step.Selector}' to be visible...");
                                 int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+
+                                try
+                                {
+                                    var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+                                    var model = boxRes["model"] as JsonObject;
+                                    indicator.BoxModel = model;
+                                    var content = model?["content"] as JsonArray;
+                                    if (content != null && content.Count >= 8)
+                                    {
+                                        double x1 = content[0]!.GetValue<double>();
+                                        double y1 = content[1]!.GetValue<double>();
+                                        double x2 = content[4]!.GetValue<double>();
+                                        double y2 = content[5]!.GetValue<double>();
+                                        indicator.X = x1 + (x2 - x1) / 2.0;
+                                        indicator.Y = y1 + (y2 - y1) / 2.0;
+                                    }
+                                    OnStepIndicatorChanged?.Invoke(indicator);
+                                }
+                                catch {}
 
                                 Log($"Focusing element and typing '{step.Value}'");
                                 await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
@@ -856,6 +929,25 @@ public class TestStudioViewModel : ViewModelBase
                             {
                                 Log($"Waiting for element '{step.Selector}' to be visible...");
                                 int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+
+                                try
+                                {
+                                    var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+                                    var model = boxRes["model"] as JsonObject;
+                                    indicator.BoxModel = model;
+                                    var content = model?["content"] as JsonArray;
+                                    if (content != null && content.Count >= 8)
+                                    {
+                                        double x1 = content[0]!.GetValue<double>();
+                                        double y1 = content[1]!.GetValue<double>();
+                                        double x2 = content[4]!.GetValue<double>();
+                                        double y2 = content[5]!.GetValue<double>();
+                                        indicator.X = x1 + (x2 - x1) / 2.0;
+                                        indicator.Y = y1 + (y2 - y1) / 2.0;
+                                    }
+                                    OnStepIndicatorChanged?.Invoke(indicator);
+                                }
+                                catch {}
 
                                 Log("Focusing element and clearing text...");
                                 await _cdpService.SendCommandAsync("DOM.focus", new JsonObject { ["nodeId"] = nodeId });
@@ -926,7 +1018,25 @@ public class TestStudioViewModel : ViewModelBase
                         throw new Exception("assertVisible step requires a Selector.");
                     }
                     Log($"Asserting visibility of element '{step.Selector}'...");
-                    await WaitForElementVisibleAsync(step.Selector, token);
+                    int nodeId = await WaitForElementVisibleAsync(step.Selector, token);
+                    try
+                    {
+                        var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
+                        var model = boxRes["model"] as JsonObject;
+                        indicator.BoxModel = model;
+                        var content = model?["content"] as JsonArray;
+                        if (content != null && content.Count >= 8)
+                        {
+                            double x1 = content[0]!.GetValue<double>();
+                            double y1 = content[1]!.GetValue<double>();
+                            double x2 = content[4]!.GetValue<double>();
+                            double y2 = content[5]!.GetValue<double>();
+                            indicator.X = x1 + (x2 - x1) / 2.0;
+                            indicator.Y = y1 + (y2 - y1) / 2.0;
+                        }
+                        OnStepIndicatorChanged?.Invoke(indicator);
+                    }
+                    catch {}
                     Log("Assertion passed: Element is visible.");
                     break;
                 }
@@ -1096,6 +1206,11 @@ public class TestStudioViewModel : ViewModelBase
                         : tgtContent[1]!.GetValue<double>() + (tgtContent[5]!.GetValue<double>() - tgtContent[1]!.GetValue<double>()) / 2.0;
 
                     Log($"Dragging from ({srcX:F1}, {srcY:F1}) to ({tgtX:F1}, {tgtY:F1})");
+                    indicator.X = srcX;
+                    indicator.Y = srcY;
+                    indicator.EndX = tgtX;
+                    indicator.EndY = tgtY;
+                    OnStepIndicatorChanged?.Invoke(indicator);
 
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
                     {
@@ -1219,6 +1334,9 @@ public class TestStudioViewModel : ViewModelBase
                     }
 
                     Log($"Scrolling at ({scrollX:F1}, {scrollY:F1}) with deltaX={deltaX}, deltaY={deltaY}");
+                    indicator.X = scrollX;
+                    indicator.Y = scrollY;
+                    OnStepIndicatorChanged?.Invoke(indicator);
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
                     {
                         ["type"] = "mouseWheel",
@@ -1367,6 +1485,11 @@ public class TestStudioViewModel : ViewModelBase
                     }
 
                     Log($"Swiping from ({startX:F1}, {startY:F1}) to ({endX:F1}, {endY:F1})");
+                    indicator.X = startX;
+                    indicator.Y = startY;
+                    indicator.EndX = endX;
+                    indicator.EndY = endY;
+                    OnStepIndicatorChanged?.Invoke(indicator);
                     await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject { ["type"] = "mousePressed", ["x"] = startX, ["y"] = startY, ["button"] = "left", ["clickCount"] = 1 });
                     int stepsCount = 10;
                     for (int i = 1; i <= stepsCount; i++)
@@ -1896,6 +2019,33 @@ public class TestStudioViewModel : ViewModelBase
             step.IsCurrent = false;
             // 5. Append to step list
             Steps.Add(step);
+        }
+    }
+
+    public async Task RunSingleStepAsync(TestStudioStepModel step)
+    {
+        if (IsExecuting) return;
+
+        IsExecuting = true;
+        step.Status = StepStatus.Running;
+        step.IsCurrent = true;
+        step.ErrorMessage = null;
+
+        try
+        {
+            await ExecuteSingleStepAsync(step, CancellationToken.None);
+            step.Status = StepStatus.Passed;
+        }
+        catch (Exception ex)
+        {
+            step.Status = StepStatus.Failed;
+            step.ErrorMessage = ex.Message;
+            Log($"Failed to execute step {step.ActionDisplay}: {ex.Message}");
+        }
+        finally
+        {
+            step.IsCurrent = false;
+            IsExecuting = false;
         }
     }
 
