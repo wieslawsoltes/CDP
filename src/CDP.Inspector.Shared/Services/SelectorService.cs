@@ -36,12 +36,43 @@ public class SelectorService
         {
             string tagName = node.NodeName;
             selectors.Add(tagName);
+            selectors.Add("text: \"Visible text\"");
+            selectors.Add("id: \"automation_id\"");
+            selectors.Add("css: \"#controlName\"");
+            selectors.Add("point: \"50%, 50%\"");
+            selectors.Add("enabled: true");
+            selectors.Add("checked: true");
+            selectors.Add("focused: true");
+            selectors.Add("selected: true");
+            selectors.Add("traits: text");
+            selectors.Add("traits: long-text");
+            selectors.Add("traits: square");
+            selectors.Add("width: 48");
+            selectors.Add("height: 48");
+            selectors.Add("tolerance: 2");
 
             var idAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
             if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value))
             {
                 selectors.Add($"#{idAttr.Value}");
                 selectors.Add($"{tagName}#{idAttr.Value}");
+                selectors.Add($"css: \"#{idAttr.Value}\"");
+                selectors.Add($"id: \"{idAttr.Value}\"");
+            }
+
+            var automationAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase));
+            if (automationAttr != null && !string.IsNullOrEmpty(automationAttr.Value))
+            {
+                selectors.Add($"[AccessibilityId=\"{automationAttr.Value}\"]");
+                selectors.Add($"id: \"{automationAttr.Value}\"");
+            }
+
+            var textAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("text", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Text", StringComparison.OrdinalIgnoreCase));
+            if (textAttr != null && !string.IsNullOrEmpty(textAttr.Value))
+            {
+                selectors.Add($"\"{textAttr.Value}\"");
+                selectors.Add($"text: \"{textAttr.Value}\"");
+                selectors.Add($":contains(\"{textAttr.Value}\")");
             }
 
             var classAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Class", StringComparison.OrdinalIgnoreCase));
