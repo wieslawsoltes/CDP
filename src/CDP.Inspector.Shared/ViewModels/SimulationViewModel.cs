@@ -1119,7 +1119,7 @@ public class SimulationViewModel : ViewModelBase
                 {
                     ["type"] = "scroll",
                     ["deltaX"] = 0,
-                    ["deltaY"] = deltaY
+                    ["deltaY"] = deltaY * 100.0
                 };
                 if (!string.IsNullOrEmpty(selector))
                 {

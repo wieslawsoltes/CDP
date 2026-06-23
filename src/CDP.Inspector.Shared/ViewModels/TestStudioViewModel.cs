@@ -786,11 +786,15 @@ public class TestStudioViewModel : ViewModelBase
                 {
                     string targetUrl = _cdpService.ConnectedHost;
                     var appTarget = GetStepValue(step, "appId");
-                    if (!string.IsNullOrEmpty(appTarget))
+                    if (!string.IsNullOrEmpty(appTarget) &&
+                        (appTarget.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                         appTarget.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
                     {
                         targetUrl = appTarget;
                     }
-                    else if (!string.IsNullOrEmpty(_appId))
+                    else if (!string.IsNullOrEmpty(_appId) &&
+                             (_appId.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                              _appId.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
                     {
                         targetUrl = _appId;
                     }

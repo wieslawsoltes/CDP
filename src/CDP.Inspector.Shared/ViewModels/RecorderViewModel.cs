@@ -377,6 +377,18 @@ public class RecorderViewModel : ViewModelBase
                     if (newSelector == lastStep.Selector)
                     {
                         lastStep.Value += step["value"]?.GetValue<string>() ?? "";
+                        if (IsTestStudioActive)
+                        {
+                            for (int i = TestStudio.Steps.Count - 1; i >= 0; i--)
+                            {
+                                var tsStep = TestStudio.Steps[i];
+                                if (tsStep.Action == "inputText" && tsStep.Selector == lastStep.Selector)
+                                {
+                                    tsStep.Value = lastStep.Value;
+                                    break;
+                                }
+                            }
+                        }
                         UpdateGeneratedCode();
                         return;
                     }

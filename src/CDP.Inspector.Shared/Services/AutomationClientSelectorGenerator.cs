@@ -23,15 +23,16 @@ public class AutomationClientSelectorGenerator : IClientSelectorGenerator
             return $"#{idAttr.Value}";
         }
 
+        string targetPart = node.NodeName;
         var text = ClientSelectorRegistry.GetNodeTextContent(node);
         if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
         {
             var escaped = text.Replace("\"", "\\\"");
-            return $"{node.NodeName}:contains(\"{escaped}\")";
+            targetPart += $":contains(\"{escaped}\")";
         }
 
-        DomNodeModel? current = node;
-        var pathParts = new List<string>();
+        DomNodeModel? current = node.Parent;
+        var pathParts = new List<string> { targetPart };
         while (current != null)
         {
             var curAccessIdAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase));

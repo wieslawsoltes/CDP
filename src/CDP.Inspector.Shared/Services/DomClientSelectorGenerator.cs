@@ -36,16 +36,17 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
             return $"[AccessibilityId=\"{accessIdAttr.Value}\"]";
         }
 
+        string targetPart = GetSimpleSelector(node);
         var text = ClientSelectorRegistry.GetNodeTextContent(node);
         if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
         {
             var escaped = text.Replace("\"", "\\\"");
-            return $"{node.NodeName}:contains(\"{escaped}\")";
+            targetPart += $":contains(\"{escaped}\")";
         }
 
         // 1. Walk up to find if there is any named ancestor (has id/Name attribute)
-        DomNodeModel? current = node;
-        var pathParts = new List<string>();
+        DomNodeModel? current = node.Parent;
+        var pathParts = new List<string> { targetPart };
         while (current != null)
         {
             var curIdAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
@@ -80,8 +81,8 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
         }
 
         // 2. Fallback to structural path if no named ancestor is found
-        var parts = new List<string>();
-        current = node;
+        var parts = new List<string> { targetPart };
+        current = node.Parent;
         while (current != null)
         {
             string part = GetSimpleSelector(current);

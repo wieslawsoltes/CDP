@@ -175,8 +175,8 @@ public class SelectorTests
         var domGen = SelectorRegistry.GetGenerator("dom");
         var autoGen = SelectorRegistry.GetGenerator("automation");
 
-        Assert.Equal("Label:contains(\"Submit Form\")", domGen.GenerateSelector(label));
-        Assert.Equal("Label:contains(\"Submit Form\")", autoGen.GenerateSelector(label));
+        Assert.Equal("StackPanel > Label:contains(\"Submit Form\")", domGen.GenerateSelector(label));
+        Assert.Equal("StackPanel > Label:contains(\"Submit Form\")", autoGen.GenerateSelector(label));
 
         // Test that client-side generators correctly generate contains-text selectors as fallbacks.
         var clientLabel = new CdpInspectorApp.Models.DomNodeModel(3, "Label");

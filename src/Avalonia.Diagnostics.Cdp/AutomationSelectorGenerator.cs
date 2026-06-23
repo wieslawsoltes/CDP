@@ -28,15 +28,16 @@ public class AutomationSelectorGenerator : ISelectorGenerator
             }
         }
 
+        string targetPart = visual.GetType().Name;
         var text = SelectorEngine.GetVisualTextContent(visual);
         if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
         {
             var escaped = text.Replace("\"", "\\\"");
-            return $"{visual.GetType().Name}:contains(\"{escaped}\")";
+            targetPart += $":contains(\"{escaped}\")";
         }
 
-        Visual? current = visual;
-        var pathParts = new List<string>();
+        Visual? current = useLogicalTree ? SelectorEngine.GetLogicalParent(visual) : visual.GetVisualParent();
+        var pathParts = new List<string> { targetPart };
         while (current != null)
         {
             if (current is Control ctrl)
