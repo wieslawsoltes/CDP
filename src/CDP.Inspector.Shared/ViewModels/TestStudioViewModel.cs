@@ -790,6 +790,10 @@ public class TestStudioViewModel : ViewModelBase
                     {
                         targetUrl = appTarget;
                     }
+                    else if (!string.IsNullOrEmpty(_appId))
+                    {
+                        targetUrl = _appId;
+                    }
                     if (string.IsNullOrEmpty(targetUrl))
                     {
                         targetUrl = "http://localhost:9222/";
@@ -2129,6 +2133,139 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
+    private async Task<int> QuerySelectorWithFallbackAsync(int rootNodeId, string selector)
+    {
+        try
+        {
+            var qParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = selector };
+            var qRes = await _cdpService.SendCommandAsync("DOM.querySelector", qParams);
+            int nodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+            if (nodeId > 0)
+            {
+                return nodeId;
+            }
+        }
+        catch
+        {
+            // querySelector failed, fallback to JS
+        }
+
+        return await QueryNodeViaJsAsync(selector);
+    }
+
+    private async Task<int> QueryNodeViaJsAsync(string selector)
+    {
+        var escapedSelector = selector.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
+        var jsExpression = $$"""
+        (function() {
+            var selector = "{{escapedSelector}}";
+            function findElement(sel) {
+                var containsMatch = sel.match(/:contains\("((?:[^"\\]|\\.)*)"\)/) || sel.match(/:contains\('((?:[^'\\]|\\.)*)'\)/);
+                if (!containsMatch) {
+                    try {
+                        var el = document.querySelector(sel);
+                        if (el) return el;
+                    } catch (e) {}
+                    var accMatch = sel.match(/\[AccessibilityId=["'](.*?)["']\]/);
+                    if (accMatch) {
+                        var val = accMatch[1];
+                        return document.querySelector('[AccessibilityId="' + val + '"]') || 
+                               document.querySelector('[AutomationId="' + val + '"]') ||
+                               document.querySelector('[id="' + val + '"]') ||
+                               document.querySelector('[name="' + val + '"]');
+                    }
+                    return null;
+                }
+                
+                var containsPart = containsMatch[0];
+                var text = containsMatch[1].replace(/\\(.)/g, '$1').toLowerCase();
+                var index = sel.indexOf(containsPart);
+                var before = sel.substring(0, index).trim() || "*";
+                var after = sel.substring(index + containsPart.length).trim();
+                
+                if (before.indexOf('[AccessibilityId=') >= 0) {
+                    var accMatch = before.match(/\[AccessibilityId=["'](.*?)["']\]/);
+                    if (accMatch) {
+                        var val = accMatch[1];
+                        var candidates = [];
+                        var selectors = [
+                            '[AccessibilityId="' + val + '"]', 
+                            '[AutomationId="' + val + '"]', 
+                            '[id="' + val + '"]',
+                            '[name="' + val + '"]'
+                        ];
+                        for (var i = 0; i < selectors.length; i++) {
+                            try {
+                                var nodes = document.querySelectorAll(selectors[i]);
+                                if (nodes.length > 0) {
+                                    candidates = nodes;
+                                    break;
+                                }
+                            } catch(e) {}
+                        }
+                        return findInCandidates(candidates, text, after);
+                    }
+                }
+                
+                try {
+                    var candidates = document.querySelectorAll(before);
+                    return findInCandidates(candidates, text, after);
+                } catch(e) {
+                    return null;
+                }
+            }
+            
+            function findInCandidates(candidates, text, after) {
+                for (var i = 0; i < candidates.length; i++) {
+                    var el = candidates[i];
+                    var elText = el.textContent || el.innerText || "";
+                    if (elText.toLowerCase().indexOf(text) >= 0) {
+                        if (!after) {
+                            return el;
+                        } else {
+                            var subEl = el.querySelector(after);
+                            if (subEl) return subEl;
+                        }
+                    }
+                }
+                return null;
+            }
+            return findElement(selector);
+        })()
+        """;
+
+        try
+        {
+            var evalParams = new JsonObject
+            {
+                ["expression"] = jsExpression,
+                ["returnByValue"] = false
+            };
+            var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", evalParams);
+            var exceptionDetails = evalRes["exceptionDetails"];
+            if (exceptionDetails != null)
+            {
+                return 0;
+            }
+
+            var resultObj = evalRes["result"] as JsonObject;
+            var objectId = resultObj?["objectId"]?.GetValue<string>();
+            if (string.IsNullOrEmpty(objectId))
+            {
+                return 0;
+            }
+
+            var reqNodeParams = new JsonObject { ["objectId"] = objectId };
+            var reqNodeRes = await _cdpService.SendCommandAsync("DOM.requestNode", reqNodeParams);
+            int nodeId = reqNodeRes["nodeId"]?.GetValue<int>() ?? 0;
+            return nodeId;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     private async Task<int> WaitForElementVisibleAsync(string selector, CancellationToken token, double timeoutSeconds = 5.0)
     {
         var startTime = DateTime.UtcNow;
@@ -2141,9 +2278,7 @@ public class TestStudioViewModel : ViewModelBase
                 var root = docRes["root"] as JsonObject;
                 int rootNodeId = root?["nodeId"]?.GetValue<int>() ?? 1;
 
-                var qParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = selector };
-                var qRes = await _cdpService.SendCommandAsync("DOM.querySelector", qParams);
-                int nodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+                int nodeId = await QuerySelectorWithFallbackAsync(rootNodeId, selector);
                 if (nodeId > 0)
                 {
                     var (w, h) = await GetElementSizeAsync(nodeId);
@@ -2174,9 +2309,7 @@ public class TestStudioViewModel : ViewModelBase
                 var root = docRes["root"] as JsonObject;
                 int rootNodeId = root?["nodeId"]?.GetValue<int>() ?? 1;
 
-                var qParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = selector };
-                var qRes = await _cdpService.SendCommandAsync("DOM.querySelector", qParams);
-                int nodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+                int nodeId = await QuerySelectorWithFallbackAsync(rootNodeId, selector);
                 if (nodeId == 0)
                 {
                     return;
@@ -2204,9 +2337,7 @@ public class TestStudioViewModel : ViewModelBase
             var root = docRes["root"] as JsonObject;
             int rootNodeId = root?["nodeId"]?.GetValue<int>() ?? 1;
 
-            var qParams = new JsonObject { ["nodeId"] = rootNodeId, ["selector"] = selector };
-            var qRes = await _cdpService.SendCommandAsync("DOM.querySelector", qParams);
-            int nodeId = qRes["nodeId"]?.GetValue<int>() ?? 0;
+            int nodeId = await QuerySelectorWithFallbackAsync(rootNodeId, selector);
             if (nodeId > 0)
             {
                 var (w, h) = await GetElementSizeAsync(nodeId);
