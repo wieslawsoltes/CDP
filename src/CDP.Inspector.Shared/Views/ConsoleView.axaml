@@ -22,17 +22,28 @@
             </Grid>
 
             <!-- Logs Console List -->
-            <ListBox Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid ColumnDefinitions="Auto, Auto, *">
-                            <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Foreground="#9aa0a6" Width="90" FontSize="12"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" Width="70" Margin="10,0" FontSize="12"/>
-                            <TextBlock Grid.Column="2" Text="{Binding Text}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <DataGrid Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1"
+                      CanUserReorderRows="False" CanUserSortColumns="True" IsReadOnly="True"
+                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                      Background="Transparent" BorderThickness="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Width="90" Foreground="#9aa0a6" FontSize="12"/>
+                    <DataGridTemplateColumn Header="Level" Width="70">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Message" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Text}" Foreground="#e8eaed" TextWrapping="Wrap" Margin="5" FontSize="12" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
         </Grid>
 
         <!-- Script Evaluator input -->

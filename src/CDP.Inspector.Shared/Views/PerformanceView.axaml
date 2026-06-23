@@ -83,16 +83,15 @@
         <!-- Visual Leaks counts (Bottom Half) -->
         <Grid Grid.Row="2" Grid.ColumnSpan="3" RowDefinitions="Auto, *" Margin="0,10,0,0">
             <TextBlock Text="Live Control Type Counts in Memory" Classes="panel-header"/>
-            <ListBox Name="lstLiveControls" ItemsSource="{Binding Performance.LiveControls}" Grid.Row="1">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid ColumnDefinitions="*, 100">
-                            <TextBlock Text="{Binding Type}" FontWeight="Bold" Margin="5" FontSize="12"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" Margin="5" FontSize="12"/>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <DataGrid Name="lstLiveControls" ItemsSource="{Binding Performance.LiveControls}" Grid.Row="1"
+                      CanUserReorderRows="False" CanUserSortColumns="True" IsReadOnly="True"
+                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                      Background="Transparent" BorderThickness="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Control Type" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                    <DataGridTextColumn Header="Live Instances Count" Binding="{Binding Count}" Width="150" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                </DataGrid.Columns>
+            </DataGrid>
         </Grid>
     </Grid>
 </UserControl>
