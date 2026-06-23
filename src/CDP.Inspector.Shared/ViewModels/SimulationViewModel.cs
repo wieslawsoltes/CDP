@@ -25,6 +25,7 @@ public class SimulationViewModel : ViewModelBase
     private string? _highlightAxRole;
     private string? _highlightAxName;
     private bool _isHighlightOverlayVisible;
+    private ReplayIndicatorInfo? _activeReplayIndicator;
 
     private bool _isInspectQueryInFlight;
     private double _lastInspectX;
@@ -210,6 +211,12 @@ public class SimulationViewModel : ViewModelBase
     {
         get => _isHighlightOverlayVisible;
         set => RaiseAndSetIfChanged(ref _isHighlightOverlayVisible, value);
+    }
+
+    public ReplayIndicatorInfo? ActiveReplayIndicator
+    {
+        get => _activeReplayIndicator;
+        set => RaiseAndSetIfChanged(ref _activeReplayIndicator, value);
     }
 
     public string NavigateUrlText
