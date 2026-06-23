@@ -18,5 +18,9 @@ public class TestApp : Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
+        Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://Avalonia.Diagnostics.Cdp.Tests/"))
+        {
+            Source = new Uri("avares://Avalonia.Controls.DataGrid/Themes/Fluent.v2.xaml")
+        });
     }
 }

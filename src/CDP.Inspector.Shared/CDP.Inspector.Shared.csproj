@@ -18,6 +18,7 @@
     <PackageReference Include="Avalonia.AvaloniaEdit" />
     <PackageReference Include="AvaloniaEdit.TextMate" />
     <PackageReference Include="TextMateSharp.Grammars" />
+    <PackageReference Include="ProDataGrid" />
   </ItemGroup>
 
   <ItemGroup>
