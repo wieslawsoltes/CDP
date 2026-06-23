@@ -196,7 +196,7 @@ public class WorkspaceSidebarTests
         };
         var tree = new HierarchicalModel<WorkspaceItemModel>(options);
         tree.SetRoots(vm.WorkspaceFiles);
-        var node = new HierarchicalNode<WorkspaceItemModel>(item, null, tree);
+        var node = tree.FindNode(item).Value;
 
         vm.SelectedWorkspaceNode = node;
 

@@ -27,6 +27,14 @@
                       GridLinesVisibility="Horizontal"
                       HeadersVisibility="None"
                       Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
+                        <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
+                        <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
+                        <MenuItem Header="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridHierarchicalColumn Width="*">
                         <DataGridHierarchicalColumn.CellTemplate>
@@ -42,8 +50,14 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <!-- Run Folder Suite button -->
-            <StackPanel Grid.Row="2" Margin="0,10,0,0">
+            <!-- Create file/folder/rename/delete buttons and "Run Folder Suite" button -->
+            <StackPanel Grid.Row="2" Margin="0,10,0,0" Spacing="6">
+                <WrapPanel HorizontalAlignment="Center">
+                    <Button Name="btnCreateFile" Content="New File" Command="{Binding Recorder.TestStudio.CreateFileCommand}" FontSize="10" Margin="0,0,4,4"/>
+                    <Button Name="btnCreateFolder" Content="New Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}" FontSize="10" Margin="0,0,4,4"/>
+                    <Button Name="btnRename" Content="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}" FontSize="10" Margin="0,0,4,4"/>
+                    <Button Name="btnDelete" Content="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}" FontSize="10" Margin="0,0,4,4"/>
+                </WrapPanel>
                 <Button Name="btnRunSuite" Content="Run Folder Suite" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent"/>
             </StackPanel>
         </Grid>
@@ -343,5 +357,18 @@
         </Grid>
 
 
+        <!-- Inline Name Prompt Overlay -->
+        <Border Grid.ColumnSpan="5" Background="#80000000" IsVisible="{Binding Recorder.TestStudio.IsNamePromptVisible}" ZIndex="100">
+            <Border Background="#2d2d2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="8" Width="300" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="{Binding Recorder.TestStudio.NamePromptTitle}" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                    <TextBox Text="{Binding Recorder.TestStudio.NamePromptValue, Mode=TwoWay}" PlaceholderText="Enter name..."/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Cancel" Command="{Binding Recorder.TestStudio.CancelNamePromptCommand}"/>
+                        <Button Content="OK" Command="{Binding Recorder.TestStudio.SubmitNamePromptCommand}" Classes="accent"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </UserControl>
