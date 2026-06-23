@@ -4,7 +4,6 @@
              xmlns:services="clr-namespace:CdpInspectorApp.Services"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
-             xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
              xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:CompileBindings="False">
@@ -50,20 +49,21 @@
             <!-- Steps List -->
             <Grid Grid.Row="2" RowDefinitions="Auto, *">
                 <TextBlock Grid.Row="0" Text="Test Steps" Classes="panel-header" Foreground="#e8eaed" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
-                <dg:DataGrid Name="lstSteps" Grid.Row="1"
+                <DataGrid Name="lstSteps" Grid.Row="1"
                              HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalSteps}"
                              SelectedItem="{Binding Recorder.TestStudio.SelectedStepNode, Mode=TwoWay}"
                              CanUserReorderRows="True"
+                             CanUserResizeColumns="True"
                              HierarchicalRowsEnabled="True"
                              RowDragHandle="RowHeaderAndRow"
                              GridLinesVisibility="Horizontal"
                              HeadersVisibility="Column"
                              RowDetailsVisibilityMode="VisibleWhenSelected"
                              Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                    <dg:DataGrid.RowDropHandler>
+                    <DataGrid.RowDropHandler>
                         <dgdd:DataGridHierarchicalRowReorderHandler />
-                    </dg:DataGrid.RowDropHandler>
-                    <dg:DataGrid.Styles>
+                    </DataGrid.RowDropHandler>
+                    <DataGrid.Styles>
                         <!-- Style for the hierarchical column's TextBlock -->
                         <Style Selector="DataGridCell TextBlock">
                             <Setter Property="FontWeight" Value="Bold"/>
@@ -71,11 +71,11 @@
                             <Setter Property="Foreground" Value="#e8eaed"/>
                             <Setter Property="VerticalAlignment" Value="Center"/>
                         </Style>
-                    </dg:DataGrid.Styles>
-                    <dg:DataGrid.Columns>
+                    </DataGrid.Styles>
+                    <DataGrid.Columns>
                         <!-- Status Column -->
-                        <dg:DataGridTemplateColumn Header="" Width="40">
-                            <dg:DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn Header="" Width="40">
+                            <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                                         <Ellipse Width="8" Height="8" Fill="#9aa0a6" IsVisible="{Binding Item.IsPending}"/>
@@ -84,32 +84,32 @@
                                         <TextBlock Text="✘" Foreground="#c5221f" FontWeight="Bold" FontSize="12" IsVisible="{Binding Item.IsFailed}"/>
                                     </Grid>
                                 </DataTemplate>
-                            </dg:DataGridTemplateColumn.CellTemplate>
-                        </dg:DataGridTemplateColumn>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         
                         <!-- Action Column (Hierarchical Column) -->
-                        <dg:DataGridHierarchicalColumn Header="Action" Width="1.5*" Binding="{Binding Item.ActionDisplay}" />
-
+                        <DataGridHierarchicalColumn Header="Action" Width="1.5*" Binding="{Binding Item.ActionDisplay}" />
+ 
                         <!-- Selector Column -->
-                        <dg:DataGridTemplateColumn Header="Selector" Width="1.5*">
-                            <dg:DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn Header="Selector" Width="1.5*">
+                            <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding Item.Selector}" Foreground="#8ab4f8" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
                                 </DataTemplate>
-                            </dg:DataGridTemplateColumn.CellTemplate>
-                        </dg:DataGridTemplateColumn>
-
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+ 
                         <!-- Value Column -->
-                        <dg:DataGridTemplateColumn Header="Value" Width="*">
-                            <dg:DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn Header="Value" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding Item.Value}" Foreground="#e8eaed" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
                                 </DataTemplate>
-                            </dg:DataGridTemplateColumn.CellTemplate>
-                        </dg:DataGridTemplateColumn>
-                    </dg:DataGrid.Columns>
-
-                    <dg:DataGrid.RowDetailsTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+ 
+                    <DataGrid.RowDetailsTemplate>
                         <DataTemplate>
                             <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="12">
                                 <StackPanel Spacing="8">
@@ -140,8 +140,8 @@
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
-                    </dg:DataGrid.RowDetailsTemplate>
-                </dg:DataGrid>
+                    </DataGrid.RowDetailsTemplate>
+                </DataGrid>
             </Grid>
 
             <!-- Maestro Command Toolbox -->

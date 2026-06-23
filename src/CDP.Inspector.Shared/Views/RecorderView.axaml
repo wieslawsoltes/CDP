@@ -3,7 +3,6 @@
              xmlns:views="clr-namespace:CdpInspectorApp.Views"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
-             xmlns:dg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.DataGrid"
              xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
              x:Class="CdpInspectorApp.Views.RecorderView"
              x:CompileBindings="False">
@@ -28,50 +27,52 @@
                 
                 <Grid Grid.Row="1" RowDefinitions="Auto, *">
                     <TextBlock Text="Recorded Steps" Classes="panel-header" Margin="0,0,0,8" Foreground="#e8eaed" FontSize="14" FontWeight="Bold"/>
-                    <dg:DataGrid Name="lstRecordedSteps" Grid.Row="1"
-                                 ItemsSource="{Binding Recorder.RecordedSteps}"
-                                 SelectedItem="{Binding Recorder.SelectedRecordedStep, Mode=TwoWay}"
-                                 CanUserReorderRows="True"
-                                 RowDragHandle="RowHeaderAndRow"
-                                 GridLinesVisibility="Horizontal"
-                                 HeadersVisibility="Column"
-                                 RowDetailsVisibilityMode="VisibleWhenSelected"
-                                 Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                        <dg:DataGrid.RowDropHandler>
+                    <DataGrid Name="lstRecordedSteps" Grid.Row="1"
+                              ItemsSource="{Binding Recorder.RecordedSteps}"
+                              SelectedItem="{Binding Recorder.SelectedRecordedStep, Mode=TwoWay}"
+                              CanUserReorderRows="True"
+                              CanUserResizeColumns="True"
+                              CanUserSortColumns="True"
+                              RowDragHandle="RowHeaderAndRow"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              RowDetailsVisibilityMode="VisibleWhenSelected"
+                              Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                        <DataGrid.RowDropHandler>
                             <dgdd:DataGridRowReorderHandler />
-                        </dg:DataGrid.RowDropHandler>
-                        <dg:DataGrid.Columns>
+                        </DataGrid.RowDropHandler>
+                        <DataGrid.Columns>
                             <!-- Type Badge Column -->
-                            <dg:DataGridTemplateColumn Header="Type" Width="100">
-                                <dg:DataGridTemplateColumn.CellTemplate>
+                            <DataGridTemplateColumn Header="Type" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Border Background="#3c4043" CornerRadius="2" Padding="4,2" HorizontalAlignment="Left" Margin="4">
                                             <TextBlock Text="{Binding Type}" FontSize="10" FontWeight="Bold" Foreground="#e8eaed"/>
                                         </Border>
                                     </DataTemplate>
-                                </dg:DataGridTemplateColumn.CellTemplate>
-                            </dg:DataGridTemplateColumn>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
                             <!-- Target / Selector Column -->
-                            <dg:DataGridTemplateColumn Header="Selector" Width="1.5*">
-                                <dg:DataGridTemplateColumn.CellTemplate>
+                            <DataGridTemplateColumn Header="Selector" Width="1.5*">
+                                <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding SelectorDisplay}" FontWeight="Normal" Foreground="#8ab4f8" FontSize="12" VerticalAlignment="Center" Margin="12,0"/>
                                     </DataTemplate>
-                                </dg:DataGridTemplateColumn.CellTemplate>
-                            </dg:DataGridTemplateColumn>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
                             <!-- Details Column -->
-                            <dg:DataGridTemplateColumn Header="Details" Width="2.5*">
-                                <dg:DataGridTemplateColumn.CellTemplate>
+                            <DataGridTemplateColumn Header="Details" Width="2.5*">
+                                <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding DetailDisplay}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center" Margin="12,0"/>
                                     </DataTemplate>
-                                </dg:DataGridTemplateColumn.CellTemplate>
-                            </dg:DataGridTemplateColumn>
-                        </dg:DataGrid.Columns>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
 
-                        <dg:DataGrid.RowDetailsTemplate>
+                        <DataGrid.RowDetailsTemplate>
                             <DataTemplate>
                                 <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="12">
                                     <StackPanel Spacing="8">
@@ -185,8 +186,8 @@
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
-                        </dg:DataGrid.RowDetailsTemplate>
-                    </dg:DataGrid>
+                        </DataGrid.RowDetailsTemplate>
+                    </DataGrid>
                 </Grid>
             </Grid>
             

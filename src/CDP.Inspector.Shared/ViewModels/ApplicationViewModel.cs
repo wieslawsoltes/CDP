@@ -6,6 +6,7 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -19,6 +20,25 @@ public class ApplicationViewModel : ViewModelBase
     private ObservableCollection<AppNavNode> _navigationNodes = new();
     private AppNavNode? _selectedNode;
     private bool _isResourceEditorVisible;
+    private object? _selectedNavigationNodeNode;
+
+    public HierarchicalModel<AppNavNode> HierarchicalNavigationNodes { get; }
+
+    public object? SelectedNavigationNodeNode
+    {
+        get => _selectedNavigationNodeNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedNavigationNodeNode, value))
+            {
+                var target = value is HierarchicalNode<AppNavNode> node ? node.Item : (value as AppNavNode);
+                if (SelectedNode != target)
+                {
+                    SelectedNode = target;
+                }
+            }
+        }
+    }
 
     // Storage Editor Fields
     private ObservableCollection<StorageEntryModel> _storageItems = new();
@@ -123,6 +143,19 @@ public class ApplicationViewModel : ViewModelBase
                     StorageTitle = _selectedNode!.Name;
                     _ = RefreshStorageAsync();
                 }
+
+                if (value == null)
+                {
+                    SelectedNavigationNodeNode = null;
+                }
+                else
+                {
+                    var node = HierarchicalNavigationNodes.FindNode(value);
+                    if (!Equals(SelectedNavigationNodeNode, node))
+                    {
+                        SelectedNavigationNodeNode = node;
+                    }
+                }
             }
         }
     }
@@ -166,6 +199,18 @@ public class ApplicationViewModel : ViewModelBase
         AddStorageItemCommand = new RelayCommand(AddStorageItem, () => _cdpService.IsConnected);
         SaveStorageItemCommand = new RelayCommand(async () => await SaveStorageItemAsync(), () => _cdpService.IsConnected);
         DeleteStorageItemCommand = new RelayCommand<string>(async (key) => await DeleteStorageItemAsync(key), (key) => _cdpService.IsConnected);
+
+        var options = new HierarchicalOptions<AppNavNode>
+        {
+            ChildrenSelector = node => node.Children,
+            IsLeafSelector = node => node.Children == null || node.Children.Count == 0,
+            IsExpandedSelector = node => node.IsExpanded,
+            IsExpandedSetter = (node, value) => node.IsExpanded = value,
+            IsExpandedPropertyPath = nameof(AppNavNode.IsExpanded),
+            AutoExpandRoot = true
+        };
+        HierarchicalNavigationNodes = new HierarchicalModel<AppNavNode>(options);
+        HierarchicalNavigationNodes.SetRoots(NavigationNodes);
 
         InitializeNavigationTree();
     }

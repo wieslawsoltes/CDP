@@ -6,7 +6,7 @@ namespace CdpInspectorApp.Views;
 public partial class ConsoleView : UserControl
 {
     public Button BtnClearLogs => btnClearLogs;
-    public ListBox ListLogs => listLogs;
+    public DataGrid ListLogs => listLogs;
     public ListBox ListConsole => listConsole;
     public TextBox TxtConsoleInput => txtConsoleInput;
     public Button BtnSendConsole => btnSendConsole;

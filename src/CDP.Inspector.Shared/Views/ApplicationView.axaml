@@ -6,15 +6,26 @@
         <!-- Sidebar tree -->
         <Grid RowDefinitions="Auto, *">
             <TextBlock Text="Application Data" Classes="panel-header"/>
-            <TreeView Name="treeAppNav" ItemsSource="{Binding Application.NavigationNodes}" SelectedItem="{Binding Application.SelectedNode, Mode=TwoWay}" Grid.Row="1">
-                <TreeView.ItemTemplate>
-                    <TreeDataTemplate ItemsSource="{Binding Children}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
-                        </StackPanel>
-                    </TreeDataTemplate>
-                </TreeView.ItemTemplate>
-            </TreeView>
+            <DataGrid Name="treeAppNav"
+                         HierarchicalModel="{Binding Application.HierarchicalNavigationNodes}"
+                         SelectedItem="{Binding Application.SelectedNavigationNodeNode, Mode=TwoWay}"
+                         HierarchicalRowsEnabled="True"
+                         GridLinesVisibility="None"
+                         HeadersVisibility="None"
+                         Background="Transparent" BorderThickness="0"
+                         CanUserResizeColumns="True"
+                         CanUserSortColumns="False"
+                         Grid.Row="1">
+                <DataGrid.Styles>
+                    <Style Selector="DataGridCell TextBlock">
+                        <Setter Property="FontSize" Value="12"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                    </Style>
+                </DataGrid.Styles>
+                <DataGrid.Columns>
+                    <DataGridHierarchicalColumn Width="*" Binding="{Binding Item.Name}" />
+                </DataGrid.Columns>
+            </DataGrid>
         </Grid>
 
         <!-- Splitter -->
@@ -27,17 +38,22 @@
                 <Button Grid.Column="1" Name="btnRefreshResources" Command="{Binding Application.RefreshResourcesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
             </Grid>
             
-            <ListBox Name="lstApplicationResources" ItemsSource="{Binding Application.Resources}" SelectedItem="{Binding Application.SelectedResource, Mode=TwoWay}" Grid.Row="1">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid ColumnDefinitions="*, *, Auto">
-                            <TextBlock Text="{Binding Key}" FontWeight="Bold" Margin="5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Value}" TextTrimming="CharacterEllipsis" Margin="5" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="12"/>
-                            <Button Grid.Column="2" Name="btnDeleteResource" Command="{Binding $parent[UserControl].DataContext.Application.DeleteResourceCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Margin="5,0" Padding="8,2" FontSize="10"/>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <DataGrid Name="lstApplicationResources" ItemsSource="{Binding Application.Resources}" SelectedItem="{Binding Application.SelectedResource, Mode=TwoWay}" Grid.Row="1"
+                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                      Background="Transparent" BorderThickness="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Key Name" Binding="{Binding Key}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                    <DataGridTemplateColumn Header="Action" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Name="btnDeleteResource" Command="{Binding $parent[UserControl].DataContext.Application.DeleteResourceCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
 
             <!-- Modifier Panel -->
             <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
@@ -58,17 +74,22 @@
                 <Button Grid.Column="1" Name="btnRefreshStorage" Command="{Binding Application.RefreshStorageCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
             </Grid>
             
-            <ListBox Name="lstStorageItems" ItemsSource="{Binding Application.StorageItems}" SelectedItem="{Binding Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1">
-                <ListBox.ItemTemplate>
-                     <DataTemplate>
-                        <Grid ColumnDefinitions="*, *, Auto">
-                            <TextBlock Text="{Binding Key}" FontWeight="Bold" Margin="5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Value}" TextTrimming="CharacterEllipsis" Margin="5" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="12"/>
-                            <Button Grid.Column="2" Name="btnDeleteStorageItem" Command="{Binding $parent[UserControl].DataContext.Application.DeleteStorageItemCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Margin="5,0" Padding="8,2" FontSize="10"/>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <DataGrid Name="lstStorageItems" ItemsSource="{Binding Application.StorageItems}" SelectedItem="{Binding Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1"
+                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                      Background="Transparent" BorderThickness="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Key Name" Binding="{Binding Key}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                    <DataGridTemplateColumn Header="Action" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Name="btnDeleteStorageItem" Command="{Binding $parent[UserControl].DataContext.Application.DeleteStorageItemCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
 
             <!-- Storage Modifier Panel -->
             <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">

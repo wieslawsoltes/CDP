@@ -48,18 +48,29 @@
                 <Grid RowDefinitions="Auto, *">
                     <TextBlock Text="DIAGNOSTIC RECOMMENDATIONS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
                     
-                    <ListBox Name="lstIssues" Grid.Row="1" ItemsSource="{Binding Audits.Issues}" SelectedItem="{Binding Audits.SelectedIssue, Mode=TwoWay}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ColumnDefinitions="Auto, *" Margin="3">
-                                    <Border Background="{Binding CategoryBrush}" CornerRadius="3" Padding="6,3" Height="22" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Category}" Foreground="Black" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Text="{Binding Message}" TextWrapping="Wrap" Margin="10,0,0,0" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <DataGrid Name="lstIssues" Grid.Row="1" ItemsSource="{Binding Audits.Issues}" SelectedItem="{Binding Audits.SelectedIssue, Mode=TwoWay}"
+                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                              Background="Transparent" BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Category" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{Binding CategoryBrush}" CornerRadius="3" Padding="6,3" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Category}" Foreground="Black" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Message" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="10,5" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </Grid>
             </Border>
 

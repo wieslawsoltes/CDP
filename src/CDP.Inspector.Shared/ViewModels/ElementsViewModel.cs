@@ -9,6 +9,7 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -18,6 +19,43 @@ public class ElementsViewModel : ViewModelBase
     private readonly Dictionary<string, JsonObject> _axNodeDetailsMap = new();
     private ObservableCollection<DomNodeModel> _rootNodes = new();
     private ObservableCollection<AxNodeModel> _axRootNodes = new();
+    private object? _selectedNodeNode;
+    private object? _selectedAxNodeNode;
+
+    public HierarchicalModel<DomNodeModel> HierarchicalRootNodes { get; }
+    public HierarchicalModel<AxNodeModel> HierarchicalAxRootNodes { get; }
+
+    public object? SelectedNodeNode
+    {
+        get => _selectedNodeNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedNodeNode, value))
+            {
+                var target = value is HierarchicalNode<DomNodeModel> node ? node.Item : (value as DomNodeModel);
+                if (SelectedNode != target)
+                {
+                    SelectedNode = target;
+                }
+            }
+        }
+    }
+
+    public object? SelectedAxNodeNode
+    {
+        get => _selectedAxNodeNode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedAxNodeNode, value))
+            {
+                var target = value is HierarchicalNode<AxNodeModel> node ? node.Item : (value as AxNodeModel);
+                if (SelectedAxNode != target)
+                {
+                    SelectedAxNode = target;
+                }
+            }
+        }
+    }
     private ObservableCollection<AttributeModel> _attributes = new();
     private ObservableCollection<PropertyModel> _properties = new();
     private ObservableCollection<CssPropertyModel> _cssProperties = new();
@@ -27,6 +65,7 @@ public class ElementsViewModel : ViewModelBase
     private DomNodeModel? _selectedNode;
     private AxNodeModel? _selectedAxNode;
     private PropertyModel? _selectedProperty;
+    private AttributeModel? _selectedAttribute;
 
     private string _selectedNodeIdText = "None";
     private string _selectedPropertyNameText = "None";
@@ -295,6 +334,19 @@ public class ElementsViewModel : ViewModelBase
             {
                 _ = HandleNodeSelectionChangedAsync();
                 SyncAxSelectionFromDom();
+
+                if (value == null)
+                {
+                    SelectedNodeNode = null;
+                }
+                else
+                {
+                    var node = HierarchicalRootNodes.FindNode(value);
+                    if (!Equals(SelectedNodeNode, node))
+                    {
+                        SelectedNodeNode = node;
+                    }
+                }
             }
         }
     }
@@ -312,6 +364,19 @@ public class ElementsViewModel : ViewModelBase
             {
                 SyncDomSelectionFromAx();
                 UpdateAxDetailsFromSelectedAxNode(value);
+
+                if (value == null)
+                {
+                    SelectedAxNodeNode = null;
+                }
+                else
+                {
+                    var node = HierarchicalAxRootNodes.FindNode(value);
+                    if (!Equals(SelectedAxNodeNode, node))
+                    {
+                        SelectedAxNodeNode = node;
+                    }
+                }
             }
         }
     }
@@ -326,6 +391,23 @@ public class ElementsViewModel : ViewModelBase
                 SelectedPropertyNameText = _selectedProperty?.Name ?? "None";
                 PropertyValueInputText = _selectedProperty?.Value ?? "";
                 ((RelayCommand)ApplyPropertyCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+ 
+    public AttributeModel? SelectedAttribute
+    {
+        get => _selectedAttribute;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedAttribute, value))
+            {
+                if (value != null)
+                {
+                    AttributeNameInputText = value.Name;
+                    AttributeValueInputText = value.Value;
+                }
+                ((RelayCommand)DeleteAttributeCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -532,6 +614,30 @@ public class ElementsViewModel : ViewModelBase
         CssProperties.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredCssProperties));
         ComputedStyles.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredComputedStyles));
         Attributes.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredAttributes));
+
+        var domOptions = new HierarchicalOptions<DomNodeModel>
+        {
+            ChildrenSelector = node => node.Children,
+            IsLeafSelector = node => node.Children == null || node.Children.Count == 0,
+            IsExpandedSelector = node => node.IsExpanded,
+            IsExpandedSetter = (node, value) => node.IsExpanded = value,
+            IsExpandedPropertyPath = nameof(DomNodeModel.IsExpanded),
+            AutoExpandRoot = true
+        };
+        HierarchicalRootNodes = new HierarchicalModel<DomNodeModel>(domOptions);
+        HierarchicalRootNodes.SetRoots(RootNodes);
+
+        var axOptions = new HierarchicalOptions<AxNodeModel>
+        {
+            ChildrenSelector = node => node.Children,
+            IsLeafSelector = node => node.Children == null || node.Children.Count == 0,
+            IsExpandedSelector = node => node.IsExpanded,
+            IsExpandedSetter = (node, value) => node.IsExpanded = value,
+            IsExpandedPropertyPath = nameof(AxNodeModel.IsExpanded),
+            AutoExpandRoot = true
+        };
+        HierarchicalAxRootNodes = new HierarchicalModel<AxNodeModel>(axOptions);
+        HierarchicalAxRootNodes.SetRoots(AxRootNodes);
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -612,16 +718,41 @@ public class ElementsViewModel : ViewModelBase
         try
         {
             await _cdpService.SendCommandAsync("DOM.enable");
-            await _cdpService.SendCommandAsync("CSS.enable");
-            await _cdpService.SendCommandAsync("DOMDebugger.enable");
-            await _cdpService.SendCommandAsync("Accessibility.enable");
-            await RefreshDomTreeAsync();
-            await RefreshAxTreeAsync();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling DOM/CSS/AX domains: {ex.Message}");
+            Console.WriteLine($"Error enabling DOM domain: {ex.Message}");
         }
+
+        try
+        {
+            await _cdpService.SendCommandAsync("CSS.enable");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error enabling CSS domain: {ex.Message}");
+        }
+
+        try
+        {
+            await _cdpService.SendCommandAsync("DOMDebugger.enable");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error enabling DOMDebugger domain: {ex.Message}");
+        }
+
+        try
+        {
+            await _cdpService.SendCommandAsync("Accessibility.enable");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error enabling Accessibility domain: {ex.Message}");
+        }
+
+        await RefreshDomTreeAsync();
+        await RefreshAxTreeAsync();
     }
 
     private void ClearData()
@@ -630,6 +761,8 @@ public class ElementsViewModel : ViewModelBase
         {
             RootNodes.Clear();
             AxRootNodes.Clear();
+            HierarchicalRootNodes.SetRoots(RootNodes);
+            HierarchicalAxRootNodes.SetRoots(AxRootNodes);
             Attributes.Clear();
             Properties.Clear();
             CssProperties.Clear();
@@ -658,6 +791,7 @@ public class ElementsViewModel : ViewModelBase
             {
                 RootNodes.Clear();
                 RootNodes.Add(rootModel);
+                HierarchicalRootNodes.SetRoots(RootNodes);
                 SelectorService.Instance.UpdateSelectors(rootModel);
             }
             else
@@ -666,6 +800,7 @@ public class ElementsViewModel : ViewModelBase
                 {
                     RootNodes.Clear();
                     RootNodes.Add(rootModel);
+                    HierarchicalRootNodes.SetRoots(RootNodes);
                     SelectorService.Instance.UpdateSelectors(rootModel);
                 });
             }
@@ -1050,18 +1185,23 @@ public class ElementsViewModel : ViewModelBase
         }
     }
 
-    private async Task DeleteAttributeAsync()
+    public async Task DeleteAttributeAsync()
     {
-        if (SelectedNode == null || string.IsNullOrEmpty(AttributeNameInputText)) return;
+        string name = AttributeNameInputText;
+        if (string.IsNullOrEmpty(name) && SelectedAttribute != null)
+        {
+            name = SelectedAttribute.Name;
+        }
+        if (SelectedNode == null || string.IsNullOrEmpty(name)) return;
         try
         {
             await _cdpService.SendCommandAsync("DOM.removeAttribute", new JsonObject
             {
                 ["nodeId"] = SelectedNode.NodeId,
-                ["name"] = AttributeNameInputText
+                ["name"] = name
             });
 
-            var existing = SelectedNode.AttributesList.FirstOrDefault(a => a.Name.Equals(AttributeNameInputText, StringComparison.OrdinalIgnoreCase));
+            var existing = SelectedNode.AttributesList.FirstOrDefault(a => a.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
             if (existing != null)
             {
                 SelectedNode.AttributesList.Remove(existing);
@@ -1070,6 +1210,7 @@ public class ElementsViewModel : ViewModelBase
             await HandleNodeSelectionChangedAsync();
             AttributeNameInputText = "";
             AttributeValueInputText = "";
+            SelectedAttribute = null;
         }
         catch (Exception ex)
         {
@@ -1146,6 +1287,105 @@ public class ElementsViewModel : ViewModelBase
         catch (Exception ex)
         {
             Console.WriteLine($"Error applying style texts: {ex.Message}");
+        }
+    }
+
+    public async Task UpdateAttributeAsync(AttributeModel attr)
+    {
+        if (SelectedNode == null) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.setAttributeValue", new JsonObject
+            {
+                ["nodeId"] = SelectedNode.NodeId,
+                ["name"] = attr.Name,
+                ["value"] = attr.Value
+            });
+
+            await HandleNodeSelectionChangedAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating attribute: {ex.Message}");
+        }
+    }
+
+    public async Task UpdatePropertyAsync(PropertyModel prop)
+    {
+        if (SelectedNode == null) return;
+        try
+        {
+            var resolveRes = await _cdpService.SendCommandAsync("DOM.resolveNode", new JsonObject { ["nodeId"] = SelectedNode.NodeId });
+            var obj = resolveRes["object"] as JsonObject;
+            string objectId = obj?["objectId"]?.GetValue<string>() ?? "";
+            
+            if (!string.IsNullOrEmpty(objectId))
+            {
+                string rawValue = prop.Value;
+                JsonNode parsedValue;
+                if (prop.Type == "number" && double.TryParse(rawValue, out double dVal))
+                {
+                    parsedValue = JsonValue.Create(dVal);
+                }
+                else if (prop.Type == "boolean" && bool.TryParse(rawValue, out bool bVal))
+                {
+                    parsedValue = JsonValue.Create(bVal);
+                }
+                else
+                {
+                    parsedValue = JsonValue.Create(rawValue);
+                }
+
+                await _cdpService.SendCommandAsync("Runtime.callFunctionOn", new JsonObject
+                {
+                    ["objectId"] = objectId,
+                    ["functionDeclaration"] = $"function(val) {{ this.{prop.Name} = val; }}",
+                    ["arguments"] = new JsonArray { new JsonObject { ["value"] = parsedValue } }
+                });
+
+                await HandleNodeSelectionChangedAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating property: {ex.Message}");
+        }
+    }
+
+    public async Task UpdateCssPropertyAsync(CssPropertyModel cssProp)
+    {
+        if (SelectedNode == null) return;
+        try
+        {
+            var sb = new StringBuilder();
+            foreach (var p in CssProperties)
+            {
+                sb.Append($"{p.Name}: {p.Value}; ");
+            }
+            string fullText = sb.ToString().Trim();
+
+            var edits = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["styleSheetId"] = SelectedNode.NodeId.ToString(),
+                    ["range"] = new JsonObject
+                    {
+                        ["startLine"] = 0,
+                        ["startColumn"] = 0,
+                        ["endLine"] = 0,
+                        ["endColumn"] = 0
+                    },
+                    ["text"] = fullText
+                }
+            };
+
+            await _cdpService.SendCommandAsync("CSS.setStyleTexts", new JsonObject { ["edits"] = edits });
+            StyleTextInputText = fullText;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating inline style: {ex.Message}");
         }
     }
 
@@ -1463,6 +1703,7 @@ public class ElementsViewModel : ViewModelBase
                 {
                     _axRootNodes.Add(root);
                 }
+                HierarchicalAxRootNodes.SetRoots(_axRootNodes);
                 SyncAxSelectionFromDom();
             }
             else
@@ -1474,6 +1715,7 @@ public class ElementsViewModel : ViewModelBase
                     {
                         _axRootNodes.Add(root);
                     }
+                    HierarchicalAxRootNodes.SetRoots(_axRootNodes);
                     SyncAxSelectionFromDom();
                 });
             }

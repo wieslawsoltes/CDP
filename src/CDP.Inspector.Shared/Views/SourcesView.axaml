@@ -7,15 +7,26 @@
         <!-- Left Workspace navigator -->
         <Grid RowDefinitions="Auto, *">
             <TextBlock Text="Workspace Navigator" Classes="panel-header"/>
-            <TreeView Name="treeWorkspaceFiles" ItemsSource="{Binding Sources.WorkspaceFiles}" SelectedItem="{Binding Sources.SelectedFile, Mode=TwoWay}" Grid.Row="1">
-                <TreeView.ItemTemplate>
-                    <TreeDataTemplate ItemsSource="{Binding Children}">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
-                        </StackPanel>
-                    </TreeDataTemplate>
-                </TreeView.ItemTemplate>
-            </TreeView>
+            <DataGrid Name="treeWorkspaceFiles"
+                         HierarchicalModel="{Binding Sources.HierarchicalWorkspaceFiles}"
+                         SelectedItem="{Binding Sources.SelectedFileNode, Mode=TwoWay}"
+                         HierarchicalRowsEnabled="True"
+                         GridLinesVisibility="None"
+                         HeadersVisibility="None"
+                         Background="Transparent" BorderThickness="0"
+                         CanUserResizeColumns="True"
+                         CanUserSortColumns="False"
+                         Grid.Row="1">
+                <DataGrid.Styles>
+                    <Style Selector="DataGridCell TextBlock">
+                        <Setter Property="FontSize" Value="12"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                    </Style>
+                </DataGrid.Styles>
+                <DataGrid.Columns>
+                    <DataGridHierarchicalColumn Width="*" Binding="{Binding Item.Name}" />
+                </DataGrid.Columns>
+            </DataGrid>
         </Grid>
 
         <!-- Splitter -->

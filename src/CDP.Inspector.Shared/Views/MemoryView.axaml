@@ -14,16 +14,15 @@
             <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
                 <Grid RowDefinitions="Auto, *">
                     <TextBlock Text="HEAP SNAPSHOTS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
-                    <ListBox Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding Memory.Snapshots}" SelectedItem="{Binding Memory.SelectedSnapshot, Mode=TwoWay}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Margin="3">
-                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12"/>
-                                    <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss'}" Foreground="#9aa0a6" FontSize="10"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <DataGrid Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding Memory.Snapshots}" SelectedItem="{Binding Memory.SelectedSnapshot, Mode=TwoWay}"
+                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                              GridLinesVisibility="None" HeadersVisibility="None"
+                              Background="Transparent" BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Snapshot" Binding="{Binding Name}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                            <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss'}" Width="80" Foreground="#9aa0a6" FontSize="10"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </Grid>
             </Border>
         </Grid>
@@ -60,77 +59,88 @@
                         <TabItem Header="Live Counts">
                             <Grid>
                                 <!-- Summary mode list -->
-                                <Grid RowDefinitions="Auto, *" IsVisible="{Binding !Memory.IsComparisonMode}">
-                                    <!-- Headers -->
-                                    <Grid ColumnDefinitions="*, 120" Margin="10,5,10,5">
-                                        <TextBlock Text="Control Type / Constructor" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
-                                        <TextBlock Grid.Column="1" Text="Live Instances Count" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
-                                    
-                                    <ListBox Grid.Row="1" ItemsSource="{Binding Memory.CurrentEntries}">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid ColumnDefinitions="*, 120" Margin="2">
-                                                    <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Count}" FontSize="12" Foreground="#8ab4f8" FontWeight="Bold" HorizontalAlignment="Right"/>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                <Grid IsVisible="{Binding !Memory.IsComparisonMode}">
+                                    <DataGrid ItemsSource="{Binding Memory.CurrentEntries}"
+                                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                                              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                              Background="Transparent" BorderThickness="0">
+                                        <DataGrid.ColumnHeaderContextMenu>
+                                            <ContextMenu x:CompileBindings="False">
+                                                <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
+                                                    <MenuItem.ItemContainerTheme>
+                                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                                            <Setter Property="Header" Value="{Binding Header}" />
+                                                            <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
+                                                            <Setter Property="ToggleType" Value="CheckBox" />
+                                                        </ControlTheme>
+                                                    </MenuItem.ItemContainerTheme>
+                                                </MenuItem>
+                                            </ContextMenu>
+                                        </DataGrid.ColumnHeaderContextMenu>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Control Type / Constructor" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
+                                            <DataGridTextColumn Header="Live Instances Count" Binding="{Binding Count}" Width="150" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
                                 </Grid>
 
                                 <!-- Comparison mode list -->
-                                <Grid RowDefinitions="Auto, *" IsVisible="{Binding Memory.IsComparisonMode}">
-                                    <!-- Headers -->
-                                    <Grid ColumnDefinitions="*, 100, 100, 100" Margin="10,5,10,5">
-                                        <TextBlock Text="Control Type / Constructor" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
-                                        <TextBlock Grid.Column="1" Text="Baseline" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                                        <TextBlock Grid.Column="2" Text="Current" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                                        <TextBlock Grid.Column="3" Text="Delta" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                                    </Grid>
-                                    <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
-                                    
-                                    <ListBox Grid.Row="1" ItemsSource="{Binding Memory.ComparisonEntries}">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid ColumnDefinitions="*, 100, 100, 100" Margin="2">
-                                                    <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
-                                                    <TextBlock Grid.Column="1" Text="{Binding BaselineCount}" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                                                    <TextBlock Grid.Column="2" Text="{Binding SnapshotCount}" FontSize="12" Foreground="#e8eaed" HorizontalAlignment="Right"/>
-                                                    <TextBlock Grid.Column="3" Text="{Binding DeltaText}" FontSize="12" Foreground="#f28b82" FontWeight="Bold" HorizontalAlignment="Right"/>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                <Grid IsVisible="{Binding Memory.IsComparisonMode}">
+                                    <DataGrid ItemsSource="{Binding Memory.ComparisonEntries}"
+                                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                                              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                              Background="Transparent" BorderThickness="0">
+                                        <DataGrid.ColumnHeaderContextMenu>
+                                            <ContextMenu x:CompileBindings="False">
+                                                <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
+                                                    <MenuItem.ItemContainerTheme>
+                                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                                            <Setter Property="Header" Value="{Binding Header}" />
+                                                            <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
+                                                            <Setter Property="ToggleType" Value="CheckBox" />
+                                                        </ControlTheme>
+                                                    </MenuItem.ItemContainerTheme>
+                                                </MenuItem>
+                                            </ContextMenu>
+                                        </DataGrid.ColumnHeaderContextMenu>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Control Type / Constructor" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
+                                            <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineCount}" Width="100" Foreground="#9aa0a6" FontSize="12"/>
+                                            <DataGridTextColumn Header="Current" Binding="{Binding SnapshotCount}" Width="100" Foreground="#e8eaed" FontSize="12"/>
+                                            <DataGridTextColumn Header="Delta" Binding="{Binding DeltaText}" Width="100" Foreground="#f28b82" FontSize="12" FontWeight="Bold"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
                                 </Grid>
                             </Grid>
                         </TabItem>
 
                         <!-- Detached Controls Tab -->
                         <TabItem Header="Detached Controls (Leaked)">
-                            <Grid RowDefinitions="Auto, *">
-                                <!-- Headers -->
-                                <Grid ColumnDefinitions="*, *, 120, 150" Margin="10,5,10,5">
-                                    <TextBlock Text="Control Type" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
-                                    <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6"/>
-                                    <TextBlock Grid.Column="2" Text="Detached Duration" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                                    <TextBlock Grid.Column="3" Text="DataContext VM" FontWeight="Bold" FontSize="12" Foreground="#9aa0a6" HorizontalAlignment="Right"/>
-                                </Grid>
-                                <Separator Grid.Row="0" VerticalAlignment="Bottom" Background="#3c4043"/>
-                                
-                                <ListBox Grid.Row="1" ItemsSource="{Binding Memory.DetachedControls}">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ColumnDefinitions="*, *, 120, 150" Margin="2">
-                                                <TextBlock Text="{Binding Type}" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Foreground="#9aa0a6"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding DetachedDurationMs, StringFormat='{}{0} ms'}" FontSize="12" Foreground="#f28b82" FontWeight="Bold" HorizontalAlignment="Right"/>
-                                                <TextBlock Grid.Column="3" Text="{Binding DataContextType}" FontSize="12" Foreground="#8ab4f8" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                            <Grid>
+                                <DataGrid ItemsSource="{Binding Memory.DetachedControls}"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                          Background="Transparent" BorderThickness="0">
+                                    <DataGrid.ColumnHeaderContextMenu>
+                                        <ContextMenu x:CompileBindings="False">
+                                            <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
+                                                <MenuItem.ItemContainerTheme>
+                                                    <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                                        <Setter Property="Header" Value="{Binding Header}" />
+                                                        <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
+                                                        <Setter Property="ToggleType" Value="CheckBox" />
+                                                    </ControlTheme>
+                                                </MenuItem.ItemContainerTheme>
+                                            </MenuItem>
+                                        </ContextMenu>
+                                    </DataGrid.ColumnHeaderContextMenu>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Control Type" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                                        <DataGridTextColumn Header="Detached Duration" Binding="{Binding DetachedDurationMs, StringFormat='{}{0} ms'}" Width="150" Foreground="#f28b82" FontSize="12" FontWeight="Bold"/>
+                                        <DataGridTextColumn Header="DataContext VM" Binding="{Binding DataContextType}" Width="150" Foreground="#8ab4f8" FontSize="12"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
                             </Grid>
                         </TabItem>
                     </TabControl>
