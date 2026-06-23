@@ -145,7 +145,7 @@ When running, press **F12** inside the window to open the in-process DevTools cl
 
 ## Test Studio & Headless Test Runner
 
-The project features a **Test Studio** panel inside the inspector app, which provides a visual, interactive test suite workspace using a Maestro-compatible YAML syntax.
+The project features a **Test Studio** panel inside the inspector app, which provides a visual, interactive test suite workspace using a Flow-compatible YAML syntax.
 
 ### Key Capabilities
 - **Command Toolbox**: A category-tabbed toolbox grouping actions into *Interactions* (taps, inputs, swipes, scrolls), *Assertions* (visibility and logical checks), *App & Device* (app lifecycle, orientations, geolocations, screenshots), and *Logic* (loops, retries, nested flows).

@@ -129,7 +129,7 @@ The recorder client in `CdpInspectorApp` implements a dual-panel MVVM-based layo
   - Exposes `ClearCommand` (clears steps).
   - Handles the `Recorder.stepAdded` event from the CdpService, adding a new model and updating the generated code.
 - **Test Studio ViewModel** ([TestStudioViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/TestStudioViewModel.cs)):
-  - Manages Maestro-style test flows.
+  - Manages Flow-style test flows.
   - Supports detailed step status tracking (`Pending`, `Running`, `Passed`, `Failed`).
   - Features pause/resume via cancellation tokens and line-by-line stepping (`StepOver`).
   - Offers custom test actions (like copy-text-to-clipboard, back button, scroll viewport, assert element visibility, etc.).
@@ -186,7 +186,7 @@ The following areas are missing or require enhancement to improve recording fide
    - **Replay Throttling (Speed Controls)**: Main replay runs with hardcoded delays (`Task.Delay(100)`, `Task.Delay(300)`). A speed control slider (e.g., "Playback Speed" from 0.1x to 2x) is needed to allow visual walkthroughs of test runs.
 
 3. **Export and Translation Refinements**:
-   - **Maestro YAML Generation**: While TestStudio parses Maestro-inspired YAML, there is no direct option to export the main recorded steps list to this YAML format.
+   - **flow YAML Generation**: While TestStudio parses Flow-inspired YAML, there is no direct option to export the main recorded steps list to this YAML format.
    - **UI Assertion Recording**: Developers cannot record assertion steps (e.g., asserting that a label has text "Success") directly from the target app. We need an "Assertion Picker Mode" in the inspector to click an element and record a visibility/text assertion step.
 
 ---
@@ -203,9 +203,9 @@ The following areas are missing or require enhancement to improve recording fide
 - Implement step-status mapping in `RecorderViewModel` to style recorded steps (`StepStatus`) with spinners, checkmarks, or warning badges during playback.
 - Add a speed slider to control step-execution delay bounds (throttling).
 
-### Phase 3: GUI Assertion Tool & Maestro Exporter (Client Enhancements)
+### Phase 3: GUI Assertion Tool & flow exporter (Client Enhancements)
 - Add an "Add Assertion" button in the inspector that enables node selection mode, allowing the user to click any element in the DOM tree and add a `assertVisible`, `assertNotVisible`, or `assertText` step.
-- Implement `MaestroYamlGenerator` to support exporting captured lists directly into Maestro-inspired YAML.
+- Implement `FlowYamlGenerator` to support exporting captured lists directly into Flow-inspired YAML.
 
 ---
 

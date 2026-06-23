@@ -160,10 +160,10 @@ description: ""Verify login and dashboard interaction""
     }
 
     [Fact]
-    public void TestNewMaestroCommands()
+    public void TestNewFlowCommands()
     {
         string yaml = @"appId: ""CdpSampleApp""
-description: ""Verify new Maestro commands""
+description: ""Verify new flow commands""
 ---
 - doubleTapOn: ""#btnDouble""
 - longPressOn: ""#btnLong""
@@ -191,7 +191,7 @@ description: ""Verify new Maestro commands""
         var steps = TestStudioYamlParser.Parse(yaml, out var appId, out var description);
 
         Assert.Equal("CdpSampleApp", appId);
-        Assert.Equal("Verify new Maestro commands", description);
+        Assert.Equal("Verify new flow commands", description);
         Assert.Equal(18, steps.Count);
 
         Assert.Equal("doubleTapOn", steps[0].Action);
@@ -310,7 +310,7 @@ description: ""Verify new Maestro commands""
     }
 
     [Fact]
-    public void TestAdditionalMaestroCommandsAndNesting()
+    public void TestAdditionalFlowCommandsAndNesting()
     {
         string yaml = @"appId: ""CdpSampleApp""
 description: ""Verify additional commands and nesting""
@@ -350,19 +350,21 @@ description: ""Verify additional commands and nesting""
         Assert.Equal("notVisible", steps[2].WhileConditionType);
         Assert.Equal("#hiddenBtn", steps[2].WhileConditionValue);
         Assert.NotNull(steps[2].NestedSteps);
-        Assert.Equal(2, steps[2].NestedSteps.Count);
-        Assert.Equal("tapOn", steps[2].NestedSteps[0].Action);
-        Assert.Equal("#btnNext", steps[2].NestedSteps[0].Selector);
-        Assert.Equal("delay", steps[2].NestedSteps[1].Action);
-        Assert.Equal("500", steps[2].NestedSteps[1].Value);
+        var repeatNested = steps[2].NestedSteps!;
+        Assert.Equal(2, repeatNested.Count);
+        Assert.Equal("tapOn", repeatNested[0].Action);
+        Assert.Equal("#btnNext", repeatNested[0].Selector);
+        Assert.Equal("delay", repeatNested[1].Action);
+        Assert.Equal("500", repeatNested[1].Value);
 
         // 4. retry
         Assert.Equal("retry", steps[3].Action);
         Assert.Equal("3", steps[3].Value);
         Assert.NotNull(steps[3].NestedSteps);
-        Assert.Single(steps[3].NestedSteps);
-        Assert.Equal("tapOn", steps[3].NestedSteps[0].Action);
-        Assert.Equal("#btnRetry", steps[3].NestedSteps[0].Selector);
+        var retryNested = steps[3].NestedSteps!;
+        Assert.Single(retryNested);
+        Assert.Equal("tapOn", retryNested[0].Action);
+        Assert.Equal("#btnRetry", retryNested[0].Selector);
 
         // Roundtrip test
         var gen = TestStudioYamlParser.Generate(steps, appId, description);
@@ -383,11 +385,82 @@ description: ""Verify additional commands and nesting""
         Assert.Equal("notVisible", stepsGen[2].WhileConditionType);
         Assert.Equal("#hiddenBtn", stepsGen[2].WhileConditionValue);
         Assert.NotNull(stepsGen[2].NestedSteps);
-        Assert.Equal(2, stepsGen[2].NestedSteps.Count);
+        Assert.Equal(2, stepsGen[2].NestedSteps!.Count);
 
         Assert.Equal("retry", stepsGen[3].Action);
         Assert.Equal("3", stepsGen[3].Value);
         Assert.NotNull(stepsGen[3].NestedSteps);
-        Assert.Single(stepsGen[3].NestedSteps);
+        Assert.Single(stepsGen[3].NestedSteps!);
+    }
+
+    [Fact]
+    public void TestFullFlowCommandCatalogParses()
+    {
+        var yamlLines = new List<string>();
+        foreach (var command in FlowCommandCatalog.PublicCommands)
+        {
+            yamlLines.Add(command.ValueKind == FlowCommandValueKind.None
+                ? $"- {command.Name}"
+                : $"- {command.Name}: \"sample\"");
+        }
+
+        var steps = TestStudioYamlParser.Parse(string.Join("\n", yamlLines), out _, out _);
+
+        Assert.Equal(FlowCommandCatalog.PublicCommands.Count, steps.Count);
+        foreach (var command in FlowCommandCatalog.PublicCommands)
+        {
+            Assert.Contains(steps, step => step.Action == command.Name);
+        }
+    }
+
+    [Fact]
+    public void TestStructuredSelectorMapsRoundTrip()
+    {
+        string yaml = @"
+- tapOn:
+    text: ""Log in""
+    enabled: true
+    below:
+      id: ""header""
+    repeat: 2
+    delay: 100
+- assertVisible:
+    id: ""submit_button""
+    selected: false
+    width: 120
+    height: 48
+    tolerance: 2
+- scrollUntilVisible:
+    element:
+      text: ""Receipt""
+      traits: long-text
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 80
+    centerElement: true
+";
+
+        var steps = TestStudioYamlParser.Parse(yaml, out _, out _);
+
+        Assert.Equal(3, steps.Count);
+        Assert.Equal("tapOn", steps[0].Action);
+        Assert.True(steps[0].Parameters.ContainsKey("text"));
+        Assert.True(steps[0].Parameters.ContainsKey("below"));
+        Assert.Contains("text: Log in", steps[0].Selector);
+        Assert.Contains("repeat: 2", steps[0].Value);
+
+        Assert.Equal("assertVisible", steps[1].Action);
+        Assert.Contains("id: submit_button", steps[1].Selector);
+        Assert.Contains("tolerance: 2", steps[1].Selector);
+
+        Assert.Equal("scrollUntilVisible", steps[2].Action);
+        Assert.True(steps[2].Parameters.ContainsKey("element"));
+        Assert.Contains("element", TestStudioYamlParser.Generate(steps, "", ""));
+
+        var generated = TestStudioYamlParser.Generate(steps, "", "");
+        var roundTrip = TestStudioYamlParser.Parse(generated, out _, out _);
+        Assert.Equal(steps.Count, roundTrip.Count);
+        Assert.True(roundTrip[0].Parameters.ContainsKey("below"));
+        Assert.True(roundTrip[2].Parameters.ContainsKey("element"));
     }
 }

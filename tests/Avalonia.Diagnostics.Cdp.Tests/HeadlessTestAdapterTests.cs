@@ -70,7 +70,7 @@ description: ""Headless adapter unit test""
     }
 
     [AvaloniaFact]
-    public async Task RunTestAsync_ExecutesNewMaestroCommands()
+    public async Task RunTestAsync_ExecutesNewFlowCommands()
     {
         var window = new MockWindow2();
         try
