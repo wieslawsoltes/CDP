@@ -337,18 +337,65 @@ public class TestStudioViewModel : ViewModelBase
         {
             foreach (TestStudioStepModel oldStep in e.OldItems)
             {
-                oldStep.PropertyChanged -= OnStepPropertyChanged;
+                UnsubscribeStep(oldStep);
             }
         }
         if (e.NewItems != null)
         {
             foreach (TestStudioStepModel newStep in e.NewItems)
             {
-                newStep.PropertyChanged += OnStepPropertyChanged;
+                SubscribeStep(newStep);
             }
         }
         UpdateYaml();
         RaiseCommandCanExecuteChanged();
+    }
+
+    private void SubscribeStep(TestStudioStepModel step)
+    {
+        step.PropertyChanged -= OnStepPropertyChanged;
+        step.PropertyChanged += OnStepPropertyChanged;
+        if (step.NestedSteps != null)
+        {
+            step.NestedSteps.CollectionChanged -= OnNestedStepsCollectionChanged;
+            step.NestedSteps.CollectionChanged += OnNestedStepsCollectionChanged;
+            foreach (var nested in step.NestedSteps)
+            {
+                SubscribeStep(nested);
+            }
+        }
+    }
+
+    private void UnsubscribeStep(TestStudioStepModel step)
+    {
+        step.PropertyChanged -= OnStepPropertyChanged;
+        if (step.NestedSteps != null)
+        {
+            step.NestedSteps.CollectionChanged -= OnNestedStepsCollectionChanged;
+            foreach (var nested in step.NestedSteps)
+            {
+                UnsubscribeStep(nested);
+            }
+        }
+    }
+
+    private void OnNestedStepsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (TestStudioStepModel oldStep in e.OldItems)
+            {
+                UnsubscribeStep(oldStep);
+            }
+        }
+        if (e.NewItems != null)
+        {
+            foreach (TestStudioStepModel newStep in e.NewItems)
+            {
+                SubscribeStep(newStep);
+            }
+        }
+        UpdateYaml();
     }
 
     private void OnStepPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -391,13 +438,13 @@ public class TestStudioViewModel : ViewModelBase
                 // Unsubscribe from old steps
                 foreach (var step in Steps)
                 {
-                    step.PropertyChanged -= OnStepPropertyChanged;
+                    UnsubscribeStep(step);
                 }
 
                 Steps.Clear();
                 foreach (var step in parsed)
                 {
-                    step.PropertyChanged += OnStepPropertyChanged;
+                    SubscribeStep(step);
                     Steps.Add(step);
                 }
             }
@@ -1423,6 +1470,11 @@ public class TestStudioViewModel : ViewModelBase
                     if (string.IsNullOrEmpty(step.Value)) throw new Exception("assertTrue requires a value containing the expression.");
                     Log($"Asserting expression evaluates to true: {step.Value}");
                     var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = step.Value });
+                    if (evalRes["exceptionDetails"] != null)
+                    {
+                        var exceptionText = evalRes["exceptionDetails"]?["exception"]?["description"]?.GetValue<string>() ?? "Unknown evaluation error";
+                        throw new Exception($"Expression evaluation failed with exception: {exceptionText}");
+                    }
                     var resultNode = evalRes["result"] as JsonObject;
                     var val = resultNode?["value"]?.GetValue<object>()?.ToString();
                     if (val != "True" && val != "true" && val != "1")
@@ -1437,6 +1489,11 @@ public class TestStudioViewModel : ViewModelBase
                     if (string.IsNullOrEmpty(step.Value)) throw new Exception("assertFalse requires a value containing the expression.");
                     Log($"Asserting expression evaluates to false: {step.Value}");
                     var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = step.Value });
+                    if (evalRes["exceptionDetails"] != null)
+                    {
+                        var exceptionText = evalRes["exceptionDetails"]?["exception"]?["description"]?.GetValue<string>() ?? "Unknown evaluation error";
+                        throw new Exception($"Expression evaluation failed with exception: {exceptionText}");
+                    }
                     var resultNode = evalRes["result"] as JsonObject;
                     var val = resultNode?["value"]?.GetValue<object>()?.ToString();
                     if (val == "True" || val == "true" || val == "1")
@@ -1545,6 +1602,10 @@ public class TestStudioViewModel : ViewModelBase
                             }
                             success = true;
                             break;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
                         }
                         catch (Exception ex)
                         {
@@ -2068,23 +2129,27 @@ public class TestStudioViewModel : ViewModelBase
 
     private void DeleteStep(TestStudioStepModel? step)
     {
-        if (step != null && Steps.Contains(step))
+        if (step == null) return;
+        var parentCollection = FindParentCollection(step, Steps);
+        if (parentCollection != null && parentCollection.Contains(step))
         {
-            Steps.Remove(step);
+            parentCollection.Remove(step);
         }
     }
 
     private void MoveStepUp(TestStudioStepModel? step)
     {
         if (step == null) return;
-        int idx = Steps.IndexOf(step);
+        var parentCollection = FindParentCollection(step, Steps);
+        if (parentCollection == null) return;
+        int idx = parentCollection.IndexOf(step);
         if (idx > 0)
         {
             _isUpdatingYaml = true;
             try
             {
-                Steps.RemoveAt(idx);
-                Steps.Insert(idx - 1, step);
+                parentCollection.RemoveAt(idx);
+                parentCollection.Insert(idx - 1, step);
             }
             finally
             {
@@ -2097,14 +2162,16 @@ public class TestStudioViewModel : ViewModelBase
     private void MoveStepDown(TestStudioStepModel? step)
     {
         if (step == null) return;
-        int idx = Steps.IndexOf(step);
-        if (idx >= 0 && idx < Steps.Count - 1)
+        var parentCollection = FindParentCollection(step, Steps);
+        if (parentCollection == null) return;
+        int idx = parentCollection.IndexOf(step);
+        if (idx >= 0 && idx < parentCollection.Count - 1)
         {
             _isUpdatingYaml = true;
             try
             {
-                Steps.RemoveAt(idx);
-                Steps.Insert(idx + 1, step);
+                parentCollection.RemoveAt(idx);
+                parentCollection.Insert(idx + 1, step);
             }
             finally
             {
@@ -2112,6 +2179,25 @@ public class TestStudioViewModel : ViewModelBase
             }
             UpdateYaml();
         }
+    }
+
+    private ObservableCollection<TestStudioStepModel>? FindParentCollection(TestStudioStepModel target, ObservableCollection<TestStudioStepModel> currentList)
+    {
+        if (currentList.Contains(target))
+        {
+            return currentList;
+        }
+
+        foreach (var step in currentList)
+        {
+            if (step.NestedSteps != null)
+            {
+                var found = FindParentCollection(target, step.NestedSteps);
+                if (found != null) return found;
+            }
+        }
+
+        return null;
     }
 
     private void ClearAll()
