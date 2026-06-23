@@ -185,7 +185,11 @@ public class TestStudioStepModel : ViewModelBase
     {
         get
         {
-            if (Action == "launchApp" || Action == "back")
+            if (Action == "launchApp")
+            {
+                return string.IsNullOrEmpty(Value) ? "" : $"Value: \"{Value}\"";
+            }
+            if (Action == "back")
             {
                 return "";
             }

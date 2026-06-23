@@ -31,6 +31,12 @@ public class RecorderViewModel : ViewModelBase
     private readonly Func<bool>? _useAutomationProvider;
     private ObservableCollection<RecordedStepModel> _recordedSteps = new();
     private bool _isRecording;
+    private bool _isClientSideRecording;
+    public bool IsClientSideRecording
+    {
+        get => _isClientSideRecording;
+        private set { _isClientSideRecording = value; OnPropertyChanged(); }
+    }
     private string _generatedCode = "";
     private bool _isReplayEnabled;
     private string _toggleRecordButtonText = "Start Recording";
@@ -249,6 +255,49 @@ public class RecorderViewModel : ViewModelBase
         }
     }
 
+    private async Task<string> GetActualUrlAsync()
+    {
+        try
+        {
+            var historyRes = await _cdpService.SendCommandAsync("Page.getNavigationHistory");
+            if (historyRes != null && historyRes.ContainsKey("currentIndex") && historyRes.ContainsKey("entries"))
+            {
+                int currentIndex = historyRes["currentIndex"]?.GetValue<int>() ?? -1;
+                var entries = historyRes["entries"] as JsonArray;
+                if (entries != null && currentIndex >= 0 && currentIndex < entries.Count)
+                {
+                    var currentEntry = entries[currentIndex] as JsonObject;
+                    var url = currentEntry?["url"]?.GetValue<string>();
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        return url;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Failed to get URL via navigation history: {ex.Message}");
+        }
+
+        try
+        {
+            var docRes = await _cdpService.SendCommandAsync("DOM.getDocument", new JsonObject { ["depth"] = 0 });
+            var rootNode = docRes?["root"] as JsonObject;
+            var docUrl = rootNode?["documentURL"]?.GetValue<string>();
+            if (!string.IsNullOrEmpty(docUrl))
+            {
+                return docUrl;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Failed to get URL via DOM document: {ex.Message}");
+        }
+
+        return _getHostAddress?.Invoke() ?? "http://localhost:9222/";
+    }
+
     public async Task ToggleRecordAsync()
     {
         if (!_cdpService.IsConnected) return;
@@ -258,13 +307,47 @@ public class RecorderViewModel : ViewModelBase
             if (!IsRecording)
             {
                 var mode = _useAutomationProvider?.Invoke() == true ? "automation" : "dom";
-                await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
+                try
+                {
+                    await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
+                    IsClientSideRecording = false;
+                }
+                catch (Exception ex) when (ex.Message.Contains("method") || ex.Message.Contains("not found") || ex.Message.Contains("not implemented") || ex.Message.Contains("Recorder"))
+                {
+                    Console.WriteLine("Recorder domain not supported by target. Falling back to client-side simulation recording.");
+                    IsClientSideRecording = true;
+
+                    // Emit initial steps locally
+                    ClearData(resetRecordingState: false);
+                    
+                    // Emit setViewport step
+                    var sizeNode = new JsonObject
+                    {
+                        ["type"] = "setViewport",
+                        ["width"] = 800, // standard default
+                        ["height"] = 600
+                    };
+                    AddRecordedStep(sizeNode);
+
+                    // Emit navigate step
+                    string actualUrl = await GetActualUrlAsync();
+                    var navNode = new JsonObject
+                    {
+                        ["type"] = "navigate",
+                        ["url"] = actualUrl
+                    };
+                    AddRecordedStep(navNode);
+                }
                 IsRecording = true;
             }
             else
             {
-                await _cdpService.SendCommandAsync("Recorder.stop");
+                if (!IsClientSideRecording)
+                {
+                    await _cdpService.SendCommandAsync("Recorder.stop");
+                }
                 IsRecording = false;
+                IsClientSideRecording = false;
             }
         }
         catch (Exception ex)
@@ -273,27 +356,103 @@ public class RecorderViewModel : ViewModelBase
         }
     }
 
+    public void AddRecordedStepLocal(JsonObject step)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (!IsRecording || !IsClientSideRecording) return;
+            
+            if (step["type"]?.GetValue<string>() == "change")
+            {
+                var lastStep = RecordedSteps.LastOrDefault();
+                if (lastStep != null && lastStep.Type == "change")
+                {
+                    var newSelectors = step["selectors"] as JsonArray;
+                    string newSelector = "";
+                    if (newSelectors != null && newSelectors.Count > 0 && newSelectors[0] is JsonArray firstSelArr && firstSelArr.Count > 0)
+                    {
+                        newSelector = firstSelArr[0]?.GetValue<string>() ?? "";
+                    }
+
+                    if (newSelector == lastStep.Selector)
+                    {
+                        lastStep.Value += step["value"]?.GetValue<string>() ?? "";
+                        if (IsTestStudioActive)
+                        {
+                            for (int i = TestStudio.Steps.Count - 1; i >= 0; i--)
+                            {
+                                var tsStep = TestStudio.Steps[i];
+                                if (tsStep.Action == "inputText" && tsStep.Selector == lastStep.Selector)
+                                {
+                                    tsStep.Value = lastStep.Value;
+                                    break;
+                                }
+                            }
+                        }
+                        UpdateGeneratedCode();
+                        return;
+                    }
+                }
+            }
+
+            AddRecordedStep(step);
+        });
+    }
+
+    private static double GetDouble(JsonNode? node)
+    {
+        if (node == null) return 0;
+        if (node is JsonValue val)
+        {
+            if (val.TryGetValue<double>(out double d)) return d;
+            if (val.TryGetValue<int>(out int i)) return i;
+            if (val.TryGetValue<long>(out long l)) return l;
+            if (val.TryGetValue<float>(out float f)) return f;
+        }
+        if (double.TryParse(node.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double result))
+        {
+            return result;
+        }
+        return 0;
+    }
+
+    private static int GetInt(JsonNode? node)
+    {
+        if (node == null) return 0;
+        if (node is JsonValue val)
+        {
+            if (val.TryGetValue<int>(out int i)) return i;
+            if (val.TryGetValue<long>(out long l)) return (int)l;
+            if (val.TryGetValue<double>(out double d)) return (int)d;
+        }
+        if (int.TryParse(node.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out int result))
+        {
+            return result;
+        }
+        return 0;
+    }
+
     private void AddRecordedStep(JsonObject stepJson)
     {
         string type = stepJson["type"]?.GetValue<string>() ?? "";
         Console.WriteLine($"[DEBUG] AddRecordedStep: type={type}, IsTestStudioActive={IsTestStudioActive}");
         string value = stepJson["value"]?.GetValue<string>() ?? "";
-        double offsetX = stepJson["offsetX"]?.GetValue<double>() ?? 0;
-        double offsetY = stepJson["offsetY"]?.GetValue<double>() ?? 0;
+        double offsetX = GetDouble(stepJson["offsetX"]);
+        double offsetY = GetDouble(stepJson["offsetY"]);
         if (type == "scroll")
         {
-            offsetX = stepJson["deltaX"]?.GetValue<double>() ?? 0;
-            offsetY = stepJson["deltaY"]?.GetValue<double>() ?? 0;
+            offsetX = GetDouble(stepJson["deltaX"]);
+            offsetY = GetDouble(stepJson["deltaY"]);
         }
-        double width = stepJson["width"]?.GetValue<double>() ?? 0;
-        double height = stepJson["height"]?.GetValue<double>() ?? 0;
+        double width = GetDouble(stepJson["width"]);
+        double height = GetDouble(stepJson["height"]);
         string url = stepJson["url"]?.GetValue<string>() ?? "";
         string keyVal = stepJson["key"]?.GetValue<string>() ?? "";
         string button = stepJson["button"]?.GetValue<string>() ?? "left";
-        int clickCount = stepJson["clickCount"]?.GetValue<int>() ?? 1;
-        int modifiers = stepJson["modifiers"]?.GetValue<int>() ?? 0;
-        double targetOffsetX = stepJson["targetOffsetX"]?.GetValue<double>() ?? 0;
-        double targetOffsetY = stepJson["targetOffsetY"]?.GetValue<double>() ?? 0;
+        int clickCount = GetInt(stepJson["clickCount"]) > 0 ? GetInt(stepJson["clickCount"]) : 1;
+        int modifiers = GetInt(stepJson["modifiers"]);
+        double targetOffsetX = GetDouble(stepJson["targetOffsetX"]);
+        double targetOffsetY = GetDouble(stepJson["targetOffsetY"]);
         
         string selector = "";
         var selectorsArr = stepJson["selectors"] as JsonArray;
@@ -365,7 +524,7 @@ public class RecorderViewModel : ViewModelBase
                 {
                     Action = "launchApp",
                     Selector = "",
-                    Value = ""
+                    Value = url
                 };
             }
             else if (type == "keydown")
@@ -855,19 +1014,31 @@ public class RecorderViewModel : ViewModelBase
         return json.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
     }
 
-    private void ClearData()
+    private void ClearData(bool resetRecordingState = true)
     {
-        Dispatcher.UIThread.Post(() =>
+        var action = () =>
         {
             foreach (var step in RecordedSteps)
             {
                 step.PropertyChanged -= OnStepPropertyChanged;
             }
             RecordedSteps.Clear();
-            IsRecording = false;
+            if (resetRecordingState)
+            {
+                IsRecording = false;
+            }
             IsReplayEnabled = false;
             UpdateGeneratedCode();
-        });
+        };
+
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(action);
+        }
     }
 
     private void OnStepPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -782,7 +782,7 @@ public class ElementsViewModel : ViewModelBase
     {
         try
         {
-            var response = await _cdpService.SendCommandAsync("DOM.getDocument", new JsonObject { ["pierce"] = ShowVisualTree });
+            var response = await _cdpService.SendCommandAsync("DOM.getDocument", new JsonObject { ["depth"] = -1, ["pierce"] = ShowVisualTree });
             var root = response["root"] as JsonObject;
             if (root == null) return;
 
@@ -815,8 +815,9 @@ public class ElementsViewModel : ViewModelBase
     {
         int nodeId = nodeJson["nodeId"]?.GetValue<int>() ?? 0;
         string nodeName = nodeJson["nodeName"]?.GetValue<string>() ?? "";
+        string nodeValue = nodeJson["nodeValue"]?.GetValue<string>() ?? "";
         
-        var model = new DomNodeModel(nodeId, nodeName) { Parent = parent };
+        var model = new DomNodeModel(nodeId, nodeName) { Parent = parent, NodeValue = nodeValue };
 
         // Attributes
         var attrsNode = nodeJson["attributes"] as JsonArray;

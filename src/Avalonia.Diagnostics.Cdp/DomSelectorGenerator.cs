@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 
@@ -25,9 +26,31 @@ public class DomSelectorGenerator : ISelectorGenerator
 
     public string GenerateSelector(Visual visual, bool useLogicalTree = false)
     {
+        if (visual is Control startCtrl)
+        {
+            if (!string.IsNullOrEmpty(startCtrl.Name) && !startCtrl.Name.StartsWith("PART_"))
+            {
+                return $"#{startCtrl.Name}";
+            }
+
+            var accessId = startCtrl.GetValue(AutomationProperties.AutomationIdProperty) as string;
+            if (!string.IsNullOrEmpty(accessId))
+            {
+                return $"[AccessibilityId=\"{accessId}\"]";
+            }
+        }
+
+        string targetPart = GetSimpleSelector(visual);
+        var text = SelectorEngine.GetVisualTextContent(visual);
+        if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
+        {
+            var escaped = text.Replace("\"", "\\\"");
+            targetPart += $":contains(\"{escaped}\")";
+        }
+
         // Walk up to find if there is any named ancestor (ignoring PART_ names)
-        Visual? current = visual;
-        var pathParts = new List<string>();
+        Visual? current = useLogicalTree ? SelectorEngine.GetLogicalParent(visual) : visual.GetVisualParent();
+        var pathParts = new List<string> { targetPart };
         while (current != null)
         {
             if (current is Control ctrl && !string.IsNullOrEmpty(ctrl.Name) && !ctrl.Name.StartsWith("PART_"))
@@ -61,8 +84,8 @@ public class DomSelectorGenerator : ISelectorGenerator
         }
 
         // Fallback to structural path if no named ancestor is found
-        var parts = new List<string>();
-        current = visual;
+        var parts = new List<string> { targetPart };
+        current = useLogicalTree ? SelectorEngine.GetLogicalParent(visual) : visual.GetVisualParent();
         while (current != null)
         {
             string part = GetSimpleSelector(current);

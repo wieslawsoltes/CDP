@@ -24,15 +24,29 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
 
     public string GenerateSelector(DomNodeModel node)
     {
+        var idAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+        if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value) && !idAttr.Value.StartsWith("PART_"))
+        {
+            return $"#{idAttr.Value}";
+        }
+
+        var accessIdAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase));
+        if (accessIdAttr != null && !string.IsNullOrEmpty(accessIdAttr.Value))
+        {
+            return $"[AccessibilityId=\"{accessIdAttr.Value}\"]";
+        }
+
+        string targetPart = GetSimpleSelector(node);
+
         // 1. Walk up to find if there is any named ancestor (has id/Name attribute)
-        DomNodeModel? current = node;
-        var pathParts = new List<string>();
+        DomNodeModel? current = node.Parent;
+        var pathParts = new List<string> { targetPart };
         while (current != null)
         {
-            var idAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
-            if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value) && !idAttr.Value.StartsWith("PART_"))
+            var curIdAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+            if (curIdAttr != null && !string.IsNullOrEmpty(curIdAttr.Value) && !curIdAttr.Value.StartsWith("PART_"))
             {
-                pathParts.Insert(0, $"#{idAttr.Value}");
+                pathParts.Insert(0, $"#{curIdAttr.Value}");
                 return string.Join(" > ", pathParts);
             }
 
@@ -40,7 +54,7 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
             var parent = current.Parent;
             if (parent != null)
             {
-                var siblings = parent.Children;
+                var siblings = parent.Children.Where(c => !c.NodeName.StartsWith("#")).ToList();
                 int sameTypeCount = 0;
                 foreach (var sib in siblings)
                 {
@@ -61,15 +75,15 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
         }
 
         // 2. Fallback to structural path if no named ancestor is found
-        var parts = new List<string>();
-        current = node;
+        var parts = new List<string> { targetPart };
+        current = node.Parent;
         while (current != null)
         {
             string part = GetSimpleSelector(current);
             var parent = current.Parent;
             if (parent != null)
             {
-                var siblings = parent.Children;
+                var siblings = parent.Children.Where(c => !c.NodeName.StartsWith("#")).ToList();
                 int sameTypeCount = 0;
                 foreach (var sib in siblings)
                 {

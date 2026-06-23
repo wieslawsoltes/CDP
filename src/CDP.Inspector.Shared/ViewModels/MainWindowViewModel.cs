@@ -77,10 +77,19 @@ public class MainWindowViewModel : ViewModelBase
             isHighlightActiveFunc: () => Elements.IsHighlightActive,
             getAxDetailsFunc: nodeId => Elements.FindAxDetails(nodeId),
             isInspectModeActiveFunc: () => Connection.IsInspectModeActive,
-            getDomNodeFunc: nodeId => Elements.FindDomNode(nodeId)
+            getDomNodeFunc: nodeId => Elements.FindDomNode(nodeId),
+            useAutomationSelectorsFunc: () => Connection.UseAutomationSelectors
         );
         Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress, () => Connection.UseAutomationSelectors);
         Recorder.TestStudio.OnStepIndicatorChanged = indicator => Simulation.ActiveReplayIndicator = indicator;
+
+        Simulation.InteractionDispatched += (sender, args) =>
+        {
+            if (Recorder.IsRecording && Recorder.IsClientSideRecording)
+            {
+                Recorder.AddRecordedStepLocal(args.Step);
+            }
+        };
 
         Connection.PropertyChanged += (sender, e) =>
         {

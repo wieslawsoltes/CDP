@@ -13,8 +13,31 @@ public class AutomationSelectorGenerator : ISelectorGenerator
 
     public string GenerateSelector(Visual visual, bool useLogicalTree = false)
     {
-        Visual? current = visual;
-        var pathParts = new List<string>();
+        if (visual is Control startCtrl)
+        {
+            var accessId = startCtrl.GetValue(AutomationProperties.AutomationIdProperty) as string;
+            if (!string.IsNullOrEmpty(accessId))
+            {
+                return $"[AccessibilityId=\"{accessId}\"]";
+            }
+
+            var name = startCtrl.Name;
+            if (!string.IsNullOrEmpty(name) && !name.StartsWith("PART_"))
+            {
+                return $"#{name}";
+            }
+        }
+
+        string targetPart = visual.GetType().Name;
+        var text = SelectorEngine.GetVisualTextContent(visual);
+        if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
+        {
+            var escaped = text.Replace("\"", "\\\"");
+            targetPart += $":contains(\"{escaped}\")";
+        }
+
+        Visual? current = useLogicalTree ? SelectorEngine.GetLogicalParent(visual) : visual.GetVisualParent();
+        var pathParts = new List<string> { targetPart };
         while (current != null)
         {
             if (current is Control ctrl)
