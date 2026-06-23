@@ -3,6 +3,7 @@ using Avalonia.Headless;
 using Avalonia.Themes.Fluent;
 
 [assembly: AvaloniaTestApplication(typeof(Avalonia.Diagnostics.Cdp.Tests.TestAppBuilder))]
+[assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
