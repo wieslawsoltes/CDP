@@ -61,7 +61,7 @@ public class CdpIntegrationTests
                 try
                 {
                     Console.WriteLine("INTEGRATION_TEST_CLIENT: Initializing ClientWebSocket");
-                    var uri = new Uri($"ws://localhost:{port}/devtools/page/{id}");
+                    var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{id}");
                     Console.WriteLine($"INTEGRATION_TEST_CLIENT: Connecting to {uri}");
                     await ConnectWithTimeoutAsync(ws, uri);
                     Console.WriteLine("INTEGRATION_TEST_CLIENT: Connected successfully!");

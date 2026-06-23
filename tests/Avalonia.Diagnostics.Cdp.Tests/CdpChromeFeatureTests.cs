@@ -1220,6 +1220,16 @@ public class CdpChromeFeatureTests
         var emulateRes = await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", conditions);
         Assert.NotNull(emulateRes);
 
+        // Reset emulation
+        var resetConditions = new JsonObject
+        {
+            ["offline"] = false,
+            ["latency"] = 0.0,
+            ["downloadThroughput"] = -1.0,
+            ["uploadThroughput"] = -1.0
+        };
+        await NetworkDomain.HandleAsync(session, "emulateNetworkConditions", resetConditions);
+
         window.Close();
     }
 

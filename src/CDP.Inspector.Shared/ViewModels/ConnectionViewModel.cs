@@ -269,7 +269,17 @@ public class ConnectionViewModel : ViewModelBase
                             Targets.Add(new TargetItem(title, wsUrl, id));
                             if (SelectedTarget == null)
                             {
-                                SelectedTarget = Targets[0];
+                                if (_cdpService.IsConnected)
+                                {
+                                    if (id == _cdpService.ConnectedTargetId)
+                                    {
+                                        SelectedTarget = Targets[Targets.Count - 1];
+                                    }
+                                }
+                                else
+                                {
+                                    SelectedTarget = Targets[0];
+                                }
                             }
                         }
                     });
