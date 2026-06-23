@@ -122,15 +122,33 @@
                                     </StackPanel>
                                     <Grid ColumnDefinitions="100, *">
                                         <TextBlock Grid.Column="0" Text="Action:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                                        <TextBox Grid.Column="1" Text="{Binding Item.Action, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                        <AutoCompleteBox Grid.Column="1"
+                                                         Text="{Binding Item.Action, Mode=TwoWay}"
+                                                         ItemsSource="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.CommandSuggestions}"
+                                                         FilterMode="Contains"
+                                                         FontSize="11"
+                                                         Height="24"
+                                                         Padding="4,2"/>
                                     </Grid>
                                     <Grid ColumnDefinitions="100, *">
                                         <TextBlock Grid.Column="0" Text="Selector:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                                        <TextBox Grid.Column="1" Text="{Binding Item.Selector, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                        <AutoCompleteBox Grid.Column="1"
+                                                         Text="{Binding Item.Selector, Mode=TwoWay}"
+                                                         ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
+                                                         FilterMode="Contains"
+                                                         FontSize="11"
+                                                         Height="24"
+                                                         Padding="4,2"/>
                                     </Grid>
                                     <Grid ColumnDefinitions="100, *">
                                         <TextBlock Grid.Column="0" Text="Value:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                                        <TextBox Grid.Column="1" Text="{Binding Item.Value, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                        <AutoCompleteBox Grid.Column="1"
+                                                         Text="{Binding Item.Value, Mode=TwoWay}"
+                                                         ItemsSource="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.ValueSuggestions}"
+                                                         FilterMode="Contains"
+                                                         FontSize="11"
+                                                         Height="24"
+                                                         Padding="4,2"/>
                                     </Grid>
                                     <TextBlock Text="{Binding Item.ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding Item.ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
@@ -145,10 +163,25 @@
                 </DataGrid>
             </Grid>
 
-            <!-- Maestro Command Toolbox -->
+            <!-- Flow Command Toolbox -->
             <Border Grid.Row="3" Classes="panel-card" Margin="0,10,0,0">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Maestro Command Toolbox" Classes="panel-header" Margin="0,0,0,4"/>
+                    <TextBlock Text="Flow Command Toolbox" Classes="panel-header" Margin="0,0,0,4"/>
+
+                    <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,4">
+                        <TextBlock Grid.Column="0" Text="Command: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                        <AutoCompleteBox Name="acbTestStudioCommand" Grid.Column="1"
+                                         Text="{Binding Recorder.TestStudio.SelectedCommandName, Mode=TwoWay}"
+                                         ItemsSource="{Binding Recorder.TestStudio.CommandSuggestions}"
+                                         FilterMode="Contains"
+                                         FontSize="11"
+                                         Margin="4,0,0,0"
+                                         PlaceholderText="Type a flow command..."/>
+                        <Button Name="btnTestStudioAddSelectedCommand" Grid.Column="2"
+                                Content="Add"
+                                Command="{Binding Recorder.TestStudio.AddSelectedCommandCommand}"
+                                Margin="6,0,0,0"/>
+                    </Grid>
                     
                     <!-- Target Selector using AutoCompleteBox -->
                     <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
@@ -165,7 +198,13 @@
                     <!-- Parameters Input -->
                     <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
                         <TextBlock Grid.Column="0" Text="Value / Text: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                        <TextBox Name="txtTestStudioInputValue" Grid.Column="1" Text="{Binding Recorder.TestStudio.InputSimText, Mode=TwoWay}" PlaceholderText="Value, text, expression, or delay..." FontSize="11" Margin="4,0,0,0"/>
+                        <AutoCompleteBox Name="txtTestStudioInputValue" Grid.Column="1"
+                                         Text="{Binding Recorder.TestStudio.InputSimText, Mode=TwoWay}"
+                                         ItemsSource="{Binding Recorder.TestStudio.ValueSuggestions}"
+                                         FilterMode="Contains"
+                                         PlaceholderText="Value, text, expression, or delay..."
+                                         FontSize="11"
+                                         Margin="4,0,0,0"/>
                     </Grid>
 
                     <!-- Categories TabControl -->

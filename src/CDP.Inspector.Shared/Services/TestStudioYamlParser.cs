@@ -16,17 +16,21 @@ public static class TestStudioYamlParser
 {
     private class ForceDoubleQuoteEmitter : ChainedEventEmitter
     {
-        private static readonly HashSet<string> UnquotedStrings = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "launchApp", "back", "clearText", "scroll", "tapOn", "inputText", "assertVisible", 
-            "assertNotVisible", "delay", "scrollUntilVisible", "pressKey",
-            "doubleTapOn", "longPressOn", "pasteText", "eraseText", "swipe", "stopApp", "killApp",
-            "clearState", "setOrientation", "setLocation", "takeScreenshot", "assertTrue",
-            "runFlow", "repeat", "retry", "evalScript", "runScript", "openLink", "copyTextFrom",
-            "selector", "text", "value", "direction", "amount", "maxScrolls",
-            "appId", "description", "start", "end", "latitude", "longitude", "accuracy", "orientation", "key",
-            "dragAndDrop", "targetSelector", "offsetX", "offsetY", "targetOffsetX", "targetOffsetY"
-        };
+        private static readonly HashSet<string> UnquotedStrings = new(
+            FlowCommandCatalog.Commands.Select(c => c.Name)
+                .Concat(FlowCommandCatalog.SelectorKeys)
+                .Concat(new[]
+                {
+                    "selector", "element", "cropOn", "from", "text", "value", "direction", "amount",
+                    "maxScrolls", "timeout", "speed", "visibilityPercentage", "centerElement",
+                    "appId", "description", "env", "tags", "start", "end", "latitude", "longitude",
+                    "accuracy", "orientation", "key", "file", "label", "commands", "while",
+                    "visible", "notVisible", "optional", "permissions", "all", "path", "query",
+                    "outputVariable", "thresholdPercentage", "repeat", "delay", "retryTapIfNoChange",
+                    "waitToSettleTimeoutMs", "targetSelector", "offsetX", "offsetY",
+                    "targetOffsetX", "targetOffsetY", "dragAndDrop"
+                }),
+            StringComparer.OrdinalIgnoreCase);
 
         public ForceDoubleQuoteEmitter(IEventEmitter nextEmitter) : base(nextEmitter) { }
 
@@ -109,6 +113,7 @@ public static class TestStudioYamlParser
             string? action = null;
             string inlineValue = "";
             var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             ObservableCollection<TestStudioStepModel>? nestedSteps = null;
 
             foreach (var entry in mappingNode.Children)
@@ -122,42 +127,14 @@ public static class TestStudioYamlParser
                     }
                     else if (entry.Value is YamlMappingNode nestedMapping)
                     {
-                        foreach (var nestedEntry in nestedMapping.Children)
-                        {
-                            if (nestedEntry.Key is YamlScalarNode nestedKey)
-                            {
-                                if (nestedEntry.Value is YamlScalarNode nestedVal)
-                                {
-                                    if (nestedKey.Value != null)
-                                    {
-                                        dict[nestedKey.Value] = nestedVal.Value ?? "";
-                                    }
-                                }
-                                else if (nestedKey.Value == "commands" && nestedEntry.Value is YamlSequenceNode seqNode)
-                                {
-                                    nestedSteps = new ObservableCollection<TestStudioStepModel>();
-                                    foreach (var childNode in seqNode.Children)
-                                    {
-                                        var childStep = ParseStepNode(childNode);
-                                        if (childStep != null)
-                                        {
-                                            nestedSteps.Add(childStep);
-                                        }
-                                    }
-                                }
-                                else if (nestedKey.Value == "while" && nestedEntry.Value is YamlMappingNode whileMapping)
-                                {
-                                    foreach (var whileEntry in whileMapping.Children)
-                                    {
-                                        if (whileEntry.Key is YamlScalarNode whileKey && whileEntry.Value is YamlScalarNode whileVal)
-                                        {
-                                            dict["while_type"] = whileKey.Value ?? "";
-                                            dict["while_value"] = whileVal.Value ?? "";
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        parameters = ReadMapping(nestedMapping);
+                        CopyScalarParameters(parameters, dict);
+                        nestedSteps = ReadNestedCommands(nestedMapping);
+                        ReadWhileCondition(nestedMapping, dict);
+                    }
+                    else if (entry.Value is YamlSequenceNode sequenceValue)
+                    {
+                        parameters["items"] = ReadSequence(sequenceValue);
                     }
                     break;
                 }
@@ -175,49 +152,21 @@ public static class TestStudioYamlParser
                     }
                     else if (firstEntry.Value is YamlMappingNode nestedMapping)
                     {
-                        foreach (var nestedEntry in nestedMapping.Children)
-                        {
-                            if (nestedEntry.Key is YamlScalarNode nestedKey)
-                            {
-                                if (nestedEntry.Value is YamlScalarNode nestedVal)
-                                {
-                                    if (nestedKey.Value != null)
-                                    {
-                                        dict[nestedKey.Value] = nestedVal.Value ?? "";
-                                    }
-                                }
-                                else if (nestedKey.Value == "commands" && nestedEntry.Value is YamlSequenceNode seqNode)
-                                {
-                                    nestedSteps = new ObservableCollection<TestStudioStepModel>();
-                                    foreach (var childNode in seqNode.Children)
-                                    {
-                                        var childStep = ParseStepNode(childNode);
-                                        if (childStep != null)
-                                        {
-                                            nestedSteps.Add(childStep);
-                                        }
-                                    }
-                                }
-                                else if (nestedKey.Value == "while" && nestedEntry.Value is YamlMappingNode whileMapping)
-                                {
-                                    foreach (var whileEntry in whileMapping.Children)
-                                    {
-                                        if (whileEntry.Key is YamlScalarNode whileKey && whileEntry.Value is YamlScalarNode whileVal)
-                                        {
-                                            dict["while_type"] = whileKey.Value ?? "";
-                                            dict["while_value"] = whileVal.Value ?? "";
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        parameters = ReadMapping(nestedMapping);
+                        CopyScalarParameters(parameters, dict);
+                        nestedSteps = ReadNestedCommands(nestedMapping);
+                        ReadWhileCondition(nestedMapping, dict);
+                    }
+                    else if (firstEntry.Value is YamlSequenceNode sequenceValue)
+                    {
+                        parameters["items"] = ReadSequence(sequenceValue);
                     }
                 }
             }
 
             if (action != null)
             {
-                model = BuildStepModel(action, inlineValue, dict, nestedSteps);
+                model = BuildStepModel(action, inlineValue, dict, nestedSteps, parameters);
             }
         }
 
@@ -229,47 +178,124 @@ public static class TestStudioYamlParser
         return model;
     }
 
-    private static bool IsKnownAction(string action)
+    private static Dictionary<string, object?> ReadMapping(YamlMappingNode mappingNode)
     {
-        return action.Equals("launchApp", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("tapOn", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("doubleTapOn", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("longPressOn", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("inputText", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("clearText", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("pasteText", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("eraseText", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("swipe", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("stopApp", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("killApp", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("clearState", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("setOrientation", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("setLocation", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("takeScreenshot", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("assertVisible", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("assertNotVisible", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("assertTrue", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("assertFalse", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("setAirplaneMode", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("delay", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("scroll", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("scrollUntilVisible", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("back", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("pressKey", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("repeat", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("retry", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("runFlow", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("evalScript", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("runScript", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("openLink", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("copyTextFrom", StringComparison.OrdinalIgnoreCase)
-            || action.Equals("dragAndDrop", StringComparison.OrdinalIgnoreCase);
+        var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in mappingNode.Children)
+        {
+            if (entry.Key is not YamlScalarNode keyNode || string.IsNullOrEmpty(keyNode.Value))
+            {
+                continue;
+            }
+
+            result[keyNode.Value] = ReadYamlValue(entry.Value);
+        }
+
+        return result;
     }
 
-    private static TestStudioStepModel BuildStepModel(string action, string inlineValue, Dictionary<string, string>? dict = null, ObservableCollection<TestStudioStepModel>? nestedSteps = null)
+    private static List<object?> ReadSequence(YamlSequenceNode sequenceNode)
+    {
+        var result = new List<object?>();
+        foreach (var child in sequenceNode.Children)
+        {
+            result.Add(ReadYamlValue(child));
+        }
+
+        return result;
+    }
+
+    private static object? ReadYamlValue(YamlNode node)
+    {
+        return node switch
+        {
+            YamlScalarNode scalar => scalar.Value ?? "",
+            YamlMappingNode mapping => ReadMapping(mapping),
+            YamlSequenceNode sequence => ReadSequence(sequence),
+            _ => null
+        };
+    }
+
+    private static void CopyScalarParameters(Dictionary<string, object?> parameters, Dictionary<string, string> dict)
+    {
+        foreach (var kv in parameters)
+        {
+            if (kv.Value is string str)
+            {
+                dict[kv.Key] = str;
+            }
+            else if (kv.Value is bool b)
+            {
+                dict[kv.Key] = b.ToString().ToLowerInvariant();
+            }
+            else if (kv.Value is int or long or double or decimal or float)
+            {
+                dict[kv.Key] = FlowCommandCatalog.ScalarToString(kv.Value);
+            }
+        }
+    }
+
+    private static ObservableCollection<TestStudioStepModel>? ReadNestedCommands(YamlMappingNode mappingNode)
+    {
+        foreach (var nestedEntry in mappingNode.Children)
+        {
+            if (nestedEntry.Key is YamlScalarNode nestedKey &&
+                nestedKey.Value == "commands" &&
+                nestedEntry.Value is YamlSequenceNode seqNode)
+            {
+                var nestedSteps = new ObservableCollection<TestStudioStepModel>();
+                foreach (var childNode in seqNode.Children)
+                {
+                    var childStep = ParseStepNode(childNode);
+                    if (childStep != null)
+                    {
+                        nestedSteps.Add(childStep);
+                    }
+                }
+
+                return nestedSteps;
+            }
+        }
+
+        return null;
+    }
+
+    private static void ReadWhileCondition(YamlMappingNode mappingNode, Dictionary<string, string> dict)
+    {
+        foreach (var nestedEntry in mappingNode.Children)
+        {
+            if (nestedEntry.Key is not YamlScalarNode nestedKey ||
+                nestedKey.Value != "while" ||
+                nestedEntry.Value is not YamlMappingNode whileMapping)
+            {
+                continue;
+            }
+
+            foreach (var whileEntry in whileMapping.Children)
+            {
+                if (whileEntry.Key is YamlScalarNode whileKey && whileEntry.Value is YamlScalarNode whileVal)
+                {
+                    dict["while_type"] = whileKey.Value ?? "";
+                    dict["while_value"] = whileVal.Value ?? "";
+                    return;
+                }
+            }
+        }
+    }
+
+    private static bool IsKnownAction(string action)
+    {
+        return FlowCommandCatalog.IsKnownCommand(action) ||
+            action.Equals("dragAndDrop", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static TestStudioStepModel BuildStepModel(string action, string inlineValue, Dictionary<string, string>? dict = null, ObservableCollection<TestStudioStepModel>? nestedSteps = null, Dictionary<string, object?>? parameters = null)
     {
         dict ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var model = new TestStudioStepModel { Action = action };
+        parameters ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var model = new TestStudioStepModel { Action = FlowCommandCatalog.CanonicalizeAction(action), Parameters = parameters };
+        var selectorDisplay = FlowCommandCatalog.BuildSelectorDisplay(parameters);
+        var valueDisplay = FlowCommandCatalog.BuildValueDisplay(parameters);
 
         switch (action.ToLowerInvariant())
         {
@@ -288,6 +314,11 @@ public static class TestStudioYamlParser
                 {
                     model.Selector = inlineValue;
                     model.Value = "";
+                }
+                else if (!string.IsNullOrEmpty(selectorDisplay))
+                {
+                    model.Selector = selectorDisplay;
+                    model.Value = valueDisplay;
                 }
                 else if (dict.TryGetValue("selector", out var sel))
                 {
@@ -315,8 +346,8 @@ public static class TestStudioYamlParser
                 }
                 else
                 {
-                    model.Selector = dict.GetValueOrDefault("selector", "");
-                    model.Value = dict.GetValueOrDefault("text", dict.GetValueOrDefault("value", ""));
+                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
+                    model.Value = dict.GetValueOrDefault("text", dict.GetValueOrDefault("value", valueDisplay));
                 }
                 break;
 
@@ -328,7 +359,7 @@ public static class TestStudioYamlParser
                 }
                 else
                 {
-                    model.Selector = dict.GetValueOrDefault("selector", "");
+                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                 }
                 model.Value = "";
                 break;
@@ -354,7 +385,7 @@ public static class TestStudioYamlParser
                 }
                 else
                 {
-                    model.Selector = dict.GetValueOrDefault("selector", "");
+                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                     var parts = new List<string>();
                     if (dict.TryGetValue("targetSelector", out var targetSelector)) parts.Add($"targetSelector: {targetSelector}");
                     if (dict.TryGetValue("offsetX", out var ox)) parts.Add($"offsetX: {ox}");
@@ -431,20 +462,20 @@ public static class TestStudioYamlParser
 
             case "copytextfrom":
                 model.Action = "copyTextFrom";
-                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("selector", "");
+                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
                 model.Value = "";
                 break;
 
             case "assertvisible":
                 model.Action = "assertVisible";
-                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("selector", "");
-                model.Value = "";
+                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
+                model.Value = valueDisplay;
                 break;
 
             case "assertnotvisible":
                 model.Action = "assertNotVisible";
-                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("selector", "");
-                model.Value = "";
+                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
+                model.Value = valueDisplay;
                 break;
 
             case "asserttrue":
@@ -486,7 +517,7 @@ public static class TestStudioYamlParser
 
             case "scroll":
                 model.Action = "scroll";
-                model.Selector = dict.GetValueOrDefault("selector", "");
+                model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
                     model.Value = inlineValue;
@@ -502,10 +533,14 @@ public static class TestStudioYamlParser
 
             case "scrolluntilvisible":
                 model.Action = "scrollUntilVisible";
-                model.Selector = dict.GetValueOrDefault("selector", "");
+                model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                 var suvParts = new List<string>();
                 if (dict.TryGetValue("direction", out var sdir)) suvParts.Add($"direction: {sdir}");
                 if (dict.TryGetValue("maxscrolls", out var ms)) suvParts.Add($"maxScrolls: {ms}");
+                if (dict.TryGetValue("timeout", out var timeout)) suvParts.Add($"timeout: {timeout}");
+                if (dict.TryGetValue("speed", out var speed)) suvParts.Add($"speed: {speed}");
+                if (dict.TryGetValue("visibilityPercentage", out var visibilityPercentage)) suvParts.Add($"visibilityPercentage: {visibilityPercentage}");
+                if (dict.TryGetValue("centerElement", out var centerElement)) suvParts.Add($"centerElement: {centerElement}");
                 model.Value = string.Join(", ", suvParts);
                 break;
 
@@ -518,7 +553,7 @@ public static class TestStudioYamlParser
                 }
                 else
                 {
-                    model.Selector = dict.GetValueOrDefault("selector", "");
+                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                     model.Value = dict.GetValueOrDefault("value", dict.GetValueOrDefault("key", ""));
                 }
                 break;
@@ -560,7 +595,7 @@ public static class TestStudioYamlParser
                 }
                 else
                 {
-                    model.Selector = dict.GetValueOrDefault("selector", "");
+                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                     var parts = new List<string>();
                     foreach (var kv in dict)
                     {
@@ -617,6 +652,37 @@ public static class TestStudioYamlParser
     {
         var action = step.Action;
         if (string.IsNullOrEmpty(action)) return "";
+
+        if (step.Parameters.Count > 0)
+        {
+            var parameters = ToSerializableDictionary(step.Parameters);
+            if ((action == "repeat" || action == "retry" || action == "runFlow") &&
+                step.NestedSteps != null &&
+                step.NestedSteps.Count > 0)
+            {
+                parameters["commands"] = step.NestedSteps.Select(SerializeStep).ToList();
+            }
+
+            if (action == "repeat" &&
+                !string.IsNullOrEmpty(step.WhileConditionType) &&
+                !string.IsNullOrEmpty(step.WhileConditionValue))
+            {
+                parameters["while"] = new Dictionary<string, object?>
+                {
+                    { step.WhileConditionType, step.WhileConditionValue }
+                };
+            }
+
+            if (action == "addMedia" &&
+                parameters.Count == 1 &&
+                parameters.TryGetValue("items", out var items) &&
+                items is List<object?>)
+            {
+                return new Dictionary<string, object?> { { action, items } };
+            }
+
+            return new Dictionary<string, object?> { { action, parameters } };
+        }
 
         if (action == "launchApp" || action == "back")
         {
@@ -924,6 +990,30 @@ public static class TestStudioYamlParser
                 return new Dictionary<string, object> { { action, actionDict } };
             }
         }
+    }
+
+    private static Dictionary<string, object?> ToSerializableDictionary(Dictionary<string, object?> source)
+    {
+        var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in source)
+        {
+            result[kv.Key] = ToSerializableValue(kv.Value);
+        }
+
+        return result;
+    }
+
+    private static object? ToSerializableValue(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            Dictionary<string, object?> dict => ToSerializableDictionary(dict),
+            IReadOnlyDictionary<string, object?> readOnlyDict => readOnlyDict.ToDictionary(kv => kv.Key, kv => ToSerializableValue(kv.Value), StringComparer.OrdinalIgnoreCase),
+            List<object?> list => list.Select(ToSerializableValue).ToList(),
+            IReadOnlyList<object?> list => list.Select(ToSerializableValue).ToList(),
+            _ => value
+        };
     }
 
     private static (string x, string y)? ParseCoordinates(string value)

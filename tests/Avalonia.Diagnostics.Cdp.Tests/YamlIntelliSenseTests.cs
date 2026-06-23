@@ -1,4 +1,5 @@
 using CdpInspectorApp.Services;
+using CdpInspectorApp.Models;
 using Xunit;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -74,5 +75,31 @@ ta";
         int caretOffset = yaml.LastIndexOf("ta") + 2;
         int indent = YamlIntelliSenseProvider.GetProperIndentation(yaml, caretOffset);
         Assert.Equal(0, indent); // Resets to 0 because of --- separator
+    }
+
+    [Fact]
+    public void TestCatalogCommandsAreSuggested()
+    {
+        var suggestions = YamlIntelliSenseProvider.GetSuggestions("-", 1, null);
+
+        foreach (var command in FlowCommandCatalog.PublicCommands)
+        {
+            var expected = command.ValueKind == FlowCommandValueKind.None ? command.Name : $"{command.Name}:";
+            Assert.Contains(expected, suggestions);
+        }
+    }
+
+    [Fact]
+    public void TestSelectorMapParametersAreSuggested()
+    {
+        string yaml = @"- tapOn:
+    ";
+        var suggestions = YamlIntelliSenseProvider.GetSuggestions(yaml, yaml.Length, null);
+
+        Assert.Contains("text:", suggestions);
+        Assert.Contains("id:", suggestions);
+        Assert.Contains("point:", suggestions);
+        Assert.Contains("enabled:", suggestions);
+        Assert.Contains("containsChild:", suggestions);
     }
 }

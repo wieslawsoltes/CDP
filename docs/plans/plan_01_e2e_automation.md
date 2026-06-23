@@ -10,7 +10,7 @@ The goal is to expose programmatic control, navigation, inspection, and input si
 
 ### Key Use Cases
 - **Automated Regression Testing**: Running cross-platform functional GUI tests headlessly in GitHub Actions or locally without platform-specific UI drivers (e.g., Appium, WinAppDriver).
-- **Interactive UI Recording & Code Export**: Capturing user clicks, text typing, and scroll operations inside a target app and automatically translating them into test scripts (maestro yaml, Playwright, Puppeteer, Selenium, Appium, or Avalonia Headless).
+- **Interactive UI Recording & Code Export**: Capturing user clicks, text typing, and scroll operations inside a target app and automatically translating them into test scripts (flow yaml, Playwright, Puppeteer, Selenium, Appium, or Avalonia Headless).
 - **Programmatic Accessibility (a11y) Auditing**: Inspecting the semantic/accessibility roles and hierarchies of controls to verify accessibility compliance.
 - **Visual Debugging**: Locating visual layout bugs, element boundaries (box models), and focus paths via the CDP inspector.
 
@@ -206,7 +206,7 @@ The client app (`CdpInspectorApp`) uses a clean MVVM structure to orchestrate si
 ### Phase 4: Client Recorder & Playback Integration (Completed)
 - [x] Add the "Test Studio" UI module in `CdpInspectorApp`.
 - [x] Build format translators (Playwright, Puppeteer, Selenium, Appium, Avalonia Headless).
-- [x] Create the Maestro step runner with pause, play, step-over, and assertion evaluation.
+- [x] Create the flow step runner with pause, play, step-over, and assertion evaluation.
 
 ### Phase 5: Advanced Selectors & Complex Gestures (Future)
 - [ ] Implement multi-touch timeline gestures.
@@ -227,7 +227,7 @@ Programmatic verification of the E2E automation is executed by the task-specific
 ### Programmatic Assertions (Implemented in [Program.cs](file:///Users/wieslawsoltes/GitHub/CDP/scratch/ControlApp/Program.cs))
 The verification suite runs the following E2E scenarios:
 1. **Interactive Step Construction**: Verifies that adding step commands (Launch, Tap, Input, Assertions) dynamically builds the script list and updates the generated YAML representation.
-2. **YAML Parsing**: Asserts that loading and applying Maestro YAML scripts back correctly parses and populates step parameters.
+2. **YAML Parsing**: Asserts that loading and applying flow YAML scripts back correctly parses and populates step parameters.
 3. **E2E Play Execution Loop**: Executes steps against the live window. Asserts that the target button click event is fired, the ScrollViewer offset changes, and the text box text is correctly modified and cleared.
 4. **Step-by-Step Execution (StepOver)**: Asserts that executing scripts step-by-step pauses and resumes execution in the expected order.
 5. **Bidirectional Selection Sync**: Confirms that selecting a node in the Elements tree automatically updates the Recorder's selector.

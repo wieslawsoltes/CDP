@@ -262,7 +262,7 @@ public class PreviewHighlightOverlay : Control
                 var p = MapPoint(indicator.X.Value, indicator.Y.Value);
                 
                 // Filled inner circle
-                var innerBrush = new SolidColorBrush(Color.FromArgb(140, 186, 104, 200)); // Maestro purple
+                var innerBrush = new SolidColorBrush(Color.FromArgb(140, 186, 104, 200)); // flow purple
                 context.DrawGeometry(innerBrush, null, new EllipseGeometry(new Rect(p.X - 8, p.Y - 8, 16, 16)));
                 
                 // Translucent outer pulsing ring
