@@ -21,11 +21,23 @@
                 <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
             </Grid>
 
-            <!-- Logs Console List -->
             <DataGrid Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1"
-                      CanUserReorderRows="False" CanUserSortColumns="True" IsReadOnly="True"
+                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="Transparent" BorderThickness="0">
+                <DataGrid.ColumnHeaderContextMenu>
+                    <ContextMenu x:CompileBindings="False">
+                        <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
+                            <MenuItem.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Header}" />
+                                    <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
+                                    <Setter Property="ToggleType" Value="CheckBox" />
+                                </ControlTheme>
+                            </MenuItem.ItemContainerTheme>
+                        </MenuItem>
+                    </ContextMenu>
+                </DataGrid.ColumnHeaderContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Width="90" Foreground="#9aa0a6" FontSize="12"/>
                     <DataGridTemplateColumn Header="Level" Width="70">

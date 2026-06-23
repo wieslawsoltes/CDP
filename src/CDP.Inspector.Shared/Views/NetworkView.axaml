@@ -23,9 +23,22 @@
         <Grid Grid.Row="1" ColumnDefinitions="*, 4, 380">
             <!-- List -->
             <DataGrid Name="lstNetworkRequests" ItemsSource="{Binding Network.NetworkRequests}" SelectedItem="{Binding Network.SelectedRequest, Mode=TwoWay}"
-                      CanUserReorderRows="False" CanUserSortColumns="True" IsReadOnly="True"
+                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                <DataGrid.ColumnHeaderContextMenu>
+                    <ContextMenu x:CompileBindings="False">
+                        <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
+                            <MenuItem.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Header}" />
+                                    <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
+                                    <Setter Property="ToggleType" Value="CheckBox" />
+                                </ControlTheme>
+                            </MenuItem.ItemContainerTheme>
+                        </MenuItem>
+                    </ContextMenu>
+                </DataGrid.ColumnHeaderContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Name / URL" Binding="{Binding Url}" Width="*" Foreground="#e8eaed" FontSize="12"/>
                     <DataGridTextColumn Header="Method" Binding="{Binding Method}" Width="80" Foreground="#fdd663" FontSize="12" FontWeight="SemiBold"/>
