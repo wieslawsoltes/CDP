@@ -1,25 +1,211 @@
 using System;
 using System.Collections.Generic;
+using CdpInspectorApp.ViewModels;
 
 namespace CdpInspectorApp.Models;
 
-public class RecordedStepModel
+public class RecordedStepModel : ViewModelBase
 {
-    public string Type { get; set; } = "";
-    public string Selector { get; set; } = "";
-    public string Value { get; set; } = "";
-    public double OffsetX { get; set; }
-    public double OffsetY { get; set; }
-    public double Width { get; set; }
-    public double Height { get; set; }
-    public string Url { get; set; } = "";
-    public string Key { get; set; } = "";
-    public string Button { get; set; } = "left";
-    public int ClickCount { get; set; } = 1;
-    public int Modifiers { get; set; } = 0;
-    public string TargetSelector { get; set; } = "";
-    public double TargetOffsetX { get; set; }
-    public double TargetOffsetY { get; set; }
+    private string _type = "";
+    private string _selector = "";
+    private string _value = "";
+    private double _offsetX;
+    private double _offsetY;
+    private double _width;
+    private double _height;
+    private string _url = "";
+    private string _key = "";
+    private string _button = "left";
+    private int _clickCount = 1;
+    private int _modifiers;
+    private string _targetSelector = "";
+    private double _targetOffsetX;
+    private double _targetOffsetY;
+
+    public string Type
+    {
+        get => _type;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _type, value))
+            {
+                OnPropertyChanged(nameof(SelectorDisplay));
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public string Selector
+    {
+        get => _selector;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selector, value))
+            {
+                OnPropertyChanged(nameof(SelectorDisplay));
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public string Value
+    {
+        get => _value;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _value, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public double OffsetX
+    {
+        get => _offsetX;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _offsetX, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public double OffsetY
+    {
+        get => _offsetY;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _offsetY, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public double Width
+    {
+        get => _width;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _width, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public double Height
+    {
+        get => _height;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _height, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public string Url
+    {
+        get => _url;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _url, value))
+            {
+                OnPropertyChanged(nameof(SelectorDisplay));
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public string Key
+    {
+        get => _key;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _key, value))
+            {
+                OnPropertyChanged(nameof(SelectorDisplay));
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public string Button
+    {
+        get => _button;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _button, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public int ClickCount
+    {
+        get => _clickCount;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _clickCount, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public int Modifiers
+    {
+        get => _modifiers;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _modifiers, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public string TargetSelector
+    {
+        get => _targetSelector;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _targetSelector, value))
+            {
+                OnPropertyChanged(nameof(SelectorDisplay));
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public double TargetOffsetX
+    {
+        get => _targetOffsetX;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _targetOffsetX, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
+
+    public double TargetOffsetY
+    {
+        get => _targetOffsetY;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _targetOffsetY, value))
+            {
+                OnPropertyChanged(nameof(DetailDisplay));
+            }
+        }
+    }
 
     public string SelectorDisplay
     {

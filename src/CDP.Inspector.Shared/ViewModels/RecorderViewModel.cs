@@ -37,6 +37,13 @@ public class RecorderViewModel : ViewModelBase
     private IBrush _toggleRecordButtonBackground = new SolidColorBrush(Color.Parse("#c5221f"));
     private IBrush _toggleRecordButtonBorderBrush = new SolidColorBrush(Color.Parse("#c5221f"));
 
+    private RecordedStepModel? _selectedRecordedStep;
+    public RecordedStepModel? SelectedRecordedStep
+    {
+        get => _selectedRecordedStep;
+        set => RaiseAndSetIfChanged(ref _selectedRecordedStep, value);
+    }
+
     public ObservableCollection<RecordedStepModel> RecordedSteps => _recordedSteps;
 
     public bool IsRecording
@@ -165,6 +172,9 @@ public class RecorderViewModel : ViewModelBase
     public ICommand ToggleRecordCommand { get; }
     public ICommand ReplayCommand { get; }
     public ICommand ClearCommand { get; }
+    public ICommand DeleteStepCommand { get; }
+    public ICommand MoveUpStepCommand { get; }
+    public ICommand MoveDownStepCommand { get; }
 
     public RecorderViewModel(ICdpService cdpService, Func<string> getHostAddress, Func<bool>? useAutomationProvider = null)
     {
@@ -180,9 +190,27 @@ public class RecorderViewModel : ViewModelBase
         ToggleRecordCommand = new RelayCommand(async () => await ToggleRecordAsync(), () => _cdpService.IsConnected);
         ReplayCommand = new RelayCommand(async () => await ReplayAsync(), () => _cdpService.IsConnected && RecordedSteps.Count > 0);
         ClearCommand = new RelayCommand(ClearRecording);
+        DeleteStepCommand = new RelayCommand<RecordedStepModel>(DeleteStep);
+        MoveUpStepCommand = new RelayCommand<RecordedStepModel>(MoveStepUp);
+        MoveDownStepCommand = new RelayCommand<RecordedStepModel>(MoveStepDown);
 
         RecordedSteps.CollectionChanged += (sender, args) =>
         {
+            if (args.OldItems != null)
+            {
+                foreach (RecordedStepModel oldStep in args.OldItems)
+                {
+                    oldStep.PropertyChanged -= OnStepPropertyChanged;
+                }
+            }
+            if (args.NewItems != null)
+            {
+                foreach (RecordedStepModel newStep in args.NewItems)
+                {
+                    newStep.PropertyChanged += OnStepPropertyChanged;
+                }
+            }
+
             UpdateGeneratedCode();
             IsReplayEnabled = RecordedSteps.Count > 0;
             ((RelayCommand)ReplayCommand).RaiseCanExecuteChanged();
@@ -698,6 +726,10 @@ public class RecorderViewModel : ViewModelBase
 
     public void ClearRecording()
     {
+        foreach (var step in RecordedSteps)
+        {
+            step.PropertyChanged -= OnStepPropertyChanged;
+        }
         RecordedSteps.Clear();
         IsReplayEnabled = false;
         ((RelayCommand)ReplayCommand).RaiseCanExecuteChanged();
@@ -706,11 +738,15 @@ public class RecorderViewModel : ViewModelBase
 
     public void LoadScriptContent(string content)
     {
+        foreach (var step in RecordedSteps)
+        {
+            step.PropertyChanged -= OnStepPropertyChanged;
+        }
         RecordedSteps.Clear();
         var parsedSteps = RecordingParser.Parse(content);
         foreach (var step in parsedSteps)
         {
-            RecordedSteps.Add(new RecordedStepModel
+            var model = new RecordedStepModel
             {
                 Type = step.Type,
                 Selector = step.Selector,
@@ -727,7 +763,8 @@ public class RecorderViewModel : ViewModelBase
                 TargetSelector = step.TargetSelector,
                 TargetOffsetX = step.TargetOffsetX,
                 TargetOffsetY = step.TargetOffsetY
-            });
+            };
+            RecordedSteps.Add(model);
         }
         IsReplayEnabled = RecordedSteps.Count > 0;
         ((RelayCommand)ReplayCommand).RaiseCanExecuteChanged();
@@ -736,6 +773,10 @@ public class RecorderViewModel : ViewModelBase
 
     public void LoadParsedSteps(List<RecordedStepModel> parsedSteps)
     {
+        foreach (var step in RecordedSteps)
+        {
+            step.PropertyChanged -= OnStepPropertyChanged;
+        }
         RecordedSteps.Clear();
         foreach (var step in parsedSteps)
         {
@@ -818,10 +859,52 @@ public class RecorderViewModel : ViewModelBase
     {
         Dispatcher.UIThread.Post(() =>
         {
+            foreach (var step in RecordedSteps)
+            {
+                step.PropertyChanged -= OnStepPropertyChanged;
+            }
             RecordedSteps.Clear();
             IsRecording = false;
             IsReplayEnabled = false;
             UpdateGeneratedCode();
         });
+    }
+
+    private void OnStepPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        UpdateGeneratedCode();
+    }
+
+    private void DeleteStep(RecordedStepModel? step)
+    {
+        if (step != null && RecordedSteps.Contains(step))
+        {
+            step.PropertyChanged -= OnStepPropertyChanged;
+            RecordedSteps.Remove(step);
+        }
+    }
+
+    private void MoveStepUp(RecordedStepModel? step)
+    {
+        if (step == null) return;
+        int idx = RecordedSteps.IndexOf(step);
+        if (idx > 0)
+        {
+            RecordedSteps.RemoveAt(idx);
+            RecordedSteps.Insert(idx - 1, step);
+            UpdateGeneratedCode();
+        }
+    }
+
+    private void MoveStepDown(RecordedStepModel? step)
+    {
+        if (step == null) return;
+        int idx = RecordedSteps.IndexOf(step);
+        if (idx >= 0 && idx < RecordedSteps.Count - 1)
+        {
+            RecordedSteps.RemoveAt(idx);
+            RecordedSteps.Insert(idx + 1, step);
+            UpdateGeneratedCode();
+        }
     }
 }

@@ -500,6 +500,46 @@ public class CdpChromeFeatureTests
     }
 
     [Fact]
+    public void TestRecorderStepEditingAndCommands()
+    {
+        var stepsList = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnSave" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnCancel" }
+        };
+
+        var vm = new RecorderViewModel(new AccessibilitySearchTests.MockCdpService(), () => "localhost:9222");
+        vm.SelectedFormat = RecordingFormat.Puppeteer;
+        vm.LoadParsedSteps(stepsList);
+
+        // Verify initial state
+        Assert.Equal(2, vm.RecordedSteps.Count);
+        Assert.Contains("#btnSave", vm.GeneratedCode);
+        Assert.Contains("#btnCancel", vm.GeneratedCode);
+
+        // Test editing property updates code
+        vm.RecordedSteps[0].Selector = "#btnSubmit";
+        Assert.Contains("#btnSubmit", vm.GeneratedCode);
+        Assert.DoesNotContain("#btnSave", vm.GeneratedCode);
+
+        // Test move down
+        vm.MoveDownStepCommand.Execute(vm.RecordedSteps[0]);
+        Assert.Equal("#btnCancel", vm.RecordedSteps[0].Selector);
+        Assert.Equal("#btnSubmit", vm.RecordedSteps[1].Selector);
+
+        // Test move up
+        vm.MoveUpStepCommand.Execute(vm.RecordedSteps[1]);
+        Assert.Equal("#btnSubmit", vm.RecordedSteps[0].Selector);
+        Assert.Equal("#btnCancel", vm.RecordedSteps[1].Selector);
+
+        // Test delete step
+        vm.DeleteStepCommand.Execute(vm.RecordedSteps[0]);
+        Assert.Single(vm.RecordedSteps);
+        Assert.Equal("#btnCancel", vm.RecordedSteps[0].Selector);
+        Assert.DoesNotContain("#btnSubmit", vm.GeneratedCode);
+    }
+
+    [Fact]
     public void TestEscapedStringLiteralParsingAndGeneration()
     {
         // 1. Parser verification for mixed/escaped quotes
