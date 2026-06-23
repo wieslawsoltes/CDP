@@ -158,7 +158,7 @@ public static class SelectorEngine
         return selector;
     }
 
-    private static bool VisualContainsText(Visual visual, string text)
+    private static bool VisualContainsText(Visual visual, string text, bool recursive = true)
     {
         if (string.IsNullOrEmpty(text)) return false;
 
@@ -242,7 +242,32 @@ public static class SelectorEngine
             }
         }
 
+        if (recursive)
+        {
+            foreach (var child in visual.GetVisualChildren())
+            {
+                if (VisualContainsText(child, text, true)) return true;
+            }
+        }
+
         return false;
+    }
+
+    public static string? GetVisualTextContent(Visual visual)
+    {
+        if (visual is Control ctrl)
+        {
+            var txt = Domains.DomDomain.GetControlTextOrContent(ctrl);
+            if (!string.IsNullOrEmpty(txt)) return txt;
+        }
+
+        foreach (var child in visual.GetVisualChildren())
+        {
+            var txt = GetVisualTextContent(child);
+            if (!string.IsNullOrEmpty(txt)) return txt;
+        }
+
+        return null;
     }
 
     private static bool TryGetVisualText(Visual visual, out string value)
@@ -782,12 +807,12 @@ public static class SelectorEngine
         }
 
         bool baseMatch = true;
+        string type = "";
+        string? id = null;
+        var classes = new List<string>();
+
         if (selector != "*")
         {
-            string type = "";
-            string? id = null;
-            var classes = new List<string>();
-
             int i = 0;
             // Parse type
             while (i < selector.Length && selector[i] != '#' && selector[i] != '.')
@@ -908,9 +933,15 @@ public static class SelectorEngine
         if (!baseMatch) return false;
 
         // Check containsText conditions
+        bool hasOtherFilters = (selector != "*" && !string.IsNullOrWhiteSpace(selector)) ||
+                               id != null ||
+                               classes.Count > 0 ||
+                               attrMatches.Count > 0;
+        bool recursive = hasOtherFilters;
+
         foreach (var containsText in containsTexts)
         {
-            if (!VisualContainsText(visual, containsText))
+            if (!VisualContainsText(visual, containsText, recursive))
             {
                 return false;
             }

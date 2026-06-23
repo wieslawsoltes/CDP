@@ -24,15 +24,34 @@ public class DomClientSelectorGenerator : IClientSelectorGenerator
 
     public string GenerateSelector(DomNodeModel node)
     {
+        var idAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+        if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value) && !idAttr.Value.StartsWith("PART_"))
+        {
+            return $"#{idAttr.Value}";
+        }
+
+        var accessIdAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase));
+        if (accessIdAttr != null && !string.IsNullOrEmpty(accessIdAttr.Value))
+        {
+            return $"[AccessibilityId=\"{accessIdAttr.Value}\"]";
+        }
+
+        var text = ClientSelectorRegistry.GetNodeTextContent(node);
+        if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
+        {
+            var escaped = text.Replace("\"", "\\\"");
+            return $"{node.NodeName}:contains(\"{escaped}\")";
+        }
+
         // 1. Walk up to find if there is any named ancestor (has id/Name attribute)
         DomNodeModel? current = node;
         var pathParts = new List<string>();
         while (current != null)
         {
-            var idAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
-            if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value) && !idAttr.Value.StartsWith("PART_"))
+            var curIdAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+            if (curIdAttr != null && !string.IsNullOrEmpty(curIdAttr.Value) && !curIdAttr.Value.StartsWith("PART_"))
             {
-                pathParts.Insert(0, $"#{idAttr.Value}");
+                pathParts.Insert(0, $"#{curIdAttr.Value}");
                 return string.Join(" > ", pathParts);
             }
 

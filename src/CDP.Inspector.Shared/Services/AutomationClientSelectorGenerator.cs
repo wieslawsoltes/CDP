@@ -11,14 +11,33 @@ public class AutomationClientSelectorGenerator : IClientSelectorGenerator
 
     public string GenerateSelector(DomNodeModel node)
     {
+        var accessIdAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase));
+        if (accessIdAttr != null && !string.IsNullOrEmpty(accessIdAttr.Value))
+        {
+            return $"[AccessibilityId=\"{accessIdAttr.Value}\"]";
+        }
+
+        var idAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Name", StringComparison.OrdinalIgnoreCase));
+        if (idAttr != null && !string.IsNullOrEmpty(idAttr.Value) && !idAttr.Value.StartsWith("PART_"))
+        {
+            return $"#{idAttr.Value}";
+        }
+
+        var text = ClientSelectorRegistry.GetNodeTextContent(node);
+        if (!string.IsNullOrEmpty(text) && text.Length <= 60 && !text.Contains('\n') && !text.Contains('\r'))
+        {
+            var escaped = text.Replace("\"", "\\\"");
+            return $"{node.NodeName}:contains(\"{escaped}\")";
+        }
+
         DomNodeModel? current = node;
         var pathParts = new List<string>();
         while (current != null)
         {
-            var accessIdAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase));
-            if (accessIdAttr != null && !string.IsNullOrEmpty(accessIdAttr.Value))
+            var curAccessIdAttr = current.AttributesList.FirstOrDefault(a => a.Name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase));
+            if (curAccessIdAttr != null && !string.IsNullOrEmpty(curAccessIdAttr.Value))
             {
-                pathParts.Insert(0, $"[AccessibilityId=\"{accessIdAttr.Value}\"]");
+                pathParts.Insert(0, $"[AccessibilityId=\"{curAccessIdAttr.Value}\"]");
                 return string.Join(" > ", pathParts);
             }
             pathParts.Insert(0, current.NodeName);

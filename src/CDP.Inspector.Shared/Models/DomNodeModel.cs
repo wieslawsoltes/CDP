@@ -23,6 +23,13 @@ public class DomNodeModel : System.ComponentModel.INotifyPropertyChanged
         set { _isExpanded = value; OnPropertyChanged(); }
     }
 
+    private string _nodeValue = "";
+    public string NodeValue
+    {
+        get => _nodeValue;
+        set { _nodeValue = value; OnPropertyChanged(); }
+    }
+
     public int NodeId { get; }
     public string NodeName { get; }
     public string DisplayName { get; set; } = "";

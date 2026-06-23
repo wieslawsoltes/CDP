@@ -124,7 +124,7 @@ public class SelectorTests
         var clientDomGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("dom");
         var clientAutoGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("automation");
 
-        Assert.Equal("#myBorder > Button", clientDomGen.GenerateSelector(clientBtn));
+        Assert.Equal("[AccessibilityId=\"myBtnId\"]", clientDomGen.GenerateSelector(clientBtn));
         Assert.Equal("[AccessibilityId=\"myBtnId\"]", clientAutoGen.GenerateSelector(clientBtn));
     }
 
@@ -162,5 +162,30 @@ public class SelectorTests
         Assert.Null(SelectorEngine.QuerySelector(panel, "[UnknownAttribute=\"btnAutomation\"]"));
         Assert.Null(SelectorEngine.QuerySelector(panel, "[]"));
         Assert.Null(SelectorEngine.QuerySelector(panel, "[=btnAutomation]"));
+    }
+
+    [AvaloniaFact]
+    public void TestSelectorFallbackBehavior()
+    {
+        // Test that server-side generators correctly generate contains-text selectors as fallbacks when name/automation is missing.
+        var panel = new StackPanel();
+        var label = new Label { Content = "Submit Form" };
+        panel.Children.Add(label);
+
+        var domGen = SelectorRegistry.GetGenerator("dom");
+        var autoGen = SelectorRegistry.GetGenerator("automation");
+
+        Assert.Equal("Label:contains(\"Submit Form\")", domGen.GenerateSelector(label));
+        Assert.Equal("Label:contains(\"Submit Form\")", autoGen.GenerateSelector(label));
+
+        // Test that client-side generators correctly generate contains-text selectors as fallbacks.
+        var clientLabel = new CdpInspectorApp.Models.DomNodeModel(3, "Label");
+        clientLabel.AttributesList.Add(new CdpInspectorApp.Models.AttributeModel("text", "Submit Form"));
+        
+        var clientDomGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("dom");
+        var clientAutoGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("automation");
+
+        Assert.Equal("Label:contains(\"Submit Form\")", clientDomGen.GenerateSelector(clientLabel));
+        Assert.Equal("Label:contains(\"Submit Form\")", clientAutoGen.GenerateSelector(clientLabel));
     }
 }
