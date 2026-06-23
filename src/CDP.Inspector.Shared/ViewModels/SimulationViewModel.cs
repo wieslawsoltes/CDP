@@ -861,11 +861,58 @@ public class SimulationViewModel : ViewModelBase
         }
     }
 
+    private async Task<string> QueryCurrentUrlAsync()
+    {
+        try
+        {
+            var historyRes = await _cdpService.SendCommandAsync("Page.getNavigationHistory", new JsonObject());
+            var entries = historyRes["entries"] as JsonArray;
+            int currentIndex = historyRes["currentIndex"]?.GetValue<int>() ?? -1;
+            if (entries != null && currentIndex >= 0 && currentIndex < entries.Count)
+            {
+                var currentEntry = entries[currentIndex] as JsonObject;
+                var url = currentEntry?["url"]?.GetValue<string>() ?? "";
+                if (!string.IsNullOrEmpty(url)) return url;
+            }
+        }
+        catch { }
+
+        try
+        {
+            var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject 
+            { 
+                ["expression"] = "window.location.href",
+                ["returnByValue"] = true
+            });
+            var resultObj = evalRes["result"] as JsonObject;
+            var url = resultObj?["value"]?.GetValue<string>() ?? "";
+            if (!string.IsNullOrEmpty(url)) return url;
+        }
+        catch { }
+
+        return "";
+    }
+
     private async Task StartScreencastAsync()
     {
         if (!_cdpService.IsConnected) return;
         try
         {
+            try
+            {
+                await _cdpService.SendCommandAsync("Page.enable", new JsonObject());
+            }
+            catch { }
+
+            var url = await QueryCurrentUrlAsync();
+            if (!string.IsNullOrEmpty(url))
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    NavigateUrlText = url;
+                });
+            }
+
             await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
             {
                 ["format"] = "png",
@@ -923,6 +970,47 @@ public class SimulationViewModel : ViewModelBase
             catch (Exception ex)
             {
                 Console.WriteLine($"Error processing screencast frame: {ex.Message}");
+            }
+        }
+        else if (e.Method == "Page.frameNavigated")
+        {
+            try
+            {
+                var frameObj = e.Params["frame"] as JsonObject;
+                var parentId = frameObj?["parentId"]?.GetValue<string>();
+                if (string.IsNullOrEmpty(parentId)) // top-level frame
+                {
+                    var url = frameObj?["url"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            NavigateUrlText = url;
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error processing frameNavigated: {ex.Message}");
+            }
+        }
+        else if (e.Method == "Page.navigatedWithinDocument")
+        {
+            try
+            {
+                var url = e.Params["url"]?.GetValue<string>() ?? "";
+                if (!string.IsNullOrEmpty(url))
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        NavigateUrlText = url;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error processing navigatedWithinDocument: {ex.Message}");
             }
         }
     }
