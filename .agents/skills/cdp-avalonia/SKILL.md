@@ -5,7 +5,7 @@ description: Install, inspect, automate, record, replay, and verify Avalonia app
 
 # CDP Avalonia Skill
 
-Use this skill whenever a task involves `Avalonia.Diagnostics.Cdp`, `CDP.Avalonia`, `CDP.DiagnosticTools`, `CdpInspectorApp`, `CdpSampleApp`, Test Studio, recorder/replay behavior, visual tree inspection, accessibility inspection, or agent-driven Avalonia UI automation.
+Use this skill whenever a task involves `Avalonia.Diagnostics.Cdp`, `Chrome.DevTools.Avalonia`, `Chrome.DevTools.DiagnosticTools`, `CdpInspectorApp`, `CdpSampleApp`, Test Studio, recorder/replay behavior, visual tree inspection, accessibility inspection, or agent-driven Avalonia UI automation.
 
 ## Core Mental Model
 
@@ -21,10 +21,10 @@ Important defaults in this repository:
 
 ## Installation Patterns
 
-Use `CDP.DiagnosticTools` when the app should expose F12 inspector tooling:
+Use `Chrome.DevTools.DiagnosticTools` when the app should expose F12 inspector tooling:
 
 ```shell
-dotnet add package CDP.DiagnosticTools
+dotnet add package Chrome.DevTools.DiagnosticTools
 ```
 
 ```csharp
@@ -40,10 +40,10 @@ public partial class MainWindow : Window
 }
 ```
 
-Use `CDP.Avalonia` when the app needs only a programmatic CDP server:
+Use `Chrome.DevTools.Avalonia` when the app needs only a programmatic CDP server:
 
 ```shell
-dotnet add package CDP.Avalonia
+dotnet add package Chrome.DevTools.Avalonia
 ```
 
 ```csharp
