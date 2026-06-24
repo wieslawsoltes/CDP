@@ -49,8 +49,15 @@ public static class TestStudioYamlParser
 
     public static List<TestStudioStepModel> Parse(string yaml, out string appId, out string description)
     {
+        return Parse(yaml, out appId, out description, out _, out _);
+    }
+
+    public static List<TestStudioStepModel> Parse(string yaml, out string appId, out string description, out List<string> tags, out Dictionary<string, string> env)
+    {
         appId = "";
         description = "";
+        tags = new List<string>();
+        env = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var steps = new List<TestStudioStepModel>();
 
         if (string.IsNullOrEmpty(yaml))
@@ -80,6 +87,26 @@ public static class TestStudioYamlParser
                         else if (key == "description" && entry.Value is YamlScalarNode scalarDesc)
                         {
                             description = scalarDesc.Value ?? "";
+                        }
+                        else if (key == "tags" && entry.Value is YamlSequenceNode sequenceTags)
+                        {
+                            foreach (var tagNode in sequenceTags.Children)
+                            {
+                                if (tagNode is YamlScalarNode scalarTag)
+                                {
+                                    tags.Add(scalarTag.Value ?? "");
+                                }
+                            }
+                        }
+                        else if (key == "env" && entry.Value is YamlMappingNode envMapping)
+                        {
+                            foreach (var envEntry in envMapping.Children)
+                            {
+                                if (envEntry.Key is YamlScalarNode envKey && envEntry.Value is YamlScalarNode envVal)
+                                {
+                                    env[envKey.Value ?? ""] = envVal.Value ?? "";
+                                }
+                            }
                         }
                     }
                 }
