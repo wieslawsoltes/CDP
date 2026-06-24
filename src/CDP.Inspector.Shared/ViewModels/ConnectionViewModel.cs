@@ -13,6 +13,7 @@ public class ConnectionViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
     private string _hostAddress = "http://127.0.0.1:9222";
+    private string _lastHttpHost = "127.0.0.1:9222";
     private ObservableCollection<TargetItem> _targets = new();
     private TargetItem? _selectedTarget;
     private bool _isInspectModeActive;
@@ -21,7 +22,43 @@ public class ConnectionViewModel : ViewModelBase
     public string HostAddress
     {
         get => _hostAddress;
-        set => RaiseAndSetIfChanged(ref _hostAddress, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _hostAddress, value))
+            {
+                UpdateLastHttpHost(value);
+            }
+        }
+    }
+
+    private void UpdateLastHttpHost(string address)
+    {
+        if (string.IsNullOrEmpty(address)) return;
+        
+        if (address.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+            address.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(address);
+                _lastHttpHost = uri.Authority;
+            }
+            catch {}
+        }
+        else if (address.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) || 
+                 address.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(address);
+                _lastHttpHost = uri.Authority;
+            }
+            catch {}
+        }
+        else if (address.Contains(':') || address.Contains('.'))
+        {
+            _lastHttpHost = address;
+        }
     }
 
     public bool UseAutomationSelectors
@@ -150,6 +187,75 @@ public class ConnectionViewModel : ViewModelBase
             {
                 _ = ConnectAsync();
             }
+        }
+        else if (e.PropertyName == nameof(HostAddress))
+        {
+            UpdateDirectTarget();
+        }
+    }
+
+    private void UpdateDirectTarget()
+    {
+        if (string.IsNullOrEmpty(HostAddress)) return;
+
+        string wsUrl = "";
+        string targetId = "direct";
+        string title = "Direct Connection";
+
+        bool isWs = HostAddress.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) || 
+                    HostAddress.StartsWith("wss://", StringComparison.OrdinalIgnoreCase);
+
+        bool isTargetId = !HostAddress.Contains('.') && 
+                          !HostAddress.Contains(':') && 
+                          !HostAddress.Contains('/') && 
+                          HostAddress.Length >= 8;
+
+        if (isWs)
+        {
+            wsUrl = HostAddress;
+            // Try to extract target ID from path if present
+            try
+            {
+                var uri = new Uri(HostAddress);
+                var segments = uri.Segments;
+                if (segments.Length > 0)
+                {
+                    var lastSegment = segments[segments.Length - 1].Trim('/');
+                    if (lastSegment.Length >= 8 && !lastSegment.Contains('.'))
+                    {
+                        targetId = lastSegment;
+                    }
+                }
+            }
+            catch {}
+        }
+        else if (isTargetId)
+        {
+            targetId = HostAddress;
+            wsUrl = $"ws://{_lastHttpHost}/devtools/page/{targetId}";
+            title = $"Direct Target {(targetId.Length > 8 ? targetId.Substring(0, 8) : targetId)}";
+        }
+
+        if (!string.IsNullOrEmpty(wsUrl))
+        {
+            var directTarget = new TargetItem(title, wsUrl, targetId);
+            bool exists = false;
+            foreach (var t in Targets)
+            {
+                if (t.WebSocketUrl == wsUrl)
+                {
+                    SelectedTarget = t;
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists)
+            {
+                Targets.Clear();
+                Targets.Add(directTarget);
+                SelectedTarget = directTarget;
+            }
+            ((RelayCommand)ConnectCommand).RaiseCanExecuteChanged();
         }
     }
 
