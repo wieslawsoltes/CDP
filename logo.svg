@@ -1,0 +1,79 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bg-grad" cx="50%" cy="50%" r="70%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#141923" />
+      <stop offset="100%" stop-color="#090b10" />
+    </radialGradient>
+
+    <!-- Purple to Cyan Glow Gradient -->
+    <linearGradient id="purple-cyan-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ab47ff" />
+      <stop offset="50%" stop-color="#558eff" />
+      <stop offset="100%" stop-color="#00f0ff" />
+    </linearGradient>
+
+    <!-- Subtle Border Glow Gradient -->
+    <linearGradient id="border-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b2cfd" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#00b4d8" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Neon Glow Filter -->
+    <filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Light Border Glow Filter -->
+    <filter id="border-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background App Icon Frame -->
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="url(#bg-grad)" stroke="url(#border-grad)" stroke-width="4" filter="url(#border-glow)" />
+
+  <!-- Outer Glowing Circle Shadow (Subtle) -->
+  <circle cx="256" cy="210" r="120" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="1" opacity="0.3" filter="url(#neon-glow)" />
+
+  <!-- Gear Group -->
+  <g transform="translate(256, 210)" filter="url(#neon-glow)">
+    <!-- 8 Gear Teeth -->
+    <rect x="-14" y="-115" width="28" height="230" rx="8" fill="url(#purple-cyan-grad)" />
+    <rect x="-14" y="-115" width="28" height="230" rx="8" fill="url(#purple-cyan-grad)" transform="rotate(45)" />
+    <rect x="-14" y="-115" width="28" height="230" rx="8" fill="url(#purple-cyan-grad)" transform="rotate(90)" />
+    <rect x="-14" y="-115" width="28" height="230" rx="8" fill="url(#purple-cyan-grad)" transform="rotate(135)" />
+
+    <!-- Center Mask to hollow out the gear -->
+    <circle cx="0" cy="0" r="92" fill="#0f121a" />
+    <!-- Inner Rim of Gear -->
+    <circle cx="0" cy="0" r="92" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="8" />
+
+    <!-- Code Brackets / Developer Symbols Inside -->
+    <!-- Left Bracket < -->
+    <path d="M-45,-22 L-72,0 L-45,22" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+    
+    <!-- Right Bracket > -->
+    <path d="M45,-22 L72,0 L45,22" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Center Slash / -->
+    <path d="M18,-52 L-18,52" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="9" stroke-linecap="round" />
+
+    <!-- Terminal Cursor Underscore _ -->
+    <path d="M32,36 L58,36" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="8" stroke-linecap="round" />
+  </g>
+
+  <!-- Typography (glowing text) -->
+  <g filter="url(#neon-glow)">
+    <text x="256" y="375" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="52" fill="#ffffff" text-anchor="middle" letter-spacing="4">CDP</text>
+    <text x="256" y="420" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="600" font-size="24" fill="#a0aec0" text-anchor="middle" letter-spacing="6">INSPECTOR</text>
+  </g>
+</svg>

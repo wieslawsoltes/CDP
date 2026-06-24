@@ -3,56 +3,74 @@
     position: absolute;
     height: 100%;
     width: 100%;
-    background: white;
-    font-family: 'Outfit', sans-serif;
+    background: radial-gradient(circle, #141923 0%, #090b10 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     justify-content: center;
     align-items: center;
     display: flex;
     pointer-events: none;
+    z-index: 9999;
 }
 
-/* Light theme styles */
-@media (prefers-color-scheme: light) {
-    .avalonia-splash {
-        background: white;
-    }
-
-    .avalonia-splash h2 {
-        color: #1b2a4e;
-    }
-
-    .avalonia-splash a {
-        color: #0D6EFD;
-    }
+.splash-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
 }
 
-@media (prefers-color-scheme: dark) {
-    .avalonia-splash {
-        background: #1b2a4e;
-    }
-
-    .avalonia-splash h2 {
-        color: white;
-    }
-
-    .avalonia-splash a {
-        color: white;
-    }
+.loading-indicator {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
 }
 
-.avalonia-splash h2 {
-    font-weight: 400;
-    font-size: 1.5rem;
+.spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(171, 71, 255, 0.15);
+    border-radius: 50%;
+    border-top-color: #00f0ff;
+    animation: spin 1s ease-in-out infinite;
 }
 
-.avalonia-splash a {
+.loading-indicator span {
+    color: #a0aec0;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 1px;
+}
+
+.powered-by {
+    margin-top: 60px;
+    color: #4a5568;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.powered-by a {
+    color: #ab47ff;
     text-decoration: none;
-    font-size: 2.5rem;
-    display: block;   
+    font-weight: 600;
+    transition: color 0.2s ease;
+    display: inline;
+}
+
+.powered-by a:hover {
+    color: #00f0ff;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .avalonia-splash.splash-close {
-    transition: opacity 200ms, display 200ms;
-    display: none;
+    transition: opacity 300ms ease-out;
     opacity: 0;
+    pointer-events: none;
 }
