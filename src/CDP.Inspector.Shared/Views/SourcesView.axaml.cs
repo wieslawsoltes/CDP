@@ -25,8 +25,18 @@ public partial class SourcesView : UserControl
         var editor = txtSourceContent;
         if (editor != null)
         {
-            _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
-            _textMateInstallation = editor.InstallTextMate(_registryOptions);
+            if (!OperatingSystem.IsBrowser())
+            {
+                try
+                {
+                    _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
+                    _textMateInstallation = editor.InstallTextMate(_registryOptions);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SourcesView] Failed to initialize TextMate: {ex.Message}");
+                }
+            }
         }
 
         DataContextChanged += (sender, args) =>
