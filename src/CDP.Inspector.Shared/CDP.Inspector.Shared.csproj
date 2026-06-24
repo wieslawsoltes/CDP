@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.Inspector.Shared</PackageId>
-    <Title>CDP.Inspector.Shared</Title>
+    <PackageId>Chrome.DevTools.Inspector.Shared</PackageId>
+    <Title>Chrome.DevTools.Inspector.Shared</Title>
     <Description>Shared UI components and view models for the CDP Inspector client.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
