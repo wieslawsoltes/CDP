@@ -46,7 +46,7 @@ public class TestStudioE2ETests
 
             await vm.PlayAsync();
 
-            Assert.Equal(1, vm.Steps.Count);
+            Assert.Single(vm.Steps);
             Assert.Equal(StepStatus.Passed, vm.Steps[0].Status);
         }
         finally
