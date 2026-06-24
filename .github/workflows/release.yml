@@ -17,14 +17,27 @@ jobs:
       NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 10.0.x
+
+    - name: Validate release tag
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="${GITHUB_REF_NAME#v}"
+        if [[ ! "${version}" =~ ^[0-9]+(\.[0-9]+){2}(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+          echo "::error::Release tags must use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease, got ${GITHUB_REF_NAME}"
+          exit 1
+        fi
+        echo "VERSION=${version}" >> "$GITHUB_OUTPUT"
+
 
     - name: Install WASM Tools workload
       run: dotnet workload install wasm-tools
@@ -40,11 +53,9 @@ jobs:
 
     # 1. Pack NuGet Packages
     - name: Pack NuGet Packages
-      run: |
-        dotnet pack src/Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj -c Release -o ./artifacts
-        dotnet pack src/CDP.DiagnosticTools/CDP.DiagnosticTools.csproj -c Release -o ./artifacts
-        dotnet pack src/CDP.Inspector.Shared/CDP.Inspector.Shared.csproj -c Release -o ./artifacts
-        dotnet pack samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -o ./artifacts
+      shell: bash
+      run: bash scripts/pack-nuget.sh --configuration Release --output artifacts --version "${{ steps.version.outputs.VERSION }}"
+
 
     # 2. Publish Single-File Executables for multiple platforms
     - name: Publish Windows x64 Executable
@@ -77,7 +88,7 @@ jobs:
 
     # 3. Create GitHub Release and Upload Assets
     - name: Create Release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         files: |
           artifacts/cdp-inspector-win-x64.zip
@@ -86,12 +97,15 @@ jobs:
           artifacts/cdp-inspector-osx-arm64.tar.gz
           artifacts/*.nupkg
         draft: false
-        prerelease: false
+        prerelease: ${{ contains(github.ref_name, '-') }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # 4. Push to NuGet (if NUGET_API_KEY secret is provided)
     - name: Push to NuGet
       if: env.NUGET_API_KEY != ''
-      run: |
-        dotnet nuget push "artifacts/*.nupkg" -k ${{ env.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+      shell: bash
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        NUGET_SOURCE: https://api.nuget.org/v3/index.json
+      run: bash scripts/push-nuget.sh --directory artifacts
