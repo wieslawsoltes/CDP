@@ -145,4 +145,24 @@ public class EnvironmentInterpolationTests
         string resolvedText = vm.InterpolateVariables("${DYNAMIC_TEXT}", env);
         Assert.Equal("hello live", resolvedText);
     }
+
+    [Fact]
+    public void Test_JS_Expression_Ternary_Evaluation()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var localEnv = new Dictionary<string, string> { { "platform", "ios" } };
+
+        string result = vm.InterpolateVariables("${platform === 'ios' ? 'Allow' : 'Deny'}", localEnv);
+        Assert.Equal("Allow", result);
+    }
+
+    [Fact]
+    public void Test_JS_Expression_Math_Evaluation()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var localEnv = new Dictionary<string, string>();
+
+        string result = vm.InterpolateVariables("${2 + 3 * 4}", localEnv);
+        Assert.Equal("14", result);
+    }
 }

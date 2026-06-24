@@ -332,4 +332,41 @@ public class SuiteExecutionTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public async Task Test_Suite_Tag_Filtering_Includes_And_Excludes()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var flow1 = Path.Combine(tempDir, "flow1.yaml");
+            File.WriteAllText(flow1, "appId: \"\"\ndescription: \"Smoke Test\"\ntags:\n  - smoke\n---\n- delay: 10\n");
+
+            var flow2 = Path.Combine(tempDir, "flow2.yaml");
+            File.WriteAllText(flow2, "appId: \"\"\ndescription: \"Perf Test\"\ntags:\n  - performance\n---\n- delay: 10\n");
+
+            var flow3 = Path.Combine(tempDir, "flow3.yaml");
+            File.WriteAllText(flow3, "appId: \"\"\ndescription: \"Flaky Test\"\ntags:\n  - smoke\n  - flaky\n---\n- delay: 10\n");
+
+            var env = new TestEnvironmentModel
+            {
+                Name = "TestEnv",
+                IncludedTags = "smoke",
+                ExcludedTags = "flaky"
+            };
+            vm.Environments.Add(env);
+            vm.SelectedEnvironment = env;
+
+            await vm.RunSuite(tempDir);
+
+            Assert.Equal(1, vm.SuitePassCount);
+            Assert.Equal(0, vm.SuiteFailCount);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }
