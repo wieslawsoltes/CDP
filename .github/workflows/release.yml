@@ -40,6 +40,8 @@ jobs:
     - name: Pack NuGet Packages
       run: |
         dotnet pack src/Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj -c Release -o ./artifacts
+        dotnet pack src/CDP.DiagnosticTools/CDP.DiagnosticTools.csproj -c Release -o ./artifacts
+        dotnet pack src/CDP.Inspector.Shared/CDP.Inspector.Shared.csproj -c Release -o ./artifacts
         dotnet pack samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -o ./artifacts
 
     # 2. Publish Single-File Executables for multiple platforms
@@ -88,7 +90,7 @@ jobs:
 
     # 4. Push to NuGet (if NUGET_API_KEY secret is provided)
     - name: Push to NuGet
-      if: env.NUGET_API_KEY != ''
+      if: ${{ secrets.NUGET_API_KEY != '' }}
       run: |
         dotnet nuget push "artifacts/*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
       env:
