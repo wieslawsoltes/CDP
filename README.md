@@ -290,7 +290,7 @@ Once connected, you can use the following standard panels:
 
 ### 2. Testing with CdpInspectorApp
 
-The inspector app can be run in three ways:
+The inspector app can be run in four ways:
 
 #### A. Install as a .NET Tool (Recommended)
 You can install the inspector globally on your machine:
@@ -318,6 +318,36 @@ If running from source in the cloned repository:
 2. Click **Scan Targets** inside the inspector, select `CdpSampleApp (127.0.0.1:9222)`, and click **Connect**.
 3. Explore the redesigned Chrome DevTools dark mode panels (Elements, Console, Sources, Network, Performance, Application, and Simulation).
 4. Record user interactions by clicking the **Recorder** tab, clicking **Start Recording**, performing clicks and text typing on the sample app, and stopping the recording. You can save/export scripts in any of the supported target formats, load them back, and click **Replay** to replay them.
+
+#### D. Run in the Browser (WebAssembly)
+A WebAssembly build of `CdpInspectorApp` is available and can be run locally or deployed. Note that the browser client operates purely in outgoing mode and does not listen on local TCP ports for incoming connections.
+
+##### Running Locally:
+1. Publish the WebAssembly project:
+   ```bash
+   dotnet publish samples/CdpInspectorApp.Browser/CdpInspectorApp.Browser.csproj -c Release -o publish
+   ```
+2. Serve the published directory:
+   ```bash
+   npx http-server publish/wwwroot -p 8080 -c-1
+   ```
+3. Open `http://127.0.0.1:8080` in your web browser.
+
+##### Connecting to Targets in the Browser (CORS & Security):
+Due to security restrictions in modern web browsers:
+* **CORS Blocks HTTP Target Scanning**: Standard web browsers block cross-origin HTTP requests (such as fetching `http://127.0.0.1:9222/json` to discover targets) due to CORS policies. Clicking **Scan Targets** in the browser will fail.
+* **Chrome Debugging Port Origin Block**: Standard browsers block pages from opening WebSocket connections directly to Chrome's own remote debugging port (e.g., `ws://127.0.0.1:9222`) to prevent remote control hijacking.
+
+**How to connect successfully from a browser client**:
+1. Run your target application (e.g., `CdpSampleApp` or any Avalonia application with `CdpServer` enabled) on port `9222` from your terminal:
+   ```bash
+   dotnet run --project samples/CdpSampleApp/CdpSampleApp.csproj
+   ```
+2. Open `http://127.0.0.1:9222/json` in a new browser tab. Since this is a direct navigation, it is allowed by the browser.
+3. Copy either the **Target ID** (e.g., `35c3b043-4939-4848-80e3-c31b25f0b1c2`) or the **entire WebSocket Debugger URL** (`webSocketDebuggerUrl`).
+4. Paste it directly into the **Host** textbox of the browser inspector (running at `http://127.0.0.1:8080`). The inspector will automatically configure and select the **Direct Connection** target.
+5. Click **Connect**. Since the target app uses a custom C# WebSocket server without browser origin restrictions, the browser will connect successfully!
+
 
 #### Supported Recorder Target Formats
 

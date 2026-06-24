@@ -2,6 +2,7 @@
   <Folder Name="/samples/">
     <Project Path="samples/CdpSampleApp/CdpSampleApp.csproj" />
     <Project Path="samples/CdpInspectorApp/CdpInspectorApp.csproj" />
+    <Project Path="samples/CdpInspectorApp.Browser/CdpInspectorApp.Browser.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj" />

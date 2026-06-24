@@ -926,6 +926,7 @@ public class NewDomainTests
         public string ConnectedHost { get; set; } = "";
         public string ConnectedTargetId { get; set; } = "";
         public bool IsPreviewScreencastActive { get; set; }
+        public System.Collections.Generic.List<TargetItem> TargetsToReturn { get; set; } = new();
 
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<CdpEventEventArgs>? EventReceived;
@@ -937,7 +938,7 @@ public class NewDomainTests
 
         public Task<System.Collections.Generic.List<TargetItem>> GetTargetsAsync(string host)
         {
-            return Task.FromResult(new System.Collections.Generic.List<TargetItem>());
+            return Task.FromResult(TargetsToReturn);
         }
 
         public Task ConnectAsync(string host, TargetItem target)
@@ -1079,6 +1080,56 @@ public class NewDomainTests
         CdpServer.RemoveSession(session);
         CdpServer.Unregister(window);
         window.Close();
+    }
+
+    [Fact]
+    public async Task TestConnectionViewModelDirectTargetParsing()
+    {
+        var service = new MockInspectorCdpService();
+        var vm = new ConnectionViewModel(service);
+
+        // 1. Initial host address
+        Assert.Equal("http://127.0.0.1:9222", vm.HostAddress);
+        Assert.Equal("http://127.0.0.1:9222", vm.GeneratorHostAddress);
+
+        // 2. Set to a Target ID
+        vm.HostAddress = "3D5F1E70838BBC6B1ED";
+        Assert.NotNull(vm.SelectedTarget);
+        Assert.Equal("3D5F1E70838BBC6B1ED", vm.SelectedTarget.Id);
+        Assert.Equal("ws://127.0.0.1:9222/devtools/page/3D5F1E70838BBC6B1ED", vm.SelectedTarget.WebSocketUrl);
+        Assert.Equal("Direct Target 3D5F1E70", vm.SelectedTarget.Title);
+        Assert.Equal("http://127.0.0.1:9222", vm.GeneratorHostAddress);
+
+        // 3. Set to another Target ID
+        vm.HostAddress = "A258E1AABD0563D5F1E7083888C6B1ED";
+        Assert.NotNull(vm.SelectedTarget);
+        Assert.Equal("A258E1AABD0563D5F1E7083888C6B1ED", vm.SelectedTarget.Id);
+        Assert.Equal("ws://127.0.0.1:9222/devtools/page/A258E1AABD0563D5F1E7083888C6B1ED", vm.SelectedTarget.WebSocketUrl);
+        Assert.Equal("Direct Target A258E1AA", vm.SelectedTarget.Title);
+        Assert.Equal("http://127.0.0.1:9222", vm.GeneratorHostAddress);
+
+        // 4. Set to a ws URL
+        vm.HostAddress = "ws://10.0.0.5:8080/devtools/page/test-target";
+        Assert.NotNull(vm.SelectedTarget);
+        Assert.Equal("test-target", vm.SelectedTarget.Id);
+        Assert.Equal("ws://10.0.0.5:8080/devtools/page/test-target", vm.SelectedTarget.WebSocketUrl);
+        Assert.Equal("http://10.0.0.5:8080", vm.GeneratorHostAddress);
+
+        // 5. Test direct target selection preservation during refresh
+        service.TargetsToReturn.Clear();
+        service.TargetsToReturn.Add(new TargetItem("Scanned Window", "ws://10.0.0.5:8080/devtools/page/test-target", "test-target"));
+        service.TargetsToReturn.Add(new TargetItem("Other Window", "ws://10.0.0.5:8080/devtools/page/other", "other"));
+
+        await vm.RefreshTargetsAsync();
+
+        // SelectedTarget should match the scanned item with the same ID, preserving selection
+        Assert.NotNull(vm.SelectedTarget);
+        Assert.Equal("test-target", vm.SelectedTarget.Id);
+        Assert.Equal("Scanned Window", vm.SelectedTarget.Title);
+
+        // 6. Test that ConnectAsync passes the normalized GeneratorHostAddress to the service
+        await vm.ConnectAsync();
+        Assert.Equal("http://10.0.0.5:8080", service.ConnectedHost);
     }
 }
 

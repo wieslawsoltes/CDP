@@ -31,20 +31,23 @@ public partial class TestStudioView : UserControl
         var editor = this.FindControl<TextEditor>("txtYamlCode");
         if (editor != null)
         {
-            // 1. Initialize TextMate with Dark+ theme
-            _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
-            _textMateInstallation = editor.InstallTextMate(_registryOptions);
-            try
+            if (!OperatingSystem.IsBrowser())
             {
-                var yamlLanguage = _registryOptions.GetLanguageByExtension(".yaml");
-                if (yamlLanguage != null)
+                try
                 {
-                    _textMateInstallation.SetGrammar(_registryOptions.GetScopeByLanguageId(yamlLanguage.Id));
+                    // 1. Initialize TextMate with Dark+ theme
+                    _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
+                    _textMateInstallation = editor.InstallTextMate(_registryOptions);
+                    var yamlLanguage = _registryOptions.GetLanguageByExtension(".yaml");
+                    if (yamlLanguage != null)
+                    {
+                        _textMateInstallation.SetGrammar(_registryOptions.GetScopeByLanguageId(yamlLanguage.Id));
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[TestStudioView] Failed to initialize TextMate grammar: {ex.Message}");
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[TestStudioView] Failed to initialize TextMate: {ex.Message}");
+                }
             }
 
             // 2. Synchronize editor edits back to ViewModel

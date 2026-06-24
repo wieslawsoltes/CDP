@@ -63,19 +63,22 @@ public partial class RecorderView : UserControl
         var editor = txtGeneratedCode;
         if (editor != null)
         {
-            _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
-            _textMateInstallation = editor.InstallTextMate(_registryOptions);
-            try
+            if (!OperatingSystem.IsBrowser())
             {
-                var jsLanguage = _registryOptions.GetLanguageByExtension(".js");
-                if (jsLanguage != null)
+                try
                 {
-                    _textMateInstallation.SetGrammar(_registryOptions.GetScopeByLanguageId(jsLanguage.Id));
+                    _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
+                    _textMateInstallation = editor.InstallTextMate(_registryOptions);
+                    var jsLanguage = _registryOptions.GetLanguageByExtension(".js");
+                    if (jsLanguage != null)
+                    {
+                        _textMateInstallation.SetGrammar(_registryOptions.GetScopeByLanguageId(jsLanguage.Id));
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[RecorderView] Failed to initialize TextMate grammar: {ex.Message}");
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[RecorderView] Failed to initialize TextMate: {ex.Message}");
+                }
             }
         }
 

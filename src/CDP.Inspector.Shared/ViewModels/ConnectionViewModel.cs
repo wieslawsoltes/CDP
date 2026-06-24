@@ -13,6 +13,7 @@ public class ConnectionViewModel : ViewModelBase
 {
     private readonly ICdpService _cdpService;
     private string _hostAddress = "http://127.0.0.1:9222";
+    private string _lastHttpHost = "127.0.0.1:9222";
     private ObservableCollection<TargetItem> _targets = new();
     private TargetItem? _selectedTarget;
     private bool _isInspectModeActive;
@@ -21,7 +22,82 @@ public class ConnectionViewModel : ViewModelBase
     public string HostAddress
     {
         get => _hostAddress;
-        set => RaiseAndSetIfChanged(ref _hostAddress, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _hostAddress, value))
+            {
+                UpdateLastHttpHost(value);
+                OnPropertyChanged(nameof(GeneratorHostAddress));
+            }
+        }
+    }
+
+    public string GeneratorHostAddress
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(HostAddress))
+            {
+                return "http://127.0.0.1:9222";
+            }
+
+            if (HostAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                HostAddress.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return HostAddress;
+            }
+
+            if (HostAddress.StartsWith("ws://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var uri = new Uri(HostAddress);
+                    return $"http://{uri.Authority}";
+                }
+                catch {}
+            }
+            else if (HostAddress.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var uri = new Uri(HostAddress);
+                    return $"https://{uri.Authority}";
+                }
+                catch {}
+            }
+
+            return $"http://{_lastHttpHost}";
+        }
+    }
+
+    private void UpdateLastHttpHost(string address)
+    {
+        if (string.IsNullOrEmpty(address)) return;
+        
+        if (address.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+            address.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(address);
+                _lastHttpHost = uri.Authority;
+            }
+            catch {}
+        }
+        else if (address.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) || 
+                 address.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(address);
+                _lastHttpHost = uri.Authority;
+            }
+            catch {}
+        }
+        else if (address.Contains(':') || address.Contains('.'))
+        {
+            _lastHttpHost = address;
+        }
     }
 
     public bool UseAutomationSelectors
@@ -151,6 +227,81 @@ public class ConnectionViewModel : ViewModelBase
                 _ = ConnectAsync();
             }
         }
+        else if (e.PropertyName == nameof(HostAddress))
+        {
+            UpdateDirectTarget();
+        }
+    }
+
+    private bool IsDirectHostAddress(string address, out string wsUrl, out string targetId, out string title)
+    {
+        wsUrl = "";
+        targetId = "direct";
+        title = "Direct Connection";
+
+        if (string.IsNullOrEmpty(address)) return false;
+
+        bool isWs = address.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) || 
+                    address.StartsWith("wss://", StringComparison.OrdinalIgnoreCase);
+
+        bool isTargetId = !address.Contains('.') && 
+                          !address.Contains(':') && 
+                          !address.Contains('/') && 
+                          address.Length >= 8;
+
+        if (isWs)
+        {
+            wsUrl = address;
+            try
+            {
+                var uri = new Uri(address);
+                var segments = uri.Segments;
+                if (segments.Length > 0)
+                {
+                    var lastSegment = segments[segments.Length - 1].Trim('/');
+                    if (lastSegment.Length >= 8 && !lastSegment.Contains('.'))
+                    {
+                        targetId = lastSegment;
+                    }
+                }
+            }
+            catch {}
+            return true;
+        }
+        else if (isTargetId)
+        {
+            targetId = address;
+            wsUrl = $"ws://{_lastHttpHost}/devtools/page/{targetId}";
+            title = $"Direct Target {(targetId.Length > 8 ? targetId.Substring(0, 8) : targetId)}";
+            return true;
+        }
+
+        return false;
+    }
+
+    private void UpdateDirectTarget()
+    {
+        if (IsDirectHostAddress(HostAddress, out var wsUrl, out var targetId, out var title))
+        {
+            var directTarget = new TargetItem(title, wsUrl, targetId);
+            bool exists = false;
+            foreach (var t in Targets)
+            {
+                if (t.WebSocketUrl == wsUrl)
+                {
+                    SelectedTarget = t;
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists)
+            {
+                Targets.Clear();
+                Targets.Add(directTarget);
+                SelectedTarget = directTarget;
+            }
+            ((RelayCommand)ConnectCommand).RaiseCanExecuteChanged();
+        }
     }
 
     public async Task RefreshTargetsAsync()
@@ -158,12 +309,43 @@ public class ConnectionViewModel : ViewModelBase
         try
         {
             var list = await _cdpService.GetTargetsAsync(HostAddress);
+            
+            bool isDirect = IsDirectHostAddress(HostAddress, out var directWsUrl, out var directTargetId, out var directTitle);
+            TargetItem? directTarget = null;
+            if (isDirect)
+            {
+                directTarget = new TargetItem(directTitle, directWsUrl, directTargetId);
+            }
+
             Targets.Clear();
             foreach (var target in list)
             {
                 Targets.Add(target);
             }
-            if (Targets.Count > 0)
+
+            if (isDirect && directTarget != null)
+            {
+                TargetItem? found = null;
+                foreach (var t in Targets)
+                {
+                    if (t.Id == directTarget.Id || t.WebSocketUrl == directTarget.WebSocketUrl)
+                    {
+                        found = t;
+                        break;
+                    }
+                }
+
+                if (found != null)
+                {
+                    SelectedTarget = found;
+                }
+                else
+                {
+                    Targets.Add(directTarget);
+                    SelectedTarget = directTarget;
+                }
+            }
+            else if (Targets.Count > 0)
             {
                 var currentConnected = System.Linq.Enumerable.FirstOrDefault(Targets, t => t.Id == _cdpService.ConnectedTargetId);
                 SelectedTarget = currentConnected ?? Targets[0];
@@ -181,7 +363,7 @@ public class ConnectionViewModel : ViewModelBase
         if (SelectedTarget == null) return;
         try
         {
-            await _cdpService.ConnectAsync(HostAddress, SelectedTarget);
+            await _cdpService.ConnectAsync(GeneratorHostAddress, SelectedTarget);
         }
         catch (Exception ex)
         {
