@@ -670,7 +670,7 @@ public class TestStudioViewModel : ViewModelBase
         _isUpdatingYaml = true;
         try
         {
-            YamlCode = TestStudioYamlParser.Generate(Steps.ToList(), _appId, _description);
+            YamlCode = TestStudioYamlParser.Generate(Steps.ToList(), _appId, _description, FlowTags, FlowEnv);
             // Re-parse the generated YAML to resolve line coordinates for recorded steps
             var parsed = TestStudioYamlParser.Parse(YamlCode, out _, out _);
             for (int i = 0; i < Math.Min(Steps.Count, parsed.Count); i++)
@@ -781,24 +781,7 @@ public class TestStudioViewModel : ViewModelBase
 
         try
         {
-            var combinedEnv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (FlowEnv != null)
-            {
-                foreach (var kv in FlowEnv)
-                {
-                    combinedEnv[kv.Key] = kv.Value;
-                }
-            }
-            if (SelectedEnvironment != null)
-            {
-                foreach (var v in SelectedEnvironment.Variables)
-                {
-                    if (!string.IsNullOrEmpty(v.Key))
-                    {
-                        combinedEnv[v.Key] = v.Value;
-                    }
-                }
-            }
+            var combinedEnv = GetCombinedEnvironment();
             await RunLoopAsync(combinedEnv, token);
         }
         catch (OperationCanceledException)
@@ -913,7 +896,8 @@ public class TestStudioViewModel : ViewModelBase
             stepToExecute.Status = StepStatus.Running;
             Log($"Running step {_currentStepIndex + 1}: {stepToExecute.ActionDisplay}...");
 
-            await ExecuteSingleStepAsync(stepToExecute, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), CancellationToken.None);
+            var combinedEnv = GetCombinedEnvironment();
+            await ExecuteSingleStepAsync(stepToExecute, combinedEnv, CancellationToken.None);
 
             stepToExecute.Status = StepStatus.Passed;
             Log($"Step {_currentStepIndex + 1} passed.");
@@ -937,6 +921,29 @@ public class TestStudioViewModel : ViewModelBase
             }
             RaiseCommandCanExecuteChanged();
         }
+    }
+
+    private Dictionary<string, string> GetCombinedEnvironment()
+    {
+        var combinedEnv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (FlowEnv != null)
+        {
+            foreach (var kv in FlowEnv)
+            {
+                combinedEnv[kv.Key] = kv.Value;
+            }
+        }
+        if (SelectedEnvironment != null)
+        {
+            foreach (var v in SelectedEnvironment.Variables)
+            {
+                if (!string.IsNullOrEmpty(v.Key))
+                {
+                    combinedEnv[v.Key] = v.Value;
+                }
+            }
+        }
+        return combinedEnv;
     }
 
     private async Task RunLoopAsync(Dictionary<string, string> env, CancellationToken token)
