@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.Avalonia</PackageId>
-    <Title>CDP.Avalonia</Title>
+    <PackageId>Chrome.DevTools.Avalonia</PackageId>
+    <Title>Chrome.DevTools.Avalonia</Title>
     <Description>Chrome DevTools Protocol (CDP) diagnostics server support for Avalonia UI.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
