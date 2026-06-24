@@ -76,6 +76,6 @@
   <!-- Typography (glowing text) -->
   <g filter="url(#neon-glow)">
     <text x="256" y="375" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="52" fill="#ffffff" text-anchor="middle" letter-spacing="4">CDP</text>
-    <text x="256" y="420" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="600" font-size="24" fill="#a0aec0" text-anchor="middle" letter-spacing="6">INSPECTOR</text>
+    <text x="256" y="420" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="600" font-size="24" fill="#a0aec0" text-anchor="middle" letter-spacing="3">Inspector</text>
   </g>
 </svg>
