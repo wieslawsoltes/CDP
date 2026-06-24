@@ -8,10 +8,10 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 
 | Package Name | Target | Version | Downloads |
 | :--- | :--- | :--- | :--- |
-| **CDP.Avalonia** | Core Library | [![NuGet](https://img.shields.io/nuget/v/CDP.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Avalonia/) |
-| **CDP.Inspector.Shared** | Shared UI Library | [![NuGet](https://img.shields.io/nuget/v/CDP.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector.Shared/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector.Shared/) |
-| **CDP.DiagnosticTools** | In-Process Diagnostics | [![NuGet](https://img.shields.io/nuget/v/CDP.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/CDP.DiagnosticTools/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/CDP.DiagnosticTools/) |
-| **CDP.Inspector** | .NET Global Tool | [![NuGet](https://img.shields.io/nuget/v/CDP.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Inspector/) |
+| **Chrome.DevTools.Avalonia** | Core Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) |
+| **Chrome.DevTools.Inspector.Shared** | Shared UI Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) |
+| **Chrome.DevTools.DiagnosticTools** | In-Process Diagnostics | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) |
+| **Chrome.DevTools.Inspector** | .NET Global Tool | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) |
 
 
 ---
@@ -67,17 +67,17 @@ All interactions with Avalonia UI visual elements are thread-safe, marshalling o
 
 ### 1. Add Reference
 
-Add the NuGet package reference `CDP.Avalonia` to your main Avalonia application:
+Add the NuGet package reference `Chrome.DevTools.Avalonia` to your main Avalonia application:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="CDP.Avalonia" Version="1.0.0" />
+  <PackageReference Include="Chrome.DevTools.Avalonia" Version="1.0.0" />
 </ItemGroup>
 ```
 
 Or install it via the .NET CLI:
 ```bash
-dotnet add package CDP.Avalonia
+dotnet add package Chrome.DevTools.Avalonia
 ```
 
 ### 2. Start the Server
@@ -110,12 +110,12 @@ CdpServer.Stop();
 
 ### 3. In-Process Diagnostics Inspector
 
-If you prefer to launch the DevTools inspector client directly inside your application's process (as a replacement for Avalonia's built-in DevTools), you can use the `CDP.DiagnosticTools` package.
+If you prefer to launch the DevTools inspector client directly inside your application's process (as a replacement for Avalonia's built-in DevTools), you can use the `Chrome.DevTools.DiagnosticTools` package.
 
 #### Install Package
 Install via the .NET CLI:
 ```bash
-dotnet add package CDP.DiagnosticTools
+dotnet add package Chrome.DevTools.DiagnosticTools
 ```
 
 #### Attach the Inspector
@@ -295,7 +295,7 @@ The inspector app can be run in four ways:
 #### A. Install as a .NET Tool (Recommended)
 You can install the inspector globally on your machine:
 ```bash
-dotnet tool install -g CDP.Inspector
+dotnet tool install -g Chrome.DevTools.Inspector
 ```
 Once installed, launch it directly from your terminal:
 ```bash
