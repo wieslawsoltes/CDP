@@ -1,20 +1,5 @@
-<!DOCTYPE html>
-<html>
-
-<head>
-    <title>CDP Inspector Browser</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="./app.css" />
-</head>
-
-<body style="margin: 0; overflow: hidden">
-<div id="out">
-    <div class="avalonia-splash">
-        <div class="splash-content">
-            <!-- Glowing Custom SVG Logo -->
-            <svg width="220" height="220" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
     <!-- Background Gradient -->
     <radialGradient id="bg-grad" cx="50%" cy="50%" r="70%" fx="50%" fy="50%">
       <stop offset="0%" stop-color="#141923" />
@@ -30,8 +15,8 @@
 
     <!-- Subtle Border Glow Gradient -->
     <linearGradient id="border-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#8b2cfd" stroke-opacity="0.8" />
-      <stop offset="100%" stop-color="#00b4d8" stroke-opacity="0.8" />
+      <stop offset="0%" stop-color="#8b2cfd" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#00b4d8" stop-opacity="0.8" />
     </linearGradient>
 
     <!-- Premium Realistic Neon Glow Filter -->
@@ -51,14 +36,17 @@
     </filter>
   </defs>
 
-              <!-- Background App Icon Frame Border (Glowing Neon Outline) -->
+  <!-- Background App Icon Frame (Solid Fill) -->
+  <rect x="66" y="66" width="380" height="380" rx="78" fill="url(#bg-grad)" />
+
+  <!-- Background App Icon Frame Border (Glowing Neon Outline) -->
   <rect x="66" y="66" width="380" height="380" rx="78" fill="none" stroke="url(#border-grad)" stroke-width="3" filter="url(#neon-glow-realistic)" />
 
   <!-- Outer Glowing Circle Shadow (Subtle) -->
-  <circle cx="256" cy="202" r="120" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="1.5" opacity="0.25" filter="url(#neon-glow-realistic)" />
+  <circle cx="256" cy="256" r="120" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="1.5" opacity="0.25" filter="url(#neon-glow-realistic)" />
 
   <!-- Gear Group -->
-  <g transform="translate(256, 202)" filter="url(#neon-glow-realistic)">
+  <g transform="translate(256, 256)" filter="url(#neon-glow-realistic)">
     <!-- 12 Gear Teeth and Rim (Continuous Outlined Gear) -->
     <path d="M -12.00,-84.15 L -8.00,-105.70 L 8.00,-105.70 L 12.00,-84.15 A 85.00,85.00 0 0 1 31.68,-78.87 L 45.92,-95.54 L 59.78,-87.54 L 52.47,-66.87 A 85.00,85.00 0 0 1 66.87,-52.47 L 87.54,-59.78 L 95.54,-45.92 L 78.87,-31.68 A 85.00,85.00 0 0 1 84.15,-12.00 L 105.70,-8.00 L 105.70,8.00 L 84.15,12.00 A 85.00,85.00 0 0 1 78.87,31.68 L 95.54,45.92 L 87.54,59.78 L 66.87,52.47 A 85.00,85.00 0 0 1 52.47,66.87 L 59.78,87.54 L 45.92,95.54 L 31.68,78.87 A 85.00,85.00 0 0 1 12.00,84.15 L 8.00,105.70 L -8.00,105.70 L -12.00,84.15 A 85.00,85.00 0 0 1 -31.68,78.87 L -45.92,95.54 L -59.78,87.54 L -52.47,66.87 A 85.00,85.00 0 0 1 -66.87,52.47 L -87.54,59.78 L -95.54,45.92 L -78.87,31.68 A 85.00,85.00 0 0 1 -84.15,12.00 L -105.70,8.00 L -105.70,-8.00 L -84.15,-12.00 A 85.00,85.00 0 0 1 -78.87,-31.68 L -95.54,-45.92 L -87.54,-59.78 L -66.87,-52.47 A 85.00,85.00 0 0 1 -52.47,-66.87 L -59.78,-87.54 L -45.92,-95.54 L -31.68,-78.87 A 85.00,85.00 0 0 1 -12.00,-84.15 Z" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
 
@@ -80,27 +68,4 @@
     <path d="M 32,34 L 54,34" fill="none" stroke="url(#purple-cyan-grad)" stroke-width="8" stroke-linecap="round" />
   </g>
 
-  <!-- Typography (glowing text) -->
-  <g filter="url(#neon-glow-realistic)">
-    <text x="256" y="365" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="46" fill="#ffffff" text-anchor="middle" letter-spacing="4">CDP</text>
-    <text x="256" y="405" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="600" font-size="20" fill="#a0aec0" text-anchor="middle" letter-spacing="3">Inspector</text>
-  </g>
-            </svg>
-
-            
-            <!-- Rotating Loading Spinner & Label -->
-            <div class="loading-indicator">
-                <div class="spinner"></div>
-                <span>Initializing application...</span>
-            </div>
-            
-            <!-- Powered by Info -->
-            <div class="powered-by">
-                Powered by <a href="https://www.avaloniaui.net/" target="_blank">Avalonia UI</a>
-            </div>
-        </div>
-    </div>
-</div>
-<script type="module" src="./main.js"></script>
-</body>
-</html>
+  </svg>
