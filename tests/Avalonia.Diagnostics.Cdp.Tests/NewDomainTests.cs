@@ -1080,5 +1080,29 @@ public class NewDomainTests
         CdpServer.Unregister(window);
         window.Close();
     }
+
+    [Fact]
+    public void TestConnectionViewModelDirectTargetParsing()
+    {
+        var service = new MockInspectorCdpService();
+        var vm = new ConnectionViewModel(service);
+
+        // 1. Initial host address
+        Assert.Equal("http://127.0.0.1:9222", vm.HostAddress);
+
+        // 2. Set to a Target ID
+        vm.HostAddress = "3D5F1E70838BBC6B1ED";
+        Assert.NotNull(vm.SelectedTarget);
+        Assert.Equal("3D5F1E70838BBC6B1ED", vm.SelectedTarget.Id);
+        Assert.Equal("ws://127.0.0.1:9222/devtools/page/3D5F1E70838BBC6B1ED", vm.SelectedTarget.WebSocketUrl);
+        Assert.Equal("Direct Target 3D5F1E70", vm.SelectedTarget.Title);
+
+        // 3. Set to another Target ID
+        vm.HostAddress = "A258E1AABD0563D5F1E7083888C6B1ED";
+        Assert.NotNull(vm.SelectedTarget);
+        Assert.Equal("A258E1AABD0563D5F1E7083888C6B1ED", vm.SelectedTarget.Id);
+        Assert.Equal("ws://127.0.0.1:9222/devtools/page/A258E1AABD0563D5F1E7083888C6B1ED", vm.SelectedTarget.WebSocketUrl);
+        Assert.Equal("Direct Target A258E1AA", vm.SelectedTarget.Title);
+    }
 }
 
