@@ -70,7 +70,8 @@
 }
 
 .avalonia-splash.splash-close {
-    transition: opacity 300ms ease-out;
+    transition: opacity 300ms ease-out, visibility 0s ease 300ms;
     opacity: 0;
     pointer-events: none;
+    visibility: hidden;
 }
