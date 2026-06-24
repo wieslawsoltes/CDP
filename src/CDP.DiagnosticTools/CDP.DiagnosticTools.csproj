@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.DiagnosticTools</PackageId>
-    <Title>CDP.DiagnosticTools</Title>
+    <PackageId>Chrome.DevTools.DiagnosticTools</PackageId>
+    <Title>Chrome.DevTools.DiagnosticTools</Title>
     <Description>In-process CDP diagnostic inspector tool integration for Avalonia UI applications.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
