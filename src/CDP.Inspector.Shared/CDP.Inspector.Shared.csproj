@@ -7,6 +7,7 @@
     <Description>Shared UI components and view models for the CDP Inspector client.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>avalonia;cdp;chrome-devtools-protocol;inspector;shared</PackageTags>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 

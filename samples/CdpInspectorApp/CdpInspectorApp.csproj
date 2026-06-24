@@ -10,6 +10,7 @@
     <Description>Chrome DevTools Protocol (CDP) client inspector for Avalonia UI applications.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>avalonia;cdp;chrome-devtools-protocol;inspector;tool;automation;testing</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
