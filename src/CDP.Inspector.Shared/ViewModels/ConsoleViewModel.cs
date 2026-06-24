@@ -128,12 +128,30 @@ public class ConsoleViewModel : ViewModelBase
         }
     }
 
+    private readonly Func<TestStudioViewModel?>? _getTestStudioFunc;
+    private bool _isUiReplMode;
+
+    public bool IsUiReplMode
+    {
+        get => _isUiReplMode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isUiReplMode, value))
+            {
+                OnPropertyChanged(nameof(ConsolePlaceholderText));
+            }
+        }
+    }
+
+    public string ConsolePlaceholderText => IsUiReplMode ? "Enter UI Command (e.g. tap #btnConnect, input #txtUser admin, assert #label)..." : "Enter C# Interactive command (use inspected $0 variable)...";
+
     public ICommand ClearLogsCommand { get; }
     public ICommand EvaluateCommand { get; }
 
-    public ConsoleViewModel(ICdpService cdpService)
+    public ConsoleViewModel(ICdpService cdpService, Func<TestStudioViewModel?>? getTestStudioFunc = null)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
+        _getTestStudioFunc = getTestStudioFunc;
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
 
@@ -263,6 +281,71 @@ public class ConsoleViewModel : ViewModelBase
         ConsoleInputText = "";
         ((RelayCommand)EvaluateCommand).RaiseCanExecuteChanged();
 
+        if (IsUiReplMode)
+        {
+            try
+            {
+                var parts = expr.Split(' ', 2);
+                var action = parts[0].ToLowerInvariant();
+                var selectorAndValue = parts.Length > 1 ? parts[1].Trim() : "";
+
+                string selector = "";
+                string val = "";
+
+                if (action == "input" || action == "inputtext")
+                {
+                    var inputParts = selectorAndValue.Split(' ', 2);
+                    selector = inputParts[0];
+                    val = inputParts.Length > 1 ? inputParts[1] : "";
+                }
+                else
+                {
+                    selector = selectorAndValue;
+                }
+
+                // Map aliases
+                string finalAction = action switch
+                {
+                    "click" => "tapOn",
+                    "tap" => "tapOn",
+                    "doubletap" => "doubleTapOn",
+                    "longpress" => "longPressOn",
+                    "input" => "inputText",
+                    "inputtext" => "inputText",
+                    "assert" => "assertVisible",
+                    "assertvisible" => "assertVisible",
+                    "assertnotvisible" => "assertNotVisible",
+                    "scroll" => "scrollUntilVisible",
+                    "scrolluntilvisible" => "scrollUntilVisible",
+                    _ => action
+                };
+
+                var step = new TestStudioStepModel { Action = finalAction, Selector = selector, Value = val };
+
+                var testStudio = _getTestStudioFunc?.Invoke();
+                if (testStudio != null)
+                {
+                    await testStudio.AddInteractiveStepAsync(step);
+                    ConsoleHistory.Add(new ConsoleItemModel(expr, $"Executed: {finalAction} '{selector}' '{val}'", false));
+                }
+                else
+                {
+                    ConsoleHistory.Add(new ConsoleItemModel(expr, "Error: Test Studio ViewModel not initialized", true));
+                }
+            }
+            catch (Exception ex)
+            {
+                ConsoleHistory.Add(new ConsoleItemModel(expr, $"Error: {ex.Message}", true));
+            }
+
+            if (_historyLines.Count == 0 || _historyLines[^1] != expr)
+            {
+                _historyLines.Add(expr);
+            }
+            _historyIndex = _historyLines.Count;
+            return;
+        }
+
         try
         {
             var res = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
@@ -361,6 +444,47 @@ public class ConsoleViewModel : ViewModelBase
             {
                 Completions.Clear();
                 IsCompletionActive = false;
+            });
+            return;
+        }
+
+        if (IsUiReplMode)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                Completions.Clear();
+                int spaceIndex = expression.LastIndexOf(' ', Math.Max(0, cursorPosition - 1));
+                if (spaceIndex < 0)
+                {
+                    var word = expression.Substring(0, cursorPosition).ToLowerInvariant();
+                    var commands = new[] { "tap", "click", "inputText", "input", "assertVisible", "assert", "assertNotVisible", "scrollUntilVisible", "scroll", "back" };
+                    var matches = commands.Where(c => c.StartsWith(word, StringComparison.OrdinalIgnoreCase)).ToList();
+                    foreach (var m in matches)
+                    {
+                        Completions.Add(m);
+                    }
+                }
+                else
+                {
+                    var word = expression.Substring(spaceIndex + 1, cursorPosition - (spaceIndex + 1));
+                    var selectors = SelectorService.Instance.AvailableSelectors;
+                    var matches = selectors.Where(s => s.Contains(word, StringComparison.OrdinalIgnoreCase)).ToList();
+                    foreach (var m in matches)
+                    {
+                        Completions.Add(m);
+                    }
+                }
+
+                if (Completions.Count > 0)
+                {
+                    IsCompletionActive = true;
+                    SelectedCompletionIndex = 0;
+                }
+                else
+                {
+                    IsCompletionActive = false;
+                    SelectedCompletionIndex = -1;
+                }
             });
             return;
         }

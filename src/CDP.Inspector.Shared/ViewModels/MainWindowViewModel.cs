@@ -64,7 +64,7 @@ public class MainWindowViewModel : ViewModelBase
 
         Connection = new ConnectionViewModel(CdpService);
         Elements = new ElementsViewModel(CdpService);
-        Console = new ConsoleViewModel(CdpService);
+        Console = new ConsoleViewModel(CdpService, () => Recorder?.TestStudio);
         Sources = new SourcesViewModel(CdpService);
         Network = new NetworkViewModel(CdpService);
         Performance = new PerformanceViewModel(CdpService);

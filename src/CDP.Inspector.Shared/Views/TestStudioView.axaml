@@ -71,6 +71,17 @@
             <Border Grid.Row="0" Classes="panel-card" Margin="0,0,0,10">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Content="📁 Project" Command="{Binding Recorder.TestStudio.ToggleSidebarCommand}"/>
+                    <TextBlock Text="Env:" VerticalAlignment="Center" FontSize="11" Foreground="#9aa0a6" Margin="4,0,0,0"/>
+                    <ComboBox ItemsSource="{Binding Recorder.TestStudio.Environments}"
+                              SelectedItem="{Binding Recorder.TestStudio.SelectedEnvironment, Mode=TwoWay}"
+                              MinWidth="100" Height="24" FontSize="11" Padding="6,2" VerticalAlignment="Center">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Content="⚙" Command="{Binding Recorder.TestStudio.ManageEnvironmentsCommand}" ToolTip.Tip="Manage Environments" FontSize="11" Padding="6,3" VerticalAlignment="Center"/>
                     <Button Name="btnTestStudioPlay" Content="▶ Play" Command="{Binding Recorder.TestStudio.PlayCommand}" Classes="accent"/>
                     <Button Name="btnTestStudioPause" Content="⏸ Pause" Command="{Binding Recorder.TestStudio.PauseCommand}"/>
                     <Button Name="btnTestStudioStop" Content="■ Stop" Command="{Binding Recorder.TestStudio.StopCommand}"/>
@@ -368,6 +379,89 @@
                         <Button Content="OK" Command="{Binding Recorder.TestStudio.SubmitNamePromptCommand}" Classes="accent"/>
                     </StackPanel>
                 </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- Manage Environments Overlay -->
+        <Border Grid.ColumnSpan="5" Background="#80000000" IsVisible="{Binding Recorder.TestStudio.IsManageEnvironmentsVisible}" ZIndex="99">
+            <Border Background="#2d2d2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="8" Width="600" Height="400" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="16">
+                <Grid RowDefinitions="Auto, *, Auto">
+                    <TextBlock Grid.Row="0" Text="Manage Environments" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+                    
+                    <Grid Grid.Row="1" ColumnDefinitions="150, 8, *">
+                        <!-- Left Panel: List of Environments -->
+                        <Grid Grid.Column="0" RowDefinitions="*, Auto">
+                            <ListBox Grid.Row="0" ItemsSource="{Binding Recorder.TestStudio.Environments}" SelectedItem="{Binding Recorder.TestStudio.SelectedEnvironment, Mode=TwoWay}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" Margin="0,8,0,0">
+                                <Button Content="Create" Command="{Binding Recorder.TestStudio.CreateEnvironmentCommand}" FontSize="10"/>
+                                <Button Content="Delete" Command="{Binding Recorder.TestStudio.DeleteEnvironmentCommand}" FontSize="10" Foreground="#ff6b6b"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                        <!-- Right Panel: Active Environment Details -->
+                        <Grid Grid.Column="2" RowDefinitions="Auto, Auto, *, Auto" Margin="8,0,0,0" IsVisible="{Binding Recorder.TestStudio.SelectedEnvironment, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <Grid Grid.Row="0" ColumnDefinitions="100, *" Margin="0,0,0,8">
+                                <TextBlock Grid.Column="0" Text="Name:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                <TextBox Grid.Column="1" Text="{Binding Recorder.TestStudio.SelectedEnvironment.Name, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                            </Grid>
+                            <Grid Grid.Row="1" ColumnDefinitions="*, *" Margin="0,0,0,8">
+                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                    <TextBlock Text="Included Tags (comma-separated):" Foreground="#9aa0a6" FontSize="10" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding Recorder.TestStudio.SelectedEnvironment.IncludedTags, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                    <TextBlock Text="Excluded Tags (comma-separated):" Foreground="#9aa0a6" FontSize="10" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding Recorder.TestStudio.SelectedEnvironment.ExcludedTags, Mode=TwoWay}" FontSize="11" Height="24" Padding="4,2"/>
+                                </StackPanel>
+                            </Grid>
+                            
+                            <Grid Grid.Row="2" RowDefinitions="Auto, *">
+                                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,4">
+                                    <TextBlock Grid.Column="0" Text="Variables:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Content="Add" Command="{Binding Recorder.TestStudio.AddVariableCommand}" FontSize="9" Padding="4,2"/>
+                                </Grid>
+                                <DataGrid Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.SelectedEnvironment.Variables}" CanUserReorderRows="False" CanUserResizeColumns="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="Key" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Key, Mode=TwoWay}" FontSize="11" BorderThickness="0" Background="Transparent" Padding="4,2" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Value" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Value, Mode=TwoWay}" FontSize="11" BorderThickness="0" Background="Transparent" Padding="4,2" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Width="40">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteVariableCommand}" CommandParameter="{Binding}" Foreground="#ff6b6b" FontSize="9" Padding="4,2" HorizontalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Content="Cancel" Command="{Binding Recorder.TestStudio.CancelEnvironmentsCommand}"/>
+                        <Button Content="Save" Command="{Binding Recorder.TestStudio.SaveEnvironmentsCommand}" Classes="accent"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Border>
     </Grid>

@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using CdpInspectorApp.ViewModels;
+using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Views;
 
@@ -77,14 +79,129 @@ public partial class SimulationView : UserControl
     {
         var border = this.Find<Border>("borderScreenshot");
         border?.Focus();
+
+        var img = this.Find<Image>("imgScreenshot");
+        if (img != null)
+        {
+            var pointerPoint = e.GetCurrentPoint(img);
+            if (pointerPoint.Properties.IsRightButtonPressed)
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
         SendMouseEvent("mousePressed", e);
         e.Handled = true;
     }
 
     private void Image_PointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        var img = this.Find<Image>("imgScreenshot");
+        if (img != null)
+        {
+            var pointerPoint = e.GetCurrentPoint(img);
+            if (pointerPoint.Properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
+            {
+                ShowRecommendedCommandsMenu(pointerPoint.Position, e);
+                e.Handled = true;
+                return;
+            }
+        }
+
         SendMouseEvent("mouseReleased", e);
         e.Handled = true;
+    }
+
+    private async void ShowRecommendedCommandsMenu(Avalonia.Point pos, PointerReleasedEventArgs e)
+    {
+        var img = this.Find<Image>("imgScreenshot");
+        if (img == null || img.Source is not Bitmap bitmap) return;
+
+        double imageWidth = img.Bounds.Width;
+        double imageHeight = img.Bounds.Height;
+        if (imageWidth <= 0 || imageHeight <= 0) return;
+
+        double targetX = pos.X;
+        double targetY = pos.Y;
+
+        if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null && mainVm.Recorder != null)
+        {
+            var simVm = mainVm.Simulation;
+            if (simVm.DeviceWidth > 0 && simVm.DeviceHeight > 0)
+            {
+                targetX = pos.X * (simVm.DeviceWidth / imageWidth);
+                targetY = pos.Y * (simVm.DeviceHeight / imageHeight);
+            }
+
+            var selector = await simVm.GetSelectorAtCoordinatesAsync(targetX, targetY, true);
+            if (string.IsNullOrEmpty(selector))
+            {
+                selector = await simVm.GetSelectorAtCoordinatesAsync(targetX, targetY, false);
+            }
+
+            if (string.IsNullOrEmpty(selector))
+            {
+                var pointValue = $"{targetX:F0},{targetY:F0}";
+                var coordsMenu = new ContextMenu();
+                var tapPointItem = new MenuItem { Header = $"Tap Point '{pointValue}'" };
+                tapPointItem.Click += async (s, ev) =>
+                {
+                    var step = new TestStudioStepModel { Action = "tapOn" };
+                    step.Parameters["point"] = pointValue;
+                    await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                };
+                coordsMenu.Items.Add(tapPointItem);
+                coordsMenu.Open(img);
+                return;
+            }
+
+            var contextMenu = new ContextMenu();
+
+            var tapItem = new MenuItem { Header = $"Tap '{selector}'" };
+            tapItem.Click += async (s, ev) =>
+            {
+                var step = new TestStudioStepModel { Action = "tapOn", Selector = selector };
+                await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+            };
+
+            var assertItem = new MenuItem { Header = $"Assert Visible '{selector}'" };
+            assertItem.Click += async (s, ev) =>
+            {
+                var step = new TestStudioStepModel { Action = "assertVisible", Selector = selector };
+                await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+            };
+
+            var inputItem = new MenuItem { Header = $"Input Text into '{selector}'" };
+            inputItem.Click += (s, ev) =>
+            {
+                mainVm.Recorder.TestStudio.NamePromptTitle = "Input Text";
+                mainVm.Recorder.TestStudio.NamePromptValue = "";
+                mainVm.Recorder.TestStudio.NamePromptCallback = async text =>
+                {
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        var step = new TestStudioStepModel { Action = "inputText", Selector = selector, Value = text };
+                        await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                    }
+                };
+                mainVm.Recorder.TestStudio.IsNamePromptVisible = true;
+            };
+
+            var scrollItem = new MenuItem { Header = $"Scroll until Visible '{selector}'" };
+            scrollItem.Click += async (s, ev) =>
+            {
+                var step = new TestStudioStepModel { Action = "scrollUntilVisible", Selector = selector };
+                await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+            };
+
+            contextMenu.Items.Add(tapItem);
+            contextMenu.Items.Add(assertItem);
+            contextMenu.Items.Add(inputItem);
+            contextMenu.Items.Add(scrollItem);
+
+            contextMenu.Open(img);
+        }
     }
 
     private void Image_PointerMoved(object? sender, PointerEventArgs e)

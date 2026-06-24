@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Jint;
 using ProDataGrid;
 using Avalonia.Controls;
 using Avalonia.Controls.DataGridHierarchical;
@@ -49,6 +50,42 @@ public class TestStudioViewModel : ViewModelBase
     private int _suiteFailCount;
     private bool _isSuiteExecuting;
 
+    private ObservableCollection<TestEnvironmentModel> _environments = new();
+    private TestEnvironmentModel? _selectedEnvironment;
+    private bool _isManageEnvironmentsVisible;
+    private List<string> _flowTags = new();
+    private Dictionary<string, string> _flowEnv = new(StringComparer.OrdinalIgnoreCase);
+
+    public ObservableCollection<TestEnvironmentModel> Environments
+    {
+        get => _environments;
+        set => RaiseAndSetIfChanged(ref _environments, value);
+    }
+
+    public TestEnvironmentModel? SelectedEnvironment
+    {
+        get => _selectedEnvironment;
+        set => RaiseAndSetIfChanged(ref _selectedEnvironment, value);
+    }
+
+    public bool IsManageEnvironmentsVisible
+    {
+        get => _isManageEnvironmentsVisible;
+        set => RaiseAndSetIfChanged(ref _isManageEnvironmentsVisible, value);
+    }
+
+    public List<string> FlowTags
+    {
+        get => _flowTags;
+        set => RaiseAndSetIfChanged(ref _flowTags, value);
+    }
+
+    public Dictionary<string, string> FlowEnv
+    {
+        get => _flowEnv;
+        set => RaiseAndSetIfChanged(ref _flowEnv, value);
+    }
+
     public string? WorkspaceRootPath
     {
         get => _workspaceRootPath;
@@ -57,6 +94,7 @@ public class TestStudioViewModel : ViewModelBase
             if (RaiseAndSetIfChanged(ref _workspaceRootPath, value))
             {
                 LoadWorkspaceTree();
+                LoadEnvironments();
             }
         }
     }
@@ -106,6 +144,12 @@ public class TestStudioViewModel : ViewModelBase
     {
         get => _namePromptValue;
         set => RaiseAndSetIfChanged(ref _namePromptValue, value);
+    }
+
+    public Action<string>? NamePromptCallback
+    {
+        get => _namePromptCallback;
+        set => _namePromptCallback = value;
     }
 
     private object? _selectedWorkspaceNode;
@@ -364,6 +408,14 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
+    public ICommand ManageEnvironmentsCommand { get; }
+    public ICommand CreateEnvironmentCommand { get; }
+    public ICommand DeleteEnvironmentCommand { get; }
+    public ICommand AddVariableCommand { get; }
+    public ICommand DeleteVariableCommand { get; }
+    public ICommand SaveEnvironmentsCommand { get; }
+    public ICommand CancelEnvironmentsCommand { get; }
+
     public ICommand PlayCommand { get; }
     public ICommand PauseCommand { get; }
     public ICommand StopCommand { get; }
@@ -419,6 +471,14 @@ public class TestStudioViewModel : ViewModelBase
         };
         HierarchicalSteps = new HierarchicalModel<TestStudioStepModel>(options);
         HierarchicalSteps.SetRoots(Steps);
+
+        ManageEnvironmentsCommand = new RelayCommand(ManageEnvironments);
+        CreateEnvironmentCommand = new RelayCommand(CreateEnvironment);
+        DeleteEnvironmentCommand = new RelayCommand(DeleteEnvironment);
+        AddVariableCommand = new RelayCommand(AddVariable);
+        DeleteVariableCommand = new RelayCommand<EnvironmentVariableModel>(DeleteVariable);
+        SaveEnvironmentsCommand = new RelayCommand(SaveEnvironmentsAction);
+        CancelEnvironmentsCommand = new RelayCommand(CancelEnvironmentsAction);
 
         PlayCommand = new RelayCommand(async () => await PlayAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused) && !IsSuiteExecuting);
         PauseCommand = new RelayCommand(Pause, () => IsExecuting && !IsPaused && !_isFinalizing);
@@ -610,7 +670,7 @@ public class TestStudioViewModel : ViewModelBase
         _isUpdatingYaml = true;
         try
         {
-            YamlCode = TestStudioYamlParser.Generate(Steps.ToList(), _appId, _description);
+            YamlCode = TestStudioYamlParser.Generate(Steps.ToList(), _appId, _description, FlowTags, FlowEnv);
             // Re-parse the generated YAML to resolve line coordinates for recorded steps
             var parsed = TestStudioYamlParser.Parse(YamlCode, out _, out _);
             for (int i = 0; i < Math.Min(Steps.Count, parsed.Count); i++)
@@ -631,9 +691,11 @@ public class TestStudioViewModel : ViewModelBase
 
         try
         {
-            var parsed = TestStudioYamlParser.Parse(YamlCode, out var appId, out var desc);
+            var parsed = TestStudioYamlParser.Parse(YamlCode, out var appId, out var desc, out var tags, out var env);
             _appId = appId;
             _description = desc;
+            FlowTags = tags;
+            FlowEnv = env;
 
             _isUpdatingYaml = true;
             try
@@ -719,7 +781,8 @@ public class TestStudioViewModel : ViewModelBase
 
         try
         {
-            await RunLoopAsync(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), token);
+            var combinedEnv = GetCombinedEnvironment();
+            await RunLoopAsync(combinedEnv, token);
         }
         catch (OperationCanceledException)
         {
@@ -833,7 +896,8 @@ public class TestStudioViewModel : ViewModelBase
             stepToExecute.Status = StepStatus.Running;
             Log($"Running step {_currentStepIndex + 1}: {stepToExecute.ActionDisplay}...");
 
-            await ExecuteSingleStepAsync(stepToExecute, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), CancellationToken.None);
+            var combinedEnv = GetCombinedEnvironment();
+            await ExecuteSingleStepAsync(stepToExecute, combinedEnv, CancellationToken.None);
 
             stepToExecute.Status = StepStatus.Passed;
             Log($"Step {_currentStepIndex + 1} passed.");
@@ -857,6 +921,29 @@ public class TestStudioViewModel : ViewModelBase
             }
             RaiseCommandCanExecuteChanged();
         }
+    }
+
+    private Dictionary<string, string> GetCombinedEnvironment()
+    {
+        var combinedEnv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (FlowEnv != null)
+        {
+            foreach (var kv in FlowEnv)
+            {
+                combinedEnv[kv.Key] = kv.Value;
+            }
+        }
+        if (SelectedEnvironment != null)
+        {
+            foreach (var v in SelectedEnvironment.Variables)
+            {
+                if (!string.IsNullOrEmpty(v.Key))
+                {
+                    combinedEnv[v.Key] = v.Value;
+                }
+            }
+        }
+        return combinedEnv;
     }
 
     private async Task RunLoopAsync(Dictionary<string, string> env, CancellationToken token)
@@ -2619,7 +2706,7 @@ public class TestStudioViewModel : ViewModelBase
         return (0, 0);
     }
 
-    private async Task AddInteractiveStepAsync(TestStudioStepModel step)
+    public async Task AddInteractiveStepAsync(TestStudioStepModel step)
     {
         // 1. Mark as running & current
         step.Status = StepStatus.Running;
@@ -4129,9 +4216,11 @@ public class TestStudioViewModel : ViewModelBase
             CurrentFlowFilePath = path;
             YamlCode = content;
 
-            var parsed = TestStudioYamlParser.Parse(content, out var appId, out var desc);
+            var parsed = TestStudioYamlParser.Parse(content, out var appId, out var desc, out var tags, out var env);
             _appId = appId;
             _description = desc;
+            FlowTags = tags;
+            FlowEnv = env;
 
             ApplyYaml();
             Log($"Successfully loaded flow file: {path}");
@@ -4185,12 +4274,43 @@ public class TestStudioViewModel : ViewModelBase
                 return;
             }
 
+            var activeEnv = SelectedEnvironment;
+            var includedList = activeEnv?.IncludedTags.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList() ?? new List<string>();
+            var excludedList = activeEnv?.ExcludedTags.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList() ?? new List<string>();
+
             foreach (var file in yamlFiles)
             {
                 if (!IsSuiteExecuting)
                 {
                     Log("Suite execution stopped.");
                     break;
+                }
+
+                try
+                {
+                    var flowContent = File.ReadAllText(file);
+                    TestStudioYamlParser.Parse(flowContent, out _, out _, out var flowTags, out _);
+
+                    bool shouldSkip = flowTags.Any(t => excludedList.Contains(t, StringComparer.OrdinalIgnoreCase));
+                    if (shouldSkip)
+                    {
+                        Log($"Skipping flow '{Path.GetFileName(file)}' (matches excluded tag).");
+                        continue;
+                    }
+
+                    if (includedList.Count > 0)
+                    {
+                        bool matchesInclude = flowTags.Any(t => includedList.Contains(t, StringComparer.OrdinalIgnoreCase));
+                        if (!matchesInclude)
+                        {
+                            Log($"Skipping flow '{Path.GetFileName(file)}' (does not match included tags).");
+                            continue;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"Warning: Failed to parse tags for flow '{Path.GetFileName(file)}': {ex.Message}. Running anyway.");
                 }
 
                 Log($"Executing flow: {Path.GetFileName(file)}");
@@ -4301,26 +4421,190 @@ public class TestStudioViewModel : ViewModelBase
 
         return PlaceholderRegex.Replace(input, match =>
         {
-            var varName = match.Groups[1].Value;
-            if (env.TryGetValue(varName, out var val))
+            var expression = match.Groups[1].Value.Trim();
+
+            // First: quick dictionary check for simple key lookup (e.g. ${email})
+            if (env.TryGetValue(expression, out var val))
             {
                 return val ?? "";
             }
-            var key = env.Keys.FirstOrDefault(k => string.Equals(k, varName, StringComparison.OrdinalIgnoreCase));
+            var key = env.Keys.FirstOrDefault(k => string.Equals(k, expression, StringComparison.OrdinalIgnoreCase));
             if (key != null)
             {
                 return env[key] ?? "";
             }
-            var systemVal = Environment.GetEnvironmentVariable(varName);
+
+            var systemVal = Environment.GetEnvironmentVariable(expression);
             if (systemVal != null)
             {
                 return systemVal;
             }
-            if (throwOnNotFound)
+
+            // Second: Evaluate as JS using Jint sandbox
+            try
             {
-                throw new KeyNotFoundException($"Variable '{varName}' not found in environment.");
+                var engine = new Jint.Engine();
+                // Inject environment variables
+                foreach (var kv in env)
+                {
+                    engine.SetValue(kv.Key, kv.Value);
+                }
+                // Inject system environment variables
+                var systemVars = Environment.GetEnvironmentVariables();
+                foreach (System.Collections.DictionaryEntry entry in systemVars)
+                {
+                    var sKey = entry.Key.ToString();
+                    if (sKey != null && !env.ContainsKey(sKey))
+                    {
+                        engine.SetValue(sKey, entry.Value?.ToString() ?? "");
+                    }
+                }
+
+                var evaluated = engine.Evaluate(expression).ToString();
+                return evaluated;
             }
-            return match.Value;
+            catch (Exception ex)
+            {
+                if (throwOnNotFound)
+                {
+                    throw new KeyNotFoundException($"Expression '{expression}' could not be resolved: {ex.Message}");
+                }
+                return match.Value;
+            }
         });
+    }
+
+    private void LoadEnvironments()
+    {
+        Environments.Clear();
+        SelectedEnvironment = null;
+
+        if (string.IsNullOrEmpty(WorkspaceRootPath) || !Directory.Exists(WorkspaceRootPath))
+        {
+            // Default "None" environment
+            var defaultEnv = new TestEnvironmentModel { Name = "None" };
+            Environments.Add(defaultEnv);
+            SelectedEnvironment = defaultEnv;
+            return;
+        }
+
+        var envFilePath = Path.Combine(WorkspaceRootPath, "environments.json");
+        if (File.Exists(envFilePath))
+        {
+            try
+            {
+                var json = File.ReadAllText(envFilePath);
+                var envs = System.Text.Json.JsonSerializer.Deserialize<List<TestEnvironmentModel>>(json);
+                if (envs != null)
+                {
+                    foreach (var env in envs)
+                    {
+                        Environments.Add(env);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Error loading environments.json: {ex.Message}");
+            }
+        }
+
+        if (Environments.Count == 0)
+        {
+            var defaultEnv = new TestEnvironmentModel { Name = "None" };
+            Environments.Add(defaultEnv);
+        }
+
+        SelectedEnvironment = Environments[0];
+    }
+
+    private void SaveEnvironments()
+    {
+        if (string.IsNullOrEmpty(WorkspaceRootPath) || !Directory.Exists(WorkspaceRootPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var envFilePath = Path.Combine(WorkspaceRootPath, "environments.json");
+            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+            var json = System.Text.Json.JsonSerializer.Serialize(Environments.ToList(), options);
+            File.WriteAllText(envFilePath, json);
+        }
+        catch (Exception ex)
+        {
+            Log($"Error saving environments.json: {ex.Message}");
+        }
+    }
+
+    private void ManageEnvironments()
+    {
+        IsManageEnvironmentsVisible = true;
+    }
+
+    private void CreateEnvironment()
+    {
+        NamePromptTitle = "Create Environment";
+        NamePromptValue = "";
+        _namePromptCallback = name =>
+        {
+            if (!string.IsNullOrEmpty(name))
+            {
+                if (Environments.Any(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    Log($"Environment '{name}' already exists.");
+                    return;
+                }
+                var env = new TestEnvironmentModel { Name = name };
+                Environments.Add(env);
+                SelectedEnvironment = env;
+            }
+        };
+        IsNamePromptVisible = true;
+    }
+
+    private void DeleteEnvironment()
+    {
+        if (SelectedEnvironment == null || SelectedEnvironment.Name == "None")
+        {
+            Log("Cannot delete default 'None' environment.");
+            return;
+        }
+
+        var toDelete = SelectedEnvironment;
+        SelectedEnvironment = Environments.FirstOrDefault(e => e != toDelete);
+        Environments.Remove(toDelete);
+
+        if (Environments.Count == 0)
+        {
+            var defaultEnv = new TestEnvironmentModel { Name = "None" };
+            Environments.Add(defaultEnv);
+            SelectedEnvironment = defaultEnv;
+        }
+    }
+
+    private void AddVariable()
+    {
+        if (SelectedEnvironment == null) return;
+        SelectedEnvironment.Variables.Add(new EnvironmentVariableModel { Key = "KEY", Value = "VALUE" });
+    }
+
+    private void DeleteVariable(EnvironmentVariableModel? variable)
+    {
+        if (SelectedEnvironment == null || variable == null) return;
+        SelectedEnvironment.Variables.Remove(variable);
+    }
+
+    private void SaveEnvironmentsAction()
+    {
+        SaveEnvironments();
+        IsManageEnvironmentsVisible = false;
+    }
+
+    private void CancelEnvironmentsAction()
+    {
+        LoadEnvironments();
+        IsManageEnvironmentsVisible = false;
     }
 }

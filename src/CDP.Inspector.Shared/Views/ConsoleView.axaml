@@ -78,8 +78,8 @@
                 </ListBox.ItemTemplate>
             </ListBox>
             
-            <Grid ColumnDefinitions="*, Auto">
-                <TextBox Name="txtConsoleInput" Text="{Binding Console.ConsoleInputText, Mode=TwoWay}" PlaceholderText="Enter C# Interactive command (use inspected $0 variable)..." Height="28" VerticalContentAlignment="Center"/>
+            <Grid ColumnDefinitions="*, Auto, Auto">
+                <TextBox Name="txtConsoleInput" Text="{Binding Console.ConsoleInputText, Mode=TwoWay}" PlaceholderText="{Binding Console.ConsolePlaceholderText}" Height="28" VerticalContentAlignment="Center"/>
                 <Popup IsOpen="{Binding Console.IsCompletionActive, Mode=TwoWay}" PlacementTarget="{Binding ElementName=txtConsoleInput}" Placement="Top" IsLightDismissEnabled="True">
                     <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" MaxHeight="200" Width="250">
                         <ListBox ItemsSource="{Binding Console.Completions}" SelectedIndex="{Binding Console.SelectedCompletionIndex, Mode=TwoWay}">
@@ -91,7 +91,8 @@
                         </ListBox>
                     </Border>
                 </Popup>
-                <Button Name="btnSendConsole" Command="{Binding Console.EvaluateCommand}" Grid.Column="1" Content="Evaluate" Margin="5,0,0,0" Padding="15,0" Height="28" Classes="accent"/>
+                <ToggleButton Grid.Column="1" IsChecked="{Binding Console.IsUiReplMode, Mode=TwoWay}" Content="UI REPL Mode" Margin="5,0,0,0" Height="28" Padding="10,0" FontSize="11" VerticalContentAlignment="Center"/>
+                <Button Name="btnSendConsole" Command="{Binding Console.EvaluateCommand}" Grid.Column="2" Content="Send" Margin="5,0,0,0" Padding="15,0" Height="28" Classes="accent"/>
             </Grid>
         </Grid>
     </Grid>

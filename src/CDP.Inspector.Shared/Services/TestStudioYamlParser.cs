@@ -49,8 +49,15 @@ public static class TestStudioYamlParser
 
     public static List<TestStudioStepModel> Parse(string yaml, out string appId, out string description)
     {
+        return Parse(yaml, out appId, out description, out _, out _);
+    }
+
+    public static List<TestStudioStepModel> Parse(string yaml, out string appId, out string description, out List<string> tags, out Dictionary<string, string> env)
+    {
         appId = "";
         description = "";
+        tags = new List<string>();
+        env = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var steps = new List<TestStudioStepModel>();
 
         if (string.IsNullOrEmpty(yaml))
@@ -80,6 +87,26 @@ public static class TestStudioYamlParser
                         else if (key == "description" && entry.Value is YamlScalarNode scalarDesc)
                         {
                             description = scalarDesc.Value ?? "";
+                        }
+                        else if (key == "tags" && entry.Value is YamlSequenceNode sequenceTags)
+                        {
+                            foreach (var tagNode in sequenceTags.Children)
+                            {
+                                if (tagNode is YamlScalarNode scalarTag)
+                                {
+                                    tags.Add(scalarTag.Value ?? "");
+                                }
+                            }
+                        }
+                        else if (key == "env" && entry.Value is YamlMappingNode envMapping)
+                        {
+                            foreach (var envEntry in envMapping.Children)
+                            {
+                                if (envEntry.Key is YamlScalarNode envKey && envEntry.Value is YamlScalarNode envVal)
+                                {
+                                    env[envKey.Value ?? ""] = envVal.Value ?? "";
+                                }
+                            }
                         }
                     }
                 }
@@ -610,17 +637,17 @@ public static class TestStudioYamlParser
         return model;
     }
 
-    public static string Generate(List<TestStudioStepModel> steps, string appId, string description)
+    public static string Generate(List<TestStudioStepModel> steps, string appId, string description, List<string>? tags = null, Dictionary<string, string>? env = null)
     {
         var sb = new StringBuilder();
         var serializer = new SerializerBuilder()
             .WithEventEmitter(nextEmitter => new ForceDoubleQuoteEmitter(nextEmitter))
             .Build();
 
-        bool hasMetadata = !string.IsNullOrEmpty(appId) || !string.IsNullOrEmpty(description);
+        bool hasMetadata = !string.IsNullOrEmpty(appId) || !string.IsNullOrEmpty(description) || (tags != null && tags.Count > 0) || (env != null && env.Count > 0);
         if (hasMetadata)
         {
-            var metadata = new Dictionary<string, string>();
+            var metadata = new Dictionary<string, object>();
             if (!string.IsNullOrEmpty(appId))
             {
                 if (appId.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
@@ -634,6 +661,15 @@ public static class TestStudioYamlParser
                 }
             }
             if (!string.IsNullOrEmpty(description)) metadata["description"] = description;
+
+            if (tags != null && tags.Count > 0)
+            {
+                metadata["tags"] = tags;
+            }
+            if (env != null && env.Count > 0)
+            {
+                metadata["env"] = env;
+            }
 
             var metadataYaml = serializer.Serialize(metadata);
             sb.Append(metadataYaml);
