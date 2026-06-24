@@ -184,7 +184,7 @@ public class CdpIntegrationTests
         var window = new Window { Title = "Inspection Test Window", Content = button };
         window.Show();
         var id = CdpServer.Register(window, "Inspection Window");
-        int port = GetFreePort() + 1;
+        int port = GetFreePort();
 
         try
         {
@@ -320,7 +320,7 @@ public class CdpIntegrationTests
         var window = new Window { Title = "Extended Features Test Window", Content = button };
         window.Show();
         var id = CdpServer.Register(window, "Extended Features Window");
-        int port = GetFreePort() + 2;
+        int port = GetFreePort();
 
         try
         {
@@ -439,7 +439,7 @@ public class CdpIntegrationTests
         var window = new Window { Title = "Event Debugger Test Window", Content = button };
         window.Show();
         var id = CdpServer.Register(window, "Debugger Window");
-        int port = GetFreePort() + 3;
+        int port = GetFreePort();
 
         try
         {
@@ -513,7 +513,7 @@ public class CdpIntegrationTests
         window.Show();
 
         var id = CdpServer.Register(window, "AX Window");
-        int port = GetFreePort() + 4;
+        int port = GetFreePort();
 
         try
         {

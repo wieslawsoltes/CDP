@@ -7,7 +7,7 @@ namespace CdpInspectorApp.Browser;
 
 internal sealed partial class Program
 {
-    private static Task Main(string[] args)
+    private static async Task Main(string[] args)
     {
         System.AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
@@ -23,7 +23,7 @@ internal sealed partial class Program
             App.StartupUrl = args[0];
         }
 
-        return BuildAvaloniaApp()
+        await BuildAvaloniaApp()
             .WithInterFont()
             .StartBrowserAppAsync("out");
     }
