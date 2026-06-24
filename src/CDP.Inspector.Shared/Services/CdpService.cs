@@ -71,7 +71,36 @@ public class CdpService : ICdpService, INotifyPropertyChanged
     {
         try
         {
-            var url = $"{host}/json";
+            var targetHost = host;
+            if (!string.IsNullOrEmpty(host))
+            {
+                if (host.StartsWith("ws://", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var uri = new Uri(host);
+                        targetHost = $"http://{uri.Authority}";
+                    }
+                    catch
+                    {
+                        // Fallback if parsing fails
+                    }
+                }
+                else if (host.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var uri = new Uri(host);
+                        targetHost = $"https://{uri.Authority}";
+                    }
+                    catch
+                    {
+                        // Fallback
+                    }
+                }
+            }
+
+            var url = $"{targetHost}/json";
             var jsonStr = await _httpClient.GetStringAsync(url);
             var arr = JsonNode.Parse(jsonStr) as JsonArray;
             var list = new List<TargetItem>();
