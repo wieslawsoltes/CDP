@@ -79,6 +79,18 @@ public partial class SimulationView : UserControl
     {
         var border = this.Find<Border>("borderScreenshot");
         border?.Focus();
+
+        var img = this.Find<Image>("imgScreenshot");
+        if (img != null)
+        {
+            var pointerPoint = e.GetCurrentPoint(img);
+            if (pointerPoint.Properties.IsRightButtonPressed)
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
         SendMouseEvent("mousePressed", e);
         e.Handled = true;
     }
@@ -122,7 +134,6 @@ public partial class SimulationView : UserControl
                 targetY = pos.Y * (simVm.DeviceHeight / imageHeight);
             }
 
-            // Fetch selectors (try automation selector first, fallback to DOM)
             var selector = await simVm.GetSelectorAtCoordinatesAsync(targetX, targetY, true);
             if (string.IsNullOrEmpty(selector))
             {
@@ -131,7 +142,18 @@ public partial class SimulationView : UserControl
 
             if (string.IsNullOrEmpty(selector))
             {
-                selector = $"point:{targetX:F0},{targetY:F0}";
+                var pointValue = $"{targetX:F0},{targetY:F0}";
+                var coordsMenu = new ContextMenu();
+                var tapPointItem = new MenuItem { Header = $"Tap Point '{pointValue}'" };
+                tapPointItem.Click += async (s, ev) =>
+                {
+                    var step = new TestStudioStepModel { Action = "tapOn" };
+                    step.Parameters["point"] = pointValue;
+                    await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                };
+                coordsMenu.Items.Add(tapPointItem);
+                coordsMenu.Open(img);
+                return;
             }
 
             var contextMenu = new ContextMenu();
