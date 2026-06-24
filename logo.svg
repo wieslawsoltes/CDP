@@ -46,11 +46,13 @@
 
   <!-- Gear Group -->
   <g transform="translate(256, 210)" filter="url(#neon-glow)">
-    <!-- 8 Gear Teeth -->
-    <rect x="-14" y="-115" width="28" height="230" rx="8" fill="url(#purple-cyan-grad)" />
-    <rect x="-14" y="-115" width="28" height="230" rx="8" fill="url(#purple-cyan-grad)" transform="rotate(45)" />
-    <rect x="-14" y="-115" width="28" height="230" rx="8" fill="url(#purple-cyan-grad)" transform="rotate(90)" />
-    <rect x="-14" y="-115" width="28" height="230" rx="8" fill="url(#purple-cyan-grad)" transform="rotate(135)" />
+    <!-- 12 Gear Teeth -->
+    <rect x="-14" y="-115" width="28" height="230" rx="4" fill="url(#purple-cyan-grad)" />
+    <rect x="-14" y="-115" width="28" height="230" rx="4" fill="url(#purple-cyan-grad)" transform="rotate(30)" />
+    <rect x="-14" y="-115" width="28" height="230" rx="4" fill="url(#purple-cyan-grad)" transform="rotate(60)" />
+    <rect x="-14" y="-115" width="28" height="230" rx="4" fill="url(#purple-cyan-grad)" transform="rotate(90)" />
+    <rect x="-14" y="-115" width="28" height="230" rx="4" fill="url(#purple-cyan-grad)" transform="rotate(120)" />
+    <rect x="-14" y="-115" width="28" height="230" rx="4" fill="url(#purple-cyan-grad)" transform="rotate(150)" />
 
     <!-- Center Mask to hollow out the gear -->
     <circle cx="0" cy="0" r="92" fill="#0f121a" />
