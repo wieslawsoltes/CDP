@@ -80,7 +80,7 @@ public class MainWindowViewModel : ViewModelBase
             getDomNodeFunc: nodeId => Elements.FindDomNode(nodeId),
             useAutomationSelectorsFunc: () => Connection.UseAutomationSelectors
         );
-        Recorder = new RecorderViewModel(CdpService, () => Connection.HostAddress, () => Connection.UseAutomationSelectors);
+        Recorder = new RecorderViewModel(CdpService, () => Connection.GeneratorHostAddress, () => Connection.UseAutomationSelectors);
         Recorder.TestStudio.OnStepIndicatorChanged = indicator => Simulation.ActiveReplayIndicator = indicator;
 
         Simulation.InteractionDispatched += (sender, args) =>
