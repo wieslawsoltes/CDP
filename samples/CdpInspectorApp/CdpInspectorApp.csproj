@@ -5,8 +5,8 @@
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>cdp-inspector</ToolCommandName>
-    <PackageId>CDP.Inspector</PackageId>
-    <Title>CDP Inspector</Title>
+    <PackageId>Chrome.DevTools.Inspector</PackageId>
+    <Title>Chrome.DevTools.Inspector</Title>
     <Description>Chrome DevTools Protocol (CDP) client inspector for Avalonia UI applications.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
