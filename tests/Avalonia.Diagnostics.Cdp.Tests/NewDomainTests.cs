@@ -1126,6 +1126,10 @@ public class NewDomainTests
         Assert.NotNull(vm.SelectedTarget);
         Assert.Equal("test-target", vm.SelectedTarget.Id);
         Assert.Equal("Scanned Window", vm.SelectedTarget.Title);
+
+        // 6. Test that ConnectAsync passes the normalized GeneratorHostAddress to the service
+        await vm.ConnectAsync();
+        Assert.Equal("http://10.0.0.5:8080", service.ConnectedHost);
     }
 }
 

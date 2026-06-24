@@ -363,7 +363,7 @@ public class ConnectionViewModel : ViewModelBase
         if (SelectedTarget == null) return;
         try
         {
-            await _cdpService.ConnectAsync(HostAddress, SelectedTarget);
+            await _cdpService.ConnectAsync(GeneratorHostAddress, SelectedTarget);
         }
         catch (Exception ex)
         {
