@@ -45,10 +45,18 @@ public partial class ConsoleView : UserControl
                             var caret = txtConsoleInput.CaretIndex;
                             var completion = vm.Console.Completions[selected];
 
-                            int dotIndex = text.LastIndexOf('.', Math.Max(0, caret - 1));
-                            string prefix = dotIndex >= 0 ? text.Substring(0, dotIndex + 1) : "";
-                            
-                            txtConsoleInput.Text = prefix + completion;
+                            if (vm.Console.IsUiReplMode)
+                            {
+                                int spaceIndex = text.LastIndexOf(' ', Math.Max(0, caret - 1));
+                                string prefix = spaceIndex >= 0 ? text.Substring(0, spaceIndex + 1) : "";
+                                txtConsoleInput.Text = prefix + completion;
+                            }
+                            else
+                            {
+                                int dotIndex = text.LastIndexOf('.', Math.Max(0, caret - 1));
+                                string prefix = dotIndex >= 0 ? text.Substring(0, dotIndex + 1) : "";
+                                txtConsoleInput.Text = prefix + completion;
+                            }
                             txtConsoleInput.CaretIndex = txtConsoleInput.Text.Length;
                             vm.Console.IsCompletionActive = false;
                             e.Handled = true;
