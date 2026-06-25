@@ -210,6 +210,73 @@ Agents can drive Test Studio with these selectors:
 - `#btnTestStudioAddAssertVisible`
 - `#btnTestStudioApplyYaml`
 
+## Vector Icon Assets and Guidelines
+
+To prevent platform-dependent emoji rendering failures (broken glyph boxes) under custom system font configurations (such as the default Inter font), the inspector UI uses vector path icons.
+
+### Fetching Icon Geometries
+
+All icons are sourced from the official [Microsoft Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) repository.
+
+1. **Find the Icon Name**:
+   Browse or search the [Fluent UI System Icons GitHub repository](https://github.com/microsoft/fluentui-system-icons) (or use helper sites like [fluenticons.co](https://fluenticons.co/)) to identify the desired icon name (e.g., `Play`, `Stop`, `Folder`, `DocumentSearch`).
+
+2. **Retrieve the SVG Source**:
+   To retrieve a regular 24px layout grid icon, construct the raw GitHub URL template:
+   ```text
+   https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets/[IconName]/SVG/ic_fluent_[icon_name_lowercase]_24_regular.svg
+   ```
+   *Example*: For `Folder`, the path is:
+   `https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets/Folder/SVG/ic_fluent_folder_24_regular.svg`
+
+3. **Programmatic Extraction Helper (Recommended)**:
+   Instead of manually downloading the file and copying the path string, use this Python one-liner in your terminal to fetch the SVG, concatenate all path elements, and format the XAML `StreamGeometry` resource element automatically:
+   ```bash
+   python3 -c "import urllib.request, re, sys; name=sys.argv[1]; camel=name[0].upper()+name[1:]; url=f'https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/assets/{camel}/SVG/ic_fluent_{name.lower()}_24_regular.svg'; svg=urllib.request.urlopen(url).read().decode('utf-8'); print(f'<StreamGeometry x:Key=\"{camel}Icon\">' + ' '.join(re.findall(r'd=\"([^\"]+)\"', svg)) + '</StreamGeometry>')" [IconName]
+   ```
+   Replace `[IconName]` with your icon name (e.g. `play`, `stop`, `folder`).
+
+### Defining Resources
+
+1. Add the generated `<StreamGeometry>` resource inside [Styles.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Styles.axaml):
+   ```xml
+   <StreamGeometry x:Key="CustomIcon">M12 2C...</StreamGeometry>
+   ```
+2. **Naming Convention**:
+   - Keep the suffix `Icon` in the key (e.g., `FolderIcon`, `PlayIcon`, `VideoIcon`).
+   - Keep keys unique and descriptive of the semantic meaning or design target.
+
+### Usage in XAML Views
+
+1. **Standard PathIcon Usage**:
+   Use the standard Avalonia `<PathIcon>` control. Use a custom width/height (typically `14` or `16`) and colorize using the `Foreground` attribute:
+   ```xml
+   <PathIcon Data="{StaticResource FolderIcon}" Width="14" Height="14" Foreground="#ffca28"/>
+   ```
+
+2. **Buttons and Labels**:
+   For buttons with both an icon and text, wrap them in a horizontal `StackPanel` with appropriate spacing and alignment:
+   ```xml
+   <Button Command="{Binding ToggleCommand}">
+       <StackPanel Orientation="Horizontal" Spacing="6">
+           <PathIcon Data="{StaticResource CustomIcon}" Width="12" Height="12"/>
+           <TextBlock Text="Action" VerticalAlignment="Center"/>
+       </StackPanel>
+   </Button>
+   ```
+
+3. **Styling and Theme Match**:
+   - Prefer theme-friendly or distinct semantic colors for `Foreground` (e.g., `#ff5252` for Stop/Delete, `#4caf50` for Play/Start, or `#2196f3` for Info/Blue items).
+   - If the icon must follow the text theme, omit the `Foreground` property on the `PathIcon` so it inherits the parent control's foreground color.
+
+### Verification
+After introducing new XAML code or modifying resources:
+- Run the layout unit tests to verify that the XAML files parse correctly and all referenced resource keys resolve:
+  ```bash
+  dotnet test tests/Avalonia.Diagnostics.Cdp.Tests/ViewsLayoutTests.cs
+  ```
+- Build and run the app to verify visual layout and alignment.
+
 ## Implementation Guidelines
 
 ### `Avalonia.Diagnostics.Cdp`
