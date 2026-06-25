@@ -206,4 +206,37 @@ public class WorkspaceSidebarTests
         vm.SelectedWorkspaceItem = null;
         Assert.Null(vm.SelectedWorkspaceNode);
     }
+
+    [Fact]
+    public void Test_Sidebar_Column_Width_Collapses_And_Restores()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+
+        // Default state
+        Assert.Equal(250, vm.SidebarColumnWidth.Value);
+        Assert.Equal(4, vm.SidebarSplitterWidth.Value);
+
+        // Collapse
+        vm.IsSidebarCollapsed = true;
+        Assert.Equal(0, vm.SidebarColumnWidth.Value);
+        Assert.Equal(0, vm.SidebarSplitterWidth.Value);
+
+        // Expand
+        vm.IsSidebarCollapsed = false;
+        Assert.Equal(250, vm.SidebarColumnWidth.Value);
+        Assert.Equal(4, vm.SidebarSplitterWidth.Value);
+
+        // Resize
+        vm.SidebarColumnWidth = new Avalonia.Controls.GridLength(350, Avalonia.Controls.GridUnitType.Pixel);
+
+        // Collapse
+        vm.IsSidebarCollapsed = true;
+        Assert.Equal(0, vm.SidebarColumnWidth.Value);
+        Assert.Equal(0, vm.SidebarSplitterWidth.Value);
+
+        // Expand (should restore resized width)
+        vm.IsSidebarCollapsed = false;
+        Assert.Equal(350, vm.SidebarColumnWidth.Value);
+        Assert.Equal(4, vm.SidebarSplitterWidth.Value);
+    }
 }

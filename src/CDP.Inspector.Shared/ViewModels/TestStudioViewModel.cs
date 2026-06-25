@@ -111,6 +111,31 @@ public class TestStudioViewModel : ViewModelBase
         }
     }
 
+    private GridLength _sidebarColumnWidth = new GridLength(250, GridUnitType.Pixel);
+    private GridLength _sidebarSplitterWidth = new GridLength(4, GridUnitType.Pixel);
+    private GridLength _cachedSidebarColumnWidth = new GridLength(250, GridUnitType.Pixel);
+
+    public GridLength SidebarColumnWidth
+    {
+        get => _sidebarColumnWidth;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _sidebarColumnWidth, value))
+            {
+                if (!_isSidebarCollapsed && value.Value > 0)
+                {
+                    _cachedSidebarColumnWidth = value;
+                }
+            }
+        }
+    }
+
+    public GridLength SidebarSplitterWidth
+    {
+        get => _sidebarSplitterWidth;
+        set => RaiseAndSetIfChanged(ref _sidebarSplitterWidth, value);
+    }
+
     public bool IsSidebarCollapsed
     {
         get => _isSidebarCollapsed;
@@ -118,6 +143,20 @@ public class TestStudioViewModel : ViewModelBase
         {
             if (RaiseAndSetIfChanged(ref _isSidebarCollapsed, value))
             {
+                if (value)
+                {
+                    if (SidebarColumnWidth.Value > 0)
+                    {
+                        _cachedSidebarColumnWidth = SidebarColumnWidth;
+                    }
+                    SidebarColumnWidth = new GridLength(0, GridUnitType.Pixel);
+                    SidebarSplitterWidth = new GridLength(0, GridUnitType.Pixel);
+                }
+                else
+                {
+                    SidebarColumnWidth = _cachedSidebarColumnWidth;
+                    SidebarSplitterWidth = new GridLength(4, GridUnitType.Pixel);
+                }
                 LoadWorkspaceTree();
             }
         }

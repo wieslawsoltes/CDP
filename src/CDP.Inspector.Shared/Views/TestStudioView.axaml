@@ -8,110 +8,260 @@
              xmlns:map="using:XamlPlayground.Editor.Minimap"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:CompileBindings="False">
-    <Grid ColumnDefinitions="Auto, 4, *, 4, *">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{Binding Recorder.TestStudio.SidebarColumnWidth, Mode=TwoWay}"/>
+            <ColumnDefinition Width="{Binding Recorder.TestStudio.SidebarSplitterWidth, Mode=TwoWay}"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="4"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
         <!-- Column 0: Collapsible Workspace Sidebar Panel -->
-        <Grid Grid.Column="0" RowDefinitions="Auto, *, Auto" Width="250" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}">
-            <!-- Path picker TextBox/Browse button -->
-            <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
-                <TextBox Name="txtWorkspacePath" Grid.Column="0" Text="{Binding Recorder.TestStudio.WorkspaceRootPath, Mode=TwoWay}" PlaceholderText="Workspace root path..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
-                <Button Name="btnBrowseWorkspace" Grid.Column="1" Content="..." Command="{Binding Recorder.TestStudio.BrowseWorkspaceRootCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
+        <Grid Grid.Column="0" RowDefinitions="*, 4, *" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}">
+            <!-- Project Explorer -->
+            <Grid Grid.Row="0" RowDefinitions="Auto, *, Auto">
+                <!-- Path picker TextBox/Browse button -->
+                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
+                    <TextBox Name="txtWorkspacePath" Grid.Column="0" Text="{Binding Recorder.TestStudio.WorkspaceRootPath, Mode=TwoWay}" PlaceholderText="Workspace root path..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
+                    <Button Name="btnBrowseWorkspace" Grid.Column="1" Content="..." Command="{Binding Recorder.TestStudio.BrowseWorkspaceRootCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Workspace files listing (Hierarchical DataGrid) -->
+                <DataGrid Name="treeWorkspace" Grid.Row="1"
+                          HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalWorkspace}"
+                          SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceNode, Mode=TwoWay}"
+                          CanUserReorderRows="False"
+                          CanUserResizeColumns="True"
+                          HierarchicalRowsEnabled="True"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="None"
+                          Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
+                            <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
+                            <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
+                            <MenuItem Header="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}"/>
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                    <DataGrid.Columns>
+                        <DataGridHierarchicalColumn Width="*">
+                            <DataGridHierarchicalColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
+                                        <PathIcon Data="{StaticResource FolderIcon}" Width="14" Height="14" Foreground="#ffca28" IsVisible="{Binding Item.IsFolder}" VerticalAlignment="Center"/>
+                                        <PathIcon Data="{StaticResource FileIcon}" Width="14" Height="14" Foreground="#8ab4f8" IsVisible="{Binding !Item.IsFolder}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Item.Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridHierarchicalColumn.CellTemplate>
+                        </DataGridHierarchicalColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Create file/folder/rename/delete buttons and "Run Folder Suite" button -->
+                <StackPanel Grid.Row="2" Margin="0,10,0,0" Spacing="6">
+                    <WrapPanel HorizontalAlignment="Center">
+                        <Button Name="btnCreateFile" Content="New File" Command="{Binding Recorder.TestStudio.CreateFileCommand}" FontSize="10" Margin="0,0,4,4"/>
+                        <Button Name="btnCreateFolder" Content="New Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}" FontSize="10" Margin="0,0,4,4"/>
+                        <Button Name="btnRename" Content="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}" FontSize="10" Margin="0,0,4,4"/>
+                        <Button Name="btnDelete" Content="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}" FontSize="10" Margin="0,0,4,4"/>
+                    </WrapPanel>
+                    <Button Name="btnRunSuite" Content="Run Folder Suite" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent"/>
+                </StackPanel>
             </Grid>
 
-            <!-- Workspace files listing (Hierarchical DataGrid) -->
-            <DataGrid Name="treeWorkspace" Grid.Row="1"
-                      HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalWorkspace}"
-                      SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceNode, Mode=TwoWay}"
-                      CanUserReorderRows="False"
-                      CanUserResizeColumns="True"
-                      HierarchicalRowsEnabled="True"
-                      GridLinesVisibility="Horizontal"
-                      HeadersVisibility="None"
-                      Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                <DataGrid.ContextMenu>
-                    <ContextMenu>
-                        <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
-                        <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
-                        <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
-                        <MenuItem Header="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}"/>
-                    </ContextMenu>
-                </DataGrid.ContextMenu>
-                <DataGrid.Columns>
-                    <DataGridHierarchicalColumn Width="*">
-                        <DataGridHierarchicalColumn.CellTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
-                                    <TextBlock Text="📁" IsVisible="{Binding Item.IsFolder}" Foreground="#ffca28" VerticalAlignment="Center"/>
-                                    <TextBlock Text="📄" IsVisible="{Binding !Item.IsFolder}" Foreground="#8ab4f8" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Item.Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </DataGridHierarchicalColumn.CellTemplate>
-                    </DataGridHierarchicalColumn>
-                </DataGrid.Columns>
-            </DataGrid>
+            <!-- GridSplitter between Project Explorer and Flow Command Toolbox -->
+            <GridSplitter Grid.Row="1" Background="#3c4043" ResizeDirection="Rows" HorizontalAlignment="Stretch"/>
 
-            <!-- Create file/folder/rename/delete buttons and "Run Folder Suite" button -->
-            <StackPanel Grid.Row="2" Margin="0,10,0,0" Spacing="6">
-                <WrapPanel HorizontalAlignment="Center">
-                    <Button Name="btnCreateFile" Content="New File" Command="{Binding Recorder.TestStudio.CreateFileCommand}" FontSize="10" Margin="0,0,4,4"/>
-                    <Button Name="btnCreateFolder" Content="New Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}" FontSize="10" Margin="0,0,4,4"/>
-                    <Button Name="btnRename" Content="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}" FontSize="10" Margin="0,0,4,4"/>
-                    <Button Name="btnDelete" Content="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}" FontSize="10" Margin="0,0,4,4"/>
-                </WrapPanel>
-                <Button Name="btnRunSuite" Content="Run Folder Suite" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent"/>
-            </StackPanel>
+            <!-- Flow Command Toolbox -->
+            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+                <ScrollViewer>
+                    <StackPanel Spacing="8" Margin="0,0,10,0">
+                        <!-- Command autocomplete box -->
+                        <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,4">
+                            <TextBlock Grid.Column="0" Text="Cmd: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                            <AutoCompleteBox Name="acbTestStudioCommand" Grid.Column="1"
+                                             Text="{Binding Recorder.TestStudio.SelectedCommandName, Mode=TwoWay}"
+                                             ItemsSource="{Binding Recorder.TestStudio.CommandSuggestions}"
+                                             FilterMode="Contains"
+                                             FontSize="11"
+                                             Margin="4,0,0,0"
+                                             PlaceholderText="Command..."/>
+                            <Button Name="btnTestStudioAddSelectedCommand" Grid.Column="2"
+                                    Content="Add"
+                                    Command="{Binding Recorder.TestStudio.AddSelectedCommandCommand}"
+                                    Margin="6,0,0,0"/>
+                        </Grid>
+                        
+                        <!-- Target Selector -->
+                        <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
+                            <TextBlock Grid.Column="0" Text="Target: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                            <AutoCompleteBox Name="acbTestStudioTargetSelector" Grid.Column="1" 
+                                             Text="{Binding Recorder.TestStudio.SelectedElementSelector, Mode=TwoWay}"
+                                             ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
+                                             FilterMode="Contains"
+                                             FontSize="11" 
+                                             Margin="4,0,0,0"
+                                             PlaceholderText="Selector..."/>
+                        </Grid>
+     
+                        <!-- Parameters Input -->
+                        <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
+                            <TextBlock Grid.Column="0" Text="Value: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                            <AutoCompleteBox Name="txtTestStudioInputValue" Grid.Column="1"
+                                             Text="{Binding Recorder.TestStudio.InputSimText, Mode=TwoWay}"
+                                             ItemsSource="{Binding Recorder.TestStudio.ValueSuggestions}"
+                                             FilterMode="Contains"
+                                             PlaceholderText="Value/text/delay..."
+                                             FontSize="11"
+                                             Margin="4,0,0,0"/>
+                        </Grid>
+
+                        <!-- Categories Accordion -->
+                        <controls:Accordion Margin="0,4,0,0">
+                            <!-- Interactions Category -->
+                            <controls:AccordionItem Header="Interactions" IsExpanded="True">
+                                <WrapPanel Margin="0,4,0,0">
+                                    <Button Name="btnTestStudioAddTap" Content="Tap" Command="{Binding Recorder.TestStudio.AddTapCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddDoubleTap" Content="Double Tap" Command="{Binding Recorder.TestStudio.AddDoubleTapCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddLongPress" Content="Long Press" Command="{Binding Recorder.TestStudio.AddLongPressCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddInputText" Content="Input Text" Command="{Binding Recorder.TestStudio.AddInputCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddClearText" Content="Clear" Command="{Binding Recorder.TestStudio.AddClearTextCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddPasteText" Content="Paste" Command="{Binding Recorder.TestStudio.AddPasteTextCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddEraseText" Content="Erase" Command="{Binding Recorder.TestStudio.AddEraseTextCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddSwipe" Content="Swipe" Command="{Binding Recorder.TestStudio.AddSwipeCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddScroll" Content="Scroll" Command="{Binding Recorder.TestStudio.AddScrollCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddCopyText" Content="Copy" Command="{Binding Recorder.TestStudio.AddCopyTextFromCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                </WrapPanel>
+                            </controls:AccordionItem>
+                            
+                            <!-- Assertions Category -->
+                            <controls:AccordionItem Header="Assertions">
+                                <WrapPanel Margin="0,4,0,0">
+                                    <Button Name="btnTestStudioAddAssertVisible" Content="Assert Visible" Command="{Binding Recorder.TestStudio.AddAssertVisibleCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddAssertNotVisible" Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddAssertTrue" Content="Assert True" Command="{Binding Recorder.TestStudio.AddAssertTrueCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddAssertFalse" Content="Assert False" Command="{Binding Recorder.TestStudio.AddAssertFalseCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                </WrapPanel>
+                            </controls:AccordionItem>
+                            
+                            <!-- App & Device Category -->
+                            <controls:AccordionItem Header="App &amp; Device">
+                                <WrapPanel Margin="0,4,0,0">
+                                    <Button Content="Launch" Command="{Binding Recorder.TestStudio.AddLaunchAppCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Stop" Command="{Binding Recorder.TestStudio.AddStopAppCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Kill" Command="{Binding Recorder.TestStudio.AddKillAppCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Clear State" Command="{Binding Recorder.TestStudio.AddClearStateCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Orient" Command="{Binding Recorder.TestStudio.AddSetOrientationCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Location" Command="{Binding Recorder.TestStudio.AddSetLocationCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Airplane" Command="{Binding Recorder.TestStudio.AddSetAirplaneModeCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Screenshot" Command="{Binding Recorder.TestStudio.AddTakeScreenshotCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Back" Command="{Binding Recorder.TestStudio.AddBackCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Delay" Command="{Binding Recorder.TestStudio.AddDelayCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Link" Command="{Binding Recorder.TestStudio.AddOpenLinkCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                </WrapPanel>
+                            </controls:AccordionItem>
+ 
+                            <!-- Logic Category -->
+                            <controls:AccordionItem Header="Logic">
+                                <WrapPanel Margin="0,4,0,0">
+                                    <Button Content="Repeat" Command="{Binding Recorder.TestStudio.AddRepeatCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Retry" Command="{Binding Recorder.TestStudio.AddRetryCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Run Flow" Command="{Binding Recorder.TestStudio.AddRunFlowCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Content="Eval Script" Command="{Binding Recorder.TestStudio.AddEvalScriptCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                </WrapPanel>
+                            </controls:AccordionItem>
+                        </controls:Accordion>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
         </Grid>
 
         <!-- Column 1: GridSplitter between Sidebar and Steps -->
         <GridSplitter Grid.Column="1" Background="#3c4043" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}"/>
 
-        <!-- LEFT COLUMN: Steps List + Debugger Toolbar + Quick-Add panel -->
-        <Grid Grid.Column="2" RowDefinitions="Auto, Auto, *, Auto" Margin="0,0,10,0">
+        <!-- LEFT COLUMN: Steps List + Debugger Toolbar -->
+        <Grid Grid.Column="2" RowDefinitions="Auto, Auto, *" Margin="0,0,10,0">
             <!-- Debugger Toolbar -->
             <Border Grid.Row="0" Classes="panel-card" Margin="0,0,0,10">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="📁 Project" Command="{Binding Recorder.TestStudio.ToggleSidebarCommand}"/>
-                    <TextBlock Text="Env:" VerticalAlignment="Center" FontSize="11" Foreground="#9aa0a6" Margin="4,0,0,0"/>
-                    <ComboBox ItemsSource="{Binding Recorder.TestStudio.Environments}"
-                              SelectedItem="{Binding Recorder.TestStudio.SelectedEnvironment, Mode=TwoWay}"
-                              MinWidth="100" Height="24" FontSize="11" Padding="6,2" VerticalAlignment="Center">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Name}"/>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <Button Content="⚙" Command="{Binding Recorder.TestStudio.ManageEnvironmentsCommand}" ToolTip.Tip="Manage Environments" FontSize="11" Padding="6,3" VerticalAlignment="Center"/>
-                    <Button Name="btnTestStudioPlay" Content="▶ Play" Command="{Binding Recorder.TestStudio.PlayCommand}" Classes="accent"/>
-                    <Button Name="btnTestStudioPause" Content="⏸ Pause" Command="{Binding Recorder.TestStudio.PauseCommand}"/>
-                    <Button Name="btnTestStudioStop" Content="■ Stop" Command="{Binding Recorder.TestStudio.StopCommand}"/>
-                    <Button Name="btnTestStudioStep" Content="↷ Step" Command="{Binding Recorder.TestStudio.StepOverCommand}"/>
-                    <Button Name="btnTestStudioClear" Content="Clear" Command="{Binding Recorder.TestStudio.ClearCommand}"/>
-                    <Button Name="btnTestStudioToggleRecord" Command="{Binding Recorder.ToggleRecordCommand}"
-                            Content="{Binding Recorder.ToggleRecordButtonText}"
-                            Background="{Binding Recorder.ToggleRecordButtonBackground}"
-                            BorderBrush="{Binding Recorder.ToggleRecordButtonBorderBrush}"
-                            Foreground="White"/>
-                </StackPanel>
+                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Group 1: Sidebar Toggle -->
+                    <Button Command="{Binding Recorder.TestStudio.ToggleSidebarCommand}" Margin="0,2,8,2" Padding="8,4" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource FolderIcon}" Width="12" Height="12" Foreground="#ffca28"/>
+                            <TextBlock Text="Project" VerticalAlignment="Center" FontSize="11"/>
+                        </StackPanel>
+                    </Button>
+                    
+                    <!-- Group 2: Environment Selector -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,2,8,2">
+                        <TextBlock Text="Env:" VerticalAlignment="Center" FontSize="11" Foreground="#9aa0a6"/>
+                        <ComboBox ItemsSource="{Binding Recorder.TestStudio.Environments}"
+                                  SelectedItem="{Binding Recorder.TestStudio.SelectedEnvironment, Mode=TwoWay}"
+                                  MinWidth="100" Height="24" FontSize="11" Padding="6,2" VerticalAlignment="Center">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Command="{Binding Recorder.TestStudio.ManageEnvironmentsCommand}" ToolTip.Tip="Manage Environments" Padding="6,3" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Group 3: Playback Controls (Icon-only) -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,2,8,2">
+                        <Button Name="btnTestStudioPlay" Command="{Binding Recorder.TestStudio.PlayCommand}" Classes="accent" ToolTip.Tip="Play (Run Test Suite)" Padding="8,4" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource PlayIcon}" Width="12" Height="12" Foreground="White"/>
+                        </Button>
+                        <Button Name="btnTestStudioPause" Command="{Binding Recorder.TestStudio.PauseCommand}" ToolTip.Tip="Pause Playback" Padding="8,4" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource PauseIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                        </Button>
+                        <Button Name="btnTestStudioStop" Command="{Binding Recorder.TestStudio.StopCommand}" ToolTip.Tip="Stop Playback" Padding="8,4" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource StopIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                        </Button>
+                        <Button Name="btnTestStudioStep" Command="{Binding Recorder.TestStudio.StepOverCommand}" ToolTip.Tip="Step Over" Padding="8,4" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource StepIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Group 4: Step Management & Recording -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,2,0,2">
+                        <Button Name="btnTestStudioClear" Content="Clear" Command="{Binding Recorder.TestStudio.ClearCommand}" Padding="8,4" VerticalAlignment="Center"/>
+                        <Button Name="btnTestStudioToggleRecord" Command="{Binding Recorder.ToggleRecordCommand}"
+                                Content="{Binding Recorder.ToggleRecordButtonText}"
+                                Background="{Binding Recorder.ToggleRecordButtonBackground}"
+                                BorderBrush="{Binding Recorder.ToggleRecordButtonBorderBrush}"
+                                Foreground="White"
+                                Padding="8,4"
+                                VerticalAlignment="Center"/>
+                    </StackPanel>
+                </WrapPanel>
             </Border>
 
             <!-- Reporting Section -->
             <Border Grid.Row="1" Classes="panel-card" Margin="0,0,0,10">
-                <Grid RowDefinitions="Auto, Auto" Margin="0">
+                <Grid RowDefinitions="Auto, Auto, Auto" Margin="0">
                     <!-- Checkboxes -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" Margin="0,0,0,8">
                         <CheckBox Name="chkTestStudioRecordVideo" Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0"/>
                         <CheckBox Name="chkTestStudioGenerateReports" Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0"/>
                     </StackPanel>
                     
-                    <!-- Path and Browse button, View buttons -->
-                    <Grid Grid.Row="1" ColumnDefinitions="*, Auto, Auto, Auto, Auto">
+                    <!-- Path and Browse button -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
                         <TextBox Name="txtTestStudioOutputDirectory" Grid.Column="0" Text="{Binding Recorder.TestStudio.OutputDirectory, Mode=TwoWay}" PlaceholderText="Output directory..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
                         <Button Name="btnBrowseReportDir" Grid.Column="1" Content="Browse..." FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                        <Button Name="btnViewHtmlReport" Grid.Column="2" Content="HTML Report" Command="{Binding Recorder.TestStudio.OpenLastReportCommand}" FontSize="10" Padding="6,3" Margin="8,0,0,0" VerticalAlignment="Center"/>
-                        <Button Name="btnViewPdfReport" Grid.Column="3" Content="PDF Report" Command="{Binding Recorder.TestStudio.OpenLastPdfReportCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                        <Button Name="btnReplayLastVideo" Grid.Column="4" Content="Replay Video" Command="{Binding Recorder.TestStudio.ReplayLastVideoCommand}" CommandParameter="{Binding $parent[Window]}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
                     </Grid>
+
+                    <!-- View buttons (WrapPanel for responsiveness) -->
+                    <WrapPanel Grid.Row="2" Orientation="Horizontal">
+                        <Button Name="btnViewHtmlReport" Content="HTML Report" Command="{Binding Recorder.TestStudio.OpenLastReportCommand}" FontSize="10" Padding="6,3" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <Button Name="btnViewPdfReport" Content="PDF Report" Command="{Binding Recorder.TestStudio.OpenLastPdfReportCommand}" FontSize="10" Padding="6,3" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <Button Name="btnReplayLastVideo" Content="Replay Video" Command="{Binding Recorder.TestStudio.ReplayLastVideoCommand}" CommandParameter="{Binding $parent[Window]}" FontSize="10" Padding="6,3" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    </WrapPanel>
                 </Grid>
             </Border>
 
@@ -149,8 +299,8 @@
                                     <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                                         <Ellipse Width="8" Height="8" Fill="#9aa0a6" IsVisible="{Binding Item.IsPending}"/>
                                         <Ellipse Width="8" Height="8" Fill="#1a73e8" IsVisible="{Binding Item.IsRunning}"/>
-                                        <TextBlock Text="✔" Foreground="#0f9d58" FontWeight="Bold" FontSize="12" IsVisible="{Binding Item.IsPassed}"/>
-                                        <TextBlock Text="✘" Foreground="#c5221f" FontWeight="Bold" FontSize="12" IsVisible="{Binding Item.IsFailed}"/>
+                                        <PathIcon Data="{StaticResource CheckIcon}" Width="12" Height="12" Foreground="#0f9d58" IsVisible="{Binding Item.IsPassed}"/>
+                                        <PathIcon Data="{StaticResource CloseIcon}" Width="12" Height="12" Foreground="#c5221f" IsVisible="{Binding Item.IsFailed}"/>
                                     </Grid>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -220,9 +370,15 @@
                                     </Grid>
                                     <TextBlock Text="{Binding Item.ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding Item.ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                        <Button Content="▲" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding Item}" Padding="6,2" FontSize="10"/>
-                                        <Button Content="▼" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding Item}" Padding="6,2" FontSize="10"/>
-                                        <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding Item}" Padding="6,2" FontSize="10" Foreground="#ff6b6b" BorderBrush="#ff6b6b"/>
+                                        <Button Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding Item}" Padding="6,2">
+                                            <PathIcon Data="{StaticResource ChevronUpIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                                        </Button>
+                                        <Button Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding Item}" Padding="6,2">
+                                            <PathIcon Data="{StaticResource ChevronDownIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                                        </Button>
+                                        <Button Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding Item}" Padding="6,2" Foreground="#ff6b6b" BorderBrush="#ff6b6b">
+                                            <PathIcon Data="{StaticResource CloseIcon}" Width="10" Height="10" Foreground="#ff6b6b"/>
+                                        </Button>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -231,107 +387,7 @@
                 </DataGrid>
             </Grid>
 
-            <!-- Flow Command Toolbox -->
-            <Border Grid.Row="3" Classes="panel-card" Margin="0,10,0,0">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Flow Command Toolbox" Classes="panel-header" Margin="0,0,0,4"/>
 
-                    <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,4">
-                        <TextBlock Grid.Column="0" Text="Command: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                        <AutoCompleteBox Name="acbTestStudioCommand" Grid.Column="1"
-                                         Text="{Binding Recorder.TestStudio.SelectedCommandName, Mode=TwoWay}"
-                                         ItemsSource="{Binding Recorder.TestStudio.CommandSuggestions}"
-                                         FilterMode="Contains"
-                                         FontSize="11"
-                                         Margin="4,0,0,0"
-                                         PlaceholderText="Type a flow command..."/>
-                        <Button Name="btnTestStudioAddSelectedCommand" Grid.Column="2"
-                                Content="Add"
-                                Command="{Binding Recorder.TestStudio.AddSelectedCommandCommand}"
-                                Margin="6,0,0,0"/>
-                    </Grid>
-                    
-                    <!-- Target Selector using AutoCompleteBox -->
-                    <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
-                        <TextBlock Grid.Column="0" Text="Target Selector: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                        <AutoCompleteBox Name="acbTestStudioTargetSelector" Grid.Column="1" 
-                                         Text="{Binding Recorder.TestStudio.SelectedElementSelector, Mode=TwoWay}"
-                                         ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
-                                         FilterMode="Contains"
-                                         FontSize="11" 
-                                         Margin="4,0,0,0"
-                                         PlaceholderText="Type or select a selector..."/>
-                    </Grid>
- 
-                    <!-- Parameters Input -->
-                    <Grid ColumnDefinitions="Auto, *" Margin="0,0,0,4">
-                        <TextBlock Grid.Column="0" Text="Value / Text: " VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                        <AutoCompleteBox Name="txtTestStudioInputValue" Grid.Column="1"
-                                         Text="{Binding Recorder.TestStudio.InputSimText, Mode=TwoWay}"
-                                         ItemsSource="{Binding Recorder.TestStudio.ValueSuggestions}"
-                                         FilterMode="Contains"
-                                         PlaceholderText="Value, text, expression, or delay..."
-                                         FontSize="11"
-                                         Margin="4,0,0,0"/>
-                    </Grid>
-
-                    <!-- Categories TabControl -->
-                    <TabControl Background="Transparent" BorderThickness="0" Margin="0,4,0,0" MinHeight="100">
-                        <!-- Interactions Tab -->
-                        <TabItem Header="Interactions" FontSize="11">
-                            <WrapPanel Margin="0,8,0,0">
-                                <Button Name="btnTestStudioAddTap" Content="Tap" Command="{Binding Recorder.TestStudio.AddTapCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddDoubleTap" Content="Double Tap" Command="{Binding Recorder.TestStudio.AddDoubleTapCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddLongPress" Content="Long Press" Command="{Binding Recorder.TestStudio.AddLongPressCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddInputText" Content="Input Text" Command="{Binding Recorder.TestStudio.AddInputCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddClearText" Content="Clear Text" Command="{Binding Recorder.TestStudio.AddClearTextCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddPasteText" Content="Paste Text" Command="{Binding Recorder.TestStudio.AddPasteTextCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddEraseText" Content="Erase Text" Command="{Binding Recorder.TestStudio.AddEraseTextCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddSwipe" Content="Swipe" Command="{Binding Recorder.TestStudio.AddSwipeCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddScroll" Content="Scroll" Command="{Binding Recorder.TestStudio.AddScrollCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddCopyText" Content="Copy Text" Command="{Binding Recorder.TestStudio.AddCopyTextFromCommand}" Margin="0,0,6,6"/>
-                            </WrapPanel>
-                        </TabItem>
-                        
-                        <!-- Assertions Tab -->
-                        <TabItem Header="Assertions" FontSize="11">
-                            <WrapPanel Margin="0,8,0,0">
-                                <Button Name="btnTestStudioAddAssertVisible" Content="Assert Visible" Command="{Binding Recorder.TestStudio.AddAssertVisibleCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddAssertNotVisible" Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddAssertTrue" Content="Assert True" Command="{Binding Recorder.TestStudio.AddAssertTrueCommand}" Margin="0,0,6,6"/>
-                                <Button Name="btnTestStudioAddAssertFalse" Content="Assert False" Command="{Binding Recorder.TestStudio.AddAssertFalseCommand}" Margin="0,0,6,6"/>
-                            </WrapPanel>
-                        </TabItem>
-                        
-                        <!-- App & Device Tab -->
-                        <TabItem Header="App &amp; Device" FontSize="11">
-                            <WrapPanel Margin="0,8,0,0">
-                                <Button Content="Launch App" Command="{Binding Recorder.TestStudio.AddLaunchAppCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Stop App" Command="{Binding Recorder.TestStudio.AddStopAppCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Kill App" Command="{Binding Recorder.TestStudio.AddKillAppCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Clear State" Command="{Binding Recorder.TestStudio.AddClearStateCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Set Orientation" Command="{Binding Recorder.TestStudio.AddSetOrientationCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Set Location" Command="{Binding Recorder.TestStudio.AddSetLocationCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Set Airplane Mode" Command="{Binding Recorder.TestStudio.AddSetAirplaneModeCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Take Screenshot" Command="{Binding Recorder.TestStudio.AddTakeScreenshotCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Go Back" Command="{Binding Recorder.TestStudio.AddBackCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Delay (ms)" Command="{Binding Recorder.TestStudio.AddDelayCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Open Link" Command="{Binding Recorder.TestStudio.AddOpenLinkCommand}" Margin="0,0,6,6"/>
-                            </WrapPanel>
-                        </TabItem>
-
-                        <!-- Logic Tab -->
-                        <TabItem Header="Logic" FontSize="11">
-                            <WrapPanel Margin="0,8,0,0">
-                                <Button Content="Repeat" Command="{Binding Recorder.TestStudio.AddRepeatCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Retry" Command="{Binding Recorder.TestStudio.AddRetryCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Run Flow" Command="{Binding Recorder.TestStudio.AddRunFlowCommand}" Margin="0,0,6,6"/>
-                                <Button Content="Eval Script" Command="{Binding Recorder.TestStudio.AddEvalScriptCommand}" Margin="0,0,6,6"/>
-                            </WrapPanel>
-                        </TabItem>
-                    </TabControl>
-                </StackPanel>
-            </Border>
         </Grid>
 
         <!-- GRID SPLITTER -->
