@@ -142,57 +142,8 @@ public static class EmulationDomain
                     return new JsonObject();
                 }
 
-            case "setCPUThrottlingRate":
-            case "setFocusEmulationEnabled":
-            case "setAutoDarkModeOverride":
-                {
-                    return new JsonObject();
-                }
-
-            case "setTouchEmulationEnabled":
-                {
-                    session.TouchEmulationEnabled = @params["enabled"]?.GetValue<bool>() ?? false;
-                    return new JsonObject();
-                }
-
-            case "canEmulate":
-                {
-                    return new JsonObject { ["result"] = true };
-                }
-
-            case "setGeolocationOverride":
-                {
-                    session.GeolocationOverride = new JsonObject
-                    {
-                        ["latitude"] = @params["latitude"]?.GetValue<double>() ?? 0.0,
-                        ["longitude"] = @params["longitude"]?.GetValue<double>() ?? 0.0,
-                        ["accuracy"] = @params["accuracy"]?.GetValue<double>() ?? 0.0
-                    };
-                    return new JsonObject();
-                }
-
-            case "clearGeolocationOverride":
-                {
-                    session.GeolocationOverride = null;
-                    return new JsonObject();
-                }
-
-            case "setUserAgentOverride":
-            case "setNavigatorOverrides":
-            case "setDefaultBackgroundColorOverride":
-            case "setEmitTouchEventsForMouse":
-            case "setDocumentCookieDisabled":
-            case "setScriptExecutionDisabled":
-            case "setScrollbarsHidden":
-            case "setTimezoneOverride":
-            case "setIdleOverride":
-            case "clearIdleOverride":
-                {
-                    return new JsonObject();
-                }
-
             default:
-                throw new Exception($"Method Emulation.{action} is not implemented");
+                return await Chrome.DevTools.Protocol.Domains.EmulationDomain.HandleAsync(session, action, @params);
         }
     }
 }

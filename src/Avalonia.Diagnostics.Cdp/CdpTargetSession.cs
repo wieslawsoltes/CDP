@@ -15,46 +15,20 @@ using Avalonia.LogicalTree;
 
 namespace Avalonia.Diagnostics.Cdp;
 
-public class CdpTargetSession : IDisposable
+public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
 {
     private readonly CdpSession _session;
     private readonly CancellationTokenSource _cts = new();
 
-    public string SessionId { get; }
-    public string TargetId { get; }
     public TopLevel? Window { get; }
     public NodeMap NodeMap { get; } = new();
-    public ConcurrentDictionary<string, object> RemoteObjects { get; } = new();
-    public int InspectedNodeId { get; set; } = 0;
-    public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument { get; } = new();
-    public ConcurrentDictionary<string, string> ScriptsToEvaluateOnLoad { get; } = new();
-    public System.Collections.Generic.List<JsonObject> Cookies { get; } = new();
-
-    public JsonObject? GeolocationOverride { get; set; }
-    public JsonObject? DeviceOrientationOverride { get; set; }
-    public bool TouchEmulationEnabled { get; set; }
+    public override bool TouchEmulationEnabled { get; set; }
     public IInputDevice TouchDevice { get; } =
         (IInputDevice)Activator.CreateInstance(typeof(TouchDevice), nonPublic: true)!;
-    public bool LifecycleEventsEnabled { get; set; }
-    public bool AdBlockingEnabled { get; set; }
-    public bool BypassCSP { get; set; }
-    public JsonObject? FontFamilies { get; set; }
-    public JsonObject? FontSizes { get; set; }
-    public string? DownloadBehavior { get; set; }
-    public string? DownloadPath { get; set; }
-    public bool InterceptFileChooserDialog { get; set; }
-    public bool PrerenderingAllowed { get; set; }
-    public string? RPHRegistrationMode { get; set; }
-    public string? SPCTransactionMode { get; set; }
-    public string? WebLifecycleState { get; set; }
-    public ConcurrentDictionary<string, string> CompilationCache { get; } = new();
-    public System.Collections.Generic.List<JsonObject> NavigationHistory { get; } = new();
-    public int NavigationHistoryIndex { get; set; } = -1;
-    public object? ScriptSession { get; set; }
 
     // Inspect Mode
     private bool _inspectModeEnabled;
-    public bool InspectModeEnabled
+    public override bool InspectModeEnabled
     {
         get => _inspectModeEnabled;
         set
@@ -149,7 +123,7 @@ public class CdpTargetSession : IDisposable
         RequestScreencastFrame();
     }
 
-    public void RequestScreencastFrame()
+    public override void RequestScreencastFrame()
     {
         _screencastDirty = true;
         try
@@ -162,7 +136,7 @@ public class CdpTargetSession : IDisposable
         catch { }
     }
 
-    public void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null)
+    public override void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null)
     {
         if (Window == null) return;
 
@@ -417,7 +391,7 @@ public class CdpTargetSession : IDisposable
         });
     }
 
-    public void StopScreencast()
+    public override void StopScreencast()
     {
         if (!_screencastEnabled) return;
         _screencastEnabled = false;
@@ -443,7 +417,7 @@ public class CdpTargetSession : IDisposable
         catch { }
     }
 
-    public void AcknowledgeScreencastFrame(int sessionId)
+    public override void AcknowledgeScreencastFrame(int sessionId)
     {
         _ackedFrameId = Math.Max(_ackedFrameId, sessionId);
         try
@@ -458,12 +432,12 @@ public class CdpTargetSession : IDisposable
     }
 
     // DOM Observation Fields
-    public bool IsDomEnabled { get; private set; }
+    public override bool IsDomEnabled { get; set; }
     private readonly ConcurrentDictionary<object, (INotifyCollectionChanged Observable, NotifyCollectionChangedEventHandler Handler)> _collectionHandlers = new();
     private readonly ConcurrentDictionary<Visual, EventHandler<AvaloniaPropertyChangedEventArgs>> _propertyHandlers = new();
     private readonly ConcurrentDictionary<Control, NotifyCollectionChangedEventHandler> _classesHandlers = new();
 
-    public void StartObservingVisualTree()
+    public override void StartObservingVisualTree()
     {
         if (Window == null) return;
         if (!Dispatcher.UIThread.CheckAccess())
@@ -476,7 +450,7 @@ public class CdpTargetSession : IDisposable
         SubscribeToVisual(Window);
     }
 
-    public void StopObservingVisualTree()
+    public override void StopObservingVisualTree()
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
@@ -929,10 +903,9 @@ public class CdpTargetSession : IDisposable
     }
 
     public CdpTargetSession(CdpSession session, string sessionId, string targetId, TopLevel? window)
+        : base(session, sessionId, targetId, window != null ? CdpServer.GetOrCreateTarget(window, targetId) : null!)
     {
         _session = session;
-        SessionId = sessionId;
-        TargetId = targetId;
         Window = window;
 
         var port = CdpServer.Port;
@@ -975,8 +948,9 @@ public class CdpTargetSession : IDisposable
         }));
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
+        base.Dispose();
         _cts.Cancel();
         StopScreencast();
         StopObservingVisualTree();
@@ -985,7 +959,6 @@ public class CdpTargetSession : IDisposable
         _captureStream.Dispose();
         _ackSignal.Dispose();
         NodeMap.Clear();
-        RemoteObjects.Clear();
         if (Window != null)
         {
             HighlightOverlayManager.HideHighlight(Window);

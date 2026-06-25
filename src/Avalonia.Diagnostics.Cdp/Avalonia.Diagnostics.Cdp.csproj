@@ -22,6 +22,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Chrome.DevTools.Protocol" />
+    <Using Include="Chrome.DevTools.Protocol.Domains" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
