@@ -15,14 +15,7 @@ using CdpInspectorApp.Services;
 
 namespace CdpInspectorApp.ViewModels;
 
-public enum RecordingFormat
-{
-    Puppeteer,
-    PlaywrightTest,
-    SeleniumCSharp,
-    AppiumCSharp,
-    AvaloniaHeadlessXUnit
-}
+
 
 public class RecorderViewModel : ViewModelBase
 {
@@ -595,30 +588,31 @@ public class RecorderViewModel : ViewModelBase
 
     private void UpdateGeneratedCode()
     {
+        var stepsToGen = RecordedSteps.Select(s => s.ToCoreStep()).ToList();
         if (SelectedFormat == RecordingFormat.Puppeteer)
         {
             var generator = new PuppeteerGenerator();
-            GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
+            GeneratedCode = generator.Generate(stepsToGen, _getHostAddress());
         }
         else if (SelectedFormat == RecordingFormat.PlaywrightTest)
         {
             var generator = new PlaywrightGenerator();
-            GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
+            GeneratedCode = generator.Generate(stepsToGen, _getHostAddress());
         }
         else if (SelectedFormat == RecordingFormat.SeleniumCSharp)
         {
             var generator = new SeleniumCSharpGenerator();
-            GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
+            GeneratedCode = generator.Generate(stepsToGen, _getHostAddress());
         }
         else if (SelectedFormat == RecordingFormat.AppiumCSharp)
         {
             var generator = new AppiumCSharpGenerator();
-            GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
+            GeneratedCode = generator.Generate(stepsToGen, _getHostAddress());
         }
         else if (SelectedFormat == RecordingFormat.AvaloniaHeadlessXUnit)
         {
             var generator = new AvaloniaHeadlessXUnitGenerator();
-            GeneratedCode = generator.Generate(RecordedSteps, _getHostAddress());
+            GeneratedCode = generator.Generate(stepsToGen, _getHostAddress());
         }
     }
 

@@ -2,10 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using CdpInspectorApp.Models;
-using CdpInspectorApp.ViewModels;
 
-namespace CdpInspectorApp.Services;
+namespace Chrome.DevTools.Protocol;
 
 public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
 {
@@ -14,7 +12,7 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
     public string TitleText => "Generated Avalonia Headless xUnit Test";
     public string ExportButtonText => "Export Headless Test";
 
-    public string Generate(IEnumerable<RecordedStepModel> steps, string hostAddress)
+    public string Generate(IEnumerable<RecordedStep> steps, string hostAddress)
     {
         var stepsList = steps.ToList();
         var sb = new StringBuilder();
@@ -207,9 +205,9 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
             case "Home": return "Key.Home";
             case "End": return "Key.End";
             default:
-                if (Enum.TryParse<Avalonia.Input.Key>(key, true, out var keyVal))
+                if (!string.IsNullOrEmpty(key) && key.All(char.IsLetterOrDigit))
                 {
-                    return $"Key.{keyVal}";
+                    return $"Key.{key}";
                 }
                 return "Key.None";
         }

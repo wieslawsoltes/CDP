@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using CdpInspectorApp.Models;
-using CdpInspectorApp.ViewModels;
+using System.Linq;
 
-namespace CdpInspectorApp.Services;
+namespace Chrome.DevTools.Protocol;
 
 public class AppiumCSharpGenerator : ICodeGenerator
 {
@@ -13,7 +12,7 @@ public class AppiumCSharpGenerator : ICodeGenerator
     public string TitleText => "Generated Appium C# Script";
     public string ExportButtonText => "Export Appium C#";
 
-    public string Generate(IEnumerable<RecordedStepModel> steps, string hostAddress)
+    public string Generate(IEnumerable<RecordedStep> steps, string hostAddress)
     {
         var stepsList = steps.ToList();
         var sb = new StringBuilder();

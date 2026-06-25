@@ -4,10 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using SkiaSharp;
 
-namespace CdpInspectorApp.Services;
+namespace Chrome.DevTools.Protocol;
 
 public class StepReportItem
 {
@@ -441,17 +440,6 @@ public static class TestStudioReportGenerator
             scale: 1.25;
         }}
 
-        .time-display {{
-            font-size: 0.85rem;
-            font-family: monospace;
-            color: var(--text-muted);
-            gap: 0.75rem;
-            background: rgba(22, 25, 35, 0.4);
-            border: 1px solid var(--border-color);
-            padding: 1rem;
-            border-radius: 12px;
-        }}
-
         .controls-row {{
             display: flex;
             align-items: center;
@@ -483,20 +471,6 @@ public static class TestStudioReportGenerator
         .play-btn:hover {{
             background: #3b82f6;
             box-shadow: 0 0 12px var(--primary-glow);
-        }}
-
-        .time-display {{
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            font-family: monospace;
-        }}
-
-        .seek-bar {{
-            flex-grow: 1;
-            accent-color: var(--primary);
-            height: 4px;
-            border-radius: 2px;
-            cursor: pointer;
         }}
 
         .speed-control {{
@@ -595,7 +569,9 @@ public static class TestStudioReportGenerator
                 <h2 class=""section-title"">Execution Steps</h2>
                 <div class=""steps-list"" id=""steps-list"">
                     <!-- Steps dynamically filled if needed, or static for stability -->
-");
+"
+        );
+
         for (int i = 0; i < steps.Count; i++)
         {
             var step = steps[i];

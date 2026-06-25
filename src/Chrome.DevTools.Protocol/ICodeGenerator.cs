@@ -1,8 +1,6 @@
-namespace CdpInspectorApp.Services;
-
 using System.Collections.Generic;
-using CdpInspectorApp.Models;
-using CdpInspectorApp.ViewModels;
+
+namespace Chrome.DevTools.Protocol;
 
 public interface ICodeGenerator
 {
@@ -10,5 +8,5 @@ public interface ICodeGenerator
     string TabHeader { get; }
     string TitleText { get; }
     string ExportButtonText { get; }
-    string Generate(IEnumerable<RecordedStepModel> steps, string hostAddress);
+    string Generate(IEnumerable<RecordedStep> steps, string hostAddress);
 }

@@ -272,4 +272,46 @@ public class TestStudioStepModel : ViewModelBase
             return string.Join(" | ", parts);
         }
     }
+
+    public static TestStudioStepModel FromCoreStep(TestStudioStep step)
+    {
+        var model = new TestStudioStepModel
+        {
+            Action = step.Action,
+            Selector = step.Selector,
+            Value = step.Value,
+            Parameters = step.Parameters,
+            WhileConditionType = step.WhileConditionType,
+            WhileConditionValue = step.WhileConditionValue,
+            StartLine = step.StartLine,
+            EndLine = step.EndLine
+        };
+        if (step.NestedSteps != null)
+        {
+            model.NestedSteps = new ObservableCollection<TestStudioStepModel>(
+                step.NestedSteps.Select(FromCoreStep)
+            );
+        }
+        return model;
+    }
+
+    public TestStudioStep ToCoreStep()
+    {
+        var step = new TestStudioStep
+        {
+            Action = Action,
+            Selector = Selector,
+            Value = Value,
+            Parameters = Parameters,
+            WhileConditionType = WhileConditionType,
+            WhileConditionValue = WhileConditionValue,
+            StartLine = StartLine,
+            EndLine = EndLine
+        };
+        if (NestedSteps != null)
+        {
+            step.NestedSteps = NestedSteps.Select(s => s.ToCoreStep()).ToList();
+        }
+        return step;
+    }
 }

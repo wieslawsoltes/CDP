@@ -1,16 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text;
-using CdpInspectorApp.Models;
 using YamlDotNet.Core;
 using YamlDotNet.RepresentationModel;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.EventEmitters;
 
-namespace CdpInspectorApp.Services;
+namespace Chrome.DevTools.Protocol;
 
 public static class TestStudioYamlParser
 {
@@ -47,18 +45,18 @@ public static class TestStudioYamlParser
         }
     }
 
-    public static List<TestStudioStepModel> Parse(string yaml, out string appId, out string description)
+    public static List<TestStudioStep> Parse(string yaml, out string appId, out string description)
     {
         return Parse(yaml, out appId, out description, out _, out _);
     }
 
-    public static List<TestStudioStepModel> Parse(string yaml, out string appId, out string description, out List<string> tags, out Dictionary<string, string> env)
+    public static List<TestStudioStep> Parse(string yaml, out string appId, out string description, out List<string> tags, out Dictionary<string, string> env)
     {
         appId = "";
         description = "";
         tags = new List<string>();
         env = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var steps = new List<TestStudioStepModel>();
+        var steps = new List<TestStudioStep>();
 
         if (string.IsNullOrEmpty(yaml))
         {
@@ -127,13 +125,13 @@ public static class TestStudioYamlParser
         return steps;
     }
 
-    private static TestStudioStepModel? ParseStepNode(YamlNode node)
+    private static TestStudioStep? ParseStepNode(YamlNode node)
     {
-        TestStudioStepModel? model = null;
+        TestStudioStep? step = null;
         if (node is YamlScalarNode scalarNode)
         {
             var action = scalarNode.Value ?? "";
-            model = BuildStepModel(action, "", null);
+            step = BuildStep(action, "", null);
         }
         else if (node is YamlMappingNode mappingNode)
         {
@@ -141,7 +139,7 @@ public static class TestStudioYamlParser
             string inlineValue = "";
             var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-            ObservableCollection<TestStudioStepModel>? nestedSteps = null;
+            List<TestStudioStep>? nestedSteps = null;
 
             foreach (var entry in mappingNode.Children)
             {
@@ -193,16 +191,16 @@ public static class TestStudioYamlParser
 
             if (action != null)
             {
-                model = BuildStepModel(action, inlineValue, dict, nestedSteps, parameters);
+                step = BuildStep(action, inlineValue, dict, nestedSteps, parameters);
             }
         }
 
-        if (model != null)
+        if (step != null)
         {
-            model.StartLine = (int)node.Start.Line;
-            model.EndLine = (int)node.End.Line;
+            step.StartLine = (int)node.Start.Line;
+            step.EndLine = (int)node.End.Line;
         }
-        return model;
+        return step;
     }
 
     private static Dictionary<string, object?> ReadMapping(YamlMappingNode mappingNode)
@@ -262,7 +260,7 @@ public static class TestStudioYamlParser
         }
     }
 
-    private static ObservableCollection<TestStudioStepModel>? ReadNestedCommands(YamlMappingNode mappingNode)
+    private static List<TestStudioStep>? ReadNestedCommands(YamlMappingNode mappingNode)
     {
         foreach (var nestedEntry in mappingNode.Children)
         {
@@ -270,7 +268,7 @@ public static class TestStudioYamlParser
                 nestedKey.Value == "commands" &&
                 nestedEntry.Value is YamlSequenceNode seqNode)
             {
-                var nestedSteps = new ObservableCollection<TestStudioStepModel>();
+                var nestedSteps = new List<TestStudioStep>();
                 foreach (var childNode in seqNode.Children)
                 {
                     var childStep = ParseStepNode(childNode);
@@ -316,119 +314,119 @@ public static class TestStudioYamlParser
             action.Equals("dragAndDrop", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static TestStudioStepModel BuildStepModel(string action, string inlineValue, Dictionary<string, string>? dict = null, ObservableCollection<TestStudioStepModel>? nestedSteps = null, Dictionary<string, object?>? parameters = null)
+    private static TestStudioStep BuildStep(string action, string inlineValue, Dictionary<string, string>? dict = null, List<TestStudioStep>? nestedSteps = null, Dictionary<string, object?>? parameters = null)
     {
         dict ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         parameters ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        var model = new TestStudioStepModel { Action = FlowCommandCatalog.CanonicalizeAction(action), Parameters = parameters };
+        var step = new TestStudioStep { Action = FlowCommandCatalog.CanonicalizeAction(action), Parameters = parameters };
         var selectorDisplay = FlowCommandCatalog.BuildSelectorDisplay(parameters);
         var valueDisplay = FlowCommandCatalog.BuildValueDisplay(parameters);
 
         switch (action.ToLowerInvariant())
         {
             case "launchapp":
-                model.Action = "launchApp";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = "launchApp";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             case "tapon":
             case "doubletapon":
             case "longpresson":
-                model.Action = action.Equals("doubleTapOn", StringComparison.OrdinalIgnoreCase) ? "doubleTapOn" :
+                step.Action = action.Equals("doubleTapOn", StringComparison.OrdinalIgnoreCase) ? "doubleTapOn" :
                                action.Equals("longPressOn", StringComparison.OrdinalIgnoreCase) ? "longPressOn" : "tapOn";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Selector = inlineValue;
-                    model.Value = "";
+                    step.Selector = inlineValue;
+                    step.Value = "";
                 }
                 else if (!string.IsNullOrEmpty(selectorDisplay))
                 {
-                    model.Selector = selectorDisplay;
-                    model.Value = valueDisplay;
+                    step.Selector = selectorDisplay;
+                    step.Value = valueDisplay;
                 }
                 else if (dict.TryGetValue("selector", out var sel))
                 {
-                    model.Selector = sel;
-                    model.Value = "";
+                    step.Selector = sel;
+                    step.Value = "";
                 }
                 else if (dict.TryGetValue("x", out var x) && dict.TryGetValue("y", out var y))
                 {
-                    model.Selector = "";
-                    model.Value = $"{x}, {y}";
+                    step.Selector = "";
+                    step.Value = $"{x}, {y}";
                 }
                 else
                 {
-                    model.Selector = "";
-                    model.Value = "";
+                    step.Selector = "";
+                    step.Value = "";
                 }
                 break;
 
             case "inputtext":
-                model.Action = "inputText";
+                step.Action = "inputText";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Selector = "";
-                    model.Value = inlineValue;
+                    step.Selector = "";
+                    step.Value = inlineValue;
                 }
                 else
                 {
-                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
-                    model.Value = dict.GetValueOrDefault("text", dict.GetValueOrDefault("value", valueDisplay));
+                    step.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
+                    step.Value = dict.GetValueOrDefault("text", dict.GetValueOrDefault("value", valueDisplay));
                 }
                 break;
 
             case "cleartext":
-                model.Action = "clearText";
+                step.Action = "clearText";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Selector = inlineValue;
+                    step.Selector = inlineValue;
                 }
                 else
                 {
-                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
+                    step.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                 }
-                model.Value = "";
+                step.Value = "";
                 break;
 
             case "pastetext":
-                model.Action = "pasteText";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = "pasteText";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             case "erasetext":
-                model.Action = "eraseText";
-                model.Selector = "";
-                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("value", dict.GetValueOrDefault("amount", "1"));
+                step.Action = "eraseText";
+                step.Selector = "";
+                step.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("value", dict.GetValueOrDefault("amount", "1"));
                 break;
 
             case "draganddrop":
-                model.Action = "dragAndDrop";
+                step.Action = "dragAndDrop";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Selector = inlineValue;
-                    model.Value = "";
+                    step.Selector = inlineValue;
+                    step.Value = "";
                 }
                 else
                 {
-                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
+                    step.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                     var parts = new List<string>();
                     if (dict.TryGetValue("targetSelector", out var targetSelector)) parts.Add($"targetSelector: {targetSelector}");
                     if (dict.TryGetValue("offsetX", out var ox)) parts.Add($"offsetX: {ox}");
                     if (dict.TryGetValue("offsetY", out var oy)) parts.Add($"offsetY: {oy}");
                     if (dict.TryGetValue("targetOffsetX", out var tox)) parts.Add($"targetOffsetX: {tox}");
                     if (dict.TryGetValue("targetOffsetY", out var toy)) parts.Add($"targetOffsetY: {toy}");
-                    model.Value = string.Join(", ", parts);
+                    step.Value = string.Join(", ", parts);
                 }
                 break;
 
             case "swipe":
-                model.Action = "swipe";
-                model.Selector = "";
+                step.Action = "swipe";
+                step.Selector = "";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Value = inlineValue;
+                    step.Value = inlineValue;
                 }
                 else
                 {
@@ -436,131 +434,131 @@ public static class TestStudioYamlParser
                     if (dict.TryGetValue("start", out var start)) parts.Add($"start: {start}");
                     if (dict.TryGetValue("end", out var end)) parts.Add($"end: {end}");
                     if (dict.TryGetValue("direction", out var sDir)) parts.Add($"direction: {sDir}");
-                    model.Value = string.Join(", ", parts);
+                    step.Value = string.Join(", ", parts);
                 }
                 break;
 
             case "stopapp":
             case "killapp":
-                model.Action = action.Equals("stopApp", StringComparison.OrdinalIgnoreCase) ? "stopApp" : "killApp";
-                model.Selector = "";
-                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("appId", "");
+                step.Action = action.Equals("stopApp", StringComparison.OrdinalIgnoreCase) ? "stopApp" : "killApp";
+                step.Selector = "";
+                step.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("appId", "");
                 break;
 
             case "clearstate":
-                model.Action = "clearState";
-                model.Selector = "";
-                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("appId", "");
+                step.Action = "clearState";
+                step.Selector = "";
+                step.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("appId", "");
                 break;
 
             case "setorientation":
-                model.Action = "setOrientation";
-                model.Selector = "";
-                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("orientation", "");
+                step.Action = "setOrientation";
+                step.Selector = "";
+                step.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("orientation", "");
                 break;
 
             case "setlocation":
-                model.Action = "setLocation";
-                model.Selector = "";
+                step.Action = "setLocation";
+                step.Selector = "";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Value = inlineValue;
+                    step.Value = inlineValue;
                 }
                 else
                 {
                     var parts = new List<string>();
                     if (dict.TryGetValue("latitude", out var lat)) parts.Add($"latitude: {lat}");
                     if (dict.TryGetValue("longitude", out var lon)) parts.Add($"longitude: {lon}");
-                    model.Value = string.Join(", ", parts);
+                    step.Value = string.Join(", ", parts);
                 }
                 break;
 
             case "takescreenshot":
-                model.Action = "takeScreenshot";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = "takeScreenshot";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             case "openlink":
-                model.Action = "openLink";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = "openLink";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             case "copytextfrom":
-                model.Action = "copyTextFrom";
-                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
-                model.Value = "";
+                step.Action = "copyTextFrom";
+                step.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
+                step.Value = "";
                 break;
 
             case "assertvisible":
-                model.Action = "assertVisible";
-                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
-                model.Value = valueDisplay;
+                step.Action = "assertVisible";
+                step.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
+                step.Value = valueDisplay;
                 break;
 
             case "assertnotvisible":
-                model.Action = "assertNotVisible";
-                model.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
-                model.Value = valueDisplay;
+                step.Action = "assertNotVisible";
+                step.Selector = !string.IsNullOrEmpty(inlineValue) ? inlineValue : (!string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", ""));
+                step.Value = valueDisplay;
                 break;
 
             case "asserttrue":
-                model.Action = "assertTrue";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = "assertTrue";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             case "assertfalse":
-                model.Action = "assertFalse";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = "assertFalse";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             case "setairplanemode":
-                model.Action = "setAirplaneMode";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = "setAirplaneMode";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             case "delay":
-                model.Action = "delay";
-                model.Selector = "";
+                step.Action = "delay";
+                step.Selector = "";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Value = inlineValue;
+                    step.Value = inlineValue;
                 }
                 else
                 {
-                    model.Value = dict.GetValueOrDefault("value", dict.GetValueOrDefault("amount", ""));
+                    step.Value = dict.GetValueOrDefault("value", dict.GetValueOrDefault("amount", ""));
                 }
                 break;
 
             case "back":
-                model.Action = "back";
-                model.Selector = "";
-                model.Value = "";
+                step.Action = "back";
+                step.Selector = "";
+                step.Value = "";
                 break;
 
             case "scroll":
-                model.Action = "scroll";
-                model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
+                step.Action = "scroll";
+                step.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Value = inlineValue;
+                    step.Value = inlineValue;
                 }
                 else
                 {
                     var parts = new List<string>();
                     if (dict.TryGetValue("direction", out var dir)) parts.Add($"direction: {dir}");
                     if (dict.TryGetValue("amount", out var amt)) parts.Add($"amount: {amt}");
-                    model.Value = string.Join(", ", parts);
+                    step.Value = string.Join(", ", parts);
                 }
                 break;
 
             case "scrolluntilvisible":
-                model.Action = "scrollUntilVisible";
-                model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
+                step.Action = "scrollUntilVisible";
+                step.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                 var suvParts = new List<string>();
                 if (dict.TryGetValue("direction", out var sdir)) suvParts.Add($"direction: {sdir}");
                 if (dict.TryGetValue("maxscrolls", out var ms)) suvParts.Add($"maxScrolls: {ms}");
@@ -568,76 +566,76 @@ public static class TestStudioYamlParser
                 if (dict.TryGetValue("speed", out var speed)) suvParts.Add($"speed: {speed}");
                 if (dict.TryGetValue("visibilityPercentage", out var visibilityPercentage)) suvParts.Add($"visibilityPercentage: {visibilityPercentage}");
                 if (dict.TryGetValue("centerElement", out var centerElement)) suvParts.Add($"centerElement: {centerElement}");
-                model.Value = string.Join(", ", suvParts);
+                step.Value = string.Join(", ", suvParts);
                 break;
 
             case "presskey":
-                model.Action = "pressKey";
+                step.Action = "pressKey";
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Selector = "";
-                    model.Value = inlineValue;
+                    step.Selector = "";
+                    step.Value = inlineValue;
                 }
                 else
                 {
-                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
-                    model.Value = dict.GetValueOrDefault("value", dict.GetValueOrDefault("key", ""));
+                    step.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
+                    step.Value = dict.GetValueOrDefault("value", dict.GetValueOrDefault("key", ""));
                 }
                 break;
 
             case "repeat":
             case "retry":
-                model.Action = action.Equals("repeat", StringComparison.OrdinalIgnoreCase) ? "repeat" : "retry";
-                model.Selector = "";
-                model.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("times", dict.GetValueOrDefault("maxRetries", dict.GetValueOrDefault("value", "1")));
+                step.Action = action.Equals("repeat", StringComparison.OrdinalIgnoreCase) ? "repeat" : "retry";
+                step.Selector = "";
+                step.Value = !string.IsNullOrEmpty(inlineValue) ? inlineValue : dict.GetValueOrDefault("times", dict.GetValueOrDefault("maxRetries", dict.GetValueOrDefault("value", "1")));
                 if (dict.TryGetValue("while_type", out var wt) && dict.TryGetValue("while_value", out var wv))
                 {
-                    model.WhileConditionType = wt;
-                    model.WhileConditionValue = wv;
+                    step.WhileConditionType = wt;
+                    step.WhileConditionValue = wv;
                 }
                 if (nestedSteps != null)
                 {
-                    model.NestedSteps = nestedSteps;
+                    step.NestedSteps = nestedSteps;
                 }
                 break;
 
             case "runflow":
-                model.Action = "runFlow";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = "runFlow";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             case "evalscript":
             case "runscript":
-                model.Action = action.Equals("evalScript", StringComparison.OrdinalIgnoreCase) ? "evalScript" : "runScript";
-                model.Selector = "";
-                model.Value = inlineValue;
+                step.Action = action.Equals("evalScript", StringComparison.OrdinalIgnoreCase) ? "evalScript" : "runScript";
+                step.Selector = "";
+                step.Value = inlineValue;
                 break;
 
             default:
                 if (!string.IsNullOrEmpty(inlineValue))
                 {
-                    model.Selector = "";
-                    model.Value = inlineValue;
+                    step.Selector = "";
+                    step.Value = inlineValue;
                 }
                 else
                 {
-                    model.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
+                    step.Selector = !string.IsNullOrEmpty(selectorDisplay) ? selectorDisplay : dict.GetValueOrDefault("selector", "");
                     var parts = new List<string>();
                     foreach (var kv in dict)
                     {
                         if (kv.Key.Equals("selector", StringComparison.OrdinalIgnoreCase)) continue;
                         parts.Add($"{kv.Key}: {kv.Value}");
                     }
-                    model.Value = string.Join(", ", parts);
+                    step.Value = string.Join(", ", parts);
                 }
                 break;
         }
 
-        return model;
+        return step;
     }
 
-    public static string Generate(List<TestStudioStepModel> steps, string appId, string description, List<string>? tags = null, Dictionary<string, string>? env = null)
+    public static string Generate(List<TestStudioStep> steps, string appId, string description, List<string>? tags = null, Dictionary<string, string>? env = null)
     {
         var sb = new StringBuilder();
         var serializer = new SerializerBuilder()
@@ -695,7 +693,7 @@ public static class TestStudioYamlParser
         return sb.ToString();
     }
 
-    private static object SerializeStep(TestStudioStepModel step)
+    private static object SerializeStep(TestStudioStep step)
     {
         var action = step.Action;
         if (string.IsNullOrEmpty(action)) return "";

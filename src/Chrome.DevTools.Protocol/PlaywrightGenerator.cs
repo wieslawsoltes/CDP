@@ -1,11 +1,9 @@
-namespace CdpInspectorApp.Services;
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using CdpInspectorApp.Models;
-using CdpInspectorApp.ViewModels;
+
+namespace Chrome.DevTools.Protocol;
 
 public class PlaywrightGenerator : ICodeGenerator
 {
@@ -14,7 +12,7 @@ public class PlaywrightGenerator : ICodeGenerator
     public string TitleText => "Generated Playwright Test Script";
     public string ExportButtonText => "Export Playwright";
 
-    public string Generate(IEnumerable<RecordedStepModel> steps, string hostAddress)
+    public string Generate(IEnumerable<RecordedStep> steps, string hostAddress)
     {
         var stepsList = steps.ToList();
         var sb = new StringBuilder();
