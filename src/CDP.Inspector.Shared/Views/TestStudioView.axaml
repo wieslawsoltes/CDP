@@ -17,7 +17,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <!-- Column 0: Collapsible Workspace Sidebar Panel -->
-        <Grid Grid.Column="0" RowDefinitions="*, Auto" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}">
+        <Grid Grid.Column="0" RowDefinitions="*, 4, 300" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}">
             <!-- Project Explorer -->
             <Grid Grid.Row="0" RowDefinitions="Auto, *, Auto">
                 <!-- Path picker TextBox/Browse button -->
@@ -71,9 +71,12 @@
                 </StackPanel>
             </Grid>
 
+            <!-- GridSplitter between Project Explorer and Flow Command Toolbox -->
+            <GridSplitter Grid.Row="1" Background="#3c4043" ResizeDirection="Rows" HorizontalAlignment="Stretch"/>
+
             <!-- Flow Command Toolbox -->
-            <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
-                <ScrollViewer MaxHeight="380">
+            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+                <ScrollViewer>
                     <StackPanel Spacing="8" Margin="0,0,10,0">
                         <!-- Command autocomplete box -->
                         <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,4">
