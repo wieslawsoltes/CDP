@@ -1,7 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              x:Class="CdpInspectorApp.Views.ConsoleView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid RowDefinitions="*, Auto" Margin="10">
         <Grid RowDefinitions="Auto, *">
             <!-- Filter Toolbar -->
@@ -21,7 +24,7 @@
                 <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
             </Grid>
 
-            <DataGrid Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1"
+            <DataGrid Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1" x:DataType="models:LogModel" x:CompileBindings="False"
                       CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="Transparent" BorderThickness="0">

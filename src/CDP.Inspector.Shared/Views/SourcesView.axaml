@@ -2,13 +2,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:map="using:XamlPlayground.Editor.Minimap"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              x:Class="CdpInspectorApp.Views.SourcesView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid ColumnDefinitions="260, 4, *" Margin="10">
         <!-- Left Workspace navigator -->
         <Grid RowDefinitions="Auto, *">
             <TextBlock Text="Workspace Navigator" Classes="panel-header"/>
-            <DataGrid Name="treeWorkspaceFiles"
+            <DataGrid Name="treeWorkspaceFiles" x:CompileBindings="False"
                          HierarchicalModel="{Binding Sources.HierarchicalWorkspaceFiles}"
                          SelectedItem="{Binding Sources.SelectedFileNode, Mode=TwoWay}"
                          HierarchicalRowsEnabled="True"

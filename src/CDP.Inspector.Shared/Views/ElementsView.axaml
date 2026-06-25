@@ -1,7 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              x:Class="CdpInspectorApp.Views.ElementsView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid ColumnDefinitions="*, 4, 1.2*">
         <!-- Left Side (DOM / Accessibility Trees) -->
         <TabControl Margin="10" Padding="0,5,0,0" SelectedIndex="{Binding Elements.SelectedTreeTabIndex, Mode=TwoWay}">
@@ -16,7 +18,7 @@
 
                     <!-- treeDom -->
                     <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
-                        <DataGrid Name="treeDom"
+                        <DataGrid Name="treeDom" x:CompileBindings="False"
                                      HierarchicalModel="{Binding Elements.HierarchicalRootNodes}"
                                      SelectedItem="{Binding Elements.SelectedNodeNode, Mode=TwoWay}"
                                      HierarchicalRowsEnabled="True"
@@ -66,7 +68,7 @@
                     </Grid>
 
                     <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
-                        <DataGrid Name="treeAx"
+                        <DataGrid Name="treeAx" x:CompileBindings="False"
                                      HierarchicalModel="{Binding Elements.HierarchicalAxRootNodes}"
                                      SelectedItem="{Binding Elements.SelectedAxNodeNode, Mode=TwoWay}"
                                      HierarchicalRowsEnabled="True"

@@ -1,7 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              x:Class="CdpInspectorApp.Views.MemoryView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid ColumnDefinitions="240, 4, *" Margin="10">
         <!-- Left panel (Snapshots list & controls) -->
         <Grid RowDefinitions="Auto, *" Margin="0,0,10,0">
@@ -14,7 +17,7 @@
             <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
                 <Grid RowDefinitions="Auto, *">
                     <TextBlock Text="HEAP SNAPSHOTS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
-                    <DataGrid Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding Memory.Snapshots}" SelectedItem="{Binding Memory.SelectedSnapshot, Mode=TwoWay}"
+                    <DataGrid Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding Memory.Snapshots}" SelectedItem="{Binding Memory.SelectedSnapshot, Mode=TwoWay}" x:DataType="models:MemorySnapshotModel" x:CompileBindings="False"
                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="None" HeadersVisibility="None"
                               Background="Transparent" BorderThickness="0">
@@ -60,7 +63,7 @@
                             <Grid>
                                 <!-- Summary mode list -->
                                 <Grid IsVisible="{Binding !Memory.IsComparisonMode}">
-                                    <DataGrid ItemsSource="{Binding Memory.CurrentEntries}"
+                                    <DataGrid ItemsSource="{Binding Memory.CurrentEntries}" x:DataType="models:ControlCountModel" x:CompileBindings="False"
                                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                               Background="Transparent" BorderThickness="0">
@@ -86,7 +89,7 @@
 
                                 <!-- Comparison mode list -->
                                 <Grid IsVisible="{Binding Memory.IsComparisonMode}">
-                                    <DataGrid ItemsSource="{Binding Memory.ComparisonEntries}"
+                                    <DataGrid ItemsSource="{Binding Memory.ComparisonEntries}" x:DataType="models:MemoryComparisonModel" x:CompileBindings="False"
                                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                               Background="Transparent" BorderThickness="0">
@@ -117,7 +120,7 @@
                         <!-- Detached Controls Tab -->
                         <TabItem Header="Detached Controls (Leaked)">
                             <Grid>
-                                <DataGrid ItemsSource="{Binding Memory.DetachedControls}"
+                                <DataGrid ItemsSource="{Binding Memory.DetachedControls}" x:DataType="models:DetachedControlModel" x:CompileBindings="False"
                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                           Background="Transparent" BorderThickness="0">

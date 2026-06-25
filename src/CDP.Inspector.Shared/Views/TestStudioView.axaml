@@ -6,8 +6,10 @@
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
              xmlns:map="using:XamlPlayground.Editor.Minimap"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              x:Class="CdpInspectorApp.Views.TestStudioView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="{Binding Recorder.TestStudio.SidebarColumnWidth, Mode=TwoWay}"/>
@@ -27,7 +29,7 @@
                 </Grid>
 
                 <!-- Workspace files listing (Hierarchical DataGrid) -->
-                <DataGrid Name="treeWorkspace" Grid.Row="1"
+                <DataGrid Name="treeWorkspace" Grid.Row="1" x:CompileBindings="False"
                           HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalWorkspace}"
                           SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceNode, Mode=TwoWay}"
                           CanUserReorderRows="False"
@@ -268,7 +270,7 @@
             <!-- Steps List -->
             <Grid Grid.Row="2" RowDefinitions="Auto, *">
                 <TextBlock Grid.Row="0" Text="Test Steps" Classes="panel-header" Foreground="#e8eaed" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
-                <DataGrid Name="lstSteps" Grid.Row="1"
+                <DataGrid Name="lstSteps" Grid.Row="1" x:CompileBindings="False"
                              HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalSteps}"
                              SelectedItem="{Binding Recorder.TestStudio.SelectedStepNode, Mode=TwoWay}"
                              CanUserReorderRows="True"

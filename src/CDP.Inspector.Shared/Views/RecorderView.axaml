@@ -5,8 +5,11 @@
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
              xmlns:map="using:XamlPlayground.Editor.Minimap"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              x:Class="CdpInspectorApp.Views.RecorderView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid RowDefinitions="Auto, *" Margin="10">
         <!-- Top Mode Switcher -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="0,0,0,12" VerticalAlignment="Center">
@@ -30,7 +33,7 @@
                 
                 <Grid Grid.Row="1" RowDefinitions="Auto, *">
                     <TextBlock Text="Recorded Steps" Classes="panel-header" Margin="0,0,0,8" Foreground="#e8eaed" FontSize="14" FontWeight="Bold"/>
-                    <DataGrid Name="lstRecordedSteps" Grid.Row="1"
+                    <DataGrid Name="lstRecordedSteps" Grid.Row="1" x:DataType="models:RecordedStepModel" x:CompileBindings="False"
                               ItemsSource="{Binding Recorder.RecordedSteps}"
                               SelectedItem="{Binding Recorder.SelectedRecordedStep, Mode=TwoWay}"
                               CanUserReorderRows="True"

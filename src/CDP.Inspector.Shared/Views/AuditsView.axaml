@@ -1,7 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              x:Class="CdpInspectorApp.Views.AuditsView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid RowDefinitions="Auto, Auto, *" Margin="10">
         <!-- 1. Top toolbar -->
         <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,15">
@@ -48,7 +51,7 @@
                 <Grid RowDefinitions="Auto, *">
                     <TextBlock Text="DIAGNOSTIC RECOMMENDATIONS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
                     
-                    <DataGrid Name="lstIssues" Grid.Row="1" ItemsSource="{Binding Audits.Issues}" SelectedItem="{Binding Audits.SelectedIssue, Mode=TwoWay}"
+                    <DataGrid Name="lstIssues" Grid.Row="1" ItemsSource="{Binding Audits.Issues}" SelectedItem="{Binding Audits.SelectedIssue, Mode=TwoWay}" x:DataType="models:AuditIssueModel" x:CompileBindings="False"
                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                               Background="Transparent" BorderThickness="0">

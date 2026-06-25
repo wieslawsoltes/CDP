@@ -1,12 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              x:Class="CdpInspectorApp.Views.ApplicationView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid ColumnDefinitions="250, 4, *" Margin="10">
         <!-- Sidebar tree -->
         <Grid RowDefinitions="Auto, *">
             <TextBlock Text="Application Data" Classes="panel-header"/>
-            <DataGrid Name="treeAppNav"
+            <DataGrid Name="treeAppNav" x:CompileBindings="False"
                          HierarchicalModel="{Binding Application.HierarchicalNavigationNodes}"
                          SelectedItem="{Binding Application.SelectedNavigationNodeNode, Mode=TwoWay}"
                          HierarchicalRowsEnabled="True"
