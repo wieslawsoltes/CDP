@@ -905,6 +905,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
     public CdpTargetSession(CdpSession session, string sessionId, string targetId, TopLevel? window)
         : base(session, sessionId, targetId, window != null ? CdpServer.GetOrCreateTarget(window, targetId) : null!)
     {
+        CdpServer.EnsureInitialized();
         _session = session;
         Window = window;
 

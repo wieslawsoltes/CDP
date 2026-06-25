@@ -22,6 +22,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     public CdpSession(WebSocket webSocket, TopLevel? window) 
         : base(webSocket, window != null ? CdpServer.GetOrCreateTarget(window) : null)
     {
+        CdpServer.EnsureInitialized();
     }
 
     public new CdpTargetSession? CurrentTargetSession => base.CurrentTargetSession as CdpTargetSession;

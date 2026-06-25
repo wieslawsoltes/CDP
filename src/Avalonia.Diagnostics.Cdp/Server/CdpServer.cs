@@ -211,6 +211,11 @@ public static class CdpServer
         });
     }
 
+    public static void EnsureInitialized()
+    {
+        // No-op to trigger static constructor and register domains
+    }
+
     public static void Start(int port = 9222)
     {
         Chrome.DevTools.Protocol.CdpServer.Start(port);
