@@ -1,6 +1,4 @@
 using System.Collections.Generic;
-using CdpInspectorApp.Models;
-using CdpInspectorApp.Services;
 using Xunit;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;

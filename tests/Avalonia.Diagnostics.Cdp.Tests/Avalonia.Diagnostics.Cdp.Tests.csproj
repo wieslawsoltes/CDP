@@ -27,4 +27,9 @@
     <ProjectReference Include="..\..\src\CDP.Inspector.Shared\CDP.Inspector.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Using Include="Chrome.DevTools.Protocol" />
+    <Using Include="Chrome.DevTools.Protocol.Domains" />
+  </ItemGroup>
+
 </Project>

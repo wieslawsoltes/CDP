@@ -194,7 +194,7 @@ description: ""Test Web Site""
         Assert.Single(steps1);
         Assert.Equal("launchApp", steps1[0].Action);
         Assert.Equal("", steps1[0].Value);
-        Assert.Equal("", steps1[0].DetailDisplay);
+        Assert.Equal("", TestStudioStepModel.FromCoreStep(steps1[0]).DetailDisplay);
 
         var generated1 = TestStudioYamlParser.Generate(steps1, appId1, description1);
         Assert.Contains("url: \"http://uitestingplayground.com/textinput\"", generated1);
@@ -209,7 +209,7 @@ description: ""Test Web Site""
         Assert.Single(steps2);
         Assert.Equal("launchApp", steps2[0].Action);
         Assert.Equal("http://uitestingplayground.com/textinput", steps2[0].Value);
-        Assert.Equal("Value: \"http://uitestingplayground.com/textinput\"", steps2[0].DetailDisplay);
+        Assert.Equal("Value: \"http://uitestingplayground.com/textinput\"", TestStudioStepModel.FromCoreStep(steps2[0]).DetailDisplay);
 
         var generated2 = TestStudioYamlParser.Generate(steps2, appId2, description2);
         Assert.Contains("- launchApp: \"http://uitestingplayground.com/textinput\"", generated2);

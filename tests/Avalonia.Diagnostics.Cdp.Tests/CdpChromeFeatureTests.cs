@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp.Domains;
+using EmulationDomain = Avalonia.Diagnostics.Cdp.Domains.EmulationDomain;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Xunit;
@@ -623,7 +624,7 @@ public class CdpChromeFeatureTests
         };
 
         var generator = new SeleniumCSharpGenerator();
-        string generated = generator.Generate(steps, "localhost:9222");
+        string generated = generator.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
 
         Assert.Contains("using OpenQA.Selenium;", generated);
         Assert.Contains("using OpenQA.Selenium.Chrome;", generated);
@@ -660,7 +661,7 @@ public class CdpChromeFeatureTests
         };
 
         var generator = new AppiumCSharpGenerator();
-        string generated = generator.Generate(steps, "localhost:9222");
+        string generated = generator.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
 
         Assert.Contains("using OpenQA.Selenium.Appium;", generated);
         Assert.Contains("using OpenQA.Selenium.Appium.Windows;", generated);
@@ -695,7 +696,7 @@ public class CdpChromeFeatureTests
         };
 
         var generator = new AvaloniaHeadlessXUnitGenerator();
-        string generated = generator.Generate(steps, "localhost:9222");
+        string generated = generator.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
 
         Assert.Contains("using Avalonia.Headless.XUnit;", generated);
         Assert.Contains("using Avalonia.Diagnostics.Cdp;", generated);

@@ -147,7 +147,7 @@ public class TestStudioFlowParamsTests
             IsRecordVideoEnabled = false
         };
 
-        var steps = TestStudioYamlParser.Parse(await File.ReadAllTextAsync(mainFile), out _, out _);
+        var steps = TestStudioYamlParser.Parse(await File.ReadAllTextAsync(mainFile), out _, out _).Select(TestStudioStepModel.FromCoreStep);
         foreach (var s in steps)
         {
             vm.Steps.Add(s);
@@ -200,7 +200,7 @@ public class TestStudioFlowParamsTests
             IsRecordVideoEnabled = false
         };
 
-        var steps = TestStudioYamlParser.Parse(await File.ReadAllTextAsync(mainFile), out _, out _);
+        var steps = TestStudioYamlParser.Parse(await File.ReadAllTextAsync(mainFile), out _, out _).Select(TestStudioStepModel.FromCoreStep);
         foreach (var s in steps)
         {
             vm.Steps.Add(s);

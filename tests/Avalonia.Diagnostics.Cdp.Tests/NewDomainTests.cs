@@ -6,6 +6,8 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp.Domains;
+using BrowserDomain = Avalonia.Diagnostics.Cdp.Domains.BrowserDomain;
+using EmulationDomain = Avalonia.Diagnostics.Cdp.Domains.EmulationDomain;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using CdpInspectorApp.Models;
@@ -145,7 +147,7 @@ public class NewDomainTests
         var customDomainName = "CustomTest";
         var customVersion = "2.0";
         var handlerCalled = false;
-        var customHandler = new Func<CdpSession, string, JsonObject, Task<JsonObject>>((session, action, @params) =>
+        var customHandler = new Func<Chrome.DevTools.Protocol.CdpSession, string, JsonObject, Task<JsonObject>>((session, action, @params) =>
         {
             handlerCalled = true;
             Assert.Equal("sayHello", action);

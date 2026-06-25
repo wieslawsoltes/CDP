@@ -2,6 +2,7 @@ using System;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia.Diagnostics.Cdp.Domains;
+using BrowserDomain = Avalonia.Diagnostics.Cdp.Domains.BrowserDomain;
 using Xunit;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
