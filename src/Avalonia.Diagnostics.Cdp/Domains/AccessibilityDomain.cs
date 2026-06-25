@@ -1000,13 +1000,15 @@ public static class AccessibilityDomain
     {
         if (visual is TextBlock textBlock) return textBlock.Text;
         if (visual is TextBox textBox) return textBox.Text;
-        if (visual is ContentControl contentControl)
+        
+        if (visual is HeaderedContentControl headeredControl)
+        {
+            if (headeredControl.Content is string str) return str;
+            if (headeredControl.Header is string hdrStr) return hdrStr;
+        }
+        else if (visual is ContentControl contentControl)
         {
             if (contentControl.Content is string str) return str;
-        }
-        else if (visual is HeaderedContentControl headeredControl)
-        {
-            if (headeredControl.Header is string str) return str;
         }
         else if (visual is HeaderedItemsControl headeredItemsControl)
         {

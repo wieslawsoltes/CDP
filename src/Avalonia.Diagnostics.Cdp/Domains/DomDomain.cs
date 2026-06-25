@@ -588,13 +588,15 @@ public static class DomDomain
     {
         if (control is TextBlock textBlock) return textBlock.Text;
         if (control is TextBox textBox) return textBox.Text;
-        if (control is ContentControl contentControl)
+        
+        if (control is HeaderedContentControl headeredControl)
+        {
+            if (headeredControl.Content is string str) return str;
+            if (headeredControl.Header is string hdrStr) return hdrStr;
+        }
+        else if (control is ContentControl contentControl)
         {
             if (contentControl.Content is string str) return str;
-        }
-        else if (control is HeaderedContentControl headeredControl)
-        {
-            if (headeredControl.Header is string str) return str;
         }
         else if (control is HeaderedItemsControl headeredItemsControl)
         {
