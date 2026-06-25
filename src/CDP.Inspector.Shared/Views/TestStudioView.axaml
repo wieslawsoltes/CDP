@@ -17,7 +17,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <!-- Column 0: Collapsible Workspace Sidebar Panel -->
-        <Grid Grid.Column="0" RowDefinitions="*, 4, 300" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}">
+        <Grid Grid.Column="0" RowDefinitions="*, 4, *" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}">
             <!-- Project Explorer -->
             <Grid Grid.Row="0" RowDefinitions="Auto, *, Auto">
                 <!-- Path picker TextBox/Browse button -->
