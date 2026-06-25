@@ -125,6 +125,8 @@ public static class CdpServer
         {
             Avalonia.Logging.Logger.Sink = composite.OriginalSink;
         }
+
+        _targets.Clear();
     }
 
     public static string Register(TopLevel window, string title)
