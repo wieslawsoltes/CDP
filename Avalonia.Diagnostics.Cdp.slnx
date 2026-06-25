@@ -5,6 +5,7 @@
     <Project Path="samples/CdpInspectorApp.Browser/CdpInspectorApp.Browser.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
     <Project Path="src/Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj" />
     <Project Path="src/CDP.Inspector.Shared/CDP.Inspector.Shared.csproj" />
     <Project Path="src/CDP.DiagnosticTools/CDP.DiagnosticTools.csproj" />

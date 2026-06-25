@@ -709,7 +709,7 @@ public class TestStudioViewModel : ViewModelBase
         _isUpdatingYaml = true;
         try
         {
-            YamlCode = TestStudioYamlParser.Generate(Steps.ToList(), _appId, _description, FlowTags, FlowEnv);
+            YamlCode = TestStudioYamlParser.Generate(Steps.Select(s => s.ToCoreStep()).ToList(), _appId, _description, FlowTags, FlowEnv);
             // Re-parse the generated YAML to resolve line coordinates for recorded steps
             var parsed = TestStudioYamlParser.Parse(YamlCode, out _, out _);
             for (int i = 0; i < Math.Min(Steps.Count, parsed.Count); i++)
@@ -730,7 +730,8 @@ public class TestStudioViewModel : ViewModelBase
 
         try
         {
-            var parsed = TestStudioYamlParser.Parse(YamlCode, out var appId, out var desc, out var tags, out var env);
+            var parsedSteps = TestStudioYamlParser.Parse(YamlCode, out var appId, out var desc, out var tags, out var env);
+            var parsed = parsedSteps.Select(TestStudioStepModel.FromCoreStep).ToList();
             _appId = appId;
             _description = desc;
             FlowTags = tags;
@@ -2225,7 +2226,7 @@ public class TestStudioViewModel : ViewModelBase
                     try
                     {
                         string subYaml = await System.IO.File.ReadAllTextAsync(resolvedPath);
-                        var subSteps = TestStudioYamlParser.Parse(subYaml, out _, out _);
+                        var subSteps = TestStudioYamlParser.Parse(subYaml, out _, out _).Select(TestStudioStepModel.FromCoreStep).ToList();
                         Log($"Executing {subSteps.Count} steps recursively from nested flow: {resolvedPath}");
                         foreach (var subStep in subSteps)
                         {

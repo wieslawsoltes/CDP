@@ -263,4 +263,48 @@ public class RecordedStepModel : ViewModelBase
         if ((modifiers & 8) != 0) list.Add("Meta");
         return string.Join("+", list);
     }
+
+    public static RecordedStepModel FromCoreStep(RecordedStep step)
+    {
+        return new RecordedStepModel
+        {
+            Type = step.Type,
+            Selector = step.Selector,
+            Value = step.Value,
+            OffsetX = step.OffsetX,
+            OffsetY = step.OffsetY,
+            Width = step.Width,
+            Height = step.Height,
+            Url = step.Url,
+            Key = step.Key,
+            Button = step.Button,
+            ClickCount = step.ClickCount,
+            Modifiers = step.Modifiers,
+            TargetSelector = step.TargetSelector,
+            TargetOffsetX = step.TargetOffsetX,
+            TargetOffsetY = step.TargetOffsetY
+        };
+    }
+
+    public RecordedStep ToCoreStep()
+    {
+        return new RecordedStep
+        {
+            Type = Type,
+            Selector = Selector,
+            Value = Value,
+            OffsetX = OffsetX,
+            OffsetY = OffsetY,
+            Width = Width,
+            Height = Height,
+            Url = Url,
+            Key = Key,
+            Button = Button,
+            ClickCount = ClickCount,
+            Modifiers = Modifiers,
+            TargetSelector = TargetSelector,
+            TargetOffsetX = TargetOffsetX,
+            TargetOffsetY = TargetOffsetY
+        };
+    }
 }

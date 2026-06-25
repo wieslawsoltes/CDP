@@ -28,6 +28,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Using Include="Chrome.DevTools.Protocol" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 

@@ -103,12 +103,12 @@ public class SelectorTests
         Assert.Same(button, SelectorEngine.QuerySelector(panel, "[AccessibilityId=\"myBtnId\"]"));
 
         // 3. Verify Appium C# translation
-        var appiumGen = new CdpInspectorApp.Services.AppiumCSharpGenerator();
+        var appiumGen = new AppiumCSharpGenerator();
         var steps = new System.Collections.Generic.List<CdpInspectorApp.Models.RecordedStepModel>
         {
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "[AccessibilityId=\"myBtnId\"]" }
         };
-        string generated = appiumGen.Generate(steps, "localhost:9222");
+        string generated = appiumGen.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
         Assert.Contains("_driver.FindElementByAccessibilityId(\"myBtnId\")", generated);
 
         // 4. Verify Client-Side Generators

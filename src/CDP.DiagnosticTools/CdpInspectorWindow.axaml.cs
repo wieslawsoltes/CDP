@@ -2,6 +2,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.Diagnostics.Cdp;
+using CdpServer = Avalonia.Diagnostics.Cdp.CdpServer;
 using CdpInspectorApp.ViewModels;
 using CdpInspectorApp.Models;
 

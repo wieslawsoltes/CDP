@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp;
+using CdpServer = Avalonia.Diagnostics.Cdp.CdpServer;
 using CdpInspectorApp.ViewModels;
 using CdpInspectorApp.Models;
 

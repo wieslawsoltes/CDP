@@ -167,33 +167,8 @@ public static class BrowserDomain
                      }
                      return new JsonObject();
                  }
-             case "getBrowserCommandLine":
-                {
-                    var args = new JsonArray();
-                    foreach (var arg in Environment.GetCommandLineArgs())
-                    {
-                        args.Add(arg);
-                    }
-                    return new JsonObject { ["arguments"] = args };
-                }
-
-            case "crash":
-                {
-                    Environment.Exit(1);
-                    return new JsonObject();
-                }
-
-            case "grantPermissions":
-            case "resetPermissions":
-            case "setPermission":
-            case "setDownloadBehavior":
-            case "cancelDownload":
-                {
-                    return new JsonObject();
-                }
-
             default:
-                throw new Exception($"Method Browser.{action} is not implemented");
+                return await Chrome.DevTools.Protocol.Domains.BrowserDomain.HandleAsync(session, action, @params);
         }
     }
 }

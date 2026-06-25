@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Protocol</PackageId>
+    <Title>Chrome.DevTools.Protocol</Title>
+    <Description>Chrome DevTools Protocol (CDP) core server and session logic.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>cdp;chrome-devtools-protocol;diagnostics;server;core</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Chrome.DevTools.Protocol" />
+  </ItemGroup>
+
+</Project>
