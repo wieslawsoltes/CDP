@@ -71,23 +71,20 @@ public static class MemoryDomain
                         var list = new JsonArray();
                         var detachedControls = ControlTracker.GetDetachedControls().ToList();
                         
-                        // Reflection Diagnostics
+                        // Diagnostics
                         try
                         {
                             foreach (var session in CdpServer.Sessions)
                             {
-                                var propHandlersField = typeof(CdpSession).GetField("_propertyHandlers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                                var colHandlersField = typeof(CdpSession).GetField("_collectionHandlers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                                var classesHandlersField = typeof(CdpSession).GetField("_classesHandlers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                                var propHandlers = propHandlersField?.GetValue(session) as System.Collections.IDictionary;
-                                var colHandlers = colHandlersField?.GetValue(session) as System.Collections.IDictionary;
-                                var classesHandlers = classesHandlersField?.GetValue(session) as System.Collections.IDictionary;
-
-                                Console.WriteLine($"[CDP DIAGNOSTIC] Session NodeMap size: {(session.NodeMap.GetVisual(0) == null ? "N/A" : "OK")}, PropHandlers: {propHandlers?.Count ?? 0}, ColHandlers: {colHandlers?.Count ?? 0}, ClassesHandlers: {classesHandlers?.Count ?? 0}");
-
-                                if (propHandlers != null)
+                                var targetSession = session.CurrentTargetSession;
+                                if (targetSession != null)
                                 {
+                                    var propHandlers = targetSession._propertyHandlers;
+                                    var colHandlers = targetSession._collectionHandlers;
+                                    var classesHandlers = targetSession._classesHandlers;
+
+                                    Console.WriteLine($"[CDP DIAGNOSTIC] Session NodeMap size: {(session.NodeMap.GetVisual(0) == null ? "N/A" : "OK")}, PropHandlers: {propHandlers.Count}, ColHandlers: {colHandlers.Count}, ClassesHandlers: {classesHandlers.Count}");
+
                                     foreach (var key in propHandlers.Keys)
                                     {
                                         if (key is Avalonia.Controls.Control ctrl && ctrl.Name == "leakButton")
@@ -95,9 +92,6 @@ public static class MemoryDomain
                                             Console.WriteLine("[CDP LEAK] leakButton is still in _propertyHandlers!");
                                         }
                                     }
-                                }
-                                if (colHandlers != null)
-                                {
                                     foreach (var key in colHandlers.Keys)
                                     {
                                         if (key is Avalonia.Controls.Control ctrl && ctrl.Name == "leakButton")
@@ -105,9 +99,6 @@ public static class MemoryDomain
                                             Console.WriteLine("[CDP LEAK] leakButton is still in _collectionHandlers!");
                                         }
                                     }
-                                }
-                                if (classesHandlers != null)
-                                {
                                     foreach (var key in classesHandlers.Keys)
                                     {
                                         if (key is Avalonia.Controls.Control ctrl && ctrl.Name == "leakButton")

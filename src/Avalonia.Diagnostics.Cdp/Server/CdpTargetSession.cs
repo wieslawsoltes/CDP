@@ -433,9 +433,9 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
 
     // DOM Observation Fields
     public override bool IsDomEnabled { get; set; }
-    private readonly ConcurrentDictionary<object, (INotifyCollectionChanged Observable, NotifyCollectionChangedEventHandler Handler)> _collectionHandlers = new();
-    private readonly ConcurrentDictionary<Visual, EventHandler<AvaloniaPropertyChangedEventArgs>> _propertyHandlers = new();
-    private readonly ConcurrentDictionary<Control, NotifyCollectionChangedEventHandler> _classesHandlers = new();
+    internal readonly ConcurrentDictionary<object, (INotifyCollectionChanged Observable, NotifyCollectionChangedEventHandler Handler)> _collectionHandlers = new();
+    internal readonly ConcurrentDictionary<Visual, EventHandler<AvaloniaPropertyChangedEventArgs>> _propertyHandlers = new();
+    internal readonly ConcurrentDictionary<Control, NotifyCollectionChangedEventHandler> _classesHandlers = new();
 
     public override void StartObservingVisualTree()
     {
