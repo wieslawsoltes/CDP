@@ -169,6 +169,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
         base.OnCleanup();
         Domains.CssDomain.CleanupSession(this);
         Domains.PerformanceDomain.CleanupSession(this);
+        Domains.RecorderDomain.RemoveSession(this);
     }
 }
 
