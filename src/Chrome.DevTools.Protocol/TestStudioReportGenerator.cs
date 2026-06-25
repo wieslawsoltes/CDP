@@ -440,7 +440,14 @@ public static class TestStudioReportGenerator
             scale: 1.25;
         }}
 
-        .controls-row {{
+        .time-display {{
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: monospace;
+            white-space: nowrap;
+        }}
+
+        .buttons-row {{
             display: flex;
             align-items: center;
             justify-content: space-between;
