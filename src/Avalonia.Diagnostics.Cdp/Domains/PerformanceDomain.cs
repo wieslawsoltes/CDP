@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -125,6 +127,8 @@ public static class PerformanceDomain
             Unhook();
         }
 
+        [DynamicDependency("Renderer", typeof(TopLevel))]
+        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection access to protected TopLevel.Renderer and SceneInvalidated event")]
         private void Hook()
         {
             if (_isHooked || _window == null) return;
@@ -132,19 +136,13 @@ public static class PerformanceDomain
             _window.LayoutUpdated += OnLayoutUpdated;
             try
             {
-                var rendererProp = _window.GetType().GetProperty("Renderer", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var rendererProp = typeof(TopLevel).GetProperty("Renderer", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 var renderer = rendererProp?.GetValue(_window);
                 if (renderer != null)
                 {
-                    var sceneInvalidatedEvent = renderer.GetType().GetEvent("SceneInvalidated", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    var sceneInvalidatedEvent = renderer.GetType().GetEvent("SceneInvalidated", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                     if (sceneInvalidatedEvent != null)
                     {
-                        Console.WriteLine($"[CDP] sceneInvalidatedEvent.EventHandlerType: {sceneInvalidatedEvent.EventHandlerType}");
-                        var invokeMethod = sceneInvalidatedEvent.EventHandlerType.GetMethod("Invoke");
-                        if (invokeMethod != null)
-                        {
-                            Console.WriteLine($"[CDP] Invoke parameters: {string.Join(", ", invokeMethod.GetParameters().Select(p => $"{p.ParameterType} {p.Name}"))}");
-                        }
                         var handler = Delegate.CreateDelegate(sceneInvalidatedEvent.EventHandlerType!, this, nameof(OnSceneInvalidated));
                         sceneInvalidatedEvent.AddEventHandler(renderer, handler);
                     }
@@ -157,6 +155,8 @@ public static class PerformanceDomain
             _isHooked = true;
         }
 
+        [DynamicDependency("Renderer", typeof(TopLevel))]
+        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection access to protected TopLevel.Renderer and SceneInvalidated event")]
         private void Unhook()
         {
             if (!_isHooked || _window == null) return;
@@ -164,11 +164,11 @@ public static class PerformanceDomain
             _window.LayoutUpdated -= OnLayoutUpdated;
             try
             {
-                var rendererProp = _window.GetType().GetProperty("Renderer", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var rendererProp = typeof(TopLevel).GetProperty("Renderer", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 var renderer = rendererProp?.GetValue(_window);
                 if (renderer != null)
                 {
-                    var sceneInvalidatedEvent = renderer.GetType().GetEvent("SceneInvalidated", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    var sceneInvalidatedEvent = renderer.GetType().GetEvent("SceneInvalidated", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                     if (sceneInvalidatedEvent != null)
                     {
                         var handler = Delegate.CreateDelegate(sceneInvalidatedEvent.EventHandlerType!, this, nameof(OnSceneInvalidated));
