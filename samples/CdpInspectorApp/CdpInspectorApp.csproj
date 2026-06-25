@@ -27,4 +27,12 @@
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>
+
+  <!-- Filter out third-party/native non-portable PDBs from the tool package to prevent NuGet publish failures -->
+  <Target Name="FilterToolPackPdbs" AfterTargets="PackTool">
+    <ItemGroup>
+      <_PdbsToRemove Include="@(TfmSpecificPackageFile)" Condition="'%(Extension)' == '.pdb' and '%(Filename)' != 'CdpInspectorApp' and '%(Filename)' != 'CDP.Inspector.Shared' and '%(Filename)' != 'Avalonia.Diagnostics.Cdp'" />
+      <TfmSpecificPackageFile Remove="@(_PdbsToRemove)" />
+    </ItemGroup>
+  </Target>
 </Project>
