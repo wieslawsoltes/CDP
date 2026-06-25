@@ -189,6 +189,7 @@ public static class TargetDomain
                     {
                         var url = @params["url"]?.GetValue<string>() ?? "";
                         var target = await CdpServer.TargetFactory(url, "Dynamic Window");
+                        CdpServer.Register(target);
                         return new JsonObject { ["targetId"] = target.Id };
                     }
                     throw new Exception("TargetFactory is not registered on CdpServer.");
