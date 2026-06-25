@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using CdpInspectorApp.Models;
 
-namespace CdpInspectorApp.Services;
+namespace Chrome.DevTools.Protocol;
 
 public class CdpEventEventArgs : EventArgs
 {

@@ -10,9 +10,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
-using CdpInspectorApp.Models;
 
-namespace CdpInspectorApp.Services;
+namespace Chrome.DevTools.Protocol;
 
 public class CdpService : ICdpService, INotifyPropertyChanged
 {

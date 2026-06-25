@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Diagnostics.Cdp;
+using CdpServer = Avalonia.Diagnostics.Cdp.CdpServer;
 
 namespace Avalonia;
 

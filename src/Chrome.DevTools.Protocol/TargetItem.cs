@@ -1,6 +1,6 @@
 using System;
 
-namespace CdpInspectorApp.Models;
+namespace Chrome.DevTools.Protocol;
 
 public class TargetItem
 {
