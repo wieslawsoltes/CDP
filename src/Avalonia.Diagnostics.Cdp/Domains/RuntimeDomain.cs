@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -223,6 +224,7 @@ public static class RuntimeDomain
         }
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script function/method evaluation")]
     private static object? EvaluateFunction(CdpSession session, object target, string functionDeclaration, JsonArray? arguments)
     {
         // 1. Parse parameters and bind to arguments
@@ -290,6 +292,7 @@ public static class RuntimeDomain
         return null;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script property evaluation")]
     private static object? EvaluateExpression(CdpSession session, object target, string expression, Dictionary<string, object?>? variableBindings = null)
     {
         if (string.IsNullOrWhiteSpace(expression)) return null;
@@ -723,10 +726,6 @@ public static class RuntimeDomain
             state = await state.ContinueWithAsync(code, options).ConfigureAwait(false);
             session.ScriptSession = state;
             var val = state.ReturnValue;
-            if (val is ReflectionDynamicObject wrapper)
-            {
-                return wrapper.Target;
-            }
             return val;
         }
         else
@@ -734,10 +733,6 @@ public static class RuntimeDomain
             var newState = await CSharpScript.RunAsync(code, options, globals, typeof(ReplGlobals)).ConfigureAwait(false);
             session.ScriptSession = newState;
             var val = newState.ReturnValue;
-            if (val is ReflectionDynamicObject wrapper)
-            {
-                return wrapper.Target;
-            }
             return val;
         }
     }
@@ -752,12 +747,12 @@ public class ReplGlobals
         _session = session;
     }
 
-    public dynamic? SelectedNode => _session.NodeMap.GetVisual(_session.InspectedNodeId);
-    public dynamic? Control => SelectedNode as Avalonia.Controls.Control;
-    public dynamic? DataContext => Control?.DataContext != null ? new ReflectionDynamicObject(Control.DataContext) : null;
+    public Avalonia.Visual? SelectedNode => _session.NodeMap.GetVisual(_session.InspectedNodeId);
+    public Avalonia.Controls.Control? Control => SelectedNode as Avalonia.Controls.Control;
+    public dynamic? DataContext => Control?.DataContext;
     public dynamic? ViewModel => DataContext;
-    public dynamic? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
-    public dynamic window => new CdpRuntimeWindow(_session);
+    public Avalonia.Controls.Window? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
+    public CdpRuntimeWindow window => new(_session);
     public CdpRuntimeDocument document => new(_session);
 
     public void Print(object? obj) => Console.WriteLine(obj);
@@ -775,7 +770,7 @@ public class ReplGlobals
     }
 }
 
-public sealed class CdpRuntimeWindow : DynamicObject
+public sealed class CdpRuntimeWindow
 {
     private readonly CdpSession _session;
 
@@ -786,150 +781,6 @@ public sealed class CdpRuntimeWindow : DynamicObject
 
     public CdpRuntimeDocument document => new(_session);
     public Avalonia.Controls.Window? visual => _session.Window as Avalonia.Controls.Window;
-
-    public override bool TryGetMember(GetMemberBinder binder, out object? result)
-    {
-        if (binder.Name.Equals(nameof(document), StringComparison.OrdinalIgnoreCase))
-        {
-            result = document;
-            return true;
-        }
-
-        if (binder.Name.Equals(nameof(visual), StringComparison.OrdinalIgnoreCase))
-        {
-            result = visual;
-            return true;
-        }
-
-        if (visual == null)
-        {
-            result = null;
-            return false;
-        }
-
-        var property = visual.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
-        if (property != null)
-        {
-            result = property.GetValue(visual);
-            return true;
-        }
-
-        var field = visual.GetType().GetField(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
-        if (field != null)
-        {
-            result = field.GetValue(visual);
-            return true;
-        }
-
-        result = null;
-        return false;
-    }
-
-    public override bool TrySetMember(SetMemberBinder binder, object? value)
-    {
-        if (visual == null)
-        {
-            return false;
-        }
-
-        var property = visual.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
-        if (property != null && property.CanWrite)
-        {
-            property.SetValue(visual, ConvertDynamicValue(value, property.PropertyType));
-            return true;
-        }
-
-        var field = visual.GetType().GetField(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
-        if (field != null)
-        {
-            field.SetValue(visual, ConvertDynamicValue(value, field.FieldType));
-            return true;
-        }
-
-        return false;
-    }
-
-    public override bool TryInvokeMember(InvokeMemberBinder binder, object?[]? args, out object? result)
-    {
-        if (visual == null)
-        {
-            result = null;
-            return false;
-        }
-
-        var argumentTypes = args?.Select(arg => arg?.GetType() ?? typeof(object)).ToArray() ?? Type.EmptyTypes;
-        var method = visual.GetType().GetMethod(binder.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase, null, argumentTypes, null);
-        if (method == null)
-        {
-            method = visual.GetType()
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase)
-                .FirstOrDefault(candidate => string.Equals(candidate.Name, binder.Name, StringComparison.OrdinalIgnoreCase) &&
-                                             candidate.GetParameters().Length == (args?.Length ?? 0));
-        }
-
-        if (method == null)
-        {
-            result = null;
-            return false;
-        }
-
-        var convertedArgs = ConvertDynamicArguments(args, method.GetParameters());
-        result = method.Invoke(visual, convertedArgs);
-        return true;
-    }
-
-    private static object?[]? ConvertDynamicArguments(object?[]? args, ParameterInfo[] parameters)
-    {
-        if (args == null)
-        {
-            return null;
-        }
-
-        var converted = new object?[args.Length];
-        for (int i = 0; i < args.Length; i++)
-        {
-            converted[i] = i < parameters.Length
-                ? ConvertDynamicValue(args[i], parameters[i].ParameterType)
-                : args[i];
-        }
-
-        return converted;
-    }
-
-    private static object? ConvertDynamicValue(object? value, Type targetType)
-    {
-        if (value == null)
-        {
-            return null;
-        }
-
-        var sourceType = value.GetType();
-        if (targetType.IsAssignableFrom(sourceType))
-        {
-            return value;
-        }
-
-        var conversionType = Nullable.GetUnderlyingType(targetType) ?? targetType;
-        if (conversionType.IsEnum)
-        {
-            return value is string enumText
-                ? Enum.Parse(conversionType, enumText, ignoreCase: true)
-                : Enum.ToObject(conversionType, value);
-        }
-
-        var converter = TypeDescriptor.GetConverter(conversionType);
-        if (converter.CanConvertFrom(sourceType))
-        {
-            return converter.ConvertFrom(null, CultureInfo.InvariantCulture, value);
-        }
-
-        if (value is IConvertible)
-        {
-            return Convert.ChangeType(value, conversionType, CultureInfo.InvariantCulture);
-        }
-
-        return value;
-    }
 }
 
 public sealed class CdpRuntimeDocument
@@ -1123,116 +974,3 @@ public static class AutocompleteEngine
     }
 }
 
-public class ReflectionDynamicObject : System.Dynamic.DynamicObject
-{
-    private readonly object _target;
-
-    public ReflectionDynamicObject(object target)
-    {
-        _target = target;
-    }
-
-    public object Target => _target;
-
-    public override bool TryGetMember(System.Dynamic.GetMemberBinder binder, out object? result)
-    {
-        Console.WriteLine($"[CDP EVAL DEBUG] TryGetMember: Name='{binder.Name}' on target of type '{_target.GetType().FullName}'");
-        var prop = _target.GetType().GetProperty(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
-        if (prop != null)
-        {
-            result = prop.GetValue(_target);
-            Console.WriteLine($"[CDP EVAL DEBUG] TryGetMember: Property value found: '{result}'");
-            result = WrapIfNeeded(result);
-            return true;
-        }
-
-        var field = _target.GetType().GetField(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
-        if (field != null)
-        {
-            result = field.GetValue(_target);
-            Console.WriteLine($"[CDP EVAL DEBUG] TryGetMember: Field value found: '{result}'");
-            result = WrapIfNeeded(result);
-            return true;
-        }
-
-        Console.WriteLine($"[CDP EVAL DEBUG] TryGetMember: Member '{binder.Name}' not found!");
-        result = null;
-        return false;
-    }
-
-    public override bool TrySetMember(System.Dynamic.SetMemberBinder binder, object? value)
-    {
-        var prop = _target.GetType().GetProperty(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
-        if (prop != null && prop.CanWrite)
-        {
-            prop.SetValue(_target, Unwrap(value));
-            return true;
-        }
-
-        var field = _target.GetType().GetField(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
-        if (field != null)
-        {
-            field.SetValue(_target, Unwrap(value));
-            return true;
-        }
-
-        return false;
-    }
-
-    public override bool TryInvokeMember(System.Dynamic.InvokeMemberBinder binder, object?[]? args, out object? result)
-    {
-        var unwrappedArgs = args?.Select(Unwrap).ToArray();
-        var argTypes = unwrappedArgs?.Select(a => a?.GetType() ?? typeof(object)).ToArray() ?? Type.EmptyTypes;
-        
-        var method = _target.GetType().GetMethod(binder.Name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase, null, argTypes, null);
-        if (method == null)
-        {
-            var methods = _target.GetType().GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase)
-                .Where(m => string.Equals(m.Name, binder.Name, StringComparison.OrdinalIgnoreCase) && m.GetParameters().Length == (args?.Length ?? 0))
-                .ToArray();
-            if (methods.Length > 0)
-            {
-                method = methods[0];
-            }
-        }
-
-        if (method != null)
-        {
-            result = method.Invoke(_target, unwrappedArgs);
-            result = WrapIfNeeded(result);
-            return true;
-        }
-
-        result = null;
-        return false;
-    }
-
-    private static object? WrapIfNeeded(object? obj)
-    {
-        if (obj == null) return null;
-        var type = obj.GetType();
-        if (type.IsPrimitive || type == typeof(string) || type == typeof(decimal) || type == typeof(DateTime) || type == typeof(TimeSpan) || type.IsEnum)
-        {
-            return obj;
-        }
-        if (obj is System.Dynamic.DynamicObject)
-        {
-            return obj;
-        }
-        return new ReflectionDynamicObject(obj);
-    }
-
-    private static object? Unwrap(object? obj)
-    {
-        if (obj is ReflectionDynamicObject wrapper)
-        {
-            return wrapper.Target;
-        }
-        return obj;
-    }
-
-    public override string? ToString()
-    {
-        return _target.ToString();
-    }
-}
