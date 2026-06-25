@@ -206,8 +206,7 @@ public static class CdpServer
                 Height = 300
             };
             w.Show();
-            var target = new AvaloniaCdpTarget(w, Guid.NewGuid().ToString(), w.Title);
-            _targets[w] = target;
+            var target = GetOrCreateTarget(w);
             return (ICdpTarget)target;
         });
     }
