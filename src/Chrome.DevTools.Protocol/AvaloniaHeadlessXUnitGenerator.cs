@@ -187,30 +187,107 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
         return string.Join(" | ", list);
     }
 
+    private static readonly Dictionary<string, string> _knownKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Enter"] = "Key.Enter",
+        ["Return"] = "Key.Enter",
+        ["Tab"] = "Key.Tab",
+        ["Escape"] = "Key.Escape",
+        ["Backspace"] = "Key.Back",
+        ["Back"] = "Key.Back",
+        ["Delete"] = "Key.Delete",
+        ["Insert"] = "Key.Insert",
+        ["ArrowUp"] = "Key.Up",
+        ["Up"] = "Key.Up",
+        ["ArrowDown"] = "Key.Down",
+        ["Down"] = "Key.Down",
+        ["ArrowLeft"] = "Key.Left",
+        ["Left"] = "Key.Left",
+        ["ArrowRight"] = "Key.Right",
+        ["Right"] = "Key.Right",
+        ["PageUp"] = "Key.PageUp",
+        ["PageDown"] = "Key.PageDown",
+        ["Home"] = "Key.Home",
+        ["End"] = "Key.End",
+        ["Space"] = "Key.Space",
+        ["CapsLock"] = "Key.CapsLock",
+        ["NumLock"] = "Key.NumLock",
+        ["Scroll"] = "Key.Scroll",
+        ["PrintScreen"] = "Key.PrintScreen",
+        ["Pause"] = "Key.Pause",
+        ["LWin"] = "Key.LWin",
+        ["RWin"] = "Key.RWin",
+        ["Apps"] = "Key.Apps",
+        ["Sleep"] = "Key.Sleep",
+        ["NumPad0"] = "Key.NumPad0",
+        ["NumPad1"] = "Key.NumPad1",
+        ["NumPad2"] = "Key.NumPad2",
+        ["NumPad3"] = "Key.NumPad3",
+        ["NumPad4"] = "Key.NumPad4",
+        ["NumPad5"] = "Key.NumPad5",
+        ["NumPad6"] = "Key.NumPad6",
+        ["NumPad7"] = "Key.NumPad7",
+        ["NumPad8"] = "Key.NumPad8",
+        ["NumPad9"] = "Key.NumPad9",
+        ["Multiply"] = "Key.Multiply",
+        ["Add"] = "Key.Add",
+        ["Separator"] = "Key.Separator",
+        ["Subtract"] = "Key.Subtract",
+        ["Decimal"] = "Key.Decimal",
+        ["Divide"] = "Key.Divide",
+        ["LeftShift"] = "Key.LeftShift",
+        ["RightShift"] = "Key.RightShift",
+        ["LeftCtrl"] = "Key.LeftCtrl",
+        ["RightCtrl"] = "Key.RightCtrl",
+        ["LeftAlt"] = "Key.LeftAlt",
+        ["RightAlt"] = "Key.RightAlt",
+        // F keys
+        ["F1"] = "Key.F1", ["F2"] = "Key.F2", ["F3"] = "Key.F3", ["F4"] = "Key.F4",
+        ["F5"] = "Key.F5", ["F6"] = "Key.F6", ["F7"] = "Key.F7", ["F8"] = "Key.F8",
+        ["F9"] = "Key.F9", ["F10"] = "Key.F10", ["F11"] = "Key.F11", ["F12"] = "Key.F12",
+        ["F13"] = "Key.F13", ["F14"] = "Key.F14", ["F15"] = "Key.F15", ["F16"] = "Key.F16",
+        ["F17"] = "Key.F17", ["F18"] = "Key.F18", ["F19"] = "Key.F19", ["F20"] = "Key.F20",
+        ["F21"] = "Key.F21", ["F22"] = "Key.F22", ["F23"] = "Key.F23", ["F24"] = "Key.F24",
+    };
+
     private static string GetKeyEnum(string key)
     {
-        switch (key)
+        if (string.IsNullOrEmpty(key)) return "Key.None";
+
+        if (_knownKeys.TryGetValue(key, out var known))
         {
-            case "Enter": return "Key.Enter";
-            case "Tab": return "Key.Tab";
-            case "Escape": return "Key.Escape";
-            case "Backspace": return "Key.Back";
-            case "Delete": return "Key.Delete";
-            case "ArrowUp": return "Key.Up";
-            case "ArrowDown": return "Key.Down";
-            case "ArrowLeft": return "Key.Left";
-            case "ArrowRight": return "Key.Right";
-            case "PageUp": return "Key.PageUp";
-            case "PageDown": return "Key.PageDown";
-            case "Home": return "Key.Home";
-            case "End": return "Key.End";
-            default:
-                if (!string.IsNullOrEmpty(key) && key.All(char.IsLetterOrDigit))
-                {
-                    return $"Key.{key}";
-                }
-                return "Key.None";
+            return known;
         }
+
+        string cleaned = key;
+        if (key.StartsWith("Key", StringComparison.OrdinalIgnoreCase) && key.Length > 3)
+        {
+            cleaned = key.Substring(3);
+        }
+        else if (key.StartsWith("Digit", StringComparison.OrdinalIgnoreCase) && key.Length > 5)
+        {
+            cleaned = "D" + key.Substring(5);
+        }
+
+        if (cleaned.Length == 1)
+        {
+            char c = cleaned[0];
+            if (char.IsLetter(c))
+            {
+                return $"Key.{char.ToUpper(c)}";
+            }
+            if (char.IsDigit(c))
+            {
+                return $"Key.D{c}";
+            }
+        }
+        else if (cleaned.Length > 1 && cleaned.All(char.IsLetterOrDigit))
+        {
+            string pascal = char.ToUpper(cleaned[0]) + cleaned.Substring(1);
+            return $"Key.{pascal}";
+        }
+
+        return "Key.None";
     }
 
     private static string EscapeCSharpString(string? value)

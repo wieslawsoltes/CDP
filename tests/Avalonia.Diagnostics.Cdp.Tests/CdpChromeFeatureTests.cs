@@ -690,6 +690,10 @@ public class CdpChromeFeatureTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick", Button = "right", ClickCount = 3, Modifiers = 10 }, // Control=2, Shift=8
             new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Enter", Modifiers = 2 }, // Control=2
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "a" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Digit1" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "KeyB" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "escape" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "dragAndDrop", Selector = "#src", TargetSelector = "#dst" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" }
@@ -711,11 +715,15 @@ public class CdpChromeFeatureTests
         Assert.Contains("window.KeyTextInput(\"hello \\\"world\\\" \\\\ test\");", generated);
         Assert.Contains("window.KeyPress(Key.Enter, RawInputModifiers.Control);", generated);
         Assert.Contains("window.KeyRelease(Key.Enter, RawInputModifiers.Control);", generated);
-        Assert.Contains("var source_5 = SelectorEngine.QuerySelector(window, \"#src\") as Control;", generated);
-        Assert.Contains("var target_5 = SelectorEngine.QuerySelector(window, \"#dst\") as Control;", generated);
-        Assert.Contains("DragAndDrop(window, source_5, target_5);", generated);
-        Assert.Contains("Assert.True(element_6.IsVisible);", generated);
-        Assert.Contains("Assert.True(element_7 == null || !element_7.IsVisible);", generated);
+        Assert.Contains("window.KeyPress(Key.A, RawInputModifiers.None);", generated);
+        Assert.Contains("window.KeyPress(Key.D1, RawInputModifiers.None);", generated);
+        Assert.Contains("window.KeyPress(Key.B, RawInputModifiers.None);", generated);
+        Assert.Contains("window.KeyPress(Key.Escape, RawInputModifiers.None);", generated);
+        Assert.Contains("var source_9 = SelectorEngine.QuerySelector(window, \"#src\") as Control;", generated);
+        Assert.Contains("var target_9 = SelectorEngine.QuerySelector(window, \"#dst\") as Control;", generated);
+        Assert.Contains("DragAndDrop(window, source_9, target_9);", generated);
+        Assert.Contains("Assert.True(element_10.IsVisible);", generated);
+        Assert.Contains("Assert.True(element_11 == null || !element_11.IsVisible);", generated);
     }
 
     [AvaloniaFact]
