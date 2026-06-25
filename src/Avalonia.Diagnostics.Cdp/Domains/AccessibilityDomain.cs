@@ -8,6 +8,7 @@ using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
@@ -999,19 +1000,17 @@ public static class AccessibilityDomain
     {
         if (visual is TextBlock textBlock) return textBlock.Text;
         if (visual is TextBox textBox) return textBox.Text;
-        
-        var contentProp = visual.GetType().GetProperty("Content");
-        if (contentProp != null)
+        if (visual is ContentControl contentControl)
         {
-            var contentVal = contentProp.GetValue(visual);
-            if (contentVal is string str) return str;
+            if (contentControl.Content is string str) return str;
         }
-
-        var headerProp = visual.GetType().GetProperty("Header");
-        if (headerProp != null)
+        else if (visual is HeaderedContentControl headeredControl)
         {
-            var headerVal = headerProp.GetValue(visual);
-            if (headerVal is string str) return str;
+            if (headeredControl.Header is string str) return str;
+        }
+        else if (visual is HeaderedItemsControl headeredItemsControl)
+        {
+            if (headeredItemsControl.Header is string str) return str;
         }
 
         return null;

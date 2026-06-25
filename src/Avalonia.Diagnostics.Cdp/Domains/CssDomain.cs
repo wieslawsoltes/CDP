@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
@@ -8,6 +9,7 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -140,48 +142,39 @@ public static class CssDomain
                         var visual = session.NodeMap.GetVisual(nodeId);
                         if (visual is Control control)
                         {
-                            var pseudoProp = control.GetType().GetProperty("PseudoClasses", 
+                            var pseudoProp = typeof(Control).GetProperty("PseudoClasses", 
                                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                            if (pseudoProp != null)
+                            if (pseudoProp != null && pseudoProp.GetValue(control) is IPseudoClasses pseudoClasses)
                             {
-                                var pseudoClasses = pseudoProp.GetValue(control);
-                                if (pseudoClasses != null)
-                                {
-                                    var removeMethod = pseudoClasses.GetType().GetMethod("Remove", new[] { typeof(string) });
-                                    var addMethod = pseudoClasses.GetType().GetMethod("Add", new[] { typeof(string) });
-                                    if (removeMethod != null && addMethod != null)
-                                    {
-                                        removeMethod.Invoke(pseudoClasses, new object[] { "hover" });
-                                        removeMethod.Invoke(pseudoClasses, new object[] { "pointerover" });
-                                        removeMethod.Invoke(pseudoClasses, new object[] { "active" });
-                                        removeMethod.Invoke(pseudoClasses, new object[] { "pressed" });
-                                        removeMethod.Invoke(pseudoClasses, new object[] { "focus" });
-                                        removeMethod.Invoke(pseudoClasses, new object[] { "focus-within" });
-                                        removeMethod.Invoke(pseudoClasses, new object[] { "focus-visible" });
-                                        removeMethod.Invoke(pseudoClasses, new object[] { "disabled" });
+                                pseudoClasses.Remove("hover");
+                                pseudoClasses.Remove("pointerover");
+                                pseudoClasses.Remove("active");
+                                pseudoClasses.Remove("pressed");
+                                pseudoClasses.Remove("focus");
+                                pseudoClasses.Remove("focus-within");
+                                pseudoClasses.Remove("focus-visible");
+                                pseudoClasses.Remove("disabled");
 
-                                        if (classes != null)
+                                if (classes != null)
+                                {
+                                    foreach (var clsNode in classes)
+                                    {
+                                        string cls = clsNode?.GetValue<string>() ?? "";
+                                        if (string.Equals(cls, "hover", StringComparison.OrdinalIgnoreCase))
                                         {
-                                            foreach (var clsNode in classes)
-                                            {
-                                                string cls = clsNode?.GetValue<string>() ?? "";
-                                                if (string.Equals(cls, "hover", StringComparison.OrdinalIgnoreCase))
-                                                {
-                                                    addMethod.Invoke(pseudoClasses, new object[] { "hover" });
-                                                    addMethod.Invoke(pseudoClasses, new object[] { "pointerover" });
-                                                }
-                                                else if (string.Equals(cls, "active", StringComparison.OrdinalIgnoreCase))
-                                                {
-                                                    addMethod.Invoke(pseudoClasses, new object[] { "active" });
-                                                    addMethod.Invoke(pseudoClasses, new object[] { "pressed" });
-                                                }
-                                                else if (!string.IsNullOrEmpty(cls))
-                                                {
-                                                    // Strip colon if passed
-                                                    if (cls.StartsWith(":")) cls = cls.Substring(1);
-                                                    addMethod.Invoke(pseudoClasses, new object[] { cls });
-                                                }
-                                            }
+                                            pseudoClasses.Add("hover");
+                                            pseudoClasses.Add("pointerover");
+                                        }
+                                        else if (string.Equals(cls, "active", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            pseudoClasses.Add("active");
+                                            pseudoClasses.Add("pressed");
+                                        }
+                                        else if (!string.IsNullOrEmpty(cls))
+                                        {
+                                            // Strip colon if passed
+                                            if (cls.StartsWith(":")) cls = cls.Substring(1);
+                                            pseudoClasses.Add(cls);
                                         }
                                     }
                                 }
@@ -205,8 +198,7 @@ public static class CssDomain
                         string family = "Default";
                         if (visual is Control control)
                         {
-                            var ffProp = control.GetType().GetProperty("FontFamily");
-                            if (ffProp != null && ffProp.GetValue(control) is FontFamily ff)
+                            if (GetControlProperty(control, "FontFamily") is FontFamily ff)
                             {
                                 family = ff.Name;
                             }
@@ -240,8 +232,7 @@ public static class CssDomain
 
                         if (visual is Control control)
                         {
-                            var bgProp = control.GetType().GetProperty("Background");
-                            if (bgProp != null && bgProp.GetValue(control) is IBrush brush)
+                            if (GetControlProperty(control, "Background") is IBrush brush)
                             {
                                 colors.Add(brush.ToString() ?? "");
                             }
@@ -250,15 +241,22 @@ public static class CssDomain
                                 colors.Add("#00000000");
                             }
 
-                            var fsProp = control.GetType().GetProperty("FontSize");
-                            if (fsProp != null)
+                            if (GetControlProperty(control, "FontSize") is double fs)
                             {
-                                fontSize = $"{fsProp.GetValue(control)}px";
+                                fontSize = $"{fs}px";
                             }
-                            var fwProp = control.GetType().GetProperty("FontWeight");
-                            if (fwProp != null)
+                            else if (GetControlProperty(control, "FontSize") is object fsObj)
                             {
-                                fontWeight = fwProp.GetValue(control)?.ToString() ?? "normal";
+                                fontSize = $"{fsObj}px";
+                            }
+
+                            if (GetControlProperty(control, "FontWeight") is FontWeight fw)
+                            {
+                                fontWeight = fw.ToString();
+                            }
+                            else if (GetControlProperty(control, "FontWeight") is object fwObj)
+                            {
+                                fontWeight = fwObj.ToString() ?? "normal";
                             }
                         }
                         else
@@ -289,7 +287,7 @@ public static class CssDomain
                                 {
                                     list.Add(cls);
                                 }
-                                var pseudoProp = control.GetType().GetProperty("PseudoClasses", 
+                                var pseudoProp = typeof(Control).GetProperty("PseudoClasses", 
                                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                                 if (pseudoProp != null && pseudoProp.GetValue(control) is System.Collections.IEnumerable pseudoClasses)
                                 {
@@ -520,8 +518,7 @@ public static class CssDomain
                             var visual = session.NodeMap.GetVisual(nodeId);
                             if (visual is Control control)
                             {
-                                var fsProp = control.GetType().GetProperty("FontSize");
-                                if (fsProp != null && fsProp.GetValue(control) is double fsDouble)
+                                if (GetControlProperty(control, "FontSize") is double fsDouble)
                                 {
                                     return fsDouble;
                                 }
@@ -642,29 +639,25 @@ public static class CssDomain
             array.Add(CreateCssProperty("margin", control.Margin.ToString()));
 
             // Try reading background
-            var bgProp = control.GetType().GetProperty("Background");
-            if (bgProp != null && bgProp.GetValue(control) is IBrush brush)
+            if (GetControlProperty(control, "Background") is IBrush brush)
             {
                 array.Add(CreateCssProperty("background-color", brush.ToString() ?? ""));
             }
 
             // Try reading padding
-            var padProp = control.GetType().GetProperty("Padding");
-            if (padProp != null)
+            if (GetControlProperty(control, "Padding") is object paddingVal)
             {
-                array.Add(CreateCssProperty("padding", padProp.GetValue(control)?.ToString() ?? ""));
+                array.Add(CreateCssProperty("padding", paddingVal.ToString() ?? ""));
             }
 
             // Try reading font size/family
-            var fsProp = control.GetType().GetProperty("FontSize");
-            if (fsProp != null)
+            if (GetControlProperty(control, "FontSize") is object fontSizeVal)
             {
-                array.Add(CreateCssProperty("font-size", fsProp.GetValue(control)?.ToString() ?? ""));
+                array.Add(CreateCssProperty("font-size", fontSizeVal.ToString() ?? ""));
             }
-            var ffProp = control.GetType().GetProperty("FontFamily");
-            if (ffProp != null)
+            if (GetControlProperty(control, "FontFamily") is object fontFamilyVal)
             {
-                array.Add(CreateCssProperty("font-family", ffProp.GetValue(control)?.ToString() ?? ""));
+                array.Add(CreateCssProperty("font-family", fontFamilyVal.ToString() ?? ""));
             }
         }
         else
@@ -695,16 +688,14 @@ public static class CssDomain
             cssProperties.Add(CreateInlineProperty("opacity", control.Opacity.ToString(CultureInfo.InvariantCulture)));
             cssProperties.Add(CreateInlineProperty("margin", control.Margin.ToString()));
 
-            var bgProp = control.GetType().GetProperty("Background");
-            if (bgProp != null && bgProp.GetValue(control) is IBrush brush)
+            if (GetControlProperty(control, "Background") is IBrush brush)
             {
                 cssProperties.Add(CreateInlineProperty("background", brush.ToString() ?? ""));
             }
 
-            var padProp = control.GetType().GetProperty("Padding");
-            if (padProp != null)
+            if (GetControlProperty(control, "Padding") is object paddingVal)
             {
-                cssProperties.Add(CreateInlineProperty("padding", padProp.GetValue(control)?.ToString() ?? ""));
+                cssProperties.Add(CreateInlineProperty("padding", paddingVal.ToString() ?? ""));
             }
         }
 
@@ -775,6 +766,7 @@ public static class CssDomain
         }
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Dynamic reflection setting standard CLR properties of controls")]
     public static bool SetControlProperty(Control control, string name, string valueStr)
     {
         // 1. Try registered Avalonia Dependency Properties
@@ -951,13 +943,12 @@ public static class CssDomain
         var cssProperties = new JsonArray();
         var sbText = new System.Text.StringBuilder();
 
-        var transProp = control.GetType().GetProperty("Transitions");
-        if (transProp != null && transProp.GetValue(control) is System.Collections.IEnumerable transitions)
+        if (control is Animatable animatable && animatable.Transitions != null)
         {
             var propNames = new System.Collections.Generic.List<string>();
             var durStrings = new System.Collections.Generic.List<string>();
 
-            foreach (var t in transitions)
+            foreach (var t in animatable.Transitions)
             {
                 if (t == null) continue;
                 var propOfTrans = t.GetType().GetProperty("Property");
@@ -996,5 +987,16 @@ public static class CssDomain
             ["shorthandEntries"] = new JsonArray(),
             ["cssText"] = sbText.ToString()
         };
+    }
+
+    public static object? GetControlProperty(Control control, string name)
+    {
+        var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(control)
+            .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (avProperty != null)
+        {
+            return control.GetValue(avProperty);
+        }
+        return null;
     }
 }
