@@ -17,65 +17,63 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <!-- Column 0: Collapsible Workspace Sidebar Panel -->
-        <TabControl Grid.Column="0" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}" Padding="0">
-            <!-- Tab 1: Project Explorer -->
-            <TabItem Header="Project" FontSize="11">
-                <Grid RowDefinitions="Auto, *, Auto" Margin="0,10,0,0">
-                    <!-- Path picker TextBox/Browse button -->
-                    <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
-                        <TextBox Name="txtWorkspacePath" Grid.Column="0" Text="{Binding Recorder.TestStudio.WorkspaceRootPath, Mode=TwoWay}" PlaceholderText="Workspace root path..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
-                        <Button Name="btnBrowseWorkspace" Grid.Column="1" Content="..." Command="{Binding Recorder.TestStudio.BrowseWorkspaceRootCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                    </Grid>
-
-                    <!-- Workspace files listing (Hierarchical DataGrid) -->
-                    <DataGrid Name="treeWorkspace" Grid.Row="1"
-                              HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalWorkspace}"
-                              SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceNode, Mode=TwoWay}"
-                              CanUserReorderRows="False"
-                              CanUserResizeColumns="True"
-                              HierarchicalRowsEnabled="True"
-                              GridLinesVisibility="Horizontal"
-                              HeadersVisibility="None"
-                              Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                        <DataGrid.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
-                                <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
-                                <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
-                                <MenuItem Header="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}"/>
-                            </ContextMenu>
-                        </DataGrid.ContextMenu>
-                        <DataGrid.Columns>
-                            <DataGridHierarchicalColumn Width="*">
-                                <DataGridHierarchicalColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
-                                            <PathIcon Data="{StaticResource FolderIcon}" Width="14" Height="14" Foreground="#ffca28" IsVisible="{Binding Item.IsFolder}" VerticalAlignment="Center"/>
-                                            <PathIcon Data="{StaticResource FileIcon}" Width="14" Height="14" Foreground="#8ab4f8" IsVisible="{Binding !Item.IsFolder}" VerticalAlignment="Center"/>
-                                            <TextBlock Text="{Binding Item.Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridHierarchicalColumn.CellTemplate>
-                            </DataGridHierarchicalColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-
-                    <!-- Create file/folder/rename/delete buttons and "Run Folder Suite" button -->
-                    <StackPanel Grid.Row="2" Margin="0,10,0,0" Spacing="6">
-                        <WrapPanel HorizontalAlignment="Center">
-                            <Button Name="btnCreateFile" Content="New File" Command="{Binding Recorder.TestStudio.CreateFileCommand}" FontSize="10" Margin="0,0,4,4"/>
-                            <Button Name="btnCreateFolder" Content="New Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}" FontSize="10" Margin="0,0,4,4"/>
-                            <Button Name="btnRename" Content="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}" FontSize="10" Margin="0,0,4,4"/>
-                            <Button Name="btnDelete" Content="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}" FontSize="10" Margin="0,0,4,4"/>
-                        </WrapPanel>
-                        <Button Name="btnRunSuite" Content="Run Folder Suite" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent"/>
-                    </StackPanel>
+        <Grid Grid.Column="0" RowDefinitions="*, Auto" Margin="0,0,10,0" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}">
+            <!-- Project Explorer -->
+            <Grid Grid.Row="0" RowDefinitions="Auto, *, Auto">
+                <!-- Path picker TextBox/Browse button -->
+                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
+                    <TextBox Name="txtWorkspacePath" Grid.Column="0" Text="{Binding Recorder.TestStudio.WorkspaceRootPath, Mode=TwoWay}" PlaceholderText="Workspace root path..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
+                    <Button Name="btnBrowseWorkspace" Grid.Column="1" Content="..." Command="{Binding Recorder.TestStudio.BrowseWorkspaceRootCommand}" FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
                 </Grid>
-            </TabItem>
 
-            <!-- Tab 2: Flow Command Toolbox -->
-            <TabItem Header="Toolbox" FontSize="11">
-                <ScrollViewer Margin="0,10,0,0">
+                <!-- Workspace files listing (Hierarchical DataGrid) -->
+                <DataGrid Name="treeWorkspace" Grid.Row="1"
+                          HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalWorkspace}"
+                          SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceNode, Mode=TwoWay}"
+                          CanUserReorderRows="False"
+                          CanUserResizeColumns="True"
+                          HierarchicalRowsEnabled="True"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="None"
+                          Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
+                            <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
+                            <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
+                            <MenuItem Header="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}"/>
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                    <DataGrid.Columns>
+                        <DataGridHierarchicalColumn Width="*">
+                            <DataGridHierarchicalColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
+                                        <PathIcon Data="{StaticResource FolderIcon}" Width="14" Height="14" Foreground="#ffca28" IsVisible="{Binding Item.IsFolder}" VerticalAlignment="Center"/>
+                                        <PathIcon Data="{StaticResource FileIcon}" Width="14" Height="14" Foreground="#8ab4f8" IsVisible="{Binding !Item.IsFolder}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Item.Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridHierarchicalColumn.CellTemplate>
+                        </DataGridHierarchicalColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Create file/folder/rename/delete buttons and "Run Folder Suite" button -->
+                <StackPanel Grid.Row="2" Margin="0,10,0,0" Spacing="6">
+                    <WrapPanel HorizontalAlignment="Center">
+                        <Button Name="btnCreateFile" Content="New File" Command="{Binding Recorder.TestStudio.CreateFileCommand}" FontSize="10" Margin="0,0,4,4"/>
+                        <Button Name="btnCreateFolder" Content="New Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}" FontSize="10" Margin="0,0,4,4"/>
+                        <Button Name="btnRename" Content="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}" FontSize="10" Margin="0,0,4,4"/>
+                        <Button Name="btnDelete" Content="Delete" Command="{Binding Recorder.TestStudio.DeleteCommand}" FontSize="10" Margin="0,0,4,4"/>
+                    </WrapPanel>
+                    <Button Name="btnRunSuite" Content="Run Folder Suite" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Flow Command Toolbox -->
+            <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                <ScrollViewer MaxHeight="380">
                     <StackPanel Spacing="8" Margin="0,0,10,0">
                         <!-- Command autocomplete box -->
                         <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,4">
@@ -174,8 +172,8 @@
                         </controls:Accordion>
                     </StackPanel>
                 </ScrollViewer>
-            </TabItem>
-        </TabControl>
+            </Border>
+        </Grid>
 
         <!-- Column 1: GridSplitter between Sidebar and Steps -->
         <GridSplitter Grid.Column="1" Background="#3c4043" IsVisible="{Binding !Recorder.TestStudio.IsSidebarCollapsed}"/>
