@@ -196,7 +196,7 @@ public partial class VideoPlaybackWindow : Window
         if (_frames.Count == 0) return;
 
         _isPlaying = true;
-        btnPlay.Content = "⏸ Pause";
+        btnPlay.Content = "Pause";
         
         if (_currentPositionMs >= _totalDurationMs)
         {
@@ -210,7 +210,7 @@ public partial class VideoPlaybackWindow : Window
     private void Pause()
     {
         _isPlaying = false;
-        btnPlay.Content = "▶ Play";
+        btnPlay.Content = "Play";
         _stopwatch.Stop();
         _timer.Stop();
     }

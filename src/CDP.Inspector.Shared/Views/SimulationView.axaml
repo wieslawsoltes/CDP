@@ -8,9 +8,15 @@
         <!-- Row 0: Browser Navigation Bar -->
         <Border Grid.Row="0" Background="#2d2e31" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,5">
             <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto">
-                <Button Command="{Binding Simulation.BackCommand}" Content="◀" ToolTip.Tip="Go back" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0"/>
-                <Button Grid.Column="1" Command="{Binding Simulation.ForwardCommand}" Content="▶" ToolTip.Tip="Go forward" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0"/>
-                <Button Grid.Column="2" Command="{Binding Simulation.ReloadCommand}" Content="↻" ToolTip.Tip="Reload target page" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,8,0"/>
+                <Button Command="{Binding Simulation.BackCommand}" ToolTip.Tip="Go back" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0">
+                    <PathIcon Data="{StaticResource ChevronLeftIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
+                <Button Grid.Column="1" Command="{Binding Simulation.ForwardCommand}" ToolTip.Tip="Go forward" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0">
+                    <PathIcon Data="{StaticResource ChevronRightIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
+                <Button Grid.Column="2" Command="{Binding Simulation.ReloadCommand}" ToolTip.Tip="Reload target page" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,8,0">
+                    <PathIcon Data="{StaticResource RefreshIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
                 
                 <!-- Address URL text box -->
                 <TextBox Grid.Column="3" Name="txtNavigateUrl" Text="{Binding Simulation.NavigateUrlText, Mode=TwoWay}" PlaceholderText="Enter URL (e.g. http://localhost:9222/)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0">
@@ -43,9 +49,11 @@
 
                 <StackPanel Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
                     <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" PlaceholderText="Width" Width="55" Height="28" VerticalContentAlignment="Center" FontSize="11" Margin="0,0,2,0"/>
-                    <TextBlock Text="✕" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="3,0"/>
+                    <TextBlock Text="x" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="3,0"/>
                     <TextBox Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" PlaceholderText="Height" Width="55" Height="28" VerticalContentAlignment="Center" FontSize="11" Margin="2,0,5,0"/>
-                    <Button Command="{Binding Simulation.RotateDeviceCommand}" Content="⇅" ToolTip.Tip="Swap orientation" Width="28" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <Button Command="{Binding Simulation.RotateDeviceCommand}" ToolTip.Tip="Swap orientation" Width="28" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0">
+                        <PathIcon Data="{StaticResource SwapVertIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                    </Button>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
