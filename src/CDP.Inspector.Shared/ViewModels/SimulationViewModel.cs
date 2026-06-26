@@ -48,6 +48,9 @@ public class SimulationViewModel : ViewModelBase
     private string _scaleFactorText = "1.0";
     private bool _isMobileActive;
     private Bitmap? _screenshotImage;
+    private WriteableBitmap? _tiledBitmap1;
+    private WriteableBitmap? _tiledBitmap2;
+    private bool _useBitmap1 = true;
     private double _deviceWidth = 800;
     private double _deviceHeight = 600;
 
@@ -831,12 +834,49 @@ public class SimulationViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             ScreenshotImage = null;
+            _tiledBitmap1?.Dispose();
+            _tiledBitmap2?.Dispose();
+            _tiledBitmap1 = null;
+            _tiledBitmap2 = null;
             InputSimText = "";
             IsCtrlActive = false;
             IsShiftActive = false;
             IsAltActive = false;
             IsMetaActive = false;
         });
+    }
+
+    private async Task UpdateTiledScreenshotAsync(int width, int height)
+    {
+        if (_tiledBitmap1 == null || _tiledBitmap1.PixelSize.Width != width || _tiledBitmap1.PixelSize.Height != height)
+        {
+            _tiledBitmap1?.Dispose();
+            _tiledBitmap2?.Dispose();
+
+            _tiledBitmap1 = new WriteableBitmap(
+                new Avalonia.PixelSize(width, height),
+                new Avalonia.Vector(96, 96),
+                Avalonia.Platform.PixelFormat.Bgra8888,
+                Avalonia.Platform.AlphaFormat.Premul);
+
+            _tiledBitmap2 = new WriteableBitmap(
+                new Avalonia.PixelSize(width, height),
+                new Avalonia.Vector(96, 96),
+                Avalonia.Platform.PixelFormat.Bgra8888,
+                Avalonia.Platform.AlphaFormat.Premul);
+        }
+
+        var targetBitmap = _useBitmap1 ? _tiledBitmap1 : _tiledBitmap2;
+        _useBitmap1 = !_useBitmap1;
+
+        using (var locked = targetBitmap.Lock())
+        {
+            if (_cdpService.ScreencastReconstructor.CopyTo(locked.Address, locked.RowBytes, width, height))
+            {
+                ScreenshotImage = targetBitmap;
+                await TriggerHighlightRefreshAsync();
+            }
+        }
     }
 
     private void OnDevicePresetChanged()
@@ -952,26 +992,45 @@ public class SimulationViewModel : ViewModelBase
                 }
 
                 var transferMode = e.Params["transferMode"]?.GetValue<string>();
-                byte[]? bytes = null;
 
                 if (string.Equals(transferMode, "tiled", StringComparison.OrdinalIgnoreCase))
                 {
-                    bytes = _cdpService.LastReconstructedFrameBytes;
-                }
-                else if (!string.IsNullOrEmpty(base64))
-                {
-                    bytes = Convert.FromBase64String(base64);
-                }
+                    int pixelWidth = e.Params["pixelWidth"]?.GetValue<int>() ?? 0;
+                    int pixelHeight = e.Params["pixelHeight"]?.GetValue<int>() ?? 0;
 
-                if (bytes != null && bytes.Length > 0)
-                {
-                    using var ms = new MemoryStream(bytes);
-                    var bitmap = new Bitmap(ms);
-                    Dispatcher.UIThread.Post(async () =>
+                    if (pixelWidth > 0 && pixelHeight > 0)
                     {
-                        ScreenshotImage = bitmap;
-                        await TriggerHighlightRefreshAsync();
-                    });
+                        Dispatcher.UIThread.Post(async () =>
+                        {
+                            try
+                            {
+                                await UpdateTiledScreenshotAsync(pixelWidth, pixelHeight);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error updating tiled preview: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+                else
+                {
+                    byte[]? bytes = null;
+                    if (!string.IsNullOrEmpty(base64))
+                    {
+                        bytes = Convert.FromBase64String(base64);
+                    }
+
+                    if (bytes != null && bytes.Length > 0)
+                    {
+                        using var ms = new MemoryStream(bytes);
+                        var bitmap = new Bitmap(ms);
+                        Dispatcher.UIThread.Post(async () =>
+                        {
+                            ScreenshotImage = bitmap;
+                            await TriggerHighlightRefreshAsync();
+                        });
+                    }
                 }
 
                 if (sessionId != 0)

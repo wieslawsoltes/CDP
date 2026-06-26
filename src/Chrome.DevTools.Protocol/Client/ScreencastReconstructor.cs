@@ -22,6 +22,36 @@ public class ScreencastReconstructor : IDisposable
         }
     }
 
+    public bool CopyTo(IntPtr destAddress, int destRowBytes, int destWidth, int destHeight)
+    {
+        lock (_lock)
+        {
+            if (_backingBitmap == null || _backingBitmap.Width != destWidth || _backingBitmap.Height != destHeight)
+            {
+                return false;
+            }
+
+            unsafe
+            {
+                byte* src = (byte*)_backingBitmap.GetPixels();
+                byte* dest = (byte*)destAddress;
+                int srcRowBytes = _backingBitmap.RowBytes;
+                int bytesToCopy = Math.Min(srcRowBytes, destRowBytes);
+                int height = Math.Min(_backingBitmap.Height, destHeight);
+
+                for (int y = 0; y < height; y++)
+                {
+                    System.Buffer.MemoryCopy(
+                        src + y * srcRowBytes,
+                        dest + y * destRowBytes,
+                        destRowBytes,
+                        bytesToCopy);
+                }
+            }
+            return true;
+        }
+    }
+
     public void Update(int pixelWidth, int pixelHeight, int tileWidth, int tileHeight, JsonArray tiles)
     {
         lock (_lock)

@@ -73,6 +73,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
     }
 
     private readonly ScreencastReconstructor _screencastReconstructor = new();
+    public ScreencastReconstructor ScreencastReconstructor => _screencastReconstructor;
 
     public event EventHandler<CdpEventEventArgs>? EventReceived;
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -312,12 +313,16 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                                 if (tiles != null && pixelWidth > 0 && pixelHeight > 0)
                                 {
                                     _screencastReconstructor.Update(pixelWidth, pixelHeight, tileWidth, tileHeight, tiles);
-                                    var fullBytes = _screencastReconstructor.EncodeToJpeg(90);
-                                    LastReconstructedFrameBytes = fullBytes;
 
                                     if (RecordFullFrames)
                                     {
+                                        var fullBytes = _screencastReconstructor.EncodeToJpeg(90);
                                         parameters["data"] = Convert.ToBase64String(fullBytes);
+                                        LastReconstructedFrameBytes = fullBytes;
+                                    }
+                                    else
+                                    {
+                                        LastReconstructedFrameBytes = null;
                                     }
                                 }
                             }
