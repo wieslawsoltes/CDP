@@ -132,7 +132,7 @@
 
         <!-- Right Debugger Panel -->
         <Border Grid.Column="4" BorderBrush="#3c4043" BorderThickness="1,0,0,0" Background="#292a2d" Padding="8">
-            <Grid RowDefinitions="Auto, Auto, Auto, *, Auto, *, Auto, *, Auto">
+            <Grid RowDefinitions="Auto, Auto, Auto, *, Auto, *, Auto, *, Auto, Auto">
                 <!-- Title -->
                 <TextBlock Grid.Row="0" Text="Debugger" Classes="panel-header" Margin="0,0,0,5"/>
 
@@ -173,8 +173,11 @@
                 <TextBlock Grid.Row="6" Text="Breakpoints" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
                 <ListBox Grid.Row="7" ItemsSource="{Binding Sources.Breakpoints}" Height="100" FontSize="11" Margin="0,0,0,8"/>
 
+                <!-- Breakpoint Condition -->
+                <TextBox Grid.Row="8" Name="txtBreakpointCondition" Text="{Binding Sources.BreakpointCondition, Mode=TwoWay}" Watermark="Breakpoint condition (e.g. x == 5)" FontSize="11" Margin="0,0,0,8"/>
+
                 <!-- Toggle Breakpoint at Caret -->
-                <Button Grid.Row="8" Name="btnToggleBreakpoint" Content="Toggle Breakpoint at Caret" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="0,6"/>
+                <Button Grid.Row="9" Name="btnToggleBreakpoint" Content="Toggle Breakpoint at Caret" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="0,6"/>
             </Grid>
         </Border>
     </Grid>

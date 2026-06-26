@@ -20,12 +20,14 @@ public class SourcesViewModel : ViewModelBase
     private object? _selectedFileNode;
     private string _searchQuery = "";
     private bool _searchCaseSensitive = false;
+    private string _breakpointCondition = "";
     private ObservableCollection<SearchResultModel> _searchResults = new();
 
     private int? _pendingScrollLine;
     private bool _isDebuggerPaused;
     private int? _activeDebugLine;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _breakpointIds = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _breakpointDisplayStrings = new();
 
     public int? PendingScrollLine
     {
@@ -79,6 +81,12 @@ public class SourcesViewModel : ViewModelBase
     {
         get => _searchCaseSensitive;
         set => RaiseAndSetIfChanged(ref _searchCaseSensitive, value);
+    }
+
+    public string BreakpointCondition
+    {
+        get => _breakpointCondition;
+        set => RaiseAndSetIfChanged(ref _breakpointCondition, value);
     }
 
     public ObservableCollection<SearchResultModel> SearchResults => _searchResults;
@@ -260,6 +268,7 @@ public class SourcesViewModel : ViewModelBase
             ScopeVariables.Clear();
             IsDebuggerPaused = false;
             _breakpointIds.Clear();
+            _breakpointDisplayStrings.Clear();
             Breakpoints.Clear();
         });
     }
@@ -438,7 +447,6 @@ public class SourcesViewModel : ViewModelBase
 
         string url = SelectedFile.Path;
         string key = $"{url}:{line}";
-        string displayStr = $"{SelectedFile.Name}:{line}";
 
         if (_breakpointIds.TryGetValue(key, out var breakpointId))
         {
@@ -447,7 +455,15 @@ public class SourcesViewModel : ViewModelBase
                 var p = new JsonObject { ["breakpointId"] = breakpointId };
                 await _cdpService.SendCommandAsync("Debugger.removeBreakpoint", p);
                 _breakpointIds.TryRemove(key, out _);
-                Dispatcher.UIThread.Post(() => Breakpoints.Remove(displayStr));
+                if (_breakpointDisplayStrings.TryRemove(key, out var displayStr))
+                {
+                    Dispatcher.UIThread.Post(() => Breakpoints.Remove(displayStr));
+                }
+                else
+                {
+                    string fallbackDisplayStr = $"{SelectedFile.Name}:{line}";
+                    Dispatcher.UIThread.Post(() => Breakpoints.Remove(fallbackDisplayStr));
+                }
             }
             catch (Exception ex)
             {
@@ -463,11 +479,22 @@ public class SourcesViewModel : ViewModelBase
                     ["url"] = url,
                     ["lineNumber"] = line
                 };
+                string condition = BreakpointCondition;
+                if (!string.IsNullOrWhiteSpace(condition))
+                {
+                    p["condition"] = condition;
+                }
                 var response = await _cdpService.SendCommandAsync("Debugger.setBreakpointByUrl", p);
                 if (response != null)
                 {
                     string returnedId = response["breakpointId"]?.GetValue<string>() ?? key;
                     _breakpointIds[key] = returnedId;
+                    string displayStr = $"{SelectedFile.Name}:{line}";
+                    if (!string.IsNullOrWhiteSpace(condition))
+                    {
+                        displayStr += $" (if: {condition})";
+                    }
+                    _breakpointDisplayStrings[key] = displayStr;
                     Dispatcher.UIThread.Post(() =>
                     {
                         if (!Breakpoints.Contains(displayStr))
