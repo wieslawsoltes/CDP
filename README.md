@@ -67,17 +67,20 @@ All interactions with Avalonia UI visual elements are thread-safe, marshalling o
 
 ### Add Reference
 
-Add the NuGet package reference `Chrome.DevTools.Avalonia` to your main Avalonia application:
+Install the NuGet package `Chrome.DevTools.Avalonia` to your main Avalonia application:
 
-```xml
-<ItemGroup>
-  <PackageReference Include="Chrome.DevTools.Avalonia" />
-</ItemGroup>
-```
-
-Or install it via the .NET CLI:
+#### Using .NET CLI (Recommended)
+This automatically retrieves and installs the latest stable version:
 ```bash
 dotnet add package Chrome.DevTools.Avalonia
+```
+
+#### Manual XML Reference
+If manually adding the package reference to your `.csproj` file, specify the version to ensure a successful NuGet restore:
+```xml
+<ItemGroup>
+  <PackageReference Include="Chrome.DevTools.Avalonia" Version="1.0.0" />
+</ItemGroup>
 ```
 
 ### Start the Server
