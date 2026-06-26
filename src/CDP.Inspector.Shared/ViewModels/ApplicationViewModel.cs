@@ -48,6 +48,16 @@ public class ApplicationViewModel : ViewModelBase
     private bool _isStorageEditorVisible;
     private string _storageTitle = "Local Storage";
 
+    // Cookie Editor Fields
+    private ObservableCollection<CookieEntryModel> _cookies = new();
+    private CookieEntryModel? _selectedCookie;
+    private string _cookieNameInput = "";
+    private string _cookieValueInput = "";
+    private string _cookieDomainInput = "";
+    private string _cookiePathInput = "";
+    private string _cookieExpiresInput = "-1";
+    private bool _isCookieEditorVisible;
+
     public ObservableCollection<ResourceEntryModel> Resources => _resources;
 
     public ResourceEntryModel? SelectedResource
@@ -127,6 +137,70 @@ public class ApplicationViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _storageTitle, value);
     }
 
+    // Cookie Editor Properties
+    public ObservableCollection<CookieEntryModel> Cookies => _cookies;
+
+    public CookieEntryModel? SelectedCookie
+    {
+        get => _selectedCookie;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedCookie, value))
+            {
+                if (_selectedCookie != null)
+                {
+                    CookieNameInput = _selectedCookie.Name;
+                    CookieValueInput = _selectedCookie.Value;
+                    CookieDomainInput = _selectedCookie.Domain;
+                    CookiePathInput = _selectedCookie.Path;
+                    CookieExpiresInput = _selectedCookie.Expires.ToString();
+                }
+            }
+        }
+    }
+
+    public string CookieNameInput
+    {
+        get => _cookieNameInput;
+        set => RaiseAndSetIfChanged(ref _cookieNameInput, value);
+    }
+
+    public string CookieValueInput
+    {
+        get => _cookieValueInput;
+        set => RaiseAndSetIfChanged(ref _cookieValueInput, value);
+    }
+
+    public string CookieDomainInput
+    {
+        get => _cookieDomainInput;
+        set => RaiseAndSetIfChanged(ref _cookieDomainInput, value);
+    }
+
+    public string CookiePathInput
+    {
+        get => _cookiePathInput;
+        set => RaiseAndSetIfChanged(ref _cookiePathInput, value);
+    }
+
+    public string CookieExpiresInput
+    {
+        get => _cookieExpiresInput;
+        set => RaiseAndSetIfChanged(ref _cookieExpiresInput, value);
+    }
+
+    public bool IsCookieEditorVisible
+    {
+        get => _isCookieEditorVisible;
+        private set
+        {
+            if (RaiseAndSetIfChanged(ref _isCookieEditorVisible, value))
+            {
+                OnPropertyChanged(nameof(IsPlaceholderVisible));
+            }
+        }
+    }
+
     public ObservableCollection<AppNavNode> NavigationNodes => _navigationNodes;
 
     public AppNavNode? SelectedNode
@@ -138,10 +212,15 @@ public class ApplicationViewModel : ViewModelBase
             {
                 IsResourceEditorVisible = _selectedNode != null && _selectedNode.Name == "Global Resources";
                 IsStorageEditorVisible = _selectedNode != null && (_selectedNode.Name == "Local Storage" || _selectedNode.Name == "Session Storage");
+                IsCookieEditorVisible = _selectedNode != null && _selectedNode.Name == "Cookies";
                 if (IsStorageEditorVisible)
                 {
                     StorageTitle = _selectedNode!.Name;
                     _ = RefreshStorageAsync();
+                }
+                if (IsCookieEditorVisible)
+                {
+                    _ = RefreshCookiesAsync();
                 }
 
                 if (value == null)
@@ -172,7 +251,7 @@ public class ApplicationViewModel : ViewModelBase
         }
     }
 
-    public bool IsPlaceholderVisible => !IsResourceEditorVisible && !IsStorageEditorVisible;
+    public bool IsPlaceholderVisible => !IsResourceEditorVisible && !IsStorageEditorVisible && !IsCookieEditorVisible;
 
     public ICommand RefreshResourcesCommand { get; }
     public ICommand AddResourceCommand { get; }
@@ -184,6 +263,12 @@ public class ApplicationViewModel : ViewModelBase
     public ICommand AddStorageItemCommand { get; }
     public ICommand SaveStorageItemCommand { get; }
     public ICommand DeleteStorageItemCommand { get; }
+
+    // Cookie Commands
+    public ICommand RefreshCookiesCommand { get; }
+    public ICommand AddCookieCommand { get; }
+    public ICommand SaveCookieCommand { get; }
+    public ICommand DeleteCookieCommand { get; }
 
     public ApplicationViewModel(ICdpService cdpService)
     {
@@ -199,6 +284,11 @@ public class ApplicationViewModel : ViewModelBase
         AddStorageItemCommand = new RelayCommand(AddStorageItem, () => _cdpService.IsConnected);
         SaveStorageItemCommand = new RelayCommand(async () => await SaveStorageItemAsync(), () => _cdpService.IsConnected);
         DeleteStorageItemCommand = new RelayCommand<string>(async (key) => await DeleteStorageItemAsync(key), (key) => _cdpService.IsConnected);
+
+        RefreshCookiesCommand = new RelayCommand(async () => await RefreshCookiesAsync(), () => _cdpService.IsConnected);
+        AddCookieCommand = new RelayCommand(AddCookie, () => _cdpService.IsConnected);
+        SaveCookieCommand = new RelayCommand(async () => await SaveCookieAsync(), () => _cdpService.IsConnected);
+        DeleteCookieCommand = new RelayCommand<CookieEntryModel>(async (cookie) => await DeleteCookieAsync(cookie), (cookie) => _cdpService.IsConnected);
 
         var options = new HierarchicalOptions<AppNavNode>
         {
@@ -241,10 +331,14 @@ public class ApplicationViewModel : ViewModelBase
             {
                 _ = RefreshStorageAsync();
             }
+            if (IsCookieEditorVisible)
+            {
+                _ = RefreshCookiesAsync();
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling DOMStorage: {ex.Message}");
+            Console.WriteLine($"Error enabling domains: {ex.Message}");
         }
     }
 
@@ -259,6 +353,11 @@ public class ApplicationViewModel : ViewModelBase
         ((RelayCommand)AddStorageItemCommand).RaiseCanExecuteChanged();
         ((RelayCommand)SaveStorageItemCommand).RaiseCanExecuteChanged();
         ((RelayCommand<string>)DeleteStorageItemCommand).RaiseCanExecuteChanged();
+
+        ((RelayCommand)RefreshCookiesCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)AddCookieCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)SaveCookieCommand).RaiseCanExecuteChanged();
+        ((RelayCommand<CookieEntryModel>)DeleteCookieCommand).RaiseCanExecuteChanged();
     }
 
     private void InitializeNavigationTree()
@@ -463,6 +562,107 @@ public class ApplicationViewModel : ViewModelBase
         }
     }
 
+    // Cookie CRUD Helpers
+    public async Task RefreshCookiesAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Page.getCookies");
+            if (response != null)
+            {
+                var cookies = response["cookies"] as JsonArray;
+                if (cookies != null)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        Cookies.Clear();
+                        foreach (var cookieNode in cookies)
+                        {
+                            if (cookieNode is JsonObject cookieObj)
+                            {
+                                Cookies.Add(new CookieEntryModel
+                                {
+                                    Name = cookieObj["name"]?.GetValue<string>() ?? "",
+                                    Value = cookieObj["value"]?.GetValue<string>() ?? "",
+                                    Domain = cookieObj["domain"]?.GetValue<string>() ?? "",
+                                    Path = cookieObj["path"]?.GetValue<string>() ?? "",
+                                    Expires = cookieObj["expires"]?.GetValue<double>() ?? -1
+                                });
+                            }
+                        }
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing cookies: {ex.Message}");
+        }
+    }
+
+    private void AddCookie()
+    {
+        CookieNameInput = "NewCookie";
+        CookieValueInput = "Value";
+        CookieDomainInput = "localhost";
+        CookiePathInput = "/";
+        CookieExpiresInput = "-1";
+    }
+
+    public async Task SaveCookieAsync()
+    {
+        if (string.IsNullOrEmpty(CookieNameInput)) return;
+
+        try
+        {
+            double.TryParse(CookieExpiresInput, out double expiresVal);
+            var p = new JsonObject
+            {
+                ["name"] = CookieNameInput,
+                ["value"] = CookieValueInput,
+                ["domain"] = CookieDomainInput,
+                ["path"] = CookiePathInput,
+                ["expires"] = expiresVal
+            };
+            await _cdpService.SendCommandAsync("Page.setCookie", p);
+            
+            CookieNameInput = "";
+            CookieValueInput = "";
+            CookieDomainInput = "";
+            CookiePathInput = "";
+            CookieExpiresInput = "-1";
+            
+            await RefreshCookiesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving cookie: {ex.Message}");
+        }
+    }
+
+    public async Task DeleteCookieAsync(CookieEntryModel? cookie)
+    {
+        if (cookie == null || string.IsNullOrEmpty(cookie.Name)) return;
+
+        try
+        {
+            var p = new JsonObject
+            {
+                ["name"] = cookie.Name,
+                ["domain"] = cookie.Domain,
+                ["path"] = cookie.Path
+            };
+            await _cdpService.SendCommandAsync("Page.deleteCookie", p);
+            await RefreshCookiesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting cookie: {ex.Message}");
+        }
+    }
+
     private void ClearData()
     {
         Dispatcher.UIThread.Post(() =>
@@ -476,6 +676,14 @@ public class ApplicationViewModel : ViewModelBase
             SelectedStorageItem = null;
             StorageKeyInput = "";
             StorageValueInput = "";
+
+            Cookies.Clear();
+            SelectedCookie = null;
+            CookieNameInput = "";
+            CookieValueInput = "";
+            CookieDomainInput = "";
+            CookiePathInput = "";
+            CookieExpiresInput = "-1";
         });
     }
 }

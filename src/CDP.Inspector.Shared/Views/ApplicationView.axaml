@@ -115,6 +115,49 @@
             </Border>
         </Grid>
 
+        <!-- Cookie Editor -->
+        <Grid Name="gridCookieEditor" Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0" IsVisible="{Binding Application.IsCookieEditorVisible}">
+            <Grid ColumnDefinitions="*, Auto">
+                <TextBlock Text="Active Cookies" Classes="panel-header"/>
+                <Button Grid.Column="1" Name="btnRefreshCookies" Command="{Binding Application.RefreshCookiesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
+            </Grid>
+            
+            <DataGrid Name="lstCookies" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.Cookies}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedCookie, Mode=TwoWay}" Grid.Row="1"
+                      x:DataType="models:CookieEntryModel"
+                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                      Background="Transparent" BorderThickness="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                    <DataGridTextColumn Header="Domain" Binding="{Binding Domain}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                    <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="80" Foreground="#9aa0a6" FontSize="12"/>
+                    <DataGridTextColumn Header="Expires" Binding="{Binding Expires}" Width="100" Foreground="#9aa0a6" FontSize="12"/>
+                    <DataGridTemplateColumn Header="Action" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="models:CookieEntryModel">
+                                <Button Name="btnDeleteCookie" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteCookieCommand}" CommandParameter="{Binding}" Content="Delete" Tag="{Binding Name}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Cookie Modifier Panel -->
+            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                <Grid ColumnDefinitions="*, *, *, *, *, Auto, Auto" RowDefinitions="Auto, Auto">
+                    <TextBlock Grid.Row="0" Grid.ColumnSpan="7" Text="Add / Edit Cookie" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
+                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtCookieName" Text="{Binding Application.CookieNameInput, Mode=TwoWay}" PlaceholderText="Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtCookieValue" Text="{Binding Application.CookieValueInput, Mode=TwoWay}" PlaceholderText="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="2" Name="txtCookieDomain" Text="{Binding Application.CookieDomainInput, Mode=TwoWay}" PlaceholderText="Domain" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="3" Name="txtCookiePath" Text="{Binding Application.CookiePathInput, Mode=TwoWay}" PlaceholderText="Path" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="4" Name="txtCookieExpires" Text="{Binding Application.CookieExpiresInput, Mode=TwoWay}" PlaceholderText="Expires" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                    <Button Grid.Row="1" Grid.Column="5" Name="btnSaveCookie" Command="{Binding Application.SaveCookieCommand}" Content="Save Cookie" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
+                    <Button Grid.Row="1" Grid.Column="6" Name="btnAddCookie" Command="{Binding Application.AddCookieCommand}" Content="Add New" Height="28" Padding="12,0"/>
+                </Grid>
+            </Border>
+        </Grid>
+
         <!-- Placeholder for simulated nodes (Cookies / Background Services / Preferences) -->
         <StackPanel Grid.Column="2" Margin="30" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" IsVisible="{Binding Application.IsPlaceholderVisible}">
             <TextBlock Text="Chrome Parity Simulator" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8" HorizontalAlignment="Center"/>
