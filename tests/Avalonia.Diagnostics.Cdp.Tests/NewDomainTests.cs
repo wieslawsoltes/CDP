@@ -13,6 +13,7 @@ using Xunit;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using CdpInspectorApp.ViewModels;
+using Avalonia.Styling;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -406,6 +407,67 @@ public class NewDomainTests
 
         var setRes = await CssDomain.HandleAsync(session, "setStyleSheetText", new JsonObject());
         Assert.NotNull(setRes);
+    }
+
+    [AvaloniaFact]
+    public async Task TestCssDomainGetMatchedStyles()
+    {
+        var window = new Window
+        {
+            Title = "CSS Test Window",
+            Width = 400,
+            Height = 300
+        };
+        
+        var button = new Button { Name = "myBtn", Width = 100 };
+        button.Classes.Add("primary");
+        window.Content = button;
+        
+        window.Show();
+
+        var style = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<Button>(x).Class("primary"))
+        {
+            Setters =
+            {
+                new Avalonia.Styling.Setter(Button.BackgroundProperty, Avalonia.Media.Brushes.Red),
+                new Avalonia.Styling.Setter(Button.FontSizeProperty, 18.0)
+            }
+        };
+        window.Styles.Add(style);
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        int buttonNodeId = session.NodeMap.GetOrAdd(button);
+
+        var getParams = new JsonObject
+        {
+            ["nodeId"] = buttonNodeId
+        };
+
+        var result = await CssDomain.HandleAsync(session, "getMatchedStylesForNode", getParams);
+        Assert.NotNull(result);
+
+        var matchedCSSRules = result["matchedCSSRules"] as JsonArray;
+        Assert.NotNull(matchedCSSRules);
+        Assert.NotEmpty(matchedCSSRules);
+
+        var matchedRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("Button.primary") == true);
+        Assert.NotNull(matchedRule);
+
+        var properties = matchedRule["style"]?["cssProperties"] as JsonArray;
+        Assert.NotNull(properties);
+        
+        var bgProp = properties.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "background");
+        Assert.NotNull(bgProp);
+        Assert.Equal("red", bgProp["value"]?.GetValue<string>(), ignoreCase: true);
+
+        var fsProp = properties.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "font-size");
+        Assert.NotNull(fsProp);
+        Assert.Equal("18", fsProp["value"]?.GetValue<string>());
+
+        window.Close();
     }
 
     [AvaloniaFact]
@@ -1271,6 +1333,107 @@ public class NewDomainTests
         // Clean up breakpoint
         await DebuggerDomain.HandleAsync(session, "removeBreakpoint", new JsonObject { ["breakpointId"] = breakpointIdTrue });
         
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestOverlayPaintRects()
+    {
+        var window = new Window
+        {
+            Title = "Paint Rects Test Window",
+            Width = 400,
+            Height = 300,
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    new Button { Content = "Target Button", Width = 100, Height = 30 }
+                }
+            }
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Enable Paint Rects via OverlayDomain
+        var enableParams = new JsonObject { ["result"] = true };
+        var enableResult = await OverlayDomain.HandleAsync(session, "setShowPaintRects", enableParams);
+        Assert.NotNull(enableResult);
+
+        // 2. Disable Paint Rects via OverlayDomain
+        var disableParams = new JsonObject { ["result"] = false };
+        var disableResult = await OverlayDomain.HandleAsync(session, "setShowPaintRects", disableParams);
+        Assert.NotNull(disableResult);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestProfilerDomainWorkflow()
+    {
+        var window = new Window
+        {
+            Title = "Profiler Test Window",
+            Width = 400,
+            Height = 300
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Enable Profiler
+        var enableResult = await ProfilerDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.NotNull(enableResult);
+
+        // 2. Start Profiler
+        var startResult = await ProfilerDomain.HandleAsync(session, "start", new JsonObject());
+        Assert.NotNull(startResult);
+
+        // 3. Record some mock activity
+        var now = DateTime.UtcNow;
+        ProfilerDomain.RecordActivity(session, "LayoutPass", now.AddMilliseconds(-50), now);
+        ProfilerDomain.RecordActivity(session, "RenderFrame", now.AddMilliseconds(-20), now);
+        ProfilerDomain.RecordActivity(session, "EvaluateConsole", now.AddMilliseconds(-10), now);
+
+        // Wait a tiny bit to accumulate time delta
+        await Task.Delay(100);
+
+        // 4. Stop Profiler
+        var stopResult = await ProfilerDomain.HandleAsync(session, "stop", new JsonObject());
+        Assert.NotNull(stopResult);
+
+        var profile = stopResult["profile"] as JsonObject;
+        Assert.NotNull(profile);
+
+        var nodes = profile["nodes"] as JsonArray;
+        Assert.NotNull(nodes);
+        Assert.NotEmpty(nodes);
+
+        // Verify root node exists
+        var rootNode = nodes.FirstOrDefault(n => n?["id"]?.GetValue<int>() == 1);
+        Assert.NotNull(rootNode);
+        Assert.Equal("(root)", rootNode["callFrame"]?["functionName"]?.GetValue<string>());
+
+        var startTime = profile["startTime"]?.GetValue<double>() ?? 0.0;
+        var endTime = profile["endTime"]?.GetValue<double>() ?? 0.0;
+        Assert.True(endTime > startTime);
+
+        var samples = profile["samples"] as JsonArray;
+        Assert.NotNull(samples);
+        Assert.NotEmpty(samples);
+
+        var timeDeltas = profile["timeDeltas"] as JsonArray;
+        Assert.NotNull(timeDeltas);
+        Assert.NotEmpty(timeDeltas);
+        Assert.Equal(samples.Count, timeDeltas.Count);
+
+        // 5. Disable Profiler
+        var disableResult = await ProfilerDomain.HandleAsync(session, "disable", new JsonObject());
+        Assert.NotNull(disableResult);
+
         window.Close();
     }
 
