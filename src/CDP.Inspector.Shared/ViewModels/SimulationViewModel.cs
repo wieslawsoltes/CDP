@@ -51,6 +51,7 @@ public class SimulationViewModel : ViewModelBase
     private WriteableBitmap? _tiledBitmap1;
     private WriteableBitmap? _tiledBitmap2;
     private bool _useBitmap1 = true;
+    private SkiaSharp.SKColorType _lastColorType = SkiaSharp.SKColorType.Unknown;
     private double _deviceWidth = 800;
     private double _deviceHeight = 600;
 
@@ -838,6 +839,7 @@ public class SimulationViewModel : ViewModelBase
             _tiledBitmap2?.Dispose();
             _tiledBitmap1 = null;
             _tiledBitmap2 = null;
+            _lastColorType = SkiaSharp.SKColorType.Unknown;
             InputSimText = "";
             IsCtrlActive = false;
             IsShiftActive = false;
@@ -848,21 +850,35 @@ public class SimulationViewModel : ViewModelBase
 
     private async Task UpdateTiledScreenshotAsync(int width, int height)
     {
-        if (_tiledBitmap1 == null || _tiledBitmap1.PixelSize.Width != width || _tiledBitmap1.PixelSize.Height != height)
+        var reconstructor = _cdpService.ScreencastReconstructor;
+        var backing = reconstructor.BackingBitmap;
+        if (backing == null) return;
+
+        var colorType = backing.ColorType;
+
+        if (_tiledBitmap1 == null || 
+            _tiledBitmap1.PixelSize.Width != width || 
+            _tiledBitmap1.PixelSize.Height != height ||
+            _lastColorType != colorType)
         {
             _tiledBitmap1?.Dispose();
             _tiledBitmap2?.Dispose();
 
+            _lastColorType = colorType;
+            var format = colorType == SkiaSharp.SKColorType.Rgba8888
+                ? Avalonia.Platform.PixelFormat.Rgba8888
+                : Avalonia.Platform.PixelFormat.Bgra8888;
+
             _tiledBitmap1 = new WriteableBitmap(
                 new Avalonia.PixelSize(width, height),
                 new Avalonia.Vector(96, 96),
-                Avalonia.Platform.PixelFormat.Bgra8888,
+                format,
                 Avalonia.Platform.AlphaFormat.Premul);
 
             _tiledBitmap2 = new WriteableBitmap(
                 new Avalonia.PixelSize(width, height),
                 new Avalonia.Vector(96, 96),
-                Avalonia.Platform.PixelFormat.Bgra8888,
+                format,
                 Avalonia.Platform.AlphaFormat.Premul);
         }
 
@@ -871,7 +887,7 @@ public class SimulationViewModel : ViewModelBase
 
         using (var locked = targetBitmap.Lock())
         {
-            if (_cdpService.ScreencastReconstructor.CopyTo(locked.Address, locked.RowBytes, width, height))
+            if (reconstructor.CopyTo(locked.Address, locked.RowBytes, width, height))
             {
                 ScreenshotImage = targetBitmap;
                 await TriggerHighlightRefreshAsync();
