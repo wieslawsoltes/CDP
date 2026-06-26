@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.NetworkView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -80,13 +81,13 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="models:NetworkRequestModel">
                                 <Grid Width="120" HorizontalAlignment="Left" Background="Transparent" VerticalAlignment="Stretch" ToolTip.Tip="{Binding WaterfallToolTip}">
-                                    <Border Background="#8ab4f8" 
-                                            Height="8" 
-                                            CornerRadius="4"
-                                            HorizontalAlignment="Left"
-                                            VerticalAlignment="Center"
-                                            Margin="{Binding WaterfallMargin}"
-                                            Width="{Binding WaterfallWidth}"/>
+                                    <controls:WaterfallBar StartOffsetPercent="{Binding StartOffsetPercent}"
+                                                           TtfbPercent="{Binding TtfbPercent}"
+                                                           DownloadPercent="{Binding DownloadPercent}"
+                                                           Height="8"
+                                                           Width="120"
+                                                           HorizontalAlignment="Left"
+                                                           VerticalAlignment="Center"/>
                                 </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>

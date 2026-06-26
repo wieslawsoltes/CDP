@@ -37,6 +37,12 @@ public class NetworkRequestModel : INotifyPropertyChanged
     private double _duration;
     private Thickness _waterfallMargin = new Thickness(0);
     private double _waterfallWidth = 1.0;
+    private double _responseReceivedTime;
+    private double _ttfbDuration;
+    private double _downloadDuration;
+    private double _startOffsetPercent;
+    private double _ttfbPercent;
+    private double _downloadPercent;
 
     public string RequestId { get; set; } = "";
     public string Method { get; set; } = "";
@@ -191,7 +197,67 @@ public class NetworkRequestModel : INotifyPropertyChanged
         }
     }
 
-    public string WaterfallToolTip => $"Start offset: {FormatTime(StartOffset)}\nDuration: {FormatTime(Duration)}";
+    public double ResponseReceivedTime
+    {
+        get => _responseReceivedTime;
+        set
+        {
+            _responseReceivedTime = value;
+            OnPropertyChanged(nameof(ResponseReceivedTime));
+        }
+    }
+
+    public double TtfbDuration
+    {
+        get => _ttfbDuration;
+        set
+        {
+            _ttfbDuration = value;
+            OnPropertyChanged(nameof(TtfbDuration));
+        }
+    }
+
+    public double DownloadDuration
+    {
+        get => _downloadDuration;
+        set
+        {
+            _downloadDuration = value;
+            OnPropertyChanged(nameof(DownloadDuration));
+        }
+    }
+
+    public double StartOffsetPercent
+    {
+        get => _startOffsetPercent;
+        set
+        {
+            _startOffsetPercent = value;
+            OnPropertyChanged(nameof(StartOffsetPercent));
+        }
+    }
+
+    public double TtfbPercent
+    {
+        get => _ttfbPercent;
+        set
+        {
+            _ttfbPercent = value;
+            OnPropertyChanged(nameof(TtfbPercent));
+        }
+    }
+
+    public double DownloadPercent
+    {
+        get => _downloadPercent;
+        set
+        {
+            _downloadPercent = value;
+            OnPropertyChanged(nameof(DownloadPercent));
+        }
+    }
+
+    public string WaterfallToolTip => $"Start offset: {FormatTime(StartOffset)}\nWaiting (TTFB): {FormatTime(TtfbDuration)}\nContent Download: {FormatTime(DownloadDuration)}\nTotal: {FormatTime(Duration)}";
 
     private static string FormatTime(double seconds)
     {
@@ -205,13 +271,33 @@ public class NetworkRequestModel : INotifyPropertyChanged
 
         Duration = EndTime >= StartTime ? EndTime - StartTime : 0;
 
-        const double targetWidth = 120.0;
+        TtfbDuration = ResponseReceivedTime >= StartTime ? ResponseReceivedTime - StartTime : Duration;
+        DownloadDuration = EndTime >= ResponseReceivedTime ? EndTime - ResponseReceivedTime : 0;
 
         double offsetPercent = totalDuration > 0 ? StartOffset / totalDuration : 0;
-        double durationPercent = totalDuration > 0 ? Duration / totalDuration : 0;
+        double ttfbPercent = totalDuration > 0 ? TtfbDuration / totalDuration : 0;
+        double downloadPercent = totalDuration > 0 ? DownloadDuration / totalDuration : 0;
 
-        double leftMargin = Math.Max(0.0, Math.Min(1.0, offsetPercent)) * targetWidth;
-        double barWidth = Math.Max(0.0, Math.Min(1.0, durationPercent)) * targetWidth;
+        StartOffsetPercent = Math.Max(0.0, Math.Min(1.0, offsetPercent));
+        TtfbPercent = Math.Max(0.0, Math.Min(1.0, ttfbPercent));
+        DownloadPercent = Math.Max(0.0, Math.Min(1.0, downloadPercent));
+
+        if (StartOffsetPercent + TtfbPercent + DownloadPercent > 1.0)
+        {
+            if (StartOffsetPercent + TtfbPercent > 1.0)
+            {
+                TtfbPercent = 1.0 - StartOffsetPercent;
+                DownloadPercent = 0.0;
+            }
+            else
+            {
+                DownloadPercent = 1.0 - (StartOffsetPercent + TtfbPercent);
+            }
+        }
+
+        const double targetWidth = 120.0;
+        double leftMargin = StartOffsetPercent * targetWidth;
+        double barWidth = (TtfbPercent + DownloadPercent) * targetWidth;
 
         if (barWidth < 3.0)
         {

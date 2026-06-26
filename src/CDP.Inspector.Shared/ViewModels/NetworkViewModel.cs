@@ -294,6 +294,7 @@ public class NetworkViewModel : ViewModelBase
                         {
                             existing.Type = type;
                         }
+                        existing.ResponseReceivedTime = timestamp;
                         if (timestamp > 0.0)
                         {
                             existing.EndTime = timestamp;
