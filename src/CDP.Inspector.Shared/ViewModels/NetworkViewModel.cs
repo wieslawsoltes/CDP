@@ -406,7 +406,7 @@ public class NetworkViewModel : ViewModelBase
             {
                 if (!string.IsNullOrEmpty(blocked.Pattern))
                 {
-                    urlsArray.Add(blocked.Pattern);
+                    urlsArray.Add((JsonNode?)JsonValue.Create(blocked.Pattern));
                 }
             }
 
@@ -434,7 +434,7 @@ public class NetworkViewModel : ViewModelBase
                     var parts = line.Split(new[] { ':' }, 2);
                     if (parts.Length == 2)
                     {
-                        headersArray.Add(new JsonObject
+                        headersArray.Add((JsonNode)new JsonObject
                         {
                             ["name"] = parts[0].Trim(),
                             ["value"] = parts[1].Trim()

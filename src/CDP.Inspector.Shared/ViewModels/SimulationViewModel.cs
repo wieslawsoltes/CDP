@@ -1084,7 +1084,7 @@ public class SimulationViewModel : ViewModelBase
                     };
                     if (!string.IsNullOrEmpty(selector))
                     {
-                        step["selectors"] = new JsonArray { new JsonArray { selector } };
+                        step["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(selector) } };
                     }
                     _lastClickedSelector = selector;
                     InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
@@ -1123,7 +1123,7 @@ public class SimulationViewModel : ViewModelBase
                 };
                 if (!string.IsNullOrEmpty(selector))
                 {
-                    step["selectors"] = new JsonArray { new JsonArray { selector } };
+                    step["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(selector) } };
                 }
                 InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
             });
@@ -1148,7 +1148,7 @@ public class SimulationViewModel : ViewModelBase
             };
             if (!string.IsNullOrEmpty(_lastClickedSelector))
             {
-                step["selectors"] = new JsonArray { new JsonArray { _lastClickedSelector } };
+                step["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(_lastClickedSelector) } };
             }
             InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
         }
