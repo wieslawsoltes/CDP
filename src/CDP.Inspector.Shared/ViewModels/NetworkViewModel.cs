@@ -35,6 +35,7 @@ public class NetworkViewModel : ViewModelBase
 
     private ObservableCollection<BlockedUrlModel> _blockedUrls = new();
     private ObservableCollection<MockRuleModel> _mockRules = new();
+    private MockRuleModel? _selectedMockRule;
 
     private string _activeFilter = "All";
     public ObservableCollection<string> Filters { get; } = new() { "All", "Fetch/XHR", "CSS/JS", "Images", "Doc", "Other" };
@@ -108,6 +109,12 @@ public class NetworkViewModel : ViewModelBase
                 UpdateSelectedRequestDetails();
             }
         }
+    }
+
+    public MockRuleModel? SelectedMockRule
+    {
+        get => _selectedMockRule;
+        set => RaiseAndSetIfChanged(ref _selectedMockRule, value);
     }
 
     public string SelectedUrl
