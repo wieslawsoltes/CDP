@@ -48,6 +48,10 @@ public class SimulationViewModel : ViewModelBase
     private string _scaleFactorText = "1.0";
     private bool _isMobileActive;
     private Bitmap? _screenshotImage;
+    private WriteableBitmap? _tiledBitmap1;
+    private WriteableBitmap? _tiledBitmap2;
+    private bool _useBitmap1 = true;
+    private SkiaSharp.SKColorType _lastColorType = SkiaSharp.SKColorType.Unknown;
     private double _deviceWidth = 800;
     private double _deviceHeight = 600;
 
@@ -831,12 +835,67 @@ public class SimulationViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             ScreenshotImage = null;
+            _tiledBitmap1?.Dispose();
+            _tiledBitmap2?.Dispose();
+            _tiledBitmap1 = null;
+            _tiledBitmap2 = null;
+            _lastColorType = SkiaSharp.SKColorType.Unknown;
             InputSimText = "";
             IsCtrlActive = false;
             IsShiftActive = false;
             IsAltActive = false;
             IsMetaActive = false;
         });
+    }
+
+    private async Task UpdateTiledScreenshotAsync(int width, int height)
+    {
+        var reconstructor = _cdpService.ScreencastReconstructor;
+        var backing = reconstructor.BackingBitmap;
+        if (backing == null) return;
+
+        var colorType = backing.ColorType;
+
+        if (_tiledBitmap1 == null || 
+            _tiledBitmap1.PixelSize.Width != width || 
+            _tiledBitmap1.PixelSize.Height != height ||
+            _lastColorType != colorType)
+        {
+            _tiledBitmap1?.Dispose();
+            _tiledBitmap2?.Dispose();
+
+            _lastColorType = colorType;
+            var format = colorType == SkiaSharp.SKColorType.Rgba8888
+                ? Avalonia.Platform.PixelFormat.Rgba8888
+                : Avalonia.Platform.PixelFormat.Bgra8888;
+
+            _tiledBitmap1 = new WriteableBitmap(
+                new Avalonia.PixelSize(width, height),
+                new Avalonia.Vector(96, 96),
+                format,
+                Avalonia.Platform.AlphaFormat.Premul);
+
+            _tiledBitmap2 = new WriteableBitmap(
+                new Avalonia.PixelSize(width, height),
+                new Avalonia.Vector(96, 96),
+                format,
+                Avalonia.Platform.AlphaFormat.Premul);
+        }
+
+        var targetBitmap = _useBitmap1 ? _tiledBitmap1 : _tiledBitmap2;
+        _useBitmap1 = !_useBitmap1;
+
+        bool copied = false;
+        using (var locked = targetBitmap.Lock())
+        {
+            copied = reconstructor.CopyTo(locked.Address, locked.RowBytes, width, height);
+        }
+
+        if (copied)
+        {
+            ScreenshotImage = targetBitmap;
+            await TriggerHighlightRefreshAsync();
+        }
     }
 
     private void OnDevicePresetChanged()
@@ -916,7 +975,8 @@ public class SimulationViewModel : ViewModelBase
             await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
             {
                 ["format"] = "png",
-                ["everyNthFrame"] = 1
+                ["everyNthFrame"] = 1,
+                ["transferMode"] = "tiled"
             });
             _cdpService.IsPreviewScreencastActive = true;
         }
@@ -950,16 +1010,46 @@ public class SimulationViewModel : ViewModelBase
                     }
                 }
 
-                if (!string.IsNullOrEmpty(base64))
+                var transferMode = e.Params["transferMode"]?.GetValue<string>();
+
+                if (string.Equals(transferMode, "tiled", StringComparison.OrdinalIgnoreCase))
                 {
-                    byte[] bytes = Convert.FromBase64String(base64);
-                    using var ms = new MemoryStream(bytes);
-                    var bitmap = new Bitmap(ms);
-                    Dispatcher.UIThread.Post(async () =>
+                    int pixelWidth = e.Params["pixelWidth"]?.GetValue<int>() ?? 0;
+                    int pixelHeight = e.Params["pixelHeight"]?.GetValue<int>() ?? 0;
+
+                    if (pixelWidth > 0 && pixelHeight > 0)
                     {
-                        ScreenshotImage = bitmap;
-                        await TriggerHighlightRefreshAsync();
-                    });
+                        Dispatcher.UIThread.Post(async () =>
+                        {
+                            try
+                            {
+                                await UpdateTiledScreenshotAsync(pixelWidth, pixelHeight);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error updating tiled preview: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+                else
+                {
+                    byte[]? bytes = null;
+                    if (!string.IsNullOrEmpty(base64))
+                    {
+                        bytes = Convert.FromBase64String(base64);
+                    }
+
+                    if (bytes != null && bytes.Length > 0)
+                    {
+                        using var ms = new MemoryStream(bytes);
+                        var bitmap = new Bitmap(ms);
+                        Dispatcher.UIThread.Post(async () =>
+                        {
+                            ScreenshotImage = bitmap;
+                            await TriggerHighlightRefreshAsync();
+                        });
+                    }
                 }
 
                 if (sessionId != 0)
@@ -1267,13 +1357,11 @@ public class SimulationViewModel : ViewModelBase
 
         try
         {
-            Console.WriteLine($"[DEBUG HOVER] UpdateInspectHoverAsync x={x}, y={y}");
             var nodeRes = await _cdpService.SendCommandAsync("DOM.getNodeForLocation", new JsonObject
             {
                 ["x"] = (int)x,
                 ["y"] = (int)y
             });
-            Console.WriteLine($"[DEBUG HOVER] getNodeForLocation result: {nodeRes.ToJsonString()}");
             
             // Re-validate inspect mode active state and generation
             if (currentGen != _hoverGeneration || !_isInspectModeActiveFunc() || !_cdpService.IsConnected)
@@ -1286,7 +1374,6 @@ public class SimulationViewModel : ViewModelBase
             if (nodeId > 0)
             {
                 var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
-                Console.WriteLine($"[DEBUG HOVER] getBoxModel result: {boxRes.ToJsonString()}");
                 
                 // Re-validate inspect mode active state and generation
                 if (currentGen != _hoverGeneration || !_isInspectModeActiveFunc() || !_cdpService.IsConnected)
@@ -1300,7 +1387,6 @@ public class SimulationViewModel : ViewModelBase
                 {
                     var domNode = _getDomNodeFunc(nodeId);
                     var axDetails = _getAxDetailsFunc(nodeId);
-                    Console.WriteLine($"[DEBUG HOVER] domNode found: {(domNode != null ? domNode.NodeName : "null")}, axRole={axDetails.Role}, axName={axDetails.Name}");
 
                     HighlightElementType = domNode?.NodeName ?? "Visual";
                     HighlightAxRole = axDetails.Role;
@@ -1310,19 +1396,16 @@ public class SimulationViewModel : ViewModelBase
                 }
                 else
                 {
-                    Console.WriteLine("[DEBUG HOVER] box model is null");
                     ClearInspectHover();
                 }
             }
             else
             {
-                Console.WriteLine("[DEBUG HOVER] nodeId is 0");
                 ClearInspectHover();
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[DEBUG HOVER] Exception: {ex.Message}");
             ClearInspectHover();
         }
         finally

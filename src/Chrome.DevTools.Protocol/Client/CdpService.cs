@@ -58,6 +58,23 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         set { _isPreviewScreencastActive = value; OnPropertyChanged(nameof(IsPreviewScreencastActive)); }
     }
 
+    private bool _recordFullFrames;
+    public bool RecordFullFrames
+    {
+        get => _recordFullFrames;
+        set { _recordFullFrames = value; OnPropertyChanged(nameof(RecordFullFrames)); }
+    }
+
+    private byte[]? _lastReconstructedFrameBytes;
+    public byte[]? LastReconstructedFrameBytes
+    {
+        get => _lastReconstructedFrameBytes;
+        private set { _lastReconstructedFrameBytes = value; OnPropertyChanged(nameof(LastReconstructedFrameBytes)); }
+    }
+
+    private readonly ScreencastReconstructor _screencastReconstructor = new();
+    public ScreencastReconstructor ScreencastReconstructor => _screencastReconstructor;
+
     public event EventHandler<CdpEventEventArgs>? EventReceived;
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -198,6 +215,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             ConnectedHost = "";
             ConnectedTargetId = "";
             IsPreviewScreencastActive = false;
+            _screencastReconstructor.Dispose();
         }
     }
 
@@ -278,6 +296,42 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 {
                     string method = node["method"]!.GetValue<string>();
                     var parameters = node["params"] as JsonObject ?? new JsonObject();
+
+                    if (method == "Page.screencastFrame")
+                    {
+                        var transferMode = parameters["transferMode"]?.GetValue<string>();
+                        if (string.Equals(transferMode, "tiled", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                int pixelWidth = parameters["pixelWidth"]?.GetValue<int>() ?? 0;
+                                int pixelHeight = parameters["pixelHeight"]?.GetValue<int>() ?? 0;
+                                int tileWidth = parameters["tileWidth"]?.GetValue<int>() ?? 64;
+                                int tileHeight = parameters["tileHeight"]?.GetValue<int>() ?? 64;
+                                var tiles = parameters["tiles"] as JsonArray;
+
+                                if (tiles != null && pixelWidth > 0 && pixelHeight > 0)
+                                {
+                                    _screencastReconstructor.Update(pixelWidth, pixelHeight, tileWidth, tileHeight, tiles);
+
+                                    if (RecordFullFrames)
+                                    {
+                                        var fullBytes = _screencastReconstructor.EncodeToJpeg(90);
+                                        parameters["data"] = Convert.ToBase64String(fullBytes);
+                                        LastReconstructedFrameBytes = fullBytes;
+                                    }
+                                    else
+                                    {
+                                        LastReconstructedFrameBytes = null;
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error reconstructing tiled screencast frame: {ex.Message}");
+                            }
+                        }
+                    }
 
                     // Raise event to subscribers
                     EventReceived?.Invoke(this, new CdpEventEventArgs(method, parameters));

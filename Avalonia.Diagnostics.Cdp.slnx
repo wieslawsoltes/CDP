@@ -12,5 +12,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj" />
+    <Project Path="tests/Avalonia.Diagnostics.Cdp.Benchmarks/Avalonia.Diagnostics.Cdp.Benchmarks.csproj" />
   </Folder>
 </Solution>

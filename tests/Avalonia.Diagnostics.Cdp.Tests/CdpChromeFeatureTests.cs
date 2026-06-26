@@ -884,6 +884,67 @@ public class CdpChromeFeatureTests
     }
 
     [AvaloniaFact]
+    public async Task TestPageScreencastTiled()
+    {
+        var window = new Window { Title = "Screencast Tiled Test Window", Width = 300, Height = 200 };
+        window.Show();
+
+        using var fakeWs = new FakeWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var @params = new JsonObject
+        {
+            ["format"] = "jpeg",
+            ["quality"] = 80,
+            ["transferMode"] = "tiled"
+        };
+
+        var startResult = await PageDomain.HandleAsync(session, "startScreencast", @params);
+        Assert.NotNull(startResult);
+
+        session.RequestScreencastFrame();
+
+        int retries = 50;
+        string? screencastFrameMsg = null;
+        while (retries-- > 0 && screencastFrameMsg == null)
+        {
+            await Task.Delay(50);
+            lock (fakeWs.SentMessages)
+            {
+                screencastFrameMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame") && m.Contains("\"transferMode\":\"tiled\""));
+            }
+        }
+
+        Assert.NotNull(screencastFrameMsg);
+
+        var node = System.Text.Json.Nodes.JsonNode.Parse(screencastFrameMsg);
+        Assert.NotNull(node);
+        Assert.Equal("Page.screencastFrame", node["method"]?.GetValue<string>());
+
+        var frameParams = node["params"];
+        Assert.NotNull(frameParams);
+        Assert.Equal("tiled", frameParams["transferMode"]?.GetValue<string>());
+        Assert.Null(frameParams["data"]);
+
+        var tiles = frameParams["tiles"] as JsonArray;
+        Assert.NotNull(tiles);
+        Assert.True(tiles.Count > 0);
+
+        var firstTile = tiles[0] as JsonObject;
+        Assert.NotNull(firstTile);
+        Assert.NotNull(firstTile["x"]);
+        Assert.NotNull(firstTile["y"]);
+        Assert.False(string.IsNullOrEmpty(firstTile["data"]?.GetValue<string>()));
+
+        var sessionId = frameParams["sessionId"]?.GetValue<int>() ?? 0;
+        Assert.True(sessionId > 0);
+
+        var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
+        Assert.NotNull(stopResult);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task TestPageScreencastEveryNthFrame()
     {
         var window = new Window { Title = "Screencast Nth Frame Window", Width = 300, Height = 200 };

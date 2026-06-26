@@ -117,7 +117,8 @@ public static class PageDomain
                     int? maxWidth = @params != null && @params.ContainsKey("maxWidth") ? @params["maxWidth"]?.GetValue<int>() : null;
                     int? maxHeight = @params != null && @params.ContainsKey("maxHeight") ? @params["maxHeight"]?.GetValue<int>() : null;
                     int? everyNthFrame = @params != null && @params.ContainsKey("everyNthFrame") ? @params["everyNthFrame"]?.GetValue<int>() : null;
-                    session.StartScreencast(format, quality, maxWidth, maxHeight, everyNthFrame);
+                    string? transferMode = @params != null && @params.ContainsKey("transferMode") ? @params["transferMode"]?.GetValue<string>() : null;
+                    session.StartScreencast(format, quality, maxWidth, maxHeight, everyNthFrame, transferMode);
                     return new JsonObject();
                 }
 

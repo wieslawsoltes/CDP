@@ -49,7 +49,7 @@ public class CdpTargetSession : IDisposable
     }
 
     public virtual void RequestScreencastFrame() { }
-    public virtual void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null) { }
+    public virtual void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null, string? transferMode = null) { }
     public virtual void StopScreencast() { }
     public virtual void AcknowledgeScreencastFrame(int sessionId) { }
 
