@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Text.Json.Serialization;
 using CdpInspectorApp.ViewModels;
 
 namespace CdpInspectorApp.Models;
@@ -53,3 +55,9 @@ public class EnvironmentVariableModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _value, value);
     }
 }
+
+[JsonSerializable(typeof(List<TestEnvironmentModel>))]
+internal partial class EnvironmentJsonContext : JsonSerializerContext
+{
+}
+
