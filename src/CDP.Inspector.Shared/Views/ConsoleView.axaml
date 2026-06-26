@@ -30,7 +30,8 @@
                 <DataGrid Name="listLogs" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Console.Logs}" Grid.Row="1" x:DataType="models:LogModel"
                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                          Background="Transparent" BorderThickness="0">
+                          Background="Transparent" BorderThickness="0"
+                          DoubleTapped="OnLogEntryDoubleTapped">
                     <DataGrid.ColumnHeaderContextMenu>
                         <ContextMenu>
                             <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">

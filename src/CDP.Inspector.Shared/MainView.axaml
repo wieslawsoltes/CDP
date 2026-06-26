@@ -24,7 +24,7 @@
             <GridSplitter Grid.Column="1" Background="#3c4043" ResizeDirection="Columns" IsVisible="{Binding IsPreviewPanelVisible}"/>
 
             <!-- Right side: Developer Tools Panels -->
-            <TabControl Grid.Column="2" Padding="0" Margin="0">
+            <TabControl Grid.Column="2" Padding="0" Margin="0" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                 <!-- Elements Panel -->
                 <TabItem Header="Elements">
                     <views:ElementsView Name="ElementsTab"/>

@@ -50,6 +50,12 @@ public partial class SourcesView : UserControl
             btnSave.Click += (sender, args) => SaveCurrentFile();
         }
 
+        var btnToggleBp = this.FindControl<Button>("btnToggleBreakpoint");
+        if (btnToggleBp != null)
+        {
+            btnToggleBp.Click += (sender, args) => ToggleBreakpointAtCaret();
+        }
+
         DataContextChanged += (sender, args) =>
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -74,7 +80,20 @@ public partial class SourcesView : UserControl
                 if (e.PropertyName == nameof(SourcesViewModel.SelectedFileContent))
                 {
                     UpdateEditorText(vm.Sources.SelectedFileContent);
-                    if (_pendingScrollLine.HasValue && 
+                    if (vm.Sources.PendingScrollLine.HasValue && 
+                        vm.Sources.SelectedFileContent != "Loading content..." && 
+                        !string.IsNullOrEmpty(vm.Sources.SelectedFileContent))
+                    {
+                        ScrollToAndSelectLine(vm.Sources.PendingScrollLine.Value);
+                        vm.Sources.PendingScrollLine = null;
+                    }
+                    else if (vm.Sources.ActiveDebugLine.HasValue && 
+                        vm.Sources.SelectedFileContent != "Loading content..." && 
+                        !string.IsNullOrEmpty(vm.Sources.SelectedFileContent))
+                    {
+                        ScrollToAndSelectLine(vm.Sources.ActiveDebugLine.Value);
+                    }
+                    else if (_pendingScrollLine.HasValue && 
                         vm.Sources.SelectedFileContent != "Loading content..." && 
                         !string.IsNullOrEmpty(vm.Sources.SelectedFileContent))
                     {
@@ -85,8 +104,43 @@ public partial class SourcesView : UserControl
                 {
                     UpdateHighlighting(vm.Sources.SelectedFileName);
                 }
+                else if (e.PropertyName == nameof(SourcesViewModel.PendingScrollLine))
+                {
+                    if (vm.Sources.PendingScrollLine.HasValue && 
+                        vm.Sources.SelectedFileContent != "Loading content..." && 
+                        !string.IsNullOrEmpty(vm.Sources.SelectedFileContent))
+                    {
+                        ScrollToAndSelectLine(vm.Sources.PendingScrollLine.Value);
+                        vm.Sources.PendingScrollLine = null;
+                    }
+                }
+                else if (e.PropertyName == nameof(SourcesViewModel.ActiveDebugLine))
+                {
+                    if (vm.Sources.ActiveDebugLine.HasValue && 
+                        vm.Sources.SelectedFileContent != "Loading content..." && 
+                        !string.IsNullOrEmpty(vm.Sources.SelectedFileContent))
+                    {
+                        ScrollToAndSelectLine(vm.Sources.ActiveDebugLine.Value);
+                    }
+                }
             }
         });
+    }
+
+    private void ToggleBreakpointAtCaret()
+    {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            var editor = txtSourceContent;
+            if (editor != null && editor.Document != null)
+            {
+                int currentLine = editor.TextArea.Caret.Line;
+                if (vm.Sources.ToggleBreakpointCommand.CanExecute(currentLine))
+                {
+                    vm.Sources.ToggleBreakpointCommand.Execute(currentLine);
+                }
+            }
+        }
     }
 
     private void OnSearchResultDoubleTapped(object? sender, RoutedEventArgs e)

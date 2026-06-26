@@ -126,4 +126,25 @@ public partial class ConsoleView : UserControl
             }
         };
     }
+
+    private void OnLogEntryDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.SelectedItem is CdpInspectorApp.Models.LogModel log)
+        {
+            if (string.IsNullOrEmpty(log.Text)) return;
+
+            var match = System.Text.RegularExpressions.Regex.Match(log.Text, @"\bin\s+([^:\n\r]+):line\s*(\d+)");
+            if (match.Success)
+            {
+                string path = match.Groups[1].Value.Trim();
+                if (int.TryParse(match.Groups[2].Value, out int line))
+                {
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        vm.NavigateToSource(path, line);
+                    }
+                }
+            }
+        }
+    }
 }
