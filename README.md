@@ -70,9 +70,9 @@ All interactions with Avalonia UI visual elements are thread-safe, marshalling o
 Install the NuGet package `Chrome.DevTools.Avalonia` to your main Avalonia application:
 
 #### Using .NET CLI (Recommended)
-This automatically retrieves and installs the latest stable version:
+Since packages are currently published as preview versions, include the `--prerelease` flag to retrieve the latest version:
 ```bash
-dotnet add package Chrome.DevTools.Avalonia
+dotnet add package Chrome.DevTools.Avalonia --prerelease
 ```
 
 #### Manual XML Reference
