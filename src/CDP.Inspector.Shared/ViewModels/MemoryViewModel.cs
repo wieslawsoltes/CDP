@@ -8,6 +8,7 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -42,6 +43,7 @@ public class MemoryViewModel : ViewModelBase
     }
 
     public ObservableCollection<RetainerNodeModel> RetainerRoots => _retainerRoots;
+    public HierarchicalModel<RetainerNodeModel> HierarchicalRetainers { get; }
 
     private async Task FetchRetainersAsync()
     {
@@ -173,6 +175,15 @@ public class MemoryViewModel : ViewModelBase
         ClearSnapshotsCommand = new RelayCommand(ClearSnapshots);
         CollectGarbageCommand = new RelayCommand(async () => await CollectGarbageAsync(), () => _cdpService.IsConnected);
         ExportSnapshotCommand = new RelayCommand(async () => await ExportSnapshotAsync(), () => _cdpService.IsConnected);
+
+        var retainerOptions = new HierarchicalOptions<RetainerNodeModel>
+        {
+            ChildrenSelector = node => node.Retainers,
+            IsLeafSelector = node => node.Retainers == null || node.Retainers.Count == 0,
+            AutoExpandRoot = true
+        };
+        HierarchicalRetainers = new HierarchicalModel<RetainerNodeModel>(retainerOptions);
+        HierarchicalRetainers.SetRoots(RetainerRoots);
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.MemoryView"
              x:DataType="vm:MainWindowViewModel"
@@ -162,19 +163,28 @@
                                     <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,4">
                                         <TextBlock Text="RETAINERS PATH (RETAINED BY)" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
                                     </Border>
-                                    <TreeView Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.RetainerRoots}"
-                                              x:DataType="models:RetainerNodeModel">
-                                        <TreeView.ItemTemplate>
-                                            <TreeDataTemplate DataType="models:RetainerNodeModel" x:DataType="models:RetainerNodeModel" ItemsSource="{Binding Retainers}">
-                                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,2">
-                                                    <TextBlock Text="{Binding Name}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                                                    <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
-                                                    <TextBlock Text="{Binding Type}" Foreground="#8ab4f8" FontSize="12"/>
-                                                    <TextBlock Text="{Binding HashCode, StringFormat='[0x{0:X8}]'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </TreeDataTemplate>
-                                        </TreeView.ItemTemplate>
-                                    </TreeView>
+                                    <DataGrid Name="treeRetainers" Grid.Row="1"
+                                              HierarchicalModel="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.HierarchicalRetainers}"
+                                              HierarchicalRowsEnabled="True"
+                                              HeadersVisibility="None"
+                                              GridLinesVisibility="None"
+                                              Background="Transparent"
+                                              BorderThickness="0">
+                                        <DataGrid.Columns>
+                                            <DataGridHierarchicalColumn Width="*">
+                                                <DataGridHierarchicalColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,2">
+                                                            <TextBlock Text="{Binding ((models:RetainerNodeModel)Item).Name}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                            <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding ((models:RetainerNodeModel)Item).Type}" Foreground="#8ab4f8" FontSize="12" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding ((models:RetainerNodeModel)Item).HashCode, StringFormat='[0x{0:X8}]'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </DataGridHierarchicalColumn.CellTemplate>
+                                            </DataGridHierarchicalColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
                                 </Grid>
                             </Grid>
                         </TabItem>

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 using Avalonia;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.Models;
 
@@ -30,6 +31,7 @@ public class NetworkRequestModel : INotifyPropertyChanged
     private ObservableCollection<KeyValuePairModel> _queryParameters = new();
     private ObservableCollection<KeyValuePairModel> _postParameters = new();
     private ObservableCollection<JsonTreeNode>? _jsonTree;
+    private HierarchicalModel<JsonTreeNode>? _hierarchicalJsonTree;
     private Avalonia.Media.Imaging.Bitmap? _responseImage;
     private double _startTime;
     private double _endTime;
@@ -122,6 +124,33 @@ public class NetworkRequestModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(JsonTree));
             OnPropertyChanged(nameof(IsJson));
             OnPropertyChanged(nameof(IsRawText));
+
+            if (value == null)
+            {
+                HierarchicalJsonTree = null;
+            }
+            else
+            {
+                var options = new HierarchicalOptions<JsonTreeNode>
+                {
+                    ChildrenSelector = node => node.Children,
+                    IsLeafSelector = node => node.Children == null || node.Children.Count == 0,
+                    AutoExpandRoot = false
+                };
+                var model = new HierarchicalModel<JsonTreeNode>(options);
+                model.SetRoots(value);
+                HierarchicalJsonTree = model;
+            }
+        }
+    }
+
+    public HierarchicalModel<JsonTreeNode>? HierarchicalJsonTree
+    {
+        get => _hierarchicalJsonTree;
+        set
+        {
+            _hierarchicalJsonTree = value;
+            OnPropertyChanged(nameof(HierarchicalJsonTree));
         }
     }
 

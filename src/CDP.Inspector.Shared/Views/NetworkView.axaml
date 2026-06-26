@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.NetworkView"
              x:DataType="vm:MainWindowViewModel"
@@ -146,14 +147,25 @@
                         <TabItem Header="Preview" IsVisible="{Binding Network.SelectedRequest, Converter={x:Static ObjectConverters.IsNotNull}}">
                             <ScrollViewer Margin="5">
                                 <StackPanel x:DataType="models:NetworkRequestModel" DataContext="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedRequest}">
-                                    <!-- JSON tree view -->
-                                    <TreeView ItemsSource="{Binding JsonTree}" IsVisible="{Binding IsJson}" MaxHeight="250">
-                                        <TreeView.ItemTemplate>
-                                            <TreeDataTemplate x:DataType="models:JsonTreeNode" ItemsSource="{Binding Children}">
-                                                <TextBlock Text="{Binding Header}" FontSize="11" Foreground="#e8eaed"/>
-                                            </TreeDataTemplate>
-                                        </TreeView.ItemTemplate>
-                                    </TreeView>
+                                     <!-- JSON tree view -->
+                                     <DataGrid HierarchicalModel="{Binding HierarchicalJsonTree}"
+                                               HierarchicalRowsEnabled="True"
+                                               HeadersVisibility="None"
+                                               GridLinesVisibility="None"
+                                               Background="Transparent"
+                                               BorderThickness="0"
+                                               IsVisible="{Binding IsJson}"
+                                               MaxHeight="250">
+                                         <DataGrid.Columns>
+                                             <DataGridHierarchicalColumn Width="*">
+                                                 <DataGridHierarchicalColumn.CellTemplate>
+                                                     <DataTemplate x:DataType="tree:HierarchicalNode">
+                                                         <TextBlock Text="{Binding ((models:JsonTreeNode)Item).Header}" FontSize="11" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                                     </DataTemplate>
+                                                 </DataGridHierarchicalColumn.CellTemplate>
+                                             </DataGridHierarchicalColumn>
+                                         </DataGrid.Columns>
+                                     </DataGrid>
 
                                     <!-- Image preview -->
                                     <Image Source="{Binding ResponseImage}" IsVisible="{Binding IsImage}" MaxWidth="250" MaxHeight="250" HorizontalAlignment="Left"/>
