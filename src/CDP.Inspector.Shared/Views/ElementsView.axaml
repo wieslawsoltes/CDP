@@ -112,10 +112,11 @@
                     <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
                         <TabControl Grid.Row="0" Padding="0,5,0,0">
                             <TabItem Header="Inline styles">
-                            <Grid RowDefinitions="Auto, Auto, *, Auto" Margin="0,5,0,0">
-                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                            <Grid RowDefinitions="Auto, Auto, Auto, *, Auto" Margin="0,5,0,0">
+                                <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,5">
                                     <TextBox Name="txtCssSearch" Text="{Binding Elements.CssSearchText, Mode=TwoWay}" PlaceholderText="Filter styles" Height="26" VerticalContentAlignment="Center"/>
                                     <ToggleButton Name="btnHovToggle" Grid.Column="1" IsChecked="{Binding Elements.IsPseudoStatePanelOpen, Mode=TwoWay}" Content=":hov" Margin="5,0,0,0" Padding="8,0" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                    <ToggleButton Name="btnClsToggle" Grid.Column="2" IsChecked="{Binding Elements.IsClassPanelOpen, Mode=TwoWay}" Content=".cls" Margin="5,0,0,0" Padding="8,0" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
                                 </Grid>
                                 
                                 <Border Grid.Row="1" Background="#2d2e30" BorderBrush="#3c4043" BorderThickness="0,0,0,1" IsVisible="{Binding Elements.IsPseudoStatePanelOpen}" Padding="10,8" Margin="0,0,0,5">
@@ -129,7 +130,28 @@
                                     </Grid>
                                 </Border>
 
-                                 <DataGrid Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredCssProperties}"
+                                <Border Grid.Row="2" Background="#2d2e30" BorderBrush="#3c4043" BorderThickness="0,0,0,1" IsVisible="{Binding Elements.IsClassPanelOpen}" Padding="10,8" Margin="0,0,0,5">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,4">
+                                            <TextBox Name="txtAddClass" Text="{Binding Elements.NewClassNameText, Mode=TwoWay}" PlaceholderText="Add new class..." Height="26" VerticalContentAlignment="Center" KeyDown="OnAddClassTextBoxKeyDown"/>
+                                            <Button Name="btnAddClass" Command="{Binding Elements.AddClassCommand}" Grid.Column="1" Content="Add" Margin="5,0,0,0" Padding="10,0" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding Elements.Classes}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="models:ClassItemModel">
+                                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,2,12,2" FontSize="11"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                 <DataGrid Grid.Row="3" Name="listCssProperties" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredCssProperties}"
                                            x:DataType="models:CssPropertyModel"
                                            CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                            GridLinesVisibility="None" HeadersVisibility="None"
@@ -139,7 +161,7 @@
                                         <DataGridTextColumn Header="Value" Binding="{Binding Value, Mode=TwoWay}" IsReadOnly="False" Width="2*" Foreground="#e8eaed" FontSize="12"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
-                                <Grid Grid.Row="3" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
+                                <Grid Grid.Row="4" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
                                     <TextBox Name="txtStyleText" Text="{Binding Elements.StyleTextInputText, Mode=TwoWay}" PlaceholderText="Add style rule (e.g. background: red)..." Height="28" VerticalContentAlignment="Center"/>
                                     <Button Name="btnApplyStyleText" Command="{Binding Elements.ApplyStyleTextCommand}" Grid.Column="1" Content="Apply" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                                 </Grid>

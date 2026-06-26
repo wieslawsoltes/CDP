@@ -80,6 +80,7 @@ public class ElementsViewModel : ViewModelBase
     private int _axSearchIndex = -1;
     private string _lastAxSearchQuery = "";
     private bool _showVisualTree = false;
+    private int? _lastParsedNodeId;
 
     // Accessibility Details
     private string _axRoleText = "None";
@@ -154,6 +155,29 @@ public class ElementsViewModel : ViewModelBase
     {
         get => _isPseudoStatePanelOpen;
         set => RaiseAndSetIfChanged(ref _isPseudoStatePanelOpen, value);
+    }
+
+    private bool _isClassPanelOpen;
+    public bool IsClassPanelOpen
+    {
+        get => _isClassPanelOpen;
+        set => RaiseAndSetIfChanged(ref _isClassPanelOpen, value);
+    }
+
+    private ObservableCollection<ClassItemModel> _classes = new();
+    public ObservableCollection<ClassItemModel> Classes => _classes;
+
+    private string _newClassNameText = "";
+    public string NewClassNameText
+    {
+        get => _newClassNameText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _newClassNameText, value))
+            {
+                ((RelayCommand)AddClassCommand).RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public bool IsForcedHover
@@ -657,6 +681,7 @@ public class ElementsViewModel : ViewModelBase
     public ICommand SearchCommand { get; }
     public ICommand AxSearchCommand { get; }
     public ICommand RefreshAxTreeCommand { get; }
+    public ICommand AddClassCommand { get; }
 
     public ElementsViewModel(ICdpService cdpService)
     {
@@ -676,6 +701,7 @@ public class ElementsViewModel : ViewModelBase
         StartEditCommand = new RelayCommand<string>(StartEdit);
         CommitEditCommand = new RelayCommand<string>(async field => await CommitEditAsync(field));
         CancelEditCommand = new RelayCommand(CancelAllEdits);
+        AddClassCommand = new RelayCommand(async () => await AddClassAsync(), () => SelectedNode != null && !string.IsNullOrWhiteSpace(NewClassNameText));
 
         Properties.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredProperties));
         CssProperties.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredCssProperties));
@@ -947,6 +973,10 @@ public class ElementsViewModel : ViewModelBase
             ComputedStyles.Clear();
             EventListeners.Clear();
             StyleTextInputText = "";
+            _lastParsedNodeId = null;
+            Classes.Clear();
+            NewClassNameText = "";
+            ((RelayCommand)AddClassCommand).RaiseCanExecuteChanged();
             return;
         }
 
@@ -956,6 +986,13 @@ public class ElementsViewModel : ViewModelBase
         ((RelayCommand)ApplyAttributeCommand).RaiseCanExecuteChanged();
         ((RelayCommand)DeleteAttributeCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ApplyStyleTextCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)AddClassCommand).RaiseCanExecuteChanged();
+
+        if (node.NodeId != _lastParsedNodeId)
+        {
+            _lastParsedNodeId = node.NodeId;
+            ParseClassesForSelectedNode();
+        }
 
         // 1. Load Attributes
         Attributes.Clear();
@@ -2179,6 +2216,106 @@ public class ElementsViewModel : ViewModelBase
             if (found != null) return found;
         }
         return null;
+    }
+
+    private void ParseClassesForSelectedNode()
+    {
+        Classes.Clear();
+        var node = SelectedNode;
+        if (node == null) return;
+
+        var classAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase));
+        if (classAttr != null && !string.IsNullOrEmpty(classAttr.Value))
+        {
+            var parts = classAttr.Value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                if (!Classes.Any(c => c.Name == part))
+                {
+                    Classes.Add(new ClassItemModel(part, true, OnClassToggled));
+                }
+            }
+        }
+    }
+
+    private void OnClassToggled(ClassItemModel classItem)
+    {
+        _ = UpdateControlClassesAsync();
+    }
+
+    private async Task UpdateControlClassesAsync()
+    {
+        if (SelectedNode == null) return;
+        
+        var enabledClasses = Classes.Where(c => c.IsEnabled).Select(c => c.Name);
+        string classValue = string.Join(" ", enabledClasses);
+        
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.setAttributeValue", new JsonObject
+            {
+                ["nodeId"] = SelectedNode.NodeId,
+                ["name"] = "class",
+                ["value"] = classValue
+            });
+
+            var classAttr = SelectedNode.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase));
+            if (classAttr != null)
+            {
+                if (string.IsNullOrEmpty(classValue))
+                {
+                    SelectedNode.AttributesList.Remove(classAttr);
+                }
+                else
+                {
+                    classAttr.Value = classValue;
+                }
+            }
+            else if (!string.IsNullOrEmpty(classValue))
+            {
+                SelectedNode.AttributesList.Add(new AttributeModel("class", classValue));
+            }
+
+            UpdateNodeDisplayName(SelectedNode);
+
+            await HandleNodeSelectionChangedAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating control classes: {ex.Message}");
+        }
+    }
+
+    private void UpdateNodeDisplayName(DomNodeModel model)
+    {
+        string display = model.NodeName;
+        var idAttr = model.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase));
+        if (idAttr != null) display += $"#{idAttr.Value}";
+        var classAttr = model.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase));
+        if (classAttr != null) display += $".{classAttr.Value.Split(' ').FirstOrDefault()}";
+        model.DisplayName = display;
+    }
+
+    private async Task AddClassAsync()
+    {
+        if (SelectedNode == null || string.IsNullOrWhiteSpace(NewClassNameText)) return;
+
+        string newClass = NewClassNameText.Trim();
+        NewClassNameText = "";
+
+        var existing = Classes.FirstOrDefault(c => c.Name.Equals(newClass, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            if (!existing.IsEnabled)
+            {
+                existing.IsEnabled = true;
+            }
+            return;
+        }
+
+        Classes.Add(new ClassItemModel(newClass, true, OnClassToggled));
+        
+        await UpdateControlClassesAsync();
     }
 }
 
