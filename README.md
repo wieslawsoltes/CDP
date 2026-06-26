@@ -79,7 +79,7 @@ dotnet add package Chrome.DevTools.Avalonia
 If manually adding the package reference to your `.csproj` file, specify the version to ensure a successful NuGet restore:
 ```xml
 <ItemGroup>
-  <PackageReference Include="Chrome.DevTools.Avalonia" Version="1.0.0" />
+  <PackageReference Include="Chrome.DevTools.Avalonia" Version="x.y.z" />
 </ItemGroup>
 ```
 
