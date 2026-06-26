@@ -45,7 +45,7 @@
                         <TextBlock Text="Baseline:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
                         <ComboBox ItemsSource="{Binding Memory.ComparisonBaselines}" SelectedItem="{Binding Memory.SelectedBaseline, Mode=TwoWay}" Height="28">
                             <ComboBox.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="models:MemorySnapshotModel">
                                     <TextBlock Text="{Binding Name}" FontSize="12"/>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>

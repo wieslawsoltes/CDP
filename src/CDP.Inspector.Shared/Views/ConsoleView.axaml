@@ -66,7 +66,7 @@
             <!-- Evaluations history -->
             <ListBox Name="listConsole" ItemsSource="{Binding Console.ConsoleHistory}" MaxHeight="120" Margin="0,0,0,8" Background="#202124" BorderBrush="#3c4043">
                 <ListBox.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="models:ConsoleItemModel">
                         <StackPanel Margin="2">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="❯ " Foreground="#8ab4f8" FontWeight="Bold" FontSize="12"/>
@@ -87,7 +87,7 @@
                     <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" MaxHeight="200" Width="250">
                         <ListBox ItemsSource="{Binding Console.Completions}" SelectedIndex="{Binding Console.SelectedCompletionIndex, Mode=TwoWay}">
                             <ListBox.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="x:String">
                                     <TextBlock Text="{Binding}" FontSize="12" Foreground="#e8eaed"/>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
