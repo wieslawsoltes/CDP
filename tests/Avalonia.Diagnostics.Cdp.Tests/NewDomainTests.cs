@@ -1133,5 +1133,77 @@ public class NewDomainTests
         await vm.ConnectAsync();
         Assert.Equal("http://10.0.0.5:8080", service.ConnectedHost);
     }
+
+    [AvaloniaFact]
+    public async Task TestDebuggerDomainPausingAndResuming()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        // Enable debugger
+        var enableResult = await DebuggerDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.NotNull(enableResult);
+        Assert.Equal("1", enableResult["debuggerId"]?.GetValue<string>());
+
+        // Set breakpoint
+        var setBpParams = new JsonObject
+        {
+            ["url"] = "C# Evaluation",
+            ["lineNumber"] = 1
+        };
+        var setBpResult = await DebuggerDomain.HandleAsync(session, "setBreakpointByUrl", setBpParams);
+        Assert.NotNull(setBpResult);
+        var breakpointId = setBpResult["breakpointId"]?.GetValue<string>();
+        Assert.Equal("C# Evaluation:1", breakpointId);
+
+        // Check if event is sent on breakpoint hit
+        JsonObject? receivedEvent = null;
+        session.EventSentForTesting += (evt) =>
+        {
+            receivedEvent = evt;
+        };
+
+        // Run breakpoint checking on a background thread so it doesn't block the test
+        var checkTask = Task.Run(() => DebuggerDomain.CheckBreakpoint(session, "C# Evaluation", 1));
+
+        // Wait a short time for thread to pause
+        for (int i = 0; i < 100; i++)
+        {
+            if (DebuggerDomain.IsPaused) break;
+            await Task.Delay(20);
+        }
+
+        Assert.True(DebuggerDomain.IsPaused);
+        Assert.NotNull(receivedEvent);
+        Assert.Equal("Debugger.paused", receivedEvent["method"]?.GetValue<string>());
+
+        var pausedParams = receivedEvent["params"] as JsonObject;
+        Assert.NotNull(pausedParams);
+        var callFrames = pausedParams["callFrames"] as JsonArray;
+        Assert.NotNull(callFrames);
+        Assert.Single(callFrames);
+
+        var firstFrame = callFrames[0] as JsonObject;
+        Assert.NotNull(firstFrame);
+        Assert.Equal("Evaluate", firstFrame["functionName"]?.GetValue<string>());
+        Assert.Equal("C# Evaluation", firstFrame["url"]?.GetValue<string>());
+
+        // Resume debugger
+        var resumeResult = await DebuggerDomain.HandleAsync(session, "resume", new JsonObject());
+        Assert.NotNull(resumeResult);
+
+        // Wait for checkTask to complete
+        await checkTask;
+
+        Assert.False(DebuggerDomain.IsPaused);
+
+        // Clean up breakpoint
+        var removeParams = new JsonObject
+        {
+            ["breakpointId"] = breakpointId
+        };
+        var removeResult = await DebuggerDomain.HandleAsync(session, "removeBreakpoint", removeParams);
+        Assert.NotNull(removeResult);
+    }
 }
 

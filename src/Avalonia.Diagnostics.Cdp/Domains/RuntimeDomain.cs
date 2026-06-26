@@ -902,6 +902,8 @@ public static class RuntimeDomain
                 "Avalonia.LogicalTree"
             );
 
+        DebuggerDomain.CheckBreakpoint(session, "C# Evaluation", 1);
+
         try
         {
             if (session.ScriptSession is ScriptState<object> state)
