@@ -433,9 +433,9 @@ public class CdpSession
         CurrentTargetSession?.RequestScreencastFrame();
     }
 
-    public void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null)
+    public void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null, string? transferMode = null)
     {
-        CurrentTargetSession?.StartScreencast(format, quality, maxWidth, maxHeight, everyNthFrame);
+        CurrentTargetSession?.StartScreencast(format, quality, maxWidth, maxHeight, everyNthFrame, transferMode);
     }
 
     public void StopScreencast()

@@ -25,6 +25,8 @@ public interface ICdpService : INotifyPropertyChanged
     string ConnectedHost { get; }
     string ConnectedTargetId { get; }
     bool IsPreviewScreencastActive { get; set; }
+    bool RecordFullFrames { get => false; set { } }
+    byte[]? LastReconstructedFrameBytes => null;
 
     event EventHandler<CdpEventEventArgs>? EventReceived;
 
