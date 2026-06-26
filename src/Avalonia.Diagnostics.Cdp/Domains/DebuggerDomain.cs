@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,13 +36,15 @@ public static class DebuggerDomain
                 {
                     string url = @params["url"]?.GetValue<string>() ?? @params["urlRegex"]?.GetValue<string>() ?? "";
                     int lineNumber = @params["lineNumber"]?.GetValue<int>() ?? 0;
+                    string? condition = @params["condition"]?.GetValue<string>();
                     string breakpointId = $"{url}:{lineNumber}";
 
                     var bp = new BreakpointInfo
                     {
                         BreakpointId = breakpointId,
                         Url = url,
-                        LineNumber = lineNumber
+                        LineNumber = lineNumber,
+                        Condition = condition
                     };
                     _breakpoints[breakpointId] = bp;
 
@@ -86,6 +89,7 @@ public static class DebuggerDomain
     public static void CheckBreakpoint(CdpSession session, string url, int line)
     {
         bool hit = false;
+        BreakpointInfo? hitBp = null;
         foreach (var bp in _breakpoints.Values)
         {
             bool lineMatches = bp.LineNumber == line || bp.LineNumber + 1 == line;
@@ -96,12 +100,73 @@ public static class DebuggerDomain
             if (lineMatches && urlMatches)
             {
                 hit = true;
+                hitBp = bp;
                 break;
             }
         }
 
-        if (hit)
+        if (hit && hitBp != null)
         {
+            bool shouldPause = true;
+            if (!string.IsNullOrWhiteSpace(hitBp.Condition))
+            {
+                try
+                {
+                    var globals = new ReplGlobals(session);
+                    var options = Microsoft.CodeAnalysis.Scripting.ScriptOptions.Default
+                        .WithReferences(AppDomain.CurrentDomain.GetAssemblies()
+                            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+                            .Select(a => a.Location))
+                        .WithImports(
+                            "System",
+                            "System.Collections.Generic",
+                            "System.Linq",
+                            "System.Threading.Tasks",
+                            "Avalonia",
+                            "Avalonia.Controls",
+                            "Avalonia.VisualTree",
+                            "Avalonia.LogicalTree"
+                        );
+
+                    var result = Microsoft.CodeAnalysis.CSharp.Scripting.CSharpScript.EvaluateAsync<object>(
+                        hitBp.Condition,
+                        options,
+                        globals,
+                        typeof(ReplGlobals)
+                    ).GetAwaiter().GetResult();
+
+                    if (result is bool bResult)
+                    {
+                        shouldPause = bResult;
+                    }
+                    else if (result != null)
+                    {
+                        if (bool.TryParse(result.ToString(), out bool parsedBool))
+                        {
+                            shouldPause = parsedBool;
+                        }
+                        else
+                        {
+                            shouldPause = true;
+                        }
+                    }
+                    else
+                    {
+                        shouldPause = false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[CDP DEBUGGER ERROR] Failed to evaluate breakpoint condition '{hitBp.Condition}': {ex}");
+                    shouldPause = true;
+                }
+            }
+
+            if (!shouldPause)
+            {
+                return;
+            }
+
             IsPaused = true;
             DebuggerBlockEvent.Reset();
 
@@ -159,6 +224,7 @@ public static class DebuggerDomain
         public string BreakpointId { get; set; } = "";
         public string Url { get; set; } = "";
         public int LineNumber { get; set; }
+        public string? Condition { get; set; }
     }
 
     public class LocalVariablesScope

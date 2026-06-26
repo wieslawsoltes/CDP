@@ -1205,5 +1205,78 @@ public class NewDomainTests
         var removeResult = await DebuggerDomain.HandleAsync(session, "removeBreakpoint", removeParams);
         Assert.NotNull(removeResult);
     }
+
+    [AvaloniaFact]
+    public async Task TestConditionalBreakpoints()
+    {
+        using var clientWs = new ClientWebSocket();
+        var window = new Window { Title = "Test Window" };
+        window.DataContext = new TestDataContext { SomeValue = 42 };
+        window.Show();
+        
+        var session = new CdpSession(clientWs, window);
+
+        // Enable debugger
+        await DebuggerDomain.HandleAsync(session, "enable", new JsonObject());
+
+        // 1. Set conditional breakpoint that evaluates to false (should NOT pause)
+        var setBpParamsFalse = new JsonObject
+        {
+            ["url"] = "TestFile.cs",
+            ["lineNumber"] = 10,
+            ["condition"] = "Window.DataContext != null && ((Avalonia.Diagnostics.Cdp.Tests.NewDomainTests.TestDataContext)Window.DataContext).SomeValue == 100"
+        };
+        var setBpResultFalse = await DebuggerDomain.HandleAsync(session, "setBreakpointByUrl", setBpParamsFalse);
+        var breakpointIdFalse = setBpResultFalse["breakpointId"]?.GetValue<string>();
+
+        // Check if event is sent on breakpoint hit - it shouldn't hit!
+        DebuggerDomain.IsPaused = false;
+        DebuggerDomain.CheckBreakpoint(session, "TestFile.cs", 10);
+        
+        Assert.False(DebuggerDomain.IsPaused);
+
+        // Remove false breakpoint
+        await DebuggerDomain.HandleAsync(session, "removeBreakpoint", new JsonObject { ["breakpointId"] = breakpointIdFalse });
+
+        // 2. Set conditional breakpoint that evaluates to true (should pause)
+        var setBpParamsTrue = new JsonObject
+        {
+            ["url"] = "TestFile.cs",
+            ["lineNumber"] = 10,
+            ["condition"] = "Window.DataContext != null && ((Avalonia.Diagnostics.Cdp.Tests.NewDomainTests.TestDataContext)Window.DataContext).SomeValue == 42"
+        };
+        var setBpResultTrue = await DebuggerDomain.HandleAsync(session, "setBreakpointByUrl", setBpParamsTrue);
+        var breakpointIdTrue = setBpResultTrue["breakpointId"]?.GetValue<string>();
+
+        // Run breakpoint checking on a background thread so it doesn't block the test
+        var checkTask = Task.Run(() => DebuggerDomain.CheckBreakpoint(session, "TestFile.cs", 10));
+
+        // Wait a short time for thread to pause
+        for (int i = 0; i < 100; i++)
+        {
+            if (DebuggerDomain.IsPaused) break;
+            await Task.Delay(20);
+        }
+
+        Assert.True(DebuggerDomain.IsPaused);
+
+        // Resume debugger
+        await DebuggerDomain.HandleAsync(session, "resume", new JsonObject());
+
+        // Wait for checkTask to complete
+        await checkTask;
+
+        Assert.False(DebuggerDomain.IsPaused);
+
+        // Clean up breakpoint
+        await DebuggerDomain.HandleAsync(session, "removeBreakpoint", new JsonObject { ["breakpointId"] = breakpointIdTrue });
+        
+        window.Close();
+    }
+
+    public class TestDataContext
+    {
+        public int SomeValue { get; set; }
+    }
 }
 
