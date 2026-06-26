@@ -1262,40 +1262,109 @@ public static class CssDomain
         if (string.IsNullOrWhiteSpace(selectorText))
             return false;
 
-        var delimiters = new[] { ' ', '\t', '\r', '\n', '.', ':', '#', '>', ',', '/', '(', ')', '[', ']', '*', '=', '"', '\'' };
-        var tokens = selectorText.Split(delimiters, StringSplitOptions.RemoveEmptyEntries);
-
-        // Get control type name and its base type names
-        var typeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var currentType = control.GetType();
-        while (currentType != null && currentType != typeof(object))
+        // Split by comma first, since comma separates multiple independent selectors (e.g. "Button.primary, TextBlock.header")
+        var independentSelectors = selectorText.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var sel in independentSelectors)
         {
-            typeNames.Add(currentType.Name);
-            currentType = currentType.BaseType;
-        }
-
-        foreach (var token in tokens)
-        {
-            var trimmedToken = token.Trim();
-            if (string.IsNullOrEmpty(trimmedToken)) continue;
-
-            // Check if targets control type name
-            if (typeNames.Contains(trimmedToken))
+            if (SelectorSegmentMatches(control, sel.Trim()))
             {
                 return true;
             }
+        }
+        return false;
+    }
 
-            // Check if targets active class names
-            foreach (var cls in control.Classes)
+    private static bool SelectorSegmentMatches(Control control, string selector)
+    {
+        if (string.IsNullOrEmpty(selector)) return false;
+
+        // Split by space/child combinator to find the last segment (the target control)
+        var parts = selector.Split(new[] { ' ', '>', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return false;
+
+        var target = parts[^1].Trim();
+        if (string.IsNullOrEmpty(target) || target == "*") return true;
+
+        // Parse target segment components: type name, classes, name, pseudo-classes
+        string typeName = "";
+        var classes = new List<string>();
+        string? nameId = null;
+
+        int i = 0;
+        // Parse type name (until first special char: '.', ':', '#', '[')
+        while (i < target.Length && target[i] != '.' && target[i] != ':' && target[i] != '#' && target[i] != '[')
+        {
+            i++;
+        }
+        if (i > 0)
+        {
+            typeName = target.Substring(0, i);
+        }
+
+        // Parse the rest of the components
+        while (i < target.Length)
+        {
+            char marker = target[i];
+            i++;
+            int start = i;
+            while (i < target.Length && target[i] != '.' && target[i] != ':' && target[i] != '#' && target[i] != '[')
             {
-                if (string.Equals(cls, trimmedToken, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
+                i++;
+            }
+            string token = target.Substring(start, i - start);
+            if (string.IsNullOrEmpty(token)) continue;
+
+            if (marker == '.')
+            {
+                classes.Add(token);
+            }
+            else if (marker == '#')
+            {
+                nameId = token;
             }
         }
 
-        return false;
+        // Validate Type Name
+        if (!string.IsNullOrEmpty(typeName) && typeName != "*")
+        {
+            var typeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var currentType = control.GetType();
+            while (currentType != null && currentType != typeof(object))
+            {
+                typeNames.Add(currentType.Name);
+                currentType = currentType.BaseType;
+            }
+            if (!typeNames.Contains(typeName))
+            {
+                return false;
+            }
+        }
+
+        // Validate Classes
+        foreach (var cls in classes)
+        {
+            bool hasClass = false;
+            foreach (var c in control.Classes)
+            {
+                if (string.Equals(c, cls, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasClass = true;
+                    break;
+                }
+            }
+            if (!hasClass) return false;
+        }
+
+        // Validate Control Name
+        if (nameId != null)
+        {
+            if (!string.Equals(control.Name, nameId, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string ToCssPropertyName(string avaloniaPropName)

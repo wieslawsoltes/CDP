@@ -128,12 +128,12 @@ public class ProfilerState
 
     private JsonObject GenerateProfile(DateTime start, DateTime end, List<ProfileSpan> spans)
     {
-        double startTimeSec = ((DateTimeOffset)start).ToUnixTimeMilliseconds() / 1000.0;
-        double endTimeSec = ((DateTimeOffset)end).ToUnixTimeMilliseconds() / 1000.0;
+        double startTimeUs = ((DateTimeOffset)start).ToUnixTimeMilliseconds() * 1000.0;
+        double endTimeUs = ((DateTimeOffset)end).ToUnixTimeMilliseconds() * 1000.0;
 
-        if (endTimeSec <= startTimeSec)
+        if (endTimeUs <= startTimeUs)
         {
-            endTimeSec = startTimeSec + 0.001;
+            endTimeUs = startTimeUs + 1000.0;
         }
 
         double durationMs = (end - start).TotalMilliseconds;
@@ -336,8 +336,8 @@ public class ProfilerState
         return new JsonObject
         {
             ["nodes"] = nodes,
-            ["startTime"] = startTimeSec,
-            ["endTime"] = endTimeSec,
+            ["startTime"] = startTimeUs,
+            ["endTime"] = endTimeUs,
             ["samples"] = samples,
             ["timeDeltas"] = timeDeltas
         };
