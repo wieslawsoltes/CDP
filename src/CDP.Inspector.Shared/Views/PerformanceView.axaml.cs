@@ -15,7 +15,6 @@ public partial class PerformanceView : UserControl
     public TextBlock LblPerfPid => lblPerfPid;
     public TextBlock LblPerfOs => lblPerfOs;
     public Button BtnCloseTarget => btnCloseTarget;
-    public MemoryChart CanvasMemoryChart => canvasMemoryChart;
     public DataGrid LstLiveControls => lstLiveControls;
 
     public PerformanceView()

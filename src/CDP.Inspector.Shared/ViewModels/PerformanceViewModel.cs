@@ -28,6 +28,8 @@ public class PerformanceViewModel : ViewModelBase
     private string _perfBlockingTimeText = "--";
     private ObservableCollection<ControlCountModel> _liveControls = new();
     private List<double>? _memoryHistory = new();
+    private List<double>? _cpuHistory = new();
+    private List<double>? _fpsHistory = new();
 
     public string PerfNodesText
     {
@@ -115,6 +117,18 @@ public class PerformanceViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _memoryHistory, value);
     }
 
+    public List<double>? CpuHistory
+    {
+        get => _cpuHistory;
+        private set => RaiseAndSetIfChanged(ref _cpuHistory, value);
+    }
+
+    public List<double>? FpsHistory
+    {
+        get => _fpsHistory;
+        private set => RaiseAndSetIfChanged(ref _fpsHistory, value);
+    }
+
     public ICommand RefreshMetricsCommand { get; }
     public ICommand CollectGarbageCommand { get; }
     public ICommand CloseTargetCommand { get; }
@@ -177,6 +191,8 @@ public class PerformanceViewModel : ViewModelBase
     private void UpdateMetrics(JsonArray metrics)
     {
         var newHistory = MemoryHistory != null ? new List<double>(MemoryHistory) : new List<double>();
+        var newHistoryCpu = CpuHistory != null ? new List<double>(CpuHistory) : new List<double>();
+        var newHistoryFps = FpsHistory != null ? new List<double>(FpsHistory) : new List<double>();
         foreach (var m in metrics)
         {
             string name = m?["name"]?.GetValue<string>() ?? "";
@@ -198,6 +214,8 @@ public class PerformanceViewModel : ViewModelBase
             else if (name == "CPUUsage")
             {
                 PerfCpuText = $"{val:F1} %";
+                newHistoryCpu.Add(val);
+                if (newHistoryCpu.Count > 30) newHistoryCpu.RemoveAt(0);
             }
             else if (name == "LayoutCount")
             {
@@ -210,6 +228,8 @@ public class PerformanceViewModel : ViewModelBase
             else if (name == "FPS")
             {
                 PerfFpsText = $"{val:F1} FPS";
+                newHistoryFps.Add(val);
+                if (newHistoryFps.Count > 30) newHistoryFps.RemoveAt(0);
             }
             else if (name == "FrameDuration")
             {
@@ -225,6 +245,8 @@ public class PerformanceViewModel : ViewModelBase
             }
         }
         MemoryHistory = newHistory;
+        CpuHistory = newHistoryCpu;
+        FpsHistory = newHistoryFps;
     }
 
     public async Task RefreshMetricsAsync()
@@ -349,6 +371,8 @@ public class PerformanceViewModel : ViewModelBase
             PerfBlockingTimeText = "--";
             LiveControls.Clear();
             MemoryHistory = null;
+            CpuHistory = null;
+            FpsHistory = null;
         });
     }
 }
