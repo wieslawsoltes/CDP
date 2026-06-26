@@ -65,33 +65,58 @@ public class ScreencastReconstructor : IDisposable
                 _canvas = new SKCanvas(_backingBitmap);
                 _canvas.Clear(SKColors.Transparent);
             }
+        }
 
-            foreach (var tileNode in tiles)
+        var decodedTiles = new (int Col, int Row, SKBitmap? Bitmap)[tiles.Count];
+
+        System.Threading.Tasks.Parallel.For(0, tiles.Count, i =>
+        {
+            var tileNode = tiles[i];
+            if (tileNode is not JsonObject tileObj) return;
+
+            int col = tileObj["x"]?.GetValue<int>() ?? 0;
+            int row = tileObj["y"]?.GetValue<int>() ?? 0;
+            string tileBase64 = tileObj["data"]?.GetValue<string>() ?? "";
+
+            if (string.IsNullOrEmpty(tileBase64)) return;
+
+            try
             {
-                if (tileNode is not JsonObject tileObj) continue;
-
-                int col = tileObj["x"]?.GetValue<int>() ?? 0;
-                int row = tileObj["y"]?.GetValue<int>() ?? 0;
-                string tileBase64 = tileObj["data"]?.GetValue<string>() ?? "";
-
-                if (string.IsNullOrEmpty(tileBase64)) continue;
-
-                try
+                byte[] tileBytes = Convert.FromBase64String(tileBase64);
+                using var ms = new MemoryStream(tileBytes);
+                var tileBitmap = SKBitmap.Decode(ms);
+                if (tileBitmap != null)
                 {
-                    byte[] tileBytes = Convert.FromBase64String(tileBase64);
-                    using var ms = new MemoryStream(tileBytes);
-                    using var tileBitmap = SKBitmap.Decode(ms);
-                    if (tileBitmap != null)
-                    {
-                        int tx = col * tileWidth;
-                        int ty = row * tileHeight;
-                        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
-                        _canvas.DrawBitmap(tileBitmap, tx, ty, paint);
-                    }
+                    decodedTiles[i] = (col, row, tileBitmap);
                 }
-                catch (Exception ex)
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error decoding tile ({col}, {row}) in parallel: {ex.Message}");
+            }
+        });
+
+        lock (_lock)
+        {
+            if (_canvas == null)
+            {
+                for (int i = 0; i < decodedTiles.Length; i++)
                 {
-                    Console.WriteLine($"Error decoding tile ({col}, {row}): {ex.Message}");
+                    decodedTiles[i].Bitmap?.Dispose();
+                }
+                return;
+            }
+
+            using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+            for (int i = 0; i < decodedTiles.Length; i++)
+            {
+                var item = decodedTiles[i];
+                if (item.Bitmap != null)
+                {
+                    int tx = item.Col * tileWidth;
+                    int ty = item.Row * tileHeight;
+                    _canvas.DrawBitmap(item.Bitmap, tx, ty, paint);
+                    item.Bitmap.Dispose();
                 }
             }
         }

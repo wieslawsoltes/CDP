@@ -885,13 +885,16 @@ public class SimulationViewModel : ViewModelBase
         var targetBitmap = _useBitmap1 ? _tiledBitmap1 : _tiledBitmap2;
         _useBitmap1 = !_useBitmap1;
 
+        bool copied = false;
         using (var locked = targetBitmap.Lock())
         {
-            if (reconstructor.CopyTo(locked.Address, locked.RowBytes, width, height))
-            {
-                ScreenshotImage = targetBitmap;
-                await TriggerHighlightRefreshAsync();
-            }
+            copied = reconstructor.CopyTo(locked.Address, locked.RowBytes, width, height);
+        }
+
+        if (copied)
+        {
+            ScreenshotImage = targetBitmap;
+            await TriggerHighlightRefreshAsync();
         }
     }
 
