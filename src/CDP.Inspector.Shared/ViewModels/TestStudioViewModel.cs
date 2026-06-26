@@ -796,6 +796,7 @@ public class TestStudioViewModel : ViewModelBase
             if (IsRecordVideoEnabled && _cdpService.IsConnected)
             {
                 _isRecordingVideo = true;
+                _cdpService.RecordFullFrames = true;
                 try
                 {
                     Log("Starting video recording...");
@@ -803,7 +804,8 @@ public class TestStudioViewModel : ViewModelBase
                     {
                         ["format"] = "jpeg",
                         ["quality"] = 80,
-                        ["everyNthFrame"] = 1
+                        ["everyNthFrame"] = 1,
+                        ["transferMode"] = "tiled"
                     });
                 }
                 catch (Exception ex)
@@ -2421,11 +2423,13 @@ public class TestStudioViewModel : ViewModelBase
                 {
                     Log("Starting command-level screen recording.");
                     _isRecordingVideo = true;
+                    _cdpService.RecordFullFrames = true;
                     await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
                     {
                         ["format"] = "jpeg",
                         ["quality"] = 80,
-                        ["everyNthFrame"] = 1
+                        ["everyNthFrame"] = 1,
+                        ["transferMode"] = "tiled"
                     });
                     break;
                 }
@@ -2433,9 +2437,22 @@ public class TestStudioViewModel : ViewModelBase
                 {
                     Log("Stopping command-level screen recording.");
                     _isRecordingVideo = false;
+                    _cdpService.RecordFullFrames = false;
                     try
                     {
-                        await _cdpService.SendCommandAsync("Page.stopScreencast");
+                        if (_cdpService.IsPreviewScreencastActive)
+                        {
+                            await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+                            {
+                                ["format"] = "png",
+                                ["everyNthFrame"] = 1,
+                                ["transferMode"] = "tiled"
+                            });
+                        }
+                        else
+                        {
+                            await _cdpService.SendCommandAsync("Page.stopScreencast");
+                        }
                     }
                     catch { }
                     break;
@@ -3565,6 +3582,7 @@ public class TestStudioViewModel : ViewModelBase
     private async Task FinalizeRecordingAndGenerateReportsAsync()
     {
         _isRecordingVideo = false;
+        _cdpService.RecordFullFrames = false;
         if (IsRecordVideoEnabled && _cdpService.IsConnected)
         {
             try
@@ -3576,7 +3594,8 @@ public class TestStudioViewModel : ViewModelBase
                     await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
                     {
                         ["format"] = "png",
-                        ["everyNthFrame"] = 1
+                        ["everyNthFrame"] = 1,
+                        ["transferMode"] = "tiled"
                     });
                 }
                 else

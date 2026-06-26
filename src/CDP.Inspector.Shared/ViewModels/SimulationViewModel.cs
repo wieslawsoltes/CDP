@@ -916,7 +916,8 @@ public class SimulationViewModel : ViewModelBase
             await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
             {
                 ["format"] = "png",
-                ["everyNthFrame"] = 1
+                ["everyNthFrame"] = 1,
+                ["transferMode"] = "tiled"
             });
             _cdpService.IsPreviewScreencastActive = true;
         }
@@ -950,9 +951,20 @@ public class SimulationViewModel : ViewModelBase
                     }
                 }
 
-                if (!string.IsNullOrEmpty(base64))
+                var transferMode = e.Params["transferMode"]?.GetValue<string>();
+                byte[]? bytes = null;
+
+                if (string.Equals(transferMode, "tiled", StringComparison.OrdinalIgnoreCase))
                 {
-                    byte[] bytes = Convert.FromBase64String(base64);
+                    bytes = _cdpService.LastReconstructedFrameBytes;
+                }
+                else if (!string.IsNullOrEmpty(base64))
+                {
+                    bytes = Convert.FromBase64String(base64);
+                }
+
+                if (bytes != null && bytes.Length > 0)
+                {
                     using var ms = new MemoryStream(bytes);
                     var bitmap = new Bitmap(ms);
                     Dispatcher.UIThread.Post(async () =>
