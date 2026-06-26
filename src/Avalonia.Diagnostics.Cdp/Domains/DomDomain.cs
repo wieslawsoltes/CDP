@@ -250,9 +250,18 @@ public static class DomDomain
                             {
                                 panel.Children.Remove(control);
                             }
+                            else if (parent is HeaderedContentControl headeredControl)
+                            {
+                                if (headeredControl.Content == control) headeredControl.Content = null;
+                                else if (headeredControl.Header == control) headeredControl.Header = null;
+                            }
                             else if (parent is ContentControl contentControl)
                             {
                                 if (contentControl.Content == control) contentControl.Content = null;
+                            }
+                            else if (parent is HeaderedItemsControl headeredItemsControl)
+                            {
+                                if (headeredItemsControl.Header == control) headeredItemsControl.Header = null;
                             }
                             else if (parent is Decorator decorator)
                             {
@@ -721,9 +730,24 @@ public static class DomDomain
             }
             else
             {
-                if (control is ContentControl contentControl)
+                if (control is HeaderedContentControl headeredControl)
+                {
+                    if (headeredControl.Header is string || headeredControl.Content is not string)
+                    {
+                        headeredControl.Header = value;
+                    }
+                    else
+                    {
+                        headeredControl.Content = value;
+                    }
+                }
+                else if (control is ContentControl contentControl)
                 {
                     contentControl.Content = value;
+                }
+                else if (control is HeaderedItemsControl headeredItemsControl)
+                {
+                    headeredItemsControl.Header = value;
                 }
             }
         }
@@ -763,7 +787,15 @@ public static class DomDomain
             {
                 isMatch = true;
             }
+            else if (c is HeaderedContentControl hcc && hcc.Header is string hs && hs.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
             else if (c is ContentControl cc && cc.Content is string s && s.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
+            else if (c is HeaderedItemsControl hic && hic.Header is string his && his.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 isMatch = true;
             }

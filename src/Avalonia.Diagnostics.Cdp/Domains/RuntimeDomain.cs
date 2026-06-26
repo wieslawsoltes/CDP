@@ -747,8 +747,8 @@ public class ReplGlobals
         _session = session;
     }
 
-    public Avalonia.Visual? SelectedNode => _session.NodeMap.GetVisual(_session.InspectedNodeId);
-    public Avalonia.Controls.Control? Control => SelectedNode as Avalonia.Controls.Control;
+    public dynamic? SelectedNode => _session.NodeMap.GetVisual(_session.InspectedNodeId);
+    public dynamic? Control => SelectedNode as Avalonia.Controls.Control;
     public dynamic? DataContext => Control?.DataContext;
     public dynamic? ViewModel => DataContext;
     public Avalonia.Controls.Window? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
@@ -770,7 +770,8 @@ public class ReplGlobals
     }
 }
 
-public sealed class CdpRuntimeWindow
+[UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Dynamic window member forwarding")]
+public sealed class CdpRuntimeWindow : DynamicObject
 {
     private readonly CdpSession _session;
 
@@ -781,6 +782,63 @@ public sealed class CdpRuntimeWindow
 
     public CdpRuntimeDocument document => new(_session);
     public Avalonia.Controls.Window? visual => _session.Window as Avalonia.Controls.Window;
+
+    public override bool TryGetMember(GetMemberBinder binder, out object? result)
+    {
+        if (binder.Name == "document")
+        {
+            result = document;
+            return true;
+        }
+        if (binder.Name == "visual")
+        {
+            result = visual;
+            return true;
+        }
+        var win = visual;
+        if (win != null)
+        {
+            var prop = win.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (prop != null)
+            {
+                result = prop.GetValue(win);
+                return true;
+            }
+        }
+        result = null;
+        return false;
+    }
+
+    public override bool TrySetMember(SetMemberBinder binder, object? value)
+    {
+        var win = visual;
+        if (win != null)
+        {
+            var prop = win.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (prop != null && prop.CanWrite)
+            {
+                prop.SetValue(win, value);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public override bool TryInvokeMember(InvokeMemberBinder binder, object?[]? args, out object? result)
+    {
+        var win = visual;
+        if (win != null)
+        {
+            var method = win.GetType().GetMethod(binder.Name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (method != null)
+            {
+                result = method.Invoke(win, args);
+                return true;
+            }
+        }
+        result = null;
+        return false;
+    }
 }
 
 public sealed class CdpRuntimeDocument
