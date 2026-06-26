@@ -122,6 +122,9 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
     private string? _screencastTransferMode;
     private const int TileSize = 64;
     private readonly TiledScreencastProducer _tiledScreencastProducer = new();
+    private RenderTargetBitmap? _cachedRenderTargetBitmap;
+    private PixelSize _cachedBitmapSize;
+    private Vector _cachedBitmapDpi;
 
     private void OnWindowLayoutUpdated(object? sender, EventArgs e)
     {
@@ -250,13 +253,26 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                             pixelHeight = Math.Max(1, (int)(windowHeight * scale));
                             visualStateHash = CdpSession.GetVisualTreeStateHash(Window);
 
-                            renderBitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize(pixelWidth, pixelHeight), new Vector(96 * scale, 96 * scale));
-                            renderBitmap.Render(Window);
+                            var requiredSize = new PixelSize(pixelWidth, pixelHeight);
+                            var requiredDpi = new Vector(96 * scale, 96 * scale);
+
+                            if (_cachedRenderTargetBitmap == null ||
+                                _cachedBitmapSize != requiredSize ||
+                                _cachedBitmapDpi != requiredDpi)
+                            {
+                                _cachedRenderTargetBitmap?.Dispose();
+                                _cachedRenderTargetBitmap = new RenderTargetBitmap(requiredSize, requiredDpi);
+                                _cachedBitmapSize = requiredSize;
+                                _cachedBitmapDpi = requiredDpi;
+                            }
+
+                            _cachedRenderTargetBitmap.Render(Window);
+                            renderBitmap = _cachedRenderTargetBitmap;
                         }
                         catch (Exception)
                         {
                         }
-                    });
+                    }, DispatcherPriority.Background);
 
                     width = windowWidth;
                     height = windowHeight;
@@ -276,10 +292,6 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                         }
                         catch (Exception)
                         {
-                        }
-                        finally
-                        {
-                            renderBitmap.Dispose();
                         }
                     }
 
@@ -486,6 +498,11 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
             }
         }
         catch { }
+
+        _cachedRenderTargetBitmap?.Dispose();
+        _cachedRenderTargetBitmap = null;
+        _cachedBitmapSize = default;
+        _cachedBitmapDpi = default;
         try
         {
             if (_ackSignal.CurrentCount == 0)
@@ -1039,6 +1056,10 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
         _captureStream.Dispose();
         _ackSignal.Dispose();
         _tiledScreencastProducer.Dispose();
+        _cachedRenderTargetBitmap?.Dispose();
+        _cachedRenderTargetBitmap = null;
+        _cachedBitmapSize = default;
+        _cachedBitmapDpi = default;
         NodeMap.Clear();
         if (Window != null)
         {
