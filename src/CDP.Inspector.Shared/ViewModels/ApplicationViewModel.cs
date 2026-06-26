@@ -58,6 +58,18 @@ public class ApplicationViewModel : ViewModelBase
     private string _cookieExpiresInput = "-1";
     private bool _isCookieEditorVisible;
 
+    // Database Viewer Fields
+    private AppNavNode? _sqliteRootNode;
+    private bool _isDatabaseViewerVisible;
+    private string? _selectedDatabasePath;
+    private ObservableCollection<string> _databaseTables = new();
+    private string? _selectedTableName;
+    private ObservableCollection<string> _tableColumns = new();
+    private ObservableCollection<string?[]> _tableRows = new();
+    private ObservableCollection<string> _consoleColumns = new();
+    private ObservableCollection<string?[]> _consoleRows = new();
+    private string _customSqlQuery = "SELECT * FROM sqlite_master;";
+
     public ObservableCollection<ResourceEntryModel> Resources => _resources;
 
     public ResourceEntryModel? SelectedResource
@@ -201,6 +213,54 @@ public class ApplicationViewModel : ViewModelBase
         }
     }
 
+    // Database Viewer Properties
+    public bool IsDatabaseViewerVisible
+    {
+        get => _isDatabaseViewerVisible;
+        private set
+        {
+            if (RaiseAndSetIfChanged(ref _isDatabaseViewerVisible, value))
+            {
+                OnPropertyChanged(nameof(IsPlaceholderVisible));
+            }
+        }
+    }
+
+    public string? SelectedDatabasePath
+    {
+        get => _selectedDatabasePath;
+        set => RaiseAndSetIfChanged(ref _selectedDatabasePath, value);
+    }
+
+    public ObservableCollection<string> DatabaseTables => _databaseTables;
+
+    public string? SelectedTableName
+    {
+        get => _selectedTableName;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedTableName, value))
+            {
+                if (!string.IsNullOrEmpty(_selectedTableName))
+                {
+                    _ = LoadTableDataAsync(_selectedTableName);
+                }
+            }
+        }
+    }
+
+    public ObservableCollection<string> TableColumns => _tableColumns;
+    public ObservableCollection<string?[]> TableRows => _tableRows;
+
+    public ObservableCollection<string> ConsoleColumns => _consoleColumns;
+    public ObservableCollection<string?[]> ConsoleRows => _consoleRows;
+
+    public string CustomSqlQuery
+    {
+        get => _customSqlQuery;
+        set => RaiseAndSetIfChanged(ref _customSqlQuery, value);
+    }
+
     public ObservableCollection<AppNavNode> NavigationNodes => _navigationNodes;
 
     public AppNavNode? SelectedNode
@@ -213,6 +273,9 @@ public class ApplicationViewModel : ViewModelBase
                 IsResourceEditorVisible = _selectedNode != null && _selectedNode.Name == "Global Resources";
                 IsStorageEditorVisible = _selectedNode != null && (_selectedNode.Name == "Local Storage" || _selectedNode.Name == "Session Storage");
                 IsCookieEditorVisible = _selectedNode != null && _selectedNode.Name == "Cookies";
+                IsDatabaseViewerVisible = _selectedNode != null &&
+                    (_selectedNode.Name == "SQLite Databases" || _selectedNode.NodeType == "Database");
+
                 if (IsStorageEditorVisible)
                 {
                     StorageTitle = _selectedNode!.Name;
@@ -221,6 +284,15 @@ public class ApplicationViewModel : ViewModelBase
                 if (IsCookieEditorVisible)
                 {
                     _ = RefreshCookiesAsync();
+                }
+                if (_selectedNode != null && _selectedNode.Name == "SQLite Databases")
+                {
+                    _ = RefreshDatabasesAsync();
+                }
+                if (_selectedNode != null && _selectedNode.NodeType == "Database")
+                {
+                    SelectedDatabasePath = _selectedNode.DatabasePath;
+                    _ = LoadDatabaseTablesAsync(SelectedDatabasePath);
                 }
 
                 if (value == null)
@@ -251,7 +323,7 @@ public class ApplicationViewModel : ViewModelBase
         }
     }
 
-    public bool IsPlaceholderVisible => !IsResourceEditorVisible && !IsStorageEditorVisible && !IsCookieEditorVisible;
+    public bool IsPlaceholderVisible => !IsResourceEditorVisible && !IsStorageEditorVisible && !IsCookieEditorVisible && !IsDatabaseViewerVisible;
 
     public ICommand RefreshResourcesCommand { get; }
     public ICommand AddResourceCommand { get; }
@@ -269,6 +341,9 @@ public class ApplicationViewModel : ViewModelBase
     public ICommand AddCookieCommand { get; }
     public ICommand SaveCookieCommand { get; }
     public ICommand DeleteCookieCommand { get; }
+
+    // Database Commands
+    public ICommand ExecuteSQLCommand { get; }
 
     public ApplicationViewModel(ICdpService cdpService)
     {
@@ -289,6 +364,8 @@ public class ApplicationViewModel : ViewModelBase
         AddCookieCommand = new RelayCommand(AddCookie, () => _cdpService.IsConnected);
         SaveCookieCommand = new RelayCommand(async () => await SaveCookieAsync(), () => _cdpService.IsConnected);
         DeleteCookieCommand = new RelayCommand<CookieEntryModel>(async (cookie) => await DeleteCookieAsync(cookie), (cookie) => _cdpService.IsConnected);
+
+        ExecuteSQLCommand = new RelayCommand<string?>(async (sql) => await ExecuteSQLAsync(sql, isConsole: true), (sql) => _cdpService.IsConnected);
 
         var options = new HierarchicalOptions<AppNavNode>
         {
@@ -358,6 +435,8 @@ public class ApplicationViewModel : ViewModelBase
         ((RelayCommand)AddCookieCommand).RaiseCanExecuteChanged();
         ((RelayCommand)SaveCookieCommand).RaiseCanExecuteChanged();
         ((RelayCommand<CookieEntryModel>)DeleteCookieCommand).RaiseCanExecuteChanged();
+
+        ((RelayCommand<string?>)ExecuteSQLCommand).RaiseCanExecuteChanged();
     }
 
     private void InitializeNavigationTree()
@@ -371,6 +450,10 @@ public class ApplicationViewModel : ViewModelBase
         var sessionStorageNode = new AppNavNode("Session Storage");
         storageRoot.Children.Add(localStorageNode);
         storageRoot.Children.Add(sessionStorageNode);
+
+        _sqliteRootNode = new AppNavNode("SQLite Databases") { NodeType = "Folder" };
+        storageRoot.Children.Add(_sqliteRootNode);
+
         appRoot.Children.Add(storageRoot);
 
         appRoot.Children.Add(new AppNavNode("Cookies"));
@@ -684,6 +767,165 @@ public class ApplicationViewModel : ViewModelBase
             CookieDomainInput = "";
             CookiePathInput = "";
             CookieExpiresInput = "-1";
+
+            if (_sqliteRootNode != null)
+            {
+                _sqliteRootNode.Children.Clear();
+            }
+            SelectedDatabasePath = null;
+            DatabaseTables.Clear();
+            SelectedTableName = null;
+            TableColumns.Clear();
+            TableRows.Clear();
+            ConsoleColumns.Clear();
+            ConsoleRows.Clear();
         });
+    }
+
+    public async Task RefreshDatabasesAsync()
+    {
+        if (!_cdpService.IsConnected || _sqliteRootNode == null) return;
+
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Application.getDatabases");
+            if (response != null && response["databases"] is JsonArray dbArray)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _sqliteRootNode.Children.Clear();
+                    foreach (var dbVal in dbArray)
+                    {
+                        var dbPath = dbVal?.GetValue<string>();
+                        if (!string.IsNullOrEmpty(dbPath))
+                        {
+                            var fileName = System.IO.Path.GetFileName(dbPath);
+                            var dbNode = new AppNavNode(fileName)
+                            {
+                                NodeType = "Database",
+                                DatabasePath = dbPath
+                            };
+                            _sqliteRootNode.Children.Add(dbNode);
+                        }
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing databases: {ex.Message}");
+        }
+    }
+
+    public async Task LoadDatabaseTablesAsync(string? dbPath)
+    {
+        if (string.IsNullOrEmpty(dbPath)) return;
+
+        try
+        {
+            var p = new JsonObject { ["databasePath"] = dbPath };
+            var response = await _cdpService.SendCommandAsync("Application.getDatabaseTableNames", p);
+            if (response != null && response["tables"] is JsonArray tablesArray)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    DatabaseTables.Clear();
+                    TableColumns.Clear();
+                    TableRows.Clear();
+                    SelectedTableName = null;
+                    
+                    foreach (var tbl in tablesArray)
+                    {
+                        var name = tbl?.GetValue<string>();
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            DatabaseTables.Add(name);
+                        }
+                    }
+
+                    if (DatabaseTables.Count > 0)
+                    {
+                        SelectedTableName = DatabaseTables[0];
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading database tables: {ex.Message}");
+        }
+    }
+
+    public async Task LoadTableDataAsync(string tableName)
+    {
+        if (string.IsNullOrEmpty(tableName)) return;
+        await ExecuteSQLAsync($"SELECT * FROM \"{tableName}\";", isConsole: false);
+    }
+
+    public async Task ExecuteSQLAsync(string? sql, bool isConsole = true)
+    {
+        var queryStr = sql ?? CustomSqlQuery;
+        if (string.IsNullOrEmpty(queryStr) || string.IsNullOrEmpty(SelectedDatabasePath)) return;
+
+        try
+        {
+            var p = new JsonObject
+            {
+                ["databasePath"] = SelectedDatabasePath,
+                ["query"] = queryStr
+            };
+            var response = await _cdpService.SendCommandAsync("Application.executeSQL", p);
+            if (response != null)
+            {
+                var cols = response["columns"] as JsonArray;
+                var rows = response["rows"] as JsonArray;
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    var targetCols = isConsole ? ConsoleColumns : TableColumns;
+                    var targetRows = isConsole ? ConsoleRows : TableRows;
+
+                    targetCols.Clear();
+                    if (cols != null)
+                    {
+                        foreach (var col in cols)
+                        {
+                            targetCols.Add(col?.GetValue<string>() ?? "");
+                        }
+                    }
+
+                    targetRows.Clear();
+                    if (rows != null)
+                    {
+                        foreach (var rowVal in rows)
+                        {
+                            if (rowVal is JsonArray rowArr)
+                            {
+                                var arr = new string?[rowArr.Count];
+                                for (int i = 0; i < rowArr.Count; i++)
+                                {
+                                    arr[i] = rowArr[i]?.ToString();
+                                }
+                                targetRows.Add(arr);
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error executing SQL: {ex.Message}");
+            if (isConsole)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ConsoleColumns.Clear();
+                    ConsoleRows.Clear();
+                    ConsoleColumns.Add("Error");
+                    ConsoleRows.Add(new string?[] { ex.Message });
+                });
+            }
+        }
     }
 }

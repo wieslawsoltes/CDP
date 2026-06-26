@@ -230,6 +230,107 @@ public class CdpChromeFeatureTests
     }
 
     [AvaloniaFact]
+    public async Task TestApplicationDomainSqliteDatabases()
+    {
+        var window = new Window { Title = "SQLite Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // Create a temporary database in the current directory
+        string dbName = $"temp_test_{Guid.NewGuid():N}.db";
+        string dbPath = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), dbName);
+
+        try
+        {
+            // 1. Create table and insert a record
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath}"))
+            {
+                connection.Open();
+                using (var cmd = connection.CreateCommand())
+                {
+                    cmd.CommandText = "CREATE TABLE Users (Id INTEGER PRIMARY KEY, Name TEXT);";
+                    cmd.ExecuteNonQuery();
+                }
+                using (var cmd = connection.CreateCommand())
+                {
+                    cmd.CommandText = "INSERT INTO Users (Name) VALUES ('Alice');";
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // 2. Test getDatabases
+            var getDbRes = await ApplicationDomain.HandleAsync(session, "getDatabases", new JsonObject());
+            Assert.NotNull(getDbRes);
+            var databases = getDbRes["databases"] as JsonArray;
+            Assert.NotNull(databases);
+            Assert.Contains(databases, d => d?.GetValue<string>() == dbPath);
+
+            // 3. Test getDatabaseTableNames
+            var getTablesParams = new JsonObject { ["databasePath"] = dbPath };
+            var getTablesRes = await ApplicationDomain.HandleAsync(session, "getDatabaseTableNames", getTablesParams);
+            Assert.NotNull(getTablesRes);
+            var tables = getTablesRes["tables"] as JsonArray;
+            Assert.NotNull(tables);
+            Assert.Contains(tables, t => t?.GetValue<string>() == "Users");
+
+            // 4. Test executeSQL (SELECT query)
+            var execSqlParams = new JsonObject 
+            { 
+                ["databasePath"] = dbPath,
+                ["query"] = "SELECT * FROM Users;"
+            };
+            var execSqlRes = await ApplicationDomain.HandleAsync(session, "executeSQL", execSqlParams);
+            Assert.NotNull(execSqlRes);
+            
+            var columns = execSqlRes["columns"] as JsonArray;
+            Assert.NotNull(columns);
+            Assert.Equal(2, columns.Count);
+            Assert.Equal("Id", columns[0]?.GetValue<string>());
+            Assert.Equal("Name", columns[1]?.GetValue<string>());
+
+            var rows = execSqlRes["rows"] as JsonArray;
+            Assert.NotNull(rows);
+            Assert.Single(rows);
+            var row0 = rows[0] as JsonArray;
+            Assert.NotNull(row0);
+            Assert.Equal("1", row0[0]?.ToString());
+            Assert.Equal("Alice", row0[1]?.ToString());
+
+            // 5. Test executeSQL (non-SELECT query)
+            var insertSqlParams = new JsonObject 
+            { 
+                ["databasePath"] = dbPath,
+                ["query"] = "INSERT INTO Users (Name) VALUES ('Bob');"
+            };
+            var insertSqlRes = await ApplicationDomain.HandleAsync(session, "executeSQL", insertSqlParams);
+            Assert.NotNull(insertSqlRes);
+            
+            var columns2 = insertSqlRes["columns"] as JsonArray;
+            Assert.NotNull(columns2);
+            Assert.Single(columns2);
+            Assert.Equal("Rows Affected", columns2[0]?.GetValue<string>());
+
+            var rows2 = insertSqlRes["rows"] as JsonArray;
+            Assert.NotNull(rows2);
+            Assert.Single(rows2);
+            var row0_2 = rows2[0] as JsonArray;
+            Assert.NotNull(row0_2);
+            Assert.Equal("1", row0_2[0]?.ToString());
+        }
+        finally
+        {
+            window.Close();
+            // Delete temporary database file
+            if (System.IO.File.Exists(dbPath))
+            {
+                System.IO.File.Delete(dbPath);
+            }
+        }
+    }
+
+    [AvaloniaFact]
     public async Task TestNetworkDomainObserverExecution()
     {
         var window = new Window { Title = "Network Test Window" };

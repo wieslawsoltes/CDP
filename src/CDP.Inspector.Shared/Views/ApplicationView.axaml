@@ -158,6 +158,64 @@
             </Border>
         </Grid>
 
+        <!-- Database Viewer -->
+        <Grid Name="gridDatabaseViewer" Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0" IsVisible="{Binding Application.IsDatabaseViewerVisible}">
+            <!-- Header: Selected database file path -->
+            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                <TextBlock Text="{Binding Application.SelectedDatabasePath, FallbackValue='No Database Selected', TargetNullValue='No Database Selected'}" Classes="panel-header" TextWrapping="Wrap"/>
+            </Grid>
+
+            <!-- Split Pane -->
+            <Grid Grid.Row="1" ColumnDefinitions="200, 4, *">
+                <!-- Left: Database tables list -->
+                <Grid RowDefinitions="Auto, *">
+                    <TextBlock Text="Tables" FontWeight="Bold" Margin="0,0,0,4" FontSize="11" Foreground="#9aa0a6"/>
+                    <ListBox Grid.Row="1" Name="lstTables" ItemsSource="{Binding Application.DatabaseTables}" SelectedItem="{Binding Application.SelectedTableName, Mode=TwoWay}" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Text="{Binding}" FontSize="12" Padding="4,2"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+
+                <!-- Splitter -->
+                <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                <!-- Right: Table View -->
+                <TabControl Grid.Column="2" Margin="10,0,0,0">
+                    <!-- Tab 1: Active Table Records -->
+                    <TabItem Header="Table Data">
+                        <Grid RowDefinitions="*">
+                            <DataGrid Name="dgActiveTable" ItemsSource="{Binding Application.TableRows}"
+                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+                                      GridLinesVisibility="All" HeadersVisibility="Column"
+                                      Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                                <!-- Columns will be generated programmatically in code-behind -->
+                            </DataGrid>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- Tab 2: SQL Console -->
+                    <TabItem Header="SQL Console">
+                        <Grid RowDefinitions="100, Auto, *">
+                            <TextBox Grid.Row="0" Name="txtCustomSql" Text="{Binding Application.CustomSqlQuery, Mode=TwoWay}"
+                                     AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="12"
+                                     Watermark="Enter SQL query here..." Margin="0,0,0,8" VerticalContentAlignment="Top"/>
+                            <Button Grid.Row="1" Name="btnRunQuery" Command="{Binding Application.ExecuteSQLCommand}" CommandParameter="{Binding Application.CustomSqlQuery}"
+                                    Content="Run Query" Classes="accent" HorizontalAlignment="Right" Margin="0,0,0,8"/>
+                            <DataGrid Grid.Row="2" Name="dgConsoleResult" ItemsSource="{Binding Application.ConsoleRows}"
+                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+                                      GridLinesVisibility="All" HeadersVisibility="Column"
+                                      Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                                <!-- Columns will be generated programmatically in code-behind -->
+                            </DataGrid>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
+
         <!-- Placeholder for simulated nodes (Cookies / Background Services / Preferences) -->
         <StackPanel Grid.Column="2" Margin="30" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" IsVisible="{Binding Application.IsPlaceholderVisible}">
             <TextBlock Text="Chrome Parity Simulator" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8" HorizontalAlignment="Center"/>

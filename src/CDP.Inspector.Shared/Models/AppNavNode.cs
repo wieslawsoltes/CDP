@@ -24,6 +24,8 @@ public class AppNavNode : INotifyPropertyChanged
     }
 
     public string Name { get; set; } = "";
+    public string? NodeType { get; set; }
+    public string? DatabasePath { get; set; }
     public ObservableCollection<AppNavNode> Children { get; } = new();
 
     public AppNavNode(string name)
