@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.ComponentModel;
 using System.Windows.Input;
+using System.Collections.Specialized;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
@@ -34,6 +35,9 @@ public class NetworkViewModel : ViewModelBase
     private ObservableCollection<BlockedUrlModel> _blockedUrls = new();
     private ObservableCollection<MockRuleModel> _mockRules = new();
 
+    private string _activeFilter = "All";
+    public ObservableCollection<string> Filters { get; } = new() { "All", "Fetch/XHR", "CSS/JS", "Images", "Doc", "Other" };
+
     public ObservableCollection<NetworkRequestModel> NetworkRequests => _networkRequests;
     public ObservableCollection<ThrottlingProfile> ThrottlingProfiles => _throttlingProfiles;
     public ObservableCollection<BlockedUrlModel> BlockedUrls => _blockedUrls;
@@ -43,6 +47,43 @@ public class NetworkViewModel : ViewModelBase
     public ICommand RemoveBlockedUrlCommand { get; }
     public ICommand AddMockRuleCommand { get; }
     public ICommand RemoveMockRuleCommand { get; }
+
+    public string ActiveFilter
+    {
+        get => _activeFilter;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _activeFilter, value))
+            {
+                OnPropertyChanged(nameof(FilteredNetworkRequests));
+            }
+        }
+    }
+
+    public System.Collections.Generic.IEnumerable<NetworkRequestModel> FilteredNetworkRequests
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(ActiveFilter) || ActiveFilter == "All")
+            {
+                return NetworkRequests;
+            }
+
+            return NetworkRequests.Where(r =>
+            {
+                string type = r.Type.ToLowerInvariant();
+                return ActiveFilter switch
+                {
+                    "Fetch/XHR" => type == "xhr" || type == "fetch",
+                    "CSS/JS" => type == "stylesheet" || type == "script",
+                    "Images" => type == "image",
+                    "Doc" => type == "document",
+                    "Other" => type != "xhr" && type != "fetch" && type != "stylesheet" && type != "script" && type != "image" && type != "document",
+                    _ => true
+                };
+            });
+        }
+    }
 
     public ThrottlingProfile? SelectedProfile
     {
@@ -109,6 +150,8 @@ public class NetworkViewModel : ViewModelBase
         RemoveBlockedUrlCommand = new RelayCommand<BlockedUrlModel>(RemoveBlockedUrl);
         AddMockRuleCommand = new RelayCommand(AddMockRule);
         RemoveMockRuleCommand = new RelayCommand<MockRuleModel>(RemoveMockRule);
+
+        _networkRequests.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredNetworkRequests));
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -151,6 +194,8 @@ public class NetworkViewModel : ViewModelBase
             {
                 string url = request["url"]?.GetValue<string>() ?? "";
                 string method = request["method"]?.GetValue<string>() ?? "GET";
+                string type = e.Params["type"]?.GetValue<string>() ?? "";
+                type = DetermineType(url, type);
                 
                 var reqHeaders = request["headers"] as JsonObject;
                 var sbHeaders = new StringBuilder();
@@ -177,15 +222,20 @@ public class NetworkViewModel : ViewModelBase
                             initialStatus = "Mocked";
                         }
 
-                        NetworkRequests.Add(new NetworkRequestModel
+                        var model = new NetworkRequestModel
                         {
                             RequestId = requestId,
                             Url = url,
                             Method = method,
+                            Type = type,
                             Status = initialStatus,
                             Time = "--",
                             RequestHeaders = sbHeaders.ToString()
-                        });
+                        };
+                        string? postData = request["postData"]?.GetValue<string>();
+                        model.ParsePostParameters(postData);
+
+                        NetworkRequests.Add(model);
                         if (NetworkRequests.Count > 100) NetworkRequests.RemoveAt(0);
                     }
                 });
@@ -195,6 +245,7 @@ public class NetworkViewModel : ViewModelBase
         {
             string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
             var response = e.Params["response"] as JsonObject;
+            string type = e.Params["type"]?.GetValue<string>() ?? "";
             if (response != null && !string.IsNullOrEmpty(requestId))
             {
                 int status = response["status"]?.GetValue<int>() ?? 200;
@@ -227,6 +278,10 @@ public class NetworkViewModel : ViewModelBase
 
                         existing.Status = finalStatus;
                         existing.ResponseHeaders = sbHeaders.ToString();
+                        if (!string.IsNullOrEmpty(type))
+                        {
+                            existing.Type = type;
+                        }
                         if (SelectedRequest == existing)
                         {
                             UpdateSelectedRequestDetails();
@@ -280,9 +335,26 @@ public class NetworkViewModel : ViewModelBase
             if (response != null)
             {
                 string body = response["body"]?.GetValue<string>() ?? "";
+                bool base64Encoded = response["base64Encoded"]?.GetValue<bool>() ?? false;
                 Dispatcher.UIThread.Post(() =>
                 {
+                    req.Base64Encoded = base64Encoded;
                     req.ResponseBody = body;
+                    if (base64Encoded && req.Type.Equals("Image", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            var bytes = Convert.FromBase64String(body);
+                            using (var ms = new System.IO.MemoryStream(bytes))
+                            {
+                                req.ResponseImage = new Avalonia.Media.Imaging.Bitmap(ms);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error decoding image: {ex.Message}");
+                        }
+                    }
                     if (SelectedRequest == req)
                     {
                         SelectedResponseBody = body;
@@ -492,6 +564,26 @@ public class NetworkViewModel : ViewModelBase
         {
             return false;
         }
+    }
+
+    private static string DetermineType(string url, string? cdpType)
+    {
+        if (!string.IsNullOrEmpty(cdpType)) return cdpType;
+        if (string.IsNullOrEmpty(url)) return "Other";
+        try
+        {
+            var uri = new Uri(url);
+            var path = uri.AbsolutePath.ToLowerInvariant();
+            if (path.EndsWith(".js") || path.EndsWith(".mjs")) return "Script";
+            if (path.EndsWith(".css")) return "Stylesheet";
+            if (path.EndsWith(".png") || path.EndsWith(".jpg") || path.EndsWith(".jpeg") || path.EndsWith(".gif") || path.EndsWith(".svg") || path.EndsWith(".webp") || path.EndsWith(".ico")) return "Image";
+            if (path.EndsWith(".html") || path.EndsWith(".htm")) return "Document";
+        }
+        catch
+        {
+            // Fallback
+        }
+        return "XHR";
     }
 }
 

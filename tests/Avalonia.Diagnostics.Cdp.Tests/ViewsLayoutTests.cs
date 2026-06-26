@@ -38,6 +38,9 @@ public class ViewsLayoutTests
 
             var consoleView = new ConsoleView();
             Assert.NotNull(consoleView);
+
+            var networkView = new NetworkView();
+            Assert.NotNull(networkView);
         }
         finally
         {
