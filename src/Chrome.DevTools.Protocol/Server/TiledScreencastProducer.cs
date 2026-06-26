@@ -25,6 +25,11 @@ public class TiledScreencastProducer : IDisposable
 
     public JsonArray? ProcessFrame(SKBitmap skBitmap, string format, int? quality, out int cols, out int rows)
     {
+        return ProcessFrame(skBitmap, format, quality, null, out cols, out rows);
+    }
+
+    public JsonArray? ProcessFrame(SKBitmap skBitmap, string format, int? quality, SKRect? dirtyRect, out int cols, out int rows)
+    {
         int pixelWidth = skBitmap.Width;
         int pixelHeight = skBitmap.Height;
 
@@ -33,7 +38,8 @@ public class TiledScreencastProducer : IDisposable
         cols = (pixelWidth + tileWidth - 1) / tileWidth;
         rows = (pixelHeight + tileHeight - 1) / tileHeight;
 
-        if (_tileHashes == null || cols != _lastCols || rows != _lastRows || pixelWidth != _lastWidth || pixelHeight != _lastHeight)
+        bool isFirstFrame = (_tileHashes == null || cols != _lastCols || rows != _lastRows || pixelWidth != _lastWidth || pixelHeight != _lastHeight);
+        if (isFirstFrame)
         {
             _tileHashes = new uint[cols * rows];
             _lastCols = cols;
@@ -57,10 +63,25 @@ public class TiledScreencastProducer : IDisposable
                 int tw = Math.Min(tileWidth, pixelWidth - tx);
                 int th = Math.Min(tileHeight, pixelHeight - ty);
 
+                bool intersects = true;
+                if (dirtyRect.HasValue && !isFirstFrame)
+                {
+                    intersects = tx < dirtyRect.Value.Right &&
+                                 tx + tw > dirtyRect.Value.Left &&
+                                 ty < dirtyRect.Value.Bottom &&
+                                 ty + th > dirtyRect.Value.Top;
+                }
+
+                if (!intersects)
+                {
+                    newHashes[r * cols + c] = _tileHashes![r * cols + c];
+                    continue;
+                }
+
                 uint hash = ComputeTileHash(pixelsPtr, rowBytes, bytesPerPixel, tx, ty, tw, th);
                 newHashes[r * cols + c] = hash;
 
-                if (_tileHashes[r * cols + c] != hash)
+                if (isFirstFrame || _tileHashes![r * cols + c] != hash)
                 {
                     var info = new SKImageInfo(tw, th, skBitmap.ColorType, skBitmap.AlphaType);
                     IntPtr tilePixels = pixelsPtr + ty * rowBytes + tx * bytesPerPixel;

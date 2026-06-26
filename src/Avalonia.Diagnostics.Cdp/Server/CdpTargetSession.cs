@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
@@ -122,6 +124,9 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
     private string? _screencastTransferMode;
     private const int TileSize = 64;
     private readonly TiledScreencastProducer _tiledScreencastProducer = new();
+    private readonly object _dirtyRectsLock = new();
+    private Avalonia.Rect? _accumulatedDirtyRect;
+    private Delegate? _sceneInvalidatedHandler;
     private RenderTargetBitmap? _cachedRenderTargetBitmap;
     private PixelSize _cachedBitmapSize;
     private Vector _cachedBitmapDpi;
@@ -190,6 +195,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
         catch { }
 
         Window.LayoutUpdated += OnWindowLayoutUpdated;
+        HookSceneInvalidated();
 
         Task.Run(async () =>
         {
@@ -241,6 +247,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                     double windowWidth = 0;
                     double windowHeight = 0;
                     RenderTargetBitmap? renderBitmap = null;
+                    SkiaSharp.SKRect? currentDirtyRect = null;
 
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
@@ -268,6 +275,22 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
 
                             _cachedRenderTargetBitmap.Render(Window);
                             renderBitmap = _cachedRenderTargetBitmap;
+
+                            Rect? localDirty = null;
+                            lock (_dirtyRectsLock)
+                            {
+                                localDirty = _accumulatedDirtyRect;
+                                _accumulatedDirtyRect = null;
+                            }
+
+                            if (localDirty.HasValue)
+                            {
+                                float left = (float)(localDirty.Value.X * scale);
+                                float top = (float)(localDirty.Value.Y * scale);
+                                float right = (float)((localDirty.Value.X + localDirty.Value.Width) * scale);
+                                float bottom = (float)((localDirty.Value.Y + localDirty.Value.Height) * scale);
+                                currentDirtyRect = new SkiaSharp.SKRect(left, top, right, bottom);
+                            }
                         }
                         catch (Exception)
                         {
@@ -355,12 +378,23 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                                 }
                             }
 
+                            if (resizeScale < 1.0 && currentDirtyRect.HasValue)
+                            {
+                                float rScale = (float)resizeScale;
+                                currentDirtyRect = new SkiaSharp.SKRect(
+                                    currentDirtyRect.Value.Left * rScale,
+                                    currentDirtyRect.Value.Top * rScale,
+                                    currentDirtyRect.Value.Right * rScale,
+                                    currentDirtyRect.Value.Bottom * rScale);
+                            }
+
                             if (string.Equals(_screencastTransferMode, "tiled", StringComparison.OrdinalIgnoreCase))
                             {
                                 var changedTiles = _tiledScreencastProducer.ProcessFrame(
                                     bitmapToProcess,
                                     _screencastFormat ?? "png",
                                     _screencastQuality,
+                                    currentDirtyRect,
                                     out int cols,
                                     out int rows);
 
@@ -489,6 +523,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
         if (Window != null)
         {
             Window.LayoutUpdated -= OnWindowLayoutUpdated;
+            UnhookSceneInvalidated();
         }
         try
         {
@@ -524,6 +559,93 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
             }
         }
         catch { }
+        RequestScreencastFrame();
+    }
+
+    [DynamicDependency("Renderer", typeof(TopLevel))]
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection access to protected TopLevel.Renderer and SceneInvalidated event")]
+    private void HookSceneInvalidated()
+    {
+        if (Window == null || _sceneInvalidatedHandler != null) return;
+        try
+        {
+            var rendererProp = typeof(TopLevel).GetProperty("Renderer", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            var renderer = rendererProp?.GetValue(Window);
+            if (renderer != null)
+            {
+                var sceneInvalidatedEvent = renderer.GetType().GetEvent("SceneInvalidated", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (sceneInvalidatedEvent != null)
+                {
+                    _sceneInvalidatedHandler = Delegate.CreateDelegate(sceneInvalidatedEvent.EventHandlerType!, this, nameof(OnSceneInvalidated));
+                    sceneInvalidatedEvent.AddEventHandler(renderer, _sceneInvalidatedHandler);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CDP] Failed to hook SceneInvalidated for screencasting: {ex}");
+        }
+    }
+
+    [DynamicDependency("Renderer", typeof(TopLevel))]
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection access to protected TopLevel.Renderer and SceneInvalidated event")]
+    private void UnhookSceneInvalidated()
+    {
+        if (Window == null || _sceneInvalidatedHandler == null) return;
+        try
+        {
+            var rendererProp = typeof(TopLevel).GetProperty("Renderer", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            var renderer = rendererProp?.GetValue(Window);
+            if (renderer != null)
+            {
+                var sceneInvalidatedEvent = renderer.GetType().GetEvent("SceneInvalidated", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (sceneInvalidatedEvent != null)
+                {
+                    sceneInvalidatedEvent.RemoveEventHandler(renderer, _sceneInvalidatedHandler);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CDP] Failed to unhook SceneInvalidated for screencasting: {ex.Message}");
+        }
+        finally
+        {
+            _sceneInvalidatedHandler = null;
+        }
+    }
+
+    private void OnSceneInvalidated(object? sender, Avalonia.Rendering.SceneInvalidatedEventArgs e)
+    {
+        try
+        {
+            var dirtyRectProp = e.GetType().GetProperty("DirtyRect", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (dirtyRectProp != null)
+            {
+                var rectObj = dirtyRectProp.GetValue(e);
+                if (rectObj is Avalonia.Rect dirty)
+                {
+                    lock (_dirtyRectsLock)
+                    {
+                        if (dirty.Width > 0 && dirty.Height > 0)
+                        {
+                            if (_accumulatedDirtyRect == null)
+                            {
+                                _accumulatedDirtyRect = dirty;
+                            }
+                            else
+                            {
+                                _accumulatedDirtyRect = _accumulatedDirtyRect.Value.Union(dirty);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CDP] Error reading DirtyRect from SceneInvalidatedEventArgs: {ex}");
+        }
         RequestScreencastFrame();
     }
 
