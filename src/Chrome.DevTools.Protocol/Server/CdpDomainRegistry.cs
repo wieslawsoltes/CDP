@@ -35,6 +35,7 @@ public static class CdpDomainRegistry
         s_domains["PerformanceTimeline"] = (Domains.PerformanceTimelineDomain.HandleAsync, "1.3");
         s_domains["DOMSnapshot"] = (Domains.DOMSnapshotDomain.HandleAsync, "1.3");
         s_domains["DOMStorage"] = (Domains.DOMStorageDomain.HandleAsync, "1.3");
+        s_domains["IndexedDB"] = (Domains.IndexedDBDomain.HandleAsync, "1.3");
         s_domains["Preload"] = (Domains.PreloadDomain.HandleAsync, "1.3");
         s_domains["WebAudio"] = (Domains.WebAudioDomain.HandleAsync, "1.3");
         s_domains["Tethering"] = (Domains.TetheringDomain.HandleAsync, "1.3");

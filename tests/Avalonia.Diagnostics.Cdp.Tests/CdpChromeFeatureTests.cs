@@ -2216,6 +2216,67 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestNetworkCookies()
+    {
+        var window = new Window { Title = "Network Cookie Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Get initial cookies (should be empty)
+        var resultGet = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "getCookies", new JsonObject());
+        Assert.NotNull(resultGet);
+        Assert.True(resultGet.ContainsKey("cookies"));
+        var cookies = resultGet["cookies"] as JsonArray;
+        Assert.NotNull(cookies);
+        Assert.Empty(cookies);
+
+        // 2. Set a cookie via Network.setCookie
+        var setParams = new JsonObject
+        {
+            ["name"] = "net-cookie",
+            ["value"] = "net-value",
+            ["domain"] = "localhost",
+            ["path"] = "/",
+            ["expires"] = 1719424830.0
+        };
+        var resultSet = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "setCookie", setParams);
+        Assert.NotNull(resultSet);
+
+        // 3. Get cookies via Network.getAllCookies and verify it exists
+        var resultGetAll = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "getAllCookies", new JsonObject());
+        var cookies2 = resultGetAll["cookies"] as JsonArray;
+        Assert.NotNull(cookies2);
+        Assert.Single(cookies2);
+        var cookie = cookies2[0] as JsonObject;
+        Assert.NotNull(cookie);
+        Assert.Equal("net-cookie", cookie["name"]?.GetValue<string>());
+        Assert.Equal("net-value", cookie["value"]?.GetValue<string>());
+        Assert.Equal("localhost", cookie["domain"]?.GetValue<string>());
+        Assert.Equal("/", cookie["path"]?.GetValue<string>());
+        Assert.Equal(1719424830.0, cookie["expires"]?.GetValue<double>());
+
+        // 4. Delete the cookie via Network.deleteCookies
+        var deleteParams = new JsonObject
+        {
+            ["name"] = "net-cookie",
+            ["domain"] = "localhost",
+            ["path"] = "/"
+        };
+        var resultDelete = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "deleteCookies", deleteParams);
+        Assert.NotNull(resultDelete);
+
+        // 5. Verify it's gone
+        var resultGet3 = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "getCookies", new JsonObject());
+        var cookies3 = resultGet3["cookies"] as JsonArray;
+        Assert.NotNull(cookies3);
+        Assert.Empty(cookies3);
+
+        window.Close();
+    }
 }
 
 public class FakeWebSocket : System.Net.WebSockets.WebSocket

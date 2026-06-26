@@ -22,6 +22,7 @@ public partial class ApplicationView : UserControl
         {
             _viewModel.Application.TableColumns.CollectionChanged -= TableColumns_CollectionChanged;
             _viewModel.Application.ConsoleColumns.CollectionChanged -= ConsoleColumns_CollectionChanged;
+            _viewModel.Application.IndexedDBColumns.CollectionChanged -= IndexedDBColumns_CollectionChanged;
         }
 
         _viewModel = DataContext as MainWindowViewModel;
@@ -30,10 +31,12 @@ public partial class ApplicationView : UserControl
         {
             _viewModel.Application.TableColumns.CollectionChanged += TableColumns_CollectionChanged;
             _viewModel.Application.ConsoleColumns.CollectionChanged += ConsoleColumns_CollectionChanged;
+            _viewModel.Application.IndexedDBColumns.CollectionChanged += IndexedDBColumns_CollectionChanged;
 
             // Recreate initially
             RecreateColumns(this.FindControl<DataGrid>("dgActiveTable"), _viewModel.Application.TableColumns);
             RecreateColumns(this.FindControl<DataGrid>("dgConsoleResult"), _viewModel.Application.ConsoleColumns);
+            RecreateColumns(this.FindControl<DataGrid>("dgIndexedDBRecords"), _viewModel.Application.IndexedDBColumns);
         }
     }
 
@@ -50,6 +53,14 @@ public partial class ApplicationView : UserControl
         if (_viewModel != null)
         {
             RecreateColumns(this.FindControl<DataGrid>("dgConsoleResult"), _viewModel.Application.ConsoleColumns);
+        }
+    }
+
+    private void IndexedDBColumns_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (_viewModel != null)
+        {
+            RecreateColumns(this.FindControl<DataGrid>("dgIndexedDBRecords"), _viewModel.Application.IndexedDBColumns);
         }
     }
 

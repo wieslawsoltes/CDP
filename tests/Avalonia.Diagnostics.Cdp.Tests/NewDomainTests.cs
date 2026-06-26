@@ -1437,6 +1437,112 @@ public class NewDomainTests
         window.Close();
     }
 
+    [Fact]
+    public async Task TestBackgroundServiceDomain()
+    {
+        using var clientWs = new System.Net.WebSockets.ClientWebSocket();
+        var session = new CdpSession(clientWs, null);
+
+        // Test startObserving
+        var startParams = new JsonObject { ["service"] = "notifications" };
+        var startResult = await Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.HandleAsync(session, "startObserving", startParams);
+        Assert.NotNull(startResult);
+
+        // Test setRecording
+        var recordParams = new JsonObject
+        {
+            ["shouldRecord"] = true,
+            ["service"] = "notifications"
+        };
+        var recordResult = await Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.HandleAsync(session, "setRecording", recordParams);
+        Assert.NotNull(recordResult);
+
+        // Test clearEvents
+        var clearParams = new JsonObject { ["service"] = "notifications" };
+        var clearResult = await Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.HandleAsync(session, "clearEvents", clearParams);
+        Assert.NotNull(clearResult);
+
+        // Test stopObserving
+        var stopResult = await Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.HandleAsync(session, "stopObserving", new JsonObject());
+        Assert.NotNull(stopResult);
+    }
+
+    [Fact]
+    public async Task TestIndexedDBDomain()
+    {
+        using var clientWs = new System.Net.WebSockets.ClientWebSocket();
+        var session = new CdpSession(clientWs, null);
+
+        // Test enable
+        var enableResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.NotNull(enableResult);
+
+        // Test requestDatabaseNames
+        var namesParams = new JsonObject { ["securityOrigin"] = "http://localhost:9222" };
+        var namesResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "requestDatabaseNames", namesParams);
+        Assert.NotNull(namesResult);
+        var dbNames = namesResult["databaseNames"] as JsonArray;
+        Assert.NotNull(dbNames);
+        Assert.Contains(dbNames, name => name?.GetValue<string>() == "AppLocalCache");
+
+        // Test requestDatabase
+        var dbParams = new JsonObject 
+        { 
+            ["securityOrigin"] = "http://localhost:9222",
+            ["databaseName"] = "AppLocalCache"
+        };
+        var dbResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "requestDatabase", dbParams);
+        Assert.NotNull(dbResult);
+        var dbWithStores = dbResult["databaseWithObjectStores"] as JsonObject;
+        Assert.NotNull(dbWithStores);
+        Assert.Equal("AppLocalCache", dbWithStores["name"]?.GetValue<string>());
+        var stores = dbWithStores["objectStores"] as JsonArray;
+        Assert.NotNull(stores);
+        Assert.Equal(2, stores.Count);
+
+        // Test requestData
+        var dataParams = new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["databaseName"] = "AppLocalCache",
+            ["objectStoreName"] = "Preferences"
+        };
+        var dataResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "requestData", dataParams);
+        Assert.NotNull(dataResult);
+        var entries = dataResult["objectStoreDataEntries"] as JsonArray;
+        Assert.NotNull(entries);
+        Assert.Equal(3, entries.Count); // Theme, FontSize, Language
+
+        // Test clearObjectStore
+        var clearParams = new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["databaseName"] = "AppLocalCache",
+            ["objectStoreName"] = "Preferences"
+        };
+        var clearResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "clearObjectStore", clearParams);
+        Assert.NotNull(clearResult);
+
+        // Verify cleared
+        var dataResult2 = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "requestData", dataParams);
+        var entries2 = dataResult2["objectStoreDataEntries"] as JsonArray;
+        Assert.NotNull(entries2);
+        Assert.Empty(entries2);
+
+        // Test deleteDatabase
+        var deleteParams = new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["databaseName"] = "AppLocalCache"
+        };
+        var deleteResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "deleteDatabase", deleteParams);
+        Assert.NotNull(deleteResult);
+
+        // Test disable
+        var disableResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "disable", new JsonObject());
+        Assert.NotNull(disableResult);
+    }
+
     public class TestDataContext
     {
         public int SomeValue { get; set; }

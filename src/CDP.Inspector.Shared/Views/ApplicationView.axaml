@@ -216,6 +216,118 @@
             </Grid>
         </Grid>
 
+        <!-- Background Services -->
+        <Grid Name="gridBackgroundServices" Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0" IsVisible="{Binding Application.IsBackgroundServicesVisible}">
+            <!-- Toolbar -->
+            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto" Margin="0,0,0,8" VerticalAlignment="Center">
+                <TextBlock Text="Background Services" Classes="panel-header" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Application.AvailableBackgroundServices}" 
+                          SelectedItem="{Binding Application.SelectedBackgroundService}"
+                          Width="180" Height="26" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                <Button Grid.Column="2" Command="{Binding Application.ToggleBackgroundRecordingCommand}" 
+                        Height="26" VerticalAlignment="Center" Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Panel Width="8" Height="8" VerticalAlignment="Center">
+                            <Ellipse Fill="Red" IsVisible="{Binding Application.IsBackgroundRecording}"/>
+                            <Ellipse Fill="#9aa0a6" IsVisible="{Binding !Application.IsBackgroundRecording}"/>
+                        </Panel>
+                        <TextBlock Text="Stop" IsVisible="{Binding Application.IsBackgroundRecording}" VerticalAlignment="Center"/>
+                        <TextBlock Text="Record" IsVisible="{Binding !Application.IsBackgroundRecording}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="4" Command="{Binding Application.ClearBackgroundEventsCommand}" Content="Clear" 
+                        Height="26" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Events Grid & Details -->
+            <Grid Grid.Row="1" ColumnDefinitions="*, 4, 300" Margin="0,5,0,0">
+                <!-- Events DataGrid -->
+                <DataGrid Grid.Column="0" Name="dgBackgroundEvents" 
+                          ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.BackgroundEvents}" 
+                          SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedBackgroundEvent, Mode=TwoWay}"
+                          x:DataType="models:BackgroundServiceEventModel"
+                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                          Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Timestamp" Binding="{Binding TimestampString}" Width="150" Foreground="#9aa0a6" FontSize="11"/>
+                        <DataGridTextColumn Header="Event" Binding="{Binding EventName}" Width="120" Foreground="#e8eaed" FontSize="11" FontWeight="Bold"/>
+                        <DataGridTextColumn Header="Origin" Binding="{Binding Origin}" Width="150" Foreground="#9aa0a6" FontSize="11"/>
+                        <DataGridTextColumn Header="SW Reg ID" Binding="{Binding ServiceWorkerRegistrationId}" Width="80" Foreground="#9aa0a6" FontSize="11"/>
+                        <DataGridTextColumn Header="Instance ID" Binding="{Binding InstanceId}" Width="*" Foreground="#9aa0a6" FontSize="11"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Splitter -->
+                <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                <!-- Metadata Properties Panel -->
+                <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                    <TextBlock Text="Event Metadata" FontWeight="Bold" Margin="0,0,0,6" FontSize="11" Foreground="#9aa0a6"/>
+                    <DataGrid Grid.Row="1" Name="dgMetadata" 
+                              ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedBackgroundEventMetadata}"
+                              x:DataType="models:BackgroundServiceMetadataModel"
+                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                              Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="120" Foreground="#e8eaed" FontSize="11" FontWeight="Bold"/>
+                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="11"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- IndexedDB Explorer -->
+        <Grid Name="gridIndexedDBExplorer" Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0" IsVisible="{Binding Application.IsIndexedDBVisible}">
+            <!-- Header/Toolbar -->
+            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto" Margin="0,0,0,8" VerticalAlignment="Center">
+                <TextBlock Text="Database:" Classes="panel-header" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Application.IndexedDBDatabases}" 
+                          SelectedItem="{Binding Application.SelectedIndexedDBDatabase, Mode=TwoWay}"
+                          Width="180" Height="26" VerticalAlignment="Center" Margin="0,0,15,0"/>
+
+                <Button Grid.Column="4" Command="{Binding Application.RefreshIndexedDBCommand}" Content="Refresh" 
+                        Height="26" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <Button Grid.Column="5" Command="{Binding Application.ClearIndexedDBObjectStoreCommand}" Content="Clear Object Store" 
+                        Height="26" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Main Split Panel -->
+            <Grid Grid.Row="1" ColumnDefinitions="200, 4, *">
+                <!-- Left Side: Object Stores list -->
+                <Grid RowDefinitions="Auto, *">
+                    <TextBlock Text="Object Stores" FontWeight="Bold" Margin="0,0,0,4" FontSize="11" Foreground="#9aa0a6"/>
+                    <ListBox Grid.Row="1" Name="lstObjectStores" ItemsSource="{Binding Application.IndexedDBObjectStores}" 
+                             SelectedItem="{Binding Application.SelectedIndexedDBObjectStore, Mode=TwoWay}" 
+                             Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Text="{Binding}" FontSize="12" Padding="4,2"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+
+                <!-- Splitter -->
+                <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                <!-- Right Side: DataGrid for records -->
+                <Grid Grid.Column="2" RowDefinitions="*" Margin="10,0,0,0">
+                    <DataGrid Name="dgIndexedDBRecords" ItemsSource="{Binding Application.IndexedDBRows}"
+                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+                              GridLinesVisibility="All" HeadersVisibility="Column"
+                              Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                        <!-- Columns generated dynamically in code-behind -->
+                    </DataGrid>
+                </Grid>
+            </Grid>
+        </Grid>
+
         <!-- Placeholder for simulated nodes (Cookies / Background Services / Preferences) -->
         <StackPanel Grid.Column="2" Margin="30" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" IsVisible="{Binding Application.IsPlaceholderVisible}">
             <TextBlock Text="Chrome Parity Simulator" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8" HorizontalAlignment="Center"/>

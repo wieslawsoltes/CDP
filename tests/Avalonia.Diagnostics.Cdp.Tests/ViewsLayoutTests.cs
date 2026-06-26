@@ -44,6 +44,9 @@ public class ViewsLayoutTests
 
             var memoryView = new MemoryView();
             Assert.NotNull(memoryView);
+
+            var applicationView = new ApplicationView();
+            Assert.NotNull(applicationView);
         }
         finally
         {

@@ -214,20 +214,69 @@ public static class NetworkDomain
             case "setRequestInterception":
             case "setAcceptedEncodings":
             case "clearAcceptedEncodingsOverride":
-            case "deleteCookies":
-            case "setCookie":
             case "setCookies":
                 {
+                    return Task.FromResult(new JsonObject());
+                }
+
+            case "setCookie":
+                {
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    string value = @params["value"]?.GetValue<string>() ?? "";
+                    string domain = @params["domain"]?.GetValue<string>() ?? "";
+                    string path = @params["path"]?.GetValue<string>() ?? "";
+                    double expires = @params["expires"]?.GetValue<double>() ?? -1;
+
+                    session.Cookies.RemoveAll(c => c["name"]?.GetValue<string>() == name);
+
+                    var cookie = new JsonObject
+                    {
+                        ["name"] = name,
+                        ["value"] = value,
+                        ["domain"] = domain,
+                        ["path"] = path,
+                        ["expires"] = expires
+                    };
+
+                    if (@params.ContainsKey("secure")) cookie["secure"] = @params["secure"]?.GetValue<bool>();
+                    if (@params.ContainsKey("httpOnly")) cookie["httpOnly"] = @params["httpOnly"]?.GetValue<bool>();
+                    if (@params.ContainsKey("sameSite")) cookie["sameSite"] = @params["sameSite"]?.GetValue<string>();
+
+                    session.Cookies.Add(cookie);
+                    return Task.FromResult(new JsonObject { ["success"] = true });
+                }
+
+            case "deleteCookies":
+                {
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    string domain = @params["domain"]?.GetValue<string>() ?? "";
+                    string path = @params["path"]?.GetValue<string>() ?? "";
+
+                    session.Cookies.RemoveAll(c =>
+                    {
+                        bool match = c["name"]?.GetValue<string>() == name;
+                        if (!string.IsNullOrEmpty(domain))
+                        {
+                            match = match && c["domain"]?.GetValue<string>() == domain;
+                        }
+                        if (!string.IsNullOrEmpty(path))
+                        {
+                            match = match && c["path"]?.GetValue<string>() == path;
+                        }
+                        return match;
+                    });
                     return Task.FromResult(new JsonObject());
                 }
 
             case "getCookies":
             case "getAllCookies":
                 {
-                    return Task.FromResult(new JsonObject
+                    var cookiesArray = new JsonArray();
+                    foreach (var cookie in session.Cookies)
                     {
-                        ["cookies"] = new JsonArray()
-                    });
+                        cookiesArray.Add(cookie.DeepClone());
+                    }
+                    return Task.FromResult(new JsonObject { ["cookies"] = cookiesArray });
                 }
 
             default:
