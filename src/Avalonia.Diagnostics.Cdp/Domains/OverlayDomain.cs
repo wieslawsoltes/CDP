@@ -45,9 +45,15 @@ public static class OverlayDomain
                     return new JsonObject();
                 }
 
+            case "setShowPaintRects":
+                {
+                    bool show = @params["result"]?.GetValue<bool>() ?? false;
+                    PaintRectsOverlayManager.SetEnabled(session.Window, show);
+                    return new JsonObject();
+                }
+
             case "setShowDebugBorders":
             case "setShowFPSCounter":
-            case "setShowPaintRects":
             case "setShowViewportSizeOnResize":
             case "setShowGridOverlays":
             case "setShowFlexOverlays":
