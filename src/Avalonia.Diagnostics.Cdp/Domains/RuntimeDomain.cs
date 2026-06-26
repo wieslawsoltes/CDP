@@ -877,15 +877,25 @@ public static class RuntimeDomain
             Console.WriteLine($"[CDP EVAL DEBUG] Control DataContext: {ctrl.DataContext?.GetType().FullName ?? "null"}");
         }
 
-        string declaration = "";
-        if (inspectedNode != null)
+        // Check if the inspected node has changed. If so, reset the script session.
+        if (session.ScriptSession != null && session.ScriptSessionNodeId != inspectedNodeId)
         {
-            string typeName = GetSafeTypeName(inspectedNode.GetType());
-            declaration = $"var _0 = ({typeName})SelectedNode!; ";
+            session.ScriptSession = null;
         }
-        else
+
+        string declaration = "";
+        if (session.ScriptSession == null)
         {
-            declaration = "Avalonia.Visual? _0 = null; ";
+            session.ScriptSessionNodeId = inspectedNodeId;
+            if (inspectedNode != null)
+            {
+                string typeName = GetSafeTypeName(inspectedNode.GetType());
+                declaration = $"var _0 = ({typeName})SelectedNode!; ";
+            }
+            else
+            {
+                declaration = "Avalonia.Visual? _0 = null; ";
+            }
         }
         
         string fullCode = declaration + code;

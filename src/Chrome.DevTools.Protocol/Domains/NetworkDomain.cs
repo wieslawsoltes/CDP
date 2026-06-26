@@ -15,7 +15,7 @@ namespace Chrome.DevTools.Protocol.Domains;
 public static class NetworkDomain
 {
     private static readonly ConcurrentDictionary<CdpSession, bool> _enabledSessions = new();
-    private static readonly ConcurrentDictionary<string, string> _responseBodies = new();
+    private static readonly ConcurrentDictionary<string, (string Body, bool Base64Encoded)> _responseBodies = new();
     private static readonly ConcurrentDictionary<HttpRequestMessage, string> _requestIds = new();
     private static readonly ConcurrentBag<IDisposable> _listenerSubscriptions = new();
     private static int _nextRequestId = 0;
@@ -125,9 +125,9 @@ public static class NetworkDomain
         _listenerSubscriptions.Add(subscription);
     }
 
-    public static void CacheResponseBody(string requestId, string body)
+    public static void CacheResponseBody(string requestId, string body, bool base64Encoded)
     {
-        _responseBodies[requestId] = body;
+        _responseBodies[requestId] = (body, base64Encoded);
     }
 
     public static void BroadcastNetworkEvent(string method, JsonObject @params)
@@ -163,12 +163,12 @@ public static class NetworkDomain
             case "getResponseBody":
                 {
                     string requestId = @params["requestId"]?.GetValue<string>() ?? "";
-                    if (_responseBodies.TryGetValue(requestId, out var body))
+                    if (_responseBodies.TryGetValue(requestId, out var cached))
                     {
                         return Task.FromResult(new JsonObject
                         {
-                            ["body"] = body,
-                            ["base64Encoded"] = false
+                            ["body"] = cached.Body,
+                            ["base64Encoded"] = cached.Base64Encoded
                         });
                     }
                     throw new Exception($"Response body for request ID {requestId} not found in cache.");
@@ -226,9 +226,10 @@ public static class NetworkDomain
                     string domain = @params["domain"]?.GetValue<string>() ?? "";
                     string path = @params["path"]?.GetValue<string>() ?? "";
                     double expires = @params["expires"]?.GetValue<double>() ?? -1;
-
-                    session.Cookies.RemoveAll(c => c["name"]?.GetValue<string>() == name);
-
+                    session.Cookies.RemoveAll(c => 
+                        (c["name"]?.GetValue<string>() ?? "") == name && 
+                        (c["domain"]?.GetValue<string>() ?? "") == domain && 
+                        (c["path"]?.GetValue<string>() ?? "") == path);
                     var cookie = new JsonObject
                     {
                         ["name"] = name,
@@ -547,8 +548,23 @@ internal class InterceptingHttpContent : HttpContent
                 try
                 {
                     var bytes = _buffer.ToArray();
-                    string body = Encoding.UTF8.GetString(bytes);
-                    NetworkDomain.CacheResponseBody(_requestId, body);
+                    var contentType = _inner.Headers.ContentType?.MediaType;
+                    bool isBinary = contentType != null && 
+                                    (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ||
+                                     contentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) ||
+                                     contentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase) ||
+                                     contentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase));
+
+                    if (isBinary)
+                    {
+                        string body = Convert.ToBase64String(bytes);
+                        NetworkDomain.CacheResponseBody(_requestId, body, base64Encoded: true);
+                    }
+                    else
+                    {
+                        string body = Encoding.UTF8.GetString(bytes);
+                        NetworkDomain.CacheResponseBody(_requestId, body, base64Encoded: false);
+                    }
                     contentLength = bytes.Length;
                 }
                 catch

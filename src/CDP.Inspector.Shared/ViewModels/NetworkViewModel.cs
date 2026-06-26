@@ -415,14 +415,35 @@ public class NetworkViewModel : ViewModelBase
                 {
                     req.Base64Encoded = base64Encoded;
                     req.ResponseBody = body;
-                    if (base64Encoded && req.Type.Equals("Image", StringComparison.OrdinalIgnoreCase))
+                    if (req.Type.Equals("Image", StringComparison.OrdinalIgnoreCase))
                     {
                         try
                         {
-                            var bytes = Convert.FromBase64String(body);
-                            using (var ms = new System.IO.MemoryStream(bytes))
+                            byte[]? bytes = null;
+                            if (base64Encoded)
                             {
-                                req.ResponseImage = new Avalonia.Media.Imaging.Bitmap(ms);
+                                bytes = Convert.FromBase64String(body);
+                            }
+                            else
+                            {
+                                // Fallback: try decoding as base64 first (handling backends that omit the flag)
+                                try
+                                {
+                                    bytes = Convert.FromBase64String(body);
+                                }
+                                catch
+                                {
+                                    // Treat ISO-8859-1 (Latin1) to map 1-to-1 back to byte values from raw string
+                                    bytes = System.Text.Encoding.GetEncoding("ISO-8859-1").GetBytes(body);
+                                }
+                            }
+
+                            if (bytes != null)
+                            {
+                                using (var ms = new System.IO.MemoryStream(bytes))
+                                {
+                                    req.ResponseImage = new Avalonia.Media.Imaging.Bitmap(ms);
+                                }
                             }
                         }
                         catch (Exception ex)
@@ -665,22 +686,30 @@ public class NetworkViewModel : ViewModelBase
 
     private static string DetermineType(string url, string? cdpType)
     {
-        if (!string.IsNullOrEmpty(cdpType)) return cdpType;
-        if (string.IsNullOrEmpty(url)) return "Other";
-        try
+        bool isPlaceholder = string.IsNullOrEmpty(cdpType) || 
+                             string.Equals(cdpType, "xhr", StringComparison.OrdinalIgnoreCase) || 
+                             string.Equals(cdpType, "fetch", StringComparison.OrdinalIgnoreCase);
+
+        if (!isPlaceholder && !string.IsNullOrEmpty(cdpType)) return cdpType;
+
+        if (!string.IsNullOrEmpty(url))
         {
-            var uri = new Uri(url);
-            var path = uri.AbsolutePath.ToLowerInvariant();
-            if (path.EndsWith(".js") || path.EndsWith(".mjs")) return "Script";
-            if (path.EndsWith(".css")) return "Stylesheet";
-            if (path.EndsWith(".png") || path.EndsWith(".jpg") || path.EndsWith(".jpeg") || path.EndsWith(".gif") || path.EndsWith(".svg") || path.EndsWith(".webp") || path.EndsWith(".ico")) return "Image";
-            if (path.EndsWith(".html") || path.EndsWith(".htm")) return "Document";
+            try
+            {
+                var uri = new Uri(url);
+                var path = uri.AbsolutePath.ToLowerInvariant();
+                if (path.EndsWith(".js") || path.EndsWith(".mjs")) return "Script";
+                if (path.EndsWith(".css")) return "Stylesheet";
+                if (path.EndsWith(".png") || path.EndsWith(".jpg") || path.EndsWith(".jpeg") || path.EndsWith(".gif") || path.EndsWith(".svg") || path.EndsWith(".webp") || path.EndsWith(".ico")) return "Image";
+                if (path.EndsWith(".html") || path.EndsWith(".htm")) return "Document";
+            }
+            catch
+            {
+                // Fallback
+            }
         }
-        catch
-        {
-            // Fallback
-        }
-        return "XHR";
+
+        return !string.IsNullOrEmpty(cdpType) ? cdpType : "XHR";
     }
 }
 

@@ -471,6 +471,157 @@ public class NewDomainTests
     }
 
     [AvaloniaFact]
+    public async Task TestCssDomainGetMatchedStylesWithPseudoClass()
+    {
+        var window = new Window
+        {
+            Title = "CSS Pseudo Test Window",
+            Width = 400,
+            Height = 300
+        };
+        
+        var button = new Button { Name = "myBtn", Width = 100 };
+        button.Classes.Add("primary");
+        // Simulated pseudo-class state
+        var pseudoClassesProperty = typeof(Avalonia.StyledElement).GetProperty("PseudoClasses", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var pseudoClasses = (Avalonia.Controls.IPseudoClasses)pseudoClassesProperty.GetValue(button);
+        pseudoClasses.Set("pointerover", true);
+        window.Content = button;
+        
+        window.Show();
+
+        // 1. Hover style (pointerover)
+        var styleHover = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<Button>(x).Class("primary").Class(":pointerover"))
+        {
+            Setters =
+            {
+                new Avalonia.Styling.Setter(Button.BackgroundProperty, Avalonia.Media.Brushes.Blue)
+            }
+        };
+        // 2. Focus style (focus) - not active on button
+        var styleFocus = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<Button>(x).Class("primary").Class(":focus"))
+        {
+            Setters =
+            {
+                new Avalonia.Styling.Setter(Button.BackgroundProperty, Avalonia.Media.Brushes.Green)
+            }
+        };
+        
+        window.Styles.Add(styleHover);
+        window.Styles.Add(styleFocus);
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        int buttonNodeId = session.NodeMap.GetOrAdd(button);
+
+        var getParams = new JsonObject
+        {
+            ["nodeId"] = buttonNodeId
+        };
+
+        var result = await CssDomain.HandleAsync(session, "getMatchedStylesForNode", getParams);
+        Assert.NotNull(result);
+
+        var matchedCSSRules = result["matchedCSSRules"] as JsonArray;
+        Assert.NotNull(matchedCSSRules);
+
+        // Verify styleHover matched (since we added :pointerover class)
+        var hoverRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains(":pointerover") == true);
+        Assert.NotNull(hoverRule);
+        
+        var hoverBg = (hoverRule["style"]?["cssProperties"] as JsonArray)?
+            .FirstOrDefault(p => p?["name"]?.GetValue<string>() == "background");
+        Assert.NotNull(hoverBg);
+        Assert.Equal("blue", hoverBg["value"]?.GetValue<string>(), ignoreCase: true);
+
+        // Verify styleFocus did NOT match (since :focus class was not added)
+        var focusRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains(":focus") == true);
+        Assert.Null(focusRule);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestCssDomainGetMatchedStylesWithAncestors()
+    {
+        var window = new Window
+        {
+            Title = "CSS Ancestor Test Window",
+            Width = 400,
+            Height = 300
+        };
+        
+        var panel = new StackPanel { Name = "myPanel" };
+        var grid = new Grid { Name = "myGrid" };
+        var button = new Button { Name = "myBtn" };
+        
+        grid.Children.Add(button);
+        panel.Children.Add(grid);
+        window.Content = panel;
+        
+        window.Show();
+
+        // 1. Valid descendant rule (StackPanel Button) - should match
+        var styleDescendant = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<StackPanel>(x).Descendant().OfType<Button>())
+        {
+            Setters = { new Avalonia.Styling.Setter(Button.BackgroundProperty, Avalonia.Media.Brushes.Blue) }
+        };
+        // 2. Valid child rule (Grid > Button) - should match
+        var styleChildMatch = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<Grid>(x).Child().OfType<Button>())
+        {
+            Setters = { new Avalonia.Styling.Setter(Button.ForegroundProperty, Avalonia.Media.Brushes.Green) }
+        };
+        // 3. Invalid child rule (StackPanel > Button) - should NOT match
+        var styleChildNoMatch = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<StackPanel>(x).Child().OfType<Button>())
+        {
+            Setters = { new Avalonia.Styling.Setter(Button.OpacityProperty, 0.5) }
+        };
+
+        window.Styles.Add(styleDescendant);
+        window.Styles.Add(styleChildMatch);
+        window.Styles.Add(styleChildNoMatch);
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        int buttonNodeId = session.NodeMap.GetOrAdd(button);
+
+        var getParams = new JsonObject
+        {
+            ["nodeId"] = buttonNodeId
+        };
+
+        var result = await CssDomain.HandleAsync(session, "getMatchedStylesForNode", getParams);
+        Assert.NotNull(result);
+
+        var matchedCSSRules = result["matchedCSSRules"] as JsonArray;
+        Assert.NotNull(matchedCSSRules);
+
+        // Verify styleDescendant matched
+        var descendantRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("StackPanel") == true &&
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("Button") == true);
+        Assert.NotNull(descendantRule);
+
+        // Verify styleChildMatch matched
+        var childMatchRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("Grid") == true &&
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains(">") == true);
+        Assert.NotNull(childMatchRule);
+
+        // Verify styleChildNoMatch did NOT match
+        var childNoMatchRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("StackPanel") == true &&
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains(">") == true);
+        Assert.Null(childNoMatchRule);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task TestDomDebuggerNewStubs()
     {
         using var clientWs = new ClientWebSocket();

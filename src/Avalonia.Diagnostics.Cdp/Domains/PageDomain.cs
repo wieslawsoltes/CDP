@@ -493,7 +493,10 @@ public static class PageDomain
                     string path = @params["path"]?.GetValue<string>() ?? "";
                     double expires = @params["expires"]?.GetValue<double>() ?? -1;
 
-                    session.Cookies.RemoveAll(c => c["name"]?.GetValue<string>() == name);
+                    session.Cookies.RemoveAll(c => 
+                        (c["name"]?.GetValue<string>() ?? "") == name && 
+                        (c["domain"]?.GetValue<string>() ?? "") == domain && 
+                        (c["path"]?.GetValue<string>() ?? "") == path);
 
                     var cookie = new JsonObject
                     {

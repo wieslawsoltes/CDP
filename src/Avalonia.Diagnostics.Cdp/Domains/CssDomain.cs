@@ -1274,15 +1274,111 @@ public static class CssDomain
         return false;
     }
 
+    private class SelectorToken
+    {
+        public string Text { get; set; } = "";
+        public string Combinator { get; set; } = " "; // " " (descendant) or ">" (child)
+    }
+
+    private static List<SelectorToken> ParseSelectorTokens(string selector)
+    {
+        var result = new List<SelectorToken>();
+        if (string.IsNullOrEmpty(selector)) return result;
+
+        // Normalize spaces around '>'
+        string normalized = selector;
+        // Replace multiple whitespace characters with a single space, but handle '>'
+        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
+        normalized = normalized.Replace(" > ", ">").Replace("> ", ">").Replace(" >", ">");
+
+        // Now split by space. Each part might contain '>'
+        var parts = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            // Within each part, it could be split by '>'
+            var subParts = part.Split('>');
+            for (int i = 0; i < subParts.Length; i++)
+            {
+                string text = subParts[i].Trim();
+                if (string.IsNullOrEmpty(text)) continue;
+
+                var token = new SelectorToken { Text = text };
+                if (i > 0)
+                {
+                    token.Combinator = ">";
+                }
+                else if (result.Count > 0)
+                {
+                    token.Combinator = " "; // Separated by space in original string
+                }
+                result.Add(token);
+            }
+        }
+        return result;
+    }
+
+    private static Control? GetParent(Control control)
+    {
+        var parentVisual = SelectorEngine.GetLogicalParent(control) ?? Avalonia.VisualTree.VisualExtensions.GetVisualParent(control);
+        return parentVisual as Control;
+    }
+
     private static bool SelectorSegmentMatches(Control control, string selector)
     {
         if (string.IsNullOrEmpty(selector)) return false;
 
-        // Split by space/child combinator to find the last segment (the target control)
-        var parts = selector.Split(new[] { ' ', '>', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return false;
+        var tokens = ParseSelectorTokens(selector);
+        if (tokens.Count == 0) return false;
 
-        var target = parts[^1].Trim();
+        // The last token must match the current control
+        var targetToken = tokens[^1];
+        if (!SingleSegmentMatches(control, targetToken.Text))
+        {
+            return false;
+        }
+
+        // Now match ancestors from right to left
+        Control current = control;
+        for (int i = tokens.Count - 2; i >= 0; i--)
+        {
+            var token = tokens[i];
+            var nextToken = tokens[i + 1];
+
+            if (nextToken.Combinator == ">")
+            {
+                var parent = GetParent(current);
+                if (parent == null || !SingleSegmentMatches(parent, token.Text))
+                {
+                    return false;
+                }
+                current = parent;
+            }
+            else
+            {
+                bool found = false;
+                var parent = GetParent(current);
+                while (parent != null)
+                {
+                    if (SingleSegmentMatches(parent, token.Text))
+                    {
+                        found = true;
+                        current = parent;
+                        break;
+                    }
+                    parent = GetParent(parent);
+                }
+                if (!found)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool SingleSegmentMatches(Control control, string target)
+    {
         if (string.IsNullOrEmpty(target) || target == "*") return true;
 
         // Parse target segment components: type name, classes, name, pseudo-classes
@@ -1322,6 +1418,10 @@ public static class CssDomain
             {
                 nameId = token;
             }
+            else if (marker == ':')
+            {
+                classes.Add(":" + token);
+            }
         }
 
         // Validate Type Name
@@ -1340,19 +1440,46 @@ public static class CssDomain
             }
         }
 
-        // Validate Classes
+        // Validate Classes & Pseudo-classes
         foreach (var cls in classes)
         {
-            bool hasClass = false;
-            foreach (var c in control.Classes)
+            if (cls.StartsWith(":"))
             {
-                if (string.Equals(c, cls, StringComparison.OrdinalIgnoreCase))
+                string pseudoName = cls.Substring(1);
+                bool hasPseudo = false;
+                var pseudoProp = typeof(Avalonia.StyledElement).GetProperty("PseudoClasses", 
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (pseudoProp != null && pseudoProp.GetValue(control) is System.Collections.IEnumerable pseudoClasses)
                 {
-                    hasClass = true;
-                    break;
+                    foreach (var pc in pseudoClasses)
+                    {
+                        if (pc != null)
+                        {
+                            string pcStr = pc.ToString() ?? "";
+                            if (string.Equals(pcStr, pseudoName, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(pcStr, cls, StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasPseudo = true;
+                                break;
+                            }
+                        }
+                    }
                 }
+                if (!hasPseudo) return false;
             }
-            if (!hasClass) return false;
+            else
+            {
+                bool hasClass = false;
+                foreach (var c in control.Classes)
+                {
+                    if (string.Equals(c, cls, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasClass = true;
+                        break;
+                    }
+                }
+                if (!hasClass) return false;
+            }
         }
 
         // Validate Control Name

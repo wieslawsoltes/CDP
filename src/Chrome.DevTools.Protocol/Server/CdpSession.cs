@@ -132,6 +132,11 @@ public class CdpSession
         get => CurrentTargetSession?.ScriptSession;
         set { if (CurrentTargetSession != null) CurrentTargetSession.ScriptSession = value; }
     }
+    public int? ScriptSessionNodeId
+    {
+        get => CurrentTargetSession?.ScriptSessionNodeId;
+        set { if (CurrentTargetSession != null) CurrentTargetSession.ScriptSessionNodeId = value; }
+    }
 
     private bool _useLogicalTree = false;
     public bool UseLogicalTree
