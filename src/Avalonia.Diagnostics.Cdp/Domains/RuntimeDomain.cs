@@ -409,7 +409,7 @@ public static class RuntimeDomain
             if (trimmed == "window") return session.Window;
             var remaining = trimmed.Substring(6);
             if (remaining.StartsWith(".")) remaining = remaining.Substring(1);
-            return EvaluateExpression(session, session.Window, remaining, variableBindings);
+            return EvaluateExpression(session, new CdpRuntimeWindow(session), remaining, variableBindings);
         }
 
         if (trimmed.StartsWith("document"))
@@ -440,14 +440,23 @@ public static class RuntimeDomain
             for (int i = 0; i < parts.Length - 1; i++)
             {
                 var prop = current.GetType().GetProperty(parts[i], BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                if (prop == null && current is CdpRuntimeWindow win && win.visual != null)
+                {
+                    prop = win.visual.GetType().GetProperty(parts[i], BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                }
                 if (prop == null) throw new Exception($"Property '{parts[i]}' not found");
-                var next = prop.GetValue(current);
+                var invokeTarget = prop.DeclaringType.IsAssignableFrom(current.GetType()) ? current : ((CdpRuntimeWindow)current).visual;
+                var next = prop.GetValue(invokeTarget);
                 if (next == null) throw new Exception($"Property '{parts[i]}' is null");
                 current = next;
             }
 
             var lastPropName = parts[^1];
             var lastProp = current.GetType().GetProperty(lastPropName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (lastProp == null && current is CdpRuntimeWindow lastWin && lastWin.visual != null)
+            {
+                lastProp = lastWin.visual.GetType().GetProperty(lastPropName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            }
             if (lastProp == null || !lastProp.CanWrite) throw new Exception($"Property '{lastPropName}' not found or read-only");
 
             object? boundValue = null;
@@ -458,7 +467,8 @@ public static class RuntimeDomain
             }
 
             var converted = isBound ? ConvertValueFromBound(boundValue, lastProp.PropertyType) : ConvertValue(valStr, lastProp.PropertyType);
-            lastProp.SetValue(current, converted);
+            var invokeTargetLast = lastProp.DeclaringType.IsAssignableFrom(current.GetType()) ? current : ((CdpRuntimeWindow)current).visual;
+            lastProp.SetValue(invokeTargetLast, converted);
             return converted;
         }
         else
@@ -564,12 +574,22 @@ public static class RuntimeDomain
                     }
 
                     var method = current.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.IgnoreCase, null, argTypes, null);
+                    if (method == null && current is CdpRuntimeWindow win && win.visual != null)
+                    {
+                        method = win.visual.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.IgnoreCase, null, argTypes, null);
+                    }
                     if (method == null)
                     {
                         // Try to find any method with name and correct number of parameters
                         var methods = current.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.IgnoreCase)
                             .Where(m => m.Name.Equals(methodName, StringComparison.OrdinalIgnoreCase) && m.GetParameters().Length == methodArgs.Length)
                             .ToArray();
+                        if (methods.Length == 0 && current is CdpRuntimeWindow win2 && win2.visual != null)
+                        {
+                            methods = win2.visual.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.IgnoreCase)
+                                .Where(m => m.Name.Equals(methodName, StringComparison.OrdinalIgnoreCase) && m.GetParameters().Length == methodArgs.Length)
+                                .ToArray();
+                        }
                         if (methods.Length > 0)
                         {
                             method = methods[0];
@@ -586,13 +606,19 @@ public static class RuntimeDomain
                     }
 
                     if (method == null) throw new Exception($"Method '{methodName}' with {methodArgs.Length} arguments not found on {current.GetType().Name}");
-                    current = method.Invoke(current, methodArgs);
+                    var invokeTarget = method.DeclaringType.IsAssignableFrom(current.GetType()) ? current : ((CdpRuntimeWindow)current).visual;
+                    current = method.Invoke(invokeTarget, methodArgs);
                 }
                 else
                 {
                     var prop = current.GetType().GetProperty(part, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    if (prop == null && current is CdpRuntimeWindow win && win.visual != null)
+                    {
+                        prop = win.visual.GetType().GetProperty(part, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    }
                     if (prop == null) throw new Exception($"Property '{part}' not found on {current.GetType().Name}");
-                    current = prop.GetValue(current);
+                    var invokeTarget = prop.DeclaringType.IsAssignableFrom(current.GetType()) ? current : ((CdpRuntimeWindow)current).visual;
+                    current = prop.GetValue(invokeTarget);
                 }
             }
             return current;
