@@ -8,11 +8,11 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 
 | Package Name | Target | Version | Downloads |
 | :--- | :--- | :--- | :--- |
-| **Chrome.DevTools.Avalonia** | Core Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) |
+| **Chrome.DevTools.Protocol** | Core Protocol & Client Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) |
+| **Chrome.DevTools.Avalonia** | Avalonia Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) |
 | **Chrome.DevTools.Inspector.Shared** | Shared UI Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) |
 | **Chrome.DevTools.DiagnosticTools** | In-Process Diagnostics | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) |
 | **Chrome.DevTools.Inspector** | .NET Global Tool | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) |
-
 
 ---
 
@@ -65,22 +65,25 @@ All interactions with Avalonia UI visual elements are thread-safe, marshalling o
 
 ## Getting Started
 
-### 1. Add Reference
+### Add Reference
 
-Add the NuGet package reference `Chrome.DevTools.Avalonia` to your main Avalonia application:
+Install the NuGet package `Chrome.DevTools.Avalonia` to your main Avalonia application:
 
+#### Using .NET CLI (Recommended)
+Since packages are currently published as preview versions, include the `--prerelease` flag to retrieve the latest version:
+```bash
+dotnet add package Chrome.DevTools.Avalonia --prerelease
+```
+
+#### Manual XML Reference
+If manually adding the package reference to your `.csproj` file, specify the version to ensure a successful NuGet restore:
 ```xml
 <ItemGroup>
-  <PackageReference Include="Chrome.DevTools.Avalonia" Version="1.0.0" />
+  <PackageReference Include="Chrome.DevTools.Avalonia" Version="x.y.z" />
 </ItemGroup>
 ```
 
-Or install it via the .NET CLI:
-```bash
-dotnet add package Chrome.DevTools.Avalonia
-```
-
-### 2. Start the Server
+### Start the Server
 
 Initialize and start the CDP server in your application startup (typically in `App.axaml.cs` inside `OnFrameworkInitializationCompleted`):
 
@@ -108,7 +111,7 @@ Make sure to stop the server when the application shuts down:
 CdpServer.Stop();
 ```
 
-### 3. In-Process Diagnostics Inspector
+### In-Process Diagnostics Inspector
 
 If you prefer to launch the DevTools inspector client directly inside your application's process (as a replacement for Avalonia's built-in DevTools), you can use the `Chrome.DevTools.DiagnosticTools` package.
 
@@ -143,88 +146,7 @@ When running, press **F12** inside the window to open the in-process DevTools cl
 
 ---
 
-## Test Studio & Headless Test Runner
-
-The project features a **Test Studio** panel inside the inspector app, which provides a visual, interactive test suite workspace using a Flow-compatible YAML syntax.
-
-### Key Capabilities
-- **Command Toolbox**: A category-tabbed toolbox grouping actions into *Interactions* (taps, inputs, swipes, scrolls), *Assertions* (visibility and logical checks), *App & Device* (app lifecycle, orientations, geolocations, screenshots), and *Logic* (loops, retries, nested flows).
-- **Interactive Execution & Debugging**: Step-by-step test execution (Play, Pause, Step Over, Stop) with real-time status updates (Pending, Running, Passed, Failed).
-- **Smart Waiting**: If a target element is not found immediately during playback, the execution engine automatically retries element queries every 200ms for up to 5 seconds before failing.
-- **YAML Synchronization**: A live, two-way code editor with line numbers and full TextMate-powered syntax highlighting.
-- **Selector Autocomplete**: An application-wide Autocomplete service that gathers all tag names, classes, and IDs from the live DOM tree, automatically suggesting them as you type element selectors.
-
-### Headless CI/CD Execution
-The core adapter (`HeadlessTestAdapter`) allows programmatically executing Test Studio YAML scripts on arbitrary Avalonia windows headlessly during unit or integration testing:
-
-```csharp
-var adapter = new HeadlessTestAdapter();
-// Runs a YAML test script on a target window instance
-await adapter.RunTestAsync(myWindow, myYamlContent, isYamlContent: true);
-```
-
----
-
-## AI Coding Agents Integration Points
-
-This library provides ideal entry points for AI agents (e.g. Playwright-based web agents) to navigate, inspect, and interact with the desktop application:
-
-1. **Selector Engine**: Supports querying elements using a custom visual selector engine:
-   - Control types (e.g. `Button`, `TextBox`, `Grid`)
-   - Names (e.g. `#btnClickMe` maps to `Name="btnClickMe"`)
-   - Classes (e.g. `.primary`)
-   - Descendant selectors (e.g. `Grid Border Button`)
-   - Child selectors (e.g. `Grid > Border > Button`)
-   - Compound selectors (e.g. `Button#btnClickMe.primary`)
-2. **Inspected Node `$0`**: Binds the active inspected control node (set via `DOM.setInspectedNode`) to the `$0` variable in the evaluation context, letting agents evaluate C# expressions on the active element.
-3. **Text Simulation**: Allows typing raw strings directly into focused input elements using the `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` methods.
-4. **Screenshot Verification**: Agents can capture and inspect screenshots of the window or individual bounding boxes to perform visual verification.
-5. **Interactive Highlighting**: Supports the standard Chrome DevTools visual highlighter, showing padding, margin, content boxes, and element names in real-time.
-
----
-
-## CDP API Specification
-
-The following methods are supported across the core CDP domains:
-
-| Domain | Method | Description |
-| :--- | :--- | :--- |
-| **DOM** | `getDocument` | Returns the root DOM tree mapping the window visual tree. |
-| | `requestChildNodes` | Requests kids of a specific node (used for lazy-loading). |
-| | `querySelector` | Query the tree using a CSS selector, returning the node ID. |
-| | `querySelectorAll` | Query the tree using a CSS selector, returning all matching node IDs. |
-| | `getOuterHTML` | Generates a pseudo-HTML markup string of the visual tree. |
-| | `resolveNode` | Resolves a node ID to a Runtime RemoteObject ID. |
-| | `focus` | Gives focus to the selected control node. |
-| | `setInspectedNode` | Binds the selected control node to the `$0` variable in the evaluation context. |
-| | `setAttributeValue` | Updates properties, class lists, or names of a control. |
-| | `removeAttribute` | Clears classes or resets control names. |
-| **CSS** | `getComputedStyleForNode` | Converts control properties (Background, Width, etc.) to CSS styles. |
-| | `getMatchedStylesForNode` | Returns the matching style declarations. |
-| | `setStyleTexts` | Performs live modification of a control's properties. |
-| **Input** | `dispatchMouseEvent` | Dispatches pointer moves, presses, releases, and wheel scrolls. |
-| | `dispatchKeyEvent` | Dispatches key presses, releases, and text inputs. |
-| **Page** | `captureScreenshot` | Captures a high-DPI base64-encoded PNG screenshot of the window. |
-| **Overlay** | `highlightNode` | Visualizes the control bounds, margin, and padding as a color overlay. |
-| | `hideHighlight` | Clears any visible bounding box overlays. |
-| **Runtime** | `evaluate` | Executes reflection property/field lookups on target objects. |
-| | `callFunctionOn` | Executes helper functions on a mapped remote object. |
-| | `getProperties` | Reflects and lists all C# properties/fields on a remote object. |
-| **Target** | `getTargets` | Lists all active windows as debuggable page targets. |
-| **Network** | `enable` / `disable` | Enables/disables outbound HTTP request monitoring. |
-| | `getResponseBody` | Retrieves the body payload of a completed HTTP request. |
-| **Sources** | `getWorkspaceFiles` | Recursively returns relative file paths under the active workspace. |
-| | `getFileContent` | Retrieves the text content of a source file within workspace boundaries. |
-| **Application** | `getResources` | Lists global resources in the `Application.Current.Resources` registry. |
-| | `setResource` | Registers or mutates a key-value global resource brush. |
-| | `deleteResource` | Deletes a global resource by key. |
-| **Memory** | `getLiveControls` | Computes live control allocations by class type. |
-| | `collectGarbage` | Triggers a full garbage collection in the CLR. |
-| **Recorder** | `start` / `stop` | Starts/stops intercepting user events for automation script recording. |
-
----
-
-## Running the Sample App and Inspector
+## Running the Sample and Inspector Apps
 
 Sample projects are provided in the repository to demonstrate the CDP capabilities:
 - **CdpSampleApp**: A simple target application listening on port `9222`.
@@ -348,8 +270,29 @@ Due to security restrictions in modern web browsers:
 4. Paste it directly into the **Host** textbox of the browser inspector (running at `http://127.0.0.1:8080`). The inspector will automatically configure and select the **Direct Connection** target.
 5. Click **Connect**. Since the target app uses a custom C# WebSocket server without browser origin restrictions, the browser will connect successfully!
 
+---
 
-#### Supported Recorder Target Formats
+## Test Studio & Automated Testing
+
+The project features a **Test Studio** panel inside the inspector app, which provides a visual, interactive test suite workspace using a Flow-compatible YAML syntax.
+
+### Key Capabilities
+- **Command Toolbox**: A category-tabbed toolbox grouping actions into *Interactions* (taps, inputs, swipes, scrolls), *Assertions* (visibility and logical checks), *App & Device* (app lifecycle, orientations, geolocations, screenshots), and *Logic* (loops, retries, nested flows).
+- **Interactive Execution & Debugging**: Step-by-step test execution (Play, Pause, Step Over, Stop) with real-time status updates (Pending, Running, Passed, Failed).
+- **Smart Waiting**: If a target element is not found immediately during playback, the execution engine automatically retries element queries every 200ms for up to 5 seconds before failing.
+- **YAML Synchronization**: A live, two-way code editor with line numbers and full TextMate-powered syntax highlighting.
+- **Selector Autocomplete**: An application-wide Autocomplete service that gathers all tag names, classes, and IDs from the live DOM tree, automatically suggesting them as you type element selectors.
+
+### Headless CI/CD Execution
+The core adapter (`HeadlessTestAdapter`) allows programmatically executing Test Studio YAML scripts on arbitrary Avalonia windows headlessly during unit or integration testing:
+
+```csharp
+var adapter = new HeadlessTestAdapter();
+// Runs a YAML test script on a target window instance
+await adapter.RunTestAsync(myWindow, myYamlContent, isYamlContent: true);
+```
+
+### Supported Recorder Target Formats
 
 The Recorder panel in `CdpInspectorApp` supports capturing user actions and exporting them to multiple target formats for automated testing.
 
@@ -363,9 +306,7 @@ The table below outlines each target format, the testing framework it targets, h
 | **Appium C#** | Appium Windows Driver (NUnit) | Connects via Appium Server (`http://127.0.0.1:4723/`) using `WindowsDriver`. | Controls Windows desktop controls utilizing dynamic selector translation. |
 | **Avalonia Headless** | `Avalonia.Headless.XUnit` | Runs directly in-process. Simulates inputs using window mouse/keyboard extensions. | High-performance headless tests running inside the xUnit test runner. |
 
----
-
-#### Code Generation Examples
+### Code Generation Examples
 
 Below are complete examples of the generated code for each recording target format representing a recorded sequence of: setting viewport size to 1024x768, navigating to `http://localhost:9222/foo`, clicking `#btnClick`, entering text into `#txtInput`, asserting `#btnClick` is visible, and asserting `#hidden` is hidden.
 
@@ -672,6 +613,65 @@ namespace HeadlessRecordedTests
 }
 ```
 </details>
+
+---
+
+## AI Coding Agents Integration
+
+This library provides ideal entry points for AI agents (e.g. Playwright-based web agents) to navigate, inspect, and interact with the desktop application:
+
+1. **Selector Engine**: Supports querying elements using a custom visual selector engine:
+   - Control types (e.g. `Button`, `TextBox`, `Grid`)
+   - Names (e.g. `#btnClickMe` maps to `Name="btnClickMe"`)
+   - Classes (e.g. `.primary`)
+   - Descendant selectors (e.g. `Grid Border Button`)
+   - Child selectors (e.g. `Grid > Border > Button`)
+   - Compound selectors (e.g. `Button#btnClickMe.primary`)
+2. **Inspected Node `$0`**: Binds the active inspected control node (set via `DOM.setInspectedNode`) to the `$0` variable in the evaluation context, letting agents evaluate C# expressions on the active element.
+3. **Text Simulation**: Allows typing raw strings directly into focused input elements using the `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` methods.
+4. **Screenshot Verification**: Agents can capture and inspect screenshots of the window or individual bounding boxes to perform visual verification.
+5. **Interactive Highlighting**: Supports the standard Chrome DevTools visual highlighter, showing padding, margin, content boxes, and element names in real-time.
+
+---
+
+## CDP API Specification
+
+The following methods are supported across the core CDP domains:
+
+| Domain | Method | Description |
+| :--- | :--- | :--- |
+| **DOM** | `getDocument` | Returns the root DOM tree mapping the window visual tree. |
+| | `requestChildNodes` | Requests kids of a specific node (used for lazy-loading). |
+| | `querySelector` | Query the tree using a CSS selector, returning the node ID. |
+| | `querySelectorAll` | Query the tree using a CSS selector, returning all matching node IDs. |
+| | `getOuterHTML` | Generates a pseudo-HTML markup string of the visual tree. |
+| | `resolveNode` | Resolves a node ID to a Runtime RemoteObject ID. |
+| | `focus` | Gives focus to the selected control node. |
+| | `setInspectedNode` | Binds the selected control node to the `$0` variable in the evaluation context. |
+| | `setAttributeValue` | Updates properties, class lists, or names of a control. |
+| | `removeAttribute` | Clears classes or resets control names. |
+| **CSS** | `getComputedStyleForNode` | Converts control properties (Background, Width, etc.) to CSS styles. |
+| | `getMatchedStylesForNode` | Returns the matching style declarations. |
+| | `setStyleTexts` | Performs live modification of a control's properties. |
+| **Input** | `dispatchMouseEvent` | Dispatches pointer moves, presses, releases, and wheel scrolls. |
+| | `dispatchKeyEvent` | Dispatches key presses, releases, and text inputs. |
+| **Page** | `captureScreenshot` | Captures a high-DPI base64-encoded PNG screenshot of the window. |
+| **Overlay** | `highlightNode` | Visualizes the control bounds, margin, and padding as a color overlay. |
+| | `hideHighlight` | Clears any visible bounding box overlays. |
+| **Runtime** | `evaluate` | Executes reflection property/field lookups on target objects. |
+| | `callFunctionOn` | Executes helper functions on a mapped remote object. |
+| | `getProperties` | Reflects and lists all C# properties/fields on a remote object. |
+| **Target** | `getTargets` | Lists all active windows as debuggable page targets. |
+| **Network** | `enable` / `disable` | Enables/disables outbound HTTP request monitoring. |
+| | `getResponseBody` | Retrieves the body payload of a completed HTTP request. |
+| **Sources** | `getWorkspaceFiles` | Recursively returns relative file paths under the active workspace. |
+| | `getFileContent` | Retrieves the text content of a source file within workspace boundaries. |
+| **Application** | `getResources` | Lists global resources in the `Application.Current.Resources` registry. |
+| | `setResource` | Registers or mutates a key-value global resource brush. |
+| | `deleteResource` | Deletes a global resource by key. |
+| **Memory** | `getLiveControls` | Computes live control allocations by class type. |
+| | `collectGarbage` | Triggers a full garbage collection in the CLR. |
+| **Recorder** | `start` / `stop` | Starts/stops intercepting user events for automation script recording. |
 
 ---
 
