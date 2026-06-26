@@ -35,6 +35,9 @@ public class ViewsLayoutTests
 
             var videoPlaybackWindow = new VideoPlaybackWindow();
             Assert.NotNull(videoPlaybackWindow);
+
+            var consoleView = new ConsoleView();
+            Assert.NotNull(consoleView);
         }
         finally
         {

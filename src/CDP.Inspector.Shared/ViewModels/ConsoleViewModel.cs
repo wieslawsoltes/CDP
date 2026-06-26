@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -17,6 +18,10 @@ public class ConsoleViewModel : ViewModelBase
     private ObservableCollection<LogModel> _logs = new();
     private ObservableCollection<ConsoleItemModel> _consoleHistory = new();
     private string _consoleInputText = "";
+    private ObservableCollection<PinnedExpressionViewModel> _pinnedExpressions = new();
+    private string _pinnedExpressionInputText = "";
+    private readonly DispatcherTimer _watchTimer;
+    private bool _isEvaluatingPinned;
 
     // Filters
     private bool _filterAll = true;
@@ -28,6 +33,7 @@ public class ConsoleViewModel : ViewModelBase
 
     public ObservableCollection<LogModel> Logs => _logs;
     public ObservableCollection<ConsoleItemModel> ConsoleHistory => _consoleHistory;
+    public ObservableCollection<PinnedExpressionViewModel> PinnedExpressions => _pinnedExpressions;
 
     public string ConsoleInputText
     {
@@ -40,6 +46,21 @@ public class ConsoleViewModel : ViewModelBase
             }
         }
     }
+
+    public string PinnedExpressionInputText
+    {
+        get => _pinnedExpressionInputText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _pinnedExpressionInputText, value))
+            {
+                ((RelayCommand)AddPinnedExpressionCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public ICommand AddPinnedExpressionCommand { get; }
+    public ICommand RemovePinnedExpressionCommand { get; }
 
     public bool FilterAll
     {
@@ -157,6 +178,19 @@ public class ConsoleViewModel : ViewModelBase
 
         ClearLogsCommand = new RelayCommand(ClearLogs);
         EvaluateCommand = new RelayCommand(async () => await EvaluateAsync(), () => !string.IsNullOrEmpty(ConsoleInputText) && _cdpService.IsConnected);
+        AddPinnedExpressionCommand = new RelayCommand(AddPinnedExpression, () => !string.IsNullOrEmpty(PinnedExpressionInputText) && _cdpService.IsConnected);
+        RemovePinnedExpressionCommand = new RelayCommand<PinnedExpressionViewModel>(RemovePinnedExpression);
+
+        _watchTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(1000)
+        };
+        _watchTimer.Tick += async (sender, e) => await EvaluatePinnedExpressionsAsync();
+
+        if (_cdpService.IsConnected)
+        {
+            StartWatchTimer();
+        }
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -166,12 +200,15 @@ public class ConsoleViewModel : ViewModelBase
             if (_cdpService.IsConnected)
             {
                 _ = InitializeDomainAsync();
+                StartWatchTimer();
             }
             else
             {
                 ClearData();
+                StopWatchTimer();
             }
             ((RelayCommand)EvaluateCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)AddPinnedExpressionCommand).RaiseCanExecuteChanged();
         }
     }
 
@@ -529,6 +566,112 @@ public class ConsoleViewModel : ViewModelBase
                 IsCompletionActive = false;
                 SelectedCompletionIndex = -1;
             });
+        }
+    }
+
+    private void AddPinnedExpression()
+    {
+        string expr = PinnedExpressionInputText?.Trim() ?? "";
+        if (string.IsNullOrEmpty(expr)) return;
+
+        if (!_pinnedExpressions.Any(x => x.Expression == expr))
+        {
+            _pinnedExpressions.Add(new PinnedExpressionViewModel
+            {
+                Expression = expr,
+                Result = "Waiting...",
+                IsError = false
+            });
+        }
+
+        PinnedExpressionInputText = "";
+        ((RelayCommand)AddPinnedExpressionCommand).RaiseCanExecuteChanged();
+        
+        _ = EvaluatePinnedExpressionsAsync();
+    }
+
+    private void RemovePinnedExpression(PinnedExpressionViewModel item)
+    {
+        if (item != null)
+        {
+            _pinnedExpressions.Remove(item);
+        }
+    }
+
+    private void StartWatchTimer()
+    {
+        if (!_watchTimer.IsEnabled)
+        {
+            _watchTimer.Start();
+        }
+    }
+
+    private void StopWatchTimer()
+    {
+        if (_watchTimer.IsEnabled)
+        {
+            _watchTimer.Stop();
+        }
+    }
+
+    private async Task EvaluatePinnedExpressionsAsync()
+    {
+        if (_isEvaluatingPinned || !_cdpService.IsConnected || _pinnedExpressions.Count == 0) return;
+        _isEvaluatingPinned = true;
+        try
+        {
+            var list = _pinnedExpressions.ToList();
+            foreach (var item in list)
+            {
+                try
+                {
+                    var res = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                    {
+                        ["expression"] = item.Expression,
+                        ["returnByValue"] = false
+                    });
+                    
+                    var resultObj = res["result"] as JsonObject;
+                    string displayResult = "";
+                    bool isError = false;
+
+                    if (resultObj != null)
+                    {
+                        if (resultObj.ContainsKey("description"))
+                        {
+                            displayResult = resultObj["description"]?.GetValue<string>() ?? "null";
+                        }
+                        else if (resultObj.ContainsKey("value"))
+                        {
+                            displayResult = resultObj["value"]?.ToString() ?? "null";
+                        }
+                        else if (resultObj["subtype"]?.GetValue<string>() == "null")
+                        {
+                            displayResult = "null";
+                        }
+                        else
+                        {
+                            displayResult = resultObj.ToJsonString();
+                        }
+                    }
+                    else
+                    {
+                        displayResult = "Success";
+                    }
+                    
+                    item.Result = displayResult;
+                    item.IsError = isError;
+                }
+                catch (Exception ex)
+                {
+                    item.Result = ex.Message;
+                    item.IsError = true;
+                }
+            }
+        }
+        finally
+        {
+            _isEvaluatingPinned = false;
         }
     }
 }

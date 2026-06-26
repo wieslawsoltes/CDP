@@ -11,6 +11,7 @@ public partial class ConsoleView : UserControl
     public ListBox ListConsole => listConsole;
     public TextBox TxtConsoleInput => txtConsoleInput;
     public Button BtnSendConsole => btnSendConsole;
+    public TextBox TxtPinnedExpression => txtPinnedExpression;
 
     public ConsoleView()
     {
@@ -106,6 +107,21 @@ public partial class ConsoleView : UserControl
                     var text = txtConsoleInput.Text ?? "";
                     var caret = txtConsoleInput.CaretIndex;
                     _ = vm.Console.QueryCompletionsAsync(text, caret);
+                }
+            }
+        };
+
+        txtPinnedExpression.KeyDown += (sender, e) =>
+        {
+            if (DataContext is MainWindowViewModel vm)
+            {
+                if (e.Key == Avalonia.Input.Key.Enter)
+                {
+                    if (vm.Console.AddPinnedExpressionCommand.CanExecute(null))
+                    {
+                        vm.Console.AddPinnedExpressionCommand.Execute(null);
+                        e.Handled = true;
+                    }
                 }
             }
         };
