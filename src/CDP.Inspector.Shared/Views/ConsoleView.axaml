@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              x:Class="CdpInspectorApp.Views.ConsoleView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -112,10 +113,34 @@
                                 <TextBlock Text="❯ " Foreground="#8ab4f8" FontWeight="Bold" FontSize="12"/>
                                 <TextBlock Text="{Binding Expression}" Foreground="#e8eaed" TextWrapping="Wrap" FontSize="12"/>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="15,2,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="15,2,0,0" IsVisible="{Binding !IsObject}">
                                 <TextBlock Text="value: " Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBrush}" TextWrapping="Wrap" FontSize="12"/>
                             </StackPanel>
+                            <DataGrid HierarchicalModel="{Binding HierarchicalResult}"
+                                      HierarchicalRowsEnabled="True"
+                                      HeadersVisibility="None"
+                                      GridLinesVisibility="None"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      IsVisible="{Binding IsObject}"
+                                      Margin="15,2,0,0"
+                                      MaxHeight="300">
+                                <DataGrid.Columns>
+                                    <DataGridHierarchicalColumn Width="*">
+                                        <DataGridHierarchicalColumn.CellTemplate>
+                                            <DataTemplate x:DataType="tree:HierarchicalNode">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
+                                                    <TextBlock Text="{Binding ((models:ConsoleObjectNode)Item).Name}" Foreground="#8ab4f8" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                    <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding ((models:ConsoleObjectNode)Item).Value}" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding ((models:ConsoleObjectNode)Item).Type, StringFormat='({0})'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridHierarchicalColumn.CellTemplate>
+                                    </DataGridHierarchicalColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>

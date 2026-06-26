@@ -418,7 +418,16 @@ public class ConsoleViewModel : ViewModelBase
                 displayResult = "Success";
             }
 
-            ConsoleHistory.Add(new ConsoleItemModel(expr, displayResult, false));
+            if (resultObj != null && resultObj.ContainsKey("objectId"))
+            {
+                var objectId = resultObj["objectId"]?.GetValue<string>();
+                var type = resultObj["type"]?.GetValue<string>();
+                ConsoleHistory.Add(new ConsoleItemModel(expr, displayResult, false, objectId: objectId, type: type, cdpService: _cdpService));
+            }
+            else
+            {
+                ConsoleHistory.Add(new ConsoleItemModel(expr, displayResult, false));
+            }
             if (_historyLines.Count == 0 || _historyLines[^1] != expr)
             {
                 _historyLines.Add(expr);
