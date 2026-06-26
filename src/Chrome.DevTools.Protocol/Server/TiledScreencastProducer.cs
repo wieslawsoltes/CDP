@@ -11,12 +11,16 @@ public class TiledScreencastProducer : IDisposable
     private uint[]? _tileHashes;
     private int _lastCols;
     private int _lastRows;
+    private int _lastWidth;
+    private int _lastHeight;
 
     public void Reset()
     {
         _tileHashes = null;
         _lastCols = 0;
         _lastRows = 0;
+        _lastWidth = 0;
+        _lastHeight = 0;
     }
 
     public JsonArray? ProcessFrame(SKBitmap skBitmap, string format, int? quality, out int cols, out int rows)
@@ -29,11 +33,13 @@ public class TiledScreencastProducer : IDisposable
         cols = (pixelWidth + tileWidth - 1) / tileWidth;
         rows = (pixelHeight + tileHeight - 1) / tileHeight;
 
-        if (_tileHashes == null || cols != _lastCols || rows != _lastRows)
+        if (_tileHashes == null || cols != _lastCols || rows != _lastRows || pixelWidth != _lastWidth || pixelHeight != _lastHeight)
         {
             _tileHashes = new uint[cols * rows];
             _lastCols = cols;
             _lastRows = rows;
+            _lastWidth = pixelWidth;
+            _lastHeight = pixelHeight;
         }
 
         var changedTiles = new JsonArray();

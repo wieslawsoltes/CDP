@@ -309,14 +309,50 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                             pixelWidth = skBitmap.Width;
                             pixelHeight = skBitmap.Height;
 
+                            double resizeScale = 1.0;
+                            if (_screencastMaxWidth.HasValue && width > _screencastMaxWidth.Value)
+                            {
+                                resizeScale = Math.Min(resizeScale, (double)_screencastMaxWidth.Value / width);
+                            }
+                            if (_screencastMaxHeight.HasValue && height > _screencastMaxHeight.Value)
+                            {
+                                resizeScale = Math.Min(resizeScale, (double)_screencastMaxHeight.Value / height);
+                            }
+
+                            SkiaSharp.SKBitmap bitmapToProcess = skBitmap;
+                            SkiaSharp.SKBitmap? resizedBitmap = null;
+
+                            if (resizeScale < 1.0)
+                            {
+                                int targetPixelWidth = (int)Math.Max(1, Math.Round(pixelWidth * resizeScale));
+                                int targetPixelHeight = (int)Math.Max(1, Math.Round(pixelHeight * resizeScale));
+                                var info = new SkiaSharp.SKImageInfo(targetPixelWidth, targetPixelHeight, skBitmap.ColorType, skBitmap.AlphaType);
+                                resizedBitmap = new SkiaSharp.SKBitmap(info);
+                                if (skBitmap.ScalePixels(resizedBitmap, SkiaSharp.SKFilterQuality.High))
+                                {
+                                    bitmapToProcess = resizedBitmap;
+                                    width = width * resizeScale;
+                                    height = height * resizeScale;
+                                    pixelWidth = targetPixelWidth;
+                                    pixelHeight = targetPixelHeight;
+                                }
+                                else
+                                {
+                                    resizedBitmap.Dispose();
+                                    resizedBitmap = null;
+                                }
+                            }
+
                             if (string.Equals(_screencastTransferMode, "tiled", StringComparison.OrdinalIgnoreCase))
                             {
                                 var changedTiles = _tiledScreencastProducer.ProcessFrame(
-                                    skBitmap,
+                                    bitmapToProcess,
                                     _screencastFormat ?? "png",
                                     _screencastQuality,
                                     out int cols,
                                     out int rows);
+
+                                resizedBitmap?.Dispose();
 
                                 if (changedTiles == null || changedTiles.Count == 0)
                                 {
@@ -357,38 +393,6 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                             }
                             else
                             {
-                                double resizeScale = 1.0;
-                                if (_screencastMaxWidth.HasValue && width > _screencastMaxWidth.Value)
-                                {
-                                    resizeScale = Math.Min(resizeScale, (double)_screencastMaxWidth.Value / width);
-                                }
-                                if (_screencastMaxHeight.HasValue && height > _screencastMaxHeight.Value)
-                                {
-                                    resizeScale = Math.Min(resizeScale, (double)_screencastMaxHeight.Value / height);
-                                }
-
-                                SkiaSharp.SKBitmap bitmapToEncode = skBitmap;
-                                SkiaSharp.SKBitmap? resizedBitmap = null;
-
-                                if (resizeScale < 1.0)
-                                {
-                                    int targetPixelWidth = (int)Math.Max(1, Math.Round(pixelWidth * resizeScale));
-                                    int targetPixelHeight = (int)Math.Max(1, Math.Round(pixelHeight * resizeScale));
-                                    var info = new SkiaSharp.SKImageInfo(targetPixelWidth, targetPixelHeight, skBitmap.ColorType, skBitmap.AlphaType);
-                                    resizedBitmap = new SkiaSharp.SKBitmap(info);
-                                    if (skBitmap.ScalePixels(resizedBitmap, SkiaSharp.SKFilterQuality.High))
-                                    {
-                                        bitmapToEncode = resizedBitmap;
-                                        width = width * resizeScale;
-                                        height = height * resizeScale;
-                                    }
-                                    else
-                                    {
-                                        resizedBitmap.Dispose();
-                                        resizedBitmap = null;
-                                    }
-                                }
-
                                 var encodedFormat = SkiaSharp.SKEncodedImageFormat.Png;
                                 if (string.Equals(_screencastFormat, "jpeg", StringComparison.OrdinalIgnoreCase))
                                 {
@@ -403,7 +407,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                                 if (q < 0) q = 0;
                                 if (q > 100) q = 100;
 
-                                using var image = SkiaSharp.SKImage.FromBitmap(bitmapToEncode);
+                                using var image = SkiaSharp.SKImage.FromBitmap(bitmapToProcess);
                                 using var encodedData = image.Encode(encodedFormat, q);
                                 if (encodedData != null)
                                 {
