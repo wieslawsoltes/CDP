@@ -1279,13 +1279,11 @@ public class SimulationViewModel : ViewModelBase
 
         try
         {
-            Console.WriteLine($"[DEBUG HOVER] UpdateInspectHoverAsync x={x}, y={y}");
             var nodeRes = await _cdpService.SendCommandAsync("DOM.getNodeForLocation", new JsonObject
             {
                 ["x"] = (int)x,
                 ["y"] = (int)y
             });
-            Console.WriteLine($"[DEBUG HOVER] getNodeForLocation result: {nodeRes.ToJsonString()}");
             
             // Re-validate inspect mode active state and generation
             if (currentGen != _hoverGeneration || !_isInspectModeActiveFunc() || !_cdpService.IsConnected)
@@ -1298,7 +1296,6 @@ public class SimulationViewModel : ViewModelBase
             if (nodeId > 0)
             {
                 var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = nodeId });
-                Console.WriteLine($"[DEBUG HOVER] getBoxModel result: {boxRes.ToJsonString()}");
                 
                 // Re-validate inspect mode active state and generation
                 if (currentGen != _hoverGeneration || !_isInspectModeActiveFunc() || !_cdpService.IsConnected)
@@ -1312,7 +1309,6 @@ public class SimulationViewModel : ViewModelBase
                 {
                     var domNode = _getDomNodeFunc(nodeId);
                     var axDetails = _getAxDetailsFunc(nodeId);
-                    Console.WriteLine($"[DEBUG HOVER] domNode found: {(domNode != null ? domNode.NodeName : "null")}, axRole={axDetails.Role}, axName={axDetails.Name}");
 
                     HighlightElementType = domNode?.NodeName ?? "Visual";
                     HighlightAxRole = axDetails.Role;
@@ -1322,19 +1318,16 @@ public class SimulationViewModel : ViewModelBase
                 }
                 else
                 {
-                    Console.WriteLine("[DEBUG HOVER] box model is null");
                     ClearInspectHover();
                 }
             }
             else
             {
-                Console.WriteLine("[DEBUG HOVER] nodeId is 0");
                 ClearInspectHover();
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[DEBUG HOVER] Exception: {ex.Message}");
             ClearInspectHover();
         }
         finally
