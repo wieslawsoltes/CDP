@@ -730,6 +730,48 @@ public static class CssDomain
         };
     }
 
+    private static Thickness ParseCssThickness(string value)
+    {
+        var parts = value.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+        var vals = new double[parts.Length];
+        for (int i = 0; i < parts.Length; i++)
+        {
+            string p = parts[i].Trim();
+            if (p.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+            {
+                p = p.Substring(0, p.Length - 2).Trim();
+            }
+            vals[i] = double.TryParse(p, NumberStyles.Any, CultureInfo.InvariantCulture, out double d) ? d : 0.0;
+        }
+
+        if (vals.Length == 1)
+        {
+            return new Thickness(vals[0]);
+        }
+        if (vals.Length == 2)
+        {
+            double v = vals[0];
+            double h = vals[1];
+            return new Thickness(h, v, h, v);
+        }
+        if (vals.Length == 3)
+        {
+            double t = vals[0];
+            double h = vals[1];
+            double b = vals[2];
+            return new Thickness(h, t, h, b);
+        }
+        if (vals.Length >= 4)
+        {
+            double t = vals[0];
+            double r = vals[1];
+            double b = vals[2];
+            double l = vals[3];
+            return new Thickness(l, t, r, b);
+        }
+        return new Thickness();
+    }
+
     private static void ApplyStyleText(Control control, string styleText)
     {
         var statements = styleText.Split(';', StringSplitOptions.RemoveEmptyEntries);
@@ -741,28 +783,123 @@ public static class CssDomain
             var rawName = statement.Substring(0, colonIndex).Trim();
             var rawValue = statement.Substring(colonIndex + 1).Trim();
 
-            // Strip "px" if any for sizes
-            if (rawValue.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+            // Strip "px" if any for sizes (if it's not a shorthand with multiple px values)
+            string normalizedValue = rawValue;
+            if (normalizedValue.EndsWith("px", StringComparison.OrdinalIgnoreCase) && !normalizedValue.Contains(" ") && !normalizedValue.Contains(","))
             {
-                rawValue = rawValue.Substring(0, rawValue.Length - 2).Trim();
+                normalizedValue = normalizedValue.Substring(0, normalizedValue.Length - 2).Trim();
             }
 
-            // Map standard CSS properties to Avalonia properties
-            string propName = rawName.ToLowerInvariant() switch
-            {
-                "width" => "Width",
-                "height" => "Height",
-                "opacity" => "Opacity",
-                "background" => "Background",
-                "background-color" => "Background",
-                "padding" => "Padding",
-                "margin" => "Margin",
-                "font-size" => "FontSize",
-                "font-family" => "FontFamily",
-                _ => rawName
-            };
+            string lowerName = rawName.ToLowerInvariant();
+            
+            // Check if it is a shorthand or longhand thickness property
+            string basePropName = "";
+            string component = "";
+            bool isThickness = false;
 
-            SetControlProperty(control, propName, rawValue);
+            if (lowerName == "margin")
+            {
+                basePropName = "Margin";
+                isThickness = true;
+            }
+            else if (lowerName.StartsWith("margin-", StringComparison.OrdinalIgnoreCase))
+            {
+                basePropName = "Margin";
+                component = lowerName.Substring("margin-".Length);
+                isThickness = true;
+            }
+            else if (lowerName == "padding")
+            {
+                basePropName = "Padding";
+                isThickness = true;
+            }
+            else if (lowerName.StartsWith("padding-", StringComparison.OrdinalIgnoreCase))
+            {
+                basePropName = "Padding";
+                component = lowerName.Substring("padding-".Length);
+                isThickness = true;
+            }
+            else if (lowerName == "border-thickness" || lowerName == "border-width" || lowerName == "border")
+            {
+                basePropName = "BorderThickness";
+                isThickness = true;
+            }
+            else if (lowerName.StartsWith("border-", StringComparison.OrdinalIgnoreCase))
+            {
+                basePropName = "BorderThickness";
+                var rest = lowerName.Substring("border-".Length);
+                if (rest.EndsWith("-width"))
+                {
+                    component = rest.Substring(0, rest.Length - "-width".Length);
+                }
+                else
+                {
+                    component = rest;
+                }
+                isThickness = true;
+            }
+
+            if (isThickness)
+            {
+                Thickness currentThickness = new Thickness();
+                var currentVal = GetControlProperty(control, basePropName);
+                if (currentVal is Thickness t)
+                {
+                    currentThickness = t;
+                }
+
+                if (string.IsNullOrEmpty(component))
+                {
+                    // Shorthand margin/padding/border
+                    Thickness parsedThickness = ParseCssThickness(rawValue);
+                    string newThicknessStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", 
+                        parsedThickness.Left, parsedThickness.Top, parsedThickness.Right, parsedThickness.Bottom);
+                    SetControlProperty(control, basePropName, newThicknessStr);
+                }
+                else if (component == "top" || component == "right" || component == "bottom" || component == "left")
+                {
+                    // Longhand margin-top/padding-left/etc.
+                    string cleanVal = rawValue.Trim();
+                    if (cleanVal.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+                    {
+                        cleanVal = cleanVal.Substring(0, cleanVal.Length - 2).Trim();
+                    }
+                    double valDouble = double.TryParse(cleanVal, NumberStyles.Any, CultureInfo.InvariantCulture, out double d) ? d : 0.0;
+
+                    double left = currentThickness.Left;
+                    double top = currentThickness.Top;
+                    double right = currentThickness.Right;
+                    double bottom = currentThickness.Bottom;
+
+                    switch (component)
+                    {
+                        case "top": top = valDouble; break;
+                        case "right": right = valDouble; break;
+                        case "bottom": bottom = valDouble; break;
+                        case "left": left = valDouble; break;
+                    }
+
+                    string newThicknessStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", left, top, right, bottom);
+                    SetControlProperty(control, basePropName, newThicknessStr);
+                }
+            }
+            else
+            {
+                // Map standard CSS properties to Avalonia properties
+                string propName = lowerName switch
+                {
+                    "width" => "Width",
+                    "height" => "Height",
+                    "opacity" => "Opacity",
+                    "background" => "Background",
+                    "background-color" => "Background",
+                    "font-size" => "FontSize",
+                    "font-family" => "FontFamily",
+                    _ => rawName
+                };
+
+                SetControlProperty(control, propName, normalizedValue);
+            }
         }
     }
 
