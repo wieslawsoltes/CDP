@@ -76,6 +76,21 @@
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80" Foreground="#81c995" FontSize="12"/>
                     <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80" Foreground="#9aa0a6" FontSize="12"/>
                     <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="80" Foreground="#8ab4f8" FontSize="12"/>
+                    <DataGridTemplateColumn Header="Waterfall" Width="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="models:NetworkRequestModel">
+                                <Grid Width="120" HorizontalAlignment="Left" Background="Transparent" VerticalAlignment="Stretch" ToolTip.Tip="{Binding WaterfallToolTip}">
+                                    <Border Background="#8ab4f8" 
+                                            Height="8" 
+                                            CornerRadius="4"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            Margin="{Binding WaterfallMargin}"
+                                            Width="{Binding WaterfallWidth}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
 

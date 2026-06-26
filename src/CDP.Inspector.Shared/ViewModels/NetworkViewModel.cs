@@ -22,6 +22,7 @@ public class NetworkViewModel : ViewModelBase
     private string _selectedRequestHeaders = "";
     private string _selectedResponseHeaders = "";
     private string _selectedResponseBody = "";
+    private double _sessionStartTime = 0.0;
 
     private ObservableCollection<ThrottlingProfile> _throttlingProfiles = new()
     {
@@ -196,6 +197,7 @@ public class NetworkViewModel : ViewModelBase
                 string method = request["method"]?.GetValue<string>() ?? "GET";
                 string type = e.Params["type"]?.GetValue<string>() ?? "";
                 type = DetermineType(url, type);
+                double timestamp = e.Params["timestamp"]?.GetValue<double>() ?? 0.0;
                 
                 var reqHeaders = request["headers"] as JsonObject;
                 var sbHeaders = new StringBuilder();
@@ -222,6 +224,11 @@ public class NetworkViewModel : ViewModelBase
                             initialStatus = "Mocked";
                         }
 
+                        if (_sessionStartTime == 0.0 && timestamp > 0.0)
+                        {
+                            _sessionStartTime = timestamp;
+                        }
+
                         var model = new NetworkRequestModel
                         {
                             RequestId = requestId,
@@ -230,13 +237,17 @@ public class NetworkViewModel : ViewModelBase
                             Type = type,
                             Status = initialStatus,
                             Time = "--",
-                            RequestHeaders = sbHeaders.ToString()
+                            RequestHeaders = sbHeaders.ToString(),
+                            StartTime = timestamp > 0.0 ? timestamp : (_sessionStartTime > 0.0 ? _sessionStartTime : 0.0),
+                            EndTime = timestamp > 0.0 ? timestamp : (_sessionStartTime > 0.0 ? _sessionStartTime : 0.0)
                         };
                         string? postData = request["postData"]?.GetValue<string>();
                         model.ParsePostParameters(postData);
 
                         NetworkRequests.Add(model);
                         if (NetworkRequests.Count > 100) NetworkRequests.RemoveAt(0);
+
+                        RecalculateWaterfallTimelines();
                     }
                 });
             }
@@ -246,6 +257,7 @@ public class NetworkViewModel : ViewModelBase
             string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
             var response = e.Params["response"] as JsonObject;
             string type = e.Params["type"]?.GetValue<string>() ?? "";
+            double timestamp = e.Params["timestamp"]?.GetValue<double>() ?? 0.0;
             if (response != null && !string.IsNullOrEmpty(requestId))
             {
                 int status = response["status"]?.GetValue<int>() ?? 200;
@@ -282,10 +294,21 @@ public class NetworkViewModel : ViewModelBase
                         {
                             existing.Type = type;
                         }
+                        if (timestamp > 0.0)
+                        {
+                            existing.EndTime = timestamp;
+                            double durationSec = existing.EndTime - existing.StartTime;
+                            if (durationSec < 0) durationSec = 0;
+                            existing.Time = durationSec >= 1.0 
+                                ? $"{durationSec:F2} s" 
+                                : $"{durationSec * 1000:F0} ms";
+                        }
                         if (SelectedRequest == existing)
                         {
                             UpdateSelectedRequestDetails();
                         }
+
+                        RecalculateWaterfallTimelines();
                     }
                 });
             }
@@ -293,13 +316,57 @@ public class NetworkViewModel : ViewModelBase
         else if (e.Method == "Network.loadingFinished" && e.Params != null)
         {
             string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
+            double timestamp = e.Params["timestamp"]?.GetValue<double>() ?? 0.0;
             Dispatcher.UIThread.Post(() =>
             {
                 var existing = NetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
                 if (existing != null)
                 {
-                    existing.Time = "Finished";
+                    if (timestamp > 0.0)
+                    {
+                        existing.EndTime = timestamp;
+                        double durationSec = existing.EndTime - existing.StartTime;
+                        if (durationSec < 0) durationSec = 0;
+                        existing.Time = durationSec >= 1.0 
+                            ? $"{durationSec:F2} s" 
+                            : $"{durationSec * 1000:F0} ms";
+                    }
+                    else
+                    {
+                        existing.Time = "Finished";
+                    }
                     _ = FetchResponseBodyAsync(existing);
+
+                    RecalculateWaterfallTimelines();
+                }
+            });
+        }
+        else if (e.Method == "Network.loadingFailed" && e.Params != null)
+        {
+            string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
+            double timestamp = e.Params["timestamp"]?.GetValue<double>() ?? 0.0;
+            string errorText = e.Params["errorText"]?.GetValue<string>() ?? "Failed";
+            Dispatcher.UIThread.Post(() =>
+            {
+                var existing = NetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
+                if (existing != null)
+                {
+                    if (timestamp > 0.0)
+                    {
+                        existing.EndTime = timestamp;
+                        double durationSec = existing.EndTime - existing.StartTime;
+                        if (durationSec < 0) durationSec = 0;
+                        existing.Time = durationSec >= 1.0 
+                            ? $"{durationSec:F2} s" 
+                            : $"{durationSec * 1000:F0} ms";
+                    }
+                    else
+                    {
+                        existing.Time = "Failed";
+                    }
+                    existing.Status = errorText;
+
+                    RecalculateWaterfallTimelines();
                 }
             });
         }
@@ -372,6 +439,7 @@ public class NetworkViewModel : ViewModelBase
     {
         NetworkRequests.Clear();
         SelectedRequest = null;
+        _sessionStartTime = 0.0;
     }
 
     private void ClearData()
@@ -380,7 +448,28 @@ public class NetworkViewModel : ViewModelBase
         {
             NetworkRequests.Clear();
             SelectedRequest = null;
+            _sessionStartTime = 0.0;
         });
+    }
+
+    private void RecalculateWaterfallTimelines()
+    {
+        if (NetworkRequests.Count == 0) return;
+
+        double sessionStartTime = _sessionStartTime;
+        if (sessionStartTime == 0.0)
+        {
+            sessionStartTime = NetworkRequests.Min(r => r.StartTime);
+        }
+
+        double sessionEndTime = NetworkRequests.Max(r => Math.Max(r.StartTime, r.EndTime));
+        double totalDuration = sessionEndTime - sessionStartTime;
+        if (totalDuration <= 0) totalDuration = 1.0;
+
+        foreach (var req in NetworkRequests)
+        {
+            req.UpdateTimeline(sessionStartTime, totalDuration);
+        }
     }
 
     private void UpdateSelectedRequestDetails()
