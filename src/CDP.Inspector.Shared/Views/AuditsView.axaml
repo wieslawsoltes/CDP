@@ -51,14 +51,14 @@
                 <Grid RowDefinitions="Auto, *">
                     <TextBlock Text="DIAGNOSTIC RECOMMENDATIONS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
                     
-                    <DataGrid Name="lstIssues" Grid.Row="1" ItemsSource="{Binding Audits.Issues}" SelectedItem="{Binding Audits.SelectedIssue, Mode=TwoWay}" x:DataType="models:AuditIssueModel" x:CompileBindings="False"
+                    <DataGrid Name="lstIssues" Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Audits.Issues}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Audits.SelectedIssue, Mode=TwoWay}" x:DataType="models:AuditIssueModel"
                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                               Background="Transparent" BorderThickness="0">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="Category" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="models:AuditIssueModel">
                                         <Border Background="{Binding CategoryBrush}" CornerRadius="3" Padding="6,3" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Category}" Foreground="Black" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
                                         </Border>
@@ -67,7 +67,7 @@
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Message" Width="*">
                                 <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="models:AuditIssueModel">
                                         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="10,5" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>

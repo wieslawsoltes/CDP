@@ -298,6 +298,7 @@ After introducing new XAML code or modifying resources:
 - Prefer bindings and commands over direct control mutation.
 - Make new interactive controls discoverable with stable `Name` attributes.
 - Prefer not using XML namespace prefixes in XAML if controls/objects are part of the default Avalonia XAML namespace (`https://github.com/avaloniaui`) (e.g., use `<DataGrid>` instead of `<dg:DataGrid>`).
+- Compiled bindings must always be enabled (`x:CompileBindings="True"`) on all XAML views. The use of `ReflectionBinding` or disabling compiled bindings via `x:CompileBindings="False"` is strictly forbidden to ensure full linker-trimming safety and runtime performance. All bindings must be statically compiled using proper `x:DataType` annotations and path casting where appropriate.
 
 ### Tests
 

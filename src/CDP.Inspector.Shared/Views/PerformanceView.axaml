@@ -86,7 +86,7 @@
         <!-- Visual Leaks counts (Bottom Half) -->
         <Grid Grid.Row="2" Grid.ColumnSpan="3" RowDefinitions="Auto, *" Margin="0,10,0,0">
             <TextBlock Text="Live Control Type Counts in Memory" Classes="panel-header"/>
-            <DataGrid Name="lstLiveControls" ItemsSource="{Binding Performance.LiveControls}" Grid.Row="1" x:DataType="models:ControlCountModel" x:CompileBindings="False"
+            <DataGrid Name="lstLiveControls" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Performance.LiveControls}" Grid.Row="1" x:DataType="models:ControlCountModel"
                       CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="Transparent" BorderThickness="0">

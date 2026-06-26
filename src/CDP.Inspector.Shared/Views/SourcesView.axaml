@@ -3,6 +3,8 @@
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:map="using:XamlPlayground.Editor.Minimap"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              x:Class="CdpInspectorApp.Views.SourcesView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -10,7 +12,7 @@
         <!-- Left Workspace navigator -->
         <Grid RowDefinitions="Auto, *">
             <TextBlock Text="Workspace Navigator" Classes="panel-header"/>
-            <DataGrid Name="treeWorkspaceFiles" x:CompileBindings="False"
+            <DataGrid Name="treeWorkspaceFiles"
                          HierarchicalModel="{Binding Sources.HierarchicalWorkspaceFiles}"
                          SelectedItem="{Binding Sources.SelectedFileNode, Mode=TwoWay}"
                          HierarchicalRowsEnabled="True"
@@ -27,7 +29,13 @@
                     </Style>
                 </DataGrid.Styles>
                 <DataGrid.Columns>
-                    <DataGridHierarchicalColumn Width="*" Binding="{Binding Item.Name}" />
+                    <DataGridHierarchicalColumn Width="*">
+                        <DataGridHierarchicalColumn.CellTemplate>
+                            <DataTemplate x:DataType="tree:HierarchicalNode">
+                                <TextBlock Text="{Binding ((models:WorkspaceFileNode)Item).Name}"/>
+                            </DataTemplate>
+                        </DataGridHierarchicalColumn.CellTemplate>
+                    </DataGridHierarchicalColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

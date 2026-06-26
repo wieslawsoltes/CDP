@@ -33,9 +33,9 @@
                 
                 <Grid Grid.Row="1" RowDefinitions="Auto, *">
                     <TextBlock Text="Recorded Steps" Classes="panel-header" Margin="0,0,0,8" Foreground="#e8eaed" FontSize="14" FontWeight="Bold"/>
-                    <DataGrid Name="lstRecordedSteps" Grid.Row="1" x:DataType="models:RecordedStepModel" x:CompileBindings="False"
-                              ItemsSource="{Binding Recorder.RecordedSteps}"
-                              SelectedItem="{Binding Recorder.SelectedRecordedStep, Mode=TwoWay}"
+                    <DataGrid Name="lstRecordedSteps" Grid.Row="1" x:DataType="models:RecordedStepModel"
+                              ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.RecordedSteps}"
+                              SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.SelectedRecordedStep, Mode=TwoWay}"
                               CanUserReorderRows="True"
                               CanUserResizeColumns="True"
                               CanUserSortColumns="True"
@@ -51,7 +51,7 @@
                             <!-- Type Badge Column -->
                             <DataGridTemplateColumn Header="Type" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="models:RecordedStepModel">
                                         <Border Background="#3c4043" CornerRadius="2" Padding="4,2" HorizontalAlignment="Left" Margin="4">
                                             <TextBlock Text="{Binding Type}" FontSize="10" FontWeight="Bold" Foreground="#e8eaed"/>
                                         </Border>
@@ -62,7 +62,7 @@
                             <!-- Target / Selector Column -->
                             <DataGridTemplateColumn Header="Selector" Width="1.5*">
                                 <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="models:RecordedStepModel">
                                         <TextBlock Text="{Binding SelectorDisplay}" FontWeight="Normal" Foreground="#8ab4f8" FontSize="12" VerticalAlignment="Center" Margin="12,0"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -71,7 +71,7 @@
                             <!-- Details Column -->
                             <DataGridTemplateColumn Header="Details" Width="2.5*">
                                 <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="models:RecordedStepModel">
                                         <TextBlock Text="{Binding DetailDisplay}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center" Margin="12,0"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -79,7 +79,7 @@
                         </DataGrid.Columns>
 
                         <DataGrid.RowDetailsTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="models:RecordedStepModel">
                                 <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="12">
                                     <StackPanel Spacing="8">
                                         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">

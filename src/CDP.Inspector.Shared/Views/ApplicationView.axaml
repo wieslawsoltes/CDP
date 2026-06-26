@@ -1,6 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              x:Class="CdpInspectorApp.Views.ApplicationView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -8,16 +10,16 @@
         <!-- Sidebar tree -->
         <Grid RowDefinitions="Auto, *">
             <TextBlock Text="Application Data" Classes="panel-header"/>
-            <DataGrid Name="treeAppNav" x:CompileBindings="False"
-                         HierarchicalModel="{Binding Application.HierarchicalNavigationNodes}"
-                         SelectedItem="{Binding Application.SelectedNavigationNodeNode, Mode=TwoWay}"
-                         HierarchicalRowsEnabled="True"
-                         GridLinesVisibility="None"
-                         HeadersVisibility="None"
-                         Background="Transparent" BorderThickness="0"
-                         CanUserResizeColumns="True"
-                         CanUserSortColumns="False"
-                         Grid.Row="1">
+            <DataGrid Name="treeAppNav"
+                          HierarchicalModel="{Binding Application.HierarchicalNavigationNodes}"
+                          SelectedItem="{Binding Application.SelectedNavigationNodeNode, Mode=TwoWay}"
+                          HierarchicalRowsEnabled="True"
+                          GridLinesVisibility="None"
+                          HeadersVisibility="None"
+                          Background="Transparent" BorderThickness="0"
+                          CanUserResizeColumns="True"
+                          CanUserSortColumns="False"
+                          Grid.Row="1">
                 <DataGrid.Styles>
                     <Style Selector="DataGridCell TextBlock">
                         <Setter Property="FontSize" Value="12"/>
@@ -25,7 +27,13 @@
                     </Style>
                 </DataGrid.Styles>
                 <DataGrid.Columns>
-                    <DataGridHierarchicalColumn Width="*" Binding="{Binding Item.Name}" />
+                    <DataGridHierarchicalColumn Width="*">
+                        <DataGridHierarchicalColumn.CellTemplate>
+                            <DataTemplate x:DataType="tree:HierarchicalNode">
+                                <TextBlock Text="{Binding ((models:AppNavNode)Item).Name}" FontSize="12" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridHierarchicalColumn.CellTemplate>
+                    </DataGridHierarchicalColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>
@@ -40,8 +48,8 @@
                 <Button Grid.Column="1" Name="btnRefreshResources" Command="{Binding Application.RefreshResourcesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
             </Grid>
             
-            <DataGrid Name="lstApplicationResources" ItemsSource="{Binding Application.Resources}" SelectedItem="{Binding Application.SelectedResource, Mode=TwoWay}" Grid.Row="1"
-                      x:CompileBindings="False"
+            <DataGrid Name="lstApplicationResources" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.Resources}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedResource, Mode=TwoWay}" Grid.Row="1"
+                      x:DataType="models:ResourceEntryModel"
                       CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="Transparent" BorderThickness="0">
@@ -50,8 +58,8 @@
                     <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
                     <DataGridTemplateColumn Header="Action" Width="80">
                         <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Button Name="btnDeleteResource" Command="{Binding $parent[UserControl].DataContext.Application.DeleteResourceCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
+                            <DataTemplate x:DataType="models:ResourceEntryModel">
+                                <Button Name="btnDeleteResource" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteResourceCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -77,8 +85,8 @@
                 <Button Grid.Column="1" Name="btnRefreshStorage" Command="{Binding Application.RefreshStorageCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
             </Grid>
             
-            <DataGrid Name="lstStorageItems" ItemsSource="{Binding Application.StorageItems}" SelectedItem="{Binding Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1"
-                      x:CompileBindings="False"
+            <DataGrid Name="lstStorageItems" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.StorageItems}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1"
+                      x:DataType="models:StorageEntryModel"
                       CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="Transparent" BorderThickness="0">
@@ -87,8 +95,8 @@
                     <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
                     <DataGridTemplateColumn Header="Action" Width="80">
                         <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Button Name="btnDeleteStorageItem" Command="{Binding $parent[UserControl].DataContext.Application.DeleteStorageItemCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
+                            <DataTemplate x:DataType="models:StorageEntryModel">
+                                <Button Name="btnDeleteStorageItem" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteStorageItemCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
