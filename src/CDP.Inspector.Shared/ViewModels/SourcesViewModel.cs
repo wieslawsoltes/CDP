@@ -37,6 +37,10 @@ public class SourcesViewModel : ViewModelBase
         }
     }
 
+    public bool IsFileSelected => SelectedFile != null && !SelectedFile.IsDirectory;
+
+    public System.Windows.Input.ICommand SaveFileCommand { get; }
+
     public ObservableCollection<WorkspaceFileNode> WorkspaceFiles => _workspaceFiles;
 
     public string SelectedFileName
@@ -72,6 +76,8 @@ public class SourcesViewModel : ViewModelBase
                         SelectedFileNode = node;
                     }
                 }
+                OnPropertyChanged(nameof(IsFileSelected));
+                ((RelayCommand<string>)SaveFileCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -80,6 +86,11 @@ public class SourcesViewModel : ViewModelBase
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
+
+        SaveFileCommand = new RelayCommand<string>(
+            async (text) => await SaveFileAsync(text),
+            (text) => _cdpService.IsConnected && SelectedFile != null && !SelectedFile.IsDirectory
+        );
 
         var options = new HierarchicalOptions<WorkspaceFileNode>
         {
@@ -103,6 +114,7 @@ public class SourcesViewModel : ViewModelBase
             {
                 ClearData();
             }
+            ((RelayCommand<string>)SaveFileCommand).RaiseCanExecuteChanged();
         }
     }
 
@@ -173,6 +185,32 @@ public class SourcesViewModel : ViewModelBase
         foreach (var child in root.Children)
         {
             WorkspaceFiles.Add(child);
+        }
+    }
+
+    private async Task SaveFileAsync(string content)
+    {
+        if (SelectedFile == null || SelectedFile.IsDirectory || !_cdpService.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            var p = new JsonObject 
+            { 
+                ["path"] = SelectedFile.Path,
+                ["content"] = content
+            };
+            var response = await _cdpService.SendCommandAsync("Sources.setFileContent", p);
+            if (response != null && response["success"]?.GetValue<bool>() == true)
+            {
+                SelectedFileContent = content;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Save file failed: {ex.Message}");
         }
     }
 

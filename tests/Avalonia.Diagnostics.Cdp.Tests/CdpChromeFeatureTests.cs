@@ -56,6 +56,45 @@ public class CdpChromeFeatureTests
         string content = contentResult["content"]?.GetValue<string>() ?? "";
         Assert.Contains("public class TestAppBuilder", content);
 
+        // 3. Set File Content (Custom CDP Method)
+        string testFileRelPath = "temp_test_file_for_sources_domain.cs";
+        string testContent = "// Hello World from CDP Sources test";
+        var setParams = new JsonObject
+        {
+            ["path"] = testFileRelPath,
+            ["content"] = testContent
+        };
+        var setResult = await SourcesDomain.HandleAsync(session, "setFileContent", setParams);
+        Assert.NotNull(setResult);
+        Assert.True(setResult["success"]?.GetValue<bool>() == true);
+
+        // Verify content was written
+        var getParams = new JsonObject { ["path"] = testFileRelPath };
+        var getResult = await SourcesDomain.HandleAsync(session, "getFileContent", getParams);
+        Assert.NotNull(getResult);
+        Assert.Equal(testContent, getResult["content"]?.GetValue<string>());
+
+        // Clean up the temp file
+        string currentDir = System.IO.Directory.GetCurrentDirectory();
+        string rootDir = currentDir;
+        while (!string.IsNullOrEmpty(rootDir))
+        {
+            if (System.IO.Directory.Exists(System.IO.Path.Combine(rootDir, ".git")) || 
+                System.IO.Directory.GetFiles(rootDir, "*.sln").Length > 0 ||
+                System.IO.Directory.GetFiles(rootDir, "*.slnx").Length > 0)
+            {
+                break;
+            }
+            string? parent = System.IO.Directory.GetParent(rootDir)?.FullName;
+            if (parent == rootDir || string.IsNullOrEmpty(parent)) break;
+            rootDir = parent;
+        }
+        string fullTestFilePath = System.IO.Path.Combine(rootDir, testFileRelPath);
+        if (System.IO.File.Exists(fullTestFilePath))
+        {
+            System.IO.File.Delete(fullTestFilePath);
+        }
+
         window.Close();
     }
 

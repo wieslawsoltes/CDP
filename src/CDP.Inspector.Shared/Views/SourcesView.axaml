@@ -45,7 +45,15 @@
 
         <!-- Code Viewer -->
         <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
-            <TextBlock Name="lblSourceFileName" Text="{Binding Sources.SelectedFileName}" Classes="panel-header"/>
+            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                <TextBlock Name="lblSourceFileName" Text="{Binding Sources.SelectedFileName}" Classes="panel-header" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Name="btnSaveFile" IsEnabled="{Binding Sources.IsFileSelected}" ToolTip.Tip="Save file (Ctrl+S)" Height="26" Padding="8,0" Margin="0,0,0,5" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource SaveIcon}" Width="12" Height="12"/>
+                        <TextBlock Text="Save" VerticalAlignment="Center" FontSize="11"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
             <map:MinimapTextEditor Name="txtSourceContent" Grid.Row="1" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#e8eaed" Background="Transparent" BorderThickness="0" ShowLineNumbers="True" IsReadOnly="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
         </Grid>
     </Grid>

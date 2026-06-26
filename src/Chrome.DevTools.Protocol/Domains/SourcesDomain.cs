@@ -37,6 +37,21 @@ public static class SourcesDomain
                     throw new Exception($"File {relPath} not found.");
                 }
 
+            case "setFileContent":
+                {
+                    string relPath = @params["path"]?.GetValue<string>() ?? "";
+                    string content = @params["content"]?.GetValue<string>() ?? "";
+                    string root = GetWorkspaceRoot();
+                    string fullPath = Path.GetFullPath(Path.Combine(root, relPath));
+                    string relative = Path.GetRelativePath(root, fullPath);
+                    if (relative.StartsWith("..") || Path.IsPathRooted(relative))
+                    {
+                        throw new Exception("Access denied: path is outside workspace root.");
+                    }
+                    await File.WriteAllTextAsync(fullPath, content);
+                    return new JsonObject { ["success"] = true };
+                }
+
             default:
                 throw new Exception($"Method Sources.{action} is not implemented");
         }

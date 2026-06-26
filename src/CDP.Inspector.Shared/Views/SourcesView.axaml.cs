@@ -6,6 +6,7 @@ using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
 using TextMateSharp.Grammars;
 using CdpInspectorApp.ViewModels;
+using Avalonia.Input;
 
 namespace CdpInspectorApp.Views;
 
@@ -38,6 +39,12 @@ public partial class SourcesView : UserControl
                     System.Diagnostics.Debug.WriteLine($"[SourcesView] Failed to initialize TextMate: {ex.Message}");
                 }
             }
+        }
+
+        var btnSave = this.FindControl<Button>("btnSaveFile");
+        if (btnSave != null)
+        {
+            btnSave.Click += (sender, args) => SaveCurrentFile();
         }
 
         DataContextChanged += (sender, args) =>
@@ -76,9 +83,44 @@ public partial class SourcesView : UserControl
     private void UpdateEditorText(string? text)
     {
         var editor = txtSourceContent;
-        if (editor != null && editor.Text != text)
+        if (editor != null)
         {
-            editor.Text = text ?? "";
+            if (editor.Text != text)
+            {
+                editor.Text = text ?? "";
+            }
+
+            if (DataContext is MainWindowViewModel vm)
+            {
+                var isFileLoaded = vm.Sources.SelectedFile != null && !vm.Sources.SelectedFile.IsDirectory;
+                editor.IsReadOnly = !isFileLoaded;
+            }
+            else
+            {
+                editor.IsReadOnly = true;
+            }
+        }
+    }
+
+    private void SaveCurrentFile()
+    {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            var editorText = txtSourceContent.Text;
+            if (vm.Sources.SaveFileCommand.CanExecute(editorText))
+            {
+                vm.Sources.SaveFileCommand.Execute(editorText);
+            }
+        }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key == Key.S && e.KeyModifiers == KeyModifiers.Control)
+        {
+            e.Handled = true;
+            SaveCurrentFile();
         }
     }
 
