@@ -362,16 +362,62 @@ public static class RuntimeDomain
             return !isEqual;
         }
 
-        if (trimmed.StartsWith("$0"))
+        if (trimmed.StartsWith("$0") || trimmed.StartsWith("SelectedNode"))
         {
             var inspected = session.NodeMap.GetVisual(session.InspectedNodeId);
-            if (inspected == null) throw new Exception("No inspected node ($0) is selected");
+            if (inspected == null) throw new Exception("No inspected node is selected");
 
-            if (trimmed == "$0") return inspected;
+            int prefixLen = trimmed.StartsWith("$0") ? 2 : 12;
+            if (trimmed.Length == prefixLen) return inspected;
 
-            var remaining = trimmed.Substring(2);
+            var remaining = trimmed.Substring(prefixLen);
             if (remaining.StartsWith(".")) remaining = remaining.Substring(1);
             return EvaluateExpression(session, inspected, remaining, variableBindings);
+        }
+
+        if (trimmed.StartsWith("Control"))
+        {
+            var inspected = session.NodeMap.GetVisual(session.InspectedNodeId);
+            var control = inspected as Avalonia.Controls.Control;
+            if (control == null) throw new Exception("No inspected control is selected");
+
+            if (trimmed == "Control") return control;
+
+            var remaining = trimmed.Substring(7);
+            if (remaining.StartsWith(".")) remaining = remaining.Substring(1);
+            return EvaluateExpression(session, control, remaining, variableBindings);
+        }
+
+        if (trimmed.StartsWith("$vm") || trimmed.StartsWith("$dc") || trimmed.StartsWith("DataContext"))
+        {
+            var inspected = session.NodeMap.GetVisual(session.InspectedNodeId);
+            if (inspected is Avalonia.Controls.Control control)
+            {
+                var dc = control.DataContext;
+                int prefixLen = trimmed.StartsWith("DataContext") ? 11 : 3;
+                if (trimmed.Length == prefixLen) return dc;
+                if (dc == null) return null;
+                var remaining = trimmed.Substring(prefixLen);
+                if (remaining.StartsWith(".")) remaining = remaining.Substring(1);
+                return EvaluateExpression(session, dc, remaining, variableBindings);
+            }
+            throw new Exception("No inspected control is selected");
+        }
+
+        if (trimmed.StartsWith("window"))
+        {
+            if (trimmed == "window") return session.Window;
+            var remaining = trimmed.Substring(6);
+            if (remaining.StartsWith(".")) remaining = remaining.Substring(1);
+            return EvaluateExpression(session, session.Window, remaining, variableBindings);
+        }
+
+        if (trimmed.StartsWith("document"))
+        {
+            if (trimmed == "document") return new CdpRuntimeDocument(session);
+            var remaining = trimmed.Substring(8);
+            if (remaining.StartsWith(".")) remaining = remaining.Substring(1);
+            return EvaluateExpression(session, new CdpRuntimeDocument(session), remaining, variableBindings);
         }
 
         // Strip leading "this." if present
@@ -721,19 +767,27 @@ public static class RuntimeDomain
                 "Avalonia.LogicalTree"
             );
 
-        if (session.ScriptSession is ScriptState<object> state)
+        try
         {
-            state = await state.ContinueWithAsync(code, options).ConfigureAwait(false);
-            session.ScriptSession = state;
-            var val = state.ReturnValue;
-            return val;
+            if (session.ScriptSession is ScriptState<object> state)
+            {
+                state = await state.ContinueWithAsync(code, options).ConfigureAwait(false);
+                session.ScriptSession = state;
+                var val = state.ReturnValue;
+                return val;
+            }
+            else
+            {
+                var newState = await CSharpScript.RunAsync(code, options, globals, typeof(ReplGlobals)).ConfigureAwait(false);
+                session.ScriptSession = newState;
+                var val = newState.ReturnValue;
+                return val;
+            }
         }
-        else
+        catch (CompilationErrorException)
         {
-            var newState = await CSharpScript.RunAsync(code, options, globals, typeof(ReplGlobals)).ConfigureAwait(false);
-            session.ScriptSession = newState;
-            var val = newState.ReturnValue;
-            return val;
+            Console.WriteLine($"[CDP EVAL DEBUG] Roslyn compilation failed for '{code}'. Falling back to manual evaluation.");
+            return EvaluateExpression(session, globals, code);
         }
     }
 }
@@ -747,10 +801,10 @@ public class ReplGlobals
         _session = session;
     }
 
-    public dynamic? SelectedNode => _session.NodeMap.GetVisual(_session.InspectedNodeId);
-    public dynamic? Control => SelectedNode as Avalonia.Controls.Control;
-    public dynamic? DataContext => Control?.DataContext;
-    public dynamic? ViewModel => DataContext;
+    public Avalonia.Visual? SelectedNode => _session.NodeMap.GetVisual(_session.InspectedNodeId);
+    public Avalonia.Controls.Control? Control => SelectedNode as Avalonia.Controls.Control;
+    public object? DataContext => Control?.DataContext;
+    public object? ViewModel => DataContext;
     public Avalonia.Controls.Window? Window => (SelectedNode as Avalonia.Controls.Window) ?? (_session.Window as Avalonia.Controls.Window);
     public CdpRuntimeWindow window => new(_session);
     public CdpRuntimeDocument document => new(_session);
@@ -770,8 +824,7 @@ public class ReplGlobals
     }
 }
 
-[UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Dynamic window member forwarding")]
-public sealed class CdpRuntimeWindow : DynamicObject
+public sealed class CdpRuntimeWindow
 {
     private readonly CdpSession _session;
 
@@ -782,63 +835,6 @@ public sealed class CdpRuntimeWindow : DynamicObject
 
     public CdpRuntimeDocument document => new(_session);
     public Avalonia.Controls.Window? visual => _session.Window as Avalonia.Controls.Window;
-
-    public override bool TryGetMember(GetMemberBinder binder, out object? result)
-    {
-        if (binder.Name == "document")
-        {
-            result = document;
-            return true;
-        }
-        if (binder.Name == "visual")
-        {
-            result = visual;
-            return true;
-        }
-        var win = visual;
-        if (win != null)
-        {
-            var prop = win.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-            if (prop != null)
-            {
-                result = prop.GetValue(win);
-                return true;
-            }
-        }
-        result = null;
-        return false;
-    }
-
-    public override bool TrySetMember(SetMemberBinder binder, object? value)
-    {
-        var win = visual;
-        if (win != null)
-        {
-            var prop = win.GetType().GetProperty(binder.Name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-            if (prop != null && prop.CanWrite)
-            {
-                prop.SetValue(win, value);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public override bool TryInvokeMember(InvokeMemberBinder binder, object?[]? args, out object? result)
-    {
-        var win = visual;
-        if (win != null)
-        {
-            var method = win.GetType().GetMethod(binder.Name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-            if (method != null)
-            {
-                result = method.Invoke(win, args);
-                return true;
-            }
-        }
-        result = null;
-        return false;
-    }
 }
 
 public sealed class CdpRuntimeDocument
