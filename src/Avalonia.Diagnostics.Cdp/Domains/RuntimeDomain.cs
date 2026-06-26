@@ -44,13 +44,18 @@ public static class RuntimeDomain
                 {
                     string expression = @params["expression"]?.GetValue<string>() ?? "";
                     bool returnByValue = @params["returnByValue"]?.GetValue<bool>() ?? false;
+                    int inspectedNodeId = session.InspectedNodeId;
+                    var baseSession = (Chrome.DevTools.Protocol.CdpSession)session;
+                    var targetSession = baseSession.CurrentTargetSession;
 
                     var preprocessed = ScriptPreprocessor.Preprocess(expression);
                     var result = await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
+                        var previousSession = baseSession.CurrentTargetSession;
+                        baseSession.CurrentTargetSession = targetSession;
                         try
                         {
-                            var val = await EvaluateAsync(session, preprocessed);
+                            var val = await EvaluateAsync(session, preprocessed, inspectedNodeId);
                             return returnByValue 
                                 ? new JsonObject { ["result"] = new JsonObject { ["value"] = val == null ? null : (val is JsonNode jNode ? jNode.DeepClone() : JsonValue.Create(val)) } }
                                 : new JsonObject { ["result"] = CreateRemoteObject(session, val) };
@@ -78,6 +83,10 @@ public static class RuntimeDomain
                                 }
                             };
                         }
+                        finally
+                        {
+                            baseSession.CurrentTargetSession = previousSession;
+                        }
                     });
                     return result;
                 }
@@ -93,7 +102,9 @@ public static class RuntimeDomain
                     if (adjustedCursor < 0) adjustedCursor = 0;
                     if (adjustedCursor > preprocessed.Length) adjustedCursor = preprocessed.Length;
 
-                    var completions = await AutocompleteEngine.GetCompletionsAsync(preprocessed, adjustedCursor);
+                    var inspectedNode = session.NodeMap.GetVisual(session.InspectedNodeId);
+                    string concreteType = inspectedNode != null ? GetSafeTypeName(inspectedNode.GetType()) : "Avalonia.Visual";
+                    var completions = await AutocompleteEngine.GetCompletionsAsync(preprocessed, adjustedCursor, concreteType);
                     var list = new JsonArray();
                     foreach (var item in completions)
                     {
@@ -362,12 +373,12 @@ public static class RuntimeDomain
             return !isEqual;
         }
 
-        if (trimmed.StartsWith("$0") || trimmed.StartsWith("SelectedNode"))
+        if (trimmed.StartsWith("$0") || trimmed.StartsWith("_0") || trimmed.StartsWith("SelectedNode"))
         {
             var inspected = session.NodeMap.GetVisual(session.InspectedNodeId);
             if (inspected == null) throw new Exception("No inspected node is selected");
 
-            int prefixLen = trimmed.StartsWith("$0") ? 2 : 12;
+            int prefixLen = trimmed.StartsWith("SelectedNode") ? 12 : 2;
             if (trimmed.Length == prefixLen) return inspected;
 
             var remaining = trimmed.Substring(prefixLen);
@@ -822,15 +833,58 @@ public static class RuntimeDomain
         }
     }
 
-    private static async Task<object?> EvaluateAsync(CdpSession session, string code)
+    private static Type GetClosestAccessibleType(Type type)
+    {
+        var current = type;
+        while (current != null)
+        {
+            if (!current.IsGenericType && IsTypeAccessible(current))
+            {
+                return current;
+            }
+            current = current.BaseType;
+        }
+        return typeof(Avalonia.Visual);
+    }
+
+    private static bool IsTypeAccessible(Type type)
+    {
+        if (type.IsNested)
+        {
+            return type.IsNestedPublic && IsTypeAccessible(type.DeclaringType!);
+        }
+        return type.IsPublic;
+    }
+
+    private static string GetSafeTypeName(Type type)
+    {
+        var accessibleType = GetClosestAccessibleType(type);
+        string name = accessibleType.FullName ?? accessibleType.Name;
+        return name.Replace('+', '.');
+    }
+
+    private static async Task<object?> EvaluateAsync(CdpSession session, string code, int inspectedNodeId)
     {
         Console.WriteLine($"[CDP EVAL DEBUG] Evaluating code: '{code}'");
-        var inspectedNode = session.NodeMap.GetVisual(session.InspectedNodeId);
-        Console.WriteLine($"[CDP EVAL DEBUG] InspectedNodeId: {session.InspectedNodeId}, Visual: {inspectedNode?.GetType().Name ?? "null"}");
+        var inspectedNode = session.NodeMap.GetVisual(inspectedNodeId);
+        Console.WriteLine($"[CDP EVAL DEBUG] InspectedNodeId: {inspectedNodeId}, Visual: {inspectedNode?.GetType().Name ?? "null"}");
         if (inspectedNode is Avalonia.Controls.Control ctrl)
         {
             Console.WriteLine($"[CDP EVAL DEBUG] Control DataContext: {ctrl.DataContext?.GetType().FullName ?? "null"}");
         }
+
+        string declaration = "";
+        if (inspectedNode != null)
+        {
+            string typeName = GetSafeTypeName(inspectedNode.GetType());
+            declaration = $"var _0 = ({typeName})SelectedNode!; ";
+        }
+        else
+        {
+            declaration = "Avalonia.Visual? _0 = null; ";
+        }
+        
+        string fullCode = declaration + code;
 
         var globals = new ReplGlobals(session);
         var options = ScriptOptions.Default
@@ -852,14 +906,14 @@ public static class RuntimeDomain
         {
             if (session.ScriptSession is ScriptState<object> state)
             {
-                state = await state.ContinueWithAsync(code, options).ConfigureAwait(false);
+                state = await state.ContinueWithAsync(fullCode, options).ConfigureAwait(false);
                 session.ScriptSession = state;
                 var val = state.ReturnValue;
                 return val;
             }
             else
             {
-                var newState = await CSharpScript.RunAsync(code, options, globals, typeof(ReplGlobals)).ConfigureAwait(false);
+                var newState = await CSharpScript.RunAsync(fullCode, options, globals, typeof(ReplGlobals)).ConfigureAwait(false);
                 session.ScriptSession = newState;
                 var val = newState.ReturnValue;
                 return val;
@@ -867,7 +921,7 @@ public static class RuntimeDomain
         }
         catch (CompilationErrorException)
         {
-            Console.WriteLine($"[CDP EVAL DEBUG] Roslyn compilation failed for '{code}'. Falling back to manual evaluation.");
+            Console.WriteLine($"[CDP EVAL DEBUG] Roslyn compilation failed for '{fullCode}'. Falling back to manual evaluation.");
             return EvaluateExpression(session, globals, code);
         }
     }
@@ -1071,7 +1125,7 @@ public static class ScriptPreprocessor
     {
         if (string.IsNullOrWhiteSpace(expression)) return expression;
 
-        var processed = System.Text.RegularExpressions.Regex.Replace(expression, @"(?<!\w)\$0\b", "SelectedNode");
+        var processed = System.Text.RegularExpressions.Regex.Replace(expression, @"(?<!\w)\$0\b", "_0");
         processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$vm\b", "DataContext");
         processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$dc\b", "DataContext");
 
@@ -1081,9 +1135,9 @@ public static class ScriptPreprocessor
 
 public static class AutocompleteEngine
 {
-    public static async Task<List<CompletionItem>> GetCompletionsAsync(string scriptText, int cursorPosition)
+    public static async Task<List<CompletionItem>> GetCompletionsAsync(string scriptText, int cursorPosition, string concreteType = "Avalonia.Visual")
     {
-        var header = "using System; using System.Collections.Generic; using System.Linq; using Avalonia; using Avalonia.Controls; using Avalonia.Layout; using Avalonia.Input; TextBox SelectedNode = null; object DataContext = null; ";
+        var header = $"using System; using System.Collections.Generic; using System.Linq; using Avalonia; using Avalonia.Controls; using Avalonia.Layout; using Avalonia.Input; {concreteType} SelectedNode = null; {concreteType} _0 = null; object DataContext = null; ";
         var fullText = header + scriptText;
         int adjustedCursor = cursorPosition + header.Length;
 

@@ -259,6 +259,36 @@ public class CdpIntegrationTests
                 var evalResponse = await ReceiveJsonAsync(ws);
                 Assert.Equal("inspectBtn", evalResponse["result"]?["result"]?["value"]?.GetValue<string>());
 
+                // 5b. Evaluate modification of Opacity using $0
+                var evalOpacityRequest = new JsonObject
+                {
+                    ["id"] = 50,
+                    ["method"] = "Runtime.evaluate",
+                    ["params"] = new JsonObject
+                    {
+                        ["expression"] = "$0.Opacity = 0.5;",
+                        ["returnByValue"] = true
+                    }
+                };
+                await SendJsonAsync(ws, evalOpacityRequest);
+                var evalOpacityResponse = await ReceiveJsonAsync(ws);
+                Assert.Null(evalOpacityResponse["exceptionDetails"]);
+
+                // 5c. Evaluate modification of Content using ((Button)$0).Content
+                var evalContentRequest = new JsonObject
+                {
+                    ["id"] = 51,
+                    ["method"] = "Runtime.evaluate",
+                    ["params"] = new JsonObject
+                    {
+                        ["expression"] = "((Button)$0).Content = \"New Content\";",
+                        ["returnByValue"] = true
+                    }
+                };
+                await SendJsonAsync(ws, evalContentRequest);
+                var evalContentResponse = await ReceiveJsonAsync(ws);
+                Assert.Null(evalContentResponse["exceptionDetails"]);
+
                 // 6. Set Attribute Value
                 var setAttrRequest = new JsonObject
                 {
@@ -305,6 +335,9 @@ public class CdpIntegrationTests
             });
 
             PumpDispatcher(clientTask);
+
+            Assert.Equal(0.5, button.Opacity);
+            Assert.Equal("New Content", button.Content);
         }
         finally
         {
