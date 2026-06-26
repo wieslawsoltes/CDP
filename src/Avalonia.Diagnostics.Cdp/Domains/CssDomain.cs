@@ -13,6 +13,7 @@ using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.Styling;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -47,10 +48,11 @@ public static class CssDomain
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
                     var inlineStyle = await Dispatcher.UIThread.InvokeAsync(() => GetInlineStyle(visual, nodeId));
+                    var matchedRules = await Dispatcher.UIThread.InvokeAsync(() => GetMatchedRules(visual));
                     return new JsonObject
                     {
                         ["inlineStyle"] = inlineStyle,
-                        ["matchedCSSRules"] = new JsonArray(),
+                        ["matchedCSSRules"] = matchedRules,
                         ["pseudoElements"] = new JsonArray(),
                         ["inherited"] = new JsonArray(),
                         ["cssKeyframesRules"] = new JsonArray()
@@ -1135,5 +1137,199 @@ public static class CssDomain
             return control.GetValue(avProperty);
         }
         return null;
+    }
+
+    private static JsonArray GetMatchedRules(Visual visual)
+    {
+        var matchedCSSRules = new JsonArray();
+        if (visual is Control control)
+        {
+            var stylesToProcess = new List<Avalonia.Styling.Style>();
+
+            // 1. Application-wide styles
+            if (Avalonia.Application.Current?.Styles != null)
+            {
+                foreach (var style in Avalonia.Application.Current.Styles)
+                {
+                    CollectStyles(style, stylesToProcess);
+                }
+            }
+
+            // 2. Logical parents (furthest to nearest)
+            var parents = new List<StyledElement>();
+            var parent = control.Parent;
+            while (parent != null)
+            {
+                parents.Add(parent);
+                parent = parent.Parent;
+            }
+            parents.Reverse();
+
+            foreach (var p in parents)
+            {
+                if (p.Styles != null)
+                {
+                    foreach (var style in p.Styles)
+                    {
+                        CollectStyles(style, stylesToProcess);
+                    }
+                }
+            }
+
+            // 3. Selected control styles
+            if (control.Styles != null)
+            {
+                foreach (var style in control.Styles)
+                {
+                    CollectStyles(style, stylesToProcess);
+                }
+            }
+
+            // Now match and extract
+            foreach (var style in stylesToProcess)
+            {
+                var selectorText = style.Selector?.ToString() ?? "";
+                if (SelectorMatchesControl(control, selectorText))
+                {
+                    var cssProperties = new JsonArray();
+                    if (style.Setters != null)
+                    {
+                        foreach (var setter in style.Setters)
+                        {
+                            if (setter is Setter concreteSetter && concreteSetter.Property != null)
+                            {
+                                string propName = ToCssPropertyName(concreteSetter.Property.Name);
+                                string propVal = concreteSetter.Value?.ToString() ?? "";
+                                
+                                cssProperties.Add(new JsonObject
+                                {
+                                    ["name"] = propName,
+                                    ["value"] = propVal,
+                                    ["important"] = false,
+                                    ["implicit"] = false,
+                                    ["text"] = $"{propName}: {propVal};",
+                                    ["parsedOk"] = true,
+                                    ["disabled"] = false
+                                });
+                            }
+                        }
+                    }
+
+                    matchedCSSRules.Add(new JsonObject
+                    {
+                        ["origin"] = "regular",
+                        ["selectorList"] = new JsonObject
+                        {
+                            ["selectors"] = new JsonArray { new JsonObject { ["text"] = selectorText } },
+                            ["text"] = selectorText
+                        },
+                        ["style"] = new JsonObject
+                        {
+                            ["cssProperties"] = cssProperties,
+                            ["shorthandEntries"] = new JsonArray(),
+                            ["cssText"] = string.Join(" ", cssProperties.Cast<JsonObject>().Select(p => p["text"]?.GetValue<string>() ?? ""))
+                        }
+                    });
+                }
+            }
+        }
+
+        return matchedCSSRules;
+    }
+
+    private static void CollectStyles(IStyle style, List<Avalonia.Styling.Style> result)
+    {
+        if (style == null) return;
+
+        if (style is Avalonia.Styling.Style concreteStyle)
+        {
+            result.Add(concreteStyle);
+        }
+        else if (style is System.Collections.IEnumerable enumerable)
+        {
+            foreach (var child in enumerable)
+            {
+                if (child is IStyle childStyle)
+                {
+                    CollectStyles(childStyle, result);
+                }
+            }
+        }
+    }
+
+    private static bool SelectorMatchesControl(Control control, string selectorText)
+    {
+        if (string.IsNullOrWhiteSpace(selectorText))
+            return false;
+
+        var delimiters = new[] { ' ', '\t', '\r', '\n', '.', ':', '#', '>', ',', '/', '(', ')', '[', ']', '*', '=', '"', '\'' };
+        var tokens = selectorText.Split(delimiters, StringSplitOptions.RemoveEmptyEntries);
+
+        // Get control type name and its base type names
+        var typeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var currentType = control.GetType();
+        while (currentType != null && currentType != typeof(object))
+        {
+            typeNames.Add(currentType.Name);
+            currentType = currentType.BaseType;
+        }
+
+        foreach (var token in tokens)
+        {
+            var trimmedToken = token.Trim();
+            if (string.IsNullOrEmpty(trimmedToken)) continue;
+
+            // Check if targets control type name
+            if (typeNames.Contains(trimmedToken))
+            {
+                return true;
+            }
+
+            // Check if targets active class names
+            foreach (var cls in control.Classes)
+            {
+                if (string.Equals(cls, trimmedToken, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static string ToCssPropertyName(string avaloniaPropName)
+    {
+        if (string.IsNullOrEmpty(avaloniaPropName)) return "";
+        
+        string lowerName = avaloniaPropName.ToLowerInvariant();
+        if (lowerName == "background") return "background";
+        if (lowerName == "padding") return "padding";
+        if (lowerName == "margin") return "margin";
+        if (lowerName == "fontsize") return "font-size";
+        if (lowerName == "fontfamily") return "font-family";
+        if (lowerName == "fontweight") return "font-weight";
+        if (lowerName == "foreground") return "color";
+        if (lowerName == "borderthickness") return "border-width";
+        if (lowerName == "borderbrush") return "border-color";
+
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < avaloniaPropName.Length; i++)
+        {
+            char c = avaloniaPropName[i];
+            if (char.IsUpper(c))
+            {
+                if (i > 0)
+                {
+                    sb.Append('-');
+                }
+                sb.Append(char.ToLowerInvariant(c));
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+        return sb.ToString();
     }
 }
