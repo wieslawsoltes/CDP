@@ -72,7 +72,7 @@ Add the NuGet package reference `Chrome.DevTools.Avalonia` to your main Avalonia
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Chrome.DevTools.Avalonia" Version="1.0.0" />
+  <PackageReference Include="Chrome.DevTools.Avalonia" />
 </ItemGroup>
 ```
 
