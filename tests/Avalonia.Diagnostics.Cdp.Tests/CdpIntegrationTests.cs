@@ -649,6 +649,100 @@ public class CdpIntegrationTests
         task.GetAwaiter().GetResult();
     }
 
+    [AvaloniaFact]
+    public void TestSourcesSearchInWorkspace()
+    {
+        var window = new Window { Title = "Sources Search Window" };
+        window.Show();
+        var id = CdpServer.Register(window, "Sources Search Window");
+        int port = GetFreePort();
+
+        try
+        {
+            CdpServer.Start(port);
+
+            var clientTask = Task.Run(async () =>
+            {
+                using var ws = CreateClientWebSocket();
+                var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{id}");
+                await ConnectWithTimeoutAsync(ws, uri);
+
+                // 1. Perform a case-sensitive search for a unique string in the workspace
+                var searchParamsCase = new JsonObject
+                {
+                    ["query"] = "TestSourcesSearchInWorkspace",
+                    ["caseSensitive"] = true
+                };
+                var searchResCase = await SendJsonAndReceiveAsync(ws, "Sources.searchInWorkspace", searchParamsCase);
+                Assert.NotNull(searchResCase);
+                Assert.False(searchResCase.ContainsKey("error"), searchResCase.ToJsonString());
+                
+                var resultObjCase = searchResCase["result"] as JsonObject;
+                Assert.NotNull(resultObjCase);
+                var matchesCase = resultObjCase["matches"] as JsonArray;
+                Assert.NotNull(matchesCase);
+                Assert.NotEmpty(matchesCase);
+                
+                // Verify structure of matches
+                foreach (var matchNode in matchesCase)
+                {
+                    var match = matchNode as JsonObject;
+                    Assert.NotNull(match);
+                    Assert.NotNull(match["path"]?.GetValue<string>());
+                    Assert.True(match["lineNumber"]?.GetValue<int>() > 0);
+                    Assert.NotNull(match["lineContent"]?.GetValue<string>());
+                }
+
+                // 2. Perform a case-insensitive search for a lowercase version
+                var searchParamsInsensitive = new JsonObject
+                {
+                    ["query"] = "testsourcessearchinworkspace",
+                    ["caseSensitive"] = false
+                };
+                var searchResInsensitive = await SendJsonAndReceiveAsync(ws, "Sources.searchInWorkspace", searchParamsInsensitive);
+                Assert.NotNull(searchResInsensitive);
+                var resultObjInsensitive = searchResInsensitive["result"] as JsonObject;
+                Assert.NotNull(resultObjInsensitive);
+                var matchesInsensitive = resultObjInsensitive["matches"] as JsonArray;
+                Assert.NotNull(matchesInsensitive);
+                Assert.NotEmpty(matchesInsensitive);
+
+                // 3. Perform a case-sensitive search with mismatching case which should find nothing
+                var searchParamsMismatch = new JsonObject
+                {
+                    ["query"] = "testsourcessearchinworkspace",
+                    ["caseSensitive"] = true
+                };
+                var searchResMismatch = await SendJsonAndReceiveAsync(ws, "Sources.searchInWorkspace", searchParamsMismatch);
+                Assert.NotNull(searchResMismatch);
+                var resultObjMismatch = searchResMismatch["result"] as JsonObject;
+                Assert.NotNull(resultObjMismatch);
+                var matchesMismatch = resultObjMismatch["matches"] as JsonArray;
+                Assert.NotNull(matchesMismatch);
+                
+                bool containsMethodName = false;
+                foreach (var matchNode in matchesMismatch)
+                {
+                    var content = matchNode?["lineContent"]?.GetValue<string>() ?? "";
+                    if (content.Contains("TestSourcesSearchInWorkspace"))
+                    {
+                        containsMethodName = true;
+                    }
+                }
+                Assert.False(containsMethodName);
+
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
+            });
+
+            PumpDispatcher(clientTask);
+        }
+        finally
+        {
+            CdpServer.Stop();
+            window.Close();
+        }
+    }
+
     private static async Task ConnectWithTimeoutAsync(ClientWebSocket ws, Uri uri, int timeoutMs = 5000)
     {
         using var cts = new CancellationTokenSource(timeoutMs);

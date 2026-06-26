@@ -2,11 +2,13 @@ using System;
 using System.IO;
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
 using TextMateSharp.Grammars;
 using CdpInspectorApp.ViewModels;
-using Avalonia.Input;
+using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Views;
 
@@ -19,6 +21,7 @@ public partial class SourcesView : UserControl
 
     private TextMate.Installation? _textMateInstallation;
     private RegistryOptions? _registryOptions;
+    private int? _pendingScrollLine;
 
     public SourcesView()
     {
@@ -71,6 +74,12 @@ public partial class SourcesView : UserControl
                 if (e.PropertyName == nameof(SourcesViewModel.SelectedFileContent))
                 {
                     UpdateEditorText(vm.Sources.SelectedFileContent);
+                    if (_pendingScrollLine.HasValue && 
+                        vm.Sources.SelectedFileContent != "Loading content..." && 
+                        !string.IsNullOrEmpty(vm.Sources.SelectedFileContent))
+                    {
+                        ScrollToAndSelectLine(_pendingScrollLine.Value);
+                    }
                 }
                 else if (e.PropertyName == nameof(SourcesViewModel.SelectedFileName))
                 {
@@ -78,6 +87,56 @@ public partial class SourcesView : UserControl
                 }
             }
         });
+    }
+
+    private void OnSearchResultDoubleTapped(object? sender, RoutedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.SelectedItem is SearchResultModel match)
+        {
+            if (DataContext is MainWindowViewModel vm)
+            {
+                var node = vm.Sources.FindFileByPath(match.Path);
+                if (node != null)
+                {
+                    _pendingScrollLine = match.LineNumber;
+                    if (vm.Sources.SelectedFile == node)
+                    {
+                        if (vm.Sources.SelectedFileContent != "Loading content..." && 
+                            !string.IsNullOrEmpty(vm.Sources.SelectedFileContent))
+                        {
+                            ScrollToAndSelectLine(match.LineNumber);
+                        }
+                    }
+                    else
+                    {
+                        vm.Sources.SelectedFile = node;
+                    }
+                }
+            }
+        }
+    }
+
+    private void ScrollToAndSelectLine(int lineNumber)
+    {
+        if (lineNumber <= 0) return;
+        var editor = txtSourceContent;
+        if (editor != null && editor.Document != null)
+        {
+            if (lineNumber <= editor.Document.LineCount)
+            {
+                try
+                {
+                    editor.ScrollToLine(lineNumber);
+                    var line = editor.Document.GetLineByNumber(lineNumber);
+                    editor.Select(line.Offset, line.Length);
+                    _pendingScrollLine = null;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SourcesView] ScrollToLine failed: {ex.Message}");
+                }
+            }
+        }
     }
 
     private void UpdateEditorText(string? text)

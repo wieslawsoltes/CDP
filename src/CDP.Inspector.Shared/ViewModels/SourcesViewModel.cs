@@ -18,8 +18,33 @@ public class SourcesViewModel : ViewModelBase
     private string _selectedFileContent = "";
     private WorkspaceFileNode? _selectedFile;
     private object? _selectedFileNode;
+    private string _searchQuery = "";
+    private bool _searchCaseSensitive = false;
+    private ObservableCollection<SearchResultModel> _searchResults = new();
 
     public HierarchicalModel<WorkspaceFileNode> HierarchicalWorkspaceFiles { get; }
+
+    public string SearchQuery
+    {
+        get => _searchQuery;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _searchQuery, value))
+            {
+                ((RelayCommand)SearchCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool SearchCaseSensitive
+    {
+        get => _searchCaseSensitive;
+        set => RaiseAndSetIfChanged(ref _searchCaseSensitive, value);
+    }
+
+    public ObservableCollection<SearchResultModel> SearchResults => _searchResults;
+
+    public System.Windows.Input.ICommand SearchCommand { get; }
 
     public object? SelectedFileNode
     {
@@ -92,6 +117,11 @@ public class SourcesViewModel : ViewModelBase
             (text) => _cdpService.IsConnected && SelectedFile != null && !SelectedFile.IsDirectory
         );
 
+        SearchCommand = new RelayCommand(
+            async () => await SearchAsync(),
+            () => _cdpService.IsConnected && !string.IsNullOrWhiteSpace(SearchQuery)
+        );
+
         var options = new HierarchicalOptions<WorkspaceFileNode>
         {
             ChildrenSelector = node => node.Children,
@@ -115,6 +145,7 @@ public class SourcesViewModel : ViewModelBase
                 ClearData();
             }
             ((RelayCommand<string>)SaveFileCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)SearchCommand).RaiseCanExecuteChanged();
         }
     }
 
@@ -143,6 +174,7 @@ public class SourcesViewModel : ViewModelBase
             SelectedFileName = "Select a file from workspace";
             SelectedFileContent = "";
             SelectedFile = null;
+            SearchResults.Clear();
         });
     }
 
@@ -237,6 +269,73 @@ public class SourcesViewModel : ViewModelBase
         catch (Exception ex)
         {
             SelectedFileContent = $"Error loading content: {ex.Message}";
+        }
+    }
+
+    public WorkspaceFileNode? FindFileByPath(string path)
+    {
+        return FindFileByPath(WorkspaceFiles, path);
+    }
+
+    private WorkspaceFileNode? FindFileByPath(ObservableCollection<WorkspaceFileNode> nodes, string path)
+    {
+        foreach (var node in nodes)
+        {
+            if (!node.IsDirectory && node.Path == path)
+            {
+                return node;
+            }
+            if (node.IsDirectory)
+            {
+                var found = FindFileByPath(node.Children, path);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    public async Task SearchAsync()
+    {
+        if (!_cdpService.IsConnected || string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            return;
+        }
+
+        try
+        {
+            var p = new JsonObject
+            {
+                ["query"] = SearchQuery,
+                ["caseSensitive"] = SearchCaseSensitive
+            };
+
+            var response = await _cdpService.SendCommandAsync("Sources.searchInWorkspace", p);
+            if (response != null && response["matches"] is JsonArray matches)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    SearchResults.Clear();
+                    foreach (var matchNode in matches)
+                    {
+                        if (matchNode is JsonObject matchObj)
+                        {
+                            SearchResults.Add(new SearchResultModel
+                            {
+                                Path = matchObj["path"]?.GetValue<string>() ?? "",
+                                LineNumber = matchObj["lineNumber"]?.GetValue<int>() ?? 0,
+                                LineContent = matchObj["lineContent"]?.GetValue<string>() ?? ""
+                            });
+                        }
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Search failed: {ex.Message}");
         }
     }
 }

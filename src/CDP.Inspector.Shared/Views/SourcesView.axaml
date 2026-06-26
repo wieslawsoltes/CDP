@@ -9,36 +9,106 @@
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
     <Grid ColumnDefinitions="260, 4, *" Margin="10">
-        <!-- Left Workspace navigator -->
-        <Grid RowDefinitions="Auto, *">
-            <TextBlock Text="Workspace Navigator" Classes="panel-header"/>
-            <DataGrid Name="treeWorkspaceFiles"
-                         HierarchicalModel="{Binding Sources.HierarchicalWorkspaceFiles}"
-                         SelectedItem="{Binding Sources.SelectedFileNode, Mode=TwoWay}"
-                         HierarchicalRowsEnabled="True"
-                         GridLinesVisibility="None"
-                         HeadersVisibility="None"
-                         Background="Transparent" BorderThickness="0"
-                         CanUserResizeColumns="True"
-                         CanUserSortColumns="False"
-                         Grid.Row="1">
-                <DataGrid.Styles>
-                    <Style Selector="DataGridCell TextBlock">
-                        <Setter Property="FontSize" Value="12"/>
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                    </Style>
-                </DataGrid.Styles>
-                <DataGrid.Columns>
-                    <DataGridHierarchicalColumn Width="*">
-                        <DataGridHierarchicalColumn.CellTemplate>
-                            <DataTemplate x:DataType="tree:HierarchicalNode">
-                                <TextBlock Text="{Binding ((models:WorkspaceFileNode)Item).Name}"/>
-                            </DataTemplate>
-                        </DataGridHierarchicalColumn.CellTemplate>
-                    </DataGridHierarchicalColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Grid>
+        <!-- Left Workspace TabControl -->
+        <TabControl Margin="0,0,10,0" Padding="0,5,0,0">
+            <!-- Files Tab -->
+            <TabItem Header="Files">
+                <Grid RowDefinitions="Auto, *" Margin="0,5,0,0">
+                    <TextBlock Text="Workspace Navigator" Classes="panel-header" Margin="0,0,0,5"/>
+                    <DataGrid Name="treeWorkspaceFiles"
+                                 HierarchicalModel="{Binding Sources.HierarchicalWorkspaceFiles}"
+                                 SelectedItem="{Binding Sources.SelectedFileNode, Mode=TwoWay}"
+                                 HierarchicalRowsEnabled="True"
+                                 GridLinesVisibility="None"
+                                 HeadersVisibility="None"
+                                 Background="Transparent" BorderThickness="0"
+                                 CanUserResizeColumns="True"
+                                 CanUserSortColumns="False"
+                                 Grid.Row="1">
+                        <DataGrid.Styles>
+                            <Style Selector="DataGridCell TextBlock">
+                                <Setter Property="FontSize" Value="12"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                            </Style>
+                        </DataGrid.Styles>
+                        <DataGrid.Columns>
+                            <DataGridHierarchicalColumn Width="*">
+                                <DataGridHierarchicalColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <TextBlock Text="{Binding ((models:WorkspaceFileNode)Item).Name}"/>
+                                    </DataTemplate>
+                                </DataGridHierarchicalColumn.CellTemplate>
+                            </DataGridHierarchicalColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- Search Tab -->
+            <TabItem Header="Search">
+                <Grid RowDefinitions="Auto, Auto, Auto, *" Margin="0,5,0,0">
+                    <TextBlock Text="Search in Workspace" Classes="panel-header" Margin="0,0,0,5"/>
+
+                    <!-- Query Input and Search button -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                        <TextBox Name="txtSearchQuery"
+                                 Text="{Binding Sources.SearchQuery, Mode=TwoWay}"
+                                 PlaceholderText="Search files..."
+                                 Height="28"
+                                 VerticalContentAlignment="Center"/>
+                        <Button Name="btnSearchWorkspace"
+                                Command="{Binding Sources.SearchCommand}"
+                                Grid.Column="1"
+                                Content="Search"
+                                Margin="5,0,0,0"
+                                Padding="10,0"
+                                Height="28"/>
+                    </Grid>
+
+                    <!-- Case sensitive checkbox -->
+                    <CheckBox Grid.Row="2"
+                              IsChecked="{Binding Sources.SearchCaseSensitive, Mode=TwoWay}"
+                              Margin="0,0,0,8">
+                        <TextBlock Text="Case sensitive" FontSize="12" VerticalAlignment="Center"/>
+                    </CheckBox>
+
+                    <!-- Search Results DataGrid -->
+                    <DataGrid Grid.Row="3"
+                              Name="dgSearchResults"
+                              ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Sources.SearchResults}"
+                              x:DataType="models:SearchResultModel"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              GridLinesVisibility="None"
+                              HeadersVisibility="Column"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              CanUserResizeColumns="True"
+                              DoubleTapped="OnSearchResultDoubleTapped">
+                        <DataGrid.Columns>
+                            <!-- File Column -->
+                            <DataGridTextColumn Header="File"
+                                                Binding="{Binding Path}"
+                                                Width="120"
+                                                Foreground="#8ab4f8"
+                                                FontSize="11"/>
+                            <!-- Line Column -->
+                            <DataGridTextColumn Header="Line"
+                                                Binding="{Binding LineNumber}"
+                                                Width="50"
+                                                Foreground="#9aa0a6"
+                                                FontSize="11"/>
+                            <!-- Preview Column -->
+                            <DataGridTextColumn Header="Content"
+                                                Binding="{Binding LineContent}"
+                                                Width="*"
+                                                Foreground="#e8eaed"
+                                                FontSize="11"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
 
         <!-- Splitter -->
         <GridSplitter Grid.Column="1" Background="#3c4043"/>
