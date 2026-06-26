@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
+using Avalonia;
 
 namespace CdpInspectorApp.Models;
 
@@ -30,6 +31,12 @@ public class NetworkRequestModel : INotifyPropertyChanged
     private ObservableCollection<KeyValuePairModel> _postParameters = new();
     private ObservableCollection<JsonTreeNode>? _jsonTree;
     private Avalonia.Media.Imaging.Bitmap? _responseImage;
+    private double _startTime;
+    private double _endTime;
+    private double _startOffset;
+    private double _duration;
+    private Thickness _waterfallMargin = new Thickness(0);
+    private double _waterfallWidth = 1.0;
 
     public string RequestId { get; set; } = "";
     public string Method { get; set; } = "";
@@ -122,6 +129,108 @@ public class NetworkRequestModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsImage));
             OnPropertyChanged(nameof(IsRawText));
         }
+    }
+
+    public double StartTime
+    {
+        get => _startTime;
+        set
+        {
+            _startTime = value;
+            OnPropertyChanged(nameof(StartTime));
+        }
+    }
+
+    public double EndTime
+    {
+        get => _endTime;
+        set
+        {
+            _endTime = value;
+            OnPropertyChanged(nameof(EndTime));
+        }
+    }
+
+    public double StartOffset
+    {
+        get => _startOffset;
+        set
+        {
+            _startOffset = value;
+            OnPropertyChanged(nameof(StartOffset));
+        }
+    }
+
+    public double Duration
+    {
+        get => _duration;
+        set
+        {
+            _duration = value;
+            OnPropertyChanged(nameof(Duration));
+        }
+    }
+
+    public Thickness WaterfallMargin
+    {
+        get => _waterfallMargin;
+        set
+        {
+            _waterfallMargin = value;
+            OnPropertyChanged(nameof(WaterfallMargin));
+        }
+    }
+
+    public double WaterfallWidth
+    {
+        get => _waterfallWidth;
+        set
+        {
+            _waterfallWidth = value;
+            OnPropertyChanged(nameof(WaterfallWidth));
+        }
+    }
+
+    public string WaterfallToolTip => $"Start offset: {FormatTime(StartOffset)}\nDuration: {FormatTime(Duration)}";
+
+    private static string FormatTime(double seconds)
+    {
+        return seconds >= 1.0 ? $"{seconds:F2} s" : $"{seconds * 1000:F0} ms";
+    }
+
+    public void UpdateTimeline(double sessionStartTime, double totalDuration)
+    {
+        StartOffset = StartTime - sessionStartTime;
+        if (StartOffset < 0) StartOffset = 0;
+
+        Duration = EndTime >= StartTime ? EndTime - StartTime : 0;
+
+        const double targetWidth = 120.0;
+
+        double offsetPercent = totalDuration > 0 ? StartOffset / totalDuration : 0;
+        double durationPercent = totalDuration > 0 ? Duration / totalDuration : 0;
+
+        double leftMargin = Math.Max(0.0, Math.Min(1.0, offsetPercent)) * targetWidth;
+        double barWidth = Math.Max(0.0, Math.Min(1.0, durationPercent)) * targetWidth;
+
+        if (barWidth < 3.0)
+        {
+            barWidth = 3.0;
+        }
+
+        if (leftMargin + barWidth > targetWidth)
+        {
+            if (leftMargin > targetWidth - 3.0)
+            {
+                leftMargin = targetWidth - 3.0;
+            }
+            barWidth = targetWidth - leftMargin;
+        }
+
+        WaterfallMargin = new Thickness(leftMargin, 0, 0, 0);
+        WaterfallWidth = barWidth;
+
+        OnPropertyChanged(nameof(WaterfallToolTip));
     }
 
     public bool HasPayload => QueryParameters.Count > 0 || PostParameters.Count > 0;
