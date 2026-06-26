@@ -41,6 +41,9 @@ public class ViewsLayoutTests
 
             var networkView = new NetworkView();
             Assert.NotNull(networkView);
+
+            var memoryView = new MemoryView();
+            Assert.NotNull(memoryView);
         }
         finally
         {
