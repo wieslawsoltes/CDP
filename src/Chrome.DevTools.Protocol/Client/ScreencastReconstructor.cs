@@ -55,7 +55,8 @@ public class ScreencastReconstructor : IDisposable
                     {
                         int tx = col * tileWidth;
                         int ty = row * tileHeight;
-                        _canvas.DrawBitmap(tileBitmap, tx, ty);
+                        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+                        _canvas.DrawBitmap(tileBitmap, tx, ty, paint);
                     }
                 }
                 catch (Exception ex)
