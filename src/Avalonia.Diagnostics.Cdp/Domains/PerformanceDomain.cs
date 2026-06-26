@@ -194,6 +194,8 @@ public static class PerformanceDomain
                 sw.Stop();
                 LayoutDurationMs = sw.Elapsed.TotalMilliseconds;
 
+                ProfilerDomain.RecordActivity(_session, "LayoutPass", DateTime.UtcNow.AddMilliseconds(-LayoutDurationMs), DateTime.UtcNow);
+
                 if (TracingDomain.IsTracing(_session))
                 {
                     var traceEvent = TracingDomain.CreateManualTraceEvent(
@@ -227,6 +229,8 @@ public static class PerformanceDomain
             {
                 sw.Stop();
                 LastFrameDurationMs = sw.Elapsed.TotalMilliseconds;
+
+                ProfilerDomain.RecordActivity(_session, "RenderFrame", DateTime.UtcNow.AddMilliseconds(-LastFrameDurationMs), DateTime.UtcNow);
 
                 if (TracingDomain.IsTracing(_session))
                 {

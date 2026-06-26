@@ -53,9 +53,11 @@ public static class RuntimeDomain
                     {
                         var previousSession = baseSession.CurrentTargetSession;
                         baseSession.CurrentTargetSession = targetSession;
+                        var startTime = DateTime.UtcNow;
                         try
                         {
                             var val = await EvaluateAsync(session, preprocessed, inspectedNodeId);
+                            ProfilerDomain.RecordActivity(baseSession, "EvaluateConsole", startTime, DateTime.UtcNow);
                             return returnByValue 
                                 ? new JsonObject { ["result"] = new JsonObject { ["value"] = val == null ? null : (val is JsonNode jNode ? jNode.DeepClone() : JsonValue.Create(val)) } }
                                 : new JsonObject { ["result"] = CreateRemoteObject(session, val) };
@@ -140,7 +142,9 @@ public static class RuntimeDomain
                             throw new Exception($"Object with ID {objectId} not found");
                         }
 
+                        var startTime = DateTime.UtcNow;
                         var val = EvaluateFunction(session, target, functionDeclaration, arguments);
+                        ProfilerDomain.RecordActivity(session, "EvaluateConsole", startTime, DateTime.UtcNow);
                         return returnByValue
                             ? new JsonObject { ["result"] = new JsonObject { ["value"] = val == null ? null : (val is JsonNode jNode ? jNode.DeepClone() : JsonValue.Create(val)) } }
                             : new JsonObject { ["result"] = CreateRemoteObject(session, val) };

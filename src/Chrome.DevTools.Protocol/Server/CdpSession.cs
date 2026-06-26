@@ -464,6 +464,7 @@ public class CdpSession
         Chrome.DevTools.Protocol.Domains.NetworkDomain.RemoveSession(this);
         Chrome.DevTools.Protocol.Domains.FetchDomain.RemoveSession(this);
         Chrome.DevTools.Protocol.Domains.TracingDomain.CleanupSession(this);
+        Chrome.DevTools.Protocol.Domains.ProfilerDomain.CleanupSession(this);
 
         OnCleanup();
 
