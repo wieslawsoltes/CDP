@@ -435,7 +435,7 @@ public static class RuntimeDomain
             var propPath = expression.Substring(0, eqIndex).Trim();
             var valStr = expression.Substring(eqIndex + 1).Trim().Trim('"', '\'');
 
-            var parts = propPath.Split('.');
+            var parts = SplitPropertyPath(propPath);
             object current = target;
             for (int i = 0; i < parts.Length - 1; i++)
             {
@@ -474,7 +474,7 @@ public static class RuntimeDomain
         else
         {
             // Read property path: e.g. "Bounds.Width" or "Close()"
-            var parts = expression.Split('.');
+            var parts = SplitPropertyPath(expression);
             object? current = target;
             foreach (var part in parts)
             {
@@ -623,6 +623,61 @@ public static class RuntimeDomain
             }
             return current;
         }
+    }
+
+    private static string[] SplitPropertyPath(string path)
+    {
+        var parts = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inDoubleQuotes = false;
+        bool inSingleQuotes = false;
+        int parenDepth = 0;
+
+        for (int i = 0; i < path.Length; i++)
+        {
+            char c = path[i];
+            if (c == '"' && (i == 0 || path[i - 1] != '\\'))
+            {
+                inDoubleQuotes = !inDoubleQuotes;
+                current.Append(c);
+            }
+            else if (c == '\'' && (i == 0 || path[i - 1] != '\\'))
+            {
+                inSingleQuotes = !inSingleQuotes;
+                current.Append(c);
+            }
+            else if (!inDoubleQuotes && !inSingleQuotes)
+            {
+                if (c == '(')
+                {
+                    parenDepth++;
+                    current.Append(c);
+                }
+                else if (c == ')')
+                {
+                    parenDepth--;
+                    current.Append(c);
+                }
+                else if (c == '.' && parenDepth == 0)
+                {
+                    parts.Add(current.ToString());
+                    current.Clear();
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+        if (current.Length > 0)
+        {
+            parts.Add(current.ToString());
+        }
+        return parts.ToArray();
     }
 
     private static JsonObject CreateRemoteObject(CdpSession session, object? obj)

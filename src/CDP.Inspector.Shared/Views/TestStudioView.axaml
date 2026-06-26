@@ -486,7 +486,9 @@
                                     <TextBlock Grid.Column="0" Text="Variables:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
                                     <Button Grid.Column="1" Content="Add" Command="{Binding Recorder.TestStudio.AddVariableCommand}" FontSize="9" Padding="4,2"/>
                                 </Grid>
-                                <DataGrid Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.SelectedEnvironment.Variables}" CanUserReorderRows="False" CanUserResizeColumns="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                                <DataGrid Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.SelectedEnvironment.Variables}"
+                                          x:CompileBindings="False"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
                                     <DataGrid.Columns>
                                         <DataGridTemplateColumn Header="Key" Width="*">
                                             <DataGridTemplateColumn.CellTemplate>

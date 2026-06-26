@@ -127,6 +127,7 @@
                                 </Border>
 
                                 <DataGrid Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding Elements.FilteredCssProperties}"
+                                          x:CompileBindings="False"
                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                           GridLinesVisibility="None" HeadersVisibility="None"
                                           Background="Transparent" BorderThickness="0">
@@ -145,6 +146,7 @@
                             <Grid RowDefinitions="Auto, *" Margin="0,5,0,0">
                                 <TextBox Name="txtComputedSearch" Text="{Binding Elements.ComputedSearchText, Mode=TwoWay}" PlaceholderText="Filter computed styles" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
                                 <DataGrid Grid.Row="1" Name="listComputedStyles" ItemsSource="{Binding Elements.FilteredComputedStyles}"
+                                          x:CompileBindings="False"
                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                           GridLinesVisibility="None" HeadersVisibility="None"
                                           Background="Transparent" BorderThickness="0">
@@ -163,6 +165,7 @@
                     <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                         <TextBox Name="txtAttributesSearch" Text="{Binding Elements.AttributeSearchText, Mode=TwoWay}" PlaceholderText="Filter attributes" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
                         <DataGrid Grid.Row="1" Name="listAttributes" ItemsSource="{Binding Elements.FilteredAttributes}"
+                                  x:CompileBindings="False"
                                   SelectedItem="{Binding Elements.SelectedAttribute, Mode=TwoWay}"
                                   CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                   GridLinesVisibility="None" HeadersVisibility="None"
@@ -186,6 +189,7 @@
                     <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                         <TextBox Name="txtPropertiesSearch" Text="{Binding Elements.PropertySearchText, Mode=TwoWay}" PlaceholderText="Filter properties" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
                         <DataGrid Grid.Row="1" Name="listProperties" ItemsSource="{Binding Elements.FilteredProperties}"
+                                  x:CompileBindings="False"
                                   SelectedItem="{Binding Elements.SelectedProperty, Mode=TwoWay}"
                                   CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                   GridLinesVisibility="None" HeadersVisibility="None"
@@ -208,6 +212,7 @@
                 <!-- Event Listeners subtab -->
                 <TabItem Header="Event Listeners">
                     <DataGrid Name="listEventListeners" ItemsSource="{Binding Elements.EventListeners}" Margin="0,5,0,0"
+                              x:CompileBindings="False"
                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="None" HeadersVisibility="None"
                               Background="Transparent" BorderThickness="0">
