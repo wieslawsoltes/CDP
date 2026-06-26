@@ -6,59 +6,98 @@
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
     <Grid RowDefinitions="*, Auto" Margin="10">
-        <Grid RowDefinitions="Auto, *">
-            <!-- Filter Toolbar -->
-            <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,8">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Name="btnClearLogs" Command="{Binding Console.ClearLogsCommand}" Content="Clear Console"/>
-                    <StackPanel Orientation="Horizontal" Spacing="2" Background="#292a2d" Margin="5,0,0,0">
-                        <ToggleButton Content="All" IsChecked="{Binding Console.FilterAll, Mode=TwoWay}" Padding="8,4" FontSize="11"/>
-                        <ToggleButton Content="Error" IsChecked="{Binding Console.FilterError, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#f28b82"/>
-                        <ToggleButton Content="Warning" IsChecked="{Binding Console.FilterWarning, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#fdd663"/>
-                        <ToggleButton Content="Info" IsChecked="{Binding Console.FilterInfo, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#81c995"/>
-                        <ToggleButton Content="Verbose" IsChecked="{Binding Console.FilterVerbose, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#9aa0a6"/>
+        <!-- Main Area: Logs on Left, Watch on Right -->
+        <Grid ColumnDefinitions="*, Auto, 300">
+            <!-- Left Pane: Logs -->
+            <Grid Grid.Column="0" RowDefinitions="Auto, *">
+                <!-- Filter Toolbar -->
+                <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Name="btnClearLogs" Command="{Binding Console.ClearLogsCommand}" Content="Clear Console"/>
+                        <StackPanel Orientation="Horizontal" Spacing="2" Background="#292a2d" Margin="5,0,0,0">
+                            <ToggleButton Content="All" IsChecked="{Binding Console.FilterAll, Mode=TwoWay}" Padding="8,4" FontSize="11"/>
+                            <ToggleButton Content="Error" IsChecked="{Binding Console.FilterError, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#f28b82"/>
+                            <ToggleButton Content="Warning" IsChecked="{Binding Console.FilterWarning, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#fdd663"/>
+                            <ToggleButton Content="Info" IsChecked="{Binding Console.FilterInfo, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#81c995"/>
+                            <ToggleButton Content="Verbose" IsChecked="{Binding Console.FilterVerbose, Mode=TwoWay}" Padding="8,4" FontSize="11" Foreground="#9aa0a6"/>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
-                
-                <TextBox Grid.Column="1" Text="{Binding Console.FilterQuery, Mode=TwoWay}" PlaceholderText="Filter log entries..." Height="28" Margin="10,0" VerticalContentAlignment="Center"/>
-                <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
+                    
+                    <TextBox Grid.Column="1" Text="{Binding Console.FilterQuery, Mode=TwoWay}" PlaceholderText="Filter log entries..." Height="28" Margin="10,0" VerticalContentAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
+                </Grid>
+
+                <DataGrid Name="listLogs" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Console.Logs}" Grid.Row="1" x:DataType="models:LogModel"
+                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                          Background="Transparent" BorderThickness="0">
+                    <DataGrid.ColumnHeaderContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
+                                <MenuItem.ItemContainerTheme>
+                                    <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="DataGridColumn">
+                                        <Setter Property="Header" Value="{Binding Header}" />
+                                        <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
+                                        <Setter Property="ToggleType" Value="CheckBox" />
+                                    </ControlTheme>
+                                </MenuItem.ItemContainerTheme>
+                            </MenuItem>
+                        </ContextMenu>
+                    </DataGrid.ColumnHeaderContextMenu>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Width="90" Foreground="#9aa0a6" FontSize="12"/>
+                        <DataGridTemplateColumn Header="Level" Width="70">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:LogModel">
+                                    <TextBlock Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Message" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:LogModel">
+                                    <TextBlock Text="{Binding Text}" Foreground="#e8eaed" TextWrapping="Wrap" Margin="5" FontSize="12" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
             </Grid>
 
-            <DataGrid Name="listLogs" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Console.Logs}" Grid.Row="1" x:DataType="models:LogModel"
-                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                      Background="Transparent" BorderThickness="0">
-                <DataGrid.ColumnHeaderContextMenu>
-                    <ContextMenu>
-                        <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
-                            <MenuItem.ItemContainerTheme>
-                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="DataGridColumn">
-                                    <Setter Property="Header" Value="{Binding Header}" />
-                                    <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
-                                    <Setter Property="ToggleType" Value="CheckBox" />
-                                </ControlTheme>
-                            </MenuItem.ItemContainerTheme>
-                        </MenuItem>
-                    </ContextMenu>
-                </DataGrid.ColumnHeaderContextMenu>
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Width="90" Foreground="#9aa0a6" FontSize="12"/>
-                    <DataGridTemplateColumn Header="Level" Width="70">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate x:DataType="models:LogModel">
-                                <TextBlock Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="Message" Width="*">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate x:DataType="models:LogModel">
-                                <TextBlock Text="{Binding Text}" Foreground="#e8eaed" TextWrapping="Wrap" Margin="5" FontSize="12" VerticalAlignment="Center"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Background="#3c4043" Margin="5,0"/>
+
+            <!-- Right Pane: Watch Panel -->
+            <Grid Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="5,0,0,0">
+                <TextBlock Text="Live Pinned Expressions" Classes="panel-header" Margin="0,0,0,8"/>
+                
+                <ListBox Grid.Row="1" ItemsSource="{Binding Console.PinnedExpressions}" Background="#202124" BorderBrush="#3c4043">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PinnedExpressionViewModel">
+                            <Grid ColumnDefinitions="*, Auto" Margin="0,2">
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Expression}" Foreground="#8ab4f8" FontWeight="SemiBold" FontSize="12" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBrush}" FontSize="12" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" 
+                                        Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Console.RemovePinnedExpressionCommand}" 
+                                        CommandParameter="{Binding}" 
+                                        Background="Transparent" 
+                                        BorderThickness="0" 
+                                        Padding="4"
+                                        VerticalAlignment="Center">
+                                    <PathIcon Data="{StaticResource CloseIcon}" Width="12" Height="12" Foreground="#ff5252"/>
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                
+                <Grid Grid.Row="2" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
+                    <TextBox Name="txtPinnedExpression" Text="{Binding Console.PinnedExpressionInputText, Mode=TwoWay}" PlaceholderText="Add expression..." Height="28" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Command="{Binding Console.AddPinnedExpressionCommand}" Content="Add" Margin="5,0,0,0" Height="28" Padding="10,0"/>
+                </Grid>
+            </Grid>
         </Grid>
 
         <!-- Script Evaluator input -->
