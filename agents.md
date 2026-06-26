@@ -281,6 +281,7 @@ After introducing new XAML code or modifying resources:
 
 ### `Avalonia.Diagnostics.Cdp`
 
+- Do not use the `dynamic` keyword or inherit from `DynamicObject` anywhere in the codebase. All properties, parameters, and local variables must be statically typed to ensure full assembly trimming-safety (`PublishTrimmed`) and compilation compatibility. If dynamic member lookup or runtime member resolution is necessary (e.g. in the REPL console), use explicit reflection or a manual fallback evaluator instead.
 - Keep protocol domain classes focused on protocol behavior.
 - Keep selector behavior deterministic and covered by tests.
 - Do not add permissive selector fallbacks that silently match the wrong element.
