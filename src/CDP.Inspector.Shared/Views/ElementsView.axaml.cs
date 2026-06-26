@@ -157,6 +157,27 @@ public partial class ElementsView : UserControl
         }
     }
 
+    private void OnAddClassTextBoxKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Enter)
+        {
+            CdpInspectorApp.ViewModels.ElementsViewModel? evm = null;
+            if (DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel mvm)
+            {
+                evm = mvm.Elements;
+            }
+            else if (DataContext is CdpInspectorApp.ViewModels.ElementsViewModel directEvm)
+            {
+                evm = directEvm;
+            }
+
+            if (evm != null && evm.AddClassCommand.CanExecute(null))
+            {
+                evm.AddClassCommand.Execute(null);
+            }
+        }
+    }
+
     private void ScrollSelectedIntoView()
     {
         var selected = treeDom.SelectedItem;

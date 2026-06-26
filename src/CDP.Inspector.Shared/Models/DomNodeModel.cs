@@ -32,7 +32,12 @@ public class DomNodeModel : System.ComponentModel.INotifyPropertyChanged
 
     public int NodeId { get; }
     public string NodeName { get; }
-    public string DisplayName { get; set; } = "";
+    private string _displayName = "";
+    public string DisplayName
+    {
+        get => _displayName;
+        set { _displayName = value; OnPropertyChanged(); }
+    }
     public DomNodeModel? Parent { get; set; }
     public ObservableCollection<DomNodeModel> Children { get; } = new();
     public ObservableCollection<AttributeModel> AttributesList { get; } = new();
