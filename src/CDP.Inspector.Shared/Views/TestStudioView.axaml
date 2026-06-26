@@ -6,8 +6,11 @@
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
              xmlns:map="using:XamlPlayground.Editor.Minimap"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              x:Class="CdpInspectorApp.Views.TestStudioView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="{Binding Recorder.TestStudio.SidebarColumnWidth, Mode=TwoWay}"/>
@@ -37,7 +40,7 @@
                           HeadersVisibility="None"
                           Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
                     <DataGrid.ContextMenu>
-                        <ContextMenu>
+                        <ContextMenu x:DataType="vm:MainWindowViewModel">
                             <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
                             <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
                             <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
@@ -47,11 +50,11 @@
                     <DataGrid.Columns>
                         <DataGridHierarchicalColumn Width="*">
                             <DataGridHierarchicalColumn.CellTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="tree:HierarchicalNode">
                                     <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
-                                        <PathIcon Data="{StaticResource FolderIcon}" Width="14" Height="14" Foreground="#ffca28" IsVisible="{Binding Item.IsFolder}" VerticalAlignment="Center"/>
-                                        <PathIcon Data="{StaticResource FileIcon}" Width="14" Height="14" Foreground="#8ab4f8" IsVisible="{Binding !Item.IsFolder}" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Item.Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                        <PathIcon Data="{StaticResource FolderIcon}" Width="14" Height="14" Foreground="#ffca28" IsVisible="{Binding ((models:WorkspaceItemModel)Item).IsFolder}" VerticalAlignment="Center"/>
+                                        <PathIcon Data="{StaticResource FileIcon}" Width="14" Height="14" Foreground="#8ab4f8" IsVisible="{Binding !((models:WorkspaceItemModel)Item).IsFolder}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding ((models:WorkspaceItemModel)Item).Name}" FontSize="12" Foreground="#e8eaed" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridHierarchicalColumn.CellTemplate>
@@ -201,7 +204,7 @@
                                   SelectedItem="{Binding Recorder.TestStudio.SelectedEnvironment, Mode=TwoWay}"
                                   MinWidth="100" Height="24" FontSize="11" Padding="6,2" VerticalAlignment="Center">
                             <ComboBox.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="models:TestEnvironmentModel">
                                     <TextBlock Text="{Binding Name}"/>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
@@ -295,25 +298,31 @@
                         <!-- Status Column -->
                         <DataGridTemplateColumn Header="" Width="40">
                             <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="tree:HierarchicalNode">
                                     <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Ellipse Width="8" Height="8" Fill="#9aa0a6" IsVisible="{Binding Item.IsPending}"/>
-                                        <Ellipse Width="8" Height="8" Fill="#1a73e8" IsVisible="{Binding Item.IsRunning}"/>
-                                        <PathIcon Data="{StaticResource CheckIcon}" Width="12" Height="12" Foreground="#0f9d58" IsVisible="{Binding Item.IsPassed}"/>
-                                        <PathIcon Data="{StaticResource CloseIcon}" Width="12" Height="12" Foreground="#c5221f" IsVisible="{Binding Item.IsFailed}"/>
+                                        <Ellipse Width="8" Height="8" Fill="#9aa0a6" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsPending}"/>
+                                        <Ellipse Width="8" Height="8" Fill="#1a73e8" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsRunning}"/>
+                                        <PathIcon Data="{StaticResource CheckIcon}" Width="12" Height="12" Foreground="#0f9d58" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsPassed}"/>
+                                        <PathIcon Data="{StaticResource CloseIcon}" Width="12" Height="12" Foreground="#c5221f" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsFailed}"/>
                                     </Grid>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                         
                         <!-- Action Column (Hierarchical Column) -->
-                        <DataGridHierarchicalColumn Header="Action" Width="1.5*" Binding="{Binding Item.ActionDisplay}" />
+                        <DataGridHierarchicalColumn Header="Action" Width="1.5*">
+                            <DataGridHierarchicalColumn.CellTemplate>
+                                <DataTemplate x:DataType="tree:HierarchicalNode">
+                                    <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ActionDisplay}" />
+                                </DataTemplate>
+                            </DataGridHierarchicalColumn.CellTemplate>
+                        </DataGridHierarchicalColumn>
  
                         <!-- Selector Column -->
                         <DataGridTemplateColumn Header="Selector" Width="1.5*">
                             <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding Item.Selector}" Foreground="#8ab4f8" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
+                                <DataTemplate x:DataType="tree:HierarchicalNode">
+                                    <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).Selector}" Foreground="#8ab4f8" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -321,28 +330,28 @@
                         <!-- Value Column -->
                         <DataGridTemplateColumn Header="Value" Width="*">
                             <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding Item.Value}" Foreground="#e8eaed" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
+                                <DataTemplate x:DataType="tree:HierarchicalNode">
+                                    <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).Value}" Foreground="#e8eaed" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                     </DataGrid.Columns>
  
                     <DataGrid.RowDetailsTemplate>
-                        <DataTemplate>
+                        <DataTemplate x:DataType="tree:HierarchicalNode">
                             <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="12">
                                 <StackPanel Spacing="8">
                                     <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
                                         <Border Background="#1a73e8" CornerRadius="2" Padding="4,2">
                                             <TextBlock Text="EDIT" FontSize="9" FontWeight="Bold" Foreground="White"/>
                                         </Border>
-                                        <TextBlock Text="{Binding Item.ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center"/>
                                     </StackPanel>
                                     <Grid ColumnDefinitions="100, *">
                                         <TextBlock Grid.Column="0" Text="Action:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
                                         <AutoCompleteBox Grid.Column="1"
-                                                         Text="{Binding Item.Action, Mode=TwoWay}"
-                                                         ItemsSource="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.CommandSuggestions}"
+                                                         Text="{Binding ((models:TestStudioStepModel)Item).Action, Mode=TwoWay}"
+                                                         ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.CommandSuggestions}"
                                                          FilterMode="Contains"
                                                          FontSize="11"
                                                          Height="24"
@@ -351,7 +360,7 @@
                                     <Grid ColumnDefinitions="100, *">
                                         <TextBlock Grid.Column="0" Text="Selector:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
                                         <AutoCompleteBox Grid.Column="1"
-                                                         Text="{Binding Item.Selector, Mode=TwoWay}"
+                                                         Text="{Binding ((models:TestStudioStepModel)Item).Selector, Mode=TwoWay}"
                                                          ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
                                                          FilterMode="Contains"
                                                          FontSize="11"
@@ -361,22 +370,22 @@
                                     <Grid ColumnDefinitions="100, *">
                                         <TextBlock Grid.Column="0" Text="Value:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
                                         <AutoCompleteBox Grid.Column="1"
-                                                         Text="{Binding Item.Value, Mode=TwoWay}"
-                                                         ItemsSource="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.ValueSuggestions}"
+                                                         Text="{Binding ((models:TestStudioStepModel)Item).Value, Mode=TwoWay}"
+                                                         ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.ValueSuggestions}"
                                                          FilterMode="Contains"
                                                          FontSize="11"
                                                          Height="24"
                                                          Padding="4,2"/>
                                     </Grid>
-                                    <TextBlock Text="{Binding Item.ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding Item.ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding ((models:TestStudioStepModel)Item).ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                        <Button Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding Item}" Padding="6,2">
+                                        <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2">
                                             <PathIcon Data="{StaticResource ChevronUpIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
                                         </Button>
-                                        <Button Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding Item}" Padding="6,2">
+                                        <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2">
                                             <PathIcon Data="{StaticResource ChevronDownIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
                                         </Button>
-                                        <Button Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding Item}" Padding="6,2" Foreground="#ff6b6b" BorderBrush="#ff6b6b">
+                                        <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2" Foreground="#ff6b6b" BorderBrush="#ff6b6b">
                                             <PathIcon Data="{StaticResource CloseIcon}" Width="10" Height="10" Foreground="#ff6b6b"/>
                                         </Button>
                                     </StackPanel>
@@ -415,7 +424,7 @@
                 <TextBlock Grid.Row="0" Text="Execution Log" Classes="panel-header" FontSize="14" FontWeight="Bold"/>
                 <ListBox Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.Logs}" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
                     <ListBox.ItemTemplate>
-                        <DataTemplate>
+                        <DataTemplate x:DataType="x:String">
                             <TextBlock Text="{Binding}" FontFamily="Courier New,Consolas,Monospace" FontSize="11" Foreground="#e8eaed"/>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -449,7 +458,7 @@
                         <Grid Grid.Column="0" RowDefinitions="*, Auto">
                             <ListBox Grid.Row="0" ItemsSource="{Binding Recorder.TestStudio.Environments}" SelectedItem="{Binding Recorder.TestStudio.SelectedEnvironment, Mode=TwoWay}">
                                 <ListBox.ItemTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate x:DataType="models:TestEnvironmentModel">
                                         <TextBlock Text="{Binding Name}"/>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -484,26 +493,28 @@
                                     <TextBlock Grid.Column="0" Text="Variables:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
                                     <Button Grid.Column="1" Content="Add" Command="{Binding Recorder.TestStudio.AddVariableCommand}" FontSize="9" Padding="4,2"/>
                                 </Grid>
-                                <DataGrid Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.SelectedEnvironment.Variables}" CanUserReorderRows="False" CanUserResizeColumns="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                                <DataGrid Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.SelectedEnvironment.Variables}"
+                                          x:DataType="models:EnvironmentVariableModel"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
                                     <DataGrid.Columns>
                                         <DataGridTemplateColumn Header="Key" Width="*">
                                             <DataGridTemplateColumn.CellTemplate>
-                                                <DataTemplate>
+                                                <DataTemplate x:DataType="models:EnvironmentVariableModel">
                                                     <TextBox Text="{Binding Key, Mode=TwoWay}" FontSize="11" BorderThickness="0" Background="Transparent" Padding="4,2" VerticalAlignment="Center"/>
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
                                         <DataGridTemplateColumn Header="Value" Width="*">
                                             <DataGridTemplateColumn.CellTemplate>
-                                                <DataTemplate>
+                                                <DataTemplate x:DataType="models:EnvironmentVariableModel">
                                                     <TextBox Text="{Binding Value, Mode=TwoWay}" FontSize="11" BorderThickness="0" Background="Transparent" Padding="4,2" VerticalAlignment="Center"/>
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
                                         <DataGridTemplateColumn Width="40">
                                             <DataGridTemplateColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <Button Content="✕" Command="{Binding $parent[UserControl].DataContext.Recorder.TestStudio.DeleteVariableCommand}" CommandParameter="{Binding}" Foreground="#ff6b6b" FontSize="9" Padding="4,2" HorizontalAlignment="Center"/>
+                                                <DataTemplate x:DataType="models:EnvironmentVariableModel">
+                                                    <Button Content="✕" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.DeleteVariableCommand}" CommandParameter="{Binding}" Foreground="#ff6b6b" FontSize="9" Padding="4,2" HorizontalAlignment="Center"/>
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>

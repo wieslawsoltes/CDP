@@ -281,6 +281,7 @@ After introducing new XAML code or modifying resources:
 
 ### `Avalonia.Diagnostics.Cdp`
 
+- Do not use the `dynamic` keyword or inherit from `DynamicObject` anywhere in the codebase. All properties, parameters, and local variables must be statically typed to ensure full assembly trimming-safety (`PublishTrimmed`) and compilation compatibility. If dynamic member lookup or runtime member resolution is necessary (e.g. in the REPL console), use explicit reflection or a manual fallback evaluator instead.
 - Keep protocol domain classes focused on protocol behavior.
 - Keep selector behavior deterministic and covered by tests.
 - Do not add permissive selector fallbacks that silently match the wrong element.
@@ -297,6 +298,7 @@ After introducing new XAML code or modifying resources:
 - Prefer bindings and commands over direct control mutation.
 - Make new interactive controls discoverable with stable `Name` attributes.
 - Prefer not using XML namespace prefixes in XAML if controls/objects are part of the default Avalonia XAML namespace (`https://github.com/avaloniaui`) (e.g., use `<DataGrid>` instead of `<dg:DataGrid>`).
+- Compiled bindings must always be enabled (`x:CompileBindings="True"`) on all XAML views. The use of `ReflectionBinding` or disabling compiled bindings via `x:CompileBindings="False"` is strictly forbidden to ensure full linker-trimming safety and runtime performance. All bindings must be statically compiled using proper `x:DataType` annotations and path casting where appropriate.
 
 ### Tests
 

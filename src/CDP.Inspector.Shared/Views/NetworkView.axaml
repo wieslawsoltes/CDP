@@ -1,7 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              x:Class="CdpInspectorApp.Views.NetworkView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid RowDefinitions="Auto, *" Margin="10">
         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
             <Button Name="btnClearNetwork" Command="{Binding Network.ClearNetworkCommand}" Content="Clear Network Log"/>
@@ -12,7 +15,7 @@
                       Width="150" Height="28"
                       Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed">
                 <ComboBox.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="vm:ThrottlingProfile">
                         <TextBlock Text="{Binding DisplayName}"/>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
@@ -22,15 +25,15 @@
 
         <Grid Grid.Row="1" ColumnDefinitions="*, 4, 380">
             <!-- List -->
-            <DataGrid Name="lstNetworkRequests" ItemsSource="{Binding Network.NetworkRequests}" SelectedItem="{Binding Network.SelectedRequest, Mode=TwoWay}"
-                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                      Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+            <DataGrid Name="lstNetworkRequests" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.NetworkRequests}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedRequest, Mode=TwoWay}" x:DataType="models:NetworkRequestModel"
+                       CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                       Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
                 <DataGrid.ColumnHeaderContextMenu>
-                    <ContextMenu x:CompileBindings="False">
+                    <ContextMenu>
                         <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
                             <MenuItem.ItemContainerTheme>
-                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="DataGridColumn">
                                     <Setter Property="Header" Value="{Binding Header}" />
                                     <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
                                     <Setter Property="ToggleType" Value="CheckBox" />

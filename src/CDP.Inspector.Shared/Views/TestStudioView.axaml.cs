@@ -18,6 +18,7 @@ using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.Views;
 
+[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataGrid is not trim-safe")]
 public partial class TestStudioView : UserControl
 {
     private bool _isUpdatingText = false;

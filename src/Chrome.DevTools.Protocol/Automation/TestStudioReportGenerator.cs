@@ -30,6 +30,12 @@ public class VideoFrameItem
     public double TimestampMs { get; set; }
 }
 
+[System.Text.Json.Serialization.JsonSerializable(typeof(List<StepReportItem>))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(List<VideoFrameItem>))]
+internal partial class ReportJsonContext : System.Text.Json.Serialization.JsonSerializerContext
+{
+}
+
 public static class TestStudioReportGenerator
 {
     public static void GenerateHtmlReport(
@@ -57,8 +63,8 @@ public static class TestStudioReportGenerator
         var statusText = isAllPassed ? "PASSED" : "FAILED";
         var statusClass = isAllPassed ? "status-passed" : "status-failed";
 
-        var stepsJson = JsonSerializer.Serialize(steps, new JsonSerializerOptions { WriteIndented = false });
-        var framesJson = JsonSerializer.Serialize(videoFrames, new JsonSerializerOptions { WriteIndented = false });
+        var stepsJson = JsonSerializer.Serialize(steps, ReportJsonContext.Default.ListStepReportItem);
+        var framesJson = JsonSerializer.Serialize(videoFrames, ReportJsonContext.Default.ListVideoFrameItem);
 
         var sb = new StringBuilder();
         sb.Append($@"<!DOCTYPE html>

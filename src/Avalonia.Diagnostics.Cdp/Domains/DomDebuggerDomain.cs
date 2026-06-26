@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text.Json.Nodes;
@@ -62,6 +63,8 @@ public static class DomDebuggerDomain
         };
     }
 
+    [DynamicDependency("_eventHandlers", typeof(Interactive))]
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection on internal Interactive._eventHandlers and RoutedEventHandlerInfo")]
     private static JsonArray GetListeners(CdpSession session, object target)
     {
         var array = new JsonArray();

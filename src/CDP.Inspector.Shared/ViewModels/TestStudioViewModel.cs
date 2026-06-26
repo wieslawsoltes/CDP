@@ -4534,7 +4534,7 @@ public class TestStudioViewModel : ViewModelBase
             try
             {
                 var json = File.ReadAllText(envFilePath);
-                var envs = System.Text.Json.JsonSerializer.Deserialize<List<TestEnvironmentModel>>(json);
+                var envs = System.Text.Json.JsonSerializer.Deserialize(json, CdpInspectorApp.Models.EnvironmentJsonContext.Default.ListTestEnvironmentModel);
                 if (envs != null)
                 {
                     foreach (var env in envs)
@@ -4568,8 +4568,7 @@ public class TestStudioViewModel : ViewModelBase
         try
         {
             var envFilePath = Path.Combine(WorkspaceRootPath, "environments.json");
-            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
-            var json = System.Text.Json.JsonSerializer.Serialize(Environments.ToList(), options);
+            var json = System.Text.Json.JsonSerializer.Serialize(Environments.ToList(), CdpInspectorApp.Models.EnvironmentJsonContext.Default.ListTestEnvironmentModel);
             File.WriteAllText(envFilePath, json);
         }
         catch (Exception ex)

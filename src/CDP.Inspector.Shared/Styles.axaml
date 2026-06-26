@@ -75,16 +75,6 @@
         <Setter Property="Foreground" Value="#e8eaed"/>
         <Setter Property="BorderThickness" Value="1"/>
     </Style>
-    <Style Selector="TreeView">
-        <Setter Property="Background" Value="#292a2d"/>
-        <Setter Property="BorderBrush" Value="#3c4043"/>
-        <Setter Property="Foreground" Value="#e8eaed"/>
-        <Setter Property="BorderThickness" Value="1"/>
-    </Style>
-    <Style Selector="TreeViewItem">
-        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
-        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-    </Style>
 
     <!-- Chrome styled buttons -->
     <Style Selector="Button">

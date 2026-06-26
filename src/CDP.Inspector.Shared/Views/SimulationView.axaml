@@ -1,8 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              x:Class="CdpInspectorApp.Views.SimulationView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid RowDefinitions="Auto, Auto, *, Auto" Background="#202124">
         
         <!-- Row 0: Browser Navigation Bar -->
@@ -40,7 +42,7 @@
                               SelectedItem="{Binding Simulation.SelectedDevicePreset, Mode=TwoWay}"
                               Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed" VerticalAlignment="Center">
                         <ComboBox.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="vm:DevicePreset">
                                 <TextBlock Text="{Binding DisplayName}" FontSize="11"/>
                             </DataTemplate>
                         </ComboBox.ItemTemplate>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -82,15 +83,9 @@ public static class AuditsDomain
         var current = startVisual;
         while (current != null)
         {
-            var backgroundProp = current.GetType().GetProperty("Background");
-            if (backgroundProp != null)
+            if (current is Control control)
             {
-                var brush = backgroundProp.GetValue(current) as ISolidColorBrush;
-                if (brush == null)
-                {
-                    brush = backgroundProp.GetValue(current) as SolidColorBrush;
-                }
-                if (brush != null && brush.Color.A > 0)
+                if (CssDomain.GetControlProperty(control, "Background") is ISolidColorBrush brush && brush.Color.A > 0)
                 {
                     var color = brush.Color;
                     double alpha = color.A / 255.0;

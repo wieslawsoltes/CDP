@@ -2,8 +2,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:map="using:XamlPlayground.Editor.Minimap"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              x:Class="CdpInspectorApp.Views.SourcesView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid ColumnDefinitions="260, 4, *" Margin="10">
         <!-- Left Workspace navigator -->
         <Grid RowDefinitions="Auto, *">
@@ -25,7 +29,13 @@
                     </Style>
                 </DataGrid.Styles>
                 <DataGrid.Columns>
-                    <DataGridHierarchicalColumn Width="*" Binding="{Binding Item.Name}" />
+                    <DataGridHierarchicalColumn Width="*">
+                        <DataGridHierarchicalColumn.CellTemplate>
+                            <DataTemplate x:DataType="tree:HierarchicalNode">
+                                <TextBlock Text="{Binding ((models:WorkspaceFileNode)Item).Name}"/>
+                            </DataTemplate>
+                        </DataGridHierarchicalColumn.CellTemplate>
+                    </DataGridHierarchicalColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

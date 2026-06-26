@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
@@ -249,9 +250,18 @@ public static class DomDomain
                             {
                                 panel.Children.Remove(control);
                             }
+                            else if (parent is HeaderedContentControl headeredControl)
+                            {
+                                if (headeredControl.Content == control) headeredControl.Content = null;
+                                else if (headeredControl.Header == control) headeredControl.Header = null;
+                            }
                             else if (parent is ContentControl contentControl)
                             {
                                 if (contentControl.Content == control) contentControl.Content = null;
+                            }
+                            else if (parent is HeaderedItemsControl headeredItemsControl)
+                            {
+                                if (headeredItemsControl.Header == control) headeredItemsControl.Header = null;
                             }
                             else if (parent is Decorator decorator)
                             {
@@ -588,20 +598,18 @@ public static class DomDomain
         if (control is TextBlock textBlock) return textBlock.Text;
         if (control is TextBox textBox) return textBox.Text;
         
-        // Try getting Content
-        var contentProp = control.GetType().GetProperty("Content");
-        if (contentProp != null)
+        if (control is HeaderedContentControl headeredControl)
         {
-            var contentVal = contentProp.GetValue(control);
-            if (contentVal is string str) return str;
+            if (headeredControl.Content is string str) return str;
+            if (headeredControl.Header is string hdrStr) return hdrStr;
         }
-
-        // Try getting Header
-        var headerProp = control.GetType().GetProperty("Header");
-        if (headerProp != null)
+        else if (control is ContentControl contentControl)
         {
-            var headerVal = headerProp.GetValue(control);
-            if (headerVal is string str) return str;
+            if (contentControl.Content is string str) return str;
+        }
+        else if (control is HeaderedItemsControl headeredItemsControl)
+        {
+            if (headeredItemsControl.Header is string str) return str;
         }
 
         return null;
@@ -609,13 +617,21 @@ public static class DomDomain
 
     private static Thickness GetThicknessProperty(Visual visual, string propertyName)
     {
-        var prop = visual.GetType().GetProperty(propertyName);
-        if (prop != null)
+        if (visual is Avalonia.Layout.Layoutable layoutable && propertyName == "Margin")
         {
-            var val = prop.GetValue(visual);
-            if (val is Thickness thickness)
+            return layoutable.Margin;
+        }
+        if (visual is AvaloniaObject avObject)
+        {
+            var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(avObject)
+                .FirstOrDefault(p => p.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
+            if (avProperty != null)
             {
-                return thickness;
+                var val = avObject.GetValue(avProperty);
+                if (val is Thickness thickness)
+                {
+                    return thickness;
+                }
             }
         }
         return default;
@@ -714,10 +730,24 @@ public static class DomDomain
             }
             else
             {
-                var contentProp = control.GetType().GetProperty("Content", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                if (contentProp != null && contentProp.CanWrite && contentProp.PropertyType == typeof(string))
+                if (control is HeaderedContentControl headeredControl)
                 {
-                    contentProp.SetValue(control, value);
+                    if (headeredControl.Header is string || headeredControl.Content is not string)
+                    {
+                        headeredControl.Header = value;
+                    }
+                    else
+                    {
+                        headeredControl.Content = value;
+                    }
+                }
+                else if (control is ContentControl contentControl)
+                {
+                    contentControl.Content = value;
+                }
+                else if (control is HeaderedItemsControl headeredItemsControl)
+                {
+                    headeredItemsControl.Header = value;
                 }
             }
         }
@@ -757,7 +787,15 @@ public static class DomDomain
             {
                 isMatch = true;
             }
+            else if (c is HeaderedContentControl hcc && hcc.Header is string hs && hs.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
             else if (c is ContentControl cc && cc.Content is string s && s.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                isMatch = true;
+            }
+            else if (c is HeaderedItemsControl hic && hic.Header is string his && his.Contains(query, StringComparison.OrdinalIgnoreCase))
             {
                 isMatch = true;
             }
@@ -862,11 +900,33 @@ public static class DomDomain
                 attributes.Add((toggleButton.IsChecked == true).ToString().ToLowerInvariant());
             }
 
-            var selectedProperty = control.GetType().GetProperty("IsSelected", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-            if (selectedProperty?.PropertyType == typeof(bool))
+            bool? isSelected = null;
+            if (control is ListBoxItem listBoxItem)
+            {
+                isSelected = listBoxItem.IsSelected;
+            }
+            else if (control is TabItem tabItem)
+            {
+                isSelected = tabItem.IsSelected;
+            }
+            else if (control is TreeViewItem treeViewItem)
+            {
+                isSelected = treeViewItem.IsSelected;
+            }
+            else
+            {
+                var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(control)
+                    .FirstOrDefault(p => p.Name == "IsSelected");
+                if (avProperty != null && avProperty.PropertyType == typeof(bool))
+                {
+                    isSelected = (bool)control.GetValue(avProperty);
+                }
+            }
+
+            if (isSelected.HasValue)
             {
                 attributes.Add("IsSelected");
-                attributes.Add(((bool)(selectedProperty.GetValue(control) ?? false)).ToString().ToLowerInvariant());
+                attributes.Add(isSelected.Value.ToString().ToLowerInvariant());
             }
 
             attributes.Add("Width");

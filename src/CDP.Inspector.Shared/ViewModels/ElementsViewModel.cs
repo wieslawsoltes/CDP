@@ -202,12 +202,12 @@ public class ElementsViewModel : ViewModelBase
     {
         if (!_cdpService.IsConnected || SelectedNode == null) return;
         var list = new JsonArray();
-        if (IsForcedHover) list.Add("hover");
-        if (IsForcedActive) list.Add("active");
-        if (IsForcedFocus) list.Add("focus");
-        if (IsForcedFocusWithin) list.Add("focus-within");
-        if (IsForcedFocusVisible) list.Add("focus-visible");
-        if (IsForcedDisabled) list.Add("disabled");
+        if (IsForcedHover) list.Add((JsonNode)JsonValue.Create("hover"));
+        if (IsForcedActive) list.Add((JsonNode)JsonValue.Create("active"));
+        if (IsForcedFocus) list.Add((JsonNode)JsonValue.Create("focus"));
+        if (IsForcedFocusWithin) list.Add((JsonNode)JsonValue.Create("focus-within"));
+        if (IsForcedFocusVisible) list.Add((JsonNode)JsonValue.Create("focus-visible"));
+        if (IsForcedDisabled) list.Add((JsonNode)JsonValue.Create("disabled"));
         try
         {
             await _cdpService.SendCommandAsync("CSS.forcePseudoState", new JsonObject
@@ -1249,7 +1249,7 @@ public class ElementsViewModel : ViewModelBase
                 {
                     ["objectId"] = objectId,
                     ["functionDeclaration"] = $"function(val) {{ this.{SelectedProperty.Name} = val; }}",
-                    ["arguments"] = new JsonArray { new JsonObject { ["value"] = parsedValue } }
+                    ["arguments"] = new JsonArray { (JsonNode)new JsonObject { ["value"] = parsedValue } }
                 });
 
                 await HandleNodeSelectionChangedAsync();
@@ -1268,7 +1268,7 @@ public class ElementsViewModel : ViewModelBase
         {
             var edits = new JsonArray
             {
-                new JsonObject
+                (JsonNode)new JsonObject
                 {
                     ["styleSheetId"] = SelectedNode.NodeId.ToString(),
                     ["range"] = new JsonObject
@@ -1341,7 +1341,7 @@ public class ElementsViewModel : ViewModelBase
                 {
                     ["objectId"] = objectId,
                     ["functionDeclaration"] = $"function(val) {{ this.{prop.Name} = val; }}",
-                    ["arguments"] = new JsonArray { new JsonObject { ["value"] = parsedValue } }
+                    ["arguments"] = new JsonArray { (JsonNode)new JsonObject { ["value"] = parsedValue } }
                 });
 
                 await HandleNodeSelectionChangedAsync();
@@ -1367,7 +1367,7 @@ public class ElementsViewModel : ViewModelBase
 
             var edits = new JsonArray
             {
-                new JsonObject
+                (JsonNode)new JsonObject
                 {
                     ["styleSheetId"] = SelectedNode.NodeId.ToString(),
                     ["range"] = new JsonObject

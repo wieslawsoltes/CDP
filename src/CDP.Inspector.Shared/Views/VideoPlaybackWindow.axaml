@@ -1,6 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:CdpInspectorApp.Views"
         x:Class="CdpInspectorApp.Views.VideoPlaybackWindow"
+        x:CompileBindings="True"
         Title="Test Studio - Video Playback"
         Width="1024" Height="768"
         Background="#0f1015"
@@ -56,7 +58,7 @@
                     <ScrollViewer Grid.Row="1">
                         <ListBox Name="listSteps" Background="Transparent" BorderThickness="0" SelectionMode="Single">
                             <ListBox.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="views:PlaybackStepViewModel">
                                     <Border Background="#1f2230" CornerRadius="6" Padding="10" Margin="0,0,0,8" BorderBrush="#2d313f" BorderThickness="1">
                                         <Grid RowDefinitions="Auto, Auto, Auto">
                                             <!-- Row 0: Header -->

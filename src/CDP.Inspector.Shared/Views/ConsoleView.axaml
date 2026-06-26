@@ -1,7 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              x:Class="CdpInspectorApp.Views.ConsoleView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid RowDefinitions="*, Auto" Margin="10">
         <Grid RowDefinitions="Auto, *">
             <!-- Filter Toolbar -->
@@ -21,15 +24,15 @@
                 <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
             </Grid>
 
-            <DataGrid Name="listLogs" ItemsSource="{Binding Console.Logs}" Grid.Row="1"
+            <DataGrid Name="listLogs" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Console.Logs}" Grid.Row="1" x:DataType="models:LogModel"
                       CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                       Background="Transparent" BorderThickness="0">
                 <DataGrid.ColumnHeaderContextMenu>
-                    <ContextMenu x:CompileBindings="False">
+                    <ContextMenu>
                         <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
                             <MenuItem.ItemContainerTheme>
-                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="DataGridColumn">
                                     <Setter Property="Header" Value="{Binding Header}" />
                                     <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
                                     <Setter Property="ToggleType" Value="CheckBox" />
@@ -42,14 +45,14 @@
                     <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Width="90" Foreground="#9aa0a6" FontSize="12"/>
                     <DataGridTemplateColumn Header="Level" Width="70">
                         <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="models:LogModel">
                                 <TextBlock Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTemplateColumn Header="Message" Width="*">
                         <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="models:LogModel">
                                 <TextBlock Text="{Binding Text}" Foreground="#e8eaed" TextWrapping="Wrap" Margin="5" FontSize="12" VerticalAlignment="Center"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -63,7 +66,7 @@
             <!-- Evaluations history -->
             <ListBox Name="listConsole" ItemsSource="{Binding Console.ConsoleHistory}" MaxHeight="120" Margin="0,0,0,8" Background="#202124" BorderBrush="#3c4043">
                 <ListBox.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="models:ConsoleItemModel">
                         <StackPanel Margin="2">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="❯ " Foreground="#8ab4f8" FontWeight="Bold" FontSize="12"/>
@@ -84,7 +87,7 @@
                     <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" MaxHeight="200" Width="250">
                         <ListBox ItemsSource="{Binding Console.Completions}" SelectedIndex="{Binding Console.SelectedCompletionIndex, Mode=TwoWay}">
                             <ListBox.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="x:String">
                                     <TextBlock Text="{Binding}" FontSize="12" Foreground="#e8eaed"/>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>

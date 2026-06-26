@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -230,18 +231,22 @@ public static class InputDomain
         }
     }
 
+    [DynamicDependency("Primary", typeof(MouseDevice))]
     private static IInputDevice? GetMouseDevice()
     {
         var prop = typeof(MouseDevice).GetProperty("Primary", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
         return prop?.GetValue(null) as IInputDevice;
     }
 
+    [DynamicDependency("Instance", typeof(KeyboardDevice))]
     private static IKeyboardDevice? GetKeyboardDevice()
     {
         var prop = typeof(KeyboardDevice).GetProperty("Instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
         return prop?.GetValue(null) as IKeyboardDevice;
     }
 
+    [DynamicDependency("PlatformImpl", typeof(TopLevel))]
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection on internal PlatformImpl.Input")]
     private static Action<RawInputEventArgs>? GetInputHandler(TopLevel window)
     {
         var platformImpl = typeof(TopLevel)
@@ -251,6 +256,16 @@ public static class InputDomain
 
         var inputProp = platformImpl.GetType().GetProperty("Input", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         return inputProp?.GetValue(platformImpl) as Action<RawInputEventArgs>;
+    }
+
+    [DynamicDependency("InputRoot", typeof(TopLevel))]
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection access to protected TopLevel.InputRoot")]
+    private static IInputRoot? GetInputRoot(TopLevel? window)
+    {
+        if (window == null) return null;
+        return typeof(TopLevel)
+            .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+            ?.GetValue(window) as IInputRoot;
     }
 
     private static async Task DispatchMouseEventAsync(
@@ -276,9 +291,7 @@ public static class InputDomain
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var inputHandler = GetInputHandler(session.Window);
             var mouseDevice = GetMouseDevice();
-            var inputRoot = typeof(TopLevel)
-                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                ?.GetValue(session.Window) as IInputRoot;
+            var inputRoot = GetInputRoot(session.Window);
             if (inputHandler == null || mouseDevice == null || inputRoot == null) return;
 
             var modifiers = RawInputModifiers.None;
@@ -358,9 +371,7 @@ public static class InputDomain
             var position = new Point(x, y);
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var inputHandler = GetInputHandler(session.Window);
-            var inputRoot = typeof(TopLevel)
-                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                ?.GetValue(session.Window) as IInputRoot;
+            var inputRoot = GetInputRoot(session.Window);
             if (inputHandler == null || inputRoot == null) return;
 
             var modifiers = RawInputModifiers.None;
@@ -431,9 +442,7 @@ public static class InputDomain
             {
                 var inputHandler = GetInputHandler(session.Window);
                 var mouseDevice = GetMouseDevice();
-                var inputRoot = typeof(TopLevel)
-                    .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                    ?.GetValue(session.Window) as IInputRoot;
+                var inputRoot = GetInputRoot(session.Window);
 
                 if (inputHandler == null || inputRoot == null) return;
 
@@ -473,9 +482,7 @@ public static class InputDomain
             {
                 var inputHandler = GetInputHandler(session.Window);
                 var mouseDevice = GetMouseDevice();
-                var inputRoot = typeof(TopLevel)
-                    .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                    ?.GetValue(session.Window) as IInputRoot;
+                var inputRoot = GetInputRoot(session.Window);
 
                 if (inputHandler == null || inputRoot == null) return;
 
@@ -541,9 +548,7 @@ public static class InputDomain
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var inputHandler = GetInputHandler(session.Window);
-                var inputRoot = typeof(TopLevel)
-                    .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                    ?.GetValue(session.Window) as IInputRoot;
+                var inputRoot = GetInputRoot(session.Window);
 
                 if (inputHandler == null || inputRoot == null) return;
 
@@ -572,9 +577,7 @@ public static class InputDomain
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     var inputHandler = GetInputHandler(session.Window);
-                    var inputRoot = typeof(TopLevel)
-                        .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                        ?.GetValue(session.Window) as IInputRoot;
+                    var inputRoot = GetInputRoot(session.Window);
 
                     if (inputHandler == null || inputRoot == null) return;
 
@@ -598,9 +601,7 @@ public static class InputDomain
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var inputHandler = GetInputHandler(session.Window);
-                var inputRoot = typeof(TopLevel)
-                    .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                    ?.GetValue(session.Window) as IInputRoot;
+                var inputRoot = GetInputRoot(session.Window);
 
                 if (inputHandler == null || inputRoot == null) return;
 
@@ -629,9 +630,7 @@ public static class InputDomain
                 {
                     var inputHandler = GetInputHandler(session.Window);
                     var mouseDevice = GetMouseDevice();
-                    var inputRoot = typeof(TopLevel)
-                        .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                        ?.GetValue(session.Window) as IInputRoot;
+                    var inputRoot = GetInputRoot(session.Window);
 
                     if (inputHandler == null || mouseDevice == null || inputRoot == null) return;
 
@@ -685,9 +684,7 @@ public static class InputDomain
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var inputHandler = GetInputHandler(session.Window);
-            var inputRoot = typeof(TopLevel)
-                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                ?.GetValue(session.Window) as IInputRoot;
+            var inputRoot = GetInputRoot(session.Window);
 
             if (inputHandler == null || inputRoot == null) return;
 
@@ -727,9 +724,7 @@ public static class InputDomain
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var inputHandler = GetInputHandler(session.Window);
-                var inputRoot = typeof(TopLevel)
-                    .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                    ?.GetValue(session.Window) as IInputRoot;
+                var inputRoot = GetInputRoot(session.Window);
 
                 if (inputHandler == null || inputRoot == null) return;
 
@@ -764,9 +759,7 @@ public static class InputDomain
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var inputHandler = GetInputHandler(session.Window);
-            var inputRoot = typeof(TopLevel)
-                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                ?.GetValue(session.Window) as IInputRoot;
+            var inputRoot = GetInputRoot(session.Window);
 
             if (inputHandler == null || inputRoot == null) return;
 
@@ -811,9 +804,7 @@ public static class InputDomain
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var inputHandler = GetInputHandler(session.Window);
             var keyboardDevice = GetKeyboardDevice();
-            var inputRoot = typeof(TopLevel)
-                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                ?.GetValue(session.Window) as IInputRoot;
+            var inputRoot = GetInputRoot(session.Window);
             if (inputHandler == null || keyboardDevice == null || inputRoot == null) return;
 
             var modifiers = RawInputModifiers.None;
@@ -897,9 +888,7 @@ public static class InputDomain
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var inputHandler = GetInputHandler(session.Window);
             var keyboardDevice = GetKeyboardDevice();
-            var inputRoot = typeof(TopLevel)
-                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                ?.GetValue(session.Window) as IInputRoot;
+            var inputRoot = GetInputRoot(session.Window);
 
             if (inputHandler == null || keyboardDevice == null || inputRoot == null || string.IsNullOrEmpty(text))
             {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using Avalonia;
@@ -16,6 +17,8 @@ public static class SelectorEngine
     private static readonly HashSet<string> s_knownVisualTypes = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object s_lock = new();
     private static bool s_initializedTypes = false;
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Assembly scanning to discover loaded visual types for CSS selector parsing")]
     private static void EnsureInitializedTypes()
     {
         if (s_initializedTypes) return;

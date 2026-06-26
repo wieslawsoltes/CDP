@@ -144,19 +144,8 @@ public class MainWindowViewModel : ViewModelBase
         var node = Elements.SelectedNode;
         if (node != null)
         {
-            string selector = "";
-            var visualProp = node.GetType().GetProperty("Visual");
-            if (visualProp != null && visualProp.GetValue(node) is Avalonia.Visual visual)
-            {
-                selector = SelectorEngine.GetSelector(visual, useAutomation: Connection.UseAutomationSelectors);
-            }
-
-            if (string.IsNullOrEmpty(selector))
-            {
-                var generator = ClientSelectorRegistry.GetGenerator(Connection.UseAutomationSelectors ? "automation" : "dom");
-                selector = generator.GenerateSelector(node);
-            }
-
+            var generator = ClientSelectorRegistry.GetGenerator(Connection.UseAutomationSelectors ? "automation" : "dom");
+            var selector = generator.GenerateSelector(node);
             Recorder.TestStudio.SelectedElementSelector = selector ?? "";
         }
         else

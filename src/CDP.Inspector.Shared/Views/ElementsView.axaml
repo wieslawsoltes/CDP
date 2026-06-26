@@ -1,7 +1,11 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:models="clr-namespace:CdpInspectorApp.Models"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              x:Class="CdpInspectorApp.Views.ElementsView"
-             x:CompileBindings="False">
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
     <Grid ColumnDefinitions="*, 4, 1.2*">
         <!-- Left Side (DOM / Accessibility Trees) -->
         <TabControl Margin="10" Padding="0,5,0,0" SelectedIndex="{Binding Elements.SelectedTreeTabIndex, Mode=TwoWay}">
@@ -28,9 +32,9 @@
                             <DataGrid.Columns>
                                 <DataGridHierarchicalColumn Width="*">
                                     <DataGridHierarchicalColumn.CellTemplate>
-                                        <DataTemplate>
+                                        <DataTemplate x:DataType="tree:HierarchicalNode">
                                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
-                                                <TextBlock Text="{Binding Item.DisplayName}" Foreground="{Binding Item.ForegroundBrush}" FontSize="12" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding ((models:DomNodeModel)Item).DisplayName}" Foreground="{Binding ((models:DomNodeModel)Item).ForegroundBrush}" FontSize="12" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </DataTemplate>
                                     </DataGridHierarchicalColumn.CellTemplate>
@@ -78,9 +82,9 @@
                             <DataGrid.Columns>
                                 <DataGridHierarchicalColumn Width="*">
                                     <DataGridHierarchicalColumn.CellTemplate>
-                                        <DataTemplate>
+                                        <DataTemplate x:DataType="tree:HierarchicalNode">
                                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
-                                                <TextBlock Text="{Binding Item.DisplayName}" Foreground="{Binding Item.ForegroundBrush}" FontSize="12" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding ((models:AxNodeModel)Item).DisplayName}" Foreground="{Binding ((models:AxNodeModel)Item).ForegroundBrush}" FontSize="12" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </DataTemplate>
                                     </DataGridHierarchicalColumn.CellTemplate>
@@ -124,10 +128,11 @@
                                     </Grid>
                                 </Border>
 
-                                <DataGrid Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding Elements.FilteredCssProperties}"
-                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
-                                          GridLinesVisibility="None" HeadersVisibility="None"
-                                          Background="Transparent" BorderThickness="0">
+                                 <DataGrid Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredCssProperties}"
+                                           x:DataType="models:CssPropertyModel"
+                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
+                                           GridLinesVisibility="None" HeadersVisibility="None"
+                                           Background="Transparent" BorderThickness="0">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Name" Binding="{Binding Name}" IsReadOnly="True" Width="*" Foreground="#f28b82" FontSize="12" FontWeight="SemiBold"/>
                                         <DataGridTextColumn Header="Value" Binding="{Binding Value, Mode=TwoWay}" IsReadOnly="False" Width="2*" Foreground="#e8eaed" FontSize="12"/>
@@ -142,10 +147,11 @@
                         <TabItem Header="Computed rules">
                             <Grid RowDefinitions="Auto, *" Margin="0,5,0,0">
                                 <TextBox Name="txtComputedSearch" Text="{Binding Elements.ComputedSearchText, Mode=TwoWay}" PlaceholderText="Filter computed styles" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
-                                <DataGrid Grid.Row="1" Name="listComputedStyles" ItemsSource="{Binding Elements.FilteredComputedStyles}"
-                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
-                                          GridLinesVisibility="None" HeadersVisibility="None"
-                                          Background="Transparent" BorderThickness="0">
+                                 <DataGrid Grid.Row="1" Name="listComputedStyles" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredComputedStyles}"
+                                           x:DataType="models:CssPropertyModel"
+                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                                           GridLinesVisibility="None" HeadersVisibility="None"
+                                           Background="Transparent" BorderThickness="0">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Name" Binding="{Binding Name}" IsReadOnly="True" Width="*" Foreground="#81c995" FontSize="12" FontWeight="SemiBold"/>
                                         <DataGridTextColumn Header="Value" Binding="{Binding Value}" IsReadOnly="True" Width="2*" Foreground="#e8eaed" FontSize="12"/>
@@ -160,8 +166,9 @@
                 <TabItem Header="Attributes">
                     <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                         <TextBox Name="txtAttributesSearch" Text="{Binding Elements.AttributeSearchText, Mode=TwoWay}" PlaceholderText="Filter attributes" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
-                        <DataGrid Grid.Row="1" Name="listAttributes" ItemsSource="{Binding Elements.FilteredAttributes}"
-                                  SelectedItem="{Binding Elements.SelectedAttribute, Mode=TwoWay}"
+                        <DataGrid Grid.Row="1" Name="listAttributes" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredAttributes}"
+                                  x:DataType="models:AttributeModel"
+                                  SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.SelectedAttribute, Mode=TwoWay}"
                                   CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                   GridLinesVisibility="None" HeadersVisibility="None"
                                   Background="Transparent" BorderThickness="0">
@@ -183,8 +190,9 @@
                 <TabItem Header="Properties">
                     <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                         <TextBox Name="txtPropertiesSearch" Text="{Binding Elements.PropertySearchText, Mode=TwoWay}" PlaceholderText="Filter properties" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
-                        <DataGrid Grid.Row="1" Name="listProperties" ItemsSource="{Binding Elements.FilteredProperties}"
-                                  SelectedItem="{Binding Elements.SelectedProperty, Mode=TwoWay}"
+                        <DataGrid Grid.Row="1" Name="listProperties" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredProperties}"
+                                  x:DataType="models:PropertyModel"
+                                  SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.SelectedProperty, Mode=TwoWay}"
                                   CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                   GridLinesVisibility="None" HeadersVisibility="None"
                                   Background="Transparent" BorderThickness="0">
@@ -205,7 +213,8 @@
 
                 <!-- Event Listeners subtab -->
                 <TabItem Header="Event Listeners">
-                    <DataGrid Name="listEventListeners" ItemsSource="{Binding Elements.EventListeners}" Margin="0,5,0,0"
+                    <DataGrid Name="listEventListeners" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.EventListeners}" Margin="0,5,0,0"
+                              x:DataType="models:EventListenerModel"
                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="None" HeadersVisibility="None"
                               Background="Transparent" BorderThickness="0">

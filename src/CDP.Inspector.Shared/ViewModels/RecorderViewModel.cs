@@ -968,8 +968,8 @@ public class RecorderViewModel : ViewModelBase
                     }
                     else if (s.Type == "dragAndDrop")
                     {
-                        stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };
-                        stepObj["targetSelectors"] = new JsonArray { new JsonArray { s.TargetSelector } };
+                        stepObj["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(s.Selector) } };
+                        stepObj["targetSelectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(s.TargetSelector) } };
                         stepObj["offsetX"] = s.OffsetX;
                         stepObj["offsetY"] = s.OffsetY;
                         stepObj["targetOffsetX"] = s.TargetOffsetX;
@@ -980,14 +980,14 @@ public class RecorderViewModel : ViewModelBase
                     {
                         if (!string.IsNullOrEmpty(s.Selector))
                         {
-                            stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };
+                            stepObj["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(s.Selector) } };
                         }
                         stepObj["offsetX"] = s.OffsetX;
                         stepObj["offsetY"] = s.OffsetY;
                     }
                     else // click, change
                     {
-                        stepObj["selectors"] = new JsonArray { new JsonArray { s.Selector } };
+                        stepObj["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(s.Selector) } };
                         if (s.Type == "change")
                         {
                             stepObj["value"] = s.Value;
