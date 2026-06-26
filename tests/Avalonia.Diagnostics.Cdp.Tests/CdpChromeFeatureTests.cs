@@ -1980,6 +1980,67 @@ public class CdpChromeFeatureTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task TestPageCookies()
+    {
+        var window = new Window { Title = "Cookie Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Get initial cookies (should be empty)
+        var resultGet = await PageDomain.HandleAsync(session, "getCookies", new JsonObject());
+        Assert.NotNull(resultGet);
+        Assert.True(resultGet.ContainsKey("cookies"));
+        var cookies = resultGet["cookies"] as JsonArray;
+        Assert.NotNull(cookies);
+        Assert.Empty(cookies);
+
+        // 2. Set a cookie
+        var setParams = new JsonObject
+        {
+            ["name"] = "test-cookie",
+            ["value"] = "test-value",
+            ["domain"] = "localhost",
+            ["path"] = "/",
+            ["expires"] = 1719424830.0
+        };
+        var resultSet = await PageDomain.HandleAsync(session, "setCookie", setParams);
+        Assert.NotNull(resultSet);
+
+        // 3. Get cookies and verify it exists
+        var resultGet2 = await PageDomain.HandleAsync(session, "getCookies", new JsonObject());
+        var cookies2 = resultGet2["cookies"] as JsonArray;
+        Assert.NotNull(cookies2);
+        Assert.Single(cookies2);
+        var cookie = cookies2[0] as JsonObject;
+        Assert.NotNull(cookie);
+        Assert.Equal("test-cookie", cookie["name"]?.GetValue<string>());
+        Assert.Equal("test-value", cookie["value"]?.GetValue<string>());
+        Assert.Equal("localhost", cookie["domain"]?.GetValue<string>());
+        Assert.Equal("/", cookie["path"]?.GetValue<string>());
+        Assert.Equal(1719424830.0, cookie["expires"]?.GetValue<double>());
+
+        // 4. Delete the cookie
+        var deleteParams = new JsonObject
+        {
+            ["name"] = "test-cookie",
+            ["domain"] = "localhost",
+            ["path"] = "/"
+        };
+        var resultDelete = await PageDomain.HandleAsync(session, "deleteCookie", deleteParams);
+        Assert.NotNull(resultDelete);
+
+        // 5. Verify it's gone
+        var resultGet3 = await PageDomain.HandleAsync(session, "getCookies", new JsonObject());
+        var cookies3 = resultGet3["cookies"] as JsonArray;
+        Assert.NotNull(cookies3);
+        Assert.Empty(cookies3);
+
+        window.Close();
+    }
 }
 
 public class FakeWebSocket : System.Net.WebSockets.WebSocket
