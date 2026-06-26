@@ -107,6 +107,41 @@ public class CdpChromeFeatureTests
     }
 
     [AvaloniaFact]
+    public async Task TestMemoryDomainGetRetainers()
+    {
+        var button = new Button { Name = "leakButton" };
+        var window = new Window
+        {
+            Title = "Memory Retainers Test Window",
+            Content = button
+        };
+        window.Show();
+        ControlTracker.Register(window);
+        ControlTracker.Register(button);
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        int hashCode = button.GetHashCode();
+
+        var @params = new JsonObject { ["hashCode"] = hashCode };
+        var result = await MemoryDomain.HandleAsync(session, "getRetainers", @params);
+        Assert.NotNull(result);
+        Assert.True(result.ContainsKey("name"));
+        Assert.True(result.ContainsKey("type"));
+        Assert.True(result.ContainsKey("hashCode"));
+        Assert.Equal(hashCode, result["hashCode"]?.GetValue<int>());
+
+        Assert.True(result.ContainsKey("retainers"));
+        var retainers = result["retainers"] as JsonArray;
+        Assert.NotNull(retainers);
+        Assert.NotEmpty(retainers);
+
+        window.Close();
+        ControlTracker.Clear();
+    }
+
+    [AvaloniaFact]
     public async Task TestApplicationDomainResources()
     {
         var window = new Window { Title = "Application Resources Test Window" };

@@ -22,9 +22,89 @@ public class MemoryViewModel : ViewModelBase
     private ObservableCollection<MemoryComparisonModel> _comparisonEntries = new();
     private ObservableCollection<DetachedControlModel> _detachedControls = new();
     private bool _isComparisonMode;
+    private DetachedControlModel? _selectedDetachedControl;
+    private ObservableCollection<RetainerNodeModel> _retainerRoots = new();
     private int _snapshotCounter = 1;
 
     public ObservableCollection<DetachedControlModel> DetachedControls => _detachedControls;
+
+    public DetachedControlModel? SelectedDetachedControl
+    {
+        get => _selectedDetachedControl;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedDetachedControl, value))
+            {
+                _ = FetchRetainersAsync();
+            }
+        }
+    }
+
+    public ObservableCollection<RetainerNodeModel> RetainerRoots => _retainerRoots;
+
+    private async Task FetchRetainersAsync()
+    {
+        await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            RetainerRoots.Clear();
+            if (_selectedDetachedControl == null) return;
+
+            try
+            {
+                var @params = new JsonObject
+                {
+                    ["hashCode"] = _selectedDetachedControl.HashCode
+                };
+                var response = await _cdpService.SendCommandAsync("Memory.getRetainers", @params);
+                if (response != null)
+                {
+                    var rootNode = ParseRetainerNode(response);
+                    if (rootNode != null)
+                    {
+                        RetainerRoots.Add(rootNode);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching retainers: {ex.Message}");
+            }
+        });
+    }
+
+    private RetainerNodeModel? ParseRetainerNode(JsonObject obj)
+    {
+        if (obj == null) return null;
+
+        var name = obj["name"]?.GetValue<string>() ?? "";
+        var type = obj["type"]?.GetValue<string>() ?? "";
+        var hashCode = obj["hashCode"]?.GetValue<int>() ?? 0;
+
+        var node = new RetainerNodeModel
+        {
+            Name = name,
+            Type = type,
+            HashCode = hashCode
+        };
+
+        var retainersArray = obj["retainers"] as JsonArray;
+        if (retainersArray != null)
+        {
+            foreach (var item in retainersArray)
+            {
+                if (item is JsonObject childObj)
+                {
+                    var childNode = ParseRetainerNode(childObj);
+                    if (childNode != null)
+                    {
+                        node.Retainers.Add(childNode);
+                    }
+                }
+            }
+        }
+
+        return node;
+    }
 
     public ObservableCollection<MemorySnapshotModel> Snapshots => _snapshots;
 
@@ -222,6 +302,8 @@ public class MemoryViewModel : ViewModelBase
             CurrentEntries.Clear();
             ComparisonEntries.Clear();
             DetachedControls.Clear();
+            SelectedDetachedControl = null;
+            RetainerRoots.Clear();
             _snapshotCounter = 1;
         });
     }
@@ -232,6 +314,8 @@ public class MemoryViewModel : ViewModelBase
         {
             CurrentEntries.Clear();
             DetachedControls.Clear();
+            SelectedDetachedControl = null;
+            RetainerRoots.Clear();
             if (SelectedSnapshot != null && !IsComparisonMode)
             {
                 foreach (var entry in SelectedSnapshot.Entries)

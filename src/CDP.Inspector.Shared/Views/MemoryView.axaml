@@ -119,8 +119,10 @@
 
                         <!-- Detached Controls Tab -->
                         <TabItem Header="Detached Controls (Leaked)">
-                            <Grid>
-                                <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.DetachedControls}" x:DataType="models:DetachedControlModel"
+                            <Grid RowDefinitions="*, 4, *">
+                                <DataGrid Grid.Row="0" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.DetachedControls}"
+                                          SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.SelectedDetachedControl, Mode=TwoWay}"
+                                          x:DataType="models:DetachedControlModel"
                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                           Background="Transparent" BorderThickness="0">
@@ -144,6 +146,27 @@
                                         <DataGridTextColumn Header="DataContext VM" Binding="{Binding DataContextType}" Width="150" Foreground="#8ab4f8" FontSize="12"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
+
+                                <GridSplitter Grid.Row="1" Background="#3c4043"/>
+
+                                <Grid Grid.Row="2" RowDefinitions="Auto, *">
+                                    <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,4">
+                                        <TextBlock Text="RETAINERS PATH (RETAINED BY)" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
+                                    </Border>
+                                    <TreeView Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.RetainerRoots}"
+                                              x:DataType="models:RetainerNodeModel">
+                                        <TreeView.ItemTemplate>
+                                            <TreeDataTemplate DataType="models:RetainerNodeModel" x:DataType="models:RetainerNodeModel" ItemsSource="{Binding Retainers}">
+                                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,2">
+                                                    <TextBlock Text="{Binding Name}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
+                                                    <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12"/>
+                                                    <TextBlock Text="{Binding Type}" Foreground="#8ab4f8" FontSize="12"/>
+                                                    <TextBlock Text="{Binding HashCode, StringFormat='[0x{0:X8}]'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </TreeDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
+                                </Grid>
                             </Grid>
                         </TabItem>
                     </TabControl>
