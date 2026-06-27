@@ -103,6 +103,18 @@ public static class FlowCommandCatalog
 
     private static readonly Dictionary<string, FlowCommandDefinition> s_byName = s_commands.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
 
+    private static readonly Dictionary<string, string> s_aliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "doubleTap", "doubleTapOn" },
+        { "longPress", "longPressOn" },
+        { "input", "inputText" },
+        { "clear", "clearText" },
+        { "paste", "pasteText" },
+        { "erase", "eraseText" },
+        { "copy", "copyTextFrom" },
+        { "tap", "tapOn" }
+    };
+
     public static IReadOnlyList<FlowCommandDefinition> Commands => s_commands;
     public static IReadOnlyList<FlowCommandDefinition> PublicCommands => s_commands.Where(c => c.Name is not "clearText" and not "delay" and not "assertFalse").ToArray();
 
@@ -115,7 +127,13 @@ public static class FlowCommandCatalog
             return "";
         }
 
-        return s_byName.TryGetValue(action, out var command) ? command.Name : action;
+        var trimmed = action.Trim();
+        if (s_aliases.TryGetValue(trimmed, out var canonical))
+        {
+            trimmed = canonical;
+        }
+
+        return s_byName.TryGetValue(trimmed, out var command) ? command.Name : trimmed;
     }
 
     public static FlowCommandDefinition? Find(string action)
