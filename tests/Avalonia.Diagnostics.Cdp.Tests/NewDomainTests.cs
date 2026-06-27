@@ -1694,6 +1694,7 @@ public class NewDomainTests
         Assert.NotNull(disableResult);
     }
 
+
     public class TestDataContext
     {
         public int SomeValue { get; set; }

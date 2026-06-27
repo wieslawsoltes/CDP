@@ -213,9 +213,9 @@ public static class DebuggerDomain
             };
 
             _ = session.SendEventAsync("Debugger.paused", pausedParams);
-
             DebuggerBlockEvent.Wait();
             IsPaused = false;
+            _ = session.SendEventAsync("Debugger.resumed", new JsonObject());
         }
     }
 

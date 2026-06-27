@@ -902,9 +902,14 @@ public static class RuntimeDomain
 
         var globals = new ReplGlobals(session);
         var options = ScriptOptions.Default
-            .WithReferences(AppDomain.CurrentDomain.GetAssemblies()
-                .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-                .Select(a => a.Location))
+            .WithReferences(new[]
+            {
+                typeof(object).Assembly,
+                typeof(System.Linq.Enumerable).Assembly,
+                typeof(Avalonia.Visual).Assembly,
+                typeof(Avalonia.Controls.Control).Assembly,
+                typeof(ReplGlobals).Assembly
+            })
             .WithImports(
                 "System",
                 "System.Collections.Generic",
@@ -935,8 +940,10 @@ public static class RuntimeDomain
                 return val;
             }
         }
-        catch (CompilationErrorException)
+        catch (CompilationErrorException ex)
         {
+            var errors = string.Join("\n", ex.Diagnostics.Select(d => d.ToString()));
+            Console.WriteLine($"[CDP EVAL DEBUG] Roslyn compilation failed for '{fullCode}'. Errors:\n{errors}");
             Console.WriteLine($"[CDP EVAL DEBUG] Roslyn compilation failed for '{fullCode}'. Falling back to manual evaluation.");
             return EvaluateExpression(session, globals, code);
         }
