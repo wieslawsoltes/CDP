@@ -324,6 +324,12 @@ public partial class TestStudioView : UserControl
                         {
                             testStudio.NodeEditor.BringNodeIntoView(node);
                         }
+
+                        var lstSteps = this.FindControl<DataGrid>("lstSteps");
+                        if (lstSteps != null)
+                        {
+                            lstSteps.ScrollIntoView(step, null);
+                        }
                     }
                 }
             });
