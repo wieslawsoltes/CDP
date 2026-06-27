@@ -376,7 +376,7 @@ public class NetworkRequestModel : INotifyPropertyChanged
                     foreach (var part in parts)
                     {
                         if (string.IsNullOrEmpty(part)) continue;
-                        var pair = part.Split('=');
+                        var pair = part.Split('=', 2);
                         string key = Uri.UnescapeDataString(pair[0]);
                         string value = pair.Length > 1 ? Uri.UnescapeDataString(pair[1]) : "";
                         list.Add(new KeyValuePairModel { Key = key, Value = value });
@@ -390,7 +390,7 @@ public class NetworkRequestModel : INotifyPropertyChanged
         }
         QueryParameters = list;
     }
-
+ 
     public void ParsePostParameters(string? postData)
     {
         var list = new ObservableCollection<KeyValuePairModel>();
@@ -399,7 +399,7 @@ public class NetworkRequestModel : INotifyPropertyChanged
             PostParameters = list;
             return;
         }
-
+ 
         try
         {
             string trimmed = postData.Trim();
@@ -437,7 +437,7 @@ public class NetworkRequestModel : INotifyPropertyChanged
                     foreach (var part in parts)
                     {
                         if (string.IsNullOrEmpty(part)) continue;
-                        var pair = part.Split('=');
+                        var pair = part.Split('=', 2);
                         string key = Uri.UnescapeDataString(pair[0]);
                         string value = pair.Length > 1 ? Uri.UnescapeDataString(pair[1]) : "";
                         list.Add(new KeyValuePairModel { Key = key, Value = value });

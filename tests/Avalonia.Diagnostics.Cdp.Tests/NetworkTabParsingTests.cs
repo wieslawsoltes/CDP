@@ -32,6 +32,14 @@ public class NetworkTabParsingTests
         Assert.Equal("hello world", model.QueryParameters[0].Value);
         Assert.Equal("email", model.QueryParameters[1].Key);
         Assert.Equal("john@doe.com", model.QueryParameters[1].Value);
+
+        // 4. Value containing equals signs
+        model.Url = "https://example.com/api/users?token=abc=123=xyz&status=active";
+        Assert.Equal(2, model.QueryParameters.Count);
+        Assert.Equal("token", model.QueryParameters[0].Key);
+        Assert.Equal("abc=123=xyz", model.QueryParameters[0].Value);
+        Assert.Equal("status", model.QueryParameters[1].Key);
+        Assert.Equal("active", model.QueryParameters[1].Value);
     }
 
     [Fact]
@@ -68,5 +76,13 @@ public class NetworkTabParsingTests
         Assert.Single(model.PostParameters);
         Assert.Equal("raw", model.PostParameters[0].Key);
         Assert.Equal("Plain text post data", model.PostParameters[0].Value);
+
+        // 5. Value containing equals signs in form urlencoded
+        model.ParsePostParameters("token=abc=123=xyz&status=active");
+        Assert.Equal(2, model.PostParameters.Count);
+        Assert.Equal("token", model.PostParameters[0].Key);
+        Assert.Equal("abc=123=xyz", model.PostParameters[0].Value);
+        Assert.Equal("status", model.PostParameters[1].Key);
+        Assert.Equal("active", model.PostParameters[1].Value);
     }
 }
