@@ -36,6 +36,7 @@ public class CdpTargetSession : IDisposable
     public System.Collections.Generic.List<JsonObject> NavigationHistory { get; } = new();
     public int NavigationHistoryIndex { get; set; } = -1;
     public object? ScriptSession { get; set; }
+    public int? ScriptSessionNodeId { get; set; }
 
     public virtual bool IsDomEnabled { get; set; }
     public virtual bool InspectModeEnabled { get; set; }

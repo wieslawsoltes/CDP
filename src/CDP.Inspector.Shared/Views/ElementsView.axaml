@@ -109,12 +109,14 @@
             <TabControl Padding="0,5,0,0">
                 <!-- Styles subtab -->
                 <TabItem Header="Styles">
-                    <TabControl Padding="0,5,0,0" Margin="0,5,0,0">
-                        <TabItem Header="Inline styles">
-                            <Grid RowDefinitions="Auto, Auto, *, Auto" Margin="0,5,0,0">
-                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                    <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
+                        <TabControl Grid.Row="0" Padding="0,5,0,0">
+                            <TabItem Header="Inline styles">
+                            <Grid RowDefinitions="Auto, Auto, Auto, *, Auto" Margin="0,5,0,0">
+                                <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,5">
                                     <TextBox Name="txtCssSearch" Text="{Binding Elements.CssSearchText, Mode=TwoWay}" PlaceholderText="Filter styles" Height="26" VerticalContentAlignment="Center"/>
                                     <ToggleButton Name="btnHovToggle" Grid.Column="1" IsChecked="{Binding Elements.IsPseudoStatePanelOpen, Mode=TwoWay}" Content=":hov" Margin="5,0,0,0" Padding="8,0" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                    <ToggleButton Name="btnClsToggle" Grid.Column="2" IsChecked="{Binding Elements.IsClassPanelOpen, Mode=TwoWay}" Content=".cls" Margin="5,0,0,0" Padding="8,0" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
                                 </Grid>
                                 
                                 <Border Grid.Row="1" Background="#2d2e30" BorderBrush="#3c4043" BorderThickness="0,0,0,1" IsVisible="{Binding Elements.IsPseudoStatePanelOpen}" Padding="10,8" Margin="0,0,0,5">
@@ -128,7 +130,28 @@
                                     </Grid>
                                 </Border>
 
-                                 <DataGrid Grid.Row="2" Name="listCssProperties" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredCssProperties}"
+                                <Border Grid.Row="2" Background="#2d2e30" BorderBrush="#3c4043" BorderThickness="0,0,0,1" IsVisible="{Binding Elements.IsClassPanelOpen}" Padding="10,8" Margin="0,0,0,5">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,4">
+                                            <TextBox Name="txtAddClass" Text="{Binding Elements.NewClassNameText, Mode=TwoWay}" PlaceholderText="Add new class..." Height="26" VerticalContentAlignment="Center" KeyDown="OnAddClassTextBoxKeyDown"/>
+                                            <Button Name="btnAddClass" Command="{Binding Elements.AddClassCommand}" Grid.Column="1" Content="Add" Margin="5,0,0,0" Padding="10,0" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding Elements.Classes}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="models:ClassItemModel">
+                                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,2,12,2" FontSize="11"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                 <DataGrid Grid.Row="3" Name="listCssProperties" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredCssProperties}"
                                            x:DataType="models:CssPropertyModel"
                                            CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
                                            GridLinesVisibility="None" HeadersVisibility="None"
@@ -138,7 +161,7 @@
                                         <DataGridTextColumn Header="Value" Binding="{Binding Value, Mode=TwoWay}" IsReadOnly="False" Width="2*" Foreground="#e8eaed" FontSize="12"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
-                                <Grid Grid.Row="3" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
+                                <Grid Grid.Row="4" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
                                     <TextBox Name="txtStyleText" Text="{Binding Elements.StyleTextInputText, Mode=TwoWay}" PlaceholderText="Add style rule (e.g. background: red)..." Height="28" VerticalContentAlignment="Center"/>
                                     <Button Name="btnApplyStyleText" Command="{Binding Elements.ApplyStyleTextCommand}" Grid.Column="1" Content="Apply" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                                 </Grid>
@@ -160,6 +183,129 @@
                             </Grid>
                         </TabItem>
                     </TabControl>
+                    
+                    <!-- Concentric Box Model Editor -->
+                    <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Computed Box Model" FontWeight="SemiBold" Foreground="#9aa0a6" FontSize="12"/>
+                            
+                            <Border Background="#3a2a1c" BorderBrush="#d58512" BorderThickness="1" CornerRadius="4" Padding="4">
+                                <Grid ColumnDefinitions="Auto, *, Auto" RowDefinitions="Auto, *, Auto">
+                                    <!-- Margin label -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="margin" Foreground="#d58512" FontSize="9" Margin="4,2"/>
+                                    
+                                    <!-- Margin Top -->
+                                    <Grid Grid.Row="0" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Elements.BoxMarginTop}" IsVisible="{Binding !Elements.IsEditingMarginTop}" DoubleTapped="OnBoxValueDoubleTapped" Tag="MarginTop" Cursor="Hand" Foreground="#d58512" FontSize="10" FontWeight="Bold"/>
+                                        <TextBox Name="txtMarginTop" Text="{Binding Elements.BoxMarginTop, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingMarginTop}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="MarginTop" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                    </Grid>
+                                    
+                                    <!-- Margin Left -->
+                                    <Grid Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0">
+                                        <TextBlock Text="{Binding Elements.BoxMarginLeft}" IsVisible="{Binding !Elements.IsEditingMarginLeft}" DoubleTapped="OnBoxValueDoubleTapped" Tag="MarginLeft" Cursor="Hand" Foreground="#d58512" FontSize="10" FontWeight="Bold"/>
+                                        <TextBox Name="txtMarginLeft" Text="{Binding Elements.BoxMarginLeft, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingMarginLeft}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="MarginLeft" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                    </Grid>
+                                    
+                                    <!-- Margin Right -->
+                                    <Grid Grid.Row="1" Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0">
+                                        <TextBlock Text="{Binding Elements.BoxMarginRight}" IsVisible="{Binding !Elements.IsEditingMarginRight}" DoubleTapped="OnBoxValueDoubleTapped" Tag="MarginRight" Cursor="Hand" Foreground="#d58512" FontSize="10" FontWeight="Bold"/>
+                                        <TextBox Name="txtMarginRight" Text="{Binding Elements.BoxMarginRight, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingMarginRight}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="MarginRight" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                    </Grid>
+                                    
+                                    <!-- Margin Bottom -->
+                                    <Grid Grid.Row="2" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Elements.BoxMarginBottom}" IsVisible="{Binding !Elements.IsEditingMarginBottom}" DoubleTapped="OnBoxValueDoubleTapped" Tag="MarginBottom" Cursor="Hand" Foreground="#d58512" FontSize="10" FontWeight="Bold"/>
+                                        <TextBox Name="txtMarginBottom" Text="{Binding Elements.BoxMarginBottom, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingMarginBottom}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="MarginBottom" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                    </Grid>
+                                    
+                                    <!-- Border Layer (Center of Margin Grid) -->
+                                    <Border Grid.Row="1" Grid.Column="1" Background="#2f2e1a" BorderBrush="#e3b505" BorderThickness="1" CornerRadius="4" Padding="4" Margin="6,4">
+                                        <Grid ColumnDefinitions="Auto, *, Auto" RowDefinitions="Auto, *, Auto">
+                                            <!-- Border label -->
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="border" Foreground="#e3b505" FontSize="9" Margin="4,2"/>
+                                            
+                                            <!-- Border Top -->
+                                            <Grid Grid.Row="0" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Elements.BoxBorderTop}" IsVisible="{Binding !Elements.IsEditingBorderTop}" DoubleTapped="OnBoxValueDoubleTapped" Tag="BorderTop" Cursor="Hand" Foreground="#e3b505" FontSize="10" FontWeight="Bold"/>
+                                                <TextBox Name="txtBorderTop" Text="{Binding Elements.BoxBorderTop, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingBorderTop}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="BorderTop" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                            </Grid>
+                                            
+                                            <!-- Border Left -->
+                                            <Grid Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0">
+                                                <TextBlock Text="{Binding Elements.BoxBorderLeft}" IsVisible="{Binding !Elements.IsEditingBorderLeft}" DoubleTapped="OnBoxValueDoubleTapped" Tag="BorderLeft" Cursor="Hand" Foreground="#e3b505" FontSize="10" FontWeight="Bold"/>
+                                                <TextBox Name="txtBorderLeft" Text="{Binding Elements.BoxBorderLeft, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingBorderLeft}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="BorderLeft" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                            </Grid>
+                                            
+                                            <!-- Border Right -->
+                                            <Grid Grid.Row="1" Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0">
+                                                <TextBlock Text="{Binding Elements.BoxBorderRight}" IsVisible="{Binding !Elements.IsEditingBorderRight}" DoubleTapped="OnBoxValueDoubleTapped" Tag="BorderRight" Cursor="Hand" Foreground="#e3b505" FontSize="10" FontWeight="Bold"/>
+                                                <TextBox Name="txtBorderRight" Text="{Binding Elements.BoxBorderRight, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingBorderRight}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="BorderRight" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                            </Grid>
+                                            
+                                            <!-- Border Bottom -->
+                                            <Grid Grid.Row="2" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Elements.BoxBorderBottom}" IsVisible="{Binding !Elements.IsEditingBorderBottom}" DoubleTapped="OnBoxValueDoubleTapped" Tag="BorderBottom" Cursor="Hand" Foreground="#e3b505" FontSize="10" FontWeight="Bold"/>
+                                                <TextBox Name="txtBorderBottom" Text="{Binding Elements.BoxBorderBottom, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingBorderBottom}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="BorderBottom" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                            </Grid>
+                                            
+                                            <!-- Padding Layer (Center of Border Grid) -->
+                                            <Border Grid.Row="1" Grid.Column="1" Background="#1d2d1d" BorderBrush="#5d9e5d" BorderThickness="1" CornerRadius="4" Padding="4" Margin="6,4">
+                                                <Grid ColumnDefinitions="Auto, *, Auto" RowDefinitions="Auto, *, Auto">
+                                                    <!-- Padding label -->
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="padding" Foreground="#5d9e5d" FontSize="9" Margin="4,2"/>
+                                                    
+                                                    <!-- Padding Top -->
+                                                    <Grid Grid.Row="0" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Elements.BoxPaddingTop}" IsVisible="{Binding !Elements.IsEditingPaddingTop}" DoubleTapped="OnBoxValueDoubleTapped" Tag="PaddingTop" Cursor="Hand" Foreground="#5d9e5d" FontSize="10" FontWeight="Bold"/>
+                                                        <TextBox Name="txtPaddingTop" Text="{Binding Elements.BoxPaddingTop, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingPaddingTop}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="PaddingTop" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                                    </Grid>
+                                                    
+                                                    <!-- Padding Left -->
+                                                    <Grid Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0">
+                                                        <TextBlock Text="{Binding Elements.BoxPaddingLeft}" IsVisible="{Binding !Elements.IsEditingPaddingLeft}" DoubleTapped="OnBoxValueDoubleTapped" Tag="PaddingLeft" Cursor="Hand" Foreground="#5d9e5d" FontSize="10" FontWeight="Bold"/>
+                                                        <TextBox Name="txtPaddingLeft" Text="{Binding Elements.BoxPaddingLeft, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingPaddingLeft}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="PaddingLeft" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                                    </Grid>
+                                                    
+                                                    <!-- Padding Right -->
+                                                    <Grid Grid.Row="1" Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0">
+                                                        <TextBlock Text="{Binding Elements.BoxPaddingRight}" IsVisible="{Binding !Elements.IsEditingPaddingRight}" DoubleTapped="OnBoxValueDoubleTapped" Tag="PaddingRight" Cursor="Hand" Foreground="#5d9e5d" FontSize="10" FontWeight="Bold"/>
+                                                        <TextBox Name="txtPaddingRight" Text="{Binding Elements.BoxPaddingRight, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingPaddingRight}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="PaddingRight" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                                    </Grid>
+                                                    
+                                                    <!-- Padding Bottom -->
+                                                    <Grid Grid.Row="2" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Elements.BoxPaddingBottom}" IsVisible="{Binding !Elements.IsEditingPaddingBottom}" DoubleTapped="OnBoxValueDoubleTapped" Tag="PaddingBottom" Cursor="Hand" Foreground="#5d9e5d" FontSize="10" FontWeight="Bold"/>
+                                                        <TextBox Name="txtPaddingBottom" Text="{Binding Elements.BoxPaddingBottom, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingPaddingBottom}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="PaddingBottom" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                                    </Grid>
+                                                    
+                                                    <!-- Content Layer (Center of Padding Grid) -->
+                                                    <Border Grid.Row="1" Grid.Column="1" Background="#1a2333" BorderBrush="#8ab4f8" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="6,4" MinWidth="90" MinHeight="30">
+                                                        <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, *">
+                                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="content" Foreground="#8ab4f8" FontSize="9"/>
+                                                            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
+                                                                <!-- Width -->
+                                                                <Grid VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding Elements.BoxWidth}" IsVisible="{Binding !Elements.IsEditingWidth}" DoubleTapped="OnBoxValueDoubleTapped" Tag="Width" Cursor="Hand" Foreground="#e8eaed" FontSize="10" FontWeight="Bold"/>
+                                                                    <TextBox Name="txtWidth" Text="{Binding Elements.BoxWidth, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingWidth}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="Width" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                                                </Grid>
+                                                                <TextBlock Text=" × " Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center"/>
+                                                                <!-- Height -->
+                                                                <Grid VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding Elements.BoxHeight}" IsVisible="{Binding !Elements.IsEditingHeight}" DoubleTapped="OnBoxValueDoubleTapped" Tag="Height" Cursor="Hand" Foreground="#e8eaed" FontSize="10" FontWeight="Bold"/>
+                                                                    <TextBox Name="txtHeight" Text="{Binding Elements.BoxHeight, Mode=TwoWay}" IsVisible="{Binding Elements.IsEditingHeight}" KeyDown="OnBoxTextBoxKeyDown" LostFocus="OnBoxTextBoxLostFocus" Tag="Height" FontSize="10" Height="20" MinWidth="25" Padding="2,0" Margin="0" HorizontalContentAlignment="Center"/>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                    </Grid>
                 </TabItem>
 
                 <!-- Attributes subtab -->

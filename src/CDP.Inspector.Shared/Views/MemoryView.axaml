@@ -2,6 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.MemoryView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -29,14 +31,14 @@
                 </Grid>
             </Border>
         </Grid>
-
+ 
         <!-- Splitter -->
         <GridSplitter Grid.Column="1" Background="#3c4043"/>
-
+ 
         <!-- Right panel (Snapshot details) -->
-        <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
+        <Grid Grid.Column="2" RowDefinitions="Auto, Auto, *" Margin="10,0,0,0">
             <!-- Details Header toolbar -->
-            <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,10">
+            <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,10">
                 <TextBlock Text="{Binding Memory.SelectedSnapshot.Name, FallbackValue='Select or Take a Snapshot'}" Classes="panel-header" FontSize="16" VerticalAlignment="Center"/>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -54,8 +56,16 @@
                 </StackPanel>
             </Grid>
 
+            <!-- Memory Allocation Rate Timeline -->
+            <StackPanel Grid.Row="1" Spacing="5" Margin="0,0,0,10">
+                <TextBlock Text="Memory Allocation Rate Timeline (MB)" Classes="panel-header" FontSize="12"/>
+                <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
+                    <controls:ChromeTimelineChart StrokeColor="#ff5252" FillColor="#ff5252" Unit="MB" Height="65" History="{Binding Memory.AllocationHistory}"/>
+                </Border>
+            </StackPanel>
+ 
             <!-- Table content -->
-            <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
+            <Border Grid.Row="2" Classes="panel-card" ClipToBounds="True">
                 <Grid>
                     <TabControl IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <!-- Live Counts Tab -->
@@ -119,8 +129,10 @@
 
                         <!-- Detached Controls Tab -->
                         <TabItem Header="Detached Controls (Leaked)">
-                            <Grid>
-                                <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.DetachedControls}" x:DataType="models:DetachedControlModel"
+                            <Grid RowDefinitions="*, 4, *">
+                                <DataGrid Grid.Row="0" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.DetachedControls}"
+                                          SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.SelectedDetachedControl, Mode=TwoWay}"
+                                          x:DataType="models:DetachedControlModel"
                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                           Background="Transparent" BorderThickness="0">
@@ -144,6 +156,36 @@
                                         <DataGridTextColumn Header="DataContext VM" Binding="{Binding DataContextType}" Width="150" Foreground="#8ab4f8" FontSize="12"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
+
+                                <GridSplitter Grid.Row="1" Background="#3c4043"/>
+
+                                <Grid Grid.Row="2" RowDefinitions="Auto, *">
+                                    <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,4">
+                                        <TextBlock Text="RETAINERS PATH (RETAINED BY)" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
+                                    </Border>
+                                    <DataGrid Name="treeRetainers" Grid.Row="1"
+                                              HierarchicalModel="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.HierarchicalRetainers}"
+                                              HierarchicalRowsEnabled="True"
+                                              HeadersVisibility="None"
+                                              GridLinesVisibility="None"
+                                              Background="Transparent"
+                                              BorderThickness="0">
+                                        <DataGrid.Columns>
+                                            <DataGridHierarchicalColumn Width="*">
+                                                <DataGridHierarchicalColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,2">
+                                                            <TextBlock Text="{Binding ((models:RetainerNodeModel)Item).Name}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                            <TextBlock Text=":" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding ((models:RetainerNodeModel)Item).Type}" Foreground="#8ab4f8" FontSize="12" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding ((models:RetainerNodeModel)Item).HashCode, StringFormat='[0x{0:X8}]'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </DataGridHierarchicalColumn.CellTemplate>
+                                            </DataGridHierarchicalColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
                             </Grid>
                         </TabItem>
                     </TabControl>

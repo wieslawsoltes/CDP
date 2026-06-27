@@ -13,6 +13,7 @@ using Xunit;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using CdpInspectorApp.ViewModels;
+using Avalonia.Styling;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -406,6 +407,218 @@ public class NewDomainTests
 
         var setRes = await CssDomain.HandleAsync(session, "setStyleSheetText", new JsonObject());
         Assert.NotNull(setRes);
+    }
+
+    [AvaloniaFact]
+    public async Task TestCssDomainGetMatchedStyles()
+    {
+        var window = new Window
+        {
+            Title = "CSS Test Window",
+            Width = 400,
+            Height = 300
+        };
+        
+        var button = new Button { Name = "myBtn", Width = 100 };
+        button.Classes.Add("primary");
+        window.Content = button;
+        
+        window.Show();
+
+        var style = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<Button>(x).Class("primary"))
+        {
+            Setters =
+            {
+                new Avalonia.Styling.Setter(Button.BackgroundProperty, Avalonia.Media.Brushes.Red),
+                new Avalonia.Styling.Setter(Button.FontSizeProperty, 18.0)
+            }
+        };
+        window.Styles.Add(style);
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        int buttonNodeId = session.NodeMap.GetOrAdd(button);
+
+        var getParams = new JsonObject
+        {
+            ["nodeId"] = buttonNodeId
+        };
+
+        var result = await CssDomain.HandleAsync(session, "getMatchedStylesForNode", getParams);
+        Assert.NotNull(result);
+
+        var matchedCSSRules = result["matchedCSSRules"] as JsonArray;
+        Assert.NotNull(matchedCSSRules);
+        Assert.NotEmpty(matchedCSSRules);
+
+        var matchedRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("Button.primary") == true);
+        Assert.NotNull(matchedRule);
+
+        var properties = matchedRule["style"]?["cssProperties"] as JsonArray;
+        Assert.NotNull(properties);
+        
+        var bgProp = properties.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "background");
+        Assert.NotNull(bgProp);
+        Assert.Equal("red", bgProp["value"]?.GetValue<string>(), ignoreCase: true);
+
+        var fsProp = properties.FirstOrDefault(p => p?["name"]?.GetValue<string>() == "font-size");
+        Assert.NotNull(fsProp);
+        Assert.Equal("18", fsProp["value"]?.GetValue<string>());
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestCssDomainGetMatchedStylesWithPseudoClass()
+    {
+        var window = new Window
+        {
+            Title = "CSS Pseudo Test Window",
+            Width = 400,
+            Height = 300
+        };
+        
+        var button = new Button { Name = "myBtn", Width = 100 };
+        button.Classes.Add("primary");
+        // Simulated pseudo-class state
+        var pseudoClassesProperty = typeof(Avalonia.StyledElement).GetProperty("PseudoClasses", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var pseudoClasses = (Avalonia.Controls.IPseudoClasses)pseudoClassesProperty.GetValue(button);
+        pseudoClasses.Set("pointerover", true);
+        window.Content = button;
+        
+        window.Show();
+
+        // 1. Hover style (pointerover)
+        var styleHover = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<Button>(x).Class("primary").Class(":pointerover"))
+        {
+            Setters =
+            {
+                new Avalonia.Styling.Setter(Button.BackgroundProperty, Avalonia.Media.Brushes.Blue)
+            }
+        };
+        // 2. Focus style (focus) - not active on button
+        var styleFocus = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<Button>(x).Class("primary").Class(":focus"))
+        {
+            Setters =
+            {
+                new Avalonia.Styling.Setter(Button.BackgroundProperty, Avalonia.Media.Brushes.Green)
+            }
+        };
+        
+        window.Styles.Add(styleHover);
+        window.Styles.Add(styleFocus);
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        int buttonNodeId = session.NodeMap.GetOrAdd(button);
+
+        var getParams = new JsonObject
+        {
+            ["nodeId"] = buttonNodeId
+        };
+
+        var result = await CssDomain.HandleAsync(session, "getMatchedStylesForNode", getParams);
+        Assert.NotNull(result);
+
+        var matchedCSSRules = result["matchedCSSRules"] as JsonArray;
+        Assert.NotNull(matchedCSSRules);
+
+        // Verify styleHover matched (since we added :pointerover class)
+        var hoverRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains(":pointerover") == true);
+        Assert.NotNull(hoverRule);
+        
+        var hoverBg = (hoverRule["style"]?["cssProperties"] as JsonArray)?
+            .FirstOrDefault(p => p?["name"]?.GetValue<string>() == "background");
+        Assert.NotNull(hoverBg);
+        Assert.Equal("blue", hoverBg["value"]?.GetValue<string>(), ignoreCase: true);
+
+        // Verify styleFocus did NOT match (since :focus class was not added)
+        var focusRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains(":focus") == true);
+        Assert.Null(focusRule);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestCssDomainGetMatchedStylesWithAncestors()
+    {
+        var window = new Window
+        {
+            Title = "CSS Ancestor Test Window",
+            Width = 400,
+            Height = 300
+        };
+        
+        var panel = new StackPanel { Name = "myPanel" };
+        var grid = new Grid { Name = "myGrid" };
+        var button = new Button { Name = "myBtn" };
+        
+        grid.Children.Add(button);
+        panel.Children.Add(grid);
+        window.Content = panel;
+        
+        window.Show();
+
+        // 1. Valid descendant rule (StackPanel Button) - should match
+        var styleDescendant = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<StackPanel>(x).Descendant().OfType<Button>())
+        {
+            Setters = { new Avalonia.Styling.Setter(Button.BackgroundProperty, Avalonia.Media.Brushes.Blue) }
+        };
+        // 2. Valid child rule (Grid > Button) - should match
+        var styleChildMatch = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<Grid>(x).Child().OfType<Button>())
+        {
+            Setters = { new Avalonia.Styling.Setter(Button.ForegroundProperty, Avalonia.Media.Brushes.Green) }
+        };
+        // 3. Invalid child rule (StackPanel > Button) - should NOT match
+        var styleChildNoMatch = new Avalonia.Styling.Style(x => Avalonia.Styling.Selectors.OfType<StackPanel>(x).Child().OfType<Button>())
+        {
+            Setters = { new Avalonia.Styling.Setter(Button.OpacityProperty, 0.5) }
+        };
+
+        window.Styles.Add(styleDescendant);
+        window.Styles.Add(styleChildMatch);
+        window.Styles.Add(styleChildNoMatch);
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        int buttonNodeId = session.NodeMap.GetOrAdd(button);
+
+        var getParams = new JsonObject
+        {
+            ["nodeId"] = buttonNodeId
+        };
+
+        var result = await CssDomain.HandleAsync(session, "getMatchedStylesForNode", getParams);
+        Assert.NotNull(result);
+
+        var matchedCSSRules = result["matchedCSSRules"] as JsonArray;
+        Assert.NotNull(matchedCSSRules);
+
+        // Verify styleDescendant matched
+        var descendantRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("StackPanel") == true &&
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("Button") == true);
+        Assert.NotNull(descendantRule);
+
+        // Verify styleChildMatch matched
+        var childMatchRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("Grid") == true &&
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains(">") == true);
+        Assert.NotNull(childMatchRule);
+
+        // Verify styleChildNoMatch did NOT match
+        var childNoMatchRule = matchedCSSRules.FirstOrDefault(r => 
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains("StackPanel") == true &&
+            r?["selectorList"]?["text"]?.GetValue<string>()?.Contains(">") == true);
+        Assert.Null(childNoMatchRule);
+
+        window.Close();
     }
 
     [AvaloniaFact]
@@ -1132,6 +1345,359 @@ public class NewDomainTests
         // 6. Test that ConnectAsync passes the normalized GeneratorHostAddress to the service
         await vm.ConnectAsync();
         Assert.Equal("http://10.0.0.5:8080", service.ConnectedHost);
+    }
+
+    [AvaloniaFact]
+    public async Task TestDebuggerDomainPausingAndResuming()
+    {
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, null!);
+
+        // Enable debugger
+        var enableResult = await DebuggerDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.NotNull(enableResult);
+        Assert.Equal("1", enableResult["debuggerId"]?.GetValue<string>());
+
+        // Set breakpoint
+        var setBpParams = new JsonObject
+        {
+            ["url"] = "C# Evaluation",
+            ["lineNumber"] = 1
+        };
+        var setBpResult = await DebuggerDomain.HandleAsync(session, "setBreakpointByUrl", setBpParams);
+        Assert.NotNull(setBpResult);
+        var breakpointId = setBpResult["breakpointId"]?.GetValue<string>();
+        Assert.Equal("C# Evaluation:1", breakpointId);
+
+        // Check if event is sent on breakpoint hit
+        JsonObject? receivedEvent = null;
+        session.EventSentForTesting += (evt) =>
+        {
+            receivedEvent = evt;
+        };
+
+        // Run breakpoint checking on a background thread so it doesn't block the test
+        var checkTask = Task.Run(() => DebuggerDomain.CheckBreakpoint(session, "C# Evaluation", 1));
+
+        // Wait a short time for thread to pause
+        for (int i = 0; i < 100; i++)
+        {
+            if (DebuggerDomain.IsPaused) break;
+            await Task.Delay(20);
+        }
+
+        Assert.True(DebuggerDomain.IsPaused);
+        Assert.NotNull(receivedEvent);
+        Assert.Equal("Debugger.paused", receivedEvent["method"]?.GetValue<string>());
+
+        var pausedParams = receivedEvent["params"] as JsonObject;
+        Assert.NotNull(pausedParams);
+        var callFrames = pausedParams["callFrames"] as JsonArray;
+        Assert.NotNull(callFrames);
+        Assert.Single(callFrames);
+
+        var firstFrame = callFrames[0] as JsonObject;
+        Assert.NotNull(firstFrame);
+        Assert.Equal("Evaluate", firstFrame["functionName"]?.GetValue<string>());
+        Assert.Equal("C# Evaluation", firstFrame["url"]?.GetValue<string>());
+
+        // Resume debugger
+        var resumeResult = await DebuggerDomain.HandleAsync(session, "resume", new JsonObject());
+        Assert.NotNull(resumeResult);
+
+        // Wait for checkTask to complete
+        await checkTask;
+
+        Assert.False(DebuggerDomain.IsPaused);
+
+        // Clean up breakpoint
+        var removeParams = new JsonObject
+        {
+            ["breakpointId"] = breakpointId
+        };
+        var removeResult = await DebuggerDomain.HandleAsync(session, "removeBreakpoint", removeParams);
+        Assert.NotNull(removeResult);
+    }
+
+    [AvaloniaFact]
+    public async Task TestConditionalBreakpoints()
+    {
+        using var clientWs = new ClientWebSocket();
+        var window = new Window { Title = "Test Window" };
+        window.DataContext = new TestDataContext { SomeValue = 42 };
+        window.Show();
+        
+        var session = new CdpSession(clientWs, window);
+
+        // Enable debugger
+        await DebuggerDomain.HandleAsync(session, "enable", new JsonObject());
+
+        // 1. Set conditional breakpoint that evaluates to false (should NOT pause)
+        var setBpParamsFalse = new JsonObject
+        {
+            ["url"] = "TestFile.cs",
+            ["lineNumber"] = 10,
+            ["condition"] = "Window.DataContext != null && ((Avalonia.Diagnostics.Cdp.Tests.NewDomainTests.TestDataContext)Window.DataContext).SomeValue == 100"
+        };
+        var setBpResultFalse = await DebuggerDomain.HandleAsync(session, "setBreakpointByUrl", setBpParamsFalse);
+        var breakpointIdFalse = setBpResultFalse["breakpointId"]?.GetValue<string>();
+
+        // Check if event is sent on breakpoint hit - it shouldn't hit!
+        DebuggerDomain.IsPaused = false;
+        DebuggerDomain.CheckBreakpoint(session, "TestFile.cs", 10);
+        
+        Assert.False(DebuggerDomain.IsPaused);
+
+        // Remove false breakpoint
+        await DebuggerDomain.HandleAsync(session, "removeBreakpoint", new JsonObject { ["breakpointId"] = breakpointIdFalse });
+
+        // 2. Set conditional breakpoint that evaluates to true (should pause)
+        var setBpParamsTrue = new JsonObject
+        {
+            ["url"] = "TestFile.cs",
+            ["lineNumber"] = 10,
+            ["condition"] = "Window.DataContext != null && ((Avalonia.Diagnostics.Cdp.Tests.NewDomainTests.TestDataContext)Window.DataContext).SomeValue == 42"
+        };
+        var setBpResultTrue = await DebuggerDomain.HandleAsync(session, "setBreakpointByUrl", setBpParamsTrue);
+        var breakpointIdTrue = setBpResultTrue["breakpointId"]?.GetValue<string>();
+
+        // Run breakpoint checking on a background thread so it doesn't block the test
+        var checkTask = Task.Run(() => DebuggerDomain.CheckBreakpoint(session, "TestFile.cs", 10));
+
+        // Wait a short time for thread to pause
+        for (int i = 0; i < 100; i++)
+        {
+            if (DebuggerDomain.IsPaused) break;
+            await Task.Delay(20);
+        }
+
+        Assert.True(DebuggerDomain.IsPaused);
+
+        // Resume debugger
+        await DebuggerDomain.HandleAsync(session, "resume", new JsonObject());
+
+        // Wait for checkTask to complete
+        await checkTask;
+
+        Assert.False(DebuggerDomain.IsPaused);
+
+        // Clean up breakpoint
+        await DebuggerDomain.HandleAsync(session, "removeBreakpoint", new JsonObject { ["breakpointId"] = breakpointIdTrue });
+        
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestOverlayPaintRects()
+    {
+        var window = new Window
+        {
+            Title = "Paint Rects Test Window",
+            Width = 400,
+            Height = 300,
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    new Button { Content = "Target Button", Width = 100, Height = 30 }
+                }
+            }
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Enable Paint Rects via OverlayDomain
+        var enableParams = new JsonObject { ["result"] = true };
+        var enableResult = await OverlayDomain.HandleAsync(session, "setShowPaintRects", enableParams);
+        Assert.NotNull(enableResult);
+
+        // 2. Disable Paint Rects via OverlayDomain
+        var disableParams = new JsonObject { ["result"] = false };
+        var disableResult = await OverlayDomain.HandleAsync(session, "setShowPaintRects", disableParams);
+        Assert.NotNull(disableResult);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestProfilerDomainWorkflow()
+    {
+        var window = new Window
+        {
+            Title = "Profiler Test Window",
+            Width = 400,
+            Height = 300
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Enable Profiler
+        var enableResult = await ProfilerDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.NotNull(enableResult);
+
+        // 2. Start Profiler
+        var startResult = await ProfilerDomain.HandleAsync(session, "start", new JsonObject());
+        Assert.NotNull(startResult);
+
+        // 3. Record some mock activity
+        var now = DateTime.UtcNow;
+        ProfilerDomain.RecordActivity(session, "LayoutPass", now.AddMilliseconds(-50), now);
+        ProfilerDomain.RecordActivity(session, "RenderFrame", now.AddMilliseconds(-20), now);
+        ProfilerDomain.RecordActivity(session, "EvaluateConsole", now.AddMilliseconds(-10), now);
+
+        // Wait a tiny bit to accumulate time delta
+        await Task.Delay(100);
+
+        // 4. Stop Profiler
+        var stopResult = await ProfilerDomain.HandleAsync(session, "stop", new JsonObject());
+        Assert.NotNull(stopResult);
+
+        var profile = stopResult["profile"] as JsonObject;
+        Assert.NotNull(profile);
+
+        var nodes = profile["nodes"] as JsonArray;
+        Assert.NotNull(nodes);
+        Assert.NotEmpty(nodes);
+
+        // Verify root node exists
+        var rootNode = nodes.FirstOrDefault(n => n?["id"]?.GetValue<int>() == 1);
+        Assert.NotNull(rootNode);
+        Assert.Equal("(root)", rootNode["callFrame"]?["functionName"]?.GetValue<string>());
+
+        var startTime = profile["startTime"]?.GetValue<double>() ?? 0.0;
+        var endTime = profile["endTime"]?.GetValue<double>() ?? 0.0;
+        Assert.True(endTime > startTime);
+
+        var samples = profile["samples"] as JsonArray;
+        Assert.NotNull(samples);
+        Assert.NotEmpty(samples);
+
+        var timeDeltas = profile["timeDeltas"] as JsonArray;
+        Assert.NotNull(timeDeltas);
+        Assert.NotEmpty(timeDeltas);
+        Assert.Equal(samples.Count, timeDeltas.Count);
+
+        // 5. Disable Profiler
+        var disableResult = await ProfilerDomain.HandleAsync(session, "disable", new JsonObject());
+        Assert.NotNull(disableResult);
+
+        window.Close();
+    }
+
+    [Fact]
+    public async Task TestBackgroundServiceDomain()
+    {
+        using var clientWs = new System.Net.WebSockets.ClientWebSocket();
+        var session = new CdpSession(clientWs, null);
+
+        // Test startObserving
+        var startParams = new JsonObject { ["service"] = "notifications" };
+        var startResult = await Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.HandleAsync(session, "startObserving", startParams);
+        Assert.NotNull(startResult);
+
+        // Test setRecording
+        var recordParams = new JsonObject
+        {
+            ["shouldRecord"] = true,
+            ["service"] = "notifications"
+        };
+        var recordResult = await Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.HandleAsync(session, "setRecording", recordParams);
+        Assert.NotNull(recordResult);
+
+        // Test clearEvents
+        var clearParams = new JsonObject { ["service"] = "notifications" };
+        var clearResult = await Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.HandleAsync(session, "clearEvents", clearParams);
+        Assert.NotNull(clearResult);
+
+        // Test stopObserving
+        var stopResult = await Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.HandleAsync(session, "stopObserving", new JsonObject());
+        Assert.NotNull(stopResult);
+    }
+
+    [Fact]
+    public async Task TestIndexedDBDomain()
+    {
+        using var clientWs = new System.Net.WebSockets.ClientWebSocket();
+        var session = new CdpSession(clientWs, null);
+
+        // Test enable
+        var enableResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.NotNull(enableResult);
+
+        // Test requestDatabaseNames
+        var namesParams = new JsonObject { ["securityOrigin"] = "http://localhost:9222" };
+        var namesResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "requestDatabaseNames", namesParams);
+        Assert.NotNull(namesResult);
+        var dbNames = namesResult["databaseNames"] as JsonArray;
+        Assert.NotNull(dbNames);
+        Assert.Contains(dbNames, name => name?.GetValue<string>() == "AppLocalCache");
+
+        // Test requestDatabase
+        var dbParams = new JsonObject 
+        { 
+            ["securityOrigin"] = "http://localhost:9222",
+            ["databaseName"] = "AppLocalCache"
+        };
+        var dbResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "requestDatabase", dbParams);
+        Assert.NotNull(dbResult);
+        var dbWithStores = dbResult["databaseWithObjectStores"] as JsonObject;
+        Assert.NotNull(dbWithStores);
+        Assert.Equal("AppLocalCache", dbWithStores["name"]?.GetValue<string>());
+        var stores = dbWithStores["objectStores"] as JsonArray;
+        Assert.NotNull(stores);
+        Assert.Equal(2, stores.Count);
+
+        // Test requestData
+        var dataParams = new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["databaseName"] = "AppLocalCache",
+            ["objectStoreName"] = "Preferences"
+        };
+        var dataResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "requestData", dataParams);
+        Assert.NotNull(dataResult);
+        var entries = dataResult["objectStoreDataEntries"] as JsonArray;
+        Assert.NotNull(entries);
+        Assert.Equal(3, entries.Count); // Theme, FontSize, Language
+
+        // Test clearObjectStore
+        var clearParams = new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["databaseName"] = "AppLocalCache",
+            ["objectStoreName"] = "Preferences"
+        };
+        var clearResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "clearObjectStore", clearParams);
+        Assert.NotNull(clearResult);
+
+        // Verify cleared
+        var dataResult2 = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "requestData", dataParams);
+        var entries2 = dataResult2["objectStoreDataEntries"] as JsonArray;
+        Assert.NotNull(entries2);
+        Assert.Empty(entries2);
+
+        // Test deleteDatabase
+        var deleteParams = new JsonObject
+        {
+            ["securityOrigin"] = "http://localhost:9222",
+            ["databaseName"] = "AppLocalCache"
+        };
+        var deleteResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "deleteDatabase", deleteParams);
+        Assert.NotNull(deleteResult);
+
+        // Test disable
+        var disableResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "disable", new JsonObject());
+        Assert.NotNull(disableResult);
+    }
+
+
+    public class TestDataContext
+    {
+        public int SomeValue { get; set; }
     }
 }
 

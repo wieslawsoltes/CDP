@@ -137,6 +137,17 @@ public class MainWindowViewModel : ViewModelBase
                 Simulation.ResetInspectHoverCache();
             }
         };
+
+        Sources.PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(SourcesViewModel.IsDebuggerPaused))
+            {
+                if (Sources.IsDebuggerPaused)
+                {
+                    SelectedTabIndex = 2; // Sources tab is index 2
+                }
+            }
+        };
     }
 
     private void UpdateSelectedSelector()
@@ -151,6 +162,24 @@ public class MainWindowViewModel : ViewModelBase
         else
         {
             Recorder.TestStudio.SelectedElementSelector = "";
+        }
+    }
+
+    private int _selectedTabIndex;
+    public int SelectedTabIndex
+    {
+        get => _selectedTabIndex;
+        set => RaiseAndSetIfChanged(ref _selectedTabIndex, value);
+    }
+
+    public void NavigateToSource(string filePath, int line)
+    {
+        var node = Sources.FindFileBySuffix(filePath);
+        if (node != null)
+        {
+            Sources.PendingScrollLine = line;
+            Sources.SelectedFile = node;
+            SelectedTabIndex = 2; // Sources tab is index 2
         }
     }
 }

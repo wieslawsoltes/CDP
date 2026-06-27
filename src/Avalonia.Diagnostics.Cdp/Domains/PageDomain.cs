@@ -475,10 +475,65 @@ public static class PageDomain
                     return new JsonObject { ["result"] = resultArr };
                 }
 
+            case "getCookies":
+                {
+                    var cookiesArray = new JsonArray();
+                    foreach (var cookie in session.Cookies)
+                    {
+                        cookiesArray.Add(cookie.DeepClone());
+                    }
+                    return new JsonObject { ["cookies"] = cookiesArray };
+                }
+
+            case "setCookie":
+                {
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    string value = @params["value"]?.GetValue<string>() ?? "";
+                    string domain = @params["domain"]?.GetValue<string>() ?? "";
+                    string path = @params["path"]?.GetValue<string>() ?? "";
+                    double expires = @params["expires"]?.GetValue<double>() ?? -1;
+
+                    session.Cookies.RemoveAll(c => 
+                        (c["name"]?.GetValue<string>() ?? "") == name && 
+                        (c["domain"]?.GetValue<string>() ?? "") == domain && 
+                        (c["path"]?.GetValue<string>() ?? "") == path);
+
+                    var cookie = new JsonObject
+                    {
+                        ["name"] = name,
+                        ["value"] = value,
+                        ["domain"] = domain,
+                        ["path"] = path,
+                        ["expires"] = expires
+                    };
+
+                    if (@params.ContainsKey("secure")) cookie["secure"] = @params["secure"]?.GetValue<bool>();
+                    if (@params.ContainsKey("httpOnly")) cookie["httpOnly"] = @params["httpOnly"]?.GetValue<bool>();
+                    if (@params.ContainsKey("sameSite")) cookie["sameSite"] = @params["sameSite"]?.GetValue<string>();
+
+                    session.Cookies.Add(cookie);
+                    return new JsonObject();
+                }
+
             case "deleteCookie":
                 {
                     string name = @params["name"]?.GetValue<string>() ?? "";
-                    session.Cookies.RemoveAll(c => c["name"]?.GetValue<string>() == name);
+                    string domain = @params["domain"]?.GetValue<string>() ?? "";
+                    string path = @params["path"]?.GetValue<string>() ?? "";
+
+                    session.Cookies.RemoveAll(c =>
+                    {
+                        bool match = c["name"]?.GetValue<string>() == name;
+                        if (!string.IsNullOrEmpty(domain))
+                        {
+                            match = match && c["domain"]?.GetValue<string>() == domain;
+                        }
+                        if (!string.IsNullOrEmpty(path))
+                        {
+                            match = match && c["path"]?.GetValue<string>() == path;
+                        }
+                        return match;
+                    });
                     return new JsonObject();
                 }
 

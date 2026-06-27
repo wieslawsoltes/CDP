@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.ComponentModel;
 using System.Windows.Input;
+using System.Collections.Specialized;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
@@ -21,6 +22,7 @@ public class NetworkViewModel : ViewModelBase
     private string _selectedRequestHeaders = "";
     private string _selectedResponseHeaders = "";
     private string _selectedResponseBody = "";
+    private double _sessionStartTime = 0.0;
 
     private ObservableCollection<ThrottlingProfile> _throttlingProfiles = new()
     {
@@ -33,6 +35,10 @@ public class NetworkViewModel : ViewModelBase
 
     private ObservableCollection<BlockedUrlModel> _blockedUrls = new();
     private ObservableCollection<MockRuleModel> _mockRules = new();
+    private MockRuleModel? _selectedMockRule;
+
+    private string _activeFilter = "All";
+    public ObservableCollection<string> Filters { get; } = new() { "All", "Fetch/XHR", "CSS/JS", "Images", "Doc", "Other" };
 
     public ObservableCollection<NetworkRequestModel> NetworkRequests => _networkRequests;
     public ObservableCollection<ThrottlingProfile> ThrottlingProfiles => _throttlingProfiles;
@@ -43,6 +49,43 @@ public class NetworkViewModel : ViewModelBase
     public ICommand RemoveBlockedUrlCommand { get; }
     public ICommand AddMockRuleCommand { get; }
     public ICommand RemoveMockRuleCommand { get; }
+
+    public string ActiveFilter
+    {
+        get => _activeFilter;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _activeFilter, value))
+            {
+                OnPropertyChanged(nameof(FilteredNetworkRequests));
+            }
+        }
+    }
+
+    public System.Collections.Generic.IEnumerable<NetworkRequestModel> FilteredNetworkRequests
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(ActiveFilter) || ActiveFilter == "All")
+            {
+                return NetworkRequests;
+            }
+
+            return NetworkRequests.Where(r =>
+            {
+                string type = r.Type.ToLowerInvariant();
+                return ActiveFilter switch
+                {
+                    "Fetch/XHR" => type == "xhr" || type == "fetch",
+                    "CSS/JS" => type == "stylesheet" || type == "script",
+                    "Images" => type == "image",
+                    "Doc" => type == "document",
+                    "Other" => type != "xhr" && type != "fetch" && type != "stylesheet" && type != "script" && type != "image" && type != "document",
+                    _ => true
+                };
+            });
+        }
+    }
 
     public ThrottlingProfile? SelectedProfile
     {
@@ -66,6 +109,12 @@ public class NetworkViewModel : ViewModelBase
                 UpdateSelectedRequestDetails();
             }
         }
+    }
+
+    public MockRuleModel? SelectedMockRule
+    {
+        get => _selectedMockRule;
+        set => RaiseAndSetIfChanged(ref _selectedMockRule, value);
     }
 
     public string SelectedUrl
@@ -109,6 +158,8 @@ public class NetworkViewModel : ViewModelBase
         RemoveBlockedUrlCommand = new RelayCommand<BlockedUrlModel>(RemoveBlockedUrl);
         AddMockRuleCommand = new RelayCommand(AddMockRule);
         RemoveMockRuleCommand = new RelayCommand<MockRuleModel>(RemoveMockRule);
+
+        _networkRequests.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredNetworkRequests));
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -151,6 +202,9 @@ public class NetworkViewModel : ViewModelBase
             {
                 string url = request["url"]?.GetValue<string>() ?? "";
                 string method = request["method"]?.GetValue<string>() ?? "GET";
+                string type = e.Params["type"]?.GetValue<string>() ?? "";
+                type = DetermineType(url, type);
+                double timestamp = e.Params["timestamp"]?.GetValue<double>() ?? 0.0;
                 
                 var reqHeaders = request["headers"] as JsonObject;
                 var sbHeaders = new StringBuilder();
@@ -177,16 +231,30 @@ public class NetworkViewModel : ViewModelBase
                             initialStatus = "Mocked";
                         }
 
-                        NetworkRequests.Add(new NetworkRequestModel
+                        if (_sessionStartTime == 0.0 && timestamp > 0.0)
+                        {
+                            _sessionStartTime = timestamp;
+                        }
+
+                        var model = new NetworkRequestModel
                         {
                             RequestId = requestId,
                             Url = url,
                             Method = method,
+                            Type = type,
                             Status = initialStatus,
                             Time = "--",
-                            RequestHeaders = sbHeaders.ToString()
-                        });
+                            RequestHeaders = sbHeaders.ToString(),
+                            StartTime = timestamp > 0.0 ? timestamp : (_sessionStartTime > 0.0 ? _sessionStartTime : 0.0),
+                            EndTime = timestamp > 0.0 ? timestamp : (_sessionStartTime > 0.0 ? _sessionStartTime : 0.0)
+                        };
+                        string? postData = request["postData"]?.GetValue<string>();
+                        model.ParsePostParameters(postData);
+
+                        NetworkRequests.Add(model);
                         if (NetworkRequests.Count > 100) NetworkRequests.RemoveAt(0);
+
+                        RecalculateWaterfallTimelines();
                     }
                 });
             }
@@ -195,6 +263,8 @@ public class NetworkViewModel : ViewModelBase
         {
             string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
             var response = e.Params["response"] as JsonObject;
+            string type = e.Params["type"]?.GetValue<string>() ?? "";
+            double timestamp = e.Params["timestamp"]?.GetValue<double>() ?? 0.0;
             if (response != null && !string.IsNullOrEmpty(requestId))
             {
                 int status = response["status"]?.GetValue<int>() ?? 200;
@@ -227,10 +297,26 @@ public class NetworkViewModel : ViewModelBase
 
                         existing.Status = finalStatus;
                         existing.ResponseHeaders = sbHeaders.ToString();
+                        if (!string.IsNullOrEmpty(type))
+                        {
+                            existing.Type = type;
+                        }
+                        existing.ResponseReceivedTime = timestamp;
+                        if (timestamp > 0.0)
+                        {
+                            existing.EndTime = timestamp;
+                            double durationSec = existing.EndTime - existing.StartTime;
+                            if (durationSec < 0) durationSec = 0;
+                            existing.Time = durationSec >= 1.0 
+                                ? $"{durationSec:F2} s" 
+                                : $"{durationSec * 1000:F0} ms";
+                        }
                         if (SelectedRequest == existing)
                         {
                             UpdateSelectedRequestDetails();
                         }
+
+                        RecalculateWaterfallTimelines();
                     }
                 });
             }
@@ -238,13 +324,57 @@ public class NetworkViewModel : ViewModelBase
         else if (e.Method == "Network.loadingFinished" && e.Params != null)
         {
             string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
+            double timestamp = e.Params["timestamp"]?.GetValue<double>() ?? 0.0;
             Dispatcher.UIThread.Post(() =>
             {
                 var existing = NetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
                 if (existing != null)
                 {
-                    existing.Time = "Finished";
+                    if (timestamp > 0.0)
+                    {
+                        existing.EndTime = timestamp;
+                        double durationSec = existing.EndTime - existing.StartTime;
+                        if (durationSec < 0) durationSec = 0;
+                        existing.Time = durationSec >= 1.0 
+                            ? $"{durationSec:F2} s" 
+                            : $"{durationSec * 1000:F0} ms";
+                    }
+                    else
+                    {
+                        existing.Time = "Finished";
+                    }
                     _ = FetchResponseBodyAsync(existing);
+
+                    RecalculateWaterfallTimelines();
+                }
+            });
+        }
+        else if (e.Method == "Network.loadingFailed" && e.Params != null)
+        {
+            string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
+            double timestamp = e.Params["timestamp"]?.GetValue<double>() ?? 0.0;
+            string errorText = e.Params["errorText"]?.GetValue<string>() ?? "Failed";
+            Dispatcher.UIThread.Post(() =>
+            {
+                var existing = NetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
+                if (existing != null)
+                {
+                    if (timestamp > 0.0)
+                    {
+                        existing.EndTime = timestamp;
+                        double durationSec = existing.EndTime - existing.StartTime;
+                        if (durationSec < 0) durationSec = 0;
+                        existing.Time = durationSec >= 1.0 
+                            ? $"{durationSec:F2} s" 
+                            : $"{durationSec * 1000:F0} ms";
+                    }
+                    else
+                    {
+                        existing.Time = "Failed";
+                    }
+                    existing.Status = errorText;
+
+                    RecalculateWaterfallTimelines();
                 }
             });
         }
@@ -280,9 +410,47 @@ public class NetworkViewModel : ViewModelBase
             if (response != null)
             {
                 string body = response["body"]?.GetValue<string>() ?? "";
+                bool base64Encoded = response["base64Encoded"]?.GetValue<bool>() ?? false;
                 Dispatcher.UIThread.Post(() =>
                 {
+                    req.Base64Encoded = base64Encoded;
                     req.ResponseBody = body;
+                    if (req.Type.Equals("Image", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            byte[]? bytes = null;
+                            if (base64Encoded)
+                            {
+                                bytes = Convert.FromBase64String(body);
+                            }
+                            else
+                            {
+                                // Fallback: try decoding as base64 first (handling backends that omit the flag)
+                                try
+                                {
+                                    bytes = Convert.FromBase64String(body);
+                                }
+                                catch
+                                {
+                                    // Treat ISO-8859-1 (Latin1) to map 1-to-1 back to byte values from raw string
+                                    bytes = System.Text.Encoding.GetEncoding("ISO-8859-1").GetBytes(body);
+                                }
+                            }
+
+                            if (bytes != null)
+                            {
+                                using (var ms = new System.IO.MemoryStream(bytes))
+                                {
+                                    req.ResponseImage = new Avalonia.Media.Imaging.Bitmap(ms);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error decoding image: {ex.Message}");
+                        }
+                    }
                     if (SelectedRequest == req)
                     {
                         SelectedResponseBody = body;
@@ -300,6 +468,7 @@ public class NetworkViewModel : ViewModelBase
     {
         NetworkRequests.Clear();
         SelectedRequest = null;
+        _sessionStartTime = 0.0;
     }
 
     private void ClearData()
@@ -308,7 +477,28 @@ public class NetworkViewModel : ViewModelBase
         {
             NetworkRequests.Clear();
             SelectedRequest = null;
+            _sessionStartTime = 0.0;
         });
+    }
+
+    private void RecalculateWaterfallTimelines()
+    {
+        if (NetworkRequests.Count == 0) return;
+
+        double sessionStartTime = _sessionStartTime;
+        if (sessionStartTime == 0.0)
+        {
+            sessionStartTime = NetworkRequests.Min(r => r.StartTime);
+        }
+
+        double sessionEndTime = NetworkRequests.Max(r => Math.Max(r.StartTime, r.EndTime));
+        double totalDuration = sessionEndTime - sessionStartTime;
+        if (totalDuration <= 0) totalDuration = 1.0;
+
+        foreach (var req in NetworkRequests)
+        {
+            req.UpdateTimeline(sessionStartTime, totalDuration);
+        }
     }
 
     private void UpdateSelectedRequestDetails()
@@ -492,6 +682,34 @@ public class NetworkViewModel : ViewModelBase
         {
             return false;
         }
+    }
+
+    private static string DetermineType(string url, string? cdpType)
+    {
+        bool isPlaceholder = string.IsNullOrEmpty(cdpType) || 
+                             string.Equals(cdpType, "xhr", StringComparison.OrdinalIgnoreCase) || 
+                             string.Equals(cdpType, "fetch", StringComparison.OrdinalIgnoreCase);
+
+        if (!isPlaceholder && !string.IsNullOrEmpty(cdpType)) return cdpType;
+
+        if (!string.IsNullOrEmpty(url))
+        {
+            try
+            {
+                var uri = new Uri(url);
+                var path = uri.AbsolutePath.ToLowerInvariant();
+                if (path.EndsWith(".js") || path.EndsWith(".mjs")) return "Script";
+                if (path.EndsWith(".css")) return "Stylesheet";
+                if (path.EndsWith(".png") || path.EndsWith(".jpg") || path.EndsWith(".jpeg") || path.EndsWith(".gif") || path.EndsWith(".svg") || path.EndsWith(".webp") || path.EndsWith(".ico")) return "Image";
+                if (path.EndsWith(".html") || path.EndsWith(".htm")) return "Document";
+            }
+            catch
+            {
+                // Fallback
+            }
+        }
+
+        return !string.IsNullOrEmpty(cdpType) ? cdpType : "XHR";
     }
 }
 

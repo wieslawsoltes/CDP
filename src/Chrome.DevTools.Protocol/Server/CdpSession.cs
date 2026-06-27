@@ -132,6 +132,11 @@ public class CdpSession
         get => CurrentTargetSession?.ScriptSession;
         set { if (CurrentTargetSession != null) CurrentTargetSession.ScriptSession = value; }
     }
+    public int? ScriptSessionNodeId
+    {
+        get => CurrentTargetSession?.ScriptSessionNodeId;
+        set { if (CurrentTargetSession != null) CurrentTargetSession.ScriptSessionNodeId = value; }
+    }
 
     private bool _useLogicalTree = false;
     public bool UseLogicalTree
@@ -464,6 +469,8 @@ public class CdpSession
         Chrome.DevTools.Protocol.Domains.NetworkDomain.RemoveSession(this);
         Chrome.DevTools.Protocol.Domains.FetchDomain.RemoveSession(this);
         Chrome.DevTools.Protocol.Domains.TracingDomain.CleanupSession(this);
+        Chrome.DevTools.Protocol.Domains.ProfilerDomain.CleanupSession(this);
+        Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.RemoveSession(this);
 
         OnCleanup();
 

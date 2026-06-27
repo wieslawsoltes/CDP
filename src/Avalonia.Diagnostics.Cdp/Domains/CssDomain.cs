@@ -13,6 +13,7 @@ using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.Styling;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
@@ -47,10 +48,11 @@ public static class CssDomain
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
                     var inlineStyle = await Dispatcher.UIThread.InvokeAsync(() => GetInlineStyle(visual, nodeId));
+                    var matchedRules = await Dispatcher.UIThread.InvokeAsync(() => GetMatchedRules(visual));
                     return new JsonObject
                     {
                         ["inlineStyle"] = inlineStyle,
-                        ["matchedCSSRules"] = new JsonArray(),
+                        ["matchedCSSRules"] = matchedRules,
                         ["pseudoElements"] = new JsonArray(),
                         ["inherited"] = new JsonArray(),
                         ["cssKeyframesRules"] = new JsonArray()
@@ -730,6 +732,48 @@ public static class CssDomain
         };
     }
 
+    private static Thickness ParseCssThickness(string value)
+    {
+        var parts = value.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+        var vals = new double[parts.Length];
+        for (int i = 0; i < parts.Length; i++)
+        {
+            string p = parts[i].Trim();
+            if (p.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+            {
+                p = p.Substring(0, p.Length - 2).Trim();
+            }
+            vals[i] = double.TryParse(p, NumberStyles.Any, CultureInfo.InvariantCulture, out double d) ? d : 0.0;
+        }
+
+        if (vals.Length == 1)
+        {
+            return new Thickness(vals[0]);
+        }
+        if (vals.Length == 2)
+        {
+            double v = vals[0];
+            double h = vals[1];
+            return new Thickness(h, v, h, v);
+        }
+        if (vals.Length == 3)
+        {
+            double t = vals[0];
+            double h = vals[1];
+            double b = vals[2];
+            return new Thickness(h, t, h, b);
+        }
+        if (vals.Length >= 4)
+        {
+            double t = vals[0];
+            double r = vals[1];
+            double b = vals[2];
+            double l = vals[3];
+            return new Thickness(l, t, r, b);
+        }
+        return new Thickness();
+    }
+
     private static void ApplyStyleText(Control control, string styleText)
     {
         var statements = styleText.Split(';', StringSplitOptions.RemoveEmptyEntries);
@@ -741,28 +785,123 @@ public static class CssDomain
             var rawName = statement.Substring(0, colonIndex).Trim();
             var rawValue = statement.Substring(colonIndex + 1).Trim();
 
-            // Strip "px" if any for sizes
-            if (rawValue.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+            // Strip "px" if any for sizes (if it's not a shorthand with multiple px values)
+            string normalizedValue = rawValue;
+            if (normalizedValue.EndsWith("px", StringComparison.OrdinalIgnoreCase) && !normalizedValue.Contains(" ") && !normalizedValue.Contains(","))
             {
-                rawValue = rawValue.Substring(0, rawValue.Length - 2).Trim();
+                normalizedValue = normalizedValue.Substring(0, normalizedValue.Length - 2).Trim();
             }
 
-            // Map standard CSS properties to Avalonia properties
-            string propName = rawName.ToLowerInvariant() switch
-            {
-                "width" => "Width",
-                "height" => "Height",
-                "opacity" => "Opacity",
-                "background" => "Background",
-                "background-color" => "Background",
-                "padding" => "Padding",
-                "margin" => "Margin",
-                "font-size" => "FontSize",
-                "font-family" => "FontFamily",
-                _ => rawName
-            };
+            string lowerName = rawName.ToLowerInvariant();
+            
+            // Check if it is a shorthand or longhand thickness property
+            string basePropName = "";
+            string component = "";
+            bool isThickness = false;
 
-            SetControlProperty(control, propName, rawValue);
+            if (lowerName == "margin")
+            {
+                basePropName = "Margin";
+                isThickness = true;
+            }
+            else if (lowerName.StartsWith("margin-", StringComparison.OrdinalIgnoreCase))
+            {
+                basePropName = "Margin";
+                component = lowerName.Substring("margin-".Length);
+                isThickness = true;
+            }
+            else if (lowerName == "padding")
+            {
+                basePropName = "Padding";
+                isThickness = true;
+            }
+            else if (lowerName.StartsWith("padding-", StringComparison.OrdinalIgnoreCase))
+            {
+                basePropName = "Padding";
+                component = lowerName.Substring("padding-".Length);
+                isThickness = true;
+            }
+            else if (lowerName == "border-thickness" || lowerName == "border-width" || lowerName == "border")
+            {
+                basePropName = "BorderThickness";
+                isThickness = true;
+            }
+            else if (lowerName.StartsWith("border-", StringComparison.OrdinalIgnoreCase))
+            {
+                basePropName = "BorderThickness";
+                var rest = lowerName.Substring("border-".Length);
+                if (rest.EndsWith("-width"))
+                {
+                    component = rest.Substring(0, rest.Length - "-width".Length);
+                }
+                else
+                {
+                    component = rest;
+                }
+                isThickness = true;
+            }
+
+            if (isThickness)
+            {
+                Thickness currentThickness = new Thickness();
+                var currentVal = GetControlProperty(control, basePropName);
+                if (currentVal is Thickness t)
+                {
+                    currentThickness = t;
+                }
+
+                if (string.IsNullOrEmpty(component))
+                {
+                    // Shorthand margin/padding/border
+                    Thickness parsedThickness = ParseCssThickness(rawValue);
+                    string newThicknessStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", 
+                        parsedThickness.Left, parsedThickness.Top, parsedThickness.Right, parsedThickness.Bottom);
+                    SetControlProperty(control, basePropName, newThicknessStr);
+                }
+                else if (component == "top" || component == "right" || component == "bottom" || component == "left")
+                {
+                    // Longhand margin-top/padding-left/etc.
+                    string cleanVal = rawValue.Trim();
+                    if (cleanVal.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+                    {
+                        cleanVal = cleanVal.Substring(0, cleanVal.Length - 2).Trim();
+                    }
+                    double valDouble = double.TryParse(cleanVal, NumberStyles.Any, CultureInfo.InvariantCulture, out double d) ? d : 0.0;
+
+                    double left = currentThickness.Left;
+                    double top = currentThickness.Top;
+                    double right = currentThickness.Right;
+                    double bottom = currentThickness.Bottom;
+
+                    switch (component)
+                    {
+                        case "top": top = valDouble; break;
+                        case "right": right = valDouble; break;
+                        case "bottom": bottom = valDouble; break;
+                        case "left": left = valDouble; break;
+                    }
+
+                    string newThicknessStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", left, top, right, bottom);
+                    SetControlProperty(control, basePropName, newThicknessStr);
+                }
+            }
+            else
+            {
+                // Map standard CSS properties to Avalonia properties
+                string propName = lowerName switch
+                {
+                    "width" => "Width",
+                    "height" => "Height",
+                    "opacity" => "Opacity",
+                    "background" => "Background",
+                    "background-color" => "Background",
+                    "font-size" => "FontSize",
+                    "font-family" => "FontFamily",
+                    _ => rawName
+                };
+
+                SetControlProperty(control, propName, normalizedValue);
+            }
         }
     }
 
@@ -998,5 +1137,395 @@ public static class CssDomain
             return control.GetValue(avProperty);
         }
         return null;
+    }
+
+    private static JsonArray GetMatchedRules(Visual visual)
+    {
+        var matchedCSSRules = new JsonArray();
+        if (visual is Control control)
+        {
+            var stylesToProcess = new List<Avalonia.Styling.Style>();
+
+            // 1. Application-wide styles
+            if (Avalonia.Application.Current?.Styles != null)
+            {
+                foreach (var style in Avalonia.Application.Current.Styles)
+                {
+                    CollectStyles(style, stylesToProcess);
+                }
+            }
+
+            // 2. Logical parents (furthest to nearest)
+            var parents = new List<StyledElement>();
+            var parent = control.Parent;
+            while (parent != null)
+            {
+                parents.Add(parent);
+                parent = parent.Parent;
+            }
+            parents.Reverse();
+
+            foreach (var p in parents)
+            {
+                if (p.Styles != null)
+                {
+                    foreach (var style in p.Styles)
+                    {
+                        CollectStyles(style, stylesToProcess);
+                    }
+                }
+            }
+
+            // 3. Selected control styles
+            if (control.Styles != null)
+            {
+                foreach (var style in control.Styles)
+                {
+                    CollectStyles(style, stylesToProcess);
+                }
+            }
+
+            // Now match and extract
+            foreach (var style in stylesToProcess)
+            {
+                var selectorText = style.Selector?.ToString() ?? "";
+                if (SelectorMatchesControl(control, selectorText))
+                {
+                    var cssProperties = new JsonArray();
+                    if (style.Setters != null)
+                    {
+                        foreach (var setter in style.Setters)
+                        {
+                            if (setter is Setter concreteSetter && concreteSetter.Property != null)
+                            {
+                                string propName = ToCssPropertyName(concreteSetter.Property.Name);
+                                string propVal = concreteSetter.Value?.ToString() ?? "";
+                                
+                                cssProperties.Add(new JsonObject
+                                {
+                                    ["name"] = propName,
+                                    ["value"] = propVal,
+                                    ["important"] = false,
+                                    ["implicit"] = false,
+                                    ["text"] = $"{propName}: {propVal};",
+                                    ["parsedOk"] = true,
+                                    ["disabled"] = false
+                                });
+                            }
+                        }
+                    }
+
+                    matchedCSSRules.Add(new JsonObject
+                    {
+                        ["origin"] = "regular",
+                        ["selectorList"] = new JsonObject
+                        {
+                            ["selectors"] = new JsonArray { new JsonObject { ["text"] = selectorText } },
+                            ["text"] = selectorText
+                        },
+                        ["style"] = new JsonObject
+                        {
+                            ["cssProperties"] = cssProperties,
+                            ["shorthandEntries"] = new JsonArray(),
+                            ["cssText"] = string.Join(" ", cssProperties.Cast<JsonObject>().Select(p => p["text"]?.GetValue<string>() ?? ""))
+                        }
+                    });
+                }
+            }
+        }
+
+        return matchedCSSRules;
+    }
+
+    private static void CollectStyles(IStyle style, List<Avalonia.Styling.Style> result)
+    {
+        if (style == null) return;
+
+        if (style is Avalonia.Styling.Style concreteStyle)
+        {
+            result.Add(concreteStyle);
+        }
+        else if (style is System.Collections.IEnumerable enumerable)
+        {
+            foreach (var child in enumerable)
+            {
+                if (child is IStyle childStyle)
+                {
+                    CollectStyles(childStyle, result);
+                }
+            }
+        }
+    }
+
+    private static bool SelectorMatchesControl(Control control, string selectorText)
+    {
+        if (string.IsNullOrWhiteSpace(selectorText))
+            return false;
+
+        // Split by comma first, since comma separates multiple independent selectors (e.g. "Button.primary, TextBlock.header")
+        var independentSelectors = selectorText.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var sel in independentSelectors)
+        {
+            if (SelectorSegmentMatches(control, sel.Trim()))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private class SelectorToken
+    {
+        public string Text { get; set; } = "";
+        public string Combinator { get; set; } = " "; // " " (descendant) or ">" (child)
+    }
+
+    private static List<SelectorToken> ParseSelectorTokens(string selector)
+    {
+        var result = new List<SelectorToken>();
+        if (string.IsNullOrEmpty(selector)) return result;
+
+        // Normalize spaces around '>'
+        string normalized = selector;
+        // Replace multiple whitespace characters with a single space, but handle '>'
+        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
+        normalized = normalized.Replace(" > ", ">").Replace("> ", ">").Replace(" >", ">");
+
+        // Now split by space. Each part might contain '>'
+        var parts = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            // Within each part, it could be split by '>'
+            var subParts = part.Split('>');
+            for (int i = 0; i < subParts.Length; i++)
+            {
+                string text = subParts[i].Trim();
+                if (string.IsNullOrEmpty(text)) continue;
+
+                var token = new SelectorToken { Text = text };
+                if (i > 0)
+                {
+                    token.Combinator = ">";
+                }
+                else if (result.Count > 0)
+                {
+                    token.Combinator = " "; // Separated by space in original string
+                }
+                result.Add(token);
+            }
+        }
+        return result;
+    }
+
+    private static Control? GetParent(Control control)
+    {
+        var parentVisual = SelectorEngine.GetLogicalParent(control) ?? Avalonia.VisualTree.VisualExtensions.GetVisualParent(control);
+        return parentVisual as Control;
+    }
+
+    private static bool SelectorSegmentMatches(Control control, string selector)
+    {
+        if (string.IsNullOrEmpty(selector)) return false;
+
+        var tokens = ParseSelectorTokens(selector);
+        if (tokens.Count == 0) return false;
+
+        // The last token must match the current control
+        var targetToken = tokens[^1];
+        if (!SingleSegmentMatches(control, targetToken.Text))
+        {
+            return false;
+        }
+
+        // Now match ancestors from right to left
+        Control current = control;
+        for (int i = tokens.Count - 2; i >= 0; i--)
+        {
+            var token = tokens[i];
+            var nextToken = tokens[i + 1];
+
+            if (nextToken.Combinator == ">")
+            {
+                var parent = GetParent(current);
+                if (parent == null || !SingleSegmentMatches(parent, token.Text))
+                {
+                    return false;
+                }
+                current = parent;
+            }
+            else
+            {
+                bool found = false;
+                var parent = GetParent(current);
+                while (parent != null)
+                {
+                    if (SingleSegmentMatches(parent, token.Text))
+                    {
+                        found = true;
+                        current = parent;
+                        break;
+                    }
+                    parent = GetParent(parent);
+                }
+                if (!found)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool SingleSegmentMatches(Control control, string target)
+    {
+        if (string.IsNullOrEmpty(target) || target == "*") return true;
+
+        // Parse target segment components: type name, classes, name, pseudo-classes
+        string typeName = "";
+        var classes = new List<string>();
+        string? nameId = null;
+
+        int i = 0;
+        // Parse type name (until first special char: '.', ':', '#', '[')
+        while (i < target.Length && target[i] != '.' && target[i] != ':' && target[i] != '#' && target[i] != '[')
+        {
+            i++;
+        }
+        if (i > 0)
+        {
+            typeName = target.Substring(0, i);
+        }
+
+        // Parse the rest of the components
+        while (i < target.Length)
+        {
+            char marker = target[i];
+            i++;
+            int start = i;
+            while (i < target.Length && target[i] != '.' && target[i] != ':' && target[i] != '#' && target[i] != '[')
+            {
+                i++;
+            }
+            string token = target.Substring(start, i - start);
+            if (string.IsNullOrEmpty(token)) continue;
+
+            if (marker == '.')
+            {
+                classes.Add(token);
+            }
+            else if (marker == '#')
+            {
+                nameId = token;
+            }
+            else if (marker == ':')
+            {
+                classes.Add(":" + token);
+            }
+        }
+
+        // Validate Type Name
+        if (!string.IsNullOrEmpty(typeName) && typeName != "*")
+        {
+            var typeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var currentType = control.GetType();
+            while (currentType != null && currentType != typeof(object))
+            {
+                typeNames.Add(currentType.Name);
+                currentType = currentType.BaseType;
+            }
+            if (!typeNames.Contains(typeName))
+            {
+                return false;
+            }
+        }
+
+        // Validate Classes & Pseudo-classes
+        foreach (var cls in classes)
+        {
+            if (cls.StartsWith(":"))
+            {
+                string pseudoName = cls.Substring(1);
+                bool hasPseudo = false;
+                var pseudoProp = typeof(Avalonia.StyledElement).GetProperty("PseudoClasses", 
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (pseudoProp != null && pseudoProp.GetValue(control) is System.Collections.IEnumerable pseudoClasses)
+                {
+                    foreach (var pc in pseudoClasses)
+                    {
+                        if (pc != null)
+                        {
+                            string pcStr = pc.ToString() ?? "";
+                            if (string.Equals(pcStr, pseudoName, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(pcStr, cls, StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasPseudo = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!hasPseudo) return false;
+            }
+            else
+            {
+                bool hasClass = false;
+                foreach (var c in control.Classes)
+                {
+                    if (string.Equals(c, cls, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasClass = true;
+                        break;
+                    }
+                }
+                if (!hasClass) return false;
+            }
+        }
+
+        // Validate Control Name
+        if (nameId != null)
+        {
+            if (!string.Equals(control.Name, nameId, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string ToCssPropertyName(string avaloniaPropName)
+    {
+        if (string.IsNullOrEmpty(avaloniaPropName)) return "";
+        
+        string lowerName = avaloniaPropName.ToLowerInvariant();
+        if (lowerName == "background") return "background";
+        if (lowerName == "padding") return "padding";
+        if (lowerName == "margin") return "margin";
+        if (lowerName == "fontsize") return "font-size";
+        if (lowerName == "fontfamily") return "font-family";
+        if (lowerName == "fontweight") return "font-weight";
+        if (lowerName == "foreground") return "color";
+        if (lowerName == "borderthickness") return "border-width";
+        if (lowerName == "borderbrush") return "border-color";
+
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < avaloniaPropName.Length; i++)
+        {
+            char c = avaloniaPropName[i];
+            if (char.IsUpper(c))
+            {
+                if (i > 0)
+                {
+                    sb.Append('-');
+                }
+                sb.Append(char.ToLowerInvariant(c));
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+        return sb.ToString();
     }
 }

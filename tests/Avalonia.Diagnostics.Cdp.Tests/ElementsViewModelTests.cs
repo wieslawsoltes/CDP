@@ -59,6 +59,18 @@ public class ElementsViewModelTests
             {
                 response["nodes"] = new JsonArray();
             }
+            else if (method == "DOM.getBoxModel")
+            {
+                response["model"] = new JsonObject
+                {
+                    ["margin"] = new JsonArray { 10.0, 10.0, 110.0, 10.0, 110.0, 110.0, 10.0, 110.0 },
+                    ["border"] = new JsonArray { 20.0, 20.0, 100.0, 20.0, 100.0, 100.0, 20.0, 100.0 },
+                    ["padding"] = new JsonArray { 25.0, 25.0, 95.0, 25.0, 95.0, 95.0, 25.0, 95.0 },
+                    ["content"] = new JsonArray { 30.0, 30.0, 90.0, 30.0, 90.0, 90.0, 30.0, 90.0 },
+                    ["width"] = 80.0,
+                    ["height"] = 80.0
+                };
+            }
             return Task.FromResult(response);
         }
     }
@@ -155,5 +167,59 @@ public class ElementsViewModelTests
         Assert.NotNull(removeAttrCmd.Parameters);
         Assert.Equal(42, removeAttrCmd.Parameters["nodeId"]?.GetValue<int>());
         Assert.Equal("class", removeAttrCmd.Parameters["name"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task TestCommitBoxModelEdit()
+    {
+        var spy = new SpyCdpService();
+        var vm = new ElementsViewModel(spy);
+        var node = new DomNodeModel(42, "Button");
+        vm.SelectedNode = node;
+        
+        vm.BoxMarginTop = "15";
+        spy.SentCommands.Clear();
+        
+        await vm.CommitEditAsync("MarginTop");
+        
+        var setStylesCmd = spy.SentCommands.FirstOrDefault(c => c.Method == "CSS.setStyleTexts");
+        Assert.NotNull(setStylesCmd.Parameters);
+        var edits = setStylesCmd.Parameters["edits"] as JsonArray;
+        Assert.NotNull(edits);
+        var edit = edits[0] as JsonObject;
+        Assert.NotNull(edit);
+        Assert.Equal("42", edit["styleSheetId"]?.GetValue<string>());
+        Assert.Equal("margin-top: 15px;", edit["text"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task TestGetBoxModelOnSelection()
+    {
+        var spy = new SpyCdpService();
+        var vm = new ElementsViewModel(spy);
+        var node = new DomNodeModel(42, "Button");
+        
+        vm.SelectedNode = node;
+        
+        // Wait a short bit to let selection tasks run
+        await Task.Delay(150);
+        
+        Assert.Equal("10", vm.BoxMarginTop);
+        Assert.Equal("10", vm.BoxMarginRight);
+        Assert.Equal("10", vm.BoxMarginBottom);
+        Assert.Equal("10", vm.BoxMarginLeft);
+
+        Assert.Equal("5", vm.BoxBorderTop);
+        Assert.Equal("5", vm.BoxBorderRight);
+        Assert.Equal("5", vm.BoxBorderBottom);
+        Assert.Equal("5", vm.BoxBorderLeft);
+
+        Assert.Equal("5", vm.BoxPaddingTop);
+        Assert.Equal("5", vm.BoxPaddingRight);
+        Assert.Equal("5", vm.BoxPaddingBottom);
+        Assert.Equal("5", vm.BoxPaddingLeft);
+
+        Assert.Equal("80", vm.BoxWidth);
+        Assert.Equal("80", vm.BoxHeight);
     }
 }

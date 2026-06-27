@@ -18,8 +18,80 @@ public class SourcesViewModel : ViewModelBase
     private string _selectedFileContent = "";
     private WorkspaceFileNode? _selectedFile;
     private object? _selectedFileNode;
+    private string _searchQuery = "";
+    private bool _searchCaseSensitive = false;
+    private string _breakpointCondition = "";
+    private ObservableCollection<SearchResultModel> _searchResults = new();
+
+    private int? _pendingScrollLine;
+    private bool _isDebuggerPaused;
+    private int? _activeDebugLine;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _breakpointIds = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _breakpointDisplayStrings = new();
+
+    public int? PendingScrollLine
+    {
+        get => _pendingScrollLine;
+        set => RaiseAndSetIfChanged(ref _pendingScrollLine, value);
+    }
+
+    public bool IsDebuggerPaused
+    {
+        get => _isDebuggerPaused;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isDebuggerPaused, value))
+            {
+                RaiseDebuggerCommandCanExecuteChanged();
+            }
+        }
+    }
+
+    public int? ActiveDebugLine
+    {
+        get => _activeDebugLine;
+        set => RaiseAndSetIfChanged(ref _activeDebugLine, value);
+    }
+
+    public ObservableCollection<string> CallStack { get; } = new();
+    public ObservableCollection<System.Collections.Generic.KeyValuePair<string, string>> ScopeVariables { get; } = new();
+    public ObservableCollection<string> Breakpoints { get; } = new();
+
+    public System.Windows.Input.ICommand ResumeCommand { get; }
+    public System.Windows.Input.ICommand StepOverCommand { get; }
+    public System.Windows.Input.ICommand StepIntoCommand { get; }
+    public System.Windows.Input.ICommand StepOutCommand { get; }
+    public System.Windows.Input.ICommand ToggleBreakpointCommand { get; }
 
     public HierarchicalModel<WorkspaceFileNode> HierarchicalWorkspaceFiles { get; }
+
+    public string SearchQuery
+    {
+        get => _searchQuery;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _searchQuery, value))
+            {
+                ((RelayCommand)SearchCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool SearchCaseSensitive
+    {
+        get => _searchCaseSensitive;
+        set => RaiseAndSetIfChanged(ref _searchCaseSensitive, value);
+    }
+
+    public string BreakpointCondition
+    {
+        get => _breakpointCondition;
+        set => RaiseAndSetIfChanged(ref _breakpointCondition, value);
+    }
+
+    public ObservableCollection<SearchResultModel> SearchResults => _searchResults;
+
+    public System.Windows.Input.ICommand SearchCommand { get; }
 
     public object? SelectedFileNode
     {
@@ -36,6 +108,10 @@ public class SourcesViewModel : ViewModelBase
             }
         }
     }
+
+    public bool IsFileSelected => SelectedFile != null && !SelectedFile.IsDirectory;
+
+    public System.Windows.Input.ICommand SaveFileCommand { get; }
 
     public ObservableCollection<WorkspaceFileNode> WorkspaceFiles => _workspaceFiles;
 
@@ -72,6 +148,12 @@ public class SourcesViewModel : ViewModelBase
                         SelectedFileNode = node;
                     }
                 }
+                OnPropertyChanged(nameof(IsFileSelected));
+                ((RelayCommand<string>)SaveFileCommand).RaiseCanExecuteChanged();
+                if (ToggleBreakpointCommand != null)
+                {
+                    ((RelayCommand<int>)ToggleBreakpointCommand).RaiseCanExecuteChanged();
+                }
             }
         }
     }
@@ -80,6 +162,42 @@ public class SourcesViewModel : ViewModelBase
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
+        _cdpService.EventReceived += CdpService_EventReceived;
+
+        SaveFileCommand = new RelayCommand<string>(
+            async (text) => await SaveFileAsync(text),
+            (text) => _cdpService.IsConnected && SelectedFile != null && !SelectedFile.IsDirectory
+        );
+
+        SearchCommand = new RelayCommand(
+            async () => await SearchAsync(),
+            () => _cdpService.IsConnected && !string.IsNullOrWhiteSpace(SearchQuery)
+        );
+
+        ResumeCommand = new RelayCommand(
+            async () => await ResumeAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused
+        );
+
+        StepOverCommand = new RelayCommand(
+            async () => await StepOverAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused
+        );
+
+        StepIntoCommand = new RelayCommand(
+            async () => await StepIntoAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused
+        );
+
+        StepOutCommand = new RelayCommand(
+            async () => await StepOutAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused
+        );
+
+        ToggleBreakpointCommand = new RelayCommand<int>(
+            async (line) => await ToggleBreakpointAsync(line),
+            (line) => _cdpService.IsConnected && SelectedFile != null && !SelectedFile.IsDirectory
+        );
 
         var options = new HierarchicalOptions<WorkspaceFileNode>
         {
@@ -89,6 +207,15 @@ public class SourcesViewModel : ViewModelBase
         };
         HierarchicalWorkspaceFiles = new HierarchicalModel<WorkspaceFileNode>(options);
         HierarchicalWorkspaceFiles.SetRoots(WorkspaceFiles);
+    }
+
+    private void RaiseDebuggerCommandCanExecuteChanged()
+    {
+        if (ResumeCommand != null) ((RelayCommand)ResumeCommand).RaiseCanExecuteChanged();
+        if (StepOverCommand != null) ((RelayCommand)StepOverCommand).RaiseCanExecuteChanged();
+        if (StepIntoCommand != null) ((RelayCommand)StepIntoCommand).RaiseCanExecuteChanged();
+        if (StepOutCommand != null) ((RelayCommand)StepOutCommand).RaiseCanExecuteChanged();
+        if (ToggleBreakpointCommand != null) ((RelayCommand<int>)ToggleBreakpointCommand).RaiseCanExecuteChanged();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -103,6 +230,9 @@ public class SourcesViewModel : ViewModelBase
             {
                 ClearData();
             }
+            ((RelayCommand<string>)SaveFileCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)SearchCommand).RaiseCanExecuteChanged();
+            RaiseDebuggerCommandCanExecuteChanged();
         }
     }
 
@@ -110,6 +240,7 @@ public class SourcesViewModel : ViewModelBase
     {
         try
         {
+            await _cdpService.SendCommandAsync("Debugger.enable");
             var sourcesRes = await _cdpService.SendCommandAsync("Sources.getWorkspaceFiles");
             var files = sourcesRes["files"] as JsonArray;
             if (files != null)
@@ -131,7 +262,284 @@ public class SourcesViewModel : ViewModelBase
             SelectedFileName = "Select a file from workspace";
             SelectedFileContent = "";
             SelectedFile = null;
+            SearchResults.Clear();
+            ActiveDebugLine = null;
+            CallStack.Clear();
+            ScopeVariables.Clear();
+            IsDebuggerPaused = false;
+            _breakpointIds.Clear();
+            _breakpointDisplayStrings.Clear();
+            Breakpoints.Clear();
         });
+    }
+
+    private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
+    {
+        if (e.Method == "Debugger.paused" && e.Params != null)
+        {
+            var callFrames = e.Params["callFrames"] as JsonArray;
+            if (callFrames != null && callFrames.Count > 0)
+            {
+                var firstFrame = callFrames[0] as JsonObject;
+                if (firstFrame != null)
+                {
+                    string url = firstFrame["url"]?.GetValue<string>() ?? "";
+                    var location = firstFrame["location"] as JsonObject;
+                    int line = 1;
+                    if (location != null)
+                    {
+                        line = location["lineNumber"]?.GetValue<int>() ?? 0;
+                    }
+
+                    var stackList = new System.Collections.Generic.List<string>();
+                    foreach (var frameNode in callFrames)
+                    {
+                        if (frameNode is JsonObject frame)
+                        {
+                            string funcName = frame["functionName"]?.GetValue<string>() ?? "unknown";
+                            string frameUrl = frame["url"]?.GetValue<string>() ?? "";
+                            var frameLoc = frame["location"] as JsonObject;
+                            int frameLine = frameLoc != null ? (frameLoc["lineNumber"]?.GetValue<int>() ?? 0) : 0;
+                            string fileName = System.IO.Path.GetFileName(frameUrl);
+                            stackList.Add($"{funcName} ({fileName}:{frameLine})");
+                        }
+                    }
+
+                    var scopeChain = firstFrame["scopeChain"] as JsonArray;
+                    string objectIdToQuery = "";
+                    if (scopeChain != null && scopeChain.Count > 0)
+                    {
+                        var firstScope = scopeChain[0] as JsonObject;
+                        var obj = firstScope?["object"] as JsonObject;
+                        objectIdToQuery = obj?["objectId"]?.GetValue<string>() ?? "";
+                    }
+
+                    _ = UpdateDebuggerPausedStateAsync(url, line, stackList, objectIdToQuery);
+                }
+            }
+        }
+        else if (e.Method == "Debugger.resumed")
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                ActiveDebugLine = null;
+                CallStack.Clear();
+                ScopeVariables.Clear();
+                IsDebuggerPaused = false;
+            });
+        }
+    }
+
+    private async Task UpdateDebuggerPausedStateAsync(string url, int line, System.Collections.Generic.List<string> stackList, string scopeObjectId)
+    {
+        var scopeVarsList = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+
+        if (!string.IsNullOrEmpty(scopeObjectId))
+        {
+            try
+            {
+                var propsRes = await _cdpService.SendCommandAsync("Runtime.getProperties", new JsonObject { ["objectId"] = scopeObjectId });
+                var results = propsRes?["result"] as JsonArray;
+                if (results != null)
+                {
+                    foreach (var p in results)
+                    {
+                        if (p is JsonObject propObj)
+                        {
+                            string name = propObj["name"]?.GetValue<string>() ?? "";
+                            var valObj = propObj["value"] as JsonObject;
+                            string val = valObj?["value"]?.ToString() ?? valObj?["description"]?.GetValue<string>() ?? "null";
+                            scopeVarsList.Add(new System.Collections.Generic.KeyValuePair<string, string>(name, val));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to get scope properties: {ex.Message}");
+            }
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            CallStack.Clear();
+            foreach (var item in stackList)
+            {
+                CallStack.Add(item);
+            }
+
+            ScopeVariables.Clear();
+            foreach (var item in scopeVarsList)
+            {
+                ScopeVariables.Add(item);
+            }
+
+            IsDebuggerPaused = true;
+
+            var fileNode = FindFileBySuffix(url);
+            if (fileNode != null)
+            {
+                ActiveDebugLine = line;
+                SelectedFile = fileNode;
+                PendingScrollLine = line;
+            }
+        });
+    }
+
+    private async Task ResumeAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.resume");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Resume failed: {ex.Message}");
+        }
+    }
+
+    private async Task StepOverAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.stepOver");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"StepOver failed: {ex.Message}");
+        }
+    }
+
+    private async Task StepIntoAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.stepInto");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"StepInto failed: {ex.Message}");
+        }
+    }
+
+    private async Task StepOutAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.stepOut");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"StepOut failed: {ex.Message}");
+        }
+    }
+
+    public async Task ToggleBreakpointAsync(int line)
+    {
+        if (SelectedFile == null || SelectedFile.IsDirectory || !_cdpService.IsConnected)
+        {
+            return;
+        }
+
+        string url = SelectedFile.Path;
+        string key = $"{url}:{line}";
+
+        if (_breakpointIds.TryGetValue(key, out var breakpointId))
+        {
+            try
+            {
+                var p = new JsonObject { ["breakpointId"] = breakpointId };
+                await _cdpService.SendCommandAsync("Debugger.removeBreakpoint", p);
+                _breakpointIds.TryRemove(key, out _);
+                if (_breakpointDisplayStrings.TryRemove(key, out var displayStr))
+                {
+                    Dispatcher.UIThread.Post(() => Breakpoints.Remove(displayStr));
+                }
+                else
+                {
+                    string fallbackDisplayStr = $"{SelectedFile.Name}:{line}";
+                    Dispatcher.UIThread.Post(() => Breakpoints.Remove(fallbackDisplayStr));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Remove breakpoint failed: {ex.Message}");
+            }
+        }
+        else
+        {
+            try
+            {
+                var p = new JsonObject
+                {
+                    ["url"] = url,
+                    ["lineNumber"] = line
+                };
+                string condition = BreakpointCondition;
+                if (!string.IsNullOrWhiteSpace(condition))
+                {
+                    p["condition"] = condition;
+                }
+                var response = await _cdpService.SendCommandAsync("Debugger.setBreakpointByUrl", p);
+                if (response != null)
+                {
+                    string returnedId = response["breakpointId"]?.GetValue<string>() ?? key;
+                    _breakpointIds[key] = returnedId;
+                    string displayStr = $"{SelectedFile.Name}:{line}";
+                    if (!string.IsNullOrWhiteSpace(condition))
+                    {
+                        displayStr += $" (if: {condition})";
+                    }
+                    _breakpointDisplayStrings[key] = displayStr;
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!Breakpoints.Contains(displayStr))
+                        {
+                            Breakpoints.Add(displayStr);
+                        }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Set breakpoint failed: {ex.Message}");
+            }
+        }
+    }
+
+    public WorkspaceFileNode? FindFileBySuffix(string suffixPath)
+    {
+        if (string.IsNullOrEmpty(suffixPath)) return null;
+        var suffix = suffixPath.Replace('\\', '/');
+        return FindFileBySuffix(WorkspaceFiles, suffix);
+    }
+
+    private WorkspaceFileNode? FindFileBySuffix(ObservableCollection<WorkspaceFileNode> nodes, string suffix)
+    {
+        foreach (var node in nodes)
+        {
+            if (!node.IsDirectory)
+            {
+                var normalizedPath = node.Path.Replace('\\', '/');
+                if (normalizedPath.EndsWith(suffix, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return node;
+                }
+            }
+            else
+            {
+                var found = FindFileBySuffix(node.Children, suffix);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private void LoadWorkspaceFiles(JsonArray filesArray)
@@ -176,6 +584,32 @@ public class SourcesViewModel : ViewModelBase
         }
     }
 
+    private async Task SaveFileAsync(string content)
+    {
+        if (SelectedFile == null || SelectedFile.IsDirectory || !_cdpService.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            var p = new JsonObject 
+            { 
+                ["path"] = SelectedFile.Path,
+                ["content"] = content
+            };
+            var response = await _cdpService.SendCommandAsync("Sources.setFileContent", p);
+            if (response != null && response["success"]?.GetValue<bool>() == true)
+            {
+                SelectedFileContent = content;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Save file failed: {ex.Message}");
+        }
+    }
+
     private async Task LoadFileContentAsync()
     {
         if (SelectedFile == null || SelectedFile.IsDirectory)
@@ -199,6 +633,73 @@ public class SourcesViewModel : ViewModelBase
         catch (Exception ex)
         {
             SelectedFileContent = $"Error loading content: {ex.Message}";
+        }
+    }
+
+    public WorkspaceFileNode? FindFileByPath(string path)
+    {
+        return FindFileByPath(WorkspaceFiles, path);
+    }
+
+    private WorkspaceFileNode? FindFileByPath(ObservableCollection<WorkspaceFileNode> nodes, string path)
+    {
+        foreach (var node in nodes)
+        {
+            if (!node.IsDirectory && node.Path == path)
+            {
+                return node;
+            }
+            if (node.IsDirectory)
+            {
+                var found = FindFileByPath(node.Children, path);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    public async Task SearchAsync()
+    {
+        if (!_cdpService.IsConnected || string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            return;
+        }
+
+        try
+        {
+            var p = new JsonObject
+            {
+                ["query"] = SearchQuery,
+                ["caseSensitive"] = SearchCaseSensitive
+            };
+
+            var response = await _cdpService.SendCommandAsync("Sources.searchInWorkspace", p);
+            if (response != null && response["matches"] is JsonArray matches)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    SearchResults.Clear();
+                    foreach (var matchNode in matches)
+                    {
+                        if (matchNode is JsonObject matchObj)
+                        {
+                            SearchResults.Add(new SearchResultModel
+                            {
+                                Path = matchObj["path"]?.GetValue<string>() ?? "",
+                                LineNumber = matchObj["lineNumber"]?.GetValue<int>() ?? 0,
+                                LineContent = matchObj["lineContent"]?.GetValue<string>() ?? ""
+                            });
+                        }
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Search failed: {ex.Message}");
         }
     }
 }

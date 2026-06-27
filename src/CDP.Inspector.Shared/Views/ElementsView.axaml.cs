@@ -84,6 +84,100 @@ public partial class ElementsView : UserControl
         };
     }
 
+    private void OnBoxValueDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        if (sender is Control control && control.Tag is string field)
+        {
+            CdpInspectorApp.ViewModels.ElementsViewModel? evm = null;
+            if (DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel mvm)
+            {
+                evm = mvm.Elements;
+            }
+            else if (DataContext is CdpInspectorApp.ViewModels.ElementsViewModel directEvm)
+            {
+                evm = directEvm;
+            }
+
+            if (evm != null)
+            {
+                evm.StartEdit(field);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var textBox = this.Find<TextBox>("txt" + field);
+                    if (textBox != null)
+                    {
+                        textBox.Focus();
+                        textBox.SelectAll();
+                    }
+                }, Avalonia.Threading.DispatcherPriority.Input);
+            }
+        }
+    }
+
+    private void OnBoxTextBoxKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        CdpInspectorApp.ViewModels.ElementsViewModel? evm = null;
+        if (DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel mvm)
+        {
+            evm = mvm.Elements;
+        }
+        else if (DataContext is CdpInspectorApp.ViewModels.ElementsViewModel directEvm)
+        {
+            evm = directEvm;
+        }
+
+        if (evm != null)
+        {
+            if (e.Key == Avalonia.Input.Key.Enter && sender is TextBox textBox && textBox.Tag is string field)
+            {
+                _ = evm.CommitEditAsync(field);
+            }
+            else if (e.Key == Avalonia.Input.Key.Escape)
+            {
+                evm.CancelAllEdits();
+            }
+        }
+    }
+
+    private void OnBoxTextBoxLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        CdpInspectorApp.ViewModels.ElementsViewModel? evm = null;
+        if (DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel mvm)
+        {
+            evm = mvm.Elements;
+        }
+        else if (DataContext is CdpInspectorApp.ViewModels.ElementsViewModel directEvm)
+        {
+            evm = directEvm;
+        }
+
+        if (evm != null && sender is TextBox textBox && textBox.Tag is string field)
+        {
+            _ = evm.CommitEditAsync(field);
+        }
+    }
+
+    private void OnAddClassTextBoxKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Enter)
+        {
+            CdpInspectorApp.ViewModels.ElementsViewModel? evm = null;
+            if (DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel mvm)
+            {
+                evm = mvm.Elements;
+            }
+            else if (DataContext is CdpInspectorApp.ViewModels.ElementsViewModel directEvm)
+            {
+                evm = directEvm;
+            }
+
+            if (evm != null && evm.AddClassCommand.CanExecute(null))
+            {
+                evm.AddClassCommand.Execute(null);
+            }
+        }
+    }
+
     private void ScrollSelectedIntoView()
     {
         var selected = treeDom.SelectedItem;

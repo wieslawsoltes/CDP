@@ -8,6 +8,7 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -22,9 +23,91 @@ public class MemoryViewModel : ViewModelBase
     private ObservableCollection<MemoryComparisonModel> _comparisonEntries = new();
     private ObservableCollection<DetachedControlModel> _detachedControls = new();
     private bool _isComparisonMode;
+    private DetachedControlModel? _selectedDetachedControl;
+    private ObservableCollection<RetainerNodeModel> _retainerRoots = new();
     private int _snapshotCounter = 1;
+    private List<double>? _allocationHistory;
 
     public ObservableCollection<DetachedControlModel> DetachedControls => _detachedControls;
+
+    public DetachedControlModel? SelectedDetachedControl
+    {
+        get => _selectedDetachedControl;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedDetachedControl, value))
+            {
+                _ = FetchRetainersAsync();
+            }
+        }
+    }
+
+    public ObservableCollection<RetainerNodeModel> RetainerRoots => _retainerRoots;
+    public HierarchicalModel<RetainerNodeModel> HierarchicalRetainers { get; }
+
+    private async Task FetchRetainersAsync()
+    {
+        await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            RetainerRoots.Clear();
+            if (_selectedDetachedControl == null) return;
+
+            try
+            {
+                var @params = new JsonObject
+                {
+                    ["hashCode"] = _selectedDetachedControl.HashCode
+                };
+                var response = await _cdpService.SendCommandAsync("Memory.getRetainers", @params);
+                if (response != null)
+                {
+                    var rootNode = ParseRetainerNode(response);
+                    if (rootNode != null)
+                    {
+                        RetainerRoots.Add(rootNode);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching retainers: {ex.Message}");
+            }
+        });
+    }
+
+    private RetainerNodeModel? ParseRetainerNode(JsonObject obj)
+    {
+        if (obj == null) return null;
+
+        var name = obj["name"]?.GetValue<string>() ?? "";
+        var type = obj["type"]?.GetValue<string>() ?? "";
+        var hashCode = obj["hashCode"]?.GetValue<int>() ?? 0;
+
+        var node = new RetainerNodeModel
+        {
+            Name = name,
+            Type = type,
+            HashCode = hashCode
+        };
+
+        var retainersArray = obj["retainers"] as JsonArray;
+        if (retainersArray != null)
+        {
+            foreach (var item in retainersArray)
+            {
+                if (item is JsonObject childObj)
+                {
+                    var childNode = ParseRetainerNode(childObj);
+                    if (childNode != null)
+                    {
+                        node.Retainers.Add(childNode);
+                    }
+                }
+            }
+        }
+
+        return node;
+    }
 
     public ObservableCollection<MemorySnapshotModel> Snapshots => _snapshots;
 
@@ -70,6 +153,12 @@ public class MemoryViewModel : ViewModelBase
         }
     }
 
+    public List<double>? AllocationHistory
+    {
+        get => _allocationHistory;
+        private set => RaiseAndSetIfChanged(ref _allocationHistory, value);
+    }
+
     public ICommand TakeSnapshotCommand { get; }
     public ICommand ClearSnapshotsCommand { get; }
     public ICommand CollectGarbageCommand { get; }
@@ -80,11 +169,21 @@ public class MemoryViewModel : ViewModelBase
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
+        _cdpService.EventReceived += CdpService_EventReceived;
 
         TakeSnapshotCommand = new RelayCommand(async () => await TakeSnapshotAsync(), () => _cdpService.IsConnected);
         ClearSnapshotsCommand = new RelayCommand(ClearSnapshots);
         CollectGarbageCommand = new RelayCommand(async () => await CollectGarbageAsync(), () => _cdpService.IsConnected);
         ExportSnapshotCommand = new RelayCommand(async () => await ExportSnapshotAsync(), () => _cdpService.IsConnected);
+
+        var retainerOptions = new HierarchicalOptions<RetainerNodeModel>
+        {
+            ChildrenSelector = node => node.Retainers,
+            IsLeafSelector = node => node.Retainers == null || node.Retainers.Count == 0,
+            AutoExpandRoot = true
+        };
+        HierarchicalRetainers = new HierarchicalModel<RetainerNodeModel>(retainerOptions);
+        HierarchicalRetainers.SetRoots(RetainerRoots);
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -93,11 +192,44 @@ public class MemoryViewModel : ViewModelBase
         {
             if (!_cdpService.IsConnected)
             {
-                ClearSnapshots();
+                ClearData();
             }
             ((RelayCommand)TakeSnapshotCommand).RaiseCanExecuteChanged();
             ((RelayCommand)CollectGarbageCommand).RaiseCanExecuteChanged();
             ((RelayCommand)ExportSnapshotCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
+    {
+        if (e.Method == "Performance.metrics" && e.Params != null)
+        {
+            var metrics = e.Params["metrics"] as JsonArray;
+            if (metrics != null)
+            {
+                Dispatcher.UIThread.Post(() => UpdateMetrics(metrics));
+            }
+        }
+    }
+
+    private void UpdateMetrics(JsonArray metrics)
+    {
+        var newHistory = AllocationHistory != null ? new List<double>(AllocationHistory) : new List<double>();
+        bool updated = false;
+        foreach (var m in metrics)
+        {
+            string name = m?["name"]?.GetValue<string>() ?? "";
+            double val = m?["value"]?.GetValue<double>() ?? 0;
+            if (name == "MemoryAllocations")
+            {
+                newHistory.Add(val);
+                if (newHistory.Count > 30) newHistory.RemoveAt(0);
+                updated = true;
+            }
+        }
+        if (updated)
+        {
+            AllocationHistory = newHistory;
         }
     }
 
@@ -222,6 +354,26 @@ public class MemoryViewModel : ViewModelBase
             CurrentEntries.Clear();
             ComparisonEntries.Clear();
             DetachedControls.Clear();
+            SelectedDetachedControl = null;
+            RetainerRoots.Clear();
+            _snapshotCounter = 1;
+        });
+    }
+
+    private void ClearData()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AllocationHistory = null;
+            Snapshots.Clear();
+            SelectedSnapshot = null;
+            ComparisonBaselines.Clear();
+            SelectedBaseline = null;
+            CurrentEntries.Clear();
+            ComparisonEntries.Clear();
+            DetachedControls.Clear();
+            SelectedDetachedControl = null;
+            RetainerRoots.Clear();
             _snapshotCounter = 1;
         });
     }
@@ -232,6 +384,8 @@ public class MemoryViewModel : ViewModelBase
         {
             CurrentEntries.Clear();
             DetachedControls.Clear();
+            SelectedDetachedControl = null;
+            RetainerRoots.Clear();
             if (SelectedSnapshot != null && !IsComparisonMode)
             {
                 foreach (var entry in SelectedSnapshot.Entries)

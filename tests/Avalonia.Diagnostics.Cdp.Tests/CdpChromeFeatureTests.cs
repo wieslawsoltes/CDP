@@ -56,6 +56,45 @@ public class CdpChromeFeatureTests
         string content = contentResult["content"]?.GetValue<string>() ?? "";
         Assert.Contains("public class TestAppBuilder", content);
 
+        // 3. Set File Content (Custom CDP Method)
+        string testFileRelPath = "temp_test_file_for_sources_domain.cs";
+        string testContent = "// Hello World from CDP Sources test";
+        var setParams = new JsonObject
+        {
+            ["path"] = testFileRelPath,
+            ["content"] = testContent
+        };
+        var setResult = await SourcesDomain.HandleAsync(session, "setFileContent", setParams);
+        Assert.NotNull(setResult);
+        Assert.True(setResult["success"]?.GetValue<bool>() == true);
+
+        // Verify content was written
+        var getParams = new JsonObject { ["path"] = testFileRelPath };
+        var getResult = await SourcesDomain.HandleAsync(session, "getFileContent", getParams);
+        Assert.NotNull(getResult);
+        Assert.Equal(testContent, getResult["content"]?.GetValue<string>());
+
+        // Clean up the temp file
+        string currentDir = System.IO.Directory.GetCurrentDirectory();
+        string rootDir = currentDir;
+        while (!string.IsNullOrEmpty(rootDir))
+        {
+            if (System.IO.Directory.Exists(System.IO.Path.Combine(rootDir, ".git")) || 
+                System.IO.Directory.GetFiles(rootDir, "*.sln").Length > 0 ||
+                System.IO.Directory.GetFiles(rootDir, "*.slnx").Length > 0)
+            {
+                break;
+            }
+            string? parent = System.IO.Directory.GetParent(rootDir)?.FullName;
+            if (parent == rootDir || string.IsNullOrEmpty(parent)) break;
+            rootDir = parent;
+        }
+        string fullTestFilePath = System.IO.Path.Combine(rootDir, testFileRelPath);
+        if (System.IO.File.Exists(fullTestFilePath))
+        {
+            System.IO.File.Delete(fullTestFilePath);
+        }
+
         window.Close();
     }
 
@@ -107,6 +146,41 @@ public class CdpChromeFeatureTests
     }
 
     [AvaloniaFact]
+    public async Task TestMemoryDomainGetRetainers()
+    {
+        var button = new Button { Name = "leakButton" };
+        var window = new Window
+        {
+            Title = "Memory Retainers Test Window",
+            Content = button
+        };
+        window.Show();
+        ControlTracker.Register(window);
+        ControlTracker.Register(button);
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        int hashCode = button.GetHashCode();
+
+        var @params = new JsonObject { ["hashCode"] = hashCode };
+        var result = await MemoryDomain.HandleAsync(session, "getRetainers", @params);
+        Assert.NotNull(result);
+        Assert.True(result.ContainsKey("name"));
+        Assert.True(result.ContainsKey("type"));
+        Assert.True(result.ContainsKey("hashCode"));
+        Assert.Equal(hashCode, result["hashCode"]?.GetValue<int>());
+
+        Assert.True(result.ContainsKey("retainers"));
+        var retainers = result["retainers"] as JsonArray;
+        Assert.NotNull(retainers);
+        Assert.NotEmpty(retainers);
+
+        window.Close();
+        ControlTracker.Clear();
+    }
+
+    [AvaloniaFact]
     public async Task TestApplicationDomainResources()
     {
         var window = new Window { Title = "Application Resources Test Window" };
@@ -153,6 +227,107 @@ public class CdpChromeFeatureTests
         Assert.False(Application.Current.Resources.ContainsKey(testKey));
 
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestApplicationDomainSqliteDatabases()
+    {
+        var window = new Window { Title = "SQLite Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // Create a temporary database in the current directory
+        string dbName = $"temp_test_{Guid.NewGuid():N}.db";
+        string dbPath = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), dbName);
+
+        try
+        {
+            // 1. Create table and insert a record
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath}"))
+            {
+                connection.Open();
+                using (var cmd = connection.CreateCommand())
+                {
+                    cmd.CommandText = "CREATE TABLE Users (Id INTEGER PRIMARY KEY, Name TEXT);";
+                    cmd.ExecuteNonQuery();
+                }
+                using (var cmd = connection.CreateCommand())
+                {
+                    cmd.CommandText = "INSERT INTO Users (Name) VALUES ('Alice');";
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // 2. Test getDatabases
+            var getDbRes = await ApplicationDomain.HandleAsync(session, "getDatabases", new JsonObject());
+            Assert.NotNull(getDbRes);
+            var databases = getDbRes["databases"] as JsonArray;
+            Assert.NotNull(databases);
+            Assert.Contains(databases, d => d?.GetValue<string>() == dbPath);
+
+            // 3. Test getDatabaseTableNames
+            var getTablesParams = new JsonObject { ["databasePath"] = dbPath };
+            var getTablesRes = await ApplicationDomain.HandleAsync(session, "getDatabaseTableNames", getTablesParams);
+            Assert.NotNull(getTablesRes);
+            var tables = getTablesRes["tables"] as JsonArray;
+            Assert.NotNull(tables);
+            Assert.Contains(tables, t => t?.GetValue<string>() == "Users");
+
+            // 4. Test executeSQL (SELECT query)
+            var execSqlParams = new JsonObject 
+            { 
+                ["databasePath"] = dbPath,
+                ["query"] = "SELECT * FROM Users;"
+            };
+            var execSqlRes = await ApplicationDomain.HandleAsync(session, "executeSQL", execSqlParams);
+            Assert.NotNull(execSqlRes);
+            
+            var columns = execSqlRes["columns"] as JsonArray;
+            Assert.NotNull(columns);
+            Assert.Equal(2, columns.Count);
+            Assert.Equal("Id", columns[0]?.GetValue<string>());
+            Assert.Equal("Name", columns[1]?.GetValue<string>());
+
+            var rows = execSqlRes["rows"] as JsonArray;
+            Assert.NotNull(rows);
+            Assert.Single(rows);
+            var row0 = rows[0] as JsonArray;
+            Assert.NotNull(row0);
+            Assert.Equal("1", row0[0]?.ToString());
+            Assert.Equal("Alice", row0[1]?.ToString());
+
+            // 5. Test executeSQL (non-SELECT query)
+            var insertSqlParams = new JsonObject 
+            { 
+                ["databasePath"] = dbPath,
+                ["query"] = "INSERT INTO Users (Name) VALUES ('Bob');"
+            };
+            var insertSqlRes = await ApplicationDomain.HandleAsync(session, "executeSQL", insertSqlParams);
+            Assert.NotNull(insertSqlRes);
+            
+            var columns2 = insertSqlRes["columns"] as JsonArray;
+            Assert.NotNull(columns2);
+            Assert.Single(columns2);
+            Assert.Equal("Rows Affected", columns2[0]?.GetValue<string>());
+
+            var rows2 = insertSqlRes["rows"] as JsonArray;
+            Assert.NotNull(rows2);
+            Assert.Single(rows2);
+            var row0_2 = rows2[0] as JsonArray;
+            Assert.NotNull(row0_2);
+            Assert.Equal("1", row0_2[0]?.ToString());
+        }
+        finally
+        {
+            window.Close();
+            // Delete temporary database file
+            if (System.IO.File.Exists(dbPath))
+            {
+                System.IO.File.Delete(dbPath);
+            }
+        }
     }
 
     [AvaloniaFact]
@@ -1977,6 +2152,128 @@ public class CdpChromeFeatureTests
         }
 
         Assert.True(touchCount >= 2, $"Expected at least 2 touch presses (for pinch gesture two points), got {touchCount}");
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestPageCookies()
+    {
+        var window = new Window { Title = "Cookie Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Get initial cookies (should be empty)
+        var resultGet = await PageDomain.HandleAsync(session, "getCookies", new JsonObject());
+        Assert.NotNull(resultGet);
+        Assert.True(resultGet.ContainsKey("cookies"));
+        var cookies = resultGet["cookies"] as JsonArray;
+        Assert.NotNull(cookies);
+        Assert.Empty(cookies);
+
+        // 2. Set a cookie
+        var setParams = new JsonObject
+        {
+            ["name"] = "test-cookie",
+            ["value"] = "test-value",
+            ["domain"] = "localhost",
+            ["path"] = "/",
+            ["expires"] = 1719424830.0
+        };
+        var resultSet = await PageDomain.HandleAsync(session, "setCookie", setParams);
+        Assert.NotNull(resultSet);
+
+        // 3. Get cookies and verify it exists
+        var resultGet2 = await PageDomain.HandleAsync(session, "getCookies", new JsonObject());
+        var cookies2 = resultGet2["cookies"] as JsonArray;
+        Assert.NotNull(cookies2);
+        Assert.Single(cookies2);
+        var cookie = cookies2[0] as JsonObject;
+        Assert.NotNull(cookie);
+        Assert.Equal("test-cookie", cookie["name"]?.GetValue<string>());
+        Assert.Equal("test-value", cookie["value"]?.GetValue<string>());
+        Assert.Equal("localhost", cookie["domain"]?.GetValue<string>());
+        Assert.Equal("/", cookie["path"]?.GetValue<string>());
+        Assert.Equal(1719424830.0, cookie["expires"]?.GetValue<double>());
+
+        // 4. Delete the cookie
+        var deleteParams = new JsonObject
+        {
+            ["name"] = "test-cookie",
+            ["domain"] = "localhost",
+            ["path"] = "/"
+        };
+        var resultDelete = await PageDomain.HandleAsync(session, "deleteCookie", deleteParams);
+        Assert.NotNull(resultDelete);
+
+        // 5. Verify it's gone
+        var resultGet3 = await PageDomain.HandleAsync(session, "getCookies", new JsonObject());
+        var cookies3 = resultGet3["cookies"] as JsonArray;
+        Assert.NotNull(cookies3);
+        Assert.Empty(cookies3);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestNetworkCookies()
+    {
+        var window = new Window { Title = "Network Cookie Test Window" };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Get initial cookies (should be empty)
+        var resultGet = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "getCookies", new JsonObject());
+        Assert.NotNull(resultGet);
+        Assert.True(resultGet.ContainsKey("cookies"));
+        var cookies = resultGet["cookies"] as JsonArray;
+        Assert.NotNull(cookies);
+        Assert.Empty(cookies);
+
+        // 2. Set a cookie via Network.setCookie
+        var setParams = new JsonObject
+        {
+            ["name"] = "net-cookie",
+            ["value"] = "net-value",
+            ["domain"] = "localhost",
+            ["path"] = "/",
+            ["expires"] = 1719424830.0
+        };
+        var resultSet = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "setCookie", setParams);
+        Assert.NotNull(resultSet);
+
+        // 3. Get cookies via Network.getAllCookies and verify it exists
+        var resultGetAll = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "getAllCookies", new JsonObject());
+        var cookies2 = resultGetAll["cookies"] as JsonArray;
+        Assert.NotNull(cookies2);
+        Assert.Single(cookies2);
+        var cookie = cookies2[0] as JsonObject;
+        Assert.NotNull(cookie);
+        Assert.Equal("net-cookie", cookie["name"]?.GetValue<string>());
+        Assert.Equal("net-value", cookie["value"]?.GetValue<string>());
+        Assert.Equal("localhost", cookie["domain"]?.GetValue<string>());
+        Assert.Equal("/", cookie["path"]?.GetValue<string>());
+        Assert.Equal(1719424830.0, cookie["expires"]?.GetValue<double>());
+
+        // 4. Delete the cookie via Network.deleteCookies
+        var deleteParams = new JsonObject
+        {
+            ["name"] = "net-cookie",
+            ["domain"] = "localhost",
+            ["path"] = "/"
+        };
+        var resultDelete = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "deleteCookies", deleteParams);
+        Assert.NotNull(resultDelete);
+
+        // 5. Verify it's gone
+        var resultGet3 = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "getCookies", new JsonObject());
+        var cookies3 = resultGet3["cookies"] as JsonArray;
+        Assert.NotNull(cookies3);
+        Assert.Empty(cookies3);
 
         window.Close();
     }

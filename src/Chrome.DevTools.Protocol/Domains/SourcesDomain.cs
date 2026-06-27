@@ -21,7 +21,7 @@ public static class SourcesDomain
 
             case "getFileContent":
                 {
-                    string relPath = @params["path"]?.GetValue<string>() ?? "";
+                    string relPath = @params?["path"]?.GetValue<string>() ?? "";
                     string root = GetWorkspaceRoot();
                     string fullPath = Path.GetFullPath(Path.Combine(root, relPath));
                     string relative = Path.GetRelativePath(root, fullPath);
@@ -35,6 +35,31 @@ public static class SourcesDomain
                         return new JsonObject { ["content"] = content };
                     }
                     throw new Exception($"File {relPath} not found.");
+                }
+
+            case "setFileContent":
+                {
+                    string relPath = @params?["path"]?.GetValue<string>() ?? "";
+                    string content = @params?["content"]?.GetValue<string>() ?? "";
+                    string root = GetWorkspaceRoot();
+                    string fullPath = Path.GetFullPath(Path.Combine(root, relPath));
+                    string relative = Path.GetRelativePath(root, fullPath);
+                    if (relative.StartsWith("..") || Path.IsPathRooted(relative))
+                    {
+                        throw new Exception("Access denied: path is outside workspace root.");
+                    }
+                    await File.WriteAllTextAsync(fullPath, content);
+                    return new JsonObject { ["success"] = true };
+                }
+
+            case "searchInWorkspace":
+                {
+                    string query = @params?["query"]?.GetValue<string>() ?? "";
+                    bool caseSensitive = @params?["caseSensitive"]?.GetValue<bool>() ?? false;
+                    var matchesArray = new JsonArray();
+                    string root = GetWorkspaceRoot();
+                    await Task.Run(() => SearchInWorkspaceRecursive(root, "", query, caseSensitive, matchesArray));
+                    return new JsonObject { ["matches"] = matchesArray };
                 }
 
             default:
@@ -92,6 +117,69 @@ public static class SourcesDomain
                 ? Path.GetFileName(subDir) 
                 : Path.Combine(relativePath, Path.GetFileName(subDir));
             GetFilesRecursive(subDir, subRelPath, array);
+        }
+    }
+
+    private static void SearchInWorkspaceRecursive(string dir, string relativePath, string query, bool caseSensitive, JsonArray matches)
+    {
+        string name = Path.GetFileName(dir).ToLowerInvariant();
+        if (name == "bin" || name == "obj" || name == ".git" || name == ".vs" || name == ".idea" || name == "node_modules")
+        {
+            return;
+        }
+
+        foreach (var file in Directory.GetFiles(dir))
+        {
+            string ext = Path.GetExtension(file).ToLowerInvariant();
+            if (ext == ".cs" || ext == ".axaml" || ext == ".xaml" || ext == ".json" || ext == ".md" || ext == ".xml" || ext == ".csproj")
+            {
+                string fileRelPath = string.IsNullOrEmpty(relativePath) 
+                    ? Path.GetFileName(file) 
+                    : Path.Combine(relativePath, Path.GetFileName(file));
+                
+                string fileRelPathClean = fileRelPath.Replace('\\', '/');
+                
+                try
+                {
+                    var lines = File.ReadLines(file);
+                    int lineNumber = 1;
+                    foreach (var line in lines)
+                    {
+                        bool matchesQuery = false;
+                        if (caseSensitive)
+                        {
+                            matchesQuery = line.Contains(query, StringComparison.Ordinal);
+                        }
+                        else
+                        {
+                            matchesQuery = line.Contains(query, StringComparison.OrdinalIgnoreCase);
+                        }
+
+                        if (matchesQuery)
+                        {
+                            matches.Add(new JsonObject
+                            {
+                                ["path"] = fileRelPathClean,
+                                ["lineNumber"] = lineNumber,
+                                ["lineContent"] = line
+                            });
+                        }
+                        lineNumber++;
+                    }
+                }
+                catch
+                {
+                    // Ignore read errors
+                }
+            }
+        }
+
+        foreach (var subDir in Directory.GetDirectories(dir))
+        {
+            string subRelPath = string.IsNullOrEmpty(relativePath) 
+                ? Path.GetFileName(subDir) 
+                : Path.Combine(relativePath, Path.GetFileName(subDir));
+            SearchInWorkspaceRecursive(subDir, subRelPath, query, caseSensitive, matches);
         }
     }
 }

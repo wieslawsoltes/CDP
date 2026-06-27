@@ -80,6 +80,7 @@ public class ElementsViewModel : ViewModelBase
     private int _axSearchIndex = -1;
     private string _lastAxSearchQuery = "";
     private bool _showVisualTree = false;
+    private int? _lastParsedNodeId;
 
     // Accessibility Details
     private string _axRoleText = "None";
@@ -98,6 +99,36 @@ public class ElementsViewModel : ViewModelBase
     private string _layoutBounds = "0,0,0,0";
     private string _layoutHorizontalAlignment = "Stretch";
     private string _layoutVerticalAlignment = "Stretch";
+
+    private string _boxMarginTop = "0";
+    private string _boxMarginRight = "0";
+    private string _boxMarginBottom = "0";
+    private string _boxMarginLeft = "0";
+    private string _boxBorderTop = "0";
+    private string _boxBorderRight = "0";
+    private string _boxBorderBottom = "0";
+    private string _boxBorderLeft = "0";
+    private string _boxPaddingTop = "0";
+    private string _boxPaddingRight = "0";
+    private string _boxPaddingBottom = "0";
+    private string _boxPaddingLeft = "0";
+    private string _boxWidth = "0";
+    private string _boxHeight = "0";
+
+    private bool _isEditingMarginTop;
+    private bool _isEditingMarginRight;
+    private bool _isEditingMarginBottom;
+    private bool _isEditingMarginLeft;
+    private bool _isEditingBorderTop;
+    private bool _isEditingBorderRight;
+    private bool _isEditingBorderBottom;
+    private bool _isEditingBorderLeft;
+    private bool _isEditingPaddingTop;
+    private bool _isEditingPaddingRight;
+    private bool _isEditingPaddingBottom;
+    private bool _isEditingPaddingLeft;
+    private bool _isEditingWidth;
+    private bool _isEditingHeight;
 
     public ObservableCollection<DomNodeModel> RootNodes => _rootNodes;
     public ObservableCollection<AxNodeModel> AxRootNodes => _axRootNodes;
@@ -124,6 +155,29 @@ public class ElementsViewModel : ViewModelBase
     {
         get => _isPseudoStatePanelOpen;
         set => RaiseAndSetIfChanged(ref _isPseudoStatePanelOpen, value);
+    }
+
+    private bool _isClassPanelOpen;
+    public bool IsClassPanelOpen
+    {
+        get => _isClassPanelOpen;
+        set => RaiseAndSetIfChanged(ref _isClassPanelOpen, value);
+    }
+
+    private ObservableCollection<ClassItemModel> _classes = new();
+    public ObservableCollection<ClassItemModel> Classes => _classes;
+
+    private string _newClassNameText = "";
+    public string NewClassNameText
+    {
+        get => _newClassNameText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _newClassNameText, value))
+            {
+                ((RelayCommand)AddClassCommand).RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public bool IsForcedHover
@@ -584,6 +638,40 @@ public class ElementsViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _layoutVerticalAlignment, value);
     }
 
+    public string BoxMarginTop { get => _boxMarginTop; set => RaiseAndSetIfChanged(ref _boxMarginTop, value); }
+    public string BoxMarginRight { get => _boxMarginRight; set => RaiseAndSetIfChanged(ref _boxMarginRight, value); }
+    public string BoxMarginBottom { get => _boxMarginBottom; set => RaiseAndSetIfChanged(ref _boxMarginBottom, value); }
+    public string BoxMarginLeft { get => _boxMarginLeft; set => RaiseAndSetIfChanged(ref _boxMarginLeft, value); }
+    public string BoxBorderTop { get => _boxBorderTop; set => RaiseAndSetIfChanged(ref _boxBorderTop, value); }
+    public string BoxBorderRight { get => _boxBorderRight; set => RaiseAndSetIfChanged(ref _boxBorderRight, value); }
+    public string BoxBorderBottom { get => _boxBorderBottom; set => RaiseAndSetIfChanged(ref _boxBorderBottom, value); }
+    public string BoxBorderLeft { get => _boxBorderLeft; set => RaiseAndSetIfChanged(ref _boxBorderLeft, value); }
+    public string BoxPaddingTop { get => _boxPaddingTop; set => RaiseAndSetIfChanged(ref _boxPaddingTop, value); }
+    public string BoxPaddingRight { get => _boxPaddingRight; set => RaiseAndSetIfChanged(ref _boxPaddingRight, value); }
+    public string BoxPaddingBottom { get => _boxPaddingBottom; set => RaiseAndSetIfChanged(ref _boxPaddingBottom, value); }
+    public string BoxPaddingLeft { get => _boxPaddingLeft; set => RaiseAndSetIfChanged(ref _boxPaddingLeft, value); }
+    public string BoxWidth { get => _boxWidth; set => RaiseAndSetIfChanged(ref _boxWidth, value); }
+    public string BoxHeight { get => _boxHeight; set => RaiseAndSetIfChanged(ref _boxHeight, value); }
+
+    public bool IsEditingMarginTop { get => _isEditingMarginTop; set => RaiseAndSetIfChanged(ref _isEditingMarginTop, value); }
+    public bool IsEditingMarginRight { get => _isEditingMarginRight; set => RaiseAndSetIfChanged(ref _isEditingMarginRight, value); }
+    public bool IsEditingMarginBottom { get => _isEditingMarginBottom; set => RaiseAndSetIfChanged(ref _isEditingMarginBottom, value); }
+    public bool IsEditingMarginLeft { get => _isEditingMarginLeft; set => RaiseAndSetIfChanged(ref _isEditingMarginLeft, value); }
+    public bool IsEditingBorderTop { get => _isEditingBorderTop; set => RaiseAndSetIfChanged(ref _isEditingBorderTop, value); }
+    public bool IsEditingBorderRight { get => _isEditingBorderRight; set => RaiseAndSetIfChanged(ref _isEditingBorderRight, value); }
+    public bool IsEditingBorderBottom { get => _isEditingBorderBottom; set => RaiseAndSetIfChanged(ref _isEditingBorderBottom, value); }
+    public bool IsEditingBorderLeft { get => _isEditingBorderLeft; set => RaiseAndSetIfChanged(ref _isEditingBorderLeft, value); }
+    public bool IsEditingPaddingTop { get => _isEditingPaddingTop; set => RaiseAndSetIfChanged(ref _isEditingPaddingTop, value); }
+    public bool IsEditingPaddingRight { get => _isEditingPaddingRight; set => RaiseAndSetIfChanged(ref _isEditingPaddingRight, value); }
+    public bool IsEditingPaddingBottom { get => _isEditingPaddingBottom; set => RaiseAndSetIfChanged(ref _isEditingPaddingBottom, value); }
+    public bool IsEditingPaddingLeft { get => _isEditingPaddingLeft; set => RaiseAndSetIfChanged(ref _isEditingPaddingLeft, value); }
+    public bool IsEditingWidth { get => _isEditingWidth; set => RaiseAndSetIfChanged(ref _isEditingWidth, value); }
+    public bool IsEditingHeight { get => _isEditingHeight; set => RaiseAndSetIfChanged(ref _isEditingHeight, value); }
+
+    public ICommand StartEditCommand { get; }
+    public ICommand CommitEditCommand { get; }
+    public ICommand CancelEditCommand { get; }
+
     public ICommand FocusSelectedNodeCommand { get; }
     public ICommand DeleteSelectedNodeCommand { get; }
     public ICommand ApplyAttributeCommand { get; }
@@ -593,6 +681,7 @@ public class ElementsViewModel : ViewModelBase
     public ICommand SearchCommand { get; }
     public ICommand AxSearchCommand { get; }
     public ICommand RefreshAxTreeCommand { get; }
+    public ICommand AddClassCommand { get; }
 
     public ElementsViewModel(ICdpService cdpService)
     {
@@ -609,6 +698,10 @@ public class ElementsViewModel : ViewModelBase
         SearchCommand = new RelayCommand(async () => await PerformSearchAsync());
         AxSearchCommand = new RelayCommand(async () => await PerformAxSearchAsync());
         RefreshAxTreeCommand = new RelayCommand(async () => await RefreshAxTreeAsync());
+        StartEditCommand = new RelayCommand<string>(StartEdit);
+        CommitEditCommand = new RelayCommand<string>(async field => await CommitEditAsync(field));
+        CancelEditCommand = new RelayCommand(CancelAllEdits);
+        AddClassCommand = new RelayCommand(async () => await AddClassAsync(), () => SelectedNode != null && !string.IsNullOrWhiteSpace(NewClassNameText));
 
         Properties.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredProperties));
         CssProperties.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredCssProperties));
@@ -880,6 +973,10 @@ public class ElementsViewModel : ViewModelBase
             ComputedStyles.Clear();
             EventListeners.Clear();
             StyleTextInputText = "";
+            _lastParsedNodeId = null;
+            Classes.Clear();
+            NewClassNameText = "";
+            ((RelayCommand)AddClassCommand).RaiseCanExecuteChanged();
             return;
         }
 
@@ -889,6 +986,13 @@ public class ElementsViewModel : ViewModelBase
         ((RelayCommand)ApplyAttributeCommand).RaiseCanExecuteChanged();
         ((RelayCommand)DeleteAttributeCommand).RaiseCanExecuteChanged();
         ((RelayCommand)ApplyStyleTextCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)AddClassCommand).RaiseCanExecuteChanged();
+
+        if (node.NodeId != _lastParsedNodeId)
+        {
+            _lastParsedNodeId = node.NodeId;
+            ParseClassesForSelectedNode();
+        }
 
         // 1. Load Attributes
         Attributes.Clear();
@@ -1116,6 +1220,67 @@ public class ElementsViewModel : ViewModelBase
 
             var vaProp = Properties.FirstOrDefault(p => p.Name.Equals("VerticalAlignment", StringComparison.OrdinalIgnoreCase));
             if (vaProp != null) LayoutVerticalAlignment = vaProp.Value;
+
+            try
+            {
+                var boxRes = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject { ["nodeId"] = node.NodeId });
+                if (SelectedNode == node)
+                {
+                    var model = boxRes["model"] as JsonObject;
+                    if (model != null)
+                    {
+                        var marginQuad = model["margin"] as JsonArray;
+                        var borderQuad = model["border"] as JsonArray;
+                        var paddingQuad = model["padding"] as JsonArray;
+                        var contentQuad = model["content"] as JsonArray;
+
+                        if (marginQuad != null && borderQuad != null && paddingQuad != null && contentQuad != null)
+                        {
+                            double bx = borderQuad[0]?.GetValue<double>() ?? 0;
+                            double by = borderQuad[1]?.GetValue<double>() ?? 0;
+                            double bxw = borderQuad[2]?.GetValue<double>() ?? 0;
+                            double byh = borderQuad[5]?.GetValue<double>() ?? 0;
+
+                            double ml = marginQuad[0]?.GetValue<double>() ?? 0;
+                            double mt = marginQuad[1]?.GetValue<double>() ?? 0;
+                            double mr = marginQuad[2]?.GetValue<double>() ?? 0;
+                            double mb = marginQuad[5]?.GetValue<double>() ?? 0;
+
+                            double pl = paddingQuad[0]?.GetValue<double>() ?? 0;
+                            double pt = paddingQuad[1]?.GetValue<double>() ?? 0;
+                            double pr = paddingQuad[2]?.GetValue<double>() ?? 0;
+                            double pb = paddingQuad[5]?.GetValue<double>() ?? 0;
+
+                            double cl = contentQuad[0]?.GetValue<double>() ?? 0;
+                            double ct = contentQuad[1]?.GetValue<double>() ?? 0;
+                            double cr = contentQuad[2]?.GetValue<double>() ?? 0;
+                            double cb = contentQuad[5]?.GetValue<double>() ?? 0;
+
+                            BoxMarginTop = Math.Round(by - mt, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxMarginRight = Math.Round(mr - bxw, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxMarginBottom = Math.Round(mb - byh, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxMarginLeft = Math.Round(bx - ml, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                            BoxBorderTop = Math.Round(pt - by, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxBorderRight = Math.Round(bxw - pr, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxBorderBottom = Math.Round(byh - pb, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxBorderLeft = Math.Round(pl - bx, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                            BoxPaddingTop = Math.Round(ct - pt, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxPaddingRight = Math.Round(pr - cr, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxPaddingBottom = Math.Round(pb - cb, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxPaddingLeft = Math.Round(cl - pl, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                            BoxWidth = Math.Round(model["width"]?.GetValue<double>() ?? 0, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxHeight = Math.Round(model["height"]?.GetValue<double>() ?? 0, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching box model: {ex.Message}");
+            }
         }
 
         // Update highlight if enabled
@@ -1747,6 +1912,139 @@ public class ElementsViewModel : ViewModelBase
         LayoutBounds = "0,0,0,0";
         LayoutHorizontalAlignment = "Stretch";
         LayoutVerticalAlignment = "Stretch";
+
+        BoxMarginTop = "0";
+        BoxMarginRight = "0";
+        BoxMarginBottom = "0";
+        BoxMarginLeft = "0";
+        BoxBorderTop = "0";
+        BoxBorderRight = "0";
+        BoxBorderBottom = "0";
+        BoxBorderLeft = "0";
+        BoxPaddingTop = "0";
+        BoxPaddingRight = "0";
+        BoxPaddingBottom = "0";
+        BoxPaddingLeft = "0";
+        BoxWidth = "0";
+        BoxHeight = "0";
+    }
+
+    public void StartEdit(string field)
+    {
+        CancelAllEdits();
+        switch (field)
+        {
+            case "MarginTop": IsEditingMarginTop = true; break;
+            case "MarginRight": IsEditingMarginRight = true; break;
+            case "MarginBottom": IsEditingMarginBottom = true; break;
+            case "MarginLeft": IsEditingMarginLeft = true; break;
+            case "BorderTop": IsEditingBorderTop = true; break;
+            case "BorderRight": IsEditingBorderRight = true; break;
+            case "BorderBottom": IsEditingBorderBottom = true; break;
+            case "BorderLeft": IsEditingBorderLeft = true; break;
+            case "PaddingTop": IsEditingPaddingTop = true; break;
+            case "PaddingRight": IsEditingPaddingRight = true; break;
+            case "PaddingBottom": IsEditingPaddingBottom = true; break;
+            case "PaddingLeft": IsEditingPaddingLeft = true; break;
+            case "Width": IsEditingWidth = true; break;
+            case "Height": IsEditingHeight = true; break;
+        }
+    }
+
+    public void CancelAllEdits()
+    {
+        IsEditingMarginTop = false;
+        IsEditingMarginRight = false;
+        IsEditingMarginBottom = false;
+        IsEditingMarginLeft = false;
+        IsEditingBorderTop = false;
+        IsEditingBorderRight = false;
+        IsEditingBorderBottom = false;
+        IsEditingBorderLeft = false;
+        IsEditingPaddingTop = false;
+        IsEditingPaddingRight = false;
+        IsEditingPaddingBottom = false;
+        IsEditingPaddingLeft = false;
+        IsEditingWidth = false;
+        IsEditingHeight = false;
+    }
+
+    public async Task CommitEditAsync(string field)
+    {
+        if (SelectedNode == null) return;
+
+        string value = field switch
+        {
+            "MarginTop" => BoxMarginTop,
+            "MarginRight" => BoxMarginRight,
+            "MarginBottom" => BoxMarginBottom,
+            "MarginLeft" => BoxMarginLeft,
+            "BorderTop" => BoxBorderTop,
+            "BorderRight" => BoxBorderRight,
+            "BorderBottom" => BoxBorderBottom,
+            "BorderLeft" => BoxBorderLeft,
+            "PaddingTop" => BoxPaddingTop,
+            "PaddingRight" => BoxPaddingRight,
+            "PaddingBottom" => BoxPaddingBottom,
+            "PaddingLeft" => BoxPaddingLeft,
+            "Width" => BoxWidth,
+            "Height" => BoxHeight,
+            _ => null
+        };
+
+        CancelAllEdits();
+        if (value == null) return;
+
+        string cssProperty = field switch
+        {
+            "MarginTop" => "margin-top",
+            "MarginRight" => "margin-right",
+            "MarginBottom" => "margin-bottom",
+            "MarginLeft" => "margin-left",
+            "BorderTop" => "border-top-width",
+            "BorderRight" => "border-right-width",
+            "BorderBottom" => "border-bottom-width",
+            "BorderLeft" => "border-left-width",
+            "PaddingTop" => "padding-top",
+            "PaddingRight" => "padding-right",
+            "PaddingBottom" => "padding-bottom",
+            "PaddingLeft" => "padding-left",
+            "Width" => "width",
+            "Height" => "height",
+            _ => null
+        };
+
+        if (cssProperty == null) return;
+
+        string formattedValue = value.Trim();
+        if (double.TryParse(formattedValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _) && 
+            !formattedValue.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        {
+            formattedValue += "px";
+        }
+
+        string styleText = $"{cssProperty}: {formattedValue};";
+
+        try
+        {
+            await _cdpService.SendCommandAsync("CSS.setStyleTexts", new JsonObject
+            {
+                ["edits"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["styleSheetId"] = SelectedNode.NodeId.ToString(),
+                        ["text"] = styleText
+                    }
+                }
+            });
+
+            _ = HandleNodeSelectionChangedAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error committing box model edit: {ex.Message}");
+        }
     }
 
 
@@ -1918,6 +2216,106 @@ public class ElementsViewModel : ViewModelBase
             if (found != null) return found;
         }
         return null;
+    }
+
+    private void ParseClassesForSelectedNode()
+    {
+        Classes.Clear();
+        var node = SelectedNode;
+        if (node == null) return;
+
+        var classAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase));
+        if (classAttr != null && !string.IsNullOrEmpty(classAttr.Value))
+        {
+            var parts = classAttr.Value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                if (!Classes.Any(c => c.Name == part))
+                {
+                    Classes.Add(new ClassItemModel(part, true, OnClassToggled));
+                }
+            }
+        }
+    }
+
+    private void OnClassToggled(ClassItemModel classItem)
+    {
+        _ = UpdateControlClassesAsync();
+    }
+
+    private async Task UpdateControlClassesAsync()
+    {
+        if (SelectedNode == null) return;
+        
+        var enabledClasses = Classes.Where(c => c.IsEnabled).Select(c => c.Name);
+        string classValue = string.Join(" ", enabledClasses);
+        
+        try
+        {
+            await _cdpService.SendCommandAsync("DOM.setAttributeValue", new JsonObject
+            {
+                ["nodeId"] = SelectedNode.NodeId,
+                ["name"] = "class",
+                ["value"] = classValue
+            });
+
+            var classAttr = SelectedNode.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase));
+            if (classAttr != null)
+            {
+                if (string.IsNullOrEmpty(classValue))
+                {
+                    SelectedNode.AttributesList.Remove(classAttr);
+                }
+                else
+                {
+                    classAttr.Value = classValue;
+                }
+            }
+            else if (!string.IsNullOrEmpty(classValue))
+            {
+                SelectedNode.AttributesList.Add(new AttributeModel("class", classValue));
+            }
+
+            UpdateNodeDisplayName(SelectedNode);
+
+            await HandleNodeSelectionChangedAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating control classes: {ex.Message}");
+        }
+    }
+
+    private void UpdateNodeDisplayName(DomNodeModel model)
+    {
+        string display = model.NodeName;
+        var idAttr = model.AttributesList.FirstOrDefault(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase));
+        if (idAttr != null) display += $"#{idAttr.Value}";
+        var classAttr = model.AttributesList.FirstOrDefault(a => a.Name.Equals("class", StringComparison.OrdinalIgnoreCase));
+        if (classAttr != null) display += $".{classAttr.Value.Split(' ').FirstOrDefault()}";
+        model.DisplayName = display;
+    }
+
+    private async Task AddClassAsync()
+    {
+        if (SelectedNode == null || string.IsNullOrWhiteSpace(NewClassNameText)) return;
+
+        string newClass = NewClassNameText.Trim();
+        NewClassNameText = "";
+
+        var existing = Classes.FirstOrDefault(c => c.Name.Equals(newClass, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            if (!existing.IsEnabled)
+            {
+                existing.IsEnabled = true;
+            }
+            return;
+        }
+
+        Classes.Add(new ClassItemModel(newClass, true, OnClassToggled));
+        
+        await UpdateControlClassesAsync();
     }
 }
 

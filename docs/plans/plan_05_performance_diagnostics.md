@@ -90,7 +90,7 @@ Based on an audit of the codebase, there is a substantial gap between the existi
 4. **Client UI & ViewModels**:
    - [PerformanceViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/PerformanceViewModel.cs) connects to the server and retrieves these metrics via periodic polling (`RefreshMetricsAsync`).
    - The values are bound to text elements in [PerformanceView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/PerformanceView.axaml).
-   - A sliding list of the last 30 memory measurements (`MemoryHistory`) is plotted on the screen using a custom-drawn [MemoryChart.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Controls/MemoryChart.cs) control.
+   - A sliding list of the last 30 memory measurements (`MemoryHistory`) is plotted on the screen using a custom-drawn [ChromeTimelineChart.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Controls/ChromeTimelineChart.cs) control.
 
 ### 3.2 Missing or Needs Enhancement
 
@@ -294,9 +294,9 @@ In `CdpInspectorApp` (residing in `CDP.Inspector.Shared`), we will enhance the *
 
 ### 5.1 UI Components to Add
 
-1. **`TimelineChart` Control (`Controls/TimelineChart.cs`)**:
+1. **`ChromeTimelineChart` Control (`Controls/ChromeTimelineChart.cs`)**:
    - A highly optimized, custom-drawn control extending `Control` that renders double array data series.
-   - Supports drawing warning/critical zones (e.g. FPS falling below 30, queue latency exceeding 50ms).
+   - Supports drawing background gridlines and gradient area fill under the line.
    - Utilizes custom `DrawingContext` lines, fills, and text drawing for performance.
 2. **`TraceTimelineControl` Control (`Controls/TraceTimelineControl.cs`)**:
    - Renders a multi-track timeline displaying collected trace events.

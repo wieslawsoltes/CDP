@@ -8,45 +8,177 @@
              x:Class="CdpInspectorApp.Views.SourcesView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
-    <Grid ColumnDefinitions="260, 4, *" Margin="10">
-        <!-- Left Workspace navigator -->
-        <Grid RowDefinitions="Auto, *">
-            <TextBlock Text="Workspace Navigator" Classes="panel-header"/>
-            <DataGrid Name="treeWorkspaceFiles"
-                         HierarchicalModel="{Binding Sources.HierarchicalWorkspaceFiles}"
-                         SelectedItem="{Binding Sources.SelectedFileNode, Mode=TwoWay}"
-                         HierarchicalRowsEnabled="True"
-                         GridLinesVisibility="None"
-                         HeadersVisibility="None"
-                         Background="Transparent" BorderThickness="0"
-                         CanUserResizeColumns="True"
-                         CanUserSortColumns="False"
-                         Grid.Row="1">
-                <DataGrid.Styles>
-                    <Style Selector="DataGridCell TextBlock">
-                        <Setter Property="FontSize" Value="12"/>
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                    </Style>
-                </DataGrid.Styles>
-                <DataGrid.Columns>
-                    <DataGridHierarchicalColumn Width="*">
-                        <DataGridHierarchicalColumn.CellTemplate>
-                            <DataTemplate x:DataType="tree:HierarchicalNode">
-                                <TextBlock Text="{Binding ((models:WorkspaceFileNode)Item).Name}"/>
-                            </DataTemplate>
-                        </DataGridHierarchicalColumn.CellTemplate>
-                    </DataGridHierarchicalColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Grid>
+    <Grid ColumnDefinitions="260, 4, *, 4, 280" Margin="10">
+        <!-- Left Workspace TabControl -->
+        <TabControl Margin="0,0,10,0" Padding="0,5,0,0">
+            <!-- Files Tab -->
+            <TabItem Header="Files">
+                <Grid RowDefinitions="Auto, *" Margin="0,5,0,0">
+                    <TextBlock Text="Workspace Navigator" Classes="panel-header" Margin="0,0,0,5"/>
+                    <DataGrid Name="treeWorkspaceFiles"
+                                 HierarchicalModel="{Binding Sources.HierarchicalWorkspaceFiles}"
+                                 SelectedItem="{Binding Sources.SelectedFileNode, Mode=TwoWay}"
+                                 HierarchicalRowsEnabled="True"
+                                 GridLinesVisibility="None"
+                                 HeadersVisibility="None"
+                                 Background="Transparent" BorderThickness="0"
+                                 CanUserResizeColumns="True"
+                                 CanUserSortColumns="False"
+                                 Grid.Row="1">
+                        <DataGrid.Styles>
+                            <Style Selector="DataGridCell TextBlock">
+                                <Setter Property="FontSize" Value="12"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                            </Style>
+                        </DataGrid.Styles>
+                        <DataGrid.Columns>
+                            <DataGridHierarchicalColumn Width="*">
+                                <DataGridHierarchicalColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <TextBlock Text="{Binding ((models:WorkspaceFileNode)Item).Name}"/>
+                                    </DataTemplate>
+                                </DataGridHierarchicalColumn.CellTemplate>
+                            </DataGridHierarchicalColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- Search Tab -->
+            <TabItem Header="Search">
+                <Grid RowDefinitions="Auto, Auto, Auto, *" Margin="0,5,0,0">
+                    <TextBlock Text="Search in Workspace" Classes="panel-header" Margin="0,0,0,5"/>
+
+                    <!-- Query Input and Search button -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                        <TextBox Name="txtSearchQuery"
+                                 Text="{Binding Sources.SearchQuery, Mode=TwoWay}"
+                                 PlaceholderText="Search files..."
+                                 Height="28"
+                                 VerticalContentAlignment="Center"/>
+                        <Button Name="btnSearchWorkspace"
+                                Command="{Binding Sources.SearchCommand}"
+                                Grid.Column="1"
+                                Content="Search"
+                                Margin="5,0,0,0"
+                                Padding="10,0"
+                                Height="28"/>
+                    </Grid>
+
+                    <!-- Case sensitive checkbox -->
+                    <CheckBox Grid.Row="2"
+                              IsChecked="{Binding Sources.SearchCaseSensitive, Mode=TwoWay}"
+                              Margin="0,0,0,8">
+                        <TextBlock Text="Case sensitive" FontSize="12" VerticalAlignment="Center"/>
+                    </CheckBox>
+
+                    <!-- Search Results DataGrid -->
+                    <DataGrid Grid.Row="3"
+                              Name="dgSearchResults"
+                              ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Sources.SearchResults}"
+                              x:DataType="models:SearchResultModel"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              GridLinesVisibility="None"
+                              HeadersVisibility="Column"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              CanUserResizeColumns="True"
+                              DoubleTapped="OnSearchResultDoubleTapped">
+                        <DataGrid.Columns>
+                            <!-- File Column -->
+                            <DataGridTextColumn Header="File"
+                                                Binding="{Binding Path}"
+                                                Width="120"
+                                                Foreground="#8ab4f8"
+                                                FontSize="11"/>
+                            <!-- Line Column -->
+                            <DataGridTextColumn Header="Line"
+                                                Binding="{Binding LineNumber}"
+                                                Width="50"
+                                                Foreground="#9aa0a6"
+                                                FontSize="11"/>
+                            <!-- Preview Column -->
+                            <DataGridTextColumn Header="Content"
+                                                Binding="{Binding LineContent}"
+                                                Width="*"
+                                                Foreground="#e8eaed"
+                                                FontSize="11"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
 
         <!-- Splitter -->
         <GridSplitter Grid.Column="1" Background="#3c4043"/>
 
         <!-- Code Viewer -->
-        <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
-            <TextBlock Name="lblSourceFileName" Text="{Binding Sources.SelectedFileName}" Classes="panel-header"/>
+        <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,10,0">
+            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                <TextBlock Name="lblSourceFileName" Text="{Binding Sources.SelectedFileName}" Classes="panel-header" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Name="btnSaveFile" IsEnabled="{Binding Sources.IsFileSelected}" ToolTip.Tip="Save file (Ctrl+S)" Height="26" Padding="8,0" Margin="0,0,0,5" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource SaveIcon}" Width="12" Height="12"/>
+                        <TextBlock Text="Save" VerticalAlignment="Center" FontSize="11"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
             <map:MinimapTextEditor Name="txtSourceContent" Grid.Row="1" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#e8eaed" Background="Transparent" BorderThickness="0" ShowLineNumbers="True" IsReadOnly="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
         </Grid>
+
+        <!-- Right Splitter -->
+        <GridSplitter Grid.Column="3" Background="#3c4043"/>
+
+        <!-- Right Debugger Panel -->
+        <Border Grid.Column="4" BorderBrush="#3c4043" BorderThickness="1,0,0,0" Background="#292a2d" Padding="8">
+            <Grid RowDefinitions="Auto, Auto, Auto, *, Auto, *, Auto, *, Auto, Auto">
+                <!-- Title -->
+                <TextBlock Grid.Row="0" Text="Debugger" Classes="panel-header" Margin="0,0,0,5"/>
+
+                <!-- Debugger Toolbar -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+                    <!-- Resume/Play -->
+                    <Button Command="{Binding Sources.ResumeCommand}" ToolTip.Tip="Resume (Play)" Width="36" Height="30" Padding="0">
+                        <PathIcon Data="{StaticResource PlayIcon}" Width="14" Height="14" Foreground="#4caf50"/>
+                    </Button>
+                    <!-- Step Over -->
+                    <Button Command="{Binding Sources.StepOverCommand}" ToolTip.Tip="Step Over" Width="36" Height="30" Padding="0">
+                        <PathIcon Data="{StaticResource ArrowStepOverIcon}" Width="14" Height="14" Foreground="#2196f3"/>
+                    </Button>
+                    <!-- Step Into -->
+                    <Button Command="{Binding Sources.StepIntoCommand}" ToolTip.Tip="Step Into" Width="36" Height="30" Padding="0">
+                        <PathIcon Data="{StaticResource ArrowStepInIcon}" Width="14" Height="14" Foreground="#ffca28"/>
+                    </Button>
+                    <!-- Step Out -->
+                    <Button Command="{Binding Sources.StepOutCommand}" ToolTip.Tip="Step Out" Width="36" Height="30" Padding="0">
+                        <PathIcon Data="{StaticResource ArrowStepOutIcon}" Width="14" Height="14" Foreground="#e040fb"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Call Stack -->
+                <TextBlock Grid.Row="2" Text="Call Stack" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
+                <ListBox Grid.Row="3" ItemsSource="{Binding Sources.CallStack}" Height="120" FontSize="11" Margin="0,0,0,8"/>
+
+                <!-- Scope Variables -->
+                <TextBlock Grid.Row="4" Text="Scope Variables" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
+                <DataGrid Grid.Row="5" ItemsSource="{Binding Sources.ScopeVariables}" Height="150" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="None" HeadersVisibility="Column" Background="Transparent" BorderBrush="#3c4043" BorderThickness="1" FontSize="11" Margin="0,0,0,8">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Key}" Width="110" Foreground="#8ab4f8"/>
+                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#e8eaed"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Breakpoints -->
+                <TextBlock Grid.Row="6" Text="Breakpoints" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
+                <ListBox Grid.Row="7" ItemsSource="{Binding Sources.Breakpoints}" Height="100" FontSize="11" Margin="0,0,0,8"/>
+
+                <!-- Breakpoint Condition -->
+                <TextBox Grid.Row="8" Name="txtBreakpointCondition" Text="{Binding Sources.BreakpointCondition, Mode=TwoWay}" Watermark="Breakpoint condition (e.g. x == 5)" FontSize="11" Margin="0,0,0,8"/>
+
+                <!-- Toggle Breakpoint at Caret -->
+                <Button Grid.Row="9" Name="btnToggleBreakpoint" Content="Toggle Breakpoint at Caret" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="0,6"/>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

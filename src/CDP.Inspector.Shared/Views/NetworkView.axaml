@@ -2,10 +2,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
+             xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.NetworkView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
-    <Grid RowDefinitions="Auto, *" Margin="10">
+    <Grid RowDefinitions="Auto, Auto, *" Margin="10">
+        <!-- Top Toolbar -->
         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
             <Button Name="btnClearNetwork" Command="{Binding Network.ClearNetworkCommand}" Content="Clear Network Log"/>
             <TextBlock Text="Throttling:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="12" Margin="10,0,0,0"/>
@@ -23,9 +26,36 @@
             <TextBlock Text="Captures outbound HTTP requests from HttpClient instances" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11" Margin="10,0,0,0"/>
         </StackPanel>
 
-        <Grid Grid.Row="1" ColumnDefinitions="*, 4, 380">
+        <!-- Category Filter Toolbar -->
+        <ListBox Grid.Row="1" 
+                 ItemsSource="{Binding Network.Filters}" 
+                 SelectedItem="{Binding Network.ActiveFilter, Mode=TwoWay}"
+                 Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,0,8">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="4"/>
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.Styles>
+                <Style Selector="ListBoxItem">
+                    <Setter Property="Padding" Value="8,4"/>
+                    <Setter Property="CornerRadius" Value="4"/>
+                    <Setter Property="FontSize" Value="11"/>
+                    <Setter Property="Background" Value="#2f3032"/>
+                    <Setter Property="Foreground" Value="#e8eaed"/>
+                    <Setter Property="Margin" Value="0,0,4,0"/>
+                </Style>
+                <Style Selector="ListBoxItem:selected">
+                    <Setter Property="Background" Value="#1a73e8"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Style>
+            </ListBox.Styles>
+        </ListBox>
+
+        <!-- Grid split pane -->
+        <Grid Grid.Row="2" ColumnDefinitions="*, 4, 380">
             <!-- List -->
-            <DataGrid Name="lstNetworkRequests" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.NetworkRequests}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedRequest, Mode=TwoWay}" x:DataType="models:NetworkRequestModel"
+            <DataGrid Name="lstNetworkRequests" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.FilteredNetworkRequests}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedRequest, Mode=TwoWay}" x:DataType="models:NetworkRequestModel"
                        CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                        GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                        Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
@@ -48,6 +78,21 @@
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80" Foreground="#81c995" FontSize="12"/>
                     <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80" Foreground="#9aa0a6" FontSize="12"/>
                     <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="80" Foreground="#8ab4f8" FontSize="12"/>
+                    <DataGridTemplateColumn Header="Waterfall" Width="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="models:NetworkRequestModel">
+                                <Grid Width="120" HorizontalAlignment="Left" Background="Transparent" VerticalAlignment="Stretch" ToolTip.Tip="{Binding WaterfallToolTip}">
+                                    <controls:WaterfallBar StartOffsetPercent="{Binding StartOffsetPercent}"
+                                                           TtfbPercent="{Binding TtfbPercent}"
+                                                           DownloadPercent="{Binding DownloadPercent}"
+                                                           Height="8"
+                                                           Width="120"
+                                                           HorizontalAlignment="Left"
+                                                           VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -55,25 +100,141 @@
 
             <!-- Details drawer -->
             <Border Grid.Column="2" BorderBrush="#3c4043" BorderThickness="1,0,0,0" Margin="10,0,0,0" Padding="10,0,0,0">
-                <ScrollViewer>
-                    <StackPanel Spacing="15">
-                        <TextBlock Text="Headers &amp; Content Preview" FontSize="14" FontWeight="Bold" Foreground="#e8eaed"/>
-                        <StackPanel Spacing="3">
-                            <TextBlock Text="Request URL:" Foreground="#9aa0a6" FontSize="11"/>
-                            <TextBlock Name="lblNetUrl" Text="{Binding Network.SelectedUrl}" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Foreground="#e8eaed"/>
-                        </StackPanel>
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="Request Headers:" Foreground="#9aa0a6" FontSize="11"/>
-                            <TextBox Name="txtNetReqHeaders" Text="{Binding Network.SelectedRequestHeaders}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="100" FontSize="11"/>
-                            <TextBlock Text="Response Headers:" Foreground="#9aa0a6" FontSize="11" Margin="0,5,0,0"/>
-                            <TextBox Name="txtNetResHeaders" Text="{Binding Network.SelectedResponseHeaders}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="100" FontSize="11"/>
-                        </StackPanel>
-                        <StackPanel Spacing="5">
-                            <TextBlock Text="Response Body Preview:" Foreground="#9aa0a6" FontSize="11"/>
-                            <TextBox Name="txtNetBody" Text="{Binding Network.SelectedResponseBody}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="150" FontSize="11"/>
-                        </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
+                <TabControl Background="Transparent" BorderThickness="0">
+                    <TabItem Header="Request Details">
+                        <Grid RowDefinitions="Auto, Auto, *">
+                            <TextBlock Text="Request Details" FontSize="14" FontWeight="Bold" Foreground="#e8eaed" Margin="0,10,0,10"/>
+                            <StackPanel Grid.Row="1" Spacing="3" Margin="0,0,0,10">
+                                <TextBlock Text="Request URL:" Foreground="#9aa0a6" FontSize="11"/>
+                                <TextBlock Name="lblNetUrl" Text="{Binding Network.SelectedUrl}" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                            </StackPanel>
+                            <TabControl Grid.Row="2" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                <TabItem Header="Headers">
+                                    <ScrollViewer Margin="5">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock Text="Request Headers:" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBox Name="txtNetReqHeaders" Text="{Binding Network.SelectedRequestHeaders}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" FontSize="11"/>
+                                            <TextBlock Text="Response Headers:" Foreground="#9aa0a6" FontSize="11" Margin="0,5,0,0"/>
+                                            <TextBox Name="txtNetResHeaders" Text="{Binding Network.SelectedResponseHeaders}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" FontSize="11"/>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="Payload" IsVisible="{Binding Network.SelectedRequest, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <ScrollViewer Margin="5">
+                                        <StackPanel Spacing="10" x:DataType="models:NetworkRequestModel" DataContext="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedRequest}">
+                                            <TextBlock Text="Query Parameters" FontWeight="Bold" Foreground="#e8eaed" FontSize="12"
+                                                       IsVisible="{Binding HasQueryParameters}"/>
+                                            <DataGrid Height="120" ItemsSource="{Binding QueryParameters}" CanUserResizeColumns="True" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                                      IsVisible="{Binding HasQueryParameters}" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="*" Foreground="#e8eaed" FontSize="11"/>
+                                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="2*" Foreground="#9aa0a6" FontSize="11"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+
+                                            <TextBlock Text="Post Parameters" FontWeight="Bold" Foreground="#e8eaed" FontSize="12"
+                                                       IsVisible="{Binding HasPostParameters}" Margin="0,10,0,0"/>
+                                            <DataGrid Height="120" ItemsSource="{Binding PostParameters}" CanUserResizeColumns="True" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                                      IsVisible="{Binding HasPostParameters}" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="*" Foreground="#e8eaed" FontSize="11"/>
+                                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="2*" Foreground="#9aa0a6" FontSize="11"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+
+                                            <TextBlock Text="No payload parameters" Foreground="#9aa0a6" FontSize="12" IsVisible="{Binding !HasPayload}"/>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="Preview" IsVisible="{Binding Network.SelectedRequest, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <ScrollViewer Margin="5">
+                                        <StackPanel x:DataType="models:NetworkRequestModel" DataContext="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedRequest}">
+                                             <!-- JSON tree view -->
+                                             <DataGrid HierarchicalModel="{Binding HierarchicalJsonTree}"
+                                                       HierarchicalRowsEnabled="True"
+                                                       HeadersVisibility="None"
+                                                       GridLinesVisibility="None"
+                                                       Background="Transparent"
+                                                       BorderThickness="0"
+                                                       IsVisible="{Binding IsJson}"
+                                                       MaxHeight="250">
+                                                 <DataGrid.Columns>
+                                                     <DataGridHierarchicalColumn Width="*">
+                                                         <DataGridHierarchicalColumn.CellTemplate>
+                                                             <DataTemplate x:DataType="tree:HierarchicalNode">
+                                                                 <TextBlock Text="{Binding ((models:JsonTreeNode)Item).Header}" FontSize="11" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                                             </DataTemplate>
+                                                         </DataGridHierarchicalColumn.CellTemplate>
+                                                     </DataGridHierarchicalColumn>
+                                                 </DataGrid.Columns>
+                                             </DataGrid>
+
+                                            <!-- Image preview -->
+                                            <Image Source="{Binding ResponseImage}" IsVisible="{Binding IsImage}" MaxWidth="250" MaxHeight="250" HorizontalAlignment="Left"/>
+
+                                            <!-- Text box fallback -->
+                                            <TextBox Name="txtNetBody" Text="{Binding ResponseBody}" IsVisible="{Binding IsRawText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="250" FontSize="11"/>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="Mocking Rules">
+                        <Grid RowDefinitions="Auto, *, Auto">
+                            <Button Name="btnAddMockRule" Command="{Binding Network.AddMockRuleCommand}" Content="Add Mock Rule" Margin="0,10,0,10" HorizontalAlignment="Stretch"/>
+                            
+                            <DataGrid Grid.Row="1" Name="lstMockRules" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.MockRules}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedMockRule, Mode=TwoWay}" x:DataType="models:MockRuleModel"
+                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="False"
+                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" Height="180"
+                                      Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="Active" Width="60">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate x:DataType="models:MockRuleModel">
+                                                <CheckBox IsChecked="{Binding IsActive, Mode=TwoWay}" HorizontalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="URL Pattern" Binding="{Binding UrlPattern}" Width="*" Foreground="#e8eaed" FontSize="12"/>
+                                    <DataGridTextColumn Header="Status" Binding="{Binding StatusCode}" Width="60" Foreground="#81c995" FontSize="12"/>
+                                    <DataGridTemplateColumn Width="50">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate x:DataType="models:MockRuleModel">
+                                                <Button Content="Delete" 
+                                                        Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.RemoveMockRuleCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        Background="#ff5252" Foreground="White" Padding="4,2" FontSize="10" HorizontalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <ScrollViewer Grid.Row="2" Height="220" Margin="0,10,0,0" IsVisible="{Binding Network.SelectedMockRule, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                <StackPanel Spacing="8" x:DataType="models:MockRuleModel" DataContext="{Binding Network.SelectedMockRule}">
+                                    <TextBlock Text="Edit Mock Rule" FontSize="12" FontWeight="Bold" Foreground="#e8eaed"/>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="URL Pattern:" Foreground="#9aa0a6" FontSize="10"/>
+                                        <TextBox Text="{Binding UrlPattern, Mode=TwoWay}" FontSize="11"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Status Code:" Foreground="#9aa0a6" FontSize="10"/>
+                                        <TextBox Text="{Binding StatusCode, Mode=TwoWay}" FontSize="11"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Response Headers:" Foreground="#9aa0a6" FontSize="10"/>
+                                        <TextBox Text="{Binding ResponseHeaders, Mode=TwoWay}" AcceptsReturn="True" Height="50" TextWrapping="Wrap" FontSize="11"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Mock Body:" Foreground="#9aa0a6" FontSize="10"/>
+                                        <TextBox Text="{Binding MockBody, Mode=TwoWay}" AcceptsReturn="True" Height="60" TextWrapping="Wrap" FontSize="11"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
             </Border>
         </Grid>
     </Grid>

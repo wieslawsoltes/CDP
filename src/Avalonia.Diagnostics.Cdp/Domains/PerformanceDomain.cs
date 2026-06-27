@@ -20,6 +20,8 @@ public static class PerformanceDomain
     private static DateTime _lastCpuTime = DateTime.UtcNow;
     private static TimeSpan _lastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
     private static readonly int _processorCount = Environment.ProcessorCount;
+    private static long _lastAllocatedBytes = GC.GetTotalAllocatedBytes();
+    private static readonly object _allocationLock = new();
 
     public static void CleanupSession(CdpSession session)
     {
@@ -192,6 +194,8 @@ public static class PerformanceDomain
                 sw.Stop();
                 LayoutDurationMs = sw.Elapsed.TotalMilliseconds;
 
+                ProfilerDomain.RecordActivity(_session, "LayoutPass", DateTime.UtcNow.AddMilliseconds(-LayoutDurationMs), DateTime.UtcNow);
+
                 if (TracingDomain.IsTracing(_session))
                 {
                     var traceEvent = TracingDomain.CreateManualTraceEvent(
@@ -225,6 +229,8 @@ public static class PerformanceDomain
             {
                 sw.Stop();
                 LastFrameDurationMs = sw.Elapsed.TotalMilliseconds;
+
+                ProfilerDomain.RecordActivity(_session, "RenderFrame", DateTime.UtcNow.AddMilliseconds(-LastFrameDurationMs), DateTime.UtcNow);
 
                 if (TracingDomain.IsTracing(_session))
                 {
@@ -294,6 +300,14 @@ public static class PerformanceDomain
                 nodesCount = await Dispatcher.UIThread.InvokeAsync(() => CountVisuals(_window));
             }
 
+            double deltaMb;
+            lock (_allocationLock)
+            {
+                long currentAllocated = GC.GetTotalAllocatedBytes();
+                deltaMb = (double)(currentAllocated - _lastAllocatedBytes) / (1024 * 1024);
+                _lastAllocatedBytes = currentAllocated;
+            }
+
             var metricsArray = new JsonArray
             {
                 new JsonObject { ["name"] = "Timestamp", ["value"] = timestamp },
@@ -306,7 +320,8 @@ public static class PerformanceDomain
                 new JsonObject { ["name"] = "FPS", ["value"] = Fps },
                 new JsonObject { ["name"] = "FrameDuration", ["value"] = LastFrameDurationMs / 1000.0 },
                 new JsonObject { ["name"] = "DispatcherQueueDelay", ["value"] = Watchdog.QueueDelaySeconds },
-                new JsonObject { ["name"] = "UIThreadBlockingTime", ["value"] = Watchdog.BlockingTimeSeconds }
+                new JsonObject { ["name"] = "UIThreadBlockingTime", ["value"] = Watchdog.BlockingTimeSeconds },
+                new JsonObject { ["name"] = "MemoryAllocations", ["value"] = deltaMb }
             };
 
             return metricsArray;

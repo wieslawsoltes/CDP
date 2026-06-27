@@ -341,6 +341,21 @@ public static class MemoryDomain
                     return snapshotJsonObj;
                 }
 
+            case "getRetainers":
+                {
+                    int hashCode = @params["hashCode"]?.GetValue<int>() ?? 0;
+                    var tree = await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var target = ControlTracker.GetControlByHashCode(hashCode);
+                        if (target == null)
+                        {
+                            return new JsonObject { ["error"] = "Control not found or already garbage collected" };
+                        }
+                        return ReferenceCrawler.GetRetainerTree(target);
+                    });
+                    return tree;
+                }
+
             case "collectGarbage":
             case "forciblyPurgeJavaScriptMemory":
                 GC.Collect();
@@ -475,11 +490,337 @@ public static class ControlTracker
         return list;
     }
 
+    public static Visual? GetControlByHashCode(int hashCode)
+    {
+        lock (_lock)
+        {
+            foreach (var weakRef in _trackedVisuals)
+            {
+                if (weakRef.TryGetTarget(out var visual) && visual.GetHashCode() == hashCode)
+                {
+                    return visual;
+                }
+            }
+        }
+        return null;
+    }
+
     public static void Clear()
     {
         lock (_lock)
         {
             _trackedVisuals.Clear();
         }
+    }
+}
+
+public static class ReferenceCrawler
+{
+    public class ReferenceEdge
+    {
+        public object Source { get; }
+        public string Description { get; }
+
+        public ReferenceEdge(object source, string description)
+        {
+            Source = source;
+            Description = description;
+        }
+    }
+
+    public static JsonObject GetRetainerTree(Visual targetControl)
+    {
+        var queue = new Queue<object>();
+        var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var incomingEdges = new Dictionary<object, List<ReferenceEdge>>(ReferenceEqualityComparer.Instance);
+        var roots = new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+        foreach (var win in CdpServer.GetWindows())
+        {
+            var w = win.Window;
+            if (w != null && visited.Add(w))
+            {
+                roots.Add(w);
+                queue.Enqueue(w);
+            }
+        }
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var name = assembly.GetName().Name;
+            if (name == null) continue;
+            if (name.StartsWith("System.") || name.StartsWith("Microsoft.") || name == "mscorlib" || name == "netstandard")
+            {
+                continue;
+            }
+
+            Type[] types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (System.Reflection.ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.Where(t => t != null).ToArray()!;
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var type in types)
+            {
+                if (type == null) continue;
+
+                System.Reflection.FieldInfo[] fields;
+                try
+                {
+                    fields = type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var field in fields)
+                {
+                    try
+                    {
+                        var val = field.GetValue(null);
+                        if (val != null && !val.GetType().IsValueType)
+                        {
+                            if (visited.Add(val))
+                            {
+                                roots.Add(val);
+                                queue.Enqueue(val);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        int visitedCount = 0;
+        const int maxObjects = 50000;
+        bool targetFound = false;
+
+        while (queue.Count > 0 && visitedCount < maxObjects)
+        {
+            var parentObj = queue.Dequeue();
+            visitedCount++;
+
+            var children = GetChildren(parentObj);
+            foreach (var (childObj, desc) in children)
+            {
+                if (childObj == null) continue;
+
+                if (ReferenceEquals(childObj, targetControl))
+                {
+                    targetFound = true;
+                }
+
+                if (!incomingEdges.TryGetValue(childObj, out var edges))
+                {
+                    edges = new List<ReferenceEdge>();
+                    incomingEdges[childObj] = edges;
+                }
+
+                if (!edges.Any(e => ReferenceEquals(e.Source, parentObj)))
+                {
+                    edges.Add(new ReferenceEdge(parentObj, desc));
+                }
+
+                if (visited.Add(childObj))
+                {
+                    queue.Enqueue(childObj);
+                }
+            }
+
+            if (targetFound)
+            {
+                break;
+            }
+        }
+
+        var pathVisited = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        pathVisited.Add(targetControl);
+        return BuildRetainerTree(targetControl, "Target Control", incomingEdges, pathVisited, roots, 0);
+    }
+
+    private static List<(object Obj, string Description)> GetChildren(object obj)
+    {
+        var list = new List<(object, string)>();
+        if (obj == null) return list;
+
+        var type = obj.GetType();
+
+        if (obj is System.Reflection.MemberInfo || obj is System.Reflection.Assembly || obj is System.Reflection.Module || obj is System.Type)
+        {
+            return list;
+        }
+
+        if (obj is Delegate del)
+        {
+            try
+            {
+                var targets = del.GetInvocationList();
+                for (int i = 0; i < targets.Length; i++)
+                {
+                    var t = targets[i];
+                    if (t.Target != null)
+                    {
+                        list.Add((t.Target, $"Delegate target [{i}] ({t.Method.Name})"));
+                    }
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        if (obj is Array arr)
+        {
+            for (int i = 0; i < arr.Length; i++)
+            {
+                try
+                {
+                    var val = arr.GetValue(i);
+                    if (val != null && !val.GetType().IsValueType)
+                    {
+                        list.Add((val, $"Array index [{i}]"));
+                    }
+                }
+                catch { }
+            }
+            return list;
+        }
+
+        var currentType = type;
+        while (currentType != null)
+        {
+            if (currentType.FullName != null && (currentType.FullName.StartsWith("System.Reflection") || currentType.FullName.StartsWith("System.RuntimeType")))
+            {
+                break;
+            }
+
+            System.Reflection.FieldInfo[] fields;
+            try
+            {
+                fields = currentType.GetFields(System.Reflection.BindingFlags.Public | 
+                                               System.Reflection.BindingFlags.NonPublic | 
+                                               System.Reflection.BindingFlags.Instance | 
+                                               System.Reflection.BindingFlags.DeclaredOnly);
+            }
+            catch
+            {
+                break;
+            }
+
+            foreach (var field in fields)
+            {
+                if (field.FieldType.IsValueType && !HasReferenceFields(field.FieldType))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var val = field.GetValue(obj);
+                    if (val != null)
+                    {
+                        list.Add((val, $"Field '{field.Name}'"));
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            currentType = currentType.BaseType;
+        }
+
+        return list;
+    }
+
+    private static readonly ConcurrentDictionary<Type, bool> _hasReferenceFieldsCache = new();
+    private static bool HasReferenceFields(Type type)
+    {
+        if (type.IsPrimitive || type.IsEnum) return false;
+        return _hasReferenceFieldsCache.GetOrAdd(type, t =>
+        {
+            var fields = t.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            foreach (var field in fields)
+            {
+                if (!field.FieldType.IsValueType) return true;
+                if (field.FieldType != t && HasReferenceFields(field.FieldType)) return true;
+            }
+            return false;
+        });
+    }
+
+    private static JsonObject BuildRetainerTree(
+        object currentObj, 
+        string edgeDescription, 
+        Dictionary<object, List<ReferenceEdge>> incomingEdges, 
+        HashSet<object> pathVisited, 
+        HashSet<object> roots,
+        int depth)
+    {
+        var type = currentObj.GetType();
+        var node = new JsonObject
+        {
+            ["name"] = edgeDescription,
+            ["type"] = type.FullName ?? type.Name,
+            ["hashCode"] = currentObj.GetHashCode()
+        };
+
+        if (depth >= 10)
+        {
+            return node;
+        }
+
+        if (roots.Contains(currentObj))
+        {
+            var rootArray = new JsonArray();
+            rootArray.Add(new JsonObject
+            {
+                ["name"] = "GC Root",
+                ["type"] = "Root",
+                ["hashCode"] = 0
+            });
+            node["retainers"] = rootArray;
+            return node;
+        }
+
+        if (incomingEdges.TryGetValue(currentObj, out var edges))
+        {
+            var retainersArray = new JsonArray();
+            foreach (var edge in edges)
+            {
+                if (pathVisited.Add(edge.Source))
+                {
+                    var childNode = BuildRetainerTree(edge.Source, edge.Description, incomingEdges, pathVisited, roots, depth + 1);
+                    retainersArray.Add(childNode);
+                    pathVisited.Remove(edge.Source);
+                }
+                else
+                {
+                    retainersArray.Add(new JsonObject
+                    {
+                        ["name"] = edge.Description + " (Cycle)",
+                        ["type"] = edge.Source.GetType().FullName ?? edge.Source.GetType().Name,
+                        ["hashCode"] = edge.Source.GetHashCode()
+                    });
+                }
+            }
+            if (retainersArray.Count > 0)
+            {
+                node["retainers"] = retainersArray;
+            }
+        }
+
+        return node;
     }
 }

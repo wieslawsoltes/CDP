@@ -11,6 +11,7 @@ public partial class ConsoleView : UserControl
     public ListBox ListConsole => listConsole;
     public TextBox TxtConsoleInput => txtConsoleInput;
     public Button BtnSendConsole => btnSendConsole;
+    public TextBox TxtPinnedExpression => txtPinnedExpression;
 
     public ConsoleView()
     {
@@ -109,5 +110,41 @@ public partial class ConsoleView : UserControl
                 }
             }
         };
+
+        txtPinnedExpression.KeyDown += (sender, e) =>
+        {
+            if (DataContext is MainWindowViewModel vm)
+            {
+                if (e.Key == Avalonia.Input.Key.Enter)
+                {
+                    if (vm.Console.AddPinnedExpressionCommand.CanExecute(null))
+                    {
+                        vm.Console.AddPinnedExpressionCommand.Execute(null);
+                        e.Handled = true;
+                    }
+                }
+            }
+        };
+    }
+
+    private void OnLogEntryDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.SelectedItem is CdpInspectorApp.Models.LogModel log)
+        {
+            if (string.IsNullOrEmpty(log.Text)) return;
+
+            var match = System.Text.RegularExpressions.Regex.Match(log.Text, @"\bin\s+([^:\n\r]+):line\s*(\d+)");
+            if (match.Success)
+            {
+                string path = match.Groups[1].Value.Trim();
+                if (int.TryParse(match.Groups[2].Value, out int line))
+                {
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        vm.NavigateToSource(path, line);
+                    }
+                }
+            }
+        }
     }
 }

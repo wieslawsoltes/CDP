@@ -75,10 +75,20 @@
 
         <!-- Chart (Top Right) -->
         <Grid Grid.Row="0" Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
-            <TextBlock Text="Memory Usage Timeline (MB)" Classes="panel-header"/>
-            <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
-                <controls:MemoryChart Name="canvasMemoryChart" MemoryHistory="{Binding Performance.MemoryHistory}" Height="140"/>
-            </Border>
+            <TextBlock Text="Performance Monitor" Classes="panel-header"/>
+            <ScrollViewer Grid.Row="1">
+                <StackPanel Spacing="10" Margin="0,0,10,0">
+                    <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
+                        <controls:ChromeTimelineChart StrokeColor="#ff9800" FillColor="#ff9800" Unit="%" MaxDisplayValue="100.0" Height="65" History="{Binding Performance.CpuHistory}"/>
+                    </Border>
+                    <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
+                        <controls:ChromeTimelineChart StrokeColor="#4caf50" FillColor="#4caf50" Unit="FPS" MaxDisplayValue="60.0" Height="65" History="{Binding Performance.FpsHistory}"/>
+                    </Border>
+                    <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
+                        <controls:ChromeTimelineChart StrokeColor="#2196f3" FillColor="#2196f3" Unit="MB" Height="65" History="{Binding Performance.MemoryHistory}"/>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
 
         <GridSplitter Grid.Row="1" Grid.ColumnSpan="3" Background="#3c4043"/>
