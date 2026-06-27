@@ -192,7 +192,7 @@ public class TestStudioE2ETests
         Assert.False(vm.IsAssertPickerVisible);
         Assert.Single(vm.Steps);
         Assert.Equal("assertTrue", vm.Steps[0].Action);
-        Assert.Equal("document.querySelector(\"#btnClickMe\").IsEnabled", vm.Steps[0].Value);
+        Assert.Equal("document.querySelector(\"#btnClickMe\").visual.IsEnabled", vm.Steps[0].Value);
     }
 
     [Fact]
@@ -220,7 +220,7 @@ public class TestStudioE2ETests
         Assert.False(vm.IsAssertPickerVisible);
         Assert.Single(vm.Steps);
         Assert.Equal("assertTrue", vm.Steps[0].Action);
-        Assert.Equal("document.querySelector(\"#btnClickMe\").DataContext.CustomFlag", vm.Steps[0].Value);
+        Assert.Equal("document.querySelector(\"#btnClickMe\").visual.DataContext.CustomFlag", vm.Steps[0].Value);
     }
 
     [Fact]
@@ -246,6 +246,6 @@ public class TestStudioE2ETests
         Assert.False(vm.IsAssertPickerVisible);
         Assert.Single(vm.Steps);
         Assert.Equal("assertTrue", vm.Steps[0].Action);
-        Assert.Equal("document.querySelector(\"[AccessibilityId=\\\"txtTarget\\\"]\").IsEnabled", vm.Steps[0].Value);
+        Assert.Equal("document.querySelector(\"[AccessibilityId=\\\"txtTarget\\\"]\").visual.IsEnabled", vm.Steps[0].Value);
     }
 }

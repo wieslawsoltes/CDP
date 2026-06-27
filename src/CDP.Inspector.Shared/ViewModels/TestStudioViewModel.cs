@@ -3285,22 +3285,22 @@ public class TestStudioViewModel : ViewModelBase
         {
             case 0: // Assert True
                 action = "assertTrue";
-                valExpression = $"document.querySelector(\"{escapedSelector}\").{propName}";
+                valExpression = $"document.querySelector(\"{escapedSelector}\").visual.{propName}";
                 break;
             case 1: // Assert False
                 action = "assertFalse";
-                valExpression = $"document.querySelector(\"{escapedSelector}\").{propName}";
+                valExpression = $"document.querySelector(\"{escapedSelector}\").visual.{propName}";
                 break;
             case 2: // Equals
                 action = "assertTrue";
                 if (string.Equals(propType, "String", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(propType, "string", StringComparison.OrdinalIgnoreCase))
                 {
-                    valExpression = $"document.querySelector(\"{escapedSelector}\").{propName} == \"{AssertPickerValue.Replace("\"", "\\\"")}\"";
+                    valExpression = $"document.querySelector(\"{escapedSelector}\").visual.{propName} == \"{AssertPickerValue.Replace("\"", "\\\"")}\"";
                 }
                 else
                 {
-                    valExpression = $"document.querySelector(\"{escapedSelector}\").{propName} == {AssertPickerValue}";
+                    valExpression = $"document.querySelector(\"{escapedSelector}\").visual.{propName} == {AssertPickerValue}";
                 }
                 break;
             case 3: // Not Equals
@@ -3308,11 +3308,11 @@ public class TestStudioViewModel : ViewModelBase
                 if (string.Equals(propType, "String", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(propType, "string", StringComparison.OrdinalIgnoreCase))
                 {
-                    valExpression = $"document.querySelector(\"{escapedSelector}\").{propName} != \"{AssertPickerValue.Replace("\"", "\\\"")}\"";
+                    valExpression = $"document.querySelector(\"{escapedSelector}\").visual.{propName} != \"{AssertPickerValue.Replace("\"", "\\\"")}\"";
                 }
                 else
                 {
-                    valExpression = $"document.querySelector(\"{escapedSelector}\").{propName} != {AssertPickerValue}";
+                    valExpression = $"document.querySelector(\"{escapedSelector}\").visual.{propName} != {AssertPickerValue}";
                 }
                 break;
         }
