@@ -14,7 +14,11 @@ using CdpInspectorApp.Services;
 using CdpInspectorApp.Models;
 using XamlPlayground.Editor.Minimap.Inline;
 using ProDataGrid;
+using System.Linq;
+using Avalonia.VisualTree;
+using Avalonia.Interactivity;
 using Avalonia.Controls.DataGridHierarchical;
+using Avalonia.LogicalTree;
 
 namespace CdpInspectorApp.Views;
 
@@ -72,6 +76,22 @@ public partial class TestStudioView : UserControl
             // 2b. Attach auto-completion handlers
             editor.TextArea.TextEntered += TextArea_TextEntered;
             editor.TextArea.KeyDown += TextArea_KeyDown;
+
+            // 2c. Update editor text when it gets focused to ensure sync
+            editor.GotFocus += (s, ev) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    UpdateEditorText(vm.Recorder.TestStudio.YamlCode);
+                }
+            };
+            editor.TextArea.GotFocus += (s, ev) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    UpdateEditorText(vm.Recorder.TestStudio.YamlCode);
+                }
+            };
         }
 
         // 3. Synchronize ViewModel changes to editor
@@ -119,7 +139,8 @@ public partial class TestStudioView : UserControl
 
                         if (!alreadyAdded)
                         {
-                            var gutter = new ReplayGutterMargin(vm.Recorder.TestStudio, vm.Recorder);
+                            var provider = new TestStudioGutterDataProvider(vm.Recorder.TestStudio, vm.Recorder);
+                            var gutter = new ReplayGutterMargin(provider);
                             int insertIndex = 0;
                             for (int i = 0; i < editor.TextArea.LeftMargins.Count; i++)
                             {
@@ -185,6 +206,68 @@ public partial class TestStudioView : UserControl
                 }
             };
         }
+
+        // --- Toolbox Drag & Drop & Context Menus Initialization ---
+        Loaded += (sender, e) =>
+        {
+            var accordion = this.FindControl<Control>("toolboxAccordion");
+            if (accordion != null)
+            {
+                SetupToolboxDragHandlers(accordion);
+            }
+        };
+
+        this.AddHandler(PointerMovedEvent, OnToolboxPointerMoved, RoutingStrategies.Tunnel);
+        this.AddHandler(PointerReleasedEvent, OnToolboxPointerReleased, RoutingStrategies.Tunnel);
+
+        var yamlEditor = this.FindControl<TextEditor>("txtYamlCode");
+        if (yamlEditor != null)
+        {
+            DragDrop.SetAllowDrop(yamlEditor, true);
+            yamlEditor.AddHandler(DragDrop.DragOverEvent, OnYamlDragOver);
+            yamlEditor.AddHandler(DragDrop.DropEvent, OnYamlDrop);
+
+            yamlEditor.PointerPressed += (s, e) =>
+            {
+                var prop = e.GetCurrentPoint(yamlEditor).Properties;
+                if (prop.IsRightButtonPressed)
+                {
+                    var pos = e.GetPosition(yamlEditor.TextArea);
+                    var caretPos = yamlEditor.GetPositionFromPoint(pos);
+                    if (caretPos.HasValue)
+                    {
+                        yamlEditor.CaretOffset = yamlEditor.Document.GetOffset(caretPos.Value.Line, caretPos.Value.Column);
+                    }
+                }
+            };
+
+            yamlEditor.ContextMenu = ToolboxMenuHelper.CreateContextMenu(cmd =>
+            {
+                string yamlTemplate = ToolboxMenuHelper.GetYamlTemplateForCommand(cmd);
+                yamlEditor.Document.Insert(yamlEditor.CaretOffset, yamlTemplate);
+            });
+        }
+
+        var stepsGrid = this.FindControl<DataGrid>("lstSteps");
+        if (stepsGrid != null)
+        {
+            DragDrop.SetAllowDrop(stepsGrid, true);
+            stepsGrid.AddHandler(DragDrop.DragOverEvent, OnStepsDragOver);
+            stepsGrid.AddHandler(DragDrop.DropEvent, OnStepsDrop);
+
+            stepsGrid.ContextMenu = ToolboxMenuHelper.CreateContextMenu(cmd =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    int insertIndex = vm.Recorder.TestStudio.Steps.Count;
+                    if (stepsGrid.SelectedItem is HierarchicalNode<TestStudioStepModel> node && node.Item is TestStudioStepModel targetStep)
+                    {
+                        insertIndex = vm.Recorder.TestStudio.Steps.IndexOf(targetStep);
+                    }
+                    vm.Recorder.TestStudio.InsertCommandStep(cmd, "", "", insertIndex);
+                }
+            });
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -211,7 +294,37 @@ public partial class TestStudioView : UserControl
             {
                 if (DataContext is MainWindowViewModel vm)
                 {
-                    UpdateEditorText(vm.Recorder.TestStudio.YamlCode);
+                    var editor = this.FindControl<TextEditor>("txtYamlCode");
+                    if (editor != null && !editor.IsFocused && !editor.TextArea.IsFocused)
+                    {
+                        UpdateEditorText(vm.Recorder.TestStudio.YamlCode);
+                    }
+                }
+            });
+        }
+        else if (e.PropertyName == nameof(TestStudioViewModel.ExecutingStep))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    var testStudio = vm.Recorder.TestStudio;
+                    var step = testStudio.ExecutingStep;
+                    if (step != null)
+                    {
+                        var editor = this.FindControl<TextEditor>("txtYamlCode");
+                        if (editor != null && step.StartLine > 0 && step.StartLine <= editor.Document.LineCount)
+                        {
+                            editor.ScrollToLine(step.StartLine);
+                        }
+
+                        var node = testStudio.NodeEditor.Nodes.OfType<TestStudioNodeViewModel>()
+                                             .FirstOrDefault(n => n.Step == step);
+                        if (node != null)
+                        {
+                            testStudio.NodeEditor.BringNodeIntoView(node);
+                        }
+                    }
                 }
             });
         }
@@ -328,5 +441,149 @@ public partial class TestStudioView : UserControl
     private bool IsWordChar(char c)
     {
         return char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '#' || c == '"' || c == '[' || c == ']';
+    }
+
+    // --- Toolbox Drag & Drop Support Handlers ---
+    private Point _dragStartPoint;
+    private bool _isMouseDown;
+    private string? _draggedCommand;
+    private PointerPressedEventArgs? _pressedEventArgs;
+
+    private void SetupToolboxDragHandlers(ILogical parent)
+    {
+        if (parent is Button btn && btn.Content is string text)
+        {
+            string? commandName = ToolboxMenuHelper.MapContentToCommand(text);
+            if (commandName != null)
+            {
+                btn.AddHandler(PointerPressedEvent, (sender, e) =>
+                {
+                    if (e.GetCurrentPoint(btn).Properties.IsLeftButtonPressed)
+                    {
+                        _isMouseDown = true;
+                        _dragStartPoint = e.GetPosition(this);
+                        _draggedCommand = commandName;
+                        _pressedEventArgs = e;
+                    }
+                }, RoutingStrategies.Tunnel);
+            }
+        }
+
+        foreach (var child in parent.LogicalChildren)
+        {
+            SetupToolboxDragHandlers(child);
+        }
+    }
+
+    private async void OnToolboxPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_isMouseDown && _draggedCommand != null)
+        {
+            var currentPos = e.GetPosition(this);
+            var delta = currentPos - _dragStartPoint;
+            if (Math.Abs(delta.X) > 3 || Math.Abs(delta.Y) > 3)
+            {
+                _isMouseDown = false;
+                var cmd = _draggedCommand;
+                _draggedCommand = null;
+
+                var item = new DataTransferItem();
+                item.Set(ToolboxMenuHelper.CdpCommandFormat, cmd);
+                
+                string yamlTemplate = ToolboxMenuHelper.GetYamlTemplateForCommand(cmd);
+                item.Set(DataFormat.Text, yamlTemplate);
+
+                var data = new DataTransfer();
+                data.Add(item);
+
+                var effect = await DragDrop.DoDragDropAsync(_pressedEventArgs!, data, DragDropEffects.Copy);
+            }
+        }
+    }
+
+    private void OnToolboxPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _isMouseDown = false;
+        _draggedCommand = null;
+    }
+
+    private void OnYamlDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.DataTransfer.Formats.Contains(DataFormat.Text) || e.DataTransfer.Formats.Contains(ToolboxMenuHelper.CdpCommandFormat))
+        {
+            e.DragEffects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+        else
+        {
+            e.DragEffects = DragDropEffects.None;
+        }
+    }
+
+    private void OnYamlDrop(object? sender, DragEventArgs e)
+    {
+        var yamlEditor = this.FindControl<TextEditor>("txtYamlCode");
+        if (yamlEditor != null)
+        {
+            var text = e.DataTransfer.TryGetText();
+            if (!string.IsNullOrEmpty(text))
+            {
+                var visualPos = e.GetPosition(yamlEditor.TextArea);
+                var position = yamlEditor.GetPositionFromPoint(visualPos);
+                if (position.HasValue)
+                {
+                    int offset = yamlEditor.Document.GetOffset(position.Value.Line, position.Value.Column);
+                    yamlEditor.Document.Insert(offset, text);
+                    yamlEditor.CaretOffset = offset + text.Length;
+                    yamlEditor.Focus();
+                }
+                else
+                {
+                    yamlEditor.Document.Insert(yamlEditor.CaretOffset, text);
+                }
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void OnStepsDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.DataTransfer.Formats.Contains(ToolboxMenuHelper.CdpCommandFormat))
+        {
+            e.DragEffects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+        else
+        {
+            e.DragEffects = DragDropEffects.None;
+        }
+    }
+
+    private void OnStepsDrop(object? sender, DragEventArgs e)
+    {
+        var stepsGrid = this.FindControl<DataGrid>("lstSteps");
+        if (stepsGrid != null && DataContext is MainWindowViewModel vm)
+        {
+            var command = e.DataTransfer.TryGetValue(ToolboxMenuHelper.CdpCommandFormat);
+            if (!string.IsNullOrEmpty(command))
+            {
+                int insertIndex = vm.Recorder.TestStudio.Steps.Count;
+                var hitVisual = e.Source as Control;
+                
+                var row = hitVisual;
+                while (row != null && !(row is DataGridRow))
+                {
+                    row = row.Parent as Control;
+                }
+
+                if (row != null && row.DataContext is HierarchicalNode<TestStudioStepModel> node && node.Item is TestStudioStepModel targetStep)
+                {
+                    insertIndex = vm.Recorder.TestStudio.Steps.IndexOf(targetStep);
+                }
+
+                vm.Recorder.TestStudio.InsertCommandStep(command, "", "", insertIndex);
+                e.Handled = true;
+            }
+        }
     }
 }

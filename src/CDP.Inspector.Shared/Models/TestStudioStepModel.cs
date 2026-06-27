@@ -97,6 +97,7 @@ public class TestStudioStepModel : ViewModelBase
         }
     }
 
+
     public Dictionary<string, object?> Parameters
     {
         get => _parameters;

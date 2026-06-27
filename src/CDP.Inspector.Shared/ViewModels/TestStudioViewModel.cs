@@ -32,6 +32,7 @@ public class TestStudioViewModel : ViewModelBase
     private int _delayMs = 1000;
     private TestStudioStepModel? _selectedStep;
     private object? _selectedStepNode;
+    private TestStudioStepModel? _executingStep;
 
     private int _currentStepIndex = 0;
     private CancellationTokenSource? _executionCts;
@@ -189,6 +190,115 @@ public class TestStudioViewModel : ViewModelBase
     {
         get => _namePromptCallback;
         set => _namePromptCallback = value;
+    }
+
+    private bool _isAssertPickerVisible;
+    private string _assertPickerTitle = "";
+    private string _assertPickerSelector = "";
+    private ObservableCollection<ElementPropertyInfo> _assertPickerProperties = new();
+    private ElementPropertyInfo? _assertPickerSelectedProperty;
+    private string _assertPickerSelectedPropertyName = "";
+    private int _assertPickerComparisonIndex = 2; // Default to Equals
+    private string _assertPickerValue = "";
+    private bool _isAssertPickerValueInputVisible = true;
+
+    public bool IsAssertPickerVisible
+    {
+        get => _isAssertPickerVisible;
+        set => RaiseAndSetIfChanged(ref _isAssertPickerVisible, value);
+    }
+
+    public string AssertPickerTitle
+    {
+        get => _assertPickerTitle;
+        set => RaiseAndSetIfChanged(ref _assertPickerTitle, value);
+    }
+
+    public string AssertPickerSelector
+    {
+        get => _assertPickerSelector;
+        set => RaiseAndSetIfChanged(ref _assertPickerSelector, value);
+    }
+
+    public ObservableCollection<ElementPropertyInfo> AssertPickerProperties
+    {
+        get => _assertPickerProperties;
+        set => RaiseAndSetIfChanged(ref _assertPickerProperties, value);
+    }
+
+    public ElementPropertyInfo? AssertPickerSelectedProperty
+    {
+        get => _assertPickerSelectedProperty;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _assertPickerSelectedProperty, value))
+            {
+                if (value != null)
+                {
+                    _assertPickerSelectedPropertyName = value.Name;
+                    OnPropertyChanged(nameof(AssertPickerSelectedPropertyName));
+
+                    AssertPickerValue = value.Value;
+                    if (string.Equals(value.Type, "Boolean", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(value.Type, "bool", StringComparison.OrdinalIgnoreCase))
+                    {
+                        AssertPickerComparisonIndex = string.Equals(value.Value, "true", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+                    }
+                    else
+                    {
+                        AssertPickerComparisonIndex = 2; // Default to Equals
+                    }
+                }
+            }
+        }
+    }
+
+    public string AssertPickerSelectedPropertyName
+    {
+        get => _assertPickerSelectedPropertyName;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _assertPickerSelectedPropertyName, value))
+            {
+                var match = AssertPickerProperties.FirstOrDefault(p => string.Equals(p.Name, value, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    if (AssertPickerSelectedProperty != match)
+                    {
+                        AssertPickerSelectedProperty = match;
+                    }
+                }
+                else
+                {
+                    _assertPickerSelectedProperty = null;
+                    OnPropertyChanged(nameof(AssertPickerSelectedProperty));
+                }
+            }
+        }
+    }
+
+    public int AssertPickerComparisonIndex
+    {
+        get => _assertPickerComparisonIndex;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _assertPickerComparisonIndex, value))
+            {
+                IsAssertPickerValueInputVisible = value == 2 || value == 3;
+            }
+        }
+    }
+
+    public string AssertPickerValue
+    {
+        get => _assertPickerValue;
+        set => RaiseAndSetIfChanged(ref _assertPickerValue, value);
+    }
+
+    public bool IsAssertPickerValueInputVisible
+    {
+        get => _isAssertPickerValueInputVisible;
+        set => RaiseAndSetIfChanged(ref _isAssertPickerValueInputVisible, value);
     }
 
     private object? _selectedWorkspaceNode;
@@ -349,6 +459,14 @@ public class TestStudioViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _steps, value);
     }
 
+    private readonly TestStudioNodeEditorService _nodeEditorService = new();
+    private TestStudioNodeEditorViewModel _nodeEditor = new();
+    public TestStudioNodeEditorViewModel NodeEditor
+    {
+        get => _nodeEditor;
+        set => RaiseAndSetIfChanged(ref _nodeEditor, value);
+    }
+
     public HierarchicalModel<TestStudioStepModel> HierarchicalSteps { get; }
 
     public string YamlCode
@@ -427,8 +545,23 @@ public class TestStudioViewModel : ViewModelBase
                 {
                     SelectedStepNode = null;
                 }
+                else
+                {
+                    var matchingNode = NodeEditor.Nodes.OfType<TestStudioNodeViewModel>().FirstOrDefault(n => n.Step == value);
+                    if (matchingNode != null)
+                    {
+                        NodeEditor.SelectNode(matchingNode, true);
+                        SelectedStepNode = matchingNode;
+                    }
+                }
             }
         }
+    }
+
+    public TestStudioStepModel? ExecutingStep
+    {
+        get => _executingStep;
+        set => RaiseAndSetIfChanged(ref _executingStep, value);
     }
 
     public object? SelectedStepNode
@@ -438,7 +571,9 @@ public class TestStudioViewModel : ViewModelBase
         {
             if (RaiseAndSetIfChanged(ref _selectedStepNode, value))
             {
-                var targetModel = value is HierarchicalNode<TestStudioStepModel> node ? node.Item : (value as TestStudioStepModel);
+                var targetModel = value is HierarchicalNode<TestStudioStepModel> node ? node.Item :
+                                  value is TestStudioNodeViewModel nodeVm ? nodeVm.Step :
+                                  (value as TestStudioStepModel);
                 if (_selectedStep != targetModel)
                 {
                     SelectedStep = targetModel;
@@ -489,11 +624,16 @@ public class TestStudioViewModel : ViewModelBase
     public ICommand AddScrollCommand { get; }
     public ICommand AddOpenLinkCommand { get; }
     public ICommand AddCopyTextFromCommand { get; }
+    public ICommand ShowAssertPropertyPickerCommand { get; }
+    public ICommand CancelAssertPickerCommand { get; }
+    public ICommand SubmitAssertPickerCommand { get; }
     public ICommand AddSelectedCommandCommand { get; }
     public ICommand DeleteStepCommand { get; }
     public ICommand MoveUpStepCommand { get; }
     public ICommand MoveDownStepCommand { get; }
     public ICommand ApplyYamlCommand { get; }
+    public ICommand SyncToTestStudioCommand { get; }
+    public ICommand SyncFromTestStudioCommand { get; }
 
     public TestStudioViewModel(ICdpService cdpService)
     {
@@ -554,6 +694,9 @@ public class TestStudioViewModel : ViewModelBase
         AddScrollCommand = new RelayCommand(async () => await AddScrollAsync());
         AddOpenLinkCommand = new RelayCommand(async () => await AddOpenLinkAsync());
         AddCopyTextFromCommand = new RelayCommand(async () => await AddCopyTextFromAsync());
+        ShowAssertPropertyPickerCommand = new RelayCommand<string>(async selector => await ShowAssertPropertyPickerAsync(selector));
+        CancelAssertPickerCommand = new RelayCommand(() => IsAssertPickerVisible = false);
+        SubmitAssertPickerCommand = new RelayCommand(async () => await SubmitAssertPickerAsync());
         AddSelectedCommandCommand = new RelayCommand(AddSelectedCommand);
 
         DeleteStepCommand = new RelayCommand<TestStudioStepModel>(DeleteStep);
@@ -561,6 +704,8 @@ public class TestStudioViewModel : ViewModelBase
         MoveDownStepCommand = new RelayCommand<TestStudioStepModel>(MoveStepDown);
 
         ApplyYamlCommand = new RelayCommand(ApplyYaml, () => !IsExecuting);
+        SyncToTestStudioCommand = new RelayCommand(SyncToTestStudio);
+        SyncFromTestStudioCommand = new RelayCommand(SyncFromTestStudio);
 
         OpenLastReportCommand = new RelayCommand(OpenLastReport, () => HasLastRunRecording && !string.IsNullOrEmpty(LastReportPath) && File.Exists(LastReportPath));
         OpenLastPdfReportCommand = new RelayCommand(OpenLastPdfReport, () => HasLastRunRecording && !string.IsNullOrEmpty(LastPdfReportPath) && File.Exists(LastPdfReportPath));
@@ -593,6 +738,22 @@ public class TestStudioViewModel : ViewModelBase
         {
             IsNamePromptVisible = false;
         });
+
+        NodeEditor.SyncToTestStudioAction = SyncToTestStudio;
+        NodeEditor.SyncFromTestStudioAction = SyncFromTestStudio;
+        NodeEditor.NodeSelectedAction = node =>
+        {
+            if (node is TestStudioNodeViewModel tNode)
+            {
+                if (tNode.Step != null && SelectedStep != tNode.Step)
+                {
+                    SelectedStep = tNode.Step;
+                }
+                SelectedStepNode = tNode;
+            }
+        };
+
+        SyncFromTestStudio();
 
         _cdpService.EventReceived += CdpService_EventReceived;
     }
@@ -644,6 +805,7 @@ public class TestStudioViewModel : ViewModelBase
         }
         UpdateYaml();
         RaiseCommandCanExecuteChanged();
+        SyncFromTestStudio();
     }
 
     private void SubscribeStep(TestStudioStepModel step)
@@ -700,6 +862,7 @@ public class TestStudioViewModel : ViewModelBase
             e.PropertyName == nameof(TestStudioStepModel.Value))
         {
             UpdateYaml();
+            SyncFromTestStudio();
         }
     }
 
@@ -758,12 +921,30 @@ public class TestStudioViewModel : ViewModelBase
                 _isUpdatingYaml = false;
             }
 
+            SyncFromTestStudio();
             Log($"Successfully imported {Steps.Count} steps from YAML.");
         }
         catch (Exception ex)
         {
             Log($"Error parsing YAML: {ex.Message}");
         }
+    }
+
+    public void SyncToTestStudio()
+    {
+        _nodeEditorService.SyncToTestStudio(
+            NodeEditor,
+            Steps,
+            SubscribeStep,
+            UnsubscribeStep,
+            val => _isUpdatingYaml = val,
+            UpdateYaml
+        );
+    }
+
+    public void SyncFromTestStudio()
+    {
+        _nodeEditorService.SyncFromTestStudio(NodeEditor, Steps);
     }
 
     public async Task PlayAsync()
@@ -934,6 +1115,7 @@ public class TestStudioViewModel : ViewModelBase
         var stepToExecute = Steps[_currentStepIndex];
         try
         {
+            ExecutingStep = stepToExecute;
             stepToExecute.IsCurrent = true;
             stepToExecute.Status = StepStatus.Running;
             Log($"Running step {_currentStepIndex + 1}: {stepToExecute.ActionDisplay}...");
@@ -955,6 +1137,7 @@ public class TestStudioViewModel : ViewModelBase
         finally
         {
             stepToExecute.IsCurrent = false;
+            ExecutingStep = null;
             if (_currentStepIndex >= Steps.Count)
             {
                 IsExecuting = false;
@@ -1004,51 +1187,56 @@ public class TestStudioViewModel : ViewModelBase
                 token.ThrowIfCancellationRequested();
 
                 var step = Steps[_currentStepIndex];
-                step.IsCurrent = true;
-                step.Status = StepStatus.Running;
-                Log($"Running step {_currentStepIndex + 1}: {step.ActionDisplay}...");
-
-                var stepStartTime = DateTime.UtcNow;
-
                 try
                 {
-                    await ExecuteSingleStepAsync(step, env, token);
-                    var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
-                    var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
-                    step.Status = StepStatus.Passed;
-                    Log($"Step {_currentStepIndex + 1} passed.");
-                    
-                    if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
-                    {
-                        await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
-                    }
+                    ExecutingStep = step;
+                    step.IsCurrent = true;
+                    step.Status = StepStatus.Running;
+                    Log($"Running step {_currentStepIndex + 1}: {step.ActionDisplay}...");
 
-                    _currentStepIndex++;
-                }
-                catch (OperationCanceledException)
-                {
-                    step.Status = StepStatus.Pending;
-                    Log($"Step {_currentStepIndex + 1} paused.");
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
-                    var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
-                    step.Status = StepStatus.Failed;
-                    step.ErrorMessage = ex.Message;
-                    Log($"Step {_currentStepIndex + 1} failed: {ex.Message}");
-                    
-                    if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
-                    {
-                        await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
-                    }
+                    var stepStartTime = DateTime.UtcNow;
 
-                    throw;
+                    try
+                    {
+                        await ExecuteSingleStepAsync(step, env, token);
+                        var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
+                        var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
+                        step.Status = StepStatus.Passed;
+                        Log($"Step {_currentStepIndex + 1} passed.");
+                        
+                        if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
+                        {
+                            await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
+                        }
+
+                        _currentStepIndex++;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        step.Status = StepStatus.Pending;
+                        Log($"Step {_currentStepIndex + 1} paused.");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        var duration = (DateTime.UtcNow - stepStartTime).TotalMilliseconds;
+                        var relativeStartMs = (stepStartTime - _playbackStartTime).TotalMilliseconds;
+                        step.Status = StepStatus.Failed;
+                        step.ErrorMessage = ex.Message;
+                        Log($"Step {_currentStepIndex + 1} failed: {ex.Message}");
+                        
+                        if ((IsGenerateReportEnabled || IsRecordVideoEnabled) && _cdpService.IsConnected)
+                        {
+                            await CaptureStepDetailsAsync(step, _currentStepIndex, duration, relativeStartMs);
+                        }
+
+                        throw;
+                    }
                 }
                 finally
                 {
                     step.IsCurrent = false;
+                    ExecutingStep = null;
                 }
             }
         }
@@ -2768,6 +2956,7 @@ public class TestStudioViewModel : ViewModelBase
         // 1. Mark as running & current
         step.Status = StepStatus.Running;
         step.IsCurrent = true;
+        ExecutingStep = step;
 
         try
         {
@@ -2788,6 +2977,7 @@ public class TestStudioViewModel : ViewModelBase
         finally
         {
             step.IsCurrent = false;
+            ExecutingStep = null;
             // 5. Append to step list
             Steps.Add(step);
         }
@@ -2800,6 +2990,7 @@ public class TestStudioViewModel : ViewModelBase
         IsExecuting = true;
         step.Status = StepStatus.Running;
         step.IsCurrent = true;
+        ExecutingStep = step;
         step.ErrorMessage = null;
 
         try
@@ -2816,6 +3007,7 @@ public class TestStudioViewModel : ViewModelBase
         finally
         {
             step.IsCurrent = false;
+            ExecutingStep = null;
             IsExecuting = false;
         }
     }
@@ -2938,13 +3130,194 @@ public class TestStudioViewModel : ViewModelBase
 
     public async Task AddAssertTrueAsync()
     {
-        var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = InputSimText };
-        await AddInteractiveStepAsync(step);
+        if (string.IsNullOrEmpty(InputSimText))
+        {
+            NamePromptTitle = "Assert True Expression";
+            NamePromptValue = "";
+            NamePromptCallback = async val =>
+            {
+                if (!string.IsNullOrEmpty(val))
+                {
+                    var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = val };
+                    await AddInteractiveStepAsync(step);
+                }
+            };
+            IsNamePromptVisible = true;
+        }
+        else
+        {
+            var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = InputSimText };
+            await AddInteractiveStepAsync(step);
+        }
     }
 
     public async Task AddAssertFalseAsync()
     {
-        var step = new TestStudioStepModel { Action = "assertFalse", Selector = "", Value = InputSimText };
+        if (string.IsNullOrEmpty(InputSimText))
+        {
+            NamePromptTitle = "Assert False Expression";
+            NamePromptValue = "";
+            NamePromptCallback = async val =>
+            {
+                if (!string.IsNullOrEmpty(val))
+                {
+                    var step = new TestStudioStepModel { Action = "assertFalse", Selector = "", Value = val };
+                    await AddInteractiveStepAsync(step);
+                }
+            };
+            IsNamePromptVisible = true;
+        }
+        else
+        {
+            var step = new TestStudioStepModel { Action = "assertFalse", Selector = "", Value = InputSimText };
+            await AddInteractiveStepAsync(step);
+        }
+    }
+
+    public async Task ShowAssertPropertyPickerAsync(string? selector)
+    {
+        var targetSelector = string.IsNullOrEmpty(selector) ? SelectedElementSelector : selector;
+        if (string.IsNullOrEmpty(targetSelector))
+        {
+            Log("No element selected to inspect properties. Please click an element in the preview first.");
+            return;
+        }
+
+        AssertPickerSelector = targetSelector;
+        AssertPickerTitle = $"Assert Property on '{targetSelector}'";
+        AssertPickerProperties.Clear();
+        AssertPickerValue = "";
+        AssertPickerSelectedPropertyName = "";
+        IsAssertPickerVisible = true;
+
+        try
+        {
+            // C# Reflection script evaluated via CDP Runtime.evaluate using Query(sel) global resolver
+            var script = $$"""
+            (Func<string, string>)(sel => {
+                var control = Query(sel);
+                if (control == null) return "[]";
+                var props = control.GetType().GetProperties();
+                var list = new System.Collections.Generic.List<string>();
+                foreach (var p in props)
+                {
+                    try
+                    {
+                        if (p.CanRead)
+                        {
+                            var t = p.PropertyType;
+                            if (t.IsPrimitive || t == typeof(string) || t.IsEnum)
+                            {
+                                var val = p.GetValue(control);
+                                var valStr = val != null ? val.ToString() : "null";
+                                valStr = valStr.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                list.Add("{\"Name\":\"" + p.Name + "\",\"Type\":\"" + t.Name + "\",\"Value\":\"" + valStr + "\"}");
+                            }
+                        }
+                    }
+                    catch {}
+                }
+                return "[" + string.Join(",", list) + "]";
+            })("{{targetSelector.Replace("\"", "\\\"")}}")
+            """;
+
+            var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = script });
+            if (evalRes["exceptionDetails"] != null)
+            {
+                var exceptionText = evalRes["exceptionDetails"]?["exception"]?["description"]?.GetValue<string>() ?? "Unknown evaluation error";
+                throw new Exception($"Failed to retrieve properties: {exceptionText}");
+            }
+            var resultNode = evalRes["result"] as JsonObject;
+            var jsonString = resultNode?["value"]?.GetValue<string>();
+
+            if (!string.IsNullOrEmpty(jsonString))
+            {
+                var jsonArray = JsonNode.Parse(jsonString)?.AsArray();
+                if (jsonArray != null)
+                {
+                    var parsedProps = new List<ElementPropertyInfo>();
+                    foreach (var item in jsonArray)
+                    {
+                        if (item == null) continue;
+                        var name = item["Name"]?.GetValue<string>() ?? "";
+                        var type = item["Type"]?.GetValue<string>() ?? "";
+                        var val = item["Value"]?.GetValue<string>() ?? "";
+                        parsedProps.Add(new ElementPropertyInfo { Name = name, Type = type, Value = val });
+                    }
+
+                    // Sort properties alphabetically
+                    foreach (var prop in parsedProps.OrderBy(p => p.Name))
+                    {
+                        AssertPickerProperties.Add(prop);
+                    }
+
+                    if (AssertPickerProperties.Count > 0)
+                    {
+                        var defaultProp = AssertPickerProperties.FirstOrDefault(p => string.Equals(p.Name, "IsEnabled", StringComparison.OrdinalIgnoreCase))
+                                       ?? AssertPickerProperties.FirstOrDefault(p => string.Equals(p.Name, "Text", StringComparison.OrdinalIgnoreCase))
+                                       ?? AssertPickerProperties.FirstOrDefault();
+                        AssertPickerSelectedProperty = defaultProp;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Error fetching properties: {ex.Message}");
+            IsAssertPickerVisible = false;
+        }
+    }
+
+    public async Task SubmitAssertPickerAsync()
+    {
+        var propName = AssertPickerSelectedPropertyName;
+        if (string.IsNullOrEmpty(propName)) return;
+
+        IsAssertPickerVisible = false;
+
+        var propType = AssertPickerSelectedProperty?.Type ?? "String";
+        var selector = AssertPickerSelector;
+        var escapedSelector = (selector ?? "").Replace("\"", "\\\"");
+        var action = "assertTrue";
+        var valExpression = "";
+
+        switch (AssertPickerComparisonIndex)
+        {
+            case 0: // Assert True
+                action = "assertTrue";
+                valExpression = $"document.querySelector(\"{escapedSelector}\").{propName}";
+                break;
+            case 1: // Assert False
+                action = "assertFalse";
+                valExpression = $"document.querySelector(\"{escapedSelector}\").{propName}";
+                break;
+            case 2: // Equals
+                action = "assertTrue";
+                if (string.Equals(propType, "String", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propType, "string", StringComparison.OrdinalIgnoreCase))
+                {
+                    valExpression = $"document.querySelector(\"{escapedSelector}\").{propName} == \"{AssertPickerValue.Replace("\"", "\\\"")}\"";
+                }
+                else
+                {
+                    valExpression = $"document.querySelector(\"{escapedSelector}\").{propName} == {AssertPickerValue}";
+                }
+                break;
+            case 3: // Not Equals
+                action = "assertTrue";
+                if (string.Equals(propType, "String", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propType, "string", StringComparison.OrdinalIgnoreCase))
+                {
+                    valExpression = $"document.querySelector(\"{escapedSelector}\").{propName} != \"{AssertPickerValue.Replace("\"", "\\\"")}\"";
+                }
+                else
+                {
+                    valExpression = $"document.querySelector(\"{escapedSelector}\").{propName} != {AssertPickerValue}";
+                }
+                break;
+        }
+
+        var step = new TestStudioStepModel { Action = action, Selector = "", Value = valExpression };
         await AddInteractiveStepAsync(step);
     }
 
@@ -3070,6 +3443,38 @@ public class TestStudioViewModel : ViewModelBase
         }
 
         Steps.Add(step);
+        Log($"Added command: {step.ActionDisplay}");
+    }
+
+    public void InsertCommandStep(string action, string selector, string value, int index)
+    {
+        var canonicalAction = FlowCommandCatalog.CanonicalizeAction(action.Trim().TrimEnd(':'));
+        if (string.IsNullOrWhiteSpace(canonicalAction))
+        {
+            return;
+        }
+
+        var command = FlowCommandCatalog.Find(canonicalAction);
+        var step = new TestStudioStepModel
+        {
+            Action = canonicalAction,
+            Selector = command?.AcceptsSelector == true ? selector : "",
+            Value = value
+        };
+
+        if (command?.ValueKind == FlowCommandValueKind.None)
+        {
+            step.Value = "";
+        }
+
+        if (index >= 0 && index < Steps.Count)
+        {
+            Steps.Insert(index, step);
+        }
+        else
+        {
+            Steps.Add(step);
+        }
         Log($"Added command: {step.ActionDisplay}");
     }
 
