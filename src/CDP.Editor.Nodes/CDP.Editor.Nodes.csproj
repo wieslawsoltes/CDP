@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>CDP.Editor.Nodes</PackageId>
+    <Title>CDP.Editor.Nodes</Title>
+    <Description>Standalone, generic graph node editor control for Avalonia UI.</Description>
+    <PackageTags>avalonia;editor;nodes;graph;canvas</PackageTags>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>
