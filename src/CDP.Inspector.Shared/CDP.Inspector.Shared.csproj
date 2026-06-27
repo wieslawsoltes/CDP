@@ -25,6 +25,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj" />
+    <ProjectReference Include="../CDP.Editor.Minimap/CDP.Editor.Minimap.csproj" />
+    <ProjectReference Include="../CDP.Editor.Nodes/CDP.Editor.Nodes.csproj" />
   </ItemGroup>
 
   <ItemGroup>
