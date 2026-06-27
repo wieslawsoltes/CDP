@@ -21,9 +21,16 @@
         <StreamGeometry x:Key="ChevronDownIcon">M4.21967 8.46967C4.51256 8.17678 4.98744 8.17678 5.28033 8.46967L12 15.1893L18.7197 8.46967C19.0126 8.17678 19.4874 8.17678 19.7803 8.46967C20.0732 8.76256 20.0732 9.23744 19.7803 9.53033L12.5303 16.7803C12.2374 17.0732 11.7626 17.0732 11.4697 16.7803L4.21967 9.53033C3.92678 9.23744 3.92678 8.76256 4.21967 8.46967Z</StreamGeometry>
         <StreamGeometry x:Key="RefreshIcon">M12 4.5C7.85786 4.5 4.5 7.85786 4.5 12C4.5 16.1421 7.85786 19.5 12 19.5C16.1421 19.5 19.5 16.1421 19.5 12C19.5 11.6236 19.4723 11.2538 19.4188 10.8923C19.3515 10.4382 19.6839 10 20.1429 10C20.5138 10 20.839 10.2562 20.8953 10.6228C20.9642 11.0718 21 11.5317 21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C14.3051 3 16.4077 3.86656 18 5.29168V4.25C18 3.83579 18.3358 3.5 18.75 3.5C19.1642 3.5 19.5 3.83579 19.5 4.25V7.25C19.5 7.66421 19.1642 8 18.75 8H15.75C15.3358 8 15 7.66421 15 7.25C15 6.83579 15.3358 6.5 15.75 6.5H17.0991C15.7609 5.25883 13.9691 4.5 12 4.5Z</StreamGeometry>
         <StreamGeometry x:Key="SwapVertIcon">M11.25 5.6284V18.3716L7.79375 14.7334C7.50846 14.4331 7.03374 14.421 6.73344 14.7063C6.43313 14.9915 6.42096 15.4663 6.70625 15.7666L11.4563 20.7666C11.5978 20.9156 11.7944 21 12 21C12.2056 21 12.4022 20.9156 12.5438 20.7666L17.2938 15.7666C17.579 15.4663 17.5669 14.9915 17.2666 14.7063C16.9663 14.421 16.4915 14.4331 16.2063 14.7334L12.75 18.3716V5.6284L16.2063 9.26656C16.4915 9.56687 16.9663 9.57904 17.2666 9.29375C17.5669 9.00846 17.579 8.53374 17.2938 8.23344L12.5449 3.23461C12.4082 3.09013 12.2146 3 12 3C11.7854 3 11.5918 3.09013 11.4551 3.23461L6.70625 8.23344C6.42096 8.53374 6.43313 9.00846 6.73344 9.29375C7.03374 9.57904 7.50846 9.56687 7.79375 9.26656L11.25 5.6284Z</StreamGeometry>
+        <StreamGeometry x:Key="AddIcon">M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25Z</StreamGeometry>
+        <StreamGeometry x:Key="ZoomFitIcon">M11.4891 2.70698C11.7786 2.43432 12.2305 2.435 12.5192 2.70851L14.7264 4.79989C15.027 5.08479 15.5017 5.07201 15.7866 4.77133C16.0715 4.47066 16.0588 3.99596 15.7581 3.71106L13.5509 1.61967C12.6849 0.799127 11.329 0.79711 10.4606 1.61507L8.23699 3.70952C7.93547 3.99353 7.92127 4.46819 8.20527 4.76971C8.48928 5.07123 8.96394 5.08543 9.26546 4.80143L11.4891 2.70698ZM4.80341 9.26348C5.08741 8.96196 5.07321 8.48729 4.77169 8.20329C4.47017 7.91929 3.99551 7.93349 3.71151 8.23501L1.61706 10.4586C0.799093 11.3271 0.801111 12.6829 1.62166 13.5489L3.71304 15.7561C3.99794 16.0568 4.47264 16.0696 4.77332 15.7847C5.07399 15.4998 5.08678 15.0251 4.80188 14.7244L2.71049 12.5172C2.43698 12.2285 2.43631 11.7766 2.70896 11.4871L4.80341 9.26348ZM20.288 8.24292C20.003 7.94236 19.5283 7.92976 19.2277 8.21478C18.9272 8.4998 18.9146 8.97451 19.1996 9.27507L21.2984 11.4884C21.5728 11.7777 21.5728 12.2312 21.2984 12.5205L19.1996 14.7339C18.9146 15.0345 18.9272 15.5092 19.2277 15.7942C19.5283 16.0792 20.003 16.0666 20.288 15.7661L22.3869 13.5526C23.21 12.6846 23.21 11.3242 22.3869 10.4562L20.288 8.24292ZM15.7661 20.288C16.0666 20.003 16.0793 19.5283 15.7943 19.2277C15.5093 18.9271 15.0345 18.9145 14.734 19.1995L12.5219 21.2971C12.2326 21.5713 11.7794 21.5715 11.4901 21.2974L9.27477 19.1992C8.97403 18.9144 8.49933 18.9273 8.2145 19.228C7.92966 19.5288 7.94255 20.0035 8.24329 20.2883L10.4586 22.3864C11.3267 23.2087 12.6863 23.2083 13.554 22.3856L15.7661 20.288ZM9.74999 6.99996C8.23121 6.99996 6.99999 8.23118 6.99999 9.74996V14.25C6.99999 15.7687 8.23121 17 9.74999 17H14.25C15.7688 17 17 15.7687 17 14.25V9.74996C17 8.23118 15.7688 6.99996 14.25 6.99996H9.74999ZM8.49999 9.74996C8.49999 9.05961 9.05964 8.49996 9.74999 8.49996H14.25C14.9403 8.49996 15.5 9.05961 15.5 9.74996V14.25C15.5 14.9403 14.9403 15.5 14.25 15.5H9.74999C9.05964 15.5 8.49999 14.9403 8.49999 14.25V9.74996Z</StreamGeometry>
+        <StreamGeometry x:Key="SubtractIcon">M3.75391 12.5H20.2458C20.66 12.5 20.9958 12.1642 20.9958 11.75C20.9958 11.3358 20.66 11 20.2458 11H3.75391C3.33969 11 3.00391 11.3358 3.00391 11.75C3.00391 12.1642 3.33969 12.5 3.75391 12.5Z</StreamGeometry>
+        <StreamGeometry x:Key="DeleteIcon">M10 5H14C14 3.89543 13.1046 3 12 3C10.8954 3 10 3.89543 10 5ZM8.5 5C8.5 3.067 10.067 1.5 12 1.5C13.933 1.5 15.5 3.067 15.5 5H21.25C21.6642 5 22 5.33579 22 5.75C22 6.16421 21.6642 6.5 21.25 6.5H19.9309L18.7589 18.6112C18.5729 20.5334 16.9575 22 15.0263 22H8.97369C7.04254 22 5.42715 20.5334 5.24113 18.6112L4.06908 6.5H2.75C2.33579 6.5 2 6.16421 2 5.75C2 5.33579 2.33579 5 2.75 5H8.5ZM10.5 9.75C10.5 9.33579 10.1642 9 9.75 9C9.33579 9 9 9.33579 9 9.75V17.25C9 17.6642 9.33579 18 9.75 18C10.1642 18 10.5 17.6642 10.5 17.25V9.75ZM14.25 9C14.6642 9 15 9.33579 15 9.75V17.25C15 17.6642 14.6642 18 14.25 18C13.8358 18 13.5 17.6642 13.5 17.25V9.75C13.5 9.33579 13.8358 9 14.25 9ZM6.73416 18.4667C6.84577 19.62 7.815 20.5 8.97369 20.5H15.0263C16.185 20.5 17.1542 19.62 17.2658 18.4667L18.4239 6.5H5.57608L6.73416 18.4667Z</StreamGeometry>
+        <StreamGeometry x:Key="ArrowUpIcon">M4.20889 10.7327C3.9232 11.0326 3.93475 11.5074 4.23467 11.7931C4.5346 12.0788 5.00933 12.0672 5.29502 11.7673L11.2495 5.516V20.25C11.2495 20.6642 11.5853 21 11.9995 21C12.4137 21 12.7495 20.6642 12.7495 20.25V5.51565L18.7043 11.7673C18.99 12.0672 19.4648 12.0788 19.7647 11.7931C20.0646 11.5074 20.0762 11.0326 19.7905 10.7327L12.7238 3.31379C12.5627 3.14474 12.3573 3.04477 12.1438 3.01386C12.0971 3.00477 12.0489 3 11.9995 3C11.9498 3 11.9012 3.00483 11.8543 3.01406C11.6412 3.04518 11.4363 3.14509 11.2756 3.31379L4.20889 10.7327Z</StreamGeometry>
+        <StreamGeometry x:Key="ArrowDownIcon">M19.7905 13.2673C20.0762 12.9674 20.0646 12.4926 19.7647 12.2069C19.4648 11.9212 18.99 11.9328 18.7043 12.2327L12.7498 18.484V3.75C12.7498 3.33579 12.4141 3 11.9998 3C11.5856 3 11.2498 3.33579 11.2498 3.75V18.4844L5.29502 12.2327C5.00933 11.9328 4.5346 11.9212 4.23467 12.2069C3.93475 12.4926 3.9232 12.9674 4.20889 13.2673L11.2756 20.6862C11.4366 20.8553 11.642 20.9552 11.8556 20.9861C11.9023 20.9952 11.9505 21 11.9998 21C12.0495 21 12.0981 20.9952 12.1451 20.9859C12.3582 20.9548 12.5631 20.8549 12.7238 20.6862L19.7905 13.2673Z</StreamGeometry>
+        <StreamGeometry x:Key="FlowchartIcon">M5.24756 2.99609C4.00492 2.99609 2.99756 4.00345 2.99756 5.24609L2.99756 7.75337C2.99756 8.99601 4.00492 10.0034 5.24756 10.0034H5.75V13.7096C5.7033 13.7446 5.65849 13.7834 5.61599 13.8259L2.82378 16.6172C2.33547 17.1053 2.33542 17.897 2.82368 18.3852L5.61589 21.1771C6.10412 21.6652 6.89569 21.6651 7.3838 21.1768L10.1745 18.3849C10.217 18.3424 10.2557 18.2977 10.2908 18.251H14.0049V18.7547C14.0049 19.9973 15.0122 21.0047 16.2549 21.0047H18.7488C19.9914 21.0047 20.9988 19.9973 20.9988 18.7547V16.2505C20.9988 15.0078 19.9914 14.0005 18.7488 14.0005H16.2549C15.0122 14.0005 14.0049 15.0078 14.0049 16.2505V16.751H10.2904C10.2554 16.7044 10.2168 16.6598 10.1744 16.6174L7.3837 13.8262C7.34129 13.7838 7.29659 13.745 7.25 13.71V10.0034H7.75456C8.9972 10.0034 10.0046 8.99601 10.0046 7.75337V5.24609C10.0046 4.00345 8.9972 2.99609 7.75456 2.99609H5.24756ZM4.49756 5.24609C4.49756 4.83188 4.83334 4.49609 5.24756 4.49609H7.75456C8.16877 4.49609 8.50456 4.83188 8.50456 5.24609V7.75337C8.50456 8.16758 8.16877 8.50337 7.75456 8.50337H5.24756C4.83334 8.50337 4.49756 8.16758 4.49756 7.75337L4.49756 5.24609ZM4.06111 17.5012L6.49968 15.0635L8.93693 17.5012L6.49968 19.9396L4.06111 17.5012ZM16.2549 15.5005H18.7488C19.163 15.5005 19.4988 15.8363 19.4988 16.2505V18.7547C19.4988 19.1689 19.163 19.5047 18.7488 19.5047H16.2549C15.8407 19.5047 15.5049 19.1689 15.5049 18.7547V16.2505C15.5049 15.8363 15.8407 15.5005 16.2549 15.5005Z</StreamGeometry>
     </Styles.Resources>
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
-    <StyleInclude Source="avares://CDP.Inspector.Shared/Minimap/Themes/Generic.axaml" />
+    <StyleInclude Source="avares://CDP.Editor.Minimap/Themes/Generic.axaml" />
 
     <!-- TabControl Panels styling matching Chrome DevTools tabs bar -->
     <Style Selector="TabControl">
@@ -240,6 +247,106 @@
     <!-- Remove border on the very last AccordionItem -->
     <Style Selector="controls|Accordion > controls|AccordionItem:nth-last-child(1)">
         <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <!-- EditableComboBox Styling -->
+    <Style Selector="controls|EditableComboBox">
+        <Setter Property="Background" Value="#2d2d2d"/>
+        <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid Name="PART_RootGrid" ColumnDefinitions="*,Auto">
+                    <!-- Dropdown Toggle Button under the text box for full clickability -->
+                    <ToggleButton Name="PART_ToggleButton"
+                                  Grid.Column="0"
+                                  Grid.ColumnSpan="2"
+                                  Background="{TemplateBinding Background}"
+                                  BorderBrush="{TemplateBinding BorderBrush}"
+                                  BorderThickness="{TemplateBinding BorderThickness}"
+                                  CornerRadius="{TemplateBinding CornerRadius}"
+                                  IsChecked="{Binding $parent[controls:EditableComboBox].IsDropDownOpen, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch"
+                                  HorizontalContentAlignment="Right"
+                                  Padding="0,0,10,0"
+                                  ClickMode="Release"
+                                  ZIndex="0">
+                        <ToggleButton.Template>
+                            <ControlTemplate>
+                                <Border Name="templateRoot"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="{TemplateBinding CornerRadius}">
+                                    <Grid HorizontalAlignment="Right" VerticalAlignment="Center" Width="30">
+                                        <PathIcon Data="{StaticResource ChevronDownIcon}"
+                                                  Width="8"
+                                                  Height="8"
+                                                  Foreground="#9aa0a6"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+
+                    <!-- Editable TextBox overlay on the left -->
+                    <TextBox Name="PART_EditableTextBox"
+                             Grid.Column="0"
+                             Text="{Binding $parent[controls:EditableComboBox].Text, Mode=TwoWay}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Foreground="{TemplateBinding Foreground}"
+                             Padding="{TemplateBinding Padding}"
+                             VerticalAlignment="Center"
+                             HorizontalAlignment="Stretch"
+                             Margin="2,2,30,2"
+                             ZIndex="1"/>
+
+                    <!-- Popup list -->
+                    <Popup Name="PART_Popup"
+                           Grid.Column="0"
+                           IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}"
+                           PlacementTarget="{Binding ElementName=PART_ToggleButton}"
+                           Placement="Bottom"
+                           IsLightDismissEnabled="True">
+                        <Border Background="#2a2a2b"
+                                BorderBrush="#3c4043"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                MinWidth="{Binding ElementName=PART_ToggleButton, Path=Bounds.Width}"
+                                Margin="0,4,0,4">
+                            <ScrollViewer MaxHeight="300">
+                                <ItemsPresenter Name="PART_ItemsPresenter"
+                                                ItemsPanel="{TemplateBinding ItemsPanel}"/>
+                            </ScrollViewer>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="controls|EditableComboBox:focus-within /template/ ToggleButton#PART_ToggleButton">
+        <Setter Property="BorderBrush" Value="#8ab4f8"/>
+    </Style>
+
+    <!-- AutoCompleteBox Vertical Alignment Fixes -->
+    <Style Selector="AutoCompleteBox">
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="AutoCompleteBox /template/ TextBox">
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="Padding" Value="4,0"/>
     </Style>
 
 </Styles>
