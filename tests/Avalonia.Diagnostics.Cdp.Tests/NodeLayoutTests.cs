@@ -187,4 +187,29 @@ public class NodeLayoutTests
         Assert.True(group.X + group.Width > node1.X + node1.Width);
         Assert.True(group.Y + group.Height > node1.Y + node1.Height);
     }
+
+    [Fact]
+    public void MsaglLayoutProvider_OnCalculationException_GracefullyFallsBackToSimpleHorizontal()
+    {
+        var vm = new NodeEditorViewModel();
+
+        var node1 = vm.CreateNode("Node1", 100, 100);
+        node1.Width = 100;
+        node1.Height = 50;
+
+        var provider = new MsaglLayoutProvider();
+        var parameters = new Dictionary<string, object>
+        {
+            { "Algorithm", "Sugiyama" },
+            { "ForceExceptionTest", true }
+        };
+
+        // Assert that calling ApplyLayout does not throw any exceptions
+        var ex = Record.Exception(() => provider.ApplyLayout(vm, parameters));
+        Assert.Null(ex);
+
+        // Verify fallback positioned the node correctly
+        Assert.Equal(10.0, node1.X);
+        Assert.Equal(20.0, node1.Y);
+    }
 }
