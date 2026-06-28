@@ -6,47 +6,63 @@
              x:CompileBindings="True">
     <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="15,8">
         <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <!-- Hamburger Toggle Button -->
+            <!-- Hidden Hamburger Toggle Button (maintained for automation compatibility) -->
             <ToggleButton Name="btnTogglePreview"
-                          IsChecked="{Binding IsPreviewPanelVisible, Mode=TwoWay}"
-                          ToolTip.Tip="Toggle Live Preview Panel"
-                          Width="32" Height="28"
-                          Padding="0"
-                          VerticalAlignment="Center" Margin="0,0,15,0">
-                <Path Data="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"
-                      Fill="#9aa0a6"
-                      Width="18" Height="18"
-                      Stretch="Uniform"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center"/>
-            </ToggleButton>
-
-            <!-- Group 1: Logo -->
-            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,4,20,4">
-                <Ellipse Width="8" Height="8" Fill="#8ab4f8"/>
-                <TextBlock Text="AVALONIA DEVTOOLS" FontSize="13" FontWeight="Bold" Foreground="#ffffff" VerticalAlignment="Center" LetterSpacing="1.1"/>
-            </StackPanel>
+                           IsChecked="{Binding IsPreviewPanelVisible, Mode=TwoWay}"
+                           IsVisible="False"/>
 
             <!-- Group 2: Host -->
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,20,4">
-                <TextBlock Text="Host:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,10,0"/>
-                <TextBox Name="txtHost" Text="{Binding Connection.HostAddress, Mode=TwoWay}" PlaceholderText="e.g. http://localhost:9222" Width="180" Height="28" VerticalContentAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,12,4">
+                <TextBlock Text="Host:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,6,0"/>
+                <TextBox Name="txtHost" Text="{Binding Connection.HostAddress, Mode=TwoWay}" PlaceholderText="e.g. http://localhost:9222" Width="170" Height="28" VerticalContentAlignment="Center"/>
             </StackPanel>
 
             <!-- Group 3: Target scanning -->
-            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,4,20,4">
-                <Button Name="btnRefreshTargets" Command="{Binding Connection.RefreshTargetsCommand}" Content="Scan Targets" Classes="accent" Height="28" Padding="12,0" VerticalAlignment="Center"/>
-                <ComboBox Name="cbTargets" ItemsSource="{Binding Connection.Targets}" SelectedItem="{Binding Connection.SelectedTarget, Mode=TwoWay}" Width="280" PlaceholderText="Select target window..." Height="28" Background="#202124" BorderBrush="#3c4043"/>
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,4,12,4">
+                <Button Name="btnRefreshTargets" Command="{Binding Connection.RefreshTargetsCommand}" ToolTip.Tip="Scan Targets" Classes="accent" Height="28" Width="30" Padding="0" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource RefreshIcon}" Width="13" Height="13"/>
+                </Button>
+                <ComboBox Name="cbTargets" ItemsSource="{Binding Connection.Targets}" SelectedItem="{Binding Connection.SelectedTarget, Mode=TwoWay}" Width="240" PlaceholderText="Select target window..." Height="28" Background="#202124" BorderBrush="#3c4043"/>
             </StackPanel>
 
             <!-- Group 4: Connection actions -->
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,4,0,4">
-                <Button Name="btnConnect" Command="{Binding Connection.ConnectCommand}" Content="Connect" Background="#1b5e20" Foreground="White" BorderBrush="#1b5e20" Height="28" Padding="15,0" VerticalAlignment="Center"/>
-                <Button Name="btnDisconnect" Command="{Binding Connection.DisconnectCommand}" Content="Disconnect" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Height="28" Padding="15,0" VerticalAlignment="Center"/>
-                <ToggleButton Name="btnInspect" IsChecked="{Binding Connection.IsInspectModeActive, Mode=TwoWay}" IsEnabled="{Binding Connection.IsConnected}" Content="Select Element" Background="#e65100" Foreground="White" BorderBrush="#e65100" Height="28" Padding="15,0" VerticalAlignment="Center"/>
+                <Button Name="btnConnect" Command="{Binding Connection.ConnectCommand}" ToolTip.Tip="Connect" Background="#1b5e20" Foreground="White" BorderBrush="#1b5e20" Height="28" Width="30" Padding="0" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource LinkIcon}" Width="13" Height="13"/>
+                </Button>
+                <Button Name="btnDisconnect" Command="{Binding Connection.DisconnectCommand}" ToolTip.Tip="Disconnect" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" Height="28" Width="30" Padding="0" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource DismissIcon}" Width="13" Height="13"/>
+                </Button>
+                <ToggleButton Name="btnInspect" IsChecked="{Binding Connection.IsInspectModeActive, Mode=TwoWay}" IsEnabled="{Binding Connection.IsConnected}" ToolTip.Tip="Select Element" Background="#e65100" Foreground="White" BorderBrush="#e65100" Height="28" Width="30" Padding="0" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource EyeIcon}" Width="13" Height="13"/>
+                </ToggleButton>
                 <CheckBox Name="chkUseAutomationSelectors" IsChecked="{Binding Connection.UseAutomationSelectors, Mode=TwoWay}" Content="Use Automation Selectors" Foreground="#9aa0a6" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                <Button Name="btnReload" Command="{Binding Connection.ReloadCommand}" Content="Reload" Background="#4a148c" Foreground="White" BorderBrush="#4a148c" Height="28" Padding="15,0" VerticalAlignment="Center"/>
+                <Button Name="btnReload" Command="{Binding Connection.ReloadCommand}" ToolTip.Tip="Reload" Background="#4a148c" Foreground="White" BorderBrush="#4a148c" Height="28" Width="30" Padding="0" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource RefreshIcon}" Width="13" Height="13"/>
+                </Button>
                 <TextBlock Name="txtConnectionStatus" Text="{Binding Connection.ConnectionStatusText}" Foreground="{Binding Connection.ConnectionStatusBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            </StackPanel>
+
+            <!-- Group 5: SuperSplit Controls -->
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="30,4,0,4">
+                <Button Command="{Binding SplitLeftCommand}" ToolTip.Tip="Split Selected Pane Left" Padding="6" Width="28" Height="28">
+                    <PathIcon Data="{StaticResource ArrowLeftIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding SplitRightCommand}" ToolTip.Tip="Split Selected Pane Right" Padding="6" Width="28" Height="28">
+                    <PathIcon Data="{StaticResource ArrowRightIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding SplitUpCommand}" ToolTip.Tip="Split Selected Pane Up" Padding="6" Width="28" Height="28">
+                    <PathIcon Data="{StaticResource ArrowUpIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding SplitDownCommand}" ToolTip.Tip="Split Selected Pane Down" Padding="6" Width="28" Height="28">
+                    <PathIcon Data="{StaticResource ArrowDownIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding ClosePaneCommand}" ToolTip.Tip="Close Selected Pane" Padding="6" Width="28" Height="28" Foreground="#ff5252">
+                    <PathIcon Data="{StaticResource DismissIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding ResetLayoutCommand}" ToolTip.Tip="Reset Split Layout" Padding="6" Width="28" Height="28" Foreground="#4caf50">
+                    <PathIcon Data="{StaticResource ArrowUndoIcon}" Width="12" Height="12"/>
+                </Button>
             </StackPanel>
         </WrapPanel>
     </Border>

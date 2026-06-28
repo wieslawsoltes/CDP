@@ -2,79 +2,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:CdpInspectorApp.Views"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.MainView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
 
-    <Grid RowDefinitions="Auto, *">
-        <!-- 1. Connection and Targets Toolbar -->
+    <Grid RowDefinitions="Auto, *" Background="#202124">
+        <!-- 1. Connection, Targets, and Layout Toolbar -->
         <views:ConnectionToolbar Name="Toolbar" Grid.Row="0"/>
 
-        <!-- 2. Split Screen View: Left Preview, Right Panels -->
-        <Grid Grid.Row="1" Background="#202124">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="{Binding PreviewColumnWidth}"/>
-                <ColumnDefinition Width="{Binding SplitterColumnWidth}"/>
-                <ColumnDefinition Width="1.2*"/>
-            </Grid.ColumnDefinitions>
-            <!-- Left side: Live Interactive Target Screencast/Simulation -->
-            <views:SimulationView Name="SimulationPane" Grid.Column="0" IsVisible="{Binding IsPreviewPanelVisible}"/>
-
-            <!-- Column Splitter -->
-            <GridSplitter Grid.Column="1" Background="#3c4043" ResizeDirection="Columns" IsVisible="{Binding IsPreviewPanelVisible}"/>
-
-            <!-- Right side: Developer Tools Panels -->
-            <TabControl Grid.Column="2" Padding="0" Margin="0" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
-                <!-- Elements Panel -->
-                <TabItem Header="Elements">
-                    <views:ElementsView Name="ElementsTab"/>
-                </TabItem>
-
-                <!-- Console Panel -->
-                <TabItem Header="Console">
-                    <views:ConsoleView Name="ConsoleTab"/>
-                </TabItem>
-
-                <!-- Sources Panel -->
-                <TabItem Header="Sources">
-                    <views:SourcesView Name="SourcesTab"/>
-                </TabItem>
-
-                <!-- Network Panel -->
-                <TabItem Header="Network">
-                    <views:NetworkView Name="NetworkTab"/>
-                </TabItem>
-
-                <!-- Performance Panel -->
-                <TabItem Header="Performance">
-                    <views:PerformanceView Name="PerformanceTab"/>
-                </TabItem>
-
-                <!-- Memory Panel -->
-                <TabItem Header="Memory">
-                    <views:MemoryView Name="MemoryTab"/>
-                </TabItem>
-
-                <!-- Application Panel -->
-                <TabItem Header="Application">
-                    <views:ApplicationView Name="ApplicationTab"/>
-                </TabItem>
-
-                <!-- Audits Panel -->
-                <TabItem Header="Audits">
-                    <views:AuditsView Name="AuditsTab"/>
-                </TabItem>
-
-                <!-- Window Control Panel -->
-                <TabItem Header="Window">
-                    <views:WindowControlView Name="WindowControlTab"/>
-                </TabItem>
-
-                <!-- Recorder Panel -->
-                <TabItem Name="TabRecorder" Header="Recorder">
-                    <views:RecorderView Name="RecorderTab"/>
-                </TabItem>
-            </TabControl>
-        </Grid>
+        <!-- 2. Dynamic Customizable Split Layout Panel -->
+        <splits:SuperSplit Name="SplitControl"
+                           Grid.Row="1"
+                           Root="{Binding LayoutRoot}"
+                           SelectedNode="{Binding SelectedPane, Mode=TwoWay}"/>
     </Grid>
 </UserControl>

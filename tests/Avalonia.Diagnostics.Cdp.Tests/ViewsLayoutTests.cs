@@ -111,4 +111,233 @@ public class ViewsLayoutTests
             app.Styles.Remove(sharedStyles);
         }
     }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Dynamic_Splitting()
+    {
+        var app = Avalonia.Application.Current;
+        Assert.NotNull(app);
+
+        // Instantiate view model and test default layout structure
+        var vm = new MainWindowViewModel();
+        Assert.NotNull(vm.LayoutRoot);
+        Assert.NotNull(vm.SelectedPane);
+
+        // Current layout root should be a horizontal split container (Simulation on left, right split on right)
+        var rootSplit = vm.LayoutRoot as CDP.Editor.Splits.Models.SplitContainerNode;
+        Assert.NotNull(rootSplit);
+        Assert.Equal(Avalonia.Layout.Orientation.Horizontal, rootSplit.Orientation);
+
+        // Simulate click to change selection and split horizontally
+        vm.SelectedPane = rootSplit.Child1 as CDP.Editor.Splits.Models.BoxNode;
+        Assert.NotNull(vm.SelectedPane);
+
+        // Execute SplitRight Command
+        vm.SplitRightCommand.Execute(null);
+
+        // The selected pane should now be a split container since it was replaced
+        var updatedRoot = vm.LayoutRoot as CDP.Editor.Splits.Models.SplitContainerNode;
+        Assert.NotNull(updatedRoot);
+        var leftChild = updatedRoot.Child1 as CDP.Editor.Splits.Models.SplitContainerNode;
+        Assert.NotNull(leftChild); // Splitting the left pane replaced it with a split container
+        Assert.Equal(Avalonia.Layout.Orientation.Horizontal, leftChild.Orientation);
+
+        // Execute CloseSelected Command
+        vm.ClosePaneCommand.Execute(null);
+
+        // Closing the new pane should restore the original single node on the left
+        Assert.True(updatedRoot.Child1 is CDP.Editor.Splits.Models.BoxNode);
+
+        // Verify SuperSplit control can instantiate with the root layout successfully
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm.LayoutRoot,
+            SelectedNode = vm.SelectedPane
+        };
+        Assert.NotNull(superSplit);
+        superSplit.Rebuild();
+        Assert.NotNull(superSplit.Content);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Drag_And_Drop_DataContext()
+    {
+        var vm = new MainWindowViewModel();
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm.LayoutRoot,
+            SelectedNode = vm.SelectedPane
+        };
+
+        var window = new Window { Width = 1000, Height = 800, Content = superSplit };
+        window.Show();
+
+        superSplit.Rebuild();
+        superSplit.UpdateLayout();
+
+        // Find all SuperSplitBox elements inside the SuperSplit Content
+        var boxes = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(superSplit)
+            .OfType<CDP.Editor.Splits.Controls.SuperSplitBox>()
+            .ToList();
+
+        Assert.NotEmpty(boxes);
+
+        foreach (var boxControl in boxes)
+        {
+            // Verify that each SuperSplitBox has its DataContext correctly set to a BoxNode
+            Assert.NotNull(boxControl.DataContext);
+            Assert.IsType<CDP.Editor.Splits.Models.BoxNode>(boxControl.DataContext);
+            
+            // Check that the node properties match
+            var nodeModel = (CDP.Editor.Splits.Models.BoxNode)boxControl.DataContext;
+            Assert.Equal(nodeModel.Title, boxControl.HeaderTitle);
+        }
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Center_Dock_Join_And_Prune()
+    {
+        var vm = new MainWindowViewModel();
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm.LayoutRoot,
+            SelectedNode = vm.SelectedPane
+        };
+
+        superSplit.Rebuild();
+
+        var boxNodes = new System.Collections.Generic.List<CDP.Editor.Splits.Models.BoxNode>();
+        void Collect(CDP.Editor.Splits.Models.SplitNode? node)
+        {
+            if (node is CDP.Editor.Splits.Models.BoxNode box) boxNodes.Add(box);
+            else if (node is CDP.Editor.Splits.Models.SplitContainerNode container)
+            {
+                Collect(container.Child1);
+                Collect(container.Child2);
+            }
+        }
+        Collect(vm.LayoutRoot);
+
+        Assert.True(boxNodes.Count >= 2);
+        var source = boxNodes[0];
+        var target = boxNodes[1];
+
+        // Capture initial tab counts
+        int sourceTabCount = source.Tabs.Count;
+        int targetTabCount = target.Tabs.Count;
+
+        // Perform the Center drop operation (index 5 of RelativeDropLocation)
+        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        method.Invoke(superSplit, new object[] { source, target, 5 });
+
+        // Verify that tabs were transferred
+        Assert.Equal(0, source.Tabs.Count);
+        Assert.Equal(sourceTabCount + targetTabCount, target.Tabs.Count);
+
+        // Verify that empty source node was pruned from the tree
+        var newBoxNodes = new System.Collections.Generic.List<CDP.Editor.Splits.Models.BoxNode>();
+        void CollectNew(CDP.Editor.Splits.Models.SplitNode? node)
+        {
+            if (node is CDP.Editor.Splits.Models.BoxNode box) newBoxNodes.Add(box);
+            else if (node is CDP.Editor.Splits.Models.SplitContainerNode container)
+            {
+                CollectNew(container.Child1);
+                CollectNew(container.Child2);
+            }
+        }
+        CollectNew(superSplit.Root);
+
+        Assert.DoesNotContain(source, newBoxNodes);
+    }
+
+    [Fact]
+    public void Test_BoxNode_Tab_Property_Delegation()
+    {
+        var box = new CDP.Editor.Splits.Models.BoxNode();
+        var tab1 = box.AddTab("Title 1", "Icon 1", "View 1");
+        var tab2 = box.AddTab("Title 2", "Icon 2", "View 2");
+
+        Assert.Same(tab1, box.ActiveTab);
+        Assert.Equal("Title 1", box.Title);
+        Assert.Equal("Icon 1", box.IconKey);
+        Assert.Equal("View 1", box.SelectedViewName);
+
+        box.ActiveTab = tab2;
+        Assert.Equal("Title 2", box.Title);
+        Assert.Equal("Icon 2", box.IconKey);
+        Assert.Equal("View 2", box.SelectedViewName);
+
+        box.Title = "Updated Title 2";
+        Assert.Equal("Updated Title 2", tab2.Title);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Split_Active_Tab()
+    {
+        var vm = new MainWindowViewModel();
+
+        var rightPane = vm.SelectedPane;
+        Assert.NotNull(rightPane);
+        Assert.True(rightPane.Tabs.Count > 1);
+
+        var activeTab = rightPane.ActiveTab;
+        Assert.NotNull(activeTab);
+        string activeTabTitle = activeTab.Title;
+        int originalTabCount = rightPane.Tabs.Count;
+
+        vm.SplitRightCommand.Execute(null);
+
+        var newSelected = vm.SelectedPane;
+        Assert.NotNull(newSelected);
+        Assert.NotSame(rightPane, newSelected);
+
+        Assert.Equal(1, newSelected.Tabs.Count);
+        Assert.Same(activeTab, newSelected.ActiveTab);
+        Assert.Equal(activeTabTitle, newSelected.Title);
+
+        Assert.Equal(originalTabCount - 1, rightPane.Tabs.Count);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Drag_Tab_Split_Target()
+    {
+        var vm = new MainWindowViewModel();
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm.LayoutRoot,
+            SelectedNode = vm.SelectedPane
+        };
+
+        superSplit.Rebuild();
+
+        var source = new CDP.Editor.Splits.Models.BoxNode();
+        source.AddTab("Detached Tab", "GlobeIcon", "Network");
+
+        var rootContainer = vm.LayoutRoot as CDP.Editor.Splits.Models.SplitContainerNode;
+        Assert.NotNull(rootContainer);
+        var target = rootContainer.Child1 as CDP.Editor.Splits.Models.BoxNode;
+        Assert.NotNull(target);
+
+        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        method.Invoke(superSplit, new object[] { source, target, 1 });
+
+        var boxNodes = new System.Collections.Generic.List<CDP.Editor.Splits.Models.BoxNode>();
+        void Collect(CDP.Editor.Splits.Models.SplitNode? node)
+        {
+            if (node is CDP.Editor.Splits.Models.BoxNode box) boxNodes.Add(box);
+            else if (node is CDP.Editor.Splits.Models.SplitContainerNode container)
+            {
+                Collect(container.Child1);
+                Collect(container.Child2);
+            }
+        }
+        Collect(superSplit.Root);
+
+        Assert.Contains(source, boxNodes);
+        Assert.Same(source, superSplit.SelectedNode);
+    }
 }

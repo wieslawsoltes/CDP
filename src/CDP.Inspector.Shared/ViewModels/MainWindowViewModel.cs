@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
+using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp;
 using CdpInspectorApp.Services;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -21,9 +23,21 @@ public class MainWindowViewModel : ViewModelBase
     public SimulationViewModel Simulation { get; }
     public RecorderViewModel Recorder { get; }
 
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
     private bool _isPreviewPanelVisible = true;
-    private GridLength _previewColumnWidth = new GridLength(1, GridUnitType.Star);
-    private GridLength _splitterColumnWidth = new GridLength(4, GridUnitType.Pixel);
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
 
     public bool IsPreviewPanelVisible
     {
@@ -34,29 +48,24 @@ public class MainWindowViewModel : ViewModelBase
             {
                 if (value)
                 {
-                    PreviewColumnWidth = new GridLength(1, GridUnitType.Star);
-                    SplitterColumnWidth = new GridLength(4, GridUnitType.Pixel);
+                    ShowSimulationPreview();
                 }
                 else
                 {
-                    PreviewColumnWidth = new GridLength(0, GridUnitType.Pixel);
-                    SplitterColumnWidth = new GridLength(0, GridUnitType.Pixel);
+                    HideSimulationPreview();
                 }
             }
         }
     }
 
-    public GridLength PreviewColumnWidth
-    {
-        get => _previewColumnWidth;
-        set => RaiseAndSetIfChanged(ref _previewColumnWidth, value);
-    }
+    public ICommand SplitLeftCommand { get; }
+    public ICommand SplitRightCommand { get; }
+    public ICommand SplitUpCommand { get; }
+    public ICommand SplitDownCommand { get; }
+    public ICommand ClosePaneCommand { get; }
+    public ICommand ResetLayoutCommand { get; }
 
-    public GridLength SplitterColumnWidth
-    {
-        get => _splitterColumnWidth;
-        set => RaiseAndSetIfChanged(ref _splitterColumnWidth, value);
-    }
+
 
     public MainWindowViewModel(ICdpService? cdpService = null)
     {
@@ -111,7 +120,6 @@ public class MainWindowViewModel : ViewModelBase
             }
         };
 
-        // Notify simulation command availability when element selection changes, and exit inspect mode
         Elements.PropertyChanged += (sender, e) =>
         {
             if (e.PropertyName == nameof(ElementsViewModel.SelectedNode) || e.PropertyName == nameof(ElementsViewModel.SelectedAxNode))
@@ -144,10 +152,21 @@ public class MainWindowViewModel : ViewModelBase
             {
                 if (Sources.IsDebuggerPaused)
                 {
-                    SelectedTabIndex = 2; // Sources tab is index 2
+                    NavigateToView("Sources");
                 }
             }
         };
+
+        // Initialize Split commands
+        SplitLeftCommand = new RelayCommand(() => SplitSelected(Avalonia.Layout.Orientation.Horizontal, true));
+        SplitRightCommand = new RelayCommand(() => SplitSelected(Avalonia.Layout.Orientation.Horizontal, false));
+        SplitUpCommand = new RelayCommand(() => SplitSelected(Avalonia.Layout.Orientation.Vertical, true));
+        SplitDownCommand = new RelayCommand(() => SplitSelected(Avalonia.Layout.Orientation.Vertical, false));
+        ClosePaneCommand = new RelayCommand(CloseSelected);
+        ResetLayoutCommand = new RelayCommand(ResetLayout);
+
+        // Set up the default split layout
+        ResetLayout();
     }
 
     private void UpdateSelectedSelector()
@@ -165,11 +184,242 @@ public class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private int _selectedTabIndex;
-    public int SelectedTabIndex
+    private void SplitSelected(Avalonia.Layout.Orientation orientation, bool insertBefore)
     {
-        get => _selectedTabIndex;
-        set => RaiseAndSetIfChanged(ref _selectedTabIndex, value);
+        var selected = SelectedPane;
+        if (selected == null) return;
+
+        BoxNode newBox;
+
+        if (selected.Tabs.Count > 1 && selected.ActiveTab != null)
+        {
+            var activeTab = selected.ActiveTab;
+
+            selected.Tabs.Remove(activeTab);
+            if (selected.Tabs.Count > 0)
+            {
+                selected.ActiveTab = selected.Tabs[0];
+            }
+
+            newBox = new BoxNode
+            {
+                BackgroundTint = "#292a2d"
+            };
+            newBox.Tabs.Add(activeTab);
+            newBox.ActiveTab = activeTab;
+        }
+        else
+        {
+            // Choose a next view sequentially that is not already visible, or a default fallback
+            string[] views = { "Console", "Recorder", "Sources", "Network", "Memory", "Application", "Audits" };
+            string viewName = "Console";
+            foreach (var v in views)
+            {
+                if (FindBoxNodeByViewName(LayoutRoot, v) == null)
+                {
+                    viewName = v;
+                    break;
+                }
+            }
+
+            newBox = new BoxNode
+            {
+                BackgroundTint = "#292a2d"
+            };
+            newBox.AddTab(viewName, GetIconKeyForView(viewName), viewName);
+        }
+
+        if (selected == LayoutRoot)
+        {
+            var newContainer = insertBefore
+                ? new SplitContainerNode(orientation, newBox, selected)
+                : new SplitContainerNode(orientation, selected, newBox);
+            LayoutRoot = newContainer;
+        }
+        else if (selected.Parent is SplitContainerNode parent)
+        {
+            var newContainer = insertBefore
+                ? new SplitContainerNode(orientation, newBox, selected)
+                : new SplitContainerNode(orientation, selected, newBox);
+
+            if (parent.Child1 == selected)
+            {
+                parent.Child1 = newContainer;
+            }
+            else
+            {
+                parent.Child2 = newContainer;
+            }
+        }
+
+        SelectedPane = newBox;
+    }
+
+    private void CloseSelected()
+    {
+        var selected = SelectedPane;
+        if (selected == null || selected == LayoutRoot) return;
+
+        if (selected.SelectedViewName == "Simulation")
+        {
+            _isPreviewPanelVisible = false;
+            OnPropertyChanged(nameof(IsPreviewPanelVisible));
+        }
+
+        if (selected.Parent is SplitContainerNode parent)
+        {
+            var sibling = parent.Child1 == selected ? parent.Child2 : parent.Child1;
+            var grandparent = parent.Parent;
+
+            if (parent == LayoutRoot)
+            {
+                sibling.Parent = null;
+                LayoutRoot = sibling;
+                if (sibling is BoxNode boxSibling) SelectedPane = boxSibling;
+            }
+            else if (grandparent is SplitContainerNode gp)
+            {
+                if (gp.Child1 == parent)
+                {
+                    gp.Child1 = sibling;
+                }
+                else
+                {
+                    gp.Child2 = sibling;
+                }
+                if (sibling is BoxNode boxSibling) SelectedPane = boxSibling;
+            }
+        }
+    }
+
+    private void ResetLayout()
+    {
+        var simulationPane = new BoxNode
+        {
+            BackgroundTint = "#292a2d" // Neutral dark background for screencast simulation
+        };
+        simulationPane.AddTab("Simulation Preview", "PreviewLinkIcon", "Simulation");
+
+        var rightPane = new BoxNode
+        {
+            BackgroundTint = "#292a2d"
+        };
+        rightPane.AddTab("Elements", "CodeIcon", "Elements");
+        rightPane.AddTab("Console", "TerminalIcon", "Console");
+        rightPane.AddTab("Sources", "DocumentIcon", "Sources");
+        rightPane.AddTab("Network", "GlobeIcon", "Network");
+        rightPane.AddTab("Performance", "TimerIcon", "Performance");
+        rightPane.AddTab("Memory", "DeveloperBoardIcon", "Memory");
+        rightPane.AddTab("Application", "AppsIcon", "Application");
+        rightPane.AddTab("Audits", "EyeIcon", "Audits");
+        rightPane.AddTab("Recorder", "RecordIcon", "Recorder");
+        rightPane.AddTab("Window", "WindowMultipleIcon", "Window");
+
+        LayoutRoot = new SplitContainerNode(
+            Avalonia.Layout.Orientation.Horizontal,
+            simulationPane,
+            rightPane
+        ) { SplitterRatio = 0.35 };
+
+        SelectedPane = rightPane;
+        _isPreviewPanelVisible = true;
+        OnPropertyChanged(nameof(IsPreviewPanelVisible));
+    }
+
+    private void ShowSimulationPreview()
+    {
+        var sim = FindBoxNodeByViewName(LayoutRoot, "Simulation");
+        if (sim != null) return;
+
+        var simNode = new BoxNode
+        {
+            BackgroundTint = "#292a2d"
+        };
+        simNode.AddTab("Simulation Preview", "PreviewLinkIcon", "Simulation");
+
+        if (LayoutRoot == null)
+        {
+            LayoutRoot = simNode;
+        }
+        else
+        {
+            LayoutRoot = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, simNode, LayoutRoot)
+            {
+                SplitterRatio = 0.35
+            };
+        }
+    }
+
+    private void HideSimulationPreview()
+    {
+        var sim = FindBoxNodeByViewName(LayoutRoot, "Simulation");
+        if (sim == null) return;
+
+        if (sim == LayoutRoot)
+        {
+            LayoutRoot = null;
+            SelectedPane = null;
+        }
+        else if (sim.Parent is SplitContainerNode parent)
+        {
+            var sibling = parent.Child1 == sim ? parent.Child2 : parent.Child1;
+            var grandparent = parent.Parent;
+
+            if (parent == LayoutRoot)
+            {
+                sibling.Parent = null;
+                LayoutRoot = sibling;
+            }
+            else if (grandparent is SplitContainerNode gp)
+            {
+                if (gp.Child1 == parent)
+                {
+                    gp.Child1 = sibling;
+                }
+                else
+                {
+                    gp.Child2 = sibling;
+                }
+            }
+            if (SelectedPane == sim)
+            {
+                SelectedPane = sibling as BoxNode;
+            }
+        }
+    }
+
+    private BoxNode? FindBoxNodeByViewName(SplitNode? node, string viewName)
+    {
+        if (node == null) return null;
+        if (node is BoxNode box)
+        {
+            foreach (var tab in box.Tabs)
+            {
+                if (tab.SelectedViewName == viewName) return box;
+            }
+        }
+        if (node is SplitContainerNode container)
+        {
+            var found = FindBoxNodeByViewName(container.Child1, viewName);
+            if (found != null) return found;
+            return FindBoxNodeByViewName(container.Child2, viewName);
+        }
+        return null;
+    }
+
+    public void NavigateToView(string viewName)
+    {
+        var box = FindBoxNodeByViewName(LayoutRoot, viewName);
+        if (box != null)
+        {
+            SelectedPane = box;
+        }
+        else if (SelectedPane != null)
+        {
+            SelectedPane.SelectedViewName = viewName;
+            SelectedPane.Title = viewName;
+            SelectedPane.IconKey = GetIconKeyForView(viewName);
+        }
     }
 
     public void NavigateToSource(string filePath, int line)
@@ -179,7 +429,26 @@ public class MainWindowViewModel : ViewModelBase
         {
             Sources.PendingScrollLine = line;
             Sources.SelectedFile = node;
-            SelectedTabIndex = 2; // Sources tab is index 2
+            NavigateToView("Sources");
         }
+    }
+
+    public static string GetIconKeyForView(string viewName)
+    {
+        return viewName switch
+        {
+            "Simulation" => "PreviewLinkIcon",
+            "Elements" => "CodeIcon",
+            "Console" => "TerminalIcon",
+            "Sources" => "DocumentIcon",
+            "Network" => "GlobeIcon",
+            "Performance" => "TimerIcon",
+            "Memory" => "DeveloperBoardIcon",
+            "Application" => "AppsIcon",
+            "Audits" => "EyeIcon",
+            "Recorder" => "RecordIcon",
+            "Window" => "WindowMultipleIcon",
+            _ => "DocumentIcon"
+        };
     }
 }
