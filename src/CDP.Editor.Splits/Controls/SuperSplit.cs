@@ -444,6 +444,12 @@ public class SuperSplit : ContentControl
         var existingBoxes = panel.Children.OfType<SuperSplitBox>().Where(b => b.DataContext is BoxNode).ToDictionary(b => (BoxNode)b.DataContext!);
         var existingSplitters = panel.Children.OfType<FlatSplitter>().ToDictionary(s => s.ContainerNode);
 
+        // Temporarily clear InnerContent of all existing box controls to prevent cross-assignment conflicts during layout swaps
+        foreach (var boxControl in existingBoxes.Values)
+        {
+            boxControl.InnerContent = null;
+        }
+
         var newChildren = new AvaloniaList<Control>();
 
         foreach (var box in boxesInTree)
