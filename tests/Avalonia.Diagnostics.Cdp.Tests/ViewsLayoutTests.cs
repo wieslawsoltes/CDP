@@ -111,4 +111,86 @@ public class ViewsLayoutTests
             app.Styles.Remove(sharedStyles);
         }
     }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Dynamic_Splitting()
+    {
+        var app = Avalonia.Application.Current;
+        Assert.NotNull(app);
+
+        // Instantiate view model and test default layout structure
+        var vm = new MainWindowViewModel();
+        Assert.NotNull(vm.LayoutRoot);
+        Assert.NotNull(vm.SelectedPane);
+
+        // Current layout root should be a horizontal split container (Simulation on left, right split on right)
+        var rootSplit = vm.LayoutRoot as CDP.Editor.Splits.Models.SplitContainerNode;
+        Assert.NotNull(rootSplit);
+        Assert.Equal(Avalonia.Layout.Orientation.Horizontal, rootSplit.Orientation);
+
+        // Simulate click to change selection and split horizontally
+        vm.SelectedPane = rootSplit.Child1 as CDP.Editor.Splits.Models.BoxNode;
+        Assert.NotNull(vm.SelectedPane);
+
+        // Execute SplitRight Command
+        vm.SplitRightCommand.Execute(null);
+
+        // The selected pane should now be a split container since it was replaced
+        var updatedRoot = vm.LayoutRoot as CDP.Editor.Splits.Models.SplitContainerNode;
+        Assert.NotNull(updatedRoot);
+        var leftChild = updatedRoot.Child1 as CDP.Editor.Splits.Models.SplitContainerNode;
+        Assert.NotNull(leftChild); // Splitting the left pane replaced it with a split container
+        Assert.Equal(Avalonia.Layout.Orientation.Horizontal, leftChild.Orientation);
+
+        // Execute CloseSelected Command
+        vm.ClosePaneCommand.Execute(null);
+
+        // Closing the new pane should restore the original single node on the left
+        Assert.True(updatedRoot.Child1 is CDP.Editor.Splits.Models.BoxNode);
+
+        // Verify SuperSplit control can instantiate with the root layout successfully
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm.LayoutRoot,
+            SelectedNode = vm.SelectedPane
+        };
+        Assert.NotNull(superSplit);
+        superSplit.Rebuild();
+        Assert.NotNull(superSplit.Content);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Drag_And_Drop_DataContext()
+    {
+        var vm = new MainWindowViewModel();
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm.LayoutRoot,
+            SelectedNode = vm.SelectedPane
+        };
+
+        var window = new Window { Width = 1000, Height = 800, Content = superSplit };
+        window.Show();
+
+        superSplit.Rebuild();
+        superSplit.UpdateLayout();
+
+        // Find all SuperSplitBox elements inside the SuperSplit Content
+        var boxes = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(superSplit)
+            .OfType<CDP.Editor.Splits.Controls.SuperSplitBox>()
+            .ToList();
+
+        Assert.NotEmpty(boxes);
+
+        foreach (var boxControl in boxes)
+        {
+            // Verify that each SuperSplitBox has its DataContext correctly set to a BoxNode
+            Assert.NotNull(boxControl.DataContext);
+            Assert.IsType<CDP.Editor.Splits.Models.BoxNode>(boxControl.DataContext);
+            
+            // Check that the node properties match
+            var nodeModel = (CDP.Editor.Splits.Models.BoxNode)boxControl.DataContext;
+            Assert.Equal(nodeModel.Title, boxControl.HeaderTitle);
+        }
+    }
 }
