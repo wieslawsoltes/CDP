@@ -391,4 +391,31 @@ description: ""Test Flow""
         Assert.True(pastedNode.Step.Parameters.ContainsKey("testParam"));
         Assert.Equal("paramVal", pastedNode.Step.Parameters["testParam"]);
     }
+
+    [Fact]
+    public void TestStudioNodeEditorViewModel_NodeResizingUpdatesConnectionPoints()
+    {
+        var editor = new TestStudioNodeEditorViewModel();
+
+        var node1 = editor.CreateNode("Node1", "click", "#btn1", "", 100, 200);
+        var node2 = editor.CreateNode("Node2", "click", "#btn2", "", 400, 300);
+
+        editor.ConnectNodes(node1, node2);
+        Assert.Single(editor.Connections);
+        var connection = editor.Connections[0];
+
+        // Capture initial points
+        var startX = connection.StartPoint.X;
+        var startY = connection.StartPoint.Y;
+
+        // Resize node1
+        node1.Width = 200;
+        node1.Height = 150;
+
+        // Check that connection points updated dynamically
+        Assert.Equal(300, connection.StartPoint.X); // 100 (X) + 200 (Width)
+        Assert.Equal(275, connection.StartPoint.Y); // 200 (Y) + 150/2 (Height/2)
+        Assert.NotEqual(startX, connection.StartPoint.X);
+        Assert.NotEqual(startY, connection.StartPoint.Y);
+    }
 }

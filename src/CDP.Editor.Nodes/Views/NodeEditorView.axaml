@@ -7,11 +7,12 @@
              x:CompileBindings="True"
              Focusable="True">
     <UserControl.Styles>
-        <Style Selector="Border.node-card">
-            <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Style Selector="Border.node-card" x:DataType="vm:NodeViewModel">
+            <Setter Property="BorderBrush" Value="{Binding BorderBrush, FallbackValue='#3c4043'}"/>
         </Style>
         <Style Selector="Border.node-card.selected">
             <Setter Property="BorderBrush" Value="#1a73e8"/>
+            <Setter Property="BorderThickness" Value="2"/>
         </Style>
 
         <!-- Pin hover transitions and scaling -->
@@ -107,7 +108,6 @@
                             <Border Width="{Binding Width}"
                                     Height="{Binding Height}"
                                     Background="{Binding Background, FallbackValue='#292a2d'}"
-                                    BorderBrush="{Binding BorderBrush, FallbackValue='#3c4043'}"
                                     BorderThickness="1.5"
                                     CornerRadius="6"
                                     Classes="node-card"
@@ -148,6 +148,20 @@
                                     <Ellipse Name="InputPin" Grid.RowSpan="2" Classes="input-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-5,0,0,0" ToolTip.Tip="Input Link" IsVisible="{Binding Content, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                                     <!-- Output Pin -->
                                     <Ellipse Name="OutputPin" Grid.RowSpan="2" Classes="output-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-5,0" ToolTip.Tip="Output Link" IsVisible="{Binding Content, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+
+                                    <!-- Resize Grip -->
+                                    <Border Name="ResizeGrip"
+                                            Grid.Row="1"
+                                            Width="12"
+                                            Height="12"
+                                            Background="Transparent"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Bottom"
+                                            Cursor="BottomRightCorner"
+                                            ZIndex="10"
+                                            Margin="0,0,1,1">
+                                        <Path Data="M 10 0 L 10 10 L 0 10 Z" Fill="#5f6368" Opacity="0.5"/>
+                                    </Border>
                                 </Grid>
                             </Border>
                         </DataTemplate>

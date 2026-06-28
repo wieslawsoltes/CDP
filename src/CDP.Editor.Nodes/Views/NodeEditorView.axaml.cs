@@ -45,6 +45,13 @@ public partial class NodeEditorView : UserControl
     private bool _isSelecting;
     private Point _selectionStartCanvas;
 
+    // Resizing state
+    private bool _isResizingNode;
+    private NodeViewModel? _resizedNode;
+    private Point _resizeStartPointerPosition;
+    private double _resizeStartWidth;
+    private double _resizeStartHeight;
+
     public static readonly StyledProperty<object?> HeaderContentProperty =
         AvaloniaProperty.Register<NodeEditorView, object?>(nameof(HeaderContent));
 
@@ -423,6 +430,25 @@ public partial class NodeEditorView : UserControl
             visualElement = visualElement.GetVisualParent();
         }
 
+        // Check if pressed on a resize grip
+        bool isResizeGrip = sourceElement != null && sourceElement.Name == "ResizeGrip";
+        if (isResizeGrip && pressedNode != null)
+        {
+            if (vm.IsReadOnly)
+            {
+                e.Handled = true;
+                return;
+            }
+            _isResizingNode = true;
+            _resizedNode = pressedNode;
+            _resizeStartPointerPosition = e.GetPosition(_canvasContainer);
+            _resizeStartWidth = pressedNode.Width;
+            _resizeStartHeight = pressedNode.Height;
+            e.Pointer.Capture(_canvasContainer);
+            e.Handled = true;
+            return;
+        }
+
         // 2. Node Selection & Dragging
         if (pressedNode != null)
         {
@@ -590,6 +616,20 @@ public partial class NodeEditorView : UserControl
             return;
         }
 
+        // 1.5. Resizing node
+        if (_isResizingNode && _resizedNode != null)
+        {
+            var currentPos = e.GetPosition(_canvasContainer);
+            double deltaX = (currentPos.X - _resizeStartPointerPosition.X) / vm.Zoom;
+            double deltaY = (currentPos.Y - _resizeStartPointerPosition.Y) / vm.Zoom;
+
+            _resizedNode.Width = Math.Max(100, _resizeStartWidth + deltaX);
+            _resizedNode.Height = Math.Max(50, _resizeStartHeight + deltaY);
+
+            e.Handled = true;
+            return;
+        }
+
         // 2. Node dragging
         if (_isDraggingNode && _draggedNode != null)
         {
@@ -659,6 +699,15 @@ public partial class NodeEditorView : UserControl
         if (DataContext is not NodeEditorViewModel vm || _nodeCanvas == null)
             return;
 
+        // 0.5. Finish resizing
+        if (_isResizingNode)
+        {
+            _isResizingNode = false;
+            _resizedNode = null;
+            e.Handled = true;
+            return;
+        }
+
         // 1. Finish connection dragging
         if (_isDraggingConnection && _connectionSourceNode != null)
         {
@@ -713,6 +762,47 @@ public partial class NodeEditorView : UserControl
             _isSelecting = false;
             if (_selectionBox != null)
             {
+                double left = Canvas.GetLeft(_selectionBox);
+                double top = Canvas.GetTop(_selectionBox);
+                double width = _selectionBox.Width;
+                double height = _selectionBox.Height;
+                double right = left + width;
+                double bottom = top + height;
+                var rect = new Rect(new Point(left, top), new Point(right, bottom));
+
+                bool isAdding = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+                if (width < 3.0 && height < 3.0)
+                {
+                    // Simple click on empty space
+                    if (!isAdding)
+                    {
+                        foreach (var n in vm.Nodes)
+                        {
+                            n.IsSelected = false;
+                        }
+                    }
+                }
+                else
+                {
+                    // Rubber-band selection
+                    if (!isAdding)
+                    {
+                        foreach (var n in vm.Nodes)
+                        {
+                            n.IsSelected = false;
+                        }
+                    }
+                    foreach (var n in vm.Nodes)
+                    {
+                        var nodeRect = new Rect(n.X, n.Y, n.Width, n.Height);
+                        if (rect.Intersects(nodeRect))
+                        {
+                            n.IsSelected = true;
+                        }
+                    }
+                }
+
                 _selectionBox.IsVisible = false;
             }
             e.Handled = true;
