@@ -2,12 +2,14 @@ using System;
 using System.ComponentModel;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Rendering.Composition;
 using CDP.Editor.Splits.Models;
 using Avalonia.VisualTree;
 
@@ -39,6 +41,31 @@ public class FlatSplitter : Control
         Cursor = new Cursor(node.Orientation == Orientation.Horizontal
             ? StandardCursorType.SizeWestEast
             : StandardCursorType.SizeNorthSouth);
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        var visual = ElementComposition.GetElementVisual(this);
+        if (visual != null)
+        {
+            var compositor = visual.Compositor;
+            var implicitAnimations = compositor.CreateImplicitAnimationCollection();
+            
+            var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
+            offsetAnim.Duration = TimeSpan.FromMilliseconds(250);
+            offsetAnim.Target = "Offset";
+            offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
+            implicitAnimations["Offset"] = offsetAnim;
+
+            var sizeAnim = compositor.CreateVector2KeyFrameAnimation();
+            sizeAnim.Duration = TimeSpan.FromMilliseconds(250);
+            sizeAnim.Target = "Size";
+            sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
+            implicitAnimations["Size"] = sizeAnim;
+
+            visual.ImplicitAnimations = implicitAnimations;
+        }
     }
 
     protected override void OnPointerEntered(PointerEventArgs e)
@@ -126,25 +153,6 @@ public class FlatSplitter : Control
 
 public class FlatSplitPanel : Panel
 {
-    public class SplitAnimationInfo
-    {
-        public BoxNode NewBox { get; set; } = null!;
-        public SplitNode SiblingBox { get; set; } = null!;
-        public SplitContainerNode ParentContainer { get; set; } = null!;
-        public double Progress { get; set; }
-    }
-
-    public class SwapAnimationInfo
-    {
-        public BoxNode Node1 { get; set; } = null!;
-        public BoxNode Node2 { get; set; } = null!;
-        public Rect StartRect1 { get; set; }
-        public Rect StartRect2 { get; set; }
-        public Rect EndRect1 { get; set; }
-        public Rect EndRect2 { get; set; }
-        public double Progress { get; set; }
-    }
-
     private readonly SuperSplit _parentSplit;
     private readonly Dictionary<SplitNode, Rect> _nodeBounds = new();
     private readonly Dictionary<SplitContainerNode, Rect> _containerBounds = new();
@@ -153,21 +161,20 @@ public class FlatSplitPanel : Panel
     private Point _splitterDragStartPoint;
     private double _splitterDragStartRatio;
 
-    public SplitAnimationInfo? ActiveSplitAnimation { get; set; }
-    public SwapAnimationInfo? ActiveSwapAnimation { get; set; }
-
     public FlatSplitPanel(SuperSplit parentSplit)
     {
         _parentSplit = parentSplit;
     }
 
     public Dictionary<SplitNode, Rect> NodeBounds => _nodeBounds;
+    public Dictionary<SplitContainerNode, Rect> ContainerBounds => _containerBounds;
 
     public void StartSplitterDrag(FlatSplitter splitter, PointerPressedEventArgs e)
     {
         ActiveSplitter = splitter;
         _splitterDragStartPoint = e.GetPosition(this);
         _splitterDragStartRatio = splitter.ContainerNode.SplitterRatio;
+        SetImplicitAnimationsEnabled(false);
     }
 
     public void UpdateSplitterDrag(PointerEventArgs e)
@@ -204,6 +211,41 @@ public class FlatSplitPanel : Panel
     public void EndSplitterDrag()
     {
         ActiveSplitter = null;
+        SetImplicitAnimationsEnabled(true);
+    }
+
+    private void SetImplicitAnimationsEnabled(bool enabled)
+    {
+        foreach (var child in Children)
+        {
+            var visual = ElementComposition.GetElementVisual(child);
+            if (visual != null)
+            {
+                if (enabled)
+                {
+                    var compositor = visual.Compositor;
+                    var implicitAnimations = compositor.CreateImplicitAnimationCollection();
+                    
+                    var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
+                    offsetAnim.Duration = TimeSpan.FromMilliseconds(250);
+                    offsetAnim.Target = "Offset";
+                    offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
+                    implicitAnimations["Offset"] = offsetAnim;
+
+                    var sizeAnim = compositor.CreateVector2KeyFrameAnimation();
+                    sizeAnim.Duration = TimeSpan.FromMilliseconds(250);
+                    sizeAnim.Target = "Size";
+                    sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
+                    implicitAnimations["Size"] = sizeAnim;
+
+                    visual.ImplicitAnimations = implicitAnimations;
+                }
+                else
+                {
+                    visual.ImplicitAnimations = null;
+                }
+            }
+        }
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -245,89 +287,21 @@ public class FlatSplitPanel : Panel
     {
         _nodeBounds.Clear();
         _containerBounds.Clear();
-
-        // 1. Calculate final target rects (needed for new box final size)
-        var finalBoxes = new Dictionary<BoxNode, Rect>();
-        var finalSplitters = new Dictionary<SplitContainerNode, Rect>();
-        var finalContainers = new Dictionary<SplitContainerNode, Rect>();
-        _parentSplit.ComputePixelBounds(_parentSplit.Root, new Rect(finalSize), 8.0, finalBoxes, finalSplitters, finalContainers);
-
-        // 2. Temporarily set animated ratio
-        double? originalRatio = null;
-        if (ActiveSplitAnimation != null)
-        {
-            var anim = ActiveSplitAnimation;
-            originalRatio = anim.ParentContainer.SplitterRatio;
-            bool isNewFirstChild = anim.ParentContainer.Child1 == anim.NewBox;
-            double p = anim.Progress;
-            if (isNewFirstChild)
-            {
-                anim.ParentContainer.SplitterRatio = p * originalRatio.Value;
-            }
-            else
-            {
-                anim.ParentContainer.SplitterRatio = 1.0 - p * (1.0 - originalRatio.Value);
-            }
-        }
-
-        // 3. Calculate animated rects for actual arrange
         var boxes = new Dictionary<BoxNode, Rect>();
         var splitters = new Dictionary<SplitContainerNode, Rect>();
         var containers = new Dictionary<SplitContainerNode, Rect>();
+
         _parentSplit.ComputePixelBounds(_parentSplit.Root, new Rect(finalSize), 8.0, boxes, splitters, containers);
 
-        // Restore original ratio
-        if (ActiveSplitAnimation != null && originalRatio.HasValue)
-        {
-            ActiveSplitAnimation.ParentContainer.SplitterRatio = originalRatio.Value;
-        }
-
-        // Populate NodeBounds with animated positions for hit testing, etc.
         foreach (var kv in boxes) _nodeBounds[kv.Key] = kv.Value;
         foreach (var kv in splitters) _nodeBounds[kv.Key] = kv.Value;
         foreach (var kv in containers) _containerBounds[kv.Key] = kv.Value;
-
-        // Interpolate for swap animation if active
-        Rect animatedSwapRect1 = default;
-        Rect animatedSwapRect2 = default;
-        if (ActiveSwapAnimation != null)
-        {
-            var anim = ActiveSwapAnimation;
-            double p = anim.Progress;
-            animatedSwapRect1 = new Rect(
-                anim.StartRect1.X + p * (anim.EndRect1.X - anim.StartRect1.X),
-                anim.StartRect1.Y + p * (anim.EndRect1.Y - anim.StartRect1.Y),
-                anim.StartRect1.Width + p * (anim.EndRect1.Width - anim.StartRect1.Width),
-                anim.StartRect1.Height + p * (anim.EndRect1.Height - anim.StartRect1.Height)
-            );
-            animatedSwapRect2 = new Rect(
-                anim.StartRect2.X + p * (anim.EndRect2.X - anim.StartRect2.X),
-                anim.StartRect2.Y + p * (anim.EndRect2.Y - anim.StartRect2.Y),
-                anim.StartRect2.Width + p * (anim.EndRect2.Width - anim.StartRect2.Width),
-                anim.StartRect2.Height + p * (anim.EndRect2.Height - anim.StartRect2.Height)
-            );
-        }
 
         foreach (var child in Children)
         {
             if (child is SuperSplitBox boxControl && boxControl.DataContext is BoxNode boxNode)
             {
-                if (ActiveSplitAnimation != null && boxNode == ActiveSplitAnimation.NewBox)
-                {
-                    if (finalBoxes.TryGetValue(boxNode, out var rect))
-                    {
-                        boxControl.Arrange(rect);
-                    }
-                }
-                else if (ActiveSwapAnimation != null && boxNode == ActiveSwapAnimation.Node1)
-                {
-                    boxControl.Arrange(animatedSwapRect1);
-                }
-                else if (ActiveSwapAnimation != null && boxNode == ActiveSwapAnimation.Node2)
-                {
-                    boxControl.Arrange(animatedSwapRect2);
-                }
-                else if (boxes.TryGetValue(boxNode, out var rect))
+                if (boxes.TryGetValue(boxNode, out var rect))
                 {
                     boxControl.Arrange(rect);
                 }
@@ -643,11 +617,23 @@ public class SuperSplit : ContentControl
 
         panel.UpdateLayout();
 
-        if (!panel.NodeBounds.TryGetValue(boxNode, out var finalNewRect) ||
-            !panel.NodeBounds.TryGetValue(siblingNode, out var finalSibRect))
+        if (!panel.NodeBounds.TryGetValue(boxNode, out var finalNewRect))
         {
             return;
         }
+
+        Rect finalSibRect = default;
+        bool foundSib = false;
+        if (siblingNode is BoxNode siblingBox)
+        {
+            foundSib = panel.NodeBounds.TryGetValue(siblingBox, out finalSibRect);
+        }
+        else if (siblingNode is SplitContainerNode siblingContainer)
+        {
+            foundSib = panel.ContainerBounds.TryGetValue(siblingContainer, out finalSibRect);
+        }
+
+        if (!foundSib) return;
 
         var siblingBoxes = new List<BoxNode>();
         CollectBoxes(siblingNode, siblingBoxes);
@@ -663,86 +649,39 @@ public class SuperSplit : ContentControl
         }
         boxControl.ZIndex = 5;
 
-        var anim = new FlatSplitPanel.SplitAnimationInfo
+        var visual = ElementComposition.GetElementVisual(boxControl);
+        if (visual != null)
         {
-            NewBox = boxNode,
-            SiblingBox = siblingNode,
-            ParentContainer = parent,
-            Progress = 0.0
-        };
-        panel.ActiveSplitAnimation = anim;
+            var implicitAnims = visual.ImplicitAnimations;
+            visual.ImplicitAnimations = null;
 
-        bool isHorizontal = parent.Orientation == Orientation.Horizontal;
-        bool isNewFirstChild = parent.Child1 == boxNode;
+            visual.Offset = new Vector3((float)finalSibRect.X, (float)finalSibRect.Y, 0.0f);
+            visual.Opacity = 0.0f;
 
-        var startTime = DateTime.UtcNow;
-        var duration = TimeSpan.FromMilliseconds(250);
+            visual.ImplicitAnimations = implicitAnims;
 
-        var timer = new Avalonia.Threading.DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(10)
-        };
+            visual.Offset = new Vector3((float)finalNewRect.X, (float)finalNewRect.Y, 0.0f);
 
-        timer.Tick += (s, e) =>
-        {
-            var elapsed = DateTime.UtcNow - startTime;
-            double t = elapsed.TotalMilliseconds / duration.TotalMilliseconds;
-            if (t >= 1.0)
+            var compositor = visual.Compositor;
+            var opacityAnimation = compositor.CreateScalarKeyFrameAnimation();
+            opacityAnimation.Target = "Opacity";
+            opacityAnimation.InsertKeyFrame(0.0f, 0.0f);
+            opacityAnimation.InsertKeyFrame(1.0f, 1.0f);
+            opacityAnimation.Duration = TimeSpan.FromMilliseconds(250);
+            visual.StartAnimation("Opacity", opacityAnimation);
+
+            var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            timer.Tick += (s, ev) =>
             {
-                t = 1.0;
                 timer.Stop();
-                panel.ActiveSplitAnimation = null;
                 foreach (var c in siblingControls)
                 {
                     c.ZIndex = 0;
                 }
                 boxControl.ZIndex = 0;
-                boxControl.RenderTransform = null;
-                boxControl.Clip = null;
-                panel.InvalidateArrange();
-                return;
-            }
-
-            double ease = 1.0 - Math.Pow(1.0 - t, 3.0); // cubic out ease
-            anim.Progress = ease;
-            panel.InvalidateArrange();
-
-            double w = finalNewRect.Width;
-            double h = finalNewRect.Height;
-
-            if (isHorizontal)
-            {
-                if (isNewFirstChild)
-                {
-                    double currentOffset = -w * (1.0 - ease);
-                    boxControl.RenderTransform = new TranslateTransform(currentOffset, 0);
-                    boxControl.Clip = new RectangleGeometry(new Rect(w * (1.0 - ease), 0, w * ease, h));
-                }
-                else
-                {
-                    double currentOffset = w * (1.0 - ease);
-                    boxControl.RenderTransform = new TranslateTransform(currentOffset, 0);
-                    boxControl.Clip = new RectangleGeometry(new Rect(0, 0, w * ease, h));
-                }
-            }
-            else
-            {
-                if (isNewFirstChild)
-                {
-                    double currentOffset = -h * (1.0 - ease);
-                    boxControl.RenderTransform = new TranslateTransform(0, currentOffset);
-                    boxControl.Clip = new RectangleGeometry(new Rect(0, h * (1.0 - ease), w, h * ease));
-                }
-                else
-                {
-                    double currentOffset = h * (1.0 - ease);
-                    boxControl.RenderTransform = new TranslateTransform(0, currentOffset);
-                    boxControl.Clip = new RectangleGeometry(new Rect(0, 0, w, h * ease));
-                }
-            }
-        };
-
-        timer.Start();
+            };
+            timer.Start();
+        }
     }
 
     public void ComputePixelBounds(SplitNode? node, Rect rect, double splitterThickness,
@@ -1002,69 +941,62 @@ public class SuperSplit : ContentControl
 
         if (loc == RelativeDropLocation.Center)
         {
-            var panel = _flatPanel;
-            if (panel != null)
+            var parent1 = source.Parent as SplitContainerNode;
+            var parent2 = target.Parent as SplitContainerNode;
+
+            if (parent1 != null && parent2 != null)
             {
-                panel.UpdateLayout();
-                if (panel.NodeBounds.TryGetValue(source, out var startRect1) &&
-                    panel.NodeBounds.TryGetValue(target, out var startRect2))
+                if (parent1.Child1 == source) parent1.Child1 = target;
+                else parent1.Child2 = target;
+
+                if (parent2.Child1 == target) parent2.Child1 = source;
+                else parent2.Child2 = source;
+
+                source.Parent = parent2;
+                target.Parent = parent1;
+
+                SelectedNode = target;
+                Rebuild();
+
+                var panel = _flatPanel;
+                if (panel != null)
                 {
-                    var tempView = source.SelectedViewName;
-                    var tempTitle = source.Title;
-                    var tempIcon = source.IconKey;
-                    var tempContent = source.Content;
-
-                    source.SelectedViewName = target.SelectedViewName;
-                    source.Title = target.Title;
-                    source.IconKey = target.IconKey;
-                    source.Content = target.Content;
-
-                    target.SelectedViewName = tempView;
-                    target.Title = tempTitle;
-                    target.IconKey = tempIcon;
-                    target.Content = tempContent;
-
-                    SelectedNode = target;
-                    Rebuild();
-
-                    panel.UpdateLayout();
-
-                    SuperSplitBox? boxControl1 = null;
-                    SuperSplitBox? boxControl2 = null;
                     foreach (var child in panel.Children)
                     {
-                        if (child is SuperSplitBox box)
+                        if (child is SuperSplitBox box && (box.DataContext == source || box.DataContext == target))
                         {
-                            if (box.DataContext == source) boxControl1 = box;
-                            else if (box.DataContext == target) boxControl2 = box;
+                            box.ZIndex = 10;
+                            box.Opacity = 0.7;
+
+                            var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+                            timer.Tick += (s, ev) =>
+                            {
+                                timer.Stop();
+                                box.ZIndex = 0;
+                                box.Opacity = 1.0;
+                            };
+                            timer.Start();
                         }
                     }
-
-                    if (boxControl1 != null && boxControl2 != null &&
-                        panel.NodeBounds.TryGetValue(source, out var endRect1) &&
-                        panel.NodeBounds.TryGetValue(target, out var endRect2))
-                    {
-                        TriggerSwapAnimation(panel, boxControl1, boxControl2, source, target, startRect1, startRect2, endRect1, endRect2);
-                    }
-                    return;
                 }
+                return;
             }
 
-            // Fallback if bounds are not resolved
-            var fallbackView = source.SelectedViewName;
-            var fallbackTitle = source.Title;
-            var fallbackIcon = source.IconKey;
-            var fallbackContent = source.Content;
+            // Fallback
+            var tempView = source.SelectedViewName;
+            var tempTitle = source.Title;
+            var tempIcon = source.IconKey;
+            var tempContent = source.Content;
 
             source.SelectedViewName = target.SelectedViewName;
             source.Title = target.Title;
             source.IconKey = target.IconKey;
             source.Content = target.Content;
 
-            target.SelectedViewName = fallbackView;
-            target.Title = fallbackTitle;
-            target.IconKey = fallbackIcon;
-            target.Content = fallbackContent;
+            target.SelectedViewName = tempView;
+            target.Title = tempTitle;
+            target.IconKey = tempIcon;
+            target.Content = tempContent;
 
             SelectedNode = target;
             Rebuild();
@@ -1136,58 +1068,5 @@ public class SuperSplit : ContentControl
         SelectedNode = source;
 
         Rebuild();
-    }
-
-    private void TriggerSwapAnimation(FlatSplitPanel panel, SuperSplitBox box1, SuperSplitBox box2,
-        BoxNode node1, BoxNode node2, Rect startRect1, Rect startRect2, Rect endRect1, Rect endRect2)
-    {
-        box1.ZIndex = 10;
-        box2.ZIndex = 10;
-        box1.Opacity = 0.7;
-        box2.Opacity = 0.7;
-
-        var anim = new FlatSplitPanel.SwapAnimationInfo
-        {
-            Node1 = node1,
-            Node2 = node2,
-            StartRect1 = startRect1,
-            StartRect2 = startRect2,
-            EndRect1 = endRect1,
-            EndRect2 = endRect2,
-            Progress = 0.0
-        };
-        panel.ActiveSwapAnimation = anim;
-
-        var startTime = DateTime.UtcNow;
-        var duration = TimeSpan.FromMilliseconds(200);
-
-        var timer = new Avalonia.Threading.DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(10)
-        };
-
-        timer.Tick += (s, e) =>
-        {
-            var elapsed = DateTime.UtcNow - startTime;
-            double t = elapsed.TotalMilliseconds / duration.TotalMilliseconds;
-            if (t >= 1.0)
-            {
-                t = 1.0;
-                timer.Stop();
-                panel.ActiveSwapAnimation = null;
-                box1.ZIndex = 0;
-                box2.ZIndex = 0;
-                box1.Opacity = 1.0;
-                box2.Opacity = 1.0;
-                panel.InvalidateArrange();
-                return;
-            }
-
-            double ease = 1.0 - Math.Pow(1.0 - t, 3.0); // cubic out ease
-            anim.Progress = ease;
-            panel.InvalidateArrange();
-        };
-
-        timer.Start();
     }
 }

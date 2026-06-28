@@ -183,6 +183,28 @@ public class SuperSplitBox : ContentControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        
+        var visual = ElementComposition.GetElementVisual(this);
+        if (visual != null)
+        {
+            var compositor = visual.Compositor;
+            var implicitAnimations = compositor.CreateImplicitAnimationCollection();
+            
+            var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
+            offsetAnim.Duration = TimeSpan.FromMilliseconds(250);
+            offsetAnim.Target = "Offset";
+            offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
+            implicitAnimations["Offset"] = offsetAnim;
+
+            var sizeAnim = compositor.CreateVector2KeyFrameAnimation();
+            sizeAnim.Duration = TimeSpan.FromMilliseconds(250);
+            sizeAnim.Target = "Size";
+            sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
+            implicitAnimations["Size"] = sizeAnim;
+
+            visual.ImplicitAnimations = implicitAnimations;
+        }
+
         if (IsEntranceAnimationRequested)
         {
             IsEntranceAnimationRequested = false;

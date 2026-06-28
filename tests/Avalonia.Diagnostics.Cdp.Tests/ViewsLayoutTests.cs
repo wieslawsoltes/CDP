@@ -222,8 +222,8 @@ public class ViewsLayoutTests
         var source = boxNodes[0];
         var target = boxNodes[1];
 
-        var oldSourceView = source.SelectedViewName;
-        var oldTargetView = target.SelectedViewName;
+        var parent1 = source.Parent;
+        var parent2 = target.Parent;
 
         // Perform the Center drop operation by invoking MoveNode via reflection (Center is index 5 in RelativeDropLocation)
         var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -231,8 +231,8 @@ public class ViewsLayoutTests
 
         method.Invoke(superSplit, new object[] { source, target, 5 });
 
-        // Verify swapped values
-        Assert.Equal(oldSourceView, target.SelectedViewName);
-        Assert.Equal(oldTargetView, source.SelectedViewName);
+        // Verify swapped positions in the tree
+        Assert.Same(parent2, source.Parent);
+        Assert.Same(parent1, target.Parent);
     }
 }
