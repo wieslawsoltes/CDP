@@ -472,7 +472,6 @@ public class SuperSplitBox : ContentControl
                 if (view.Parent is SuperSplitBox oldParent && oldParent != this)
                 {
                     oldParent.InnerContent = null;
-                    oldParent.UpdateLayout();
                 }
                 else if (view.Parent is Panel panel)
                 {
@@ -481,6 +480,17 @@ public class SuperSplitBox : ContentControl
                 else if (view.Parent is ContentControl contentControl)
                 {
                     contentControl.Content = null;
+                }
+
+                // Ensure the view is synchronously detached from any visual parent to prevent crashes
+                var visualParent = view.GetVisualParent();
+                if (visualParent is ContentPresenter cp)
+                {
+                    cp.Content = null;
+                }
+                else if (visualParent is Panel p)
+                {
+                    p.Children.Remove(view);
                 }
 
                 InnerContent = view;
