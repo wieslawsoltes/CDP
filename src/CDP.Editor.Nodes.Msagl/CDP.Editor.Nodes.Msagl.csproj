@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.Editor.Nodes.Msagl</PackageId>
-    <Title>CDP.Editor.Nodes.Msagl</Title>
+    <PackageId>Chrome.DevTools.Editor.Nodes.Msagl</PackageId>
+    <Title>Chrome.DevTools.Editor.Nodes.Msagl</Title>
     <Description>Microsoft MSAGL layout integration for standalone graph node editor.</Description>
     <PackageTags>msagl;layout;nodes;graph</PackageTags>
   </PropertyGroup>
