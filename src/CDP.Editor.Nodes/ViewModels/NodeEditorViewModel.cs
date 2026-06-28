@@ -68,6 +68,8 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
     public Action<NodeViewModel>? BringNodeIntoViewAction { get; set; }
     public Action<string, double, double>? DropNodeHandler { get; set; }
     public Action<NodeViewModel>? NodeDoubleClickedAction { get; set; }
+    public Func<NodeViewModel, object?>? GetNodeCustomDataHandler { get; set; }
+    public Action<NodeViewModel, object?>? SetNodeCustomDataHandler { get; set; }
 
     public void BringNodeIntoView(NodeViewModel node)
     {
@@ -260,6 +262,7 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         public bool IsGroup { get; set; }
         public string? ScenarioPath { get; set; }
         public List<string> ChildNodeIds { get; } = new();
+        public object? CustomData { get; set; }
     }
 
     public void CopySelectedNodes()
@@ -296,6 +299,10 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
                 if (actionProp != null) data.Action = actionProp.GetValue(n)?.ToString() ?? "";
                 if (selectorProp != null) data.Selector = selectorProp.GetValue(n)?.ToString() ?? "";
                 if (valueProp != null) data.Value = valueProp.GetValue(n)?.ToString() ?? "";
+            }
+            if (GetNodeCustomDataHandler != null)
+            {
+                data.CustomData = GetNodeCustomDataHandler(n);
             }
 
             s_copiedNodes.Add(data);
@@ -359,6 +366,11 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
                     if (actionProp != null) actionProp.SetValue(newNode, data.Action);
                     if (selectorProp != null) selectorProp.SetValue(newNode, data.Selector);
                     if (valueProp != null) valueProp.SetValue(newNode, data.Value);
+
+                    if (SetNodeCustomDataHandler != null)
+                    {
+                        SetNodeCustomDataHandler(newNode, data.CustomData);
+                    }
                 }
                 else
                 {

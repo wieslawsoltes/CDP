@@ -350,4 +350,45 @@ description: ""Test Flow""
         Assert.False(node.IsPassed);
         Assert.True(node.IsFailed);
     }
+
+    [Fact]
+    public void TestStudioNodeEditorViewModel_CopyPasteClonesFullStepData()
+    {
+        var editor = new TestStudioNodeEditorViewModel();
+
+        var originalStep = new TestStudioStepModel
+        {
+            Action = "tapOn",
+            Selector = "#btn1",
+            Value = "val1",
+            WhileConditionType = "visible",
+            WhileConditionValue = "#btn2"
+        };
+        originalStep.Parameters["testParam"] = "paramVal";
+
+        var node = editor.CreateNode("Step1", "tapOn", "#btn1", "val1", 10, 20);
+        node.Step = originalStep;
+
+        // Select node
+        editor.SelectNode(node);
+
+        // Copy and paste
+        editor.CopySelectedNodes();
+        editor.PasteNodes();
+
+        // Check that pasted node exists and has a step cloned with parameters and condition
+        Assert.Equal(2, editor.Nodes.Count);
+        var pastedNode = editor.Nodes.OfType<TestStudioNodeViewModel>().FirstOrDefault(n => n != node);
+        Assert.NotNull(pastedNode);
+        Assert.NotNull(pastedNode.Step);
+        Assert.NotSame(originalStep, pastedNode.Step); // should be a deep clone
+
+        Assert.Equal("tapOn", pastedNode.Step.Action);
+        Assert.Equal("#btn1", pastedNode.Step.Selector);
+        Assert.Equal("val1", pastedNode.Step.Value);
+        Assert.Equal("visible", pastedNode.Step.WhileConditionType);
+        Assert.Equal("#btn2", pastedNode.Step.WhileConditionValue);
+        Assert.True(pastedNode.Step.Parameters.ContainsKey("testParam"));
+        Assert.Equal("paramVal", pastedNode.Step.Parameters["testParam"]);
+    }
 }

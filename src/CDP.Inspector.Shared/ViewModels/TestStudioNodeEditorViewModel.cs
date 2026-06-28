@@ -51,6 +51,26 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
         };
 
         CollectionChangedAction = SyncSteps;
+
+        GetNodeCustomDataHandler = node =>
+        {
+            if (node is TestStudioNodeViewModel tNode && tNode.Step != null)
+            {
+                return tNode.Step.Clone();
+            }
+            return null;
+        };
+
+        SetNodeCustomDataHandler = (node, data) =>
+        {
+            if (node is TestStudioNodeViewModel tNode && data is TestStudioStepModel stepClone)
+            {
+                tNode.Step = stepClone;
+                tNode.Action = stepClone.Action;
+                tNode.Selector = stepClone.Selector ?? "";
+                tNode.Value = stepClone.Value ?? "";
+            }
+        };
     }
 
     protected override void OnNodePropertyChanged(NodeViewModel node, string? propertyName)
