@@ -1,13 +1,16 @@
 using System;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Numerics;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
-using Avalonia.Media;
-using System.Numerics;
-using Avalonia.Rendering.Composition;
 using Avalonia.Interactivity;
-using Avalonia.Animation;
+using Avalonia.Media;
+using Avalonia.Rendering.Composition;
+using CDP.Editor.Splits.Models;
 
 namespace CDP.Editor.Splits.Controls;
 
@@ -65,8 +68,8 @@ public class SuperSplitBox : ContentControl
     public bool IsEntranceAnimationRequested { get; set; } = false;
 
     private readonly Border _mainBorder;
-    private readonly PathIcon _iconPath;
-    private readonly TextBlock _titleTextBlock;
+    private readonly Border _headerPanel;
+    private BoxNode? _currentBoxNode;
 
     public SuperSplitBox()
     {
@@ -77,61 +80,23 @@ public class SuperSplitBox : ContentControl
         };
 
         // Header Panel
-        var headerPanel = new Border
+        _headerPanel = new Border
         {
             Height = 32,
             Background = Brush.Parse("#292a2d"),
             BorderBrush = Brush.Parse("#3c4043"),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(10, 0),
-            Cursor = new Cursor(StandardCursorType.Hand)
+            BorderThickness = new Thickness(0, 0, 0, 1)
         };
 
-        headerPanel.PointerPressed += (sender, args) =>
+        var tabsPanel = new StackPanel
         {
-            BoxSelected?.Invoke(this, EventArgs.Empty);
-            var pointerProperties = args.GetCurrentPoint(headerPanel).Properties;
-            if (pointerProperties.IsRightButtonPressed)
-            {
-                MenuClicked?.Invoke(this, EventArgs.Empty);
-            }
-            else
-            {
-                HeaderPressed?.Invoke(this, args);
-            }
-            args.Handled = true;
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
         };
+        _headerPanel.Child = tabsPanel;
 
-        var headerGrid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("Auto, *")
-        };
-
-        // Header Icon
-        _iconPath = new PathIcon
-        {
-            Width = 14,
-            Height = 14,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
-        };
-        Grid.SetColumn(_iconPath, 0);
-        headerGrid.Children.Add(_iconPath);
-
-        // Header Text
-        _titleTextBlock = new TextBlock
-        {
-            FontSize = 12,
-            FontWeight = FontWeight.Bold,
-            Foreground = Brush.Parse("#e8eaed"),
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
-        };
-        Grid.SetColumn(_titleTextBlock, 1);
-        headerGrid.Children.Add(_titleTextBlock);
-
-        headerPanel.Child = headerGrid;
-        Grid.SetRow(headerPanel, 0);
-        grid.Children.Add(headerPanel);
+        Grid.SetRow(_headerPanel, 0);
+        grid.Children.Add(_headerPanel);
 
         // Content Area
         var contentPresenter = new ContentPresenter
@@ -167,8 +132,6 @@ public class SuperSplitBox : ContentControl
 
         UpdateBorderHighlight();
         UpdateBackground();
-        UpdateIcon();
-        UpdateTitle();
 
         // Use tunneling PointerPressed handler to capture clicks anywhere inside the box (even handled by children)
         AddHandler(PointerPressedEvent, (sender, args) =>
@@ -188,6 +151,194 @@ public class SuperSplitBox : ContentControl
         {
             IsEntranceAnimationRequested = false;
             AnimateEntranceComposition();
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (_currentBoxNode != null)
+        {
+            _currentBoxNode.Tabs.CollectionChanged -= OnTabsCollectionChanged;
+            _currentBoxNode.PropertyChanged -= OnBoxNodePropertyChanged;
+            _currentBoxNode = null;
+        }
+    }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (_currentBoxNode != null)
+        {
+            _currentBoxNode.Tabs.CollectionChanged -= OnTabsCollectionChanged;
+            _currentBoxNode.PropertyChanged -= OnBoxNodePropertyChanged;
+        }
+
+        _currentBoxNode = DataContext as BoxNode;
+
+        if (_currentBoxNode != null)
+        {
+            _currentBoxNode.Tabs.CollectionChanged += OnTabsCollectionChanged;
+            _currentBoxNode.PropertyChanged += OnBoxNodePropertyChanged;
+        }
+
+        RebuildHeaderTabs();
+    }
+
+    private void OnTabsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RebuildHeaderTabs();
+    }
+
+    private void OnBoxNodePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BoxNode.ActiveTab))
+        {
+            RebuildHeaderTabs();
+        }
+    }
+
+    private void RebuildHeaderTabs()
+    {
+        var tabsPanel = _headerPanel.Child as StackPanel;
+        if (tabsPanel == null) return;
+
+        tabsPanel.Children.Clear();
+
+        if (DataContext is BoxNode boxNode)
+        {
+            foreach (var tab in boxNode.Tabs)
+            {
+                var isActive = tab == boxNode.ActiveTab;
+
+                var tabBorder = new Border
+                {
+                    Background = isActive ? Brush.Parse("#35363a") : Brushes.Transparent,
+                    BorderBrush = Brush.Parse("#3c4043"),
+                    BorderThickness = new Thickness(0, 0, 1, 0),
+                    Padding = new Thickness(12, 0),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
+                    Cursor = new Cursor(StandardCursorType.Hand)
+                };
+
+                // Add subtle hover effects to inactive tabs
+                if (!isActive)
+                {
+                    tabBorder.PointerEntered += (s, e) =>
+                    {
+                        tabBorder.Background = Brush.Parse("#323337");
+                    };
+                    tabBorder.PointerExited += (s, e) =>
+                    {
+                        tabBorder.Background = Brushes.Transparent;
+                    };
+                }
+
+                var tabGrid = new Grid
+                {
+                    ColumnDefinitions = new ColumnDefinitions("Auto, Auto, Auto"),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
+                };
+
+                // 1. Icon
+                var tabIcon = new PathIcon
+                {
+                    Width = 12,
+                    Height = 12,
+                    Margin = new Thickness(0, 0, 6, 0),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+                };
+                if (Application.Current != null && Application.Current.TryFindResource(tab.IconKey, out var resource) && resource is Geometry geom)
+                {
+                    tabIcon.Data = geom;
+                }
+                else if (Application.Current != null && Application.Current.TryFindResource("DocumentIcon", out var fallback) && fallback is Geometry fallbackGeom)
+                {
+                    tabIcon.Data = fallbackGeom;
+                }
+                Grid.SetColumn(tabIcon, 0);
+                tabGrid.Children.Add(tabIcon);
+
+                // 2. Title Text
+                var tabTitle = new TextBlock
+                {
+                    Text = tab.Title,
+                    FontSize = 11,
+                    FontWeight = isActive ? FontWeight.Bold : FontWeight.Normal,
+                    Foreground = isActive ? Brush.Parse("#e8eaed") : Brush.Parse("#9aa0a6"),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 6, 0)
+                };
+                Grid.SetColumn(tabTitle, 1);
+                tabGrid.Children.Add(tabTitle);
+
+                // 3. Close button (small x)
+                var closeButton = new Border
+                {
+                    Width = 14,
+                    Height = 14,
+                    CornerRadius = new CornerRadius(7),
+                    Background = Brushes.Transparent,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    Cursor = new Cursor(StandardCursorType.Hand)
+                };
+
+                var closeIcon = new PathIcon
+                {
+                    Width = 6,
+                    Height = 6,
+                    Foreground = Brush.Parse("#9aa0a6"),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center
+                };
+                if (Application.Current != null && Application.Current.TryFindResource("DismissIcon", out var crossGeom) && crossGeom is Geometry cross)
+                {
+                    closeIcon.Data = cross;
+                }
+                closeButton.Child = closeIcon;
+
+                closeButton.PointerEntered += (s, e) =>
+                {
+                    closeButton.Background = Brush.Parse("#ff5252");
+                    closeIcon.Foreground = Brushes.White;
+                };
+                closeButton.PointerExited += (s, e) =>
+                {
+                    closeButton.Background = Brushes.Transparent;
+                    closeIcon.Foreground = Brush.Parse("#9aa0a6");
+                };
+
+                closeButton.PointerPressed += (s, e) =>
+                {
+                    boxNode.Tabs.Remove(tab);
+                    e.Handled = true;
+                };
+
+                Grid.SetColumn(closeButton, 2);
+                tabGrid.Children.Add(closeButton);
+
+                tabBorder.Child = tabGrid;
+
+                // Tab selection and drag press handling
+                tabBorder.PointerPressed += (sender, args) =>
+                {
+                    boxNode.ActiveTab = tab;
+                    BoxSelected?.Invoke(this, EventArgs.Empty);
+
+                    var pointerProperties = args.GetCurrentPoint(tabBorder).Properties;
+                    if (pointerProperties.IsRightButtonPressed)
+                    {
+                        MenuClicked?.Invoke(this, EventArgs.Empty);
+                    }
+                    else
+                    {
+                        HeaderPressed?.Invoke(this, args);
+                    }
+                    args.Handled = true;
+                };
+
+                tabsPanel.Children.Add(tabBorder);
+            }
         }
     }
 
@@ -263,13 +414,9 @@ public class SuperSplitBox : ContentControl
         {
             UpdateBackground();
         }
-        else if (change.Property == IconKeyProperty)
+        else if (change.Property == IconKeyProperty || change.Property == HeaderTitleProperty)
         {
-            UpdateIcon();
-        }
-        else if (change.Property == HeaderTitleProperty)
-        {
-            UpdateTitle();
+            RebuildHeaderTabs();
         }
     }
 
@@ -295,34 +442,6 @@ public class SuperSplitBox : ContentControl
             {
                 _mainBorder.Background = Brush.Parse("#292a2d");
             }
-        }
-    }
-
-    private void UpdateIcon()
-    {
-        if (_iconPath != null)
-        {
-            var key = IconKey;
-            if (Application.Current != null && Application.Current.TryFindResource(key, out var resource) && resource is Geometry geom)
-            {
-                _iconPath.Data = geom;
-            }
-            else if (Application.Current != null && Application.Current.TryFindResource("DocumentIcon", out var fallback) && fallback is Geometry fallbackGeom)
-            {
-                _iconPath.Data = fallbackGeom;
-            }
-            else
-            {
-                _iconPath.Data = null;
-            }
-        }
-    }
-
-    private void UpdateTitle()
-    {
-        if (_titleTextBlock != null)
-        {
-            _titleTextBlock.Text = HeaderTitle;
         }
     }
 }

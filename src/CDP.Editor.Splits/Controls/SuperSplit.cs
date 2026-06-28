@@ -304,6 +304,8 @@ public class SuperSplit : ContentControl
     private bool _isRebuilding;
     private bool _isDragging;
     private BoxNode? _draggedNode;
+    private BoxTabNode? _draggedTab;
+    private BoxNode? _draggedTabOriginalBox;
     private Point _dragStartPoint;
     private BoxNode? _currentHoverNode;
     private RelativeDropLocation _currentDropLocation = RelativeDropLocation.None;
@@ -403,7 +405,11 @@ public class SuperSplit : ContentControl
     {
         if (node == null) return;
         node.PropertyChanged += OnNodePropertyChanged;
-        if (node is SplitContainerNode container)
+        if (node is BoxNode box)
+        {
+            box.Tabs.CollectionChanged += OnTabsCollectionChanged;
+        }
+        else if (node is SplitContainerNode container)
         {
             SubscribeToTree(container.Child1);
             SubscribeToTree(container.Child2);
@@ -414,10 +420,74 @@ public class SuperSplit : ContentControl
     {
         if (node == null) return;
         node.PropertyChanged -= OnNodePropertyChanged;
-        if (node is SplitContainerNode container)
+        if (node is BoxNode box)
+        {
+            box.Tabs.CollectionChanged -= OnTabsCollectionChanged;
+        }
+        else if (node is SplitContainerNode container)
         {
             UnsubscribeFromTree(container.Child1);
             UnsubscribeFromTree(container.Child2);
+        }
+    }
+
+    private void OnTabsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (_isRebuilding) return;
+
+        if (sender is System.Collections.ObjectModel.ObservableCollection<BoxTabNode> tabs && tabs.Count == 0)
+        {
+            var emptyBoxNode = FindBoxNodeByTabs(Root, tabs);
+            if (emptyBoxNode != null)
+            {
+                PruneEmptyNode(emptyBoxNode);
+            }
+        }
+        else
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(Rebuild, Avalonia.Threading.DispatcherPriority.Normal);
+        }
+    }
+
+    private BoxNode? FindBoxNodeByTabs(SplitNode? node, System.Collections.ObjectModel.ObservableCollection<BoxTabNode> tabs)
+    {
+        if (node == null) return null;
+        if (node is BoxNode box && box.Tabs == tabs) return box;
+        if (node is SplitContainerNode container)
+        {
+            var b1 = FindBoxNodeByTabs(container.Child1, tabs);
+            if (b1 != null) return b1;
+            return FindBoxNodeByTabs(container.Child2, tabs);
+        }
+        return null;
+    }
+
+    private void PruneEmptyNode(BoxNode emptyNode)
+    {
+        if (emptyNode == Root)
+        {
+            Root = null;
+            Rebuild();
+            return;
+        }
+
+        if (emptyNode.Parent is SplitContainerNode parent)
+        {
+            var sibling = parent.Child1 == emptyNode ? parent.Child2 : parent.Child1;
+            var grandparent = parent.Parent;
+            sibling.Parent = grandparent;
+
+            if (parent == Root)
+            {
+                Root = sibling;
+            }
+            else if (grandparent is SplitContainerNode gp)
+            {
+                if (gp.Child1 == parent) gp.Child1 = sibling;
+                else gp.Child2 = sibling;
+            }
+
+            Rebuild();
         }
     }
 
@@ -787,11 +857,36 @@ public class SuperSplit : ContentControl
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             _isDragging = true;
-            _draggedNode = node;
             _dragStartPoint = e.GetPosition(this);
+
+            var activeTab = node.ActiveTab;
+            if (activeTab != null && node.Tabs.Count > 1)
+            {
+                _draggedTab = activeTab;
+                _draggedTabOriginalBox = node;
+
+                node.Tabs.Remove(activeTab);
+                if (node.Tabs.Count > 0)
+                {
+                    node.ActiveTab = node.Tabs[0];
+                }
+
+                var draggedBox = new BoxNode { BackgroundTint = "#292a2d" };
+                draggedBox.Tabs.Add(activeTab);
+                draggedBox.ActiveTab = activeTab;
+
+                _draggedNode = draggedBox;
+            }
+            else
+            {
+                _draggedTab = activeTab;
+                _draggedTabOriginalBox = node;
+                _draggedNode = node;
+            }
+
             e.Pointer.Capture(this);
 
-            SetupDragPreview(node);
+            SetupDragPreview(_draggedNode);
             UpdateDragPreviewPosition(e.GetPosition(this));
 
             e.Handled = true;
@@ -1048,8 +1143,15 @@ public class SuperSplit : ContentControl
             {
                 MoveNode(_draggedNode, _currentHoverNode, _currentDropLocation);
             }
+            else if (_draggedTab != null && _draggedTabOriginalBox != null && _draggedNode != _draggedTabOriginalBox)
+            {
+                _draggedTabOriginalBox.Tabs.Add(_draggedTab);
+                _draggedTabOriginalBox.ActiveTab = _draggedTab;
+            }
 
             _draggedNode = null;
+            _draggedTab = null;
+            _draggedTabOriginalBox = null;
             _currentHoverNode = null;
             _currentDropLocation = RelativeDropLocation.None;
         }
@@ -1061,65 +1163,18 @@ public class SuperSplit : ContentControl
 
         if (loc == RelativeDropLocation.Center)
         {
-            var parent1 = source.Parent as SplitContainerNode;
-            var parent2 = target.Parent as SplitContainerNode;
-
-            if (parent1 != null && parent2 != null)
+            // Move all tabs from source to target
+            var sourceTabs = new System.Collections.Generic.List<BoxTabNode>(source.Tabs);
+            foreach (var tab in sourceTabs)
             {
-                if (parent1.Child1 == source) parent1.Child1 = target;
-                else parent1.Child2 = target;
-
-                if (parent2.Child1 == target) parent2.Child1 = source;
-                else parent2.Child2 = source;
-
-                source.Parent = parent2;
-                target.Parent = parent1;
-
-                SelectedNode = target;
-                Rebuild();
-
-                var panel = _flatPanel;
-                if (panel != null)
-                {
-                    foreach (var child in panel.Children)
-                    {
-                        if (child is SuperSplitBox box && (box.DataContext == source || box.DataContext == target))
-                        {
-                            box.ZIndex = 10;
-                            box.Opacity = 0.7;
-
-                            var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-                            timer.Tick += (s, ev) =>
-                            {
-                                timer.Stop();
-                                box.ZIndex = 0;
-                                box.Opacity = 1.0;
-                            };
-                            timer.Start();
-                        }
-                    }
-                }
-                return;
+                source.Tabs.Remove(tab);
+                target.Tabs.Add(tab);
             }
-
-            // Fallback
-            var tempView = source.SelectedViewName;
-            var tempTitle = source.Title;
-            var tempIcon = source.IconKey;
-            var tempContent = source.Content;
-
-            source.SelectedViewName = target.SelectedViewName;
-            source.Title = target.Title;
-            source.IconKey = target.IconKey;
-            source.Content = target.Content;
-
-            target.SelectedViewName = tempView;
-            target.Title = tempTitle;
-            target.IconKey = tempIcon;
-            target.Content = tempContent;
-
+            if (sourceTabs.Count > 0)
+            {
+                target.ActiveTab = sourceTabs[sourceTabs.Count - 1];
+            }
             SelectedNode = target;
-            Rebuild();
             return;
         }
 

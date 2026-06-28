@@ -195,7 +195,7 @@ public class ViewsLayoutTests
     }
 
     [AvaloniaFact]
-    public void Test_SuperSplit_Center_Swap_Drop()
+    public void Test_SuperSplit_Center_Dock_Join_And_Prune()
     {
         var vm = new MainWindowViewModel();
         var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
@@ -222,17 +222,54 @@ public class ViewsLayoutTests
         var source = boxNodes[0];
         var target = boxNodes[1];
 
-        var parent1 = source.Parent;
-        var parent2 = target.Parent;
+        // Capture initial tab counts
+        int sourceTabCount = source.Tabs.Count;
+        int targetTabCount = target.Tabs.Count;
 
-        // Perform the Center drop operation by invoking MoveNode via reflection (Center is index 5 in RelativeDropLocation)
+        // Perform the Center drop operation (index 5 of RelativeDropLocation)
         var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         Assert.NotNull(method);
 
         method.Invoke(superSplit, new object[] { source, target, 5 });
 
-        // Verify swapped positions in the tree
-        Assert.Same(parent2, source.Parent);
-        Assert.Same(parent1, target.Parent);
+        // Verify that tabs were transferred
+        Assert.Equal(0, source.Tabs.Count);
+        Assert.Equal(sourceTabCount + targetTabCount, target.Tabs.Count);
+
+        // Verify that empty source node was pruned from the tree
+        var newBoxNodes = new System.Collections.Generic.List<CDP.Editor.Splits.Models.BoxNode>();
+        void CollectNew(CDP.Editor.Splits.Models.SplitNode? node)
+        {
+            if (node is CDP.Editor.Splits.Models.BoxNode box) newBoxNodes.Add(box);
+            else if (node is CDP.Editor.Splits.Models.SplitContainerNode container)
+            {
+                CollectNew(container.Child1);
+                CollectNew(container.Child2);
+            }
+        }
+        CollectNew(superSplit.Root);
+
+        Assert.DoesNotContain(source, newBoxNodes);
+    }
+
+    [Fact]
+    public void Test_BoxNode_Tab_Property_Delegation()
+    {
+        var box = new CDP.Editor.Splits.Models.BoxNode();
+        var tab1 = box.AddTab("Title 1", "Icon 1", "View 1");
+        var tab2 = box.AddTab("Title 2", "Icon 2", "View 2");
+
+        Assert.Same(tab1, box.ActiveTab);
+        Assert.Equal("Title 1", box.Title);
+        Assert.Equal("Icon 1", box.IconKey);
+        Assert.Equal("View 1", box.SelectedViewName);
+
+        box.ActiveTab = tab2;
+        Assert.Equal("Title 2", box.Title);
+        Assert.Equal("Icon 2", box.IconKey);
+        Assert.Equal("View 2", box.SelectedViewName);
+
+        box.Title = "Updated Title 2";
+        Assert.Equal("Updated Title 2", tab2.Title);
     }
 }

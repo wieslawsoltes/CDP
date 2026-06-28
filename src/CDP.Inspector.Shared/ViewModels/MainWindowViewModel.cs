@@ -203,11 +203,9 @@ public class MainWindowViewModel : ViewModelBase
 
         var newBox = new BoxNode
         {
-            Title = viewName,
-            IconKey = GetIconKeyForView(viewName),
-            SelectedViewName = viewName,
             BackgroundTint = "#292a2d"
         };
+        newBox.AddTab(viewName, GetIconKeyForView(viewName), viewName);
 
         if (selected == LayoutRoot)
         {
@@ -276,27 +274,21 @@ public class MainWindowViewModel : ViewModelBase
     {
         var simulationPane = new BoxNode
         {
-            Title = "Simulation Preview",
-            IconKey = "PreviewLinkIcon",
-            SelectedViewName = "Simulation",
             BackgroundTint = "#292a2d" // Neutral dark background for screencast simulation
         };
+        simulationPane.AddTab("Simulation Preview", "PreviewLinkIcon", "Simulation");
 
         var elementsPane = new BoxNode
         {
-            Title = "Elements",
-            IconKey = "CodeIcon",
-            SelectedViewName = "Elements",
             BackgroundTint = "#292a2d"
         };
+        elementsPane.AddTab("Elements", "CodeIcon", "Elements");
 
         var consolePane = new BoxNode
         {
-            Title = "Console",
-            IconKey = "TerminalIcon",
-            SelectedViewName = "Console",
             BackgroundTint = "#292a2d"
         };
+        consolePane.AddTab("Console", "TerminalIcon", "Console");
 
         var rightSplit = new SplitContainerNode(
             Avalonia.Layout.Orientation.Vertical,
@@ -322,11 +314,9 @@ public class MainWindowViewModel : ViewModelBase
 
         var simNode = new BoxNode
         {
-            Title = "Simulation Preview",
-            IconKey = "PreviewLinkIcon",
-            SelectedViewName = "Simulation",
             BackgroundTint = "#292a2d"
         };
+        simNode.AddTab("Simulation Preview", "PreviewLinkIcon", "Simulation");
 
         if (LayoutRoot == null)
         {
@@ -382,9 +372,12 @@ public class MainWindowViewModel : ViewModelBase
     private BoxNode? FindBoxNodeByViewName(SplitNode? node, string viewName)
     {
         if (node == null) return null;
-        if (node is BoxNode box && box.SelectedViewName == viewName)
+        if (node is BoxNode box)
         {
-            return box;
+            foreach (var tab in box.Tabs)
+            {
+                if (tab.SelectedViewName == viewName) return box;
+            }
         }
         if (node is SplitContainerNode container)
         {

@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Collections.ObjectModel;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -32,14 +33,12 @@ public abstract class SplitNode : INotifyPropertyChanged
     }
 }
 
-public class BoxNode : SplitNode
+public class BoxTabNode : INotifyPropertyChanged
 {
     private string _title = string.Empty;
     private string _iconKey = string.Empty;
     private string _selectedViewName = string.Empty;
     private object? _content;
-    private bool _isSelected;
-    private string? _backgroundTint; // e.g. hex color like "#e8f0fe" or null
 
     public string Title
     {
@@ -63,6 +62,106 @@ public class BoxNode : SplitNode
     {
         get => _content;
         set => SetProperty(ref _content, value);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (Equals(field, value)) return false;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
+    }
+}
+
+public class BoxNode : SplitNode
+{
+    private readonly ObservableCollection<BoxTabNode> _tabs = new();
+    private BoxTabNode? _activeTab;
+    private bool _isSelected;
+    private string? _backgroundTint;
+
+    public ObservableCollection<BoxTabNode> Tabs => _tabs;
+
+    public BoxTabNode AddTab(string title, string iconKey, string viewName)
+    {
+        var tab = new BoxTabNode
+        {
+            Title = title,
+            IconKey = iconKey,
+            SelectedViewName = viewName
+        };
+        Tabs.Add(tab);
+        ActiveTab ??= tab;
+        return tab;
+    }
+
+    public BoxTabNode? ActiveTab
+    {
+        get => _activeTab;
+        set
+        {
+            if (SetProperty(ref _activeTab, value))
+            {
+                OnPropertyChanged(nameof(Title));
+                OnPropertyChanged(nameof(IconKey));
+                OnPropertyChanged(nameof(SelectedViewName));
+                OnPropertyChanged(nameof(Content));
+            }
+        }
+    }
+
+    public string Title
+    {
+        get => ActiveTab?.Title ?? "Empty Pane";
+        set
+        {
+            if (ActiveTab != null)
+            {
+                ActiveTab.Title = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string IconKey
+    {
+        get => ActiveTab?.IconKey ?? "DocumentIcon";
+        set
+        {
+            if (ActiveTab != null)
+            {
+                ActiveTab.IconKey = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string SelectedViewName
+    {
+        get => ActiveTab?.SelectedViewName ?? string.Empty;
+        set
+        {
+            if (ActiveTab != null)
+            {
+                ActiveTab.SelectedViewName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public object? Content
+    {
+        get => ActiveTab?.Content;
+        set
+        {
+            if (ActiveTab != null)
+            {
+                ActiveTab.Content = value;
+                OnPropertyChanged();
+            }
+        }
     }
 
     public bool IsSelected

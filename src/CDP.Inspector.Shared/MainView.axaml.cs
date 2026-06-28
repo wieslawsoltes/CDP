@@ -117,12 +117,21 @@ public partial class MainView : UserControl
         if (node == null) return;
         if (node is BoxNode box)
         {
-            if (box != currentBox && box.SelectedViewName == viewName)
+            if (box != currentBox)
             {
-                box.Content = null;
-                box.SelectedViewName = string.Empty;
-                box.Title = "Empty Pane";
-                box.IconKey = "DocumentIcon";
+                var duplicateTabs = new System.Collections.Generic.List<BoxTabNode>();
+                foreach (var tab in box.Tabs)
+                {
+                    if (tab.SelectedViewName == viewName) duplicateTabs.Add(tab);
+                }
+                foreach (var tab in duplicateTabs)
+                {
+                    box.Tabs.Remove(tab);
+                }
+                if (box.Tabs.Count > 0 && box.ActiveTab == null)
+                {
+                    box.ActiveTab = box.Tabs[0];
+                }
             }
         }
         else if (node is SplitContainerNode container)
@@ -137,14 +146,26 @@ public partial class MainView : UserControl
         if (node == null) return;
         if (node is BoxNode box)
         {
-            if (!string.IsNullOrEmpty(box.SelectedViewName))
+            foreach (var tab in box.Tabs)
             {
-                if (DataContext is MainWindowViewModel vm)
+                if (!string.IsNullOrEmpty(tab.SelectedViewName))
                 {
-                    ClearViewDuplicates(vm.LayoutRoot, box.SelectedViewName, box);
-                }
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        ClearViewDuplicates(vm.LayoutRoot, tab.SelectedViewName, box);
+                    }
 
-                var view = GetOrCreateViewInstance(box.SelectedViewName);
+                    var view = GetOrCreateViewInstance(tab.SelectedViewName);
+                    if (tab.Content != view)
+                    {
+                        tab.Content = view;
+                    }
+                }
+            }
+
+            if (box.ActiveTab != null)
+            {
+                var view = GetOrCreateViewInstance(box.ActiveTab.SelectedViewName);
                 if (box.Content != view)
                 {
                     box.Content = view;
