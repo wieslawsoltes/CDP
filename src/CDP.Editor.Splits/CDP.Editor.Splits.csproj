@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.Editor.Splits</PackageId>
-    <Title>CDP.Editor.Splits</Title>
+    <PackageId>Chrome.DevTools.Editor.Splits</PackageId>
+    <Title>Chrome.DevTools.Editor.Splits</Title>
     <Description>Dynamic binary split layout container for Avalonia applications.</Description>
     <PackageTags>avalonia;editor;split;layout</PackageTags>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
