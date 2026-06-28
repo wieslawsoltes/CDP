@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Avalonia.Controls.Primitives;
 using CDP.Editor.Nodes.ViewModels;
 
 namespace CDP.Editor.Nodes.Views;
@@ -110,6 +111,26 @@ public partial class NodeEditorView : UserControl
         {
             _btnZoomToFit.Click += (s, e) => ZoomToFit();
         }
+
+        var btnAutoLayoutOptions = this.FindControl<Button>("btnAutoLayoutOptions");
+        var autoLayoutPopup = this.FindControl<Popup>("AutoLayoutPopup");
+        var btnRunLayout = this.FindControl<Button>("btnRunLayout");
+
+        if (btnAutoLayoutOptions != null && autoLayoutPopup != null)
+        {
+            btnAutoLayoutOptions.Click += (s, e) =>
+            {
+                autoLayoutPopup.IsOpen = !autoLayoutPopup.IsOpen;
+            };
+        }
+
+        if (btnRunLayout != null && autoLayoutPopup != null)
+        {
+            btnRunLayout.Click += (s, e) =>
+            {
+                autoLayoutPopup.IsOpen = false;
+            };
+        }
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -118,6 +139,7 @@ public partial class NodeEditorView : UserControl
         if (DataContext is NodeEditorViewModel vm)
         {
             vm.BringNodeIntoViewAction = BringNodeIntoView;
+            vm.LayoutAppliedAction = ZoomToFit;
         }
     }
 

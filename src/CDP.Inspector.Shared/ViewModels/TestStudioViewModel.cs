@@ -741,6 +741,11 @@ public class TestStudioViewModel : ViewModelBase
 
         NodeEditor.SyncToTestStudioAction = SyncToTestStudio;
         NodeEditor.SyncFromTestStudioAction = SyncFromTestStudio;
+        NodeEditor.LayoutProviders.Add(new CDP.Editor.Nodes.Msagl.MsaglLayoutProvider());
+        if (NodeEditor.LayoutProviders.Count > 1)
+        {
+            NodeEditor.SelectedLayoutProvider = NodeEditor.LayoutProviders[1];
+        }
         NodeEditor.NodeSelectedAction = node =>
         {
             if (node is TestStudioNodeViewModel tNode)

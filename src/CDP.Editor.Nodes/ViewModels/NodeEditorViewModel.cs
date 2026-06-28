@@ -54,6 +54,92 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         set => RaiseAndSetIfChanged(ref _isDraggingConnection, value);
     }
 
+    private ObservableCollection<INodeLayoutProvider> _layoutProviders = new();
+    public ObservableCollection<INodeLayoutProvider> LayoutProviders
+    {
+        get => _layoutProviders;
+        set => RaiseAndSetIfChanged(ref _layoutProviders, value);
+    }
+
+    private INodeLayoutProvider? _selectedLayoutProvider;
+    public INodeLayoutProvider? SelectedLayoutProvider
+    {
+        get => _selectedLayoutProvider;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedLayoutProvider, value))
+            {
+                OnPropertyChanged(nameof(IsMsaglOptionsVisible));
+                OnPropertyChanged(nameof(IsSugiyamaOptionsVisible));
+            }
+        }
+    }
+
+    private string _layoutAlgorithm = "Sugiyama";
+    public string LayoutAlgorithm
+    {
+        get => _layoutAlgorithm;
+        set => RaiseAndSetIfChanged(ref _layoutAlgorithm, value);
+    }
+
+    private int _selectedAlgorithmIndex;
+    public int SelectedAlgorithmIndex
+    {
+        get => _selectedAlgorithmIndex;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedAlgorithmIndex, value))
+            {
+                LayoutAlgorithm = value switch {
+                    1 => "Mds",
+                    2 => "FastIncremental",
+                    _ => "Sugiyama"
+                };
+                OnPropertyChanged(nameof(IsSugiyamaOptionsVisible));
+            }
+        }
+    }
+
+    private string _layoutDirection = "Horizontal";
+    public string LayoutDirection
+    {
+        get => _layoutDirection;
+        set => RaiseAndSetIfChanged(ref _layoutDirection, value);
+    }
+
+    private int _selectedDirectionIndex = 1; // default Horizontal
+    public int SelectedDirectionIndex
+    {
+        get => _selectedDirectionIndex;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedDirectionIndex, value))
+            {
+                LayoutDirection = value switch {
+                    0 => "Vertical",
+                    _ => "Horizontal"
+                };
+            }
+        }
+    }
+
+    private double _nodeSeparation = 40.0;
+    public double NodeSeparation
+    {
+        get => _nodeSeparation;
+        set => RaiseAndSetIfChanged(ref _nodeSeparation, value);
+    }
+
+    private double _layerSeparation = 60.0;
+    public double LayerSeparation
+    {
+        get => _layerSeparation;
+        set => RaiseAndSetIfChanged(ref _layerSeparation, value);
+    }
+
+    public bool IsMsaglOptionsVisible => SelectedLayoutProvider?.Name == "Microsoft MSAGL";
+    public bool IsSugiyamaOptionsVisible => IsMsaglOptionsVisible && LayoutAlgorithm == "Sugiyama";
+
     private bool _isReadOnly;
     public bool IsReadOnly
     {
@@ -83,6 +169,8 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
     public ICommand DeleteNodeCommand { get; }
     public ICommand AutoLayoutCommand { get; }
 
+    public Action? LayoutAppliedAction { get; set; }
+
     public NodeEditorViewModel()
     {
         AddNodeCommand = new RelayCommand(ExecuteAddNode);
@@ -91,6 +179,9 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         DeleteSelectedCommand = new RelayCommand(ExecuteDeleteSelected);
         DeleteNodeCommand = new RelayCommand<NodeViewModel>(node => { if (node != null && !IsReadOnly) DeleteNode(node); });
         AutoLayoutCommand = new RelayCommand(ExecuteAutoLayout);
+
+        _layoutProviders.Add(new SimpleHorizontalLayoutProvider());
+        _selectedLayoutProvider = _layoutProviders[0];
 
         _nodes.CollectionChanged += OnNodesCollectionChanged;
         _connections.CollectionChanged += OnConnectionsCollectionChanged;
@@ -515,18 +606,83 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
 
     private void ExecuteAutoLayout()
     {
-        if (AutoLayoutHandler != null)
+        var provider = SelectedLayoutProvider ?? LayoutProviders.FirstOrDefault();
+        if (provider != null)
+        {
+            var parameters = new Dictionary<string, object>
+            {
+                { "Algorithm", LayoutAlgorithm },
+                { "Direction", LayoutDirection },
+                { "NodeSeparation", NodeSeparation },
+                { "LayerSeparation", LayerSeparation }
+            };
+            provider.ApplyLayout(this, parameters);
+            LayoutAppliedAction?.Invoke();
+        }
+        else if (AutoLayoutHandler != null)
         {
             AutoLayoutHandler();
+            LayoutAppliedAction?.Invoke();
         }
         else
         {
-            // Default simple horizontal layout
+            // Fallback simple horizontal layout
             for (int i = 0; i < Nodes.Count; i++)
             {
                 Nodes[i].X = 200.0 * i + 10.0;
                 Nodes[i].Y = 20.0;
             }
+            LayoutAppliedAction?.Invoke();
+        }
+    }
+}
+
+public interface INodeLayoutProvider
+{
+    string Name { get; }
+    void ApplyLayout(NodeEditorViewModel viewModel, Dictionary<string, object> parameters);
+}
+
+public class SimpleHorizontalLayoutProvider : INodeLayoutProvider
+{
+    public string Name => "Simple Horizontal";
+
+    public void ApplyLayout(NodeEditorViewModel viewModel, Dictionary<string, object> parameters)
+    {
+        if (viewModel.Nodes.Count == 0) return;
+
+        var orderedNodes = new List<NodeViewModel>();
+        var visited = new HashSet<string>();
+
+        // Find starting node (node with no incoming connections)
+        var current = viewModel.Nodes
+                      .FirstOrDefault(n => !viewModel.Connections.Any(c => c.ToNode == n))
+                      ?? viewModel.Nodes.FirstOrDefault();
+
+        while (current != null)
+        {
+            if (visited.Contains(current.Id)) break;
+            visited.Add(current.Id);
+            orderedNodes.Add(current);
+
+            var connection = viewModel.Connections.FirstOrDefault(c => c.FromNode == current);
+            current = connection?.ToNode;
+        }
+
+        // Add remaining nodes that weren't in the sequential chain
+        foreach (var node in viewModel.Nodes)
+        {
+            if (!visited.Contains(node.Id))
+            {
+                orderedNodes.Add(node);
+            }
+        }
+
+        // Arrange them
+        for (int i = 0; i < orderedNodes.Count; i++)
+        {
+            orderedNodes[i].X = 200.0 * i + 10.0;
+            orderedNodes[i].Y = 20.0;
         }
     }
 }
