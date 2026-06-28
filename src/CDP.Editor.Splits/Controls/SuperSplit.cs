@@ -1222,10 +1222,6 @@ public class SuperSplit : ContentControl
                 }
             }
         }
-        else
-        {
-            return;
-        }
 
         var orientation = (loc == RelativeDropLocation.Left || loc == RelativeDropLocation.Right)
             ? Orientation.Horizontal
