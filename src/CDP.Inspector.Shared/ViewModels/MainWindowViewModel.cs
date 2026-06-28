@@ -189,23 +189,45 @@ public class MainWindowViewModel : ViewModelBase
         var selected = SelectedPane;
         if (selected == null) return;
 
-        // Choose a next view sequentially that is not already visible, or a default fallback
-        string[] views = { "Console", "Recorder", "Sources", "Network", "Memory", "Application", "Audits" };
-        string viewName = "Console";
-        foreach (var v in views)
-        {
-            if (FindBoxNodeByViewName(LayoutRoot, v) == null)
-            {
-                viewName = v;
-                break;
-            }
-        }
+        BoxNode newBox;
 
-        var newBox = new BoxNode
+        if (selected.Tabs.Count > 1 && selected.ActiveTab != null)
         {
-            BackgroundTint = "#292a2d"
-        };
-        newBox.AddTab(viewName, GetIconKeyForView(viewName), viewName);
+            var activeTab = selected.ActiveTab;
+
+            selected.Tabs.Remove(activeTab);
+            if (selected.Tabs.Count > 0)
+            {
+                selected.ActiveTab = selected.Tabs[0];
+            }
+
+            newBox = new BoxNode
+            {
+                BackgroundTint = "#292a2d"
+            };
+            newBox.Tabs.Add(activeTab);
+            newBox.ActiveTab = activeTab;
+        }
+        else
+        {
+            // Choose a next view sequentially that is not already visible, or a default fallback
+            string[] views = { "Console", "Recorder", "Sources", "Network", "Memory", "Application", "Audits" };
+            string viewName = "Console";
+            foreach (var v in views)
+            {
+                if (FindBoxNodeByViewName(LayoutRoot, v) == null)
+                {
+                    viewName = v;
+                    break;
+                }
+            }
+
+            newBox = new BoxNode
+            {
+                BackgroundTint = "#292a2d"
+            };
+            newBox.AddTab(viewName, GetIconKeyForView(viewName), viewName);
+        }
 
         if (selected == LayoutRoot)
         {

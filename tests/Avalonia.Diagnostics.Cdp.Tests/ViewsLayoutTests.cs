@@ -272,4 +272,31 @@ public class ViewsLayoutTests
         box.Title = "Updated Title 2";
         Assert.Equal("Updated Title 2", tab2.Title);
     }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Split_Active_Tab()
+    {
+        var vm = new MainWindowViewModel();
+
+        var rightPane = vm.SelectedPane;
+        Assert.NotNull(rightPane);
+        Assert.True(rightPane.Tabs.Count > 1);
+
+        var activeTab = rightPane.ActiveTab;
+        Assert.NotNull(activeTab);
+        string activeTabTitle = activeTab.Title;
+        int originalTabCount = rightPane.Tabs.Count;
+
+        vm.SplitRightCommand.Execute(null);
+
+        var newSelected = vm.SelectedPane;
+        Assert.NotNull(newSelected);
+        Assert.NotSame(rightPane, newSelected);
+
+        Assert.Equal(1, newSelected.Tabs.Count);
+        Assert.Same(activeTab, newSelected.ActiveTab);
+        Assert.Equal(activeTabTitle, newSelected.Title);
+
+        Assert.Equal(originalTabCount - 1, rightPane.Tabs.Count);
+    }
 }
