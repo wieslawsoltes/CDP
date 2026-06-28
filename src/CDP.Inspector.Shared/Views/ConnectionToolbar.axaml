@@ -48,6 +48,28 @@
                 <Button Name="btnReload" Command="{Binding Connection.ReloadCommand}" Content="Reload" Background="#4a148c" Foreground="White" BorderBrush="#4a148c" Height="28" Padding="15,0" VerticalAlignment="Center"/>
                 <TextBlock Name="txtConnectionStatus" Text="{Binding Connection.ConnectionStatusText}" Foreground="{Binding Connection.ConnectionStatusBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
             </StackPanel>
+
+            <!-- Group 5: SuperSplit Controls -->
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="30,4,0,4">
+                <Button Command="{Binding SplitLeftCommand}" ToolTip.Tip="Split Selected Pane Left" Padding="6" Width="28" Height="28">
+                    <PathIcon Data="{StaticResource ArrowLeftIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding SplitRightCommand}" ToolTip.Tip="Split Selected Pane Right" Padding="6" Width="28" Height="28">
+                    <PathIcon Data="{StaticResource ArrowRightIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding SplitUpCommand}" ToolTip.Tip="Split Selected Pane Up" Padding="6" Width="28" Height="28">
+                    <PathIcon Data="{StaticResource ArrowUpIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding SplitDownCommand}" ToolTip.Tip="Split Selected Pane Down" Padding="6" Width="28" Height="28">
+                    <PathIcon Data="{StaticResource ArrowDownIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding ClosePaneCommand}" ToolTip.Tip="Close Selected Pane" Padding="6" Width="28" Height="28" Foreground="#ff5252">
+                    <PathIcon Data="{StaticResource DismissIcon}" Width="12" Height="12"/>
+                </Button>
+                <Button Command="{Binding ResetLayoutCommand}" ToolTip.Tip="Reset Split Layout" Padding="6" Width="28" Height="28" Foreground="#4caf50">
+                    <PathIcon Data="{StaticResource ArrowUndoIcon}" Width="12" Height="12"/>
+                </Button>
+            </StackPanel>
         </WrapPanel>
     </Border>
 </UserControl>
