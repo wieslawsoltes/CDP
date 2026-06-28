@@ -530,14 +530,20 @@ public class SuperSplit : ContentControl
 
             if (_flatPanel == null)
             {
-                _flatPanel = new FlatSplitPanel(this);
+                _flatPanel = new FlatSplitPanel(this)
+                {
+                    Background = Brush.Parse("#202124")
+                };
             }
 
             SyncChildren(_flatPanel);
 
             if (_wrapperGrid == null)
             {
-                _wrapperGrid = new Grid();
+                _wrapperGrid = new Grid
+                {
+                    Background = Brush.Parse("#202124")
+                };
                 _wrapperGrid.Children.Add(_flatPanel);
                 _wrapperGrid.Children.Add(_overlayCanvas);
                 Content = _wrapperGrid;
