@@ -220,15 +220,32 @@ public class SuperSplitBox : ContentControl
 
         if (DataContext is BoxNode boxNode)
         {
-            foreach (var tab in boxNode.Tabs)
+            int count = boxNode.Tabs.Count;
+            for (int i = 0; i < count; i++)
             {
+                var tab = boxNode.Tabs[i];
                 var isActive = tab == boxNode.ActiveTab;
+
+                var cornerRadius = new CornerRadius(0);
+                if (i == 0 && i == count - 1)
+                {
+                    cornerRadius = new CornerRadius(8, 8, 0, 0);
+                }
+                else if (i == 0)
+                {
+                    cornerRadius = new CornerRadius(8, 0, 0, 0);
+                }
+                else if (i == count - 1)
+                {
+                    cornerRadius = new CornerRadius(0, 8, 0, 0);
+                }
 
                 var tabBorder = new Border
                 {
                     Background = isActive ? Brush.Parse("#35363a") : Brushes.Transparent,
                     BorderBrush = Brush.Parse("#3c4043"),
                     BorderThickness = new Thickness(0, 0, 1, 0),
+                    CornerRadius = cornerRadius,
                     Padding = new Thickness(12, 0),
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
                     Cursor = new Cursor(StandardCursorType.Hand)
