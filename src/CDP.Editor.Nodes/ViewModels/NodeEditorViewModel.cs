@@ -295,7 +295,8 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         var selectedIds = new HashSet<string>(selected.Select(n => n.Id));
         foreach (var c in Connections)
         {
-            if (selectedIds.Contains(c.FromNode.Id) && selectedIds.Contains(c.ToNode.Id))
+            if (c.FromNode != null && c.ToNode != null &&
+                selectedIds.Contains(c.FromNode.Id) && selectedIds.Contains(c.ToNode.Id))
             {
                 s_copiedConnections.Add(Tuple.Create(c.FromNode.Id, c.ToNode.Id));
             }
