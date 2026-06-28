@@ -8,6 +8,7 @@
              xmlns:map="using:XamlPlayground.Editor.Minimap"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
+             xmlns:views="clr-namespace:CdpInspectorApp.Views"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -122,7 +123,7 @@
                         </Grid>
 
                         <!-- Categories Accordion -->
-                        <controls:Accordion Margin="0,4,0,0">
+                        <controls:Accordion Name="toolboxAccordion" Margin="0,4,0,0">
                             <!-- Interactions Category -->
                             <controls:AccordionItem Header="Interactions" IsExpanded="True">
                                 <WrapPanel Margin="0,4,0,0">
@@ -146,6 +147,7 @@
                                     <Button Name="btnTestStudioAddAssertNotVisible" Content="Assert Not Visible" Command="{Binding Recorder.TestStudio.AddAssertNotVisibleCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
                                     <Button Name="btnTestStudioAddAssertTrue" Content="Assert True" Command="{Binding Recorder.TestStudio.AddAssertTrueCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
                                     <Button Name="btnTestStudioAddAssertFalse" Content="Assert False" Command="{Binding Recorder.TestStudio.AddAssertFalseCommand}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
+                                    <Button Name="btnTestStudioAddAssertProperty" Content="Assert Property..." Command="{Binding Recorder.TestStudio.ShowAssertPropertyPickerCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedElementSelector}" Margin="0,0,4,4" Padding="6,3" FontSize="10"/>
                                 </WrapPanel>
                             </controls:AccordionItem>
                             
@@ -271,129 +273,136 @@
             <!-- Steps List -->
             <Grid Grid.Row="2" RowDefinitions="Auto, *">
                 <TextBlock Grid.Row="0" Text="Test Steps" Classes="panel-header" Foreground="#e8eaed" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
-                <DataGrid Name="lstSteps" Grid.Row="1"
-                             HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalSteps}"
-                             SelectedItem="{Binding Recorder.TestStudio.SelectedStepNode, Mode=TwoWay}"
-                             CanUserReorderRows="True"
-                             CanUserResizeColumns="True"
-                             HierarchicalRowsEnabled="True"
-                             RowDragHandle="RowHeaderAndRow"
-                             GridLinesVisibility="Horizontal"
-                             HeadersVisibility="Column"
-                             RowDetailsVisibilityMode="VisibleWhenSelected"
-                             Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                    <DataGrid.RowDropHandler>
-                        <dgdd:DataGridHierarchicalRowReorderHandler />
-                    </DataGrid.RowDropHandler>
-                    <DataGrid.Styles>
-                        <!-- Style for the hierarchical column's TextBlock -->
-                        <Style Selector="DataGridCell TextBlock">
-                            <Setter Property="FontWeight" Value="Bold"/>
-                            <Setter Property="FontSize" Value="12"/>
-                            <Setter Property="Foreground" Value="#e8eaed"/>
-                            <Setter Property="VerticalAlignment" Value="Center"/>
-                        </Style>
-                    </DataGrid.Styles>
-                    <DataGrid.Columns>
-                        <!-- Status Column -->
-                        <DataGridTemplateColumn Header="" Width="40">
-                            <DataGridTemplateColumn.CellTemplate>
+                <TabControl Grid.Row="1">
+                    <TabItem Header="Steps List">
+                        <DataGrid Name="lstSteps"
+                                  HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalSteps}"
+                                  SelectedItem="{Binding Recorder.TestStudio.SelectedStepNode, Mode=TwoWay}"
+                                  CanUserReorderRows="True"
+                                  CanUserResizeColumns="True"
+                                  HierarchicalRowsEnabled="True"
+                                  RowDragHandle="RowHeaderAndRow"
+                                  GridLinesVisibility="Horizontal"
+                                  HeadersVisibility="Column"
+                                  RowDetailsVisibilityMode="VisibleWhenSelected"
+                                  Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                            <DataGrid.RowDropHandler>
+                                <dgdd:DataGridHierarchicalRowReorderHandler />
+                            </DataGrid.RowDropHandler>
+                            <DataGrid.Styles>
+                                <!-- Style for the hierarchical column's TextBlock -->
+                                <Style Selector="DataGridCell TextBlock">
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                    <Setter Property="FontSize" Value="12"/>
+                                    <Setter Property="Foreground" Value="#e8eaed"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </Style>
+                            </DataGrid.Styles>
+                            <DataGrid.Columns>
+                                <!-- Status Column -->
+                                <DataGridTemplateColumn Header="" Width="40">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="tree:HierarchicalNode">
+                                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Ellipse Width="8" Height="8" Fill="#9aa0a6" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsPending}"/>
+                                                <Ellipse Width="8" Height="8" Fill="#1a73e8" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsRunning}"/>
+                                                <PathIcon Data="{StaticResource CheckIcon}" Width="12" Height="12" Foreground="#0f9d58" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsPassed}"/>
+                                                <PathIcon Data="{StaticResource CloseIcon}" Width="12" Height="12" Foreground="#c5221f" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsFailed}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                
+                                <!-- Action Column (Hierarchical Column) -->
+                                <DataGridHierarchicalColumn Header="Action" Width="1.5*">
+                                    <DataGridHierarchicalColumn.CellTemplate>
+                                        <DataTemplate x:DataType="tree:HierarchicalNode">
+                                            <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ActionDisplay}" />
+                                        </DataTemplate>
+                                    </DataGridHierarchicalColumn.CellTemplate>
+                                </DataGridHierarchicalColumn>
+         
+                                <!-- Selector Column -->
+                                <DataGridTemplateColumn Header="Selector" Width="1.5*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="tree:HierarchicalNode">
+                                            <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).Selector}" Foreground="#8ab4f8" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+         
+                                <!-- Value Column -->
+                                <DataGridTemplateColumn Header="Value" Width="*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="tree:HierarchicalNode">
+                                            <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).Value}" Foreground="#e8eaed" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+         
+                            <DataGrid.RowDetailsTemplate>
                                 <DataTemplate x:DataType="tree:HierarchicalNode">
-                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Ellipse Width="8" Height="8" Fill="#9aa0a6" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsPending}"/>
-                                        <Ellipse Width="8" Height="8" Fill="#1a73e8" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsRunning}"/>
-                                        <PathIcon Data="{StaticResource CheckIcon}" Width="12" Height="12" Foreground="#0f9d58" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsPassed}"/>
-                                        <PathIcon Data="{StaticResource CloseIcon}" Width="12" Height="12" Foreground="#c5221f" IsVisible="{Binding ((models:TestStudioStepModel)Item).IsFailed}"/>
-                                    </Grid>
+                                    <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="12">
+                                        <StackPanel Spacing="8">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
+                                                <Border Background="#1a73e8" CornerRadius="2" Padding="4,2">
+                                                    <TextBlock Text="EDIT" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <Grid ColumnDefinitions="100, *">
+                                                <TextBlock Grid.Column="0" Text="Action:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <AutoCompleteBox Grid.Column="1"
+                                                                 Text="{Binding ((models:TestStudioStepModel)Item).Action, Mode=TwoWay}"
+                                                                 ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.CommandSuggestions}"
+                                                                 FilterMode="Contains"
+                                                                 FontSize="11"
+                                                                 Height="24"
+                                                                 Padding="4,2"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="100, *">
+                                                <TextBlock Grid.Column="0" Text="Selector:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <AutoCompleteBox Grid.Column="1"
+                                                                 Text="{Binding ((models:TestStudioStepModel)Item).Selector, Mode=TwoWay}"
+                                                                 ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
+                                                                 FilterMode="Contains"
+                                                                 FontSize="11"
+                                                                 Height="24"
+                                                                 Padding="4,2"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="100, *">
+                                                <TextBlock Grid.Column="0" Text="Value:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
+                                                <AutoCompleteBox Grid.Column="1"
+                                                                 Text="{Binding ((models:TestStudioStepModel)Item).Value, Mode=TwoWay}"
+                                                                 ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.ValueSuggestions}"
+                                                                 FilterMode="Contains"
+                                                                 FontSize="11"
+                                                                 Height="24"
+                                                                 Padding="4,2"/>
+                                            </Grid>
+                                            <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding ((models:TestStudioStepModel)Item).ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                                <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2">
+                                                    <PathIcon Data="{StaticResource ChevronUpIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                                                </Button>
+                                                <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2">
+                                                    <PathIcon Data="{StaticResource ChevronDownIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                                                </Button>
+                                                <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2" Foreground="#ff6b6b" BorderBrush="#ff6b6b">
+                                                    <PathIcon Data="{StaticResource CloseIcon}" Width="10" Height="10" Foreground="#ff6b6b"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
                                 </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        
-                        <!-- Action Column (Hierarchical Column) -->
-                        <DataGridHierarchicalColumn Header="Action" Width="1.5*">
-                            <DataGridHierarchicalColumn.CellTemplate>
-                                <DataTemplate x:DataType="tree:HierarchicalNode">
-                                    <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ActionDisplay}" />
-                                </DataTemplate>
-                            </DataGridHierarchicalColumn.CellTemplate>
-                        </DataGridHierarchicalColumn>
- 
-                        <!-- Selector Column -->
-                        <DataGridTemplateColumn Header="Selector" Width="1.5*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate x:DataType="tree:HierarchicalNode">
-                                    <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).Selector}" Foreground="#8ab4f8" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
- 
-                        <!-- Value Column -->
-                        <DataGridTemplateColumn Header="Value" Width="*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate x:DataType="tree:HierarchicalNode">
-                                    <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).Value}" Foreground="#e8eaed" FontSize="12" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                    </DataGrid.Columns>
- 
-                    <DataGrid.RowDetailsTemplate>
-                        <DataTemplate x:DataType="tree:HierarchicalNode">
-                            <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="12">
-                                <StackPanel Spacing="8">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
-                                        <Border Background="#1a73e8" CornerRadius="2" Padding="4,2">
-                                            <TextBlock Text="EDIT" FontSize="9" FontWeight="Bold" Foreground="White"/>
-                                        </Border>
-                                        <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ActionDisplay}" FontWeight="Bold" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                    <Grid ColumnDefinitions="100, *">
-                                        <TextBlock Grid.Column="0" Text="Action:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                                        <AutoCompleteBox Grid.Column="1"
-                                                         Text="{Binding ((models:TestStudioStepModel)Item).Action, Mode=TwoWay}"
-                                                         ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.CommandSuggestions}"
-                                                         FilterMode="Contains"
-                                                         FontSize="11"
-                                                         Height="24"
-                                                         Padding="4,2"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="100, *">
-                                        <TextBlock Grid.Column="0" Text="Selector:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                                        <AutoCompleteBox Grid.Column="1"
-                                                         Text="{Binding ((models:TestStudioStepModel)Item).Selector, Mode=TwoWay}"
-                                                         ItemsSource="{Binding Source={x:Static services:SelectorService.Instance}, Path=AvailableSelectors}"
-                                                         FilterMode="Contains"
-                                                         FontSize="11"
-                                                         Height="24"
-                                                         Padding="4,2"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="100, *">
-                                        <TextBlock Grid.Column="0" Text="Value:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
-                                        <AutoCompleteBox Grid.Column="1"
-                                                         Text="{Binding ((models:TestStudioStepModel)Item).Value, Mode=TwoWay}"
-                                                         ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.ValueSuggestions}"
-                                                         FilterMode="Contains"
-                                                         FontSize="11"
-                                                         Height="24"
-                                                         Padding="4,2"/>
-                                    </Grid>
-                                    <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding ((models:TestStudioStepModel)Item).ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                        <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.MoveUpStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2">
-                                            <PathIcon Data="{StaticResource ChevronUpIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
-                                        </Button>
-                                        <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.MoveDownStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2">
-                                            <PathIcon Data="{StaticResource ChevronDownIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
-                                        </Button>
-                                        <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.DeleteStepCommand}" CommandParameter="{Binding ((models:TestStudioStepModel)Item)}" Padding="6,2" Foreground="#ff6b6b" BorderBrush="#ff6b6b">
-                                            <PathIcon Data="{StaticResource CloseIcon}" Width="10" Height="10" Foreground="#ff6b6b"/>
-                                        </Button>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </DataGrid.RowDetailsTemplate>
-                </DataGrid>
+                            </DataGrid.RowDetailsTemplate>
+                        </DataGrid>
+                    </TabItem>
+                    <TabItem Header="Node Editor">
+                        <views:TestStudioNodeEditorView Name="nodeEditorTab" DataContext="{Binding Recorder.TestStudio.NodeEditor}" />
+                    </TabItem>
+                </TabControl>
             </Grid>
 
 
@@ -442,6 +451,58 @@
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                         <Button Content="Cancel" Command="{Binding Recorder.TestStudio.CancelNamePromptCommand}"/>
                         <Button Content="OK" Command="{Binding Recorder.TestStudio.SubmitNamePromptCommand}" Classes="accent"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- Inline Property Assertion Picker Overlay -->
+        <Border Grid.ColumnSpan="5" Background="#80000000" IsVisible="{Binding Recorder.TestStudio.IsAssertPickerVisible}" ZIndex="101">
+            <Border Background="#2d2d2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="8" Width="380" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="{Binding Recorder.TestStudio.AssertPickerTitle}" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                    
+                    <!-- Property selector -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Property:" FontSize="11" Foreground="#9aa0a6"/>
+                        <controls:EditableComboBox ItemsSource="{Binding Recorder.TestStudio.AssertPickerProperties}"
+                                                  SelectedItem="{Binding Recorder.TestStudio.AssertPickerSelectedProperty, Mode=TwoWay}"
+                                                  Text="{Binding Recorder.TestStudio.AssertPickerSelectedPropertyName, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch">
+                            <controls:EditableComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ElementPropertyInfo">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
+                                        <TextBlock Text="{Binding Type, StringFormat='({0})'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Value, StringFormat='= {0}'}" Foreground="#8ab4f8" FontSize="10" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </controls:EditableComboBox.ItemTemplate>
+                        </controls:EditableComboBox>
+                    </StackPanel>
+
+                    <!-- Comparison Selector -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Assertion Type:" FontSize="11" Foreground="#9aa0a6"/>
+                        <ComboBox SelectedIndex="{Binding Recorder.TestStudio.AssertPickerComparisonIndex, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="Assert True (Property evaluates to true)"/>
+                            <ComboBoxItem Content="Assert False (Property evaluates to false)"/>
+                            <ComboBoxItem Content="Equals (Property == Value)"/>
+                            <ComboBoxItem Content="Not Equals (Property != Value)"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Expected Value -->
+                    <StackPanel Spacing="4" IsVisible="{Binding Recorder.TestStudio.IsAssertPickerValueInputVisible}">
+                        <TextBlock Text="Expected Value:" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Text="{Binding Recorder.TestStudio.AssertPickerValue, Mode=TwoWay}" PlaceholderText="Enter expected value..."/>
+                    </StackPanel>
+
+                    <!-- Action buttons -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+                        <Button Content="Cancel" Command="{Binding Recorder.TestStudio.CancelAssertPickerCommand}"/>
+                        <Button Content="OK" Command="{Binding Recorder.TestStudio.SubmitAssertPickerCommand}" Classes="accent"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

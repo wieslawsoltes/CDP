@@ -11,6 +11,8 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 | **Chrome.DevTools.Protocol** | Core Protocol & Client Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) |
 | **Chrome.DevTools.Avalonia** | Avalonia Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) |
 | **Chrome.DevTools.Inspector.Shared** | Shared UI Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) |
+| **CDP.Editor.Minimap** | Standalone Minimap & Inline Editor | [![NuGet](https://img.shields.io/nuget/v/CDP.Editor.Minimap.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Editor.Minimap/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Editor.Minimap.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Editor.Minimap/) |
+| **CDP.Editor.Nodes** | Standalone Graph Node Editor | [![NuGet](https://img.shields.io/nuget/v/CDP.Editor.Nodes.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Editor.Nodes/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/CDP.Editor.Nodes.svg?style=flat-square)](https://www.nuget.org/packages/CDP.Editor.Nodes/) |
 | **Chrome.DevTools.DiagnosticTools** | In-Process Diagnostics | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) |
 | **Chrome.DevTools.Inspector** | .NET Global Tool | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) |
 
@@ -82,6 +84,59 @@ If manually adding the package reference to your `.csproj` file, specify the ver
   <PackageReference Include="Chrome.DevTools.Avalonia" Version="x.y.z" />
 </ItemGroup>
 ```
+
+### Standalone Minimap & Editor Support
+
+If you only need the standalone `MinimapTextEditor` control, the code annotation inline layers, or visual gutter margins for your `AvaloniaEdit` editors without any Chrome DevTools Protocol or network server dependencies, install `CDP.Editor.Minimap` instead:
+
+```bash
+dotnet add package CDP.Editor.Minimap --prerelease
+```
+
+Include the editor's generic styling resources inside your `App.axaml` or `Styles.axaml` styles list:
+```xml
+<StyleInclude Source="avares://CDP.Editor.Minimap/Themes/Generic.axaml" />
+```
+
+Use `MinimapTextEditor` in your XAML views:
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:editor="using:XamlPlayground.Editor.Minimap">
+    <editor:MinimapTextEditor Name="txtCode" 
+                              MinimapEnabled="True" 
+                              MinimapShowSlider="True" 
+                              ShowLineNumbers="True" />
+</UserControl>
+```
+
+### Standalone Graph Node Editor Support
+
+If you need a generic, standalone graph node editor control for Avalonia (with support for nodes, drag-and-drop linking, bezier connection paths, zoom-to-pointer, and custom node payload content presenters) without any Chrome DevTools Protocol or network server dependencies, install `CDP.Editor.Nodes` instead:
+
+```bash
+dotnet add package CDP.Editor.Nodes --prerelease
+```
+
+Use `NodeEditorView` in your XAML views:
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:nodes="using:CDP.Editor.Nodes.Views">
+    <nodes:NodeEditorView Name="NodeEditor" />
+</UserControl>
+```
+
+And configure / populate it using `NodeEditorViewModel`:
+```csharp
+using CDP.Editor.Nodes.ViewModels;
+
+var vm = new NodeEditorViewModel();
+var node1 = vm.CreateNode("Step Node 1", 10.0, 20.0);
+var node2 = vm.CreateNode("Step Node 2", 210.0, 20.0);
+vm.ConnectNodes(node1, node2);
+```
+
 
 ### Start the Server
 

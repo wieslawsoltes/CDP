@@ -1,11 +1,13 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using CdpInspectorApp.ViewModels;
 using CdpInspectorApp.Models;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.Views;
 
@@ -140,10 +142,179 @@ public partial class SimulationView : UserControl
                 selector = await simVm.GetSelectorAtCoordinatesAsync(targetX, targetY, false);
             }
 
-            if (string.IsNullOrEmpty(selector))
+            bool CommandRequiresValuePrompt(FlowCommandDefinition cmd)
+            {
+                if (cmd.Name is "inputText" or "delay" or "clearState" or "setOrientation" or "launchApp" or "openLink")
+                {
+                    return true;
+                }
+                return !cmd.AcceptsSelector && 
+                       (cmd.ValueKind == FlowCommandValueKind.String || 
+                        cmd.ValueKind == FlowCommandValueKind.Map || 
+                        cmd.ValueKind == FlowCommandValueKind.List);
+            }
+
+            MenuItem CreateCommandMenuItem(FlowCommandDefinition cmd, string? sel, string? headerOverride = null)
+            {
+                var header = headerOverride ?? (string.IsNullOrEmpty(sel) ? cmd.DisplayName : $"{cmd.DisplayName} '{sel}'");
+                var menuItem = new MenuItem { Header = header };
+                menuItem.Click += async (s, ev) =>
+                {
+                    if (CommandRequiresValuePrompt(cmd))
+                    {
+                        mainVm.Recorder.TestStudio.NamePromptTitle = cmd.DisplayName;
+                        mainVm.Recorder.TestStudio.NamePromptValue = "";
+                        mainVm.Recorder.TestStudio.NamePromptCallback = async value =>
+                        {
+                            if (!string.IsNullOrEmpty(value))
+                            {
+                                var step = new TestStudioStepModel { Action = cmd.Name, Selector = sel, Value = value };
+                                await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                            }
+                        };
+                        mainVm.Recorder.TestStudio.IsNamePromptVisible = true;
+                    }
+                    else
+                    {
+                        var step = new TestStudioStepModel { Action = cmd.Name, Selector = sel };
+                        await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                    }
+                };
+                return menuItem;
+            }
+
+            var contextMenu = new ContextMenu();
+
+            var tapOnCmd = FlowCommandCatalog.Find("tapOn") ?? new FlowCommandDefinition("tapOn", "Tap On", "Interactions", FlowCommandValueKind.Selector, "", AcceptsSelector: true);
+            var assertVisibleCmd = FlowCommandCatalog.Find("assertVisible") ?? new FlowCommandDefinition("assertVisible", "Assert Visible", "Assertions", FlowCommandValueKind.Selector, "", AcceptsSelector: true);
+            var assertNotVisibleCmd = FlowCommandCatalog.Find("assertNotVisible") ?? new FlowCommandDefinition("assertNotVisible", "Assert Not Visible", "Assertions", FlowCommandValueKind.Selector, "", AcceptsSelector: true);
+            var inputTextCmd = FlowCommandCatalog.Find("inputText") ?? new FlowCommandDefinition("inputText", "Input Text", "Input", FlowCommandValueKind.String, "", AcceptsSelector: false);
+            var doubleTapOnCmd = FlowCommandCatalog.Find("doubleTapOn") ?? new FlowCommandDefinition("doubleTapOn", "Double Tap On", "Interactions", FlowCommandValueKind.Selector, "", AcceptsSelector: true);
+            var longPressOnCmd = FlowCommandCatalog.Find("longPressOn") ?? new FlowCommandDefinition("longPressOn", "Long Press On", "Interactions", FlowCommandValueKind.Selector, "", AcceptsSelector: true);
+            var scrollUntilVisibleCmd = FlowCommandCatalog.Find("scrollUntilVisible") ?? new FlowCommandDefinition("scrollUntilVisible", "Scroll Until Visible", "Interactions", FlowCommandValueKind.Map, "", AcceptsSelector: true);
+            var copyTextFromCmd = FlowCommandCatalog.Find("copyTextFrom") ?? new FlowCommandDefinition("copyTextFrom", "Copy Text From", "Input", FlowCommandValueKind.Selector, "", AcceptsSelector: true);
+
+            if (!string.IsNullOrEmpty(selector))
+            {
+                contextMenu.Items.Add(CreateCommandMenuItem(tapOnCmd, selector, $"Tap '{selector}'"));
+                contextMenu.Items.Add(CreateCommandMenuItem(assertVisibleCmd, selector, $"Assert Visible '{selector}'"));
+                contextMenu.Items.Add(CreateCommandMenuItem(assertNotVisibleCmd, selector, $"Assert Not Visible '{selector}'"));
+                contextMenu.Items.Add(CreateCommandMenuItem(inputTextCmd, selector, $"Input Text into '{selector}'"));
+                contextMenu.Items.Add(CreateCommandMenuItem(doubleTapOnCmd, selector, $"Double Tap '{selector}'"));
+                contextMenu.Items.Add(CreateCommandMenuItem(longPressOnCmd, selector, $"Long Press '{selector}'"));
+                contextMenu.Items.Add(CreateCommandMenuItem(scrollUntilVisibleCmd, selector, $"Scroll until Visible '{selector}'"));
+                contextMenu.Items.Add(CreateCommandMenuItem(copyTextFromCmd, selector, $"Copy Text From '{selector}'"));
+
+                contextMenu.Items.Add(new Separator());
+
+                var propertyAssertionsSubMenu = new MenuItem { Header = "Assert Element Property (True/False)" };
+                var escapedSelector = selector.Replace("\"", "\\\"");
+
+                // 1. IsEnabled
+                var assertEnabledTrue = new MenuItem { Header = "Assert .isEnabled is True" };
+                assertEnabledTrue.Click += async (s, ev) =>
+                {
+                    var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = $"document.querySelector(\"{escapedSelector}\").isEnabled" };
+                    await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                };
+                propertyAssertionsSubMenu.Items.Add(assertEnabledTrue);
+
+                var assertEnabledFalse = new MenuItem { Header = "Assert .isEnabled is False" };
+                assertEnabledFalse.Click += async (s, ev) =>
+                {
+                    var step = new TestStudioStepModel { Action = "assertFalse", Selector = "", Value = $"document.querySelector(\"{escapedSelector}\").isEnabled" };
+                    await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                };
+                propertyAssertionsSubMenu.Items.Add(assertEnabledFalse);
+
+                // 2. IsVisible
+                var assertVisibleTrue = new MenuItem { Header = "Assert .isVisible is True" };
+                assertVisibleTrue.Click += async (s, ev) =>
+                {
+                    var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = $"document.querySelector(\"{escapedSelector}\").isVisible" };
+                    await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                };
+                propertyAssertionsSubMenu.Items.Add(assertVisibleTrue);
+
+                var assertVisibleFalse = new MenuItem { Header = "Assert .isVisible is False" };
+                assertVisibleFalse.Click += async (s, ev) =>
+                {
+                    var step = new TestStudioStepModel { Action = "assertFalse", Selector = "", Value = $"document.querySelector(\"{escapedSelector}\").isVisible" };
+                    await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                };
+                propertyAssertionsSubMenu.Items.Add(assertVisibleFalse);
+
+                // 3. TextContent
+                var assertTextContent = new MenuItem { Header = "Assert .textContent is..." };
+                assertTextContent.Click += (s, ev) =>
+                {
+                    mainVm.Recorder.TestStudio.NamePromptTitle = "Expected TextContent";
+                    mainVm.Recorder.TestStudio.NamePromptValue = "";
+                    mainVm.Recorder.TestStudio.NamePromptCallback = async val =>
+                    {
+                        if (val != null)
+                        {
+                            var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = $"document.querySelector(\"{escapedSelector}\").textContent == \"{val.Replace("\"", "\\\"")}\"" };
+                            await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                        }
+                    };
+                    mainVm.Recorder.TestStudio.IsNamePromptVisible = true;
+                };
+                propertyAssertionsSubMenu.Items.Add(assertTextContent);
+
+                // 4. Value
+                var assertValue = new MenuItem { Header = "Assert .value is..." };
+                assertValue.Click += (s, ev) =>
+                {
+                    mainVm.Recorder.TestStudio.NamePromptTitle = "Expected Value";
+                    mainVm.Recorder.TestStudio.NamePromptValue = "";
+                    mainVm.Recorder.TestStudio.NamePromptCallback = async val =>
+                    {
+                        if (val != null)
+                        {
+                            var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = $"document.querySelector(\"{escapedSelector}\").value == \"{val.Replace("\"", "\\\"")}\"" };
+                            await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                        }
+                    };
+                    mainVm.Recorder.TestStudio.IsNamePromptVisible = true;
+                };
+                propertyAssertionsSubMenu.Items.Add(assertValue);
+
+                // 5. Custom Property Picker
+                var assertCustomProperty = new MenuItem { Header = "Assert Custom Property..." };
+                assertCustomProperty.Click += (s, ev) =>
+                {
+                    mainVm.Recorder.TestStudio.ShowAssertPropertyPickerCommand.Execute(selector);
+                };
+                propertyAssertionsSubMenu.Items.Add(assertCustomProperty);
+
+                contextMenu.Items.Add(propertyAssertionsSubMenu);
+
+                var assertionsSubMenu = new MenuItem { Header = "Add Assertion (Selector)" };
+                var selectorAssertions = FlowCommandCatalog.PublicCommands
+                    .Where(c => c.Category.Equals("Assertions", StringComparison.OrdinalIgnoreCase) && c.AcceptsSelector)
+                    .OrderBy(c => c.DisplayName);
+                foreach (var cmd in selectorAssertions)
+                {
+                    assertionsSubMenu.Items.Add(CreateCommandMenuItem(cmd, selector));
+                }
+                contextMenu.Items.Add(assertionsSubMenu);
+
+                var interactionsSubMenu = new MenuItem { Header = "Add Interaction (Selector)" };
+                var selectorInteractions = FlowCommandCatalog.PublicCommands
+                    .Where(c => (c.Category.Equals("Interactions", StringComparison.OrdinalIgnoreCase) ||
+                                 c.Category.Equals("Input", StringComparison.OrdinalIgnoreCase)) &&
+                                c.AcceptsSelector)
+                    .OrderBy(c => c.DisplayName);
+                foreach (var cmd in selectorInteractions)
+                {
+                    interactionsSubMenu.Items.Add(CreateCommandMenuItem(cmd, selector));
+                }
+                contextMenu.Items.Add(interactionsSubMenu);
+            }
+            else
             {
                 var pointValue = $"{targetX:F0},{targetY:F0}";
-                var coordsMenu = new ContextMenu();
                 var tapPointItem = new MenuItem { Header = $"Tap Point '{pointValue}'" };
                 tapPointItem.Click += async (s, ev) =>
                 {
@@ -151,54 +322,81 @@ public partial class SimulationView : UserControl
                     step.Parameters["point"] = pointValue;
                     await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
                 };
-                coordsMenu.Items.Add(tapPointItem);
-                coordsMenu.Open(img);
-                return;
+                contextMenu.Items.Add(tapPointItem);
+                contextMenu.Items.Add(new Separator());
+
+                var customAssertTrue = new MenuItem { Header = "Add Assert True (Custom Expression)" };
+                customAssertTrue.Click += (s, ev) =>
+                {
+                    mainVm.Recorder.TestStudio.NamePromptTitle = "Assert True Expression";
+                    mainVm.Recorder.TestStudio.NamePromptValue = "";
+                    mainVm.Recorder.TestStudio.NamePromptCallback = async val =>
+                    {
+                        if (!string.IsNullOrEmpty(val))
+                        {
+                            var step = new TestStudioStepModel { Action = "assertTrue", Selector = "", Value = val };
+                            await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                        }
+                    };
+                    mainVm.Recorder.TestStudio.IsNamePromptVisible = true;
+                };
+                contextMenu.Items.Add(customAssertTrue);
+
+                var customAssertFalse = new MenuItem { Header = "Add Assert False (Custom Expression)" };
+                customAssertFalse.Click += (s, ev) =>
+                {
+                    mainVm.Recorder.TestStudio.NamePromptTitle = "Assert False Expression";
+                    mainVm.Recorder.TestStudio.NamePromptValue = "";
+                    mainVm.Recorder.TestStudio.NamePromptCallback = async val =>
+                    {
+                        if (!string.IsNullOrEmpty(val))
+                        {
+                            var step = new TestStudioStepModel { Action = "assertFalse", Selector = "", Value = val };
+                            await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
+                        }
+                    };
+                    mainVm.Recorder.TestStudio.IsNamePromptVisible = true;
+                };
+                contextMenu.Items.Add(customAssertFalse);
+                contextMenu.Items.Add(new Separator());
             }
 
-            var contextMenu = new ContextMenu();
+            var globalCommandMenu = new MenuItem { Header = "Add Global Command" };
+            var appDeviceMenu = new MenuItem { Header = "App & Device" };
+            var assertionsMenu = new MenuItem { Header = "Assertions" };
+            var inputMenu = new MenuItem { Header = "Input" };
+            var logicMenu = new MenuItem { Header = "Logic" };
+            var timingNavMenu = new MenuItem { Header = "Timing & Navigation" };
 
-            var tapItem = new MenuItem { Header = $"Tap '{selector}'" };
-            tapItem.Click += async (s, ev) =>
-            {
-                var step = new TestStudioStepModel { Action = "tapOn", Selector = selector };
-                await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
-            };
+            var otherCommands = FlowCommandCatalog.PublicCommands
+                .Where(c => !c.AcceptsSelector)
+                .OrderBy(c => c.DisplayName);
 
-            var assertItem = new MenuItem { Header = $"Assert Visible '{selector}'" };
-            assertItem.Click += async (s, ev) =>
+            foreach (var cmd in otherCommands)
             {
-                var step = new TestStudioStepModel { Action = "assertVisible", Selector = selector };
-                await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
-            };
-
-            var inputItem = new MenuItem { Header = $"Input Text into '{selector}'" };
-            inputItem.Click += (s, ev) =>
-            {
-                mainVm.Recorder.TestStudio.NamePromptTitle = "Input Text";
-                mainVm.Recorder.TestStudio.NamePromptValue = "";
-                mainVm.Recorder.TestStudio.NamePromptCallback = async text =>
+                MenuItem? categoryMenu = cmd.Category switch
                 {
-                    if (!string.IsNullOrEmpty(text))
-                    {
-                        var step = new TestStudioStepModel { Action = "inputText", Selector = selector, Value = text };
-                        await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
-                    }
+                    "App & Device" or "Media" => appDeviceMenu,
+                    "Assertions" or "AI" => assertionsMenu,
+                    "Input" => inputMenu,
+                    "Logic" or "Scripting" => logicMenu,
+                    "Timing" or "Navigation" => timingNavMenu,
+                    _ => null
                 };
-                mainVm.Recorder.TestStudio.IsNamePromptVisible = true;
-            };
 
-            var scrollItem = new MenuItem { Header = $"Scroll until Visible '{selector}'" };
-            scrollItem.Click += async (s, ev) =>
-            {
-                var step = new TestStudioStepModel { Action = "scrollUntilVisible", Selector = selector };
-                await mainVm.Recorder.TestStudio.AddInteractiveStepAsync(step);
-            };
+                if (categoryMenu != null)
+                {
+                    categoryMenu.Items.Add(CreateCommandMenuItem(cmd, null));
+                }
+            }
 
-            contextMenu.Items.Add(tapItem);
-            contextMenu.Items.Add(assertItem);
-            contextMenu.Items.Add(inputItem);
-            contextMenu.Items.Add(scrollItem);
+            if (appDeviceMenu.Items.Count > 0) globalCommandMenu.Items.Add(appDeviceMenu);
+            if (assertionsMenu.Items.Count > 0) globalCommandMenu.Items.Add(assertionsMenu);
+            if (inputMenu.Items.Count > 0) globalCommandMenu.Items.Add(inputMenu);
+            if (logicMenu.Items.Count > 0) globalCommandMenu.Items.Add(logicMenu);
+            if (timingNavMenu.Items.Count > 0) globalCommandMenu.Items.Add(timingNavMenu);
+
+            contextMenu.Items.Add(globalCommandMenu);
 
             contextMenu.Open(img);
         }

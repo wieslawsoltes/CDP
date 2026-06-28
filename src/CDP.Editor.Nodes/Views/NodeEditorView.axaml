@@ -1,0 +1,185 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CDP.Editor.Nodes.ViewModels"
+             xmlns:local="clr-namespace:CDP.Editor.Nodes.Views"
+             x:Class="CDP.Editor.Nodes.Views.NodeEditorView"
+             x:DataType="vm:NodeEditorViewModel"
+             x:CompileBindings="True">
+    <UserControl.Styles>
+        <Style Selector="Border.node-card">
+            <Setter Property="BorderBrush" Value="#3c4043"/>
+        </Style>
+        <Style Selector="Border.node-card.selected">
+            <Setter Property="BorderBrush" Value="#1a73e8"/>
+        </Style>
+
+        <!-- Pin hover transitions and scaling -->
+        <Style Selector="Ellipse.input-pin, Ellipse.output-pin">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Width" Duration="0:0:0.12"/>
+                    <DoubleTransition Property="Height" Duration="0:0:0.12"/>
+                    <BrushTransition Property="Fill" Duration="0:0:0.12"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Ellipse.input-pin:pointerover, Ellipse.output-pin:pointerover">
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="Fill" Value="#ffd54f"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <!-- Visual highlight during dragging connection -->
+        <Style Selector="Grid.dragging-connection Ellipse.input-pin">
+            <Setter Property="Stroke" Value="#ffca28"/>
+            <Setter Property="StrokeThickness" Value="1.5"/>
+        </Style>
+
+        <!-- Visual highlight for Snapped/Closest connection target -->
+        <Style Selector="Border.connection-target Ellipse.input-pin, Border.connection-target Ellipse.output-pin">
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Fill" Value="#ffca28"/>
+        </Style>
+    </UserControl.Styles>
+    
+    <Grid Name="RootGrid" Background="#202124" Classes.dragging-connection="{Binding IsDraggingConnection}">
+        <!-- Zoomable/pannable area container -->
+        <Border Name="CanvasContainer" Background="Transparent" ClipToBounds="True">
+            <Canvas Name="NodeCanvas" Width="5000" Height="5000" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False" RenderTransformOrigin="0%,0%">
+                <Canvas.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}"/>
+                        <TranslateTransform X="{Binding PanX}" Y="{Binding PanY}"/>
+                    </TransformGroup>
+                </Canvas.RenderTransform>
+
+                <!-- Connections -->
+                <ItemsControl Name="ConnectionsItemsControl" ItemsSource="{Binding Connections}" Width="5000" Height="5000" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ConnectionViewModel">
+                            <Path Stroke="#8ab4f8" StrokeThickness="2" Fill="Transparent">
+                                <Path.Data>
+                                    <PathGeometry>
+                                        <PathFigure StartPoint="{Binding StartPoint}" IsClosed="False">
+                                            <BezierSegment Point1="{Binding ControlPoint1}" Point2="{Binding ControlPoint2}" Point3="{Binding EndPoint}"/>
+                                        </PathFigure>
+                                    </PathGeometry>
+                                </Path.Data>
+                            </Path>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Preview Connection Curve -->
+                <Path Name="PreviewConnectionPath" Stroke="#8ab4f8" StrokeThickness="2" StrokeDashArray="4,4" Fill="Transparent" IsVisible="False">
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathFigure StartPoint="0,0" IsClosed="False">
+                                <BezierSegment Point1="0,0" Point2="0,0" Point3="0,0"/>
+                            </PathFigure>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+
+                <!-- Node Cards -->
+                <ItemsControl Name="NodesItemsControl" Classes="nodes-list" ItemsSource="{Binding Nodes}" Width="5000" Height="5000" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False">
+                    <ItemsControl.Styles>
+                        <Style Selector="ItemsControl.nodes-list > ContentPresenter" x:DataType="vm:NodeViewModel">
+                            <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                            <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                        </Style>
+                    </ItemsControl.Styles>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:NodeViewModel">
+                            <Border Width="{Binding Width}"
+                                    Height="{Binding Height}"
+                                    Background="{Binding Background, FallbackValue='#292a2d'}"
+                                    BorderBrush="{Binding BorderBrush, FallbackValue='#3c4043'}"
+                                    BorderThickness="1.5"
+                                    CornerRadius="6"
+                                    Classes="node-card"
+                                    Classes.selected="{Binding IsSelected}"
+                                    Classes.connection-target="{Binding IsConnectionTarget}"
+                                    ClipToBounds="False">
+                                <Grid RowDefinitions="Auto, *">
+                                    <!-- Title Bar -->
+                                    <Border Grid.Row="0" Background="{Binding TitleBackground, FallbackValue='#35363a'}" CornerRadius="5,5,0,0" Padding="6,2" Classes="title-bar">
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="#e8eaed"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding $parent[UserControl].((vm:NodeEditorViewModel)DataContext).DeleteNodeCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    Background="Transparent"
+                                                    BorderBrush="Transparent"
+                                                    Padding="2"
+                                                    Margin="4,0,0,0"
+                                                    Width="16"
+                                                    Height="16"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Delete Node">
+                                                <PathIcon Data="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2ZM12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 16.6944 7.30558 20.5 12 20.5C16.6944 20.5 20.5 16.6944 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5ZM15.4462 8.39705L15.5303 8.46967C15.7966 8.73594 15.8208 9.1526 15.6029 9.44621L15.5303 9.53033L13.061 12L15.5303 14.4697C15.7966 14.7359 15.8208 15.1526 15.6029 15.4462L15.5303 15.5303C15.2641 15.7966 14.8474 15.8208 14.5538 15.6029L14.4697 15.5303L12 13.061L9.53033 15.5303C9.26406 15.7966 8.8474 15.8208 8.55379 15.6029L8.46967 15.5303C8.2034 15.2641 8.1792 14.8474 8.39705 14.5538L8.46967 14.4697L10.939 12L8.46967 9.53033C8.2034 9.26406 8.1792 8.8474 8.39705 8.55379L8.46967 8.46967C8.73594 8.2034 9.1526 8.1792 9.44621 8.39705L9.53033 8.46967L12 10.939L14.4697 8.46967C14.7359 8.2034 15.1526 8.1792 15.4462 8.39705Z" Width="8" Height="8" Foreground="#ff5252"/>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Content of the card -->
+                                    <ContentPresenter Grid.Row="1" Content="{Binding Content}" Margin="6"/>
+
+                                    <!-- Input Pin -->
+                                    <Ellipse Name="InputPin" Grid.RowSpan="2" Classes="input-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-5,0,0,0" ToolTip.Tip="Input Link"/>
+                                    <!-- Output Pin -->
+                                    <Ellipse Name="OutputPin" Grid.RowSpan="2" Classes="output-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-5,0" ToolTip.Tip="Output Link"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Canvas>
+        </Border>
+
+        <!-- Overlay controls at the top right -->
+        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Padding="4" Background="#2d2f34" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" MaxWidth="500">
+            <WrapPanel Orientation="Horizontal">
+                <WrapPanel.Styles>
+                    <Style Selector="Button, Separator">
+                        <Setter Property="Margin" Value="2"/>
+                    </Style>
+                </WrapPanel.Styles>
+                <Button Name="btnZoomIn" ToolTip.Tip="Zoom In" Width="26" Height="26" Padding="0">
+                    <PathIcon Data="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
+                <Button Name="btnZoomOut" ToolTip.Tip="Zoom Out" Width="26" Height="26" Padding="0">
+                    <PathIcon Data="M3.75391 12.5H20.2458C20.66 12.5 20.9958 12.1642 20.9958 11.75C20.9958 11.3358 20.66 11 20.2458 11H3.75391C3.33969 11 3.00391 11.3358 3.00391 11.75C3.00391 12.1642 3.33969 12.5 3.75391 12.5" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
+                <Button Name="btnZoomToFit" ToolTip.Tip="Zoom to Fit" Width="26" Height="26" Padding="0">
+                    <PathIcon Data="M11.4891 2.70698C11.7786 2.43432 12.2305 2.435 12.5192 2.70851L14.7264 4.79989C15.027 5.08479 15.5017 5.07201 15.7866 4.77133C16.0715 4.47066 16.0588 3.99596 15.7581 3.71106L13.5509 1.61967C12.6849 0.799127 11.329 0.79711 10.4606 1.61507L8.23699 3.70952C7.93547 3.99353 7.92127 4.46819 8.20527 4.76971C8.48928 5.07123 8.96394 5.08543 9.26546 4.80143L11.4891 2.70698ZM4.80341 9.26348C5.08741 8.96196 5.07321 8.48729 4.77169 8.20329C4.47017 7.91929 3.99551 7.93349 3.71151 8.23501L1.61706 10.4586C0.799093 11.3271 0.801111 12.6829 1.62166 13.5489L3.71304 15.7561C3.99794 16.0568 4.47264 16.0696 4.77332 15.7847C5.07399 15.4998 5.08678 15.0251 4.80188 14.7244L2.71049 12.5172C2.43698 12.2285 2.43631 11.7766 2.70896 11.4871L4.80341 9.26348ZM20.288 8.24292C20.003 7.94236 19.5283 7.92976 19.2277 8.21478C18.9272 8.4998 18.9146 8.97451 19.1996 9.27507L21.2984 11.4884C21.5728 11.7777 21.5728 12.2312 21.2984 12.5205L19.1996 14.7339C18.9146 15.0345 18.9272 15.5092 19.2277 15.7942C19.5283 16.0792 20.003 16.0666 20.288 15.7661L22.3869 13.5526C23.21 12.6846 23.21 11.3242 22.3869 10.4562L20.288 8.24292ZM15.7661 20.288C16.0666 20.003 16.0793 19.5283 15.7943 19.2277C15.5093 18.9271 15.0345 18.9145 14.734 19.1995L12.5219 21.2971C12.2326 21.5713 11.7794 21.5715 11.4901 21.2974L9.27477 19.1992C8.97403 18.9144 8.49933 18.9273 8.2145 19.228C7.92966 19.5288 7.94255 20.0035 8.24329 20.2883L10.4586 22.3864C11.3267 23.2087 12.6863 23.2083 13.554 22.3856L15.7661 20.288ZM9.74999 6.99996C8.23121 6.99996 6.99999 8.23118 6.99999 9.74996V14.25C6.99999 15.7687 8.23121 17 9.74999 17H14.25C15.7688 17 17 15.7687 17 14.25V9.74996C17 8.23118 15.7688 6.99996 14.25 6.99996H9.74999ZM8.49999 9.74996C8.49999 9.05961 9.05964 8.49996 9.74999 8.49996H14.25C14.9403 8.49996 15.5 9.05961 15.5 9.74996V14.25C15.5 14.9403 14.9403 15.5 14.25 15.5H9.74999C9.05964 15.5 8.49999 14.9403 8.49999 14.25V9.74996Z" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
+                <Button Command="{Binding AutoLayoutCommand}" ToolTip.Tip="Auto Layout" Width="26" Height="26" Padding="0">
+                    <PathIcon Data="M5.24756 2.99609C4.00492 2.99609 2.99756 4.00345 2.99756 5.24609L2.99756 7.75337C2.99756 8.99601 4.00492 10.0034 5.24756 10.0034H5.75V13.7096C5.7033 13.7446 5.65849 13.7834 5.61599 13.8259L2.82378 16.6172C2.33547 17.1053 2.33542 17.897 2.82368 18.3852L5.61589 21.1771C6.10412 21.6652 6.89569 21.6651 7.3838 21.1768L10.1745 18.3849C10.217 18.3424 10.2557 18.2977 10.2908 18.251H14.0049V18.7547C14.0049 19.9973 15.0122 21.0047 16.2549 21.0047H18.7488C19.9914 21.0047 20.9988 19.9973 20.9988 18.7547V16.2505C20.9988 15.0078 19.9914 14.0005 18.7488 14.0005H16.2549C15.0122 14.0005 14.0049 15.0078 14.0049 16.2505V16.751H10.2904C10.2554 16.7044 10.2168 16.6598 10.1744 16.6174L7.3837 13.8262C7.34129 13.7838 7.29659 13.745 7.25 13.71V10.0034H7.75456C8.9972 10.0034 10.0046 8.99601 10.0046 7.75337V5.24609C10.0046 4.00345 8.9972 2.99609 7.75456 2.99609H5.24756ZM4.49756 5.24609C4.49756 4.83188 4.83334 4.49609 5.24756 4.49609H7.75456C8.16877 4.49609 8.50456 4.83188 8.50456 5.24609V7.75337C8.50456 8.16758 8.16877 8.50337 7.75456 8.50337H5.24756C4.83334 8.50337 4.49756 8.16758 4.49756 7.75337L4.49756 5.24609ZM4.06111 17.5012L6.49968 15.0635L8.93693 17.5012L6.49968 19.9396L4.06111 17.5012ZM16.2549 15.5005H18.7488C19.163 15.5005 19.4988 15.8363 19.4988 16.2505V18.7547C19.4988 19.1689 19.163 19.5047 18.7488 19.5047H16.2549C15.8407 19.5047 15.5049 19.1689 15.5049 18.7547V16.2505C15.5049 15.8363 15.8407 15.5005 16.2549 15.5005" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
+
+                <!-- Separator and Slot for host-specific header controls -->
+                <Separator Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center" IsVisible="{Binding !!$parent[local:NodeEditorView].HeaderContent}"/>
+                <ContentPresenter Content="{Binding $parent[local:NodeEditorView].HeaderContent}"/>
+            </WrapPanel>
+        </Border>
+    </Grid>
+</UserControl>
