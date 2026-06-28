@@ -271,9 +271,8 @@
             </Border>
 
             <!-- Steps List -->
-            <Grid Grid.Row="2" RowDefinitions="Auto, *">
-                <TextBlock Grid.Row="0" Text="Test Steps" Classes="panel-header" Foreground="#e8eaed" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
-                <TabControl Grid.Row="1">
+            <Grid Grid.Row="2">
+                <TabControl>
                     <TabItem Header="Steps List">
                         <DataGrid Name="lstSteps"
                                   HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalSteps}"
