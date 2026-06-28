@@ -54,6 +54,13 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         set => RaiseAndSetIfChanged(ref _isDraggingConnection, value);
     }
 
+    private bool _isReadOnly;
+    public bool IsReadOnly
+    {
+        get => _isReadOnly;
+        set => RaiseAndSetIfChanged(ref _isReadOnly, value);
+    }
+
     public Action? CollectionChangedAction { get; set; }
     public Action<NodeViewModel>? NodeSelectedAction { get; set; }
     public Func<NodeViewModel>? CreateNodeHandler { get; set; }
@@ -191,6 +198,7 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
 
     public void DragNode(NodeViewModel node, double deltaX, double deltaY)
     {
+        if (IsReadOnly) return;
         if (node is GroupNodeViewModel groupNode)
         {
             groupNode.X += deltaX;
@@ -223,6 +231,7 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
 
     public void DeleteNode(NodeViewModel node)
     {
+        if (IsReadOnly) return;
         Nodes.Remove(node);
         var toRemove = Connections.Where(c => c.FromNode == node || c.ToNode == node).ToList();
         foreach (var conn in toRemove)

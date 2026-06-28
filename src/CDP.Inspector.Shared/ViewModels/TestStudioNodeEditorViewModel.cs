@@ -192,6 +192,9 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
 
     public void SyncSteps()
     {
+        if (ShowAllScenarios)
+            return;
+
         CompiledSteps = CompileSteps();
         SyncToTestStudioAction?.Invoke();
     }
@@ -204,6 +207,7 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
         {
             if (RaiseAndSetIfChanged(ref _showAllScenarios, value))
             {
+                IsReadOnly = value;
                 OnPropertyChanged(nameof(IsSingleScenarioMode));
             }
         }

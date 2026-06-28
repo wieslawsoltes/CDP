@@ -138,7 +138,7 @@ public partial class NodeEditorView : UserControl
                     e.Handled = true;
                     break;
                 case Key.V:
-                    vm.PasteNodes();
+                    if (!vm.IsReadOnly) vm.PasteNodes();
                     e.Handled = true;
                     break;
                 case Key.A:
@@ -149,7 +149,7 @@ public partial class NodeEditorView : UserControl
                     e.Handled = true;
                     break;
                 case Key.G:
-                    vm.GroupSelectedNodes();
+                    if (!vm.IsReadOnly) vm.GroupSelectedNodes();
                     e.Handled = true;
                     break;
                 case Key.D0:
@@ -175,7 +175,7 @@ public partial class NodeEditorView : UserControl
             {
                 case Key.Delete:
                 case Key.Back:
-                    vm.DeleteSelectedCommand.Execute(null);
+                    if (!vm.IsReadOnly) vm.DeleteSelectedCommand.Execute(null);
                     e.Handled = true;
                     break;
             }
@@ -348,6 +348,11 @@ public partial class NodeEditorView : UserControl
         
         if (isOutputPin || isInputPin)
         {
+            if (vm.IsReadOnly)
+            {
+                e.Handled = true;
+                return;
+            }
             if (sourceElement?.DataContext is NodeViewModel nodeVM)
             {
                 _isReverseDrag = isInputPin;
@@ -443,11 +448,14 @@ public partial class NodeEditorView : UserControl
                 vm.SelectNode(pressedNode, clearOthers);
             }
 
-            _isDraggingNode = true;
-            _draggedNode = pressedNode;
-            _lastPointerPosition = e.GetPosition(_canvasContainer);
+            if (!vm.IsReadOnly)
+            {
+                _isDraggingNode = true;
+                _draggedNode = pressedNode;
+                _lastPointerPosition = e.GetPosition(_canvasContainer);
 
-            e.Pointer.Capture(_canvasContainer);
+                e.Pointer.Capture(_canvasContainer);
+            }
             e.Handled = true;
             return;
         }
