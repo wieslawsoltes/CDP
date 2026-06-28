@@ -23,7 +23,7 @@
                                      BorderBrush="#3c4043"/>
                 </Grid>
                 <!-- Selector field -->
-                <Grid ColumnDefinitions="45, *">
+                <Grid ColumnDefinitions="45, *" IsVisible="{Binding ShowSelector}">
                     <TextBlock Text="Selector:" FontSize="9" Foreground="#9aa0a6" VerticalAlignment="Center"/>
                     <AutoCompleteBox Grid.Column="1"
                                      Text="{Binding Selector, Mode=TwoWay}"
@@ -36,7 +36,7 @@
                                      BorderBrush="#3c4043"/>
                 </Grid>
                 <!-- Value field -->
-                <Grid ColumnDefinitions="45, *">
+                <Grid ColumnDefinitions="45, *" IsVisible="{Binding ShowValue}">
                     <TextBlock Text="Value:" FontSize="9" Foreground="#9aa0a6" VerticalAlignment="Center"/>
                     <AutoCompleteBox Grid.Column="1"
                                      Text="{Binding Value, Mode=TwoWay}"
@@ -48,6 +48,37 @@
                                      BorderThickness="1"
                                      BorderBrush="#3c4043"/>
                 </Grid>
+                <!-- Custom Parameters Expander -->
+                <Expander Header="Advanced Parameters"
+                          IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                          IsVisible="{Binding ShowCustomParams}"
+                          FontSize="8"
+                          Padding="0"
+                          Margin="0,2,0,0"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          HorizontalAlignment="Stretch">
+                    <ScrollViewer MaxHeight="80" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding CustomParameters}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CustomParamEditor">
+                                    <Grid ColumnDefinitions="55, *" Margin="0,2">
+                                        <TextBlock Text="{Binding Name, StringFormat='\{0\}:'}" FontSize="8" Foreground="#9aa0a6" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}"/>
+                                        <AutoCompleteBox Grid.Column="1"
+                                                         Text="{Binding Value, Mode=TwoWay}"
+                                                         ItemsSource="{Binding ValueSuggestions}"
+                                                         FilterMode="Contains"
+                                                         FontSize="8"
+                                                         Height="18"
+                                                         Padding="2,1"
+                                                         BorderThickness="1"
+                                                         BorderBrush="#3c4043"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Expander>
             </StackPanel>
         </DataTemplate>
     </UserControl.DataTemplates>

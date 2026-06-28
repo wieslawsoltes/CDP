@@ -922,7 +922,10 @@ public class TestStudioViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(TestStudioStepModel.Action) ||
             e.PropertyName == nameof(TestStudioStepModel.Selector) ||
-            e.PropertyName == nameof(TestStudioStepModel.Value))
+            e.PropertyName == nameof(TestStudioStepModel.Value) ||
+            e.PropertyName == nameof(TestStudioStepModel.Parameters) ||
+            e.PropertyName == nameof(TestStudioStepModel.WhileConditionType) ||
+            e.PropertyName == nameof(TestStudioStepModel.WhileConditionValue))
         {
             UpdateYaml();
             SyncFromTestStudio();
