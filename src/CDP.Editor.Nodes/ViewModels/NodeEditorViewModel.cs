@@ -310,7 +310,21 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         }
         else if (node.IsSelected)
         {
-            foreach (var n in Nodes.Where(n => n.IsSelected))
+            var toMove = new HashSet<NodeViewModel>(Nodes.Where(n => n.IsSelected));
+            var selectedGroups = toMove.OfType<GroupNodeViewModel>().ToList();
+            foreach (var group in selectedGroups)
+            {
+                foreach (var childId in group.ChildNodeIds)
+                {
+                    var child = Nodes.FirstOrDefault(n => n.Id == childId);
+                    if (child != null)
+                    {
+                        toMove.Add(child);
+                    }
+                }
+            }
+
+            foreach (var n in toMove)
             {
                 n.X += deltaX;
                 n.Y += deltaY;
@@ -349,6 +363,8 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         public string Value { get; set; } = "";
         public double X { get; set; }
         public double Y { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
         public string Id { get; set; } = "";
         public bool IsGroup { get; set; }
         public string? ScenarioPath { get; set; }
@@ -371,6 +387,8 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
                 Name = n.Name,
                 X = n.X,
                 Y = n.Y,
+                Width = n.Width,
+                Height = n.Height,
                 Id = n.Id,
                 ScenarioPath = n.ScenarioPath
             };
@@ -433,6 +451,8 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
                     Name = data.Name,
                     X = data.X + 40,
                     Y = data.Y + 40,
+                    Width = data.Width > 0 ? data.Width : 300,
+                    Height = data.Height > 0 ? data.Height : 200,
                     IsSelected = true,
                     ScenarioPath = data.ScenarioPath
                 };
@@ -447,6 +467,8 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
                     newNode.Name = data.Name;
                     newNode.X = data.X + 40;
                     newNode.Y = data.Y + 40;
+                    if (data.Width > 0) newNode.Width = data.Width;
+                    if (data.Height > 0) newNode.Height = data.Height;
                     newNode.ScenarioPath = data.ScenarioPath;
 
                     var nodeType = newNode.GetType();
@@ -472,6 +494,8 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
                         Y = data.Y + 40,
                         ScenarioPath = data.ScenarioPath
                     };
+                    if (data.Width > 0) newNode.Width = data.Width;
+                    if (data.Height > 0) newNode.Height = data.Height;
                 }
                 newNode.IsSelected = true;
                 pastedNodes.Add(newNode);
@@ -488,6 +512,25 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
                 if (idMap.TryGetValue(childId, out var pastedChild))
                 {
                     pastedGroup.ChildNodeIds.Add(pastedChild.Id);
+                }
+            }
+
+            if (pastedGroup.ChildNodeIds.Count > 0)
+            {
+                var children = pastedGroup.ChildNodeIds.Select(id => idMap.TryGetValue(id, out var cNode) ? cNode : null).Where(n => n != null).ToList();
+                if (children.Count > 0)
+                {
+                    double padding = 20.0;
+                    double minChildX = children.Min(n => n.X);
+                    double minChildY = children.Min(n => n.Y);
+                    double maxChildX = children.Max(n => n.X + n.Width);
+                    double maxChildY = children.Max(n => n.Y + n.Height);
+
+                    double headerHeight = 30.0;
+                    pastedGroup.X = minChildX - padding;
+                    pastedGroup.Y = minChildY - padding - headerHeight;
+                    pastedGroup.Width = maxChildX - minChildX + padding * 2.0;
+                    pastedGroup.Height = maxChildY - minChildY + padding * 2.0 + headerHeight;
                 }
             }
         }
@@ -654,10 +697,13 @@ public class SimpleHorizontalLayoutProvider : INodeLayoutProvider
         var orderedNodes = new List<NodeViewModel>();
         var visited = new HashSet<string>();
 
-        // Find starting node (node with no incoming connections)
-        var current = viewModel.Nodes
+        // Find starting node (node with no incoming connections, excluding groups)
+        var nonGroupNodes = viewModel.Nodes.Where(n => n is not GroupNodeViewModel).ToList();
+        if (nonGroupNodes.Count == 0) return;
+
+        var current = nonGroupNodes
                       .FirstOrDefault(n => !viewModel.Connections.Any(c => c.ToNode == n))
-                      ?? viewModel.Nodes.FirstOrDefault();
+                      ?? nonGroupNodes.FirstOrDefault();
 
         while (current != null)
         {
@@ -667,10 +713,14 @@ public class SimpleHorizontalLayoutProvider : INodeLayoutProvider
 
             var connection = viewModel.Connections.FirstOrDefault(c => c.FromNode == current);
             current = connection?.ToNode;
+            if (current is GroupNodeViewModel)
+            {
+                current = null;
+            }
         }
 
-        // Add remaining nodes that weren't in the sequential chain
-        foreach (var node in viewModel.Nodes)
+        // Add remaining non-group nodes that weren't in the sequential chain
+        foreach (var node in nonGroupNodes)
         {
             if (!visited.Contains(node.Id))
             {
@@ -678,11 +728,33 @@ public class SimpleHorizontalLayoutProvider : INodeLayoutProvider
             }
         }
 
-        // Arrange them
+        // Arrange non-group nodes
         for (int i = 0; i < orderedNodes.Count; i++)
         {
             orderedNodes[i].X = 200.0 * i + 10.0;
             orderedNodes[i].Y = 20.0;
+        }
+
+        // Recalculate bounds for GroupNodeViewModels
+        var groupNodes = viewModel.Nodes.OfType<GroupNodeViewModel>().ToList();
+        foreach (var group in groupNodes)
+        {
+            if (group.ChildNodeIds.Count == 0) continue;
+
+            var children = viewModel.Nodes.Where(n => group.ChildNodeIds.Contains(n.Id)).ToList();
+            if (children.Count == 0) continue;
+
+            double padding = 20.0;
+            double minChildX = children.Min(n => n.X);
+            double minChildY = children.Min(n => n.Y);
+            double maxChildX = children.Max(n => n.X + n.Width);
+            double maxChildY = children.Max(n => n.Y + n.Height);
+
+            double headerHeight = 30.0;
+            group.X = minChildX - padding;
+            group.Y = minChildY - padding - headerHeight;
+            group.Width = maxChildX - minChildX + padding * 2.0;
+            group.Height = maxChildY - minChildY + padding * 2.0 + headerHeight;
         }
     }
 }

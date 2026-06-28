@@ -174,8 +174,9 @@ public class TestStudioNodeViewModel : NodeViewModel
             bool showSelector = ShowSelector;
             foreach (var p in def.Parameters)
             {
-                if (showSelector && FlowCommandCatalog.IsSelectorKey(p)) continue;
-                CustomParameters.Add(new CustomParamEditor(this, p));
+                var cleanParam = p.EndsWith(":") ? p.Substring(0, p.Length - 1) : p;
+                if (showSelector && FlowCommandCatalog.IsSelectorKey(cleanParam)) continue;
+                CustomParameters.Add(new CustomParamEditor(this, cleanParam));
             }
         }
         OnPropertyChanged(nameof(ShowSelector));

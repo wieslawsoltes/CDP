@@ -350,23 +350,27 @@ public partial class NodeEditorView : UserControl
         // Check for double click
         if (e.ClickCount == 2)
         {
-            NodeViewModel? clickedNode = null;
-            var visual = e.Source as Visual;
-            while (visual != null && visual != _nodeCanvas)
+            var sourceCtrl = e.Source as Control;
+            if (!IsInputControl(sourceCtrl))
             {
-                if (visual.DataContext is NodeViewModel node)
+                NodeViewModel? clickedNode = null;
+                var visual = e.Source as Visual;
+                while (visual != null && visual != _nodeCanvas)
                 {
-                    clickedNode = node;
-                    break;
+                    if (visual.DataContext is NodeViewModel node)
+                    {
+                        clickedNode = node;
+                        break;
+                    }
+                    visual = visual.GetVisualParent();
                 }
-                visual = visual.GetVisualParent();
-            }
 
-            if (clickedNode != null)
-            {
-                vm.NodeDoubleClickedAction?.Invoke(clickedNode);
-                e.Handled = true;
-                return;
+                if (clickedNode != null)
+                {
+                    vm.NodeDoubleClickedAction?.Invoke(clickedNode);
+                    e.Handled = true;
+                    return;
+                }
             }
         }
 
