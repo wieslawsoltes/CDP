@@ -25,6 +25,8 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
     public Action? SyncFromTestStudioAction { get; set; }
     public Action<TestStudioNodeViewModel>? NodeSelectedActionCustom { get; set; }
 
+    public bool IsSyncSuppressed { get; set; }
+
     public ICommand SyncStepsCommand { get; }
     public ICommand SyncToTestStudioCommand { get; }
     public ICommand SyncFromTestStudioCommand { get; }
@@ -212,7 +214,7 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
 
     public void SyncSteps()
     {
-        if (ShowAllScenarios)
+        if (ShowAllScenarios || IsSyncSuppressed)
             return;
 
         CompiledSteps = CompileSteps();

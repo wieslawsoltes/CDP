@@ -476,4 +476,33 @@ description: ""Test Flow""
         editor.ConnectNodes(groupNode, node1);
         Assert.Empty(editor.Connections);
     }
+
+    [Fact]
+    public void TestStudioViewModel_LeavingAllScenarios_ClearsOverviewWithoutWipingSteps()
+    {
+        var dummyCdp = new DummyCdpService();
+        var vm = new TestStudioViewModel(dummyCdp);
+
+        // Add a step to the active flow
+        var step = new TestStudioStepModel { Action = "tapOn", Selector = "#btn" };
+        vm.Steps.Add(step);
+
+        // Turn on all scenarios overview (simulates project load view)
+        vm.NodeEditor.ShowAllScenarios = true;
+
+        // Add a group node to simulate the loaded scenarios
+        var groupNode = new CDP.Editor.Nodes.ViewModels.GroupNodeViewModel { Id = "group1", Name = "Overview Group" };
+        vm.NodeEditor.Nodes.Add(groupNode);
+
+        // Leave All Scenarios mode
+        vm.NodeEditor.ShowAllScenarios = false;
+
+        // Check that group nodes are cleared and active scenario steps are preserved
+        Assert.Single(vm.Steps);
+        Assert.Equal("tapOn", vm.Steps[0].Action);
+        Assert.Single(vm.NodeEditor.Nodes);
+        var visualNode = vm.NodeEditor.Nodes[0] as TestStudioNodeViewModel;
+        Assert.NotNull(visualNode);
+        Assert.Equal("tapOn", visualNode.Action);
+    }
 }

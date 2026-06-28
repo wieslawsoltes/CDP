@@ -772,8 +772,16 @@ public class TestStudioViewModel : ViewModelBase
                 }
                 else
                 {
-                    NodeEditor.Nodes.Clear();
-                    NodeEditor.Connections.Clear();
+                    NodeEditor.IsSyncSuppressed = true;
+                    try
+                    {
+                        NodeEditor.Nodes.Clear();
+                        NodeEditor.Connections.Clear();
+                    }
+                    finally
+                    {
+                        NodeEditor.IsSyncSuppressed = false;
+                    }
                     SyncFromTestStudio();
                 }
             }
