@@ -158,4 +158,33 @@ public class NodeLayoutTests
         Assert.Equal(20.0, minX, 0.0001);
         Assert.Equal(20.0, minY, 0.0001);
     }
+
+    [Fact]
+    public void MsaglLayoutProvider_GroupsAreExcludedFromLayoutAndRepositionedAroundChildren()
+    {
+        var vm = new NodeEditorViewModel();
+
+        var node1 = vm.CreateNode("Node1", 100, 100);
+        node1.Width = 100;
+        node1.Height = 50;
+
+        var group = new GroupNodeViewModel { Id = "group1", Name = "Test Group" };
+        group.ChildNodeIds.Add(node1.Id);
+        vm.Nodes.Add(group);
+
+        var provider = new MsaglLayoutProvider();
+        var parameters = new Dictionary<string, object>
+        {
+            { "Algorithm", "Sugiyama" },
+            { "Direction", "Horizontal" }
+        };
+
+        provider.ApplyLayout(vm, parameters);
+
+        // Verify that the group container surrounds node1
+        Assert.True(group.X < node1.X);
+        Assert.True(group.Y < node1.Y);
+        Assert.True(group.X + group.Width > node1.X + node1.Width);
+        Assert.True(group.Y + group.Height > node1.Y + node1.Height);
+    }
 }

@@ -28,6 +28,8 @@ public class MsaglLayoutProvider : INodeLayoutProvider
         var nodeMap = new Dictionary<NodeViewModel, Microsoft.Msagl.Core.Layout.Node>();
         foreach (var vmNode in viewModel.Nodes)
         {
+            if (vmNode is GroupNodeViewModel) continue;
+
             var msaglNode = new Microsoft.Msagl.Core.Layout.Node();
             msaglNode.BoundaryCurve = CurveFactory.CreateRectangle(vmNode.Width, vmNode.Height, new Point(0, 0));
             msaglNode.UserData = vmNode;
@@ -110,6 +112,29 @@ public class MsaglLayoutProvider : INodeLayoutProvider
             var (x, y) = tempPositions[vmNode];
             vmNode.X = x + offsetX;
             vmNode.Y = y + offsetY;
+        }
+
+        // 6. Recalculate bounds for GroupNodeViewModels based on their new child coordinates
+        var groupNodes = viewModel.Nodes.OfType<GroupNodeViewModel>().ToList();
+        foreach (var group in groupNodes)
+        {
+            if (group.ChildNodeIds.Count == 0) continue;
+
+            var children = viewModel.Nodes.Where(n => group.ChildNodeIds.Contains(n.Id)).ToList();
+            if (children.Count == 0) continue;
+
+            double padding = 20.0;
+            double minChildX = children.Min(n => n.X);
+            double minChildY = children.Min(n => n.Y);
+            double maxChildX = children.Max(n => n.X + n.Width);
+            double maxChildY = children.Max(n => n.Y + n.Height);
+
+            // Group Y should start higher to accommodate the header/title
+            double headerHeight = 30.0;
+            group.X = minChildX - padding;
+            group.Y = minChildY - padding - headerHeight;
+            group.Width = maxChildX - minChildX + padding * 2.0;
+            group.Height = maxChildY - minChildY + padding * 2.0 + headerHeight;
         }
     }
 }

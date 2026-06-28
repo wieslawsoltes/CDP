@@ -453,7 +453,18 @@ public partial class NodeEditorView : UserControl
         }
 
         // Check if pressed on a resize grip
-        bool isResizeGrip = sourceElement != null && sourceElement.Name == "ResizeGrip";
+        bool isResizeGrip = false;
+        var checkElement = sourceElement as Visual;
+        while (checkElement != null && checkElement != _nodeCanvas)
+        {
+            if (checkElement is Control ctrl && ctrl.Name == "ResizeGrip")
+            {
+                isResizeGrip = true;
+                break;
+            }
+            checkElement = checkElement.GetVisualParent();
+        }
+
         if (isResizeGrip && pressedNode != null)
         {
             if (vm.IsReadOnly)

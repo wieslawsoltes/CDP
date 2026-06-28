@@ -971,6 +971,8 @@ public class TestStudioViewModel : ViewModelBase
 
     public void SyncToTestStudio()
     {
+        if (NodeEditor.ShowAllScenarios) return;
+
         _nodeEditorService.SyncToTestStudio(
             NodeEditor,
             Steps,
