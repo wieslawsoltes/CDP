@@ -772,6 +772,8 @@ public class TestStudioViewModel : ViewModelBase
                 }
                 else
                 {
+                    NodeEditor.Nodes.Clear();
+                    NodeEditor.Connections.Clear();
                     SyncFromTestStudio();
                 }
             }
@@ -968,6 +970,7 @@ public class TestStudioViewModel : ViewModelBase
 
     public void SyncFromTestStudio()
     {
+        if (NodeEditor.ShowAllScenarios) return;
         _nodeEditorService.SyncFromTestStudio(NodeEditor, Steps);
     }
 

@@ -89,7 +89,7 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         CreateConnectionCommand = new RelayCommand<object>(ExecuteCreateConnection);
         SelectNodeCommand = new RelayCommand<NodeViewModel>(ExecuteSelectNode);
         DeleteSelectedCommand = new RelayCommand(ExecuteDeleteSelected);
-        DeleteNodeCommand = new RelayCommand<NodeViewModel>(node => { if (node != null) DeleteNode(node); });
+        DeleteNodeCommand = new RelayCommand<NodeViewModel>(node => { if (node != null && !IsReadOnly) DeleteNode(node); });
         AutoLayoutCommand = new RelayCommand(ExecuteAutoLayout);
 
         _nodes.CollectionChanged += OnNodesCollectionChanged;
@@ -165,6 +165,7 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
     public void ConnectNodes(NodeViewModel fromNode, NodeViewModel toNode)
     {
         if (fromNode == toNode) return;
+        if (fromNode is GroupNodeViewModel || toNode is GroupNodeViewModel) return;
 
         // Check if connection already exists
         if (Connections.Any(c => c.FromNode == fromNode && c.ToNode == toNode)) return;
@@ -233,7 +234,6 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
 
     public void DeleteNode(NodeViewModel node)
     {
-        if (IsReadOnly) return;
         Nodes.Remove(node);
         var toRemove = Connections.Where(c => c.FromNode == node || c.ToNode == node).ToList();
         foreach (var conn in toRemove)
@@ -505,6 +505,7 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
 
     private void ExecuteDeleteSelected()
     {
+        if (IsReadOnly) return;
         var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
         foreach (var node in selectedNodes)
         {

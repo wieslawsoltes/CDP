@@ -65,7 +65,7 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
         {
             if (node is TestStudioNodeViewModel tNode && data is TestStudioStepModel stepClone)
             {
-                tNode.Step = stepClone;
+                tNode.Step = stepClone.Clone();
                 tNode.Action = stepClone.Action;
                 tNode.Selector = stepClone.Selector ?? "";
                 tNode.Value = stepClone.Value ?? "";

@@ -418,4 +418,62 @@ description: ""Test Flow""
         Assert.NotEqual(startX, connection.StartPoint.X);
         Assert.NotEqual(startY, connection.StartPoint.Y);
     }
+
+    [Fact]
+    public void TestStudioNodeEditorViewModel_MultiplePastesCloneUniqueStepData()
+    {
+        var editor = new TestStudioNodeEditorViewModel();
+
+        var originalStep = new TestStudioStepModel
+        {
+            Action = "tapOn",
+            Selector = "#btn1",
+            Value = "val1"
+        };
+        originalStep.Parameters["testParam"] = "paramVal";
+
+        var node = editor.CreateNode("Step1", "tapOn", "#btn1", "val1", 10, 20);
+        node.Step = originalStep;
+
+        editor.SelectNode(node);
+        editor.CopySelectedNodes();
+
+        // Paste 1
+        editor.PasteNodes();
+        // Paste 2
+        editor.PasteNodes();
+
+        Assert.Equal(3, editor.Nodes.Count);
+        var pastedNodes = editor.Nodes.OfType<TestStudioNodeViewModel>().Where(n => n != node).ToList();
+        Assert.Equal(2, pastedNodes.Count);
+
+        var step1 = pastedNodes[0].Step;
+        var step2 = pastedNodes[1].Step;
+
+        Assert.NotNull(step1);
+        Assert.NotNull(step2);
+        Assert.NotSame(step1, step2); // Should be different instances!
+        Assert.Equal("tapOn", step1.Action);
+        Assert.Equal("tapOn", step2.Action);
+        Assert.Equal("paramVal", step1.Parameters["testParam"]);
+        Assert.Equal("paramVal", step2.Parameters["testParam"]);
+    }
+
+    [Fact]
+    public void TestStudioNodeEditorViewModel_GroupNodeViewModelCannotBeConnected()
+    {
+        var editor = new TestStudioNodeEditorViewModel();
+
+        var node1 = editor.CreateNode("Node1", "click", "#btn1", "", 100, 200);
+        var groupNode = new CDP.Editor.Nodes.ViewModels.GroupNodeViewModel { Id = "group1", Name = "Group 1", X = 300, Y = 100, Width = 400, Height = 300 };
+        editor.Nodes.Add(groupNode);
+
+        // Try to connect node1 to groupNode
+        editor.ConnectNodes(node1, groupNode);
+        Assert.Empty(editor.Connections);
+
+        // Try to connect groupNode to node1
+        editor.ConnectNodes(groupNode, node1);
+        Assert.Empty(editor.Connections);
+    }
 }

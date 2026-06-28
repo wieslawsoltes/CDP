@@ -544,6 +544,7 @@ public partial class NodeEditorView : UserControl
             foreach (var node in vm.Nodes)
             {
                 if (node == _connectionSourceNode) continue;
+                if (node is GroupNodeViewModel) continue;
 
                 double pinX, pinY;
                 if (_isReverseDrag)
