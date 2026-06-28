@@ -27,6 +27,7 @@ public partial class MainView : UserControl
         DataContext = vm;
 
         SplitControl.BoxMenuClicked += OnBoxMenuClicked;
+        SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
 
         // Scan targets on load
         Dispatcher.UIThread.Post(() => vm.Connection.RefreshTargetsCommand.Execute(null));
@@ -47,7 +48,6 @@ public partial class MainView : UserControl
 
             UnsubscribeFromTree(vm.LayoutRoot);
             SubscribeToTree(vm.LayoutRoot);
-            PopulateTreeViews(vm.LayoutRoot);
         }
     }
 
@@ -59,7 +59,6 @@ public partial class MainView : UserControl
             {
                 UnsubscribeFromTree(vm.LayoutRoot);
                 SubscribeToTree(vm.LayoutRoot);
-                PopulateTreeViews(vm.LayoutRoot);
             }
         }
     }
@@ -99,15 +98,19 @@ public partial class MainView : UserControl
     private void OnNodePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SplitContainerNode.Child1) ||
-            e.PropertyName == nameof(SplitContainerNode.Child2) ||
-            e.PropertyName == nameof(BoxNode.SelectedViewName))
+            e.PropertyName == nameof(SplitContainerNode.Child2))
         {
             if (DataContext is MainWindowViewModel vm)
             {
-                // Resubscribe to new nodes and populate them
                 UnsubscribeFromTree(vm.LayoutRoot);
                 SubscribeToTree(vm.LayoutRoot);
-                PopulateTreeViews(vm.LayoutRoot);
+            }
+        }
+        else if (e.PropertyName == nameof(BoxNode.SelectedViewName))
+        {
+            if (sender is BoxNode box && DataContext is MainWindowViewModel vm)
+            {
+                ClearViewDuplicates(vm.LayoutRoot, box.SelectedViewName, box);
             }
         }
     }
@@ -141,43 +144,7 @@ public partial class MainView : UserControl
         }
     }
 
-    private void PopulateTreeViews(SplitNode? node)
-    {
-        if (node == null) return;
-        if (node is BoxNode box)
-        {
-            foreach (var tab in box.Tabs)
-            {
-                if (!string.IsNullOrEmpty(tab.SelectedViewName))
-                {
-                    if (DataContext is MainWindowViewModel vm)
-                    {
-                        ClearViewDuplicates(vm.LayoutRoot, tab.SelectedViewName, box);
-                    }
 
-                    var view = GetOrCreateViewInstance(tab.SelectedViewName);
-                    if (tab.Content != view)
-                    {
-                        tab.Content = view;
-                    }
-                }
-            }
-
-            if (box.ActiveTab != null)
-            {
-                var view = GetOrCreateViewInstance(box.ActiveTab.SelectedViewName);
-                if (box.Content != view)
-                {
-                    box.Content = view;
-                }
-            }
-        }
-        else if (node is SplitContainerNode container)
-        {
-            PopulateTreeViews(container.Child1);
-            PopulateTreeViews(container.Child2);
-        }
-    }
 
     private void DetachControl(Control control)
     {
@@ -209,11 +176,14 @@ public partial class MainView : UserControl
         }
     }
 
-    private Control GetOrCreateViewInstance(string viewName)
+    private Control GetOrCreateViewInstance(string viewName, SuperSplitBox? targetBox = null)
     {
         if (_viewsCache.TryGetValue(viewName, out var cached))
         {
-            DetachControl(cached);
+            if (targetBox == null || cached.Parent != targetBox)
+            {
+                DetachControl(cached);
+            }
             return cached;
         }
 

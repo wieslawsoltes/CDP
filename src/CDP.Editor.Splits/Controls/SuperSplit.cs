@@ -302,6 +302,8 @@ public class SuperSplit : ContentControl
 
     public event EventHandler<BoxMenuEventArgs>? BoxMenuClicked;
 
+    public Func<string, SuperSplitBox?, Control>? ViewResolver { get; set; }
+
     private bool _isRebuilding;
     private bool _isDragging;
     private bool _isDragPending;
@@ -603,7 +605,7 @@ public class SuperSplit : ContentControl
                 newBoxControl.Bind(SuperSplitBox.IconKeyProperty, new Binding(nameof(BoxNode.IconKey)));
                 newBoxControl.Bind(SuperSplitBox.IsSelectedProperty, new Binding(nameof(BoxNode.IsSelected)));
                 newBoxControl.Bind(SuperSplitBox.BackgroundTintProperty, new Binding(nameof(BoxNode.BackgroundTint)));
-                newBoxControl.Bind(SuperSplitBox.InnerContentProperty, new Binding(nameof(BoxNode.Content)));
+                newBoxControl.Bind(SuperSplitBox.SelectedViewNameProperty, new Binding(nameof(BoxNode.SelectedViewName)));
 
                 newBoxControl.BoxSelected += (s, e) => { SelectedNode = box; };
                 newBoxControl.HeaderPressed += (s, ev) => { StartDrag(box, ev); };

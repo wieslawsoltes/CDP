@@ -10,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Rendering.Composition;
+using Avalonia.VisualTree;
 using CDP.Editor.Splits.Models;
 
 namespace CDP.Editor.Splits.Controls;
@@ -30,6 +31,15 @@ public class SuperSplitBox : ContentControl
 
     public static readonly StyledProperty<object?> InnerContentProperty =
         AvaloniaProperty.Register<SuperSplitBox, object?>(nameof(InnerContent), null);
+
+    public static readonly StyledProperty<string?> SelectedViewNameProperty =
+        AvaloniaProperty.Register<SuperSplitBox, string?>(nameof(SelectedViewName), null);
+
+    public string? SelectedViewName
+    {
+        get => GetValue(SelectedViewNameProperty);
+        set => SetValue(SelectedViewNameProperty, value);
+    }
 
     public string HeaderTitle
     {
@@ -146,6 +156,7 @@ public class SuperSplitBox : ContentControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        UpdateViewContent();
 
         if (IsEntranceAnimationRequested)
         {
@@ -417,6 +428,44 @@ public class SuperSplitBox : ContentControl
         else if (change.Property == IconKeyProperty || change.Property == HeaderTitleProperty)
         {
             RebuildHeaderTabs();
+        }
+        else if (change.Property == SelectedViewNameProperty)
+        {
+            UpdateViewContent();
+        }
+    }
+
+    private void UpdateViewContent()
+    {
+        var viewName = SelectedViewName;
+        if (string.IsNullOrEmpty(viewName))
+        {
+            InnerContent = null;
+            return;
+        }
+
+        var superSplit = this.FindAncestorOfType<SuperSplit>();
+        if (superSplit?.ViewResolver != null)
+        {
+            var view = superSplit.ViewResolver(viewName, this);
+            if (view != null)
+            {
+                if (view.Parent is SuperSplitBox oldParent && oldParent != this)
+                {
+                    oldParent.InnerContent = null;
+                    oldParent.UpdateLayout();
+                }
+                else if (view.Parent is Panel panel)
+                {
+                    panel.Children.Remove(view);
+                }
+                else if (view.Parent is ContentControl contentControl)
+                {
+                    contentControl.Content = null;
+                }
+
+                InnerContent = view;
+            }
         }
     }
 
