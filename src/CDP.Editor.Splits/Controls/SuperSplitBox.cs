@@ -124,6 +124,7 @@ public class SuperSplitBox : ContentControl
             BorderThickness = new Thickness(1.5),
             CornerRadius = new CornerRadius(10),
             ClipToBounds = true,
+            Margin = new Thickness(2),
             Child = grid,
             Transitions = new Transitions
             {
