@@ -303,6 +303,8 @@ public class SuperSplit : ContentControl
 
     private bool _isRebuilding;
     private bool _isDragging;
+    private bool _isDragPending;
+    private BoxNode? _pendingDragNode;
     private BoxNode? _draggedNode;
     private BoxTabNode? _draggedTab;
     private BoxNode? _draggedTabOriginalBox;
@@ -856,39 +858,10 @@ public class SuperSplit : ContentControl
     {
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
-            _isDragging = true;
+            _isDragPending = true;
+            _pendingDragNode = node;
             _dragStartPoint = e.GetPosition(this);
-
-            var activeTab = node.ActiveTab;
-            if (activeTab != null && node.Tabs.Count > 1)
-            {
-                _draggedTab = activeTab;
-                _draggedTabOriginalBox = node;
-
-                node.Tabs.Remove(activeTab);
-                if (node.Tabs.Count > 0)
-                {
-                    node.ActiveTab = node.Tabs[0];
-                }
-
-                var draggedBox = new BoxNode { BackgroundTint = "#292a2d" };
-                draggedBox.Tabs.Add(activeTab);
-                draggedBox.ActiveTab = activeTab;
-
-                _draggedNode = draggedBox;
-            }
-            else
-            {
-                _draggedTab = activeTab;
-                _draggedTabOriginalBox = node;
-                _draggedNode = node;
-            }
-
             e.Pointer.Capture(this);
-
-            SetupDragPreview(_draggedNode);
-            UpdateDragPreviewPosition(e.GetPosition(this));
-
             e.Handled = true;
         }
     }
@@ -940,9 +913,51 @@ public class SuperSplit : ContentControl
 
     private void HandlePointerMoved(PointerEventArgs e)
     {
+        var pos = e.GetPosition(this);
+
+        if (_isDragPending && _pendingDragNode != null)
+        {
+            var diff = pos - _dragStartPoint;
+            var dist = Math.Sqrt(diff.X * diff.X + diff.Y * diff.Y);
+            if (dist > 6)
+            {
+                _isDragPending = false;
+                _isDragging = true;
+
+                var node = _pendingDragNode;
+                var activeTab = node.ActiveTab;
+                if (activeTab != null && node.Tabs.Count > 1)
+                {
+                    _draggedTab = activeTab;
+                    _draggedTabOriginalBox = node;
+
+                    node.Tabs.Remove(activeTab);
+                    if (node.Tabs.Count > 0)
+                    {
+                        node.ActiveTab = node.Tabs[0];
+                    }
+
+                    var draggedBox = new BoxNode { BackgroundTint = "#292a2d" };
+                    draggedBox.Tabs.Add(activeTab);
+                    draggedBox.ActiveTab = activeTab;
+
+                    _draggedNode = draggedBox;
+                }
+                else
+                {
+                    _draggedTab = activeTab;
+                    _draggedTabOriginalBox = node;
+                    _draggedNode = node;
+                }
+
+                SetupDragPreview(_draggedNode);
+                UpdateDragPreviewPosition(pos);
+            }
+            return;
+        }
+
         if (_isDragging && _draggedNode != null)
         {
-            var pos = e.GetPosition(this);
             UpdateDragPreviewPosition(pos);
 
             var hitBox = FindBoxAtPosition(pos);
@@ -1132,7 +1147,13 @@ public class SuperSplit : ContentControl
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_isDragging)
+        if (_isDragPending)
+        {
+            _isDragPending = false;
+            _pendingDragNode = null;
+            e.Pointer.Capture(null);
+        }
+        else if (_isDragging)
         {
             _isDragging = false;
             e.Pointer.Capture(null);
