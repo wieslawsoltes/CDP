@@ -95,7 +95,8 @@ public class SuperSplitBox : ContentControl
             Height = 32,
             Background = Brush.Parse("#292a2d"),
             BorderBrush = Brush.Parse("#3c4043"),
-            BorderThickness = new Thickness(0, 0, 0, 1)
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            CornerRadius = new CornerRadius(8, 8, 0, 0)
         };
 
         var tabsPanel = new StackPanel
@@ -123,7 +124,7 @@ public class SuperSplitBox : ContentControl
         {
             BorderThickness = new Thickness(1.5),
             CornerRadius = new CornerRadius(10),
-            ClipToBounds = true,
+            ClipToBounds = false,
             Margin = new Thickness(2),
             Child = grid,
             Transitions = new Transitions
