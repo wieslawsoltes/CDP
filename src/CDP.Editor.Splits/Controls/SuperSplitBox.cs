@@ -7,6 +7,7 @@ using Avalonia.Media;
 using System.Numerics;
 using Avalonia.Rendering.Composition;
 using Avalonia.Interactivity;
+using Avalonia.Animation;
 
 namespace CDP.Editor.Splits.Controls;
 
@@ -60,6 +61,8 @@ public class SuperSplitBox : ContentControl
     public event EventHandler? MenuClicked;
     public event EventHandler? BoxSelected;
     public event EventHandler<PointerPressedEventArgs>? HeaderPressed;
+
+    public bool IsEntranceAnimationRequested { get; set; } = false;
 
     private readonly Border _mainBorder;
     private readonly PathIcon _iconPath;
@@ -146,7 +149,20 @@ public class SuperSplitBox : ContentControl
             BorderThickness = new Thickness(1.5),
             CornerRadius = new CornerRadius(10),
             ClipToBounds = true,
-            Child = grid
+            Child = grid,
+            Transitions = new Transitions
+            {
+                new BrushTransition
+                {
+                    Property = Border.BorderBrushProperty,
+                    Duration = TimeSpan.FromMilliseconds(200)
+                },
+                new ThicknessTransition
+                {
+                    Property = Border.BorderThicknessProperty,
+                    Duration = TimeSpan.FromMilliseconds(200)
+                }
+            }
         };
 
         UpdateBorderHighlight();
@@ -167,7 +183,11 @@ public class SuperSplitBox : ContentControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        AnimateEntranceComposition();
+        if (IsEntranceAnimationRequested)
+        {
+            IsEntranceAnimationRequested = false;
+            AnimateEntranceComposition();
+        }
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
@@ -203,6 +223,23 @@ public class SuperSplitBox : ContentControl
         visual.StartAnimation("Opacity", opacityAnimation);
     }
 
+    private void AnimateFocusPulse()
+    {
+        var visual = ElementComposition.GetElementVisual(this);
+        if (visual == null) return;
+
+        var compositor = visual.Compositor;
+
+        var pulseAnimation = compositor.CreateVector3KeyFrameAnimation();
+        pulseAnimation.Target = "Scale";
+        pulseAnimation.InsertKeyFrame(0.0f, new Vector3(1.0f, 1.0f, 1.0f));
+        pulseAnimation.InsertKeyFrame(0.5f, new Vector3(1.01f, 1.01f, 1.0f)); // subtle expansion
+        pulseAnimation.InsertKeyFrame(1.0f, new Vector3(1.0f, 1.0f, 1.0f));
+        pulseAnimation.Duration = TimeSpan.FromMilliseconds(200);
+
+        visual.StartAnimation("Scale", pulseAnimation);
+    }
+
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
@@ -216,6 +253,10 @@ public class SuperSplitBox : ContentControl
         if (change.Property == IsSelectedProperty)
         {
             UpdateBorderHighlight();
+            if (IsSelected)
+            {
+                AnimateFocusPulse();
+            }
         }
         else if (change.Property == BackgroundTintProperty)
         {
@@ -236,6 +277,7 @@ public class SuperSplitBox : ContentControl
         if (_mainBorder != null)
         {
             _mainBorder.BorderBrush = IsSelected ? Brush.Parse("#1a73e8") : Brush.Parse("#3c4043");
+            _mainBorder.BorderThickness = IsSelected ? new Thickness(2.0) : new Thickness(1.5);
         }
     }
 

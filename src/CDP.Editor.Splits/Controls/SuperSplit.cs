@@ -473,7 +473,8 @@ public class SuperSplit : ContentControl
                     IsSelected = box.IsSelected,
                     BackgroundTint = box.BackgroundTint,
                     InnerContent = box.Content,
-                    DataContext = box
+                    DataContext = box,
+                    IsEntranceAnimationRequested = true
                 };
 
                 newBoxControl.BoxSelected += (s, e) => { SelectedNode = box; };
