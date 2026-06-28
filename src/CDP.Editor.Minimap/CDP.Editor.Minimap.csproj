@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.Editor.Minimap</PackageId>
-    <Title>CDP.Editor.Minimap</Title>
+    <PackageId>Chrome.DevTools.Editor.Minimap</PackageId>
+    <Title>Chrome.DevTools.Editor.Minimap</Title>
     <Description>Standalone Minimap and Inline Editor Extensions for AvaloniaEdit.</Description>
     <PackageTags>avalonia;editor;minimap;avaloniaedit</PackageTags>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
