@@ -195,4 +195,19 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
         CompiledSteps = CompileSteps();
         SyncToTestStudioAction?.Invoke();
     }
+
+    private bool _showAllScenarios;
+    public bool ShowAllScenarios
+    {
+        get => _showAllScenarios;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _showAllScenarios, value))
+            {
+                OnPropertyChanged(nameof(IsSingleScenarioMode));
+            }
+        }
+    }
+
+    public bool IsSingleScenarioMode => !ShowAllScenarios;
 }

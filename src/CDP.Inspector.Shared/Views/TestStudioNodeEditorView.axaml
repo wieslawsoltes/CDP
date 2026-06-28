@@ -57,31 +57,38 @@
         <nodes:NodeEditorView Name="NodeEditor" DataContext="{Binding}">
             <nodes:NodeEditorView.HeaderContent>
                 <StackPanel Orientation="Horizontal" Spacing="4">
-                    <Button Command="{Binding AddNodeCommand}" ToolTip.Tip="Add New Step Node" Padding="6,3" Height="26">
+                    <Button Command="{Binding AddNodeCommand}" ToolTip.Tip="Add New Step Node" Padding="6,3" Height="26" IsEnabled="{Binding IsSingleScenarioMode}">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <PathIcon Data="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V11.25H20C20.4142 11.25 20.75 11.5858 20.75 12C20.75 12.4142 20.4142 12.75 20 12.75H12.75V20C12.75 20.4142 12.4142 20.75 12 20.75C11.5858 20.75 11.25 20.4142 11.25 20V12.75H4C3.58579 12.75 3.25 12.4142 3.25 12C3.25 11.5858 3.58579 11.25 4 11.25H11.25V4C11.25 3.58579 11.5858 3.25 12 3.25" Width="10" Height="10" Foreground="#4caf50"/>
                             <TextBlock Text="Add Node" FontSize="10" VerticalAlignment="Center" Foreground="#e8eaed"/>
                         </StackPanel>
                     </Button>
-                    <Button Command="{Binding DeleteSelectedCommand}" ToolTip.Tip="Delete Selected Node" Padding="6,3" Height="26">
+                    <Button Command="{Binding DeleteSelectedCommand}" ToolTip.Tip="Delete Selected Node" Padding="6,3" Height="26" IsEnabled="{Binding IsSingleScenarioMode}">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <PathIcon Data="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2ZM12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 16.6944 7.30558 20.5 12 20.5C16.6944 20.5 20.5 16.6944 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5ZM15.4462 8.39705L15.5303 8.46967C15.7966 8.73594 15.8208 9.1526 15.6029 9.44621L15.5303 9.53033L13.061 12L15.5303 14.4697C15.7966 14.7359 15.8208 15.1526 15.6029 15.4462L15.5303 15.5303C15.2641 15.7966 14.8474 15.8208 14.5538 15.6029L14.4697 15.5303L12 13.061L9.53033 15.5303C9.26406 15.7966 8.8474 15.8208 8.55379 15.6029L8.46967 15.5303C8.2034 15.2641 8.1792 14.8474 8.39705 14.5538L8.46967 14.4697L10.939 12L8.46967 9.53033C8.2034 9.26406 8.1792 8.8474 8.39705 8.55379L8.46967 8.46967C8.73594 8.2034 9.1526 8.1792 9.44621 8.39705L9.53033 8.46967L12 10.939L14.4697 8.46967C14.7359 8.2034 15.1526 8.1792 15.4462 8.39705" Width="10" Height="10" Foreground="#ff5252"/>
                             <TextBlock Text="Delete" FontSize="10" VerticalAlignment="Center" Foreground="#e8eaed"/>
                         </StackPanel>
                     </Button>
                     <Separator Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center"/>
-                    <Button Command="{Binding SyncToTestStudioCommand}" ToolTip.Tip="Sync To Test Studio" Padding="6,3" Height="26">
+                    <Button Command="{Binding SyncToTestStudioCommand}" ToolTip.Tip="Sync To Test Studio" Padding="6,3" Height="26" IsEnabled="{Binding IsSingleScenarioMode}">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <PathIcon Data="M4.20889 10.7327C3.9232 11.0326 3.93475 11.5074 4.23467 11.7931C4.5346 12.0788 5.00933 12.0672 5.29502 11.7673L11.2495 5.516V20.25C11.2495 20.6642 11.5853 21 11.9995 21C12.4137 21 12.7495 20.6642 12.7495 20.25V5.51565L18.7043 11.7673C18.99 12.0672 19.4648 12.0788 19.7647 11.7931C20.0646 11.5074 20.0762 11.0326 19.7905 10.7327L12.7238 3.31379C12.5627 3.14474 12.3573 3.04477 12.1438 3.01386C12.0971 3.00477 12.0489 3 11.9995 3C11.9498 3 11.9012 3.00483 11.8543 3.01406C11.6412 3.04518 11.4363 3.14509 11.2756 3.31379L4.20889 10.7327" Width="12" Height="12" Foreground="#e8eaed"/>
                             <TextBlock Text="To Studio" FontSize="10" VerticalAlignment="Center" Foreground="#e8eaed"/>
                         </StackPanel>
                     </Button>
-                    <Button Command="{Binding SyncFromTestStudioCommand}" ToolTip.Tip="Sync From Test Studio" Padding="6,3" Height="26">
+                    <Button Command="{Binding SyncFromTestStudioCommand}" ToolTip.Tip="Sync From Test Studio" Padding="6,3" Height="26" IsEnabled="{Binding IsSingleScenarioMode}">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <PathIcon Data="M19.7905 13.2673C20.0762 12.9674 20.0646 12.4926 19.7647 12.2069C19.4648 11.9212 18.99 11.9328 18.7043 12.2327L12.7498 18.484V3.75C12.7498 3.33579 12.4141 3 11.9998 3C11.5856 3 11.2498 3.33579 11.2498 3.75V18.4844L5.29502 12.2327C5.00933 11.9328 4.5346 11.9212 4.23467 12.2069C3.93475 12.4926 3.9232 12.9674 4.20889 13.2673L11.2756 20.6862C11.4366 20.8553 11.642 20.9552 11.8556 20.9861C11.9023 20.9952 11.9505 21 11.9998 21C12.0495 21 12.0981 20.9952 12.1451 20.9859C12.3582 20.9548 12.5631 20.8549 12.7238 20.6862L19.7905 13.2673" Width="12" Height="12" Foreground="#e8eaed"/>
                             <TextBlock Text="From Studio" FontSize="10" VerticalAlignment="Center" Foreground="#e8eaed"/>
                         </StackPanel>
                     </Button>
+                    <Separator Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center"/>
+                    <ToggleButton IsChecked="{Binding ShowAllScenarios, Mode=TwoWay}" ToolTip.Tip="Show all scenarios in the workspace" Padding="6,3" Height="26">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <PathIcon Data="M3 5.25C3 4.00736 4.00736 3 5.25 3H18.75C19.9926 3 21 4.00736 21 5.25V18.75C21 19.9926 19.9926 21 18.75 21H5.25C4.00736 21 3 19.9926 3 18.75V5.25ZM5.25 4.5C4.83579 4.5 4.5 4.83579 4.5 5.25V18.75C4.5 19.1642 4.83579 19.5 5.25 19.5H18.75C19.1642 19.5 19.5 19.1642 19.5 18.75V5.25C19.5 4.83579 19.1642 4.5 18.75 4.5H5.25ZM9 7.5H15V9H9V7.5ZM9 11.25H15V12.75H9V11.25ZM9 15H15V16.5H9V15Z" Width="10" Height="10" Foreground="#e8eaed"/>
+                            <TextBlock Text="All Scenarios" FontSize="10" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                        </StackPanel>
+                    </ToggleButton>
                 </StackPanel>
             </nodes:NodeEditorView.HeaderContent>
         </nodes:NodeEditorView>

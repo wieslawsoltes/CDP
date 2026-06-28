@@ -753,6 +753,30 @@ public class TestStudioViewModel : ViewModelBase
             }
         };
 
+        NodeEditor.NodeDoubleClickedAction = node =>
+        {
+            if (NodeEditor.ShowAllScenarios && !string.IsNullOrEmpty(node.ScenarioPath))
+            {
+                LoadFlowFile(node.ScenarioPath);
+                NodeEditor.ShowAllScenarios = false;
+            }
+        };
+
+        NodeEditor.PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(TestStudioNodeEditorViewModel.ShowAllScenarios))
+            {
+                if (NodeEditor.ShowAllScenarios)
+                {
+                    LoadAllProjectScenariosIntoNodeEditor();
+                }
+                else
+                {
+                    SyncFromTestStudio();
+                }
+            }
+        };
+
         SyncFromTestStudio();
 
         _cdpService.EventReceived += CdpService_EventReceived;
@@ -945,6 +969,93 @@ public class TestStudioViewModel : ViewModelBase
     public void SyncFromTestStudio()
     {
         _nodeEditorService.SyncFromTestStudio(NodeEditor, Steps);
+    }
+
+    public void LoadAllProjectScenariosIntoNodeEditor()
+    {
+        if (string.IsNullOrEmpty(WorkspaceRootPath) || !Directory.Exists(WorkspaceRootPath))
+            return;
+
+        NodeEditor.Nodes.Clear();
+        NodeEditor.Connections.Clear();
+
+        var yamlFiles = Directory.GetFiles(WorkspaceRootPath, "*.yaml", SearchOption.AllDirectories);
+        double currentGroupY = 20.0;
+
+        foreach (var file in yamlFiles)
+        {
+            try
+            {
+                var content = File.ReadAllText(file);
+                var steps = TestStudioYamlParser.Parse(content, out _, out _);
+                if (steps == null || steps.Count == 0) continue;
+
+                var fileName = Path.GetRelativePath(WorkspaceRootPath, file);
+                
+                // Create child nodes
+                var childNodes = new List<TestStudioNodeViewModel>();
+                for (int i = 0; i < steps.Count; i++)
+                {
+                    var step = steps[i];
+                    var stepModel = TestStudioStepModel.FromCoreStep(step);
+                    var node = new TestStudioNodeViewModel
+                    {
+                        Name = $"Step {i + 1}",
+                        Action = step.Action,
+                        Selector = step.Selector ?? "",
+                        Value = step.Value ?? "",
+                        X = 200.0 * i + 30.0,
+                        Y = currentGroupY + 50.0,
+                        Step = stepModel,
+                        ScenarioPath = file
+                    };
+                    childNodes.Add(node);
+                }
+
+                // Add connections between step nodes of this flow
+                var prevNode = childNodes[0];
+                for (int i = 1; i < childNodes.Count; i++)
+                {
+                    NodeEditor.ConnectNodes(prevNode, childNodes[i]);
+                    prevNode = childNodes[i];
+                }
+
+                // Calculate group node bounds
+                double minX = childNodes.Min(n => n.X);
+                double minY = childNodes.Min(n => n.Y);
+                double maxX = childNodes.Max(n => n.X + n.Width);
+                double maxY = childNodes.Max(n => n.Y + n.Height);
+
+                var groupNode = new CDP.Editor.Nodes.ViewModels.GroupNodeViewModel
+                {
+                    Name = fileName,
+                    X = minX - 20,
+                    Y = currentGroupY,
+                    Width = (maxX - minX) + 40,
+                    Height = (maxY - minY) + 60,
+                    ScenarioPath = file
+                };
+
+                foreach (var node in childNodes)
+                {
+                    groupNode.ChildNodeIds.Add(node.Id);
+                }
+
+                // Insert group first to render in background
+                NodeEditor.Nodes.Add(groupNode);
+                foreach (var node in childNodes)
+                {
+                    NodeEditor.Nodes.Add(node);
+                }
+
+                // Offset Y for the next group
+                currentGroupY += groupNode.Height + 40.0;
+            }
+            catch (Exception ex)
+            {
+                Log($"Error loading scenario '{file}': {ex.Message}");
+            }
+        }
     }
 
     public async Task PlayAsync()
