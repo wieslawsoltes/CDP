@@ -48,16 +48,48 @@
                                      BorderThickness="1"
                                      BorderBrush="#3c4043"/>
                 </Grid>
-                <!-- Custom Parameters Expander -->
-                <Expander Header="Advanced Parameters"
-                          IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
-                          IsVisible="{Binding ShowCustomParams}"
-                          FontSize="8"
-                          Padding="0"
-                          Margin="0,2,0,0"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          HorizontalAlignment="Stretch">
+                <!-- Sleek Collapsible Advanced Parameters Toggle -->
+                <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                              IsVisible="{Binding ShowCustomParams}"
+                              HorizontalAlignment="Center"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Padding="2"
+                              Margin="0,2,0,0">
+                    <ToggleButton.Styles>
+                        <Style Selector="ToggleButton">
+                            <Setter Property="Foreground" Value="#8ab4f8"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <ControlTemplate>
+                                    <ContentPresenter Content="{TemplateBinding Content}" Background="Transparent" BorderThickness="0"/>
+                                </ControlTemplate>
+                            </Setter>
+                        </Style>
+                        <Style Selector="ToggleButton:pointerover">
+                            <Setter Property="Foreground" Value="#aecbfa"/>
+                        </Style>
+                    </ToggleButton.Styles>
+                    <Panel>
+                        <!-- Collapsed View -->
+                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding !IsExpanded}">
+                            <PathIcon Width="6" Height="6" Data="M12 15L4 7H20L12 15Z" Foreground="{Binding $parent[ToggleButton].Foreground}"/>
+                            <TextBlock Text="Show Advanced" FontSize="8" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <!-- Expanded View -->
+                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsExpanded}">
+                            <PathIcon Width="6" Height="6" Data="M12 9L20 17H4L12 9Z" Foreground="{Binding $parent[ToggleButton].Foreground}"/>
+                            <TextBlock Text="Hide Advanced" FontSize="8" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Panel>
+                </ToggleButton>
+
+                <!-- Sleek Parameters Container -->
+                <Border IsVisible="{Binding IsExpanded}"
+                        BorderBrush="#3c4043"
+                        BorderThickness="0,1,0,0"
+                        Margin="0,2,0,0"
+                        Padding="0,4,0,0">
                     <ScrollViewer MaxHeight="80" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding CustomParameters}">
                             <ItemsControl.ItemTemplate>
@@ -78,7 +110,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                </Expander>
+                </Border>
             </StackPanel>
         </DataTemplate>
     </UserControl.DataTemplates>
