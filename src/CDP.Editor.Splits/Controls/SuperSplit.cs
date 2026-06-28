@@ -126,6 +126,25 @@ public class FlatSplitter : Control
 
 public class FlatSplitPanel : Panel
 {
+    public class SplitAnimationInfo
+    {
+        public BoxNode NewBox { get; set; } = null!;
+        public SplitNode SiblingBox { get; set; } = null!;
+        public SplitContainerNode ParentContainer { get; set; } = null!;
+        public double Progress { get; set; }
+    }
+
+    public class SwapAnimationInfo
+    {
+        public BoxNode Node1 { get; set; } = null!;
+        public BoxNode Node2 { get; set; } = null!;
+        public Rect StartRect1 { get; set; }
+        public Rect StartRect2 { get; set; }
+        public Rect EndRect1 { get; set; }
+        public Rect EndRect2 { get; set; }
+        public double Progress { get; set; }
+    }
+
     private readonly SuperSplit _parentSplit;
     private readonly Dictionary<SplitNode, Rect> _nodeBounds = new();
     private readonly Dictionary<SplitContainerNode, Rect> _containerBounds = new();
@@ -133,6 +152,9 @@ public class FlatSplitPanel : Panel
     public FlatSplitter? ActiveSplitter { get; private set; }
     private Point _splitterDragStartPoint;
     private double _splitterDragStartRatio;
+
+    public SplitAnimationInfo? ActiveSplitAnimation { get; set; }
+    public SwapAnimationInfo? ActiveSwapAnimation { get; set; }
 
     public FlatSplitPanel(SuperSplit parentSplit)
     {
@@ -223,21 +245,89 @@ public class FlatSplitPanel : Panel
     {
         _nodeBounds.Clear();
         _containerBounds.Clear();
+
+        // 1. Calculate final target rects (needed for new box final size)
+        var finalBoxes = new Dictionary<BoxNode, Rect>();
+        var finalSplitters = new Dictionary<SplitContainerNode, Rect>();
+        var finalContainers = new Dictionary<SplitContainerNode, Rect>();
+        _parentSplit.ComputePixelBounds(_parentSplit.Root, new Rect(finalSize), 8.0, finalBoxes, finalSplitters, finalContainers);
+
+        // 2. Temporarily set animated ratio
+        double? originalRatio = null;
+        if (ActiveSplitAnimation != null)
+        {
+            var anim = ActiveSplitAnimation;
+            originalRatio = anim.ParentContainer.SplitterRatio;
+            bool isNewFirstChild = anim.ParentContainer.Child1 == anim.NewBox;
+            double p = anim.Progress;
+            if (isNewFirstChild)
+            {
+                anim.ParentContainer.SplitterRatio = p * originalRatio.Value;
+            }
+            else
+            {
+                anim.ParentContainer.SplitterRatio = 1.0 - p * (1.0 - originalRatio.Value);
+            }
+        }
+
+        // 3. Calculate animated rects for actual arrange
         var boxes = new Dictionary<BoxNode, Rect>();
         var splitters = new Dictionary<SplitContainerNode, Rect>();
         var containers = new Dictionary<SplitContainerNode, Rect>();
-
         _parentSplit.ComputePixelBounds(_parentSplit.Root, new Rect(finalSize), 8.0, boxes, splitters, containers);
 
+        // Restore original ratio
+        if (ActiveSplitAnimation != null && originalRatio.HasValue)
+        {
+            ActiveSplitAnimation.ParentContainer.SplitterRatio = originalRatio.Value;
+        }
+
+        // Populate NodeBounds with animated positions for hit testing, etc.
         foreach (var kv in boxes) _nodeBounds[kv.Key] = kv.Value;
         foreach (var kv in splitters) _nodeBounds[kv.Key] = kv.Value;
         foreach (var kv in containers) _containerBounds[kv.Key] = kv.Value;
+
+        // Interpolate for swap animation if active
+        Rect animatedSwapRect1 = default;
+        Rect animatedSwapRect2 = default;
+        if (ActiveSwapAnimation != null)
+        {
+            var anim = ActiveSwapAnimation;
+            double p = anim.Progress;
+            animatedSwapRect1 = new Rect(
+                anim.StartRect1.X + p * (anim.EndRect1.X - anim.StartRect1.X),
+                anim.StartRect1.Y + p * (anim.EndRect1.Y - anim.StartRect1.Y),
+                anim.StartRect1.Width + p * (anim.EndRect1.Width - anim.StartRect1.Width),
+                anim.StartRect1.Height + p * (anim.EndRect1.Height - anim.StartRect1.Height)
+            );
+            animatedSwapRect2 = new Rect(
+                anim.StartRect2.X + p * (anim.EndRect2.X - anim.StartRect2.X),
+                anim.StartRect2.Y + p * (anim.EndRect2.Y - anim.StartRect2.Y),
+                anim.StartRect2.Width + p * (anim.EndRect2.Width - anim.StartRect2.Width),
+                anim.StartRect2.Height + p * (anim.EndRect2.Height - anim.StartRect2.Height)
+            );
+        }
 
         foreach (var child in Children)
         {
             if (child is SuperSplitBox boxControl && boxControl.DataContext is BoxNode boxNode)
             {
-                if (boxes.TryGetValue(boxNode, out var rect))
+                if (ActiveSplitAnimation != null && boxNode == ActiveSplitAnimation.NewBox)
+                {
+                    if (finalBoxes.TryGetValue(boxNode, out var rect))
+                    {
+                        boxControl.Arrange(rect);
+                    }
+                }
+                else if (ActiveSwapAnimation != null && boxNode == ActiveSwapAnimation.Node1)
+                {
+                    boxControl.Arrange(animatedSwapRect1);
+                }
+                else if (ActiveSwapAnimation != null && boxNode == ActiveSwapAnimation.Node2)
+                {
+                    boxControl.Arrange(animatedSwapRect2);
+                }
+                else if (boxes.TryGetValue(boxNode, out var rect))
                 {
                     boxControl.Arrange(rect);
                 }
@@ -531,6 +621,17 @@ public class SuperSplit : ContentControl
         }
     }
 
+    private void CollectBoxes(SplitNode? node, List<BoxNode> boxes)
+    {
+        if (node == null) return;
+        if (node is BoxNode box) boxes.Add(box);
+        else if (node is SplitContainerNode container)
+        {
+            CollectBoxes(container.Child1, boxes);
+            CollectBoxes(container.Child2, boxes);
+        }
+    }
+
     private void TriggerEntranceAnimation(SuperSplitBox boxControl, BoxNode boxNode)
     {
         var parent = boxNode.Parent as SplitContainerNode;
@@ -540,20 +641,36 @@ public class SuperSplit : ContentControl
         var panel = boxControl.Parent as FlatSplitPanel;
         if (panel == null) return;
 
-        SuperSplitBox? siblingControl = null;
-        foreach (var child in panel.Children)
+        panel.UpdateLayout();
+
+        if (!panel.NodeBounds.TryGetValue(boxNode, out var finalNewRect) ||
+            !panel.NodeBounds.TryGetValue(siblingNode, out var finalSibRect))
         {
-            if (child is SuperSplitBox b && b.DataContext == siblingNode)
-            {
-                siblingControl = b;
-                break;
-            }
+            return;
         }
 
-        if (siblingControl == null) return;
+        var siblingBoxes = new List<BoxNode>();
+        CollectBoxes(siblingNode, siblingBoxes);
 
-        siblingControl.ZIndex = 10;
+        var siblingControls = new List<SuperSplitBox>();
+        foreach (var child in panel.Children)
+        {
+            if (child is SuperSplitBox b && b.DataContext is BoxNode box && siblingBoxes.Contains(box))
+            {
+                siblingControls.Add(b);
+                b.ZIndex = 10;
+            }
+        }
         boxControl.ZIndex = 5;
+
+        var anim = new FlatSplitPanel.SplitAnimationInfo
+        {
+            NewBox = boxNode,
+            SiblingBox = siblingNode,
+            ParentContainer = parent,
+            Progress = 0.0
+        };
+        panel.ActiveSplitAnimation = anim;
 
         bool isHorizontal = parent.Orientation == Orientation.Horizontal;
         bool isNewFirstChild = parent.Child1 == boxNode;
@@ -574,55 +691,53 @@ public class SuperSplit : ContentControl
             {
                 t = 1.0;
                 timer.Stop();
-                siblingControl.ZIndex = 0;
+                panel.ActiveSplitAnimation = null;
+                foreach (var c in siblingControls)
+                {
+                    c.ZIndex = 0;
+                }
                 boxControl.ZIndex = 0;
                 boxControl.RenderTransform = null;
                 boxControl.Clip = null;
+                panel.InvalidateArrange();
                 return;
             }
 
             double ease = 1.0 - Math.Pow(1.0 - t, 3.0); // cubic out ease
+            anim.Progress = ease;
+            panel.InvalidateArrange();
 
-            var targetBounds = boxControl.Bounds;
-            var siblingBounds = siblingControl.Bounds;
-
-            double w = targetBounds.Width;
-            double h = targetBounds.Height;
-
-            if (w <= 0 || h <= 0) return;
+            double w = finalNewRect.Width;
+            double h = finalNewRect.Height;
 
             if (isHorizontal)
             {
                 if (isNewFirstChild)
                 {
-                    double startOffset = w;
-                    double currentOffset = startOffset * (1.0 - ease);
+                    double currentOffset = -w * (1.0 - ease);
                     boxControl.RenderTransform = new TranslateTransform(currentOffset, 0);
-                    boxControl.Clip = new RectangleGeometry(new Rect(0, 0, Math.Max(0, w - currentOffset), h));
+                    boxControl.Clip = new RectangleGeometry(new Rect(w * (1.0 - ease), 0, w * ease, h));
                 }
                 else
                 {
-                    double startOffset = -siblingBounds.Width;
-                    double currentOffset = startOffset * (1.0 - ease);
+                    double currentOffset = w * (1.0 - ease);
                     boxControl.RenderTransform = new TranslateTransform(currentOffset, 0);
-                    boxControl.Clip = new RectangleGeometry(new Rect(Math.Max(0, -currentOffset), 0, Math.Max(0, w + currentOffset), h));
+                    boxControl.Clip = new RectangleGeometry(new Rect(0, 0, w * ease, h));
                 }
             }
             else
             {
                 if (isNewFirstChild)
                 {
-                    double startOffset = h;
-                    double currentOffset = startOffset * (1.0 - ease);
+                    double currentOffset = -h * (1.0 - ease);
                     boxControl.RenderTransform = new TranslateTransform(0, currentOffset);
-                    boxControl.Clip = new RectangleGeometry(new Rect(0, 0, w, Math.Max(0, h - currentOffset)));
+                    boxControl.Clip = new RectangleGeometry(new Rect(0, h * (1.0 - ease), w, h * ease));
                 }
                 else
                 {
-                    double startOffset = -siblingBounds.Height;
-                    double currentOffset = startOffset * (1.0 - ease);
+                    double currentOffset = h * (1.0 - ease);
                     boxControl.RenderTransform = new TranslateTransform(0, currentOffset);
-                    boxControl.Clip = new RectangleGeometry(new Rect(0, Math.Max(0, -currentOffset), w, Math.Max(0, h + currentOffset)));
+                    boxControl.Clip = new RectangleGeometry(new Rect(0, 0, w, h * ease));
                 }
             }
         };
@@ -887,20 +1002,69 @@ public class SuperSplit : ContentControl
 
         if (loc == RelativeDropLocation.Center)
         {
-            var tempView = source.SelectedViewName;
-            var tempTitle = source.Title;
-            var tempIcon = source.IconKey;
-            var tempContent = source.Content;
+            var panel = _flatPanel;
+            if (panel != null)
+            {
+                panel.UpdateLayout();
+                if (panel.NodeBounds.TryGetValue(source, out var startRect1) &&
+                    panel.NodeBounds.TryGetValue(target, out var startRect2))
+                {
+                    var tempView = source.SelectedViewName;
+                    var tempTitle = source.Title;
+                    var tempIcon = source.IconKey;
+                    var tempContent = source.Content;
+
+                    source.SelectedViewName = target.SelectedViewName;
+                    source.Title = target.Title;
+                    source.IconKey = target.IconKey;
+                    source.Content = target.Content;
+
+                    target.SelectedViewName = tempView;
+                    target.Title = tempTitle;
+                    target.IconKey = tempIcon;
+                    target.Content = tempContent;
+
+                    SelectedNode = target;
+                    Rebuild();
+
+                    panel.UpdateLayout();
+
+                    SuperSplitBox? boxControl1 = null;
+                    SuperSplitBox? boxControl2 = null;
+                    foreach (var child in panel.Children)
+                    {
+                        if (child is SuperSplitBox box)
+                        {
+                            if (box.DataContext == source) boxControl1 = box;
+                            else if (box.DataContext == target) boxControl2 = box;
+                        }
+                    }
+
+                    if (boxControl1 != null && boxControl2 != null &&
+                        panel.NodeBounds.TryGetValue(source, out var endRect1) &&
+                        panel.NodeBounds.TryGetValue(target, out var endRect2))
+                    {
+                        TriggerSwapAnimation(panel, boxControl1, boxControl2, source, target, startRect1, startRect2, endRect1, endRect2);
+                    }
+                    return;
+                }
+            }
+
+            // Fallback if bounds are not resolved
+            var fallbackView = source.SelectedViewName;
+            var fallbackTitle = source.Title;
+            var fallbackIcon = source.IconKey;
+            var fallbackContent = source.Content;
 
             source.SelectedViewName = target.SelectedViewName;
             source.Title = target.Title;
             source.IconKey = target.IconKey;
             source.Content = target.Content;
 
-            target.SelectedViewName = tempView;
-            target.Title = tempTitle;
-            target.IconKey = tempIcon;
-            target.Content = tempContent;
+            target.SelectedViewName = fallbackView;
+            target.Title = fallbackTitle;
+            target.IconKey = fallbackIcon;
+            target.Content = fallbackContent;
 
             SelectedNode = target;
             Rebuild();
@@ -972,5 +1136,58 @@ public class SuperSplit : ContentControl
         SelectedNode = source;
 
         Rebuild();
+    }
+
+    private void TriggerSwapAnimation(FlatSplitPanel panel, SuperSplitBox box1, SuperSplitBox box2,
+        BoxNode node1, BoxNode node2, Rect startRect1, Rect startRect2, Rect endRect1, Rect endRect2)
+    {
+        box1.ZIndex = 10;
+        box2.ZIndex = 10;
+        box1.Opacity = 0.7;
+        box2.Opacity = 0.7;
+
+        var anim = new FlatSplitPanel.SwapAnimationInfo
+        {
+            Node1 = node1,
+            Node2 = node2,
+            StartRect1 = startRect1,
+            StartRect2 = startRect2,
+            EndRect1 = endRect1,
+            EndRect2 = endRect2,
+            Progress = 0.0
+        };
+        panel.ActiveSwapAnimation = anim;
+
+        var startTime = DateTime.UtcNow;
+        var duration = TimeSpan.FromMilliseconds(200);
+
+        var timer = new Avalonia.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(10)
+        };
+
+        timer.Tick += (s, e) =>
+        {
+            var elapsed = DateTime.UtcNow - startTime;
+            double t = elapsed.TotalMilliseconds / duration.TotalMilliseconds;
+            if (t >= 1.0)
+            {
+                t = 1.0;
+                timer.Stop();
+                panel.ActiveSwapAnimation = null;
+                box1.ZIndex = 0;
+                box2.ZIndex = 0;
+                box1.Opacity = 1.0;
+                box2.Opacity = 1.0;
+                panel.InvalidateArrange();
+                return;
+            }
+
+            double ease = 1.0 - Math.Pow(1.0 - t, 3.0); // cubic out ease
+            anim.Progress = ease;
+            panel.InvalidateArrange();
+        };
+
+        timer.Start();
     }
 }
