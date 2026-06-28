@@ -193,4 +193,46 @@ public class ViewsLayoutTests
             Assert.Equal(nodeModel.Title, boxControl.HeaderTitle);
         }
     }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Center_Swap_Drop()
+    {
+        var vm = new MainWindowViewModel();
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm.LayoutRoot,
+            SelectedNode = vm.SelectedPane
+        };
+
+        superSplit.Rebuild();
+
+        var boxNodes = new System.Collections.Generic.List<CDP.Editor.Splits.Models.BoxNode>();
+        void Collect(CDP.Editor.Splits.Models.SplitNode? node)
+        {
+            if (node is CDP.Editor.Splits.Models.BoxNode box) boxNodes.Add(box);
+            else if (node is CDP.Editor.Splits.Models.SplitContainerNode container)
+            {
+                Collect(container.Child1);
+                Collect(container.Child2);
+            }
+        }
+        Collect(vm.LayoutRoot);
+
+        Assert.True(boxNodes.Count >= 2);
+        var source = boxNodes[0];
+        var target = boxNodes[1];
+
+        var oldSourceView = source.SelectedViewName;
+        var oldTargetView = target.SelectedViewName;
+
+        // Perform the Center drop operation by invoking MoveNode via reflection (Center is index 5 in RelativeDropLocation)
+        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        method.Invoke(superSplit, new object[] { source, target, 5 });
+
+        // Verify swapped values
+        Assert.Equal(oldSourceView, target.SelectedViewName);
+        Assert.Equal(oldTargetView, source.SelectedViewName);
+    }
 }

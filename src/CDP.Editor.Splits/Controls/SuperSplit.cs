@@ -263,7 +263,8 @@ public class SuperSplit : ContentControl
         Left,
         Right,
         Top,
-        Bottom
+        Bottom,
+        Center
     }
 
     public static readonly StyledProperty<SplitNode?> RootProperty =
@@ -757,7 +758,11 @@ public class SuperSplit : ContentControl
                     double normX = x / w;
                     double normY = y / h;
 
-                    if (normX < normY)
+                    if (normX >= 0.25 && normX <= 0.75 && normY >= 0.25 && normY <= 0.75)
+                    {
+                        _currentDropLocation = RelativeDropLocation.Center;
+                    }
+                    else if (normX < normY)
                     {
                         if (normX < 1.0 - normY)
                             _currentDropLocation = RelativeDropLocation.Left;
@@ -822,6 +827,9 @@ public class SuperSplit : ContentControl
 
         switch (loc)
         {
+            case RelativeDropLocation.Center:
+                // Highlight the entire bounds for swapping
+                break;
             case RelativeDropLocation.Left:
                 overlayW = w / 2;
                 break;
@@ -872,6 +880,28 @@ public class SuperSplit : ContentControl
     private void MoveNode(BoxNode source, BoxNode target, RelativeDropLocation loc)
     {
         if (source == target) return;
+
+        if (loc == RelativeDropLocation.Center)
+        {
+            var tempView = source.SelectedViewName;
+            var tempTitle = source.Title;
+            var tempIcon = source.IconKey;
+            var tempContent = source.Content;
+
+            source.SelectedViewName = target.SelectedViewName;
+            source.Title = target.Title;
+            source.IconKey = target.IconKey;
+            source.Content = target.Content;
+
+            target.SelectedViewName = tempView;
+            target.Title = tempTitle;
+            target.IconKey = tempIcon;
+            target.Content = tempContent;
+
+            SelectedNode = target;
+            Rebuild();
+            return;
+        }
 
         if (source.Parent is SplitContainerNode sourceParent)
         {
