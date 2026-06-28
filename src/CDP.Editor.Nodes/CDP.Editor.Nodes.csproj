@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.Editor.Nodes</PackageId>
-    <Title>CDP.Editor.Nodes</Title>
+    <PackageId>Chrome.DevTools.Editor.Nodes</PackageId>
+    <Title>Chrome.DevTools.Editor.Nodes</Title>
     <Description>Standalone, generic graph node editor control for Avalonia UI.</Description>
     <PackageTags>avalonia;editor;nodes;graph;canvas</PackageTags>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
