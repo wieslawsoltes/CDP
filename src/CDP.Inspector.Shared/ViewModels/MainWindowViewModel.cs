@@ -278,31 +278,28 @@ public class MainWindowViewModel : ViewModelBase
         };
         simulationPane.AddTab("Simulation Preview", "PreviewLinkIcon", "Simulation");
 
-        var elementsPane = new BoxNode
+        var rightPane = new BoxNode
         {
             BackgroundTint = "#292a2d"
         };
-        elementsPane.AddTab("Elements", "CodeIcon", "Elements");
-
-        var consolePane = new BoxNode
-        {
-            BackgroundTint = "#292a2d"
-        };
-        consolePane.AddTab("Console", "TerminalIcon", "Console");
-
-        var rightSplit = new SplitContainerNode(
-            Avalonia.Layout.Orientation.Vertical,
-            elementsPane,
-            consolePane
-        ) { SplitterRatio = 0.65 };
+        rightPane.AddTab("Elements", "CodeIcon", "Elements");
+        rightPane.AddTab("Console", "TerminalIcon", "Console");
+        rightPane.AddTab("Sources", "DocumentIcon", "Sources");
+        rightPane.AddTab("Network", "GlobeIcon", "Network");
+        rightPane.AddTab("Performance", "TimerIcon", "Performance");
+        rightPane.AddTab("Memory", "DeveloperBoardIcon", "Memory");
+        rightPane.AddTab("Application", "AppsIcon", "Application");
+        rightPane.AddTab("Audits", "EyeIcon", "Audits");
+        rightPane.AddTab("Recorder", "RecordIcon", "Recorder");
+        rightPane.AddTab("Window", "WindowMultipleIcon", "Window");
 
         LayoutRoot = new SplitContainerNode(
             Avalonia.Layout.Orientation.Horizontal,
             simulationPane,
-            rightSplit
+            rightPane
         ) { SplitterRatio = 0.35 };
 
-        SelectedPane = simulationPane;
+        SelectedPane = rightPane;
         _isPreviewPanelVisible = true;
         OnPropertyChanged(nameof(IsPreviewPanelVisible));
     }
