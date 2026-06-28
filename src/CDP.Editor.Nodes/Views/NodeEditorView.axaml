@@ -4,13 +4,15 @@
              xmlns:local="clr-namespace:CDP.Editor.Nodes.Views"
              x:Class="CDP.Editor.Nodes.Views.NodeEditorView"
              x:DataType="vm:NodeEditorViewModel"
-             x:CompileBindings="True">
+             x:CompileBindings="True"
+             Focusable="True">
     <UserControl.Styles>
-        <Style Selector="Border.node-card">
-            <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Style Selector="Border.node-card" x:DataType="vm:NodeViewModel">
+            <Setter Property="BorderBrush" Value="{Binding BorderBrush, FallbackValue='#3c4043'}"/>
         </Style>
         <Style Selector="Border.node-card.selected">
             <Setter Property="BorderBrush" Value="#1a73e8"/>
+            <Setter Property="BorderThickness" Value="2"/>
         </Style>
 
         <!-- Pin hover transitions and scaling -->
@@ -47,13 +49,14 @@
     <Grid Name="RootGrid" Background="#202124" Classes.dragging-connection="{Binding IsDraggingConnection}">
         <!-- Zoomable/pannable area container -->
         <Border Name="CanvasContainer" Background="Transparent" ClipToBounds="True">
-            <Canvas Name="NodeCanvas" Width="5000" Height="5000" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False" RenderTransformOrigin="0%,0%">
-                <Canvas.RenderTransform>
-                    <TransformGroup>
-                        <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}"/>
-                        <TranslateTransform X="{Binding PanX}" Y="{Binding PanY}"/>
-                    </TransformGroup>
-                </Canvas.RenderTransform>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="Transparent" Focusable="False">
+                <local:NodeEditorCanvasPanel Name="NodeCanvas" Width="5000" Height="5000" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False" RenderTransformOrigin="0%,0%">
+                    <local:NodeEditorCanvasPanel.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}"/>
+                            <TranslateTransform X="{Binding PanX}" Y="{Binding PanY}"/>
+                        </TransformGroup>
+                    </local:NodeEditorCanvasPanel.RenderTransform>
 
                 <!-- Connections -->
                 <ItemsControl Name="ConnectionsItemsControl" ItemsSource="{Binding Connections}" Width="5000" Height="5000" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False">
@@ -106,7 +109,6 @@
                             <Border Width="{Binding Width}"
                                     Height="{Binding Height}"
                                     Background="{Binding Background, FallbackValue='#292a2d'}"
-                                    BorderBrush="{Binding BorderBrush, FallbackValue='#3c4043'}"
                                     BorderThickness="1.5"
                                     CornerRadius="6"
                                     Classes="node-card"
@@ -141,19 +143,37 @@
                                     </Border>
 
                                     <!-- Content of the card -->
-                                    <ContentPresenter Grid.Row="1" Content="{Binding Content}" Margin="6"/>
+                                    <ContentPresenter Grid.Row="1" Content="{Binding Content}" Margin="6" IsVisible="{Binding Content, Converter={x:Static ObjectConverters.IsNotNull}}"/>
 
                                     <!-- Input Pin -->
-                                    <Ellipse Name="InputPin" Grid.RowSpan="2" Classes="input-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-5,0,0,0" ToolTip.Tip="Input Link"/>
+                                    <Ellipse Name="InputPin" Grid.RowSpan="2" Classes="input-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-5,0,0,0" ToolTip.Tip="Input Link" IsVisible="{Binding Content, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                                     <!-- Output Pin -->
-                                    <Ellipse Name="OutputPin" Grid.RowSpan="2" Classes="output-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-5,0" ToolTip.Tip="Output Link"/>
+                                    <Ellipse Name="OutputPin" Grid.RowSpan="2" Classes="output-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-5,0" ToolTip.Tip="Output Link" IsVisible="{Binding Content, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+
+                                    <!-- Resize Grip -->
+                                    <Border Name="ResizeGrip"
+                                            Grid.Row="1"
+                                            Width="12"
+                                            Height="12"
+                                            Background="Transparent"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Bottom"
+                                            Cursor="BottomRightCorner"
+                                            ZIndex="10"
+                                            Margin="0,0,1,1">
+                                        <Path Data="M 10 0 L 10 10 L 0 10 Z" Fill="#5f6368" Opacity="0.5"/>
+                                    </Border>
                                 </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </Canvas>
-        </Border>
+
+                <!-- Selection Box Overlay -->
+                <Rectangle Name="SelectionBox" Fill="#1a73e8" Opacity="0.15" Stroke="#1a73e8" StrokeThickness="1.5" IsVisible="False" Canvas.Left="0" Canvas.Top="0" Width="0" Height="0"/>
+            </local:NodeEditorCanvasPanel>
+        </ScrollViewer>
+    </Border>
 
         <!-- Overlay controls at the top right -->
         <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Padding="4" Background="#2d2f34" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" MaxWidth="500">
@@ -172,9 +192,65 @@
                 <Button Name="btnZoomToFit" ToolTip.Tip="Zoom to Fit" Width="26" Height="26" Padding="0">
                     <PathIcon Data="M11.4891 2.70698C11.7786 2.43432 12.2305 2.435 12.5192 2.70851L14.7264 4.79989C15.027 5.08479 15.5017 5.07201 15.7866 4.77133C16.0715 4.47066 16.0588 3.99596 15.7581 3.71106L13.5509 1.61967C12.6849 0.799127 11.329 0.79711 10.4606 1.61507L8.23699 3.70952C7.93547 3.99353 7.92127 4.46819 8.20527 4.76971C8.48928 5.07123 8.96394 5.08543 9.26546 4.80143L11.4891 2.70698ZM4.80341 9.26348C5.08741 8.96196 5.07321 8.48729 4.77169 8.20329C4.47017 7.91929 3.99551 7.93349 3.71151 8.23501L1.61706 10.4586C0.799093 11.3271 0.801111 12.6829 1.62166 13.5489L3.71304 15.7561C3.99794 16.0568 4.47264 16.0696 4.77332 15.7847C5.07399 15.4998 5.08678 15.0251 4.80188 14.7244L2.71049 12.5172C2.43698 12.2285 2.43631 11.7766 2.70896 11.4871L4.80341 9.26348ZM20.288 8.24292C20.003 7.94236 19.5283 7.92976 19.2277 8.21478C18.9272 8.4998 18.9146 8.97451 19.1996 9.27507L21.2984 11.4884C21.5728 11.7777 21.5728 12.2312 21.2984 12.5205L19.1996 14.7339C18.9146 15.0345 18.9272 15.5092 19.2277 15.7942C19.5283 16.0792 20.003 16.0666 20.288 15.7661L22.3869 13.5526C23.21 12.6846 23.21 11.3242 22.3869 10.4562L20.288 8.24292ZM15.7661 20.288C16.0666 20.003 16.0793 19.5283 15.7943 19.2277C15.5093 18.9271 15.0345 18.9145 14.734 19.1995L12.5219 21.2971C12.2326 21.5713 11.7794 21.5715 11.4901 21.2974L9.27477 19.1992C8.97403 18.9144 8.49933 18.9273 8.2145 19.228C7.92966 19.5288 7.94255 20.0035 8.24329 20.2883L10.4586 22.3864C11.3267 23.2087 12.6863 23.2083 13.554 22.3856L15.7661 20.288ZM9.74999 6.99996C8.23121 6.99996 6.99999 8.23118 6.99999 9.74996V14.25C6.99999 15.7687 8.23121 17 9.74999 17H14.25C15.7688 17 17 15.7687 17 14.25V9.74996C17 8.23118 15.7688 6.99996 14.25 6.99996H9.74999ZM8.49999 9.74996C8.49999 9.05961 9.05964 8.49996 9.74999 8.49996H14.25C14.9403 8.49996 15.5 9.05961 15.5 9.74996V14.25C15.5 14.9403 14.9403 15.5 14.25 15.5H9.74999C9.05964 15.5 8.49999 14.9403 8.49999 14.25V9.74996Z" Width="12" Height="12" Foreground="#e8eaed"/>
                 </Button>
+                <!-- Auto Layout Configurations Button -->
                 <Button Command="{Binding AutoLayoutCommand}" ToolTip.Tip="Auto Layout" Width="26" Height="26" Padding="0">
                     <PathIcon Data="M5.24756 2.99609C4.00492 2.99609 2.99756 4.00345 2.99756 5.24609L2.99756 7.75337C2.99756 8.99601 4.00492 10.0034 5.24756 10.0034H5.75V13.7096C5.7033 13.7446 5.65849 13.7834 5.61599 13.8259L2.82378 16.6172C2.33547 17.1053 2.33542 17.897 2.82368 18.3852L5.61589 21.1771C6.10412 21.6652 6.89569 21.6651 7.3838 21.1768L10.1745 18.3849C10.217 18.3424 10.2557 18.2977 10.2908 18.251H14.0049V18.7547C14.0049 19.9973 15.0122 21.0047 16.2549 21.0047H18.7488C19.9914 21.0047 20.9988 19.9973 20.9988 18.7547V16.2505C20.9988 15.0078 19.9914 14.0005 18.7488 14.0005H16.2549C15.0122 14.0005 14.0049 15.0078 14.0049 16.2505V16.751H10.2904C10.2554 16.7044 10.2168 16.6598 10.1744 16.6174L7.3837 13.8262C7.34129 13.7838 7.29659 13.745 7.25 13.71V10.0034H7.75456C8.9972 10.0034 10.0046 8.99601 10.0046 7.75337V5.24609C10.0046 4.00345 8.9972 2.99609 7.75456 2.99609H5.24756ZM4.49756 5.24609C4.49756 4.83188 4.83334 4.49609 5.24756 4.49609H7.75456C8.16877 4.49609 8.50456 4.83188 8.50456 5.24609V7.75337C8.50456 8.16758 8.16877 8.50337 7.75456 8.50337H5.24756C4.83334 8.50337 4.49756 8.16758 4.49756 7.75337L4.49756 5.24609ZM4.06111 17.5012L6.49968 15.0635L8.93693 17.5012L6.49968 19.9396L4.06111 17.5012ZM16.2549 15.5005H18.7488C19.163 15.5005 19.4988 15.8363 19.4988 16.2505V18.7547C19.4988 19.1689 19.163 19.5047 18.7488 19.5047H16.2549C15.8407 19.5047 15.5049 19.1689 15.5049 18.7547V16.2505C15.5049 15.8363 15.8407 15.5005 16.2549 15.5005" Width="12" Height="12" Foreground="#e8eaed"/>
                 </Button>
+                <Button Name="btnAutoLayoutOptions" ToolTip.Tip="Auto Layout Settings" Width="26" Height="26" Padding="0">
+                    <PathIcon Data="M12 8C13.1 8 14 7.1 14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8ZM12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12C14 10.9 13.1 10 12 10ZM12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18C14 16.9 13.1 16 12 16Z" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
+                <!-- Popup overlay -->
+                <Popup Name="AutoLayoutPopup" PlacementTarget="{Binding #btnAutoLayoutOptions}" Placement="Bottom" IsOpen="False" IsLightDismissEnabled="True">
+                    <Border Background="#2d2f34" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="10" Width="220" ZIndex="100">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Auto Layout Settings" FontSize="11" FontWeight="Bold" Foreground="#e8eaed"/>
+                            
+                            <!-- Layout Provider selection -->
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="Layout Engine" FontSize="9" Foreground="#9aa0a6"/>
+                                <ComboBox Name="cbLayoutProvider" ItemsSource="{Binding LayoutProviders}" SelectedItem="{Binding SelectedLayoutProvider, Mode=TwoWay}" FontSize="10" HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:INodeLayoutProvider">
+                                            <TextBlock Text="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- MSAGL settings -->
+                            <StackPanel Name="spMsaglOptions" Spacing="8" IsVisible="{Binding IsMsaglOptionsVisible}">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Algorithm" FontSize="9" Foreground="#9aa0a6"/>
+                                    <ComboBox Name="cbLayoutAlgorithm" SelectedIndex="{Binding SelectedAlgorithmIndex, Mode=TwoWay}" FontSize="10" HorizontalAlignment="Stretch">
+                                        <ComboBoxItem>Layered (Sugiyama)</ComboBoxItem>
+                                        <ComboBoxItem>MDS Layout</ComboBoxItem>
+                                        <ComboBoxItem>Fast Incremental</ComboBoxItem>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <StackPanel Name="spSugiyamaDirection" Spacing="3" IsVisible="{Binding IsSugiyamaOptionsVisible}">
+                                    <TextBlock Text="Direction" FontSize="9" Foreground="#9aa0a6"/>
+                                    <ComboBox Name="cbLayoutDirection" SelectedIndex="{Binding SelectedDirectionIndex, Mode=TwoWay}" FontSize="10" HorizontalAlignment="Stretch">
+                                        <ComboBoxItem>Top-to-Bottom</ComboBoxItem>
+                                        <ComboBoxItem>Left-to-Right</ComboBoxItem>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Node Separation" FontSize="9" Foreground="#9aa0a6"/>
+                                    <NumericUpDown Name="numNodeSeparation" Value="{Binding NodeSeparation, Mode=TwoWay}" Minimum="10" Maximum="200" Increment="5" FormatString="0" FontSize="10" HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+
+                                <StackPanel Name="spSugiyamaLayerSeparation" Spacing="3" IsVisible="{Binding IsSugiyamaOptionsVisible}">
+                                    <TextBlock Text="Layer Separation" FontSize="9" Foreground="#9aa0a6"/>
+                                    <NumericUpDown Name="numLayerSeparation" Value="{Binding LayerSeparation, Mode=TwoWay}" Minimum="10" Maximum="200" Increment="5" FormatString="0" FontSize="10" HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Button Name="btnRunLayout" Content="Apply Layout" Command="{Binding AutoLayoutCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#1a73e8" Foreground="White" FontSize="10" FontWeight="Bold" Padding="6" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
 
                 <!-- Separator and Slot for host-specific header controls -->
                 <Separator Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center" IsVisible="{Binding !!$parent[local:NodeEditorView].HeaderContent}"/>

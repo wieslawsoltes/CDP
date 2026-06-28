@@ -453,6 +453,13 @@ public class TestStudioViewModel : ViewModelBase
     public ICommand ReplayLastVideoCommand { get; }
     public Action<ReplayIndicatorInfo?>? OnStepIndicatorChanged { get; set; }
 
+    private bool _isRecording;
+    public bool IsRecording
+    {
+        get => _isRecording;
+        set => RaiseAndSetIfChanged(ref _isRecording, value);
+    }
+
     public ObservableCollection<TestStudioStepModel> Steps
     {
         get => _steps;
@@ -741,6 +748,11 @@ public class TestStudioViewModel : ViewModelBase
 
         NodeEditor.SyncToTestStudioAction = SyncToTestStudio;
         NodeEditor.SyncFromTestStudioAction = SyncFromTestStudio;
+        NodeEditor.LayoutProviders.Add(new CDP.Editor.Nodes.Msagl.MsaglLayoutProvider());
+        if (NodeEditor.LayoutProviders.Count > 1)
+        {
+            NodeEditor.SelectedLayoutProvider = NodeEditor.LayoutProviders[1];
+        }
         NodeEditor.NodeSelectedAction = node =>
         {
             if (node is TestStudioNodeViewModel tNode)
@@ -750,6 +762,40 @@ public class TestStudioViewModel : ViewModelBase
                     SelectedStep = tNode.Step;
                 }
                 SelectedStepNode = tNode;
+            }
+        };
+
+        NodeEditor.NodeDoubleClickedAction = node =>
+        {
+            if (NodeEditor.ShowAllScenarios && !string.IsNullOrEmpty(node.ScenarioPath))
+            {
+                LoadFlowFile(node.ScenarioPath);
+                NodeEditor.ShowAllScenarios = false;
+            }
+        };
+
+        NodeEditor.PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(TestStudioNodeEditorViewModel.ShowAllScenarios))
+            {
+                if (NodeEditor.ShowAllScenarios)
+                {
+                    LoadAllProjectScenariosIntoNodeEditor();
+                }
+                else
+                {
+                    NodeEditor.IsSyncSuppressed = true;
+                    try
+                    {
+                        NodeEditor.Nodes.Clear();
+                        NodeEditor.Connections.Clear();
+                    }
+                    finally
+                    {
+                        NodeEditor.IsSyncSuppressed = false;
+                    }
+                    SyncFromTestStudio();
+                }
             }
         };
 
@@ -806,6 +852,23 @@ public class TestStudioViewModel : ViewModelBase
         UpdateYaml();
         RaiseCommandCanExecuteChanged();
         SyncFromTestStudio();
+
+        if (e.NewItems != null && e.NewItems.Count > 0 && IsRecording)
+        {
+            if (Steps.Count == 1)
+            {
+                var firstNode = NodeEditor.Nodes.OfType<TestStudioNodeViewModel>().FirstOrDefault();
+                if (firstNode != null)
+                {
+                    NodeEditor.Zoom = 1.0;
+                    NodeEditor.BringNodeIntoView(firstNode);
+                }
+            }
+            else if (Steps.Count > 1)
+            {
+                NodeEditor.LayoutAppliedAction?.Invoke(); // ZoomToFit
+            }
+        }
     }
 
     private void SubscribeStep(TestStudioStepModel step)
@@ -859,7 +922,10 @@ public class TestStudioViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(TestStudioStepModel.Action) ||
             e.PropertyName == nameof(TestStudioStepModel.Selector) ||
-            e.PropertyName == nameof(TestStudioStepModel.Value))
+            e.PropertyName == nameof(TestStudioStepModel.Value) ||
+            e.PropertyName == nameof(TestStudioStepModel.Parameters) ||
+            e.PropertyName == nameof(TestStudioStepModel.WhileConditionType) ||
+            e.PropertyName == nameof(TestStudioStepModel.WhileConditionValue))
         {
             UpdateYaml();
             SyncFromTestStudio();
@@ -932,6 +998,8 @@ public class TestStudioViewModel : ViewModelBase
 
     public void SyncToTestStudio()
     {
+        if (NodeEditor.ShowAllScenarios) return;
+
         _nodeEditorService.SyncToTestStudio(
             NodeEditor,
             Steps,
@@ -944,7 +1012,95 @@ public class TestStudioViewModel : ViewModelBase
 
     public void SyncFromTestStudio()
     {
+        if (NodeEditor.ShowAllScenarios) return;
         _nodeEditorService.SyncFromTestStudio(NodeEditor, Steps);
+    }
+
+    public void LoadAllProjectScenariosIntoNodeEditor()
+    {
+        if (string.IsNullOrEmpty(WorkspaceRootPath) || !Directory.Exists(WorkspaceRootPath))
+            return;
+
+        NodeEditor.Nodes.Clear();
+        NodeEditor.Connections.Clear();
+
+        var yamlFiles = Directory.GetFiles(WorkspaceRootPath, "*.yaml", SearchOption.AllDirectories);
+        double currentGroupY = 20.0;
+
+        foreach (var file in yamlFiles)
+        {
+            try
+            {
+                var content = File.ReadAllText(file);
+                var steps = TestStudioYamlParser.Parse(content, out _, out _);
+                if (steps == null || steps.Count == 0) continue;
+
+                var fileName = Path.GetRelativePath(WorkspaceRootPath, file);
+                
+                // Create child nodes
+                var childNodes = new List<TestStudioNodeViewModel>();
+                for (int i = 0; i < steps.Count; i++)
+                {
+                    var step = steps[i];
+                    var stepModel = TestStudioStepModel.FromCoreStep(step);
+                    var node = new TestStudioNodeViewModel
+                    {
+                        Name = $"Step {i + 1}",
+                        Action = step.Action,
+                        Selector = step.Selector ?? "",
+                        Value = step.Value ?? "",
+                        X = 200.0 * i + 30.0,
+                        Y = currentGroupY + 50.0,
+                        Step = stepModel,
+                        ScenarioPath = file
+                    };
+                    childNodes.Add(node);
+                }
+
+                // Add connections between step nodes of this flow
+                var prevNode = childNodes[0];
+                for (int i = 1; i < childNodes.Count; i++)
+                {
+                    NodeEditor.ConnectNodes(prevNode, childNodes[i]);
+                    prevNode = childNodes[i];
+                }
+
+                // Calculate group node bounds
+                double minX = childNodes.Min(n => n.X);
+                double minY = childNodes.Min(n => n.Y);
+                double maxX = childNodes.Max(n => n.X + n.Width);
+                double maxY = childNodes.Max(n => n.Y + n.Height);
+
+                var groupNode = new CDP.Editor.Nodes.ViewModels.GroupNodeViewModel
+                {
+                    Name = fileName,
+                    X = minX - 20,
+                    Y = currentGroupY,
+                    Width = (maxX - minX) + 40,
+                    Height = (maxY - minY) + 60,
+                    ScenarioPath = file
+                };
+
+                foreach (var node in childNodes)
+                {
+                    groupNode.ChildNodeIds.Add(node.Id);
+                }
+
+                // Insert group first to render in background
+                NodeEditor.Nodes.Add(groupNode);
+                foreach (var node in childNodes)
+                {
+                    NodeEditor.Nodes.Add(node);
+                }
+
+                // Offset Y for the next group
+                currentGroupY += groupNode.Height + 40.0;
+            }
+            catch (Exception ex)
+            {
+                Log($"Error loading scenario '{file}': {ex.Message}");
+            }
+        }
     }
 
     public async Task PlayAsync()

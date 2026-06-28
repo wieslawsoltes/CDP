@@ -315,4 +315,37 @@ public class TestStudioStepModel : ViewModelBase
         }
         return step;
     }
+
+    public TestStudioStepModel Clone()
+    {
+        var clone = new TestStudioStepModel
+        {
+            Action = Action,
+            Selector = Selector,
+            Value = Value,
+            WhileConditionType = WhileConditionType,
+            WhileConditionValue = WhileConditionValue,
+            StartLine = StartLine,
+            EndLine = EndLine
+        };
+
+        if (Parameters != null)
+        {
+            foreach (var kvp in Parameters)
+            {
+                clone.Parameters[kvp.Key] = kvp.Value;
+            }
+        }
+
+        if (NestedSteps != null)
+        {
+            clone.NestedSteps = new ObservableCollection<TestStudioStepModel>();
+            foreach (var s in NestedSteps)
+            {
+                clone.NestedSteps.Add(s.Clone());
+            }
+        }
+
+        return clone;
+    }
 }

@@ -90,4 +90,11 @@ public class NodeViewModel : NodeEditorViewModelBase
         get => _isConnectionTarget;
         set => RaiseAndSetIfChanged(ref _isConnectionTarget, value);
     }
+
+    private string? _scenarioPath;
+    public string? ScenarioPath
+    {
+        get => _scenarioPath;
+        set => RaiseAndSetIfChanged(ref _scenarioPath, value);
+    }
 }

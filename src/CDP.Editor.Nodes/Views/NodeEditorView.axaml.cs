@@ -6,9 +6,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Avalonia.Controls.Primitives;
 using CDP.Editor.Nodes.ViewModels;
 
 namespace CDP.Editor.Nodes.Views;
@@ -39,6 +41,18 @@ public partial class NodeEditorView : UserControl
     private NodeViewModel? _connectionSourceNode;
     private bool _isReverseDrag;
     private NodeViewModel? _highlightedSnapNode;
+
+    // Selection box state
+    private Rectangle? _selectionBox;
+    private bool _isSelecting;
+    private Point _selectionStartCanvas;
+
+    // Resizing state
+    private bool _isResizingNode;
+    private NodeViewModel? _resizedNode;
+    private Point _resizeStartPointerPosition;
+    private double _resizeStartWidth;
+    private double _resizeStartHeight;
 
     public static readonly StyledProperty<object?> HeaderContentProperty =
         AvaloniaProperty.Register<NodeEditorView, object?>(nameof(HeaderContent));
@@ -76,13 +90,14 @@ public partial class NodeEditorView : UserControl
         _btnZoomIn = this.FindControl<Button>("btnZoomIn");
         _btnZoomOut = this.FindControl<Button>("btnZoomOut");
         _btnZoomToFit = this.FindControl<Button>("btnZoomToFit");
+        _selectionBox = this.FindControl<Rectangle>("SelectionBox");
 
         if (_canvasContainer != null)
         {
             _canvasContainer.PointerPressed += OnPointerPressed;
             _canvasContainer.PointerMoved += OnPointerMoved;
             _canvasContainer.PointerReleased += OnPointerReleased;
-            _canvasContainer.PointerWheelChanged += OnPointerWheelChanged;
+            _canvasContainer.AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheelChanged, RoutingStrategies.Tunnel);
         }
 
         if (_btnZoomIn != null)
@@ -97,6 +112,26 @@ public partial class NodeEditorView : UserControl
         {
             _btnZoomToFit.Click += (s, e) => ZoomToFit();
         }
+
+        var btnAutoLayoutOptions = this.FindControl<Button>("btnAutoLayoutOptions");
+        var autoLayoutPopup = this.FindControl<Popup>("AutoLayoutPopup");
+        var btnRunLayout = this.FindControl<Button>("btnRunLayout");
+
+        if (btnAutoLayoutOptions != null && autoLayoutPopup != null)
+        {
+            btnAutoLayoutOptions.Click += (s, e) =>
+            {
+                autoLayoutPopup.IsOpen = !autoLayoutPopup.IsOpen;
+            };
+        }
+
+        if (btnRunLayout != null && autoLayoutPopup != null)
+        {
+            btnRunLayout.Click += (s, e) =>
+            {
+                autoLayoutPopup.IsOpen = false;
+            };
+        }
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -105,6 +140,75 @@ public partial class NodeEditorView : UserControl
         if (DataContext is NodeEditorViewModel vm)
         {
             vm.BringNodeIntoViewAction = BringNodeIntoView;
+            vm.LayoutAppliedAction = ZoomToFit;
+        }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        var topLevel = TopLevel.GetTopLevel(this);
+        var focused = topLevel?.FocusManager?.GetFocusedElement();
+        if (focused is Control ctrl && IsInputControl(ctrl))
+        {
+            return;
+        }
+
+        if (DataContext is not NodeEditorViewModel vm)
+            return;
+
+        var isCtrlOrCmd = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+
+        if (isCtrlOrCmd)
+        {
+            switch (e.Key)
+            {
+                case Key.C:
+                    vm.CopySelectedNodes();
+                    e.Handled = true;
+                    break;
+                case Key.V:
+                    if (!vm.IsReadOnly) vm.PasteNodes();
+                    e.Handled = true;
+                    break;
+                case Key.A:
+                    foreach (var n in vm.Nodes)
+                    {
+                        n.IsSelected = true;
+                    }
+                    e.Handled = true;
+                    break;
+                case Key.G:
+                    if (!vm.IsReadOnly) vm.GroupSelectedNodes();
+                    e.Handled = true;
+                    break;
+                case Key.D0:
+                case Key.NumPad0:
+                    ZoomToFit();
+                    e.Handled = true;
+                    break;
+                case Key.OemPlus:
+                case Key.Add:
+                    AdjustZoom(1.2);
+                    e.Handled = true;
+                    break;
+                case Key.OemMinus:
+                case Key.Subtract:
+                    AdjustZoom(0.8);
+                    e.Handled = true;
+                    break;
+            }
+        }
+        else
+        {
+            switch (e.Key)
+            {
+                case Key.Delete:
+                case Key.Back:
+                    if (!vm.IsReadOnly) vm.DeleteSelectedCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+            }
         }
     }
 
@@ -136,7 +240,7 @@ public partial class NodeEditorView : UserControl
         if (DataContext is NodeEditorViewModel vm && _canvasContainer != null)
         {
             double oldZoom = vm.Zoom;
-            double newZoom = Math.Clamp(oldZoom * factor, 0.2, 3.0);
+            double newZoom = Math.Clamp(oldZoom * factor, 0.05, 10.0);
             
             if (Math.Abs(newZoom - oldZoom) > 0.0001)
             {
@@ -198,7 +302,7 @@ public partial class NodeEditorView : UserControl
             double zoomY = viewportHeight / targetHeight;
             double targetZoom = Math.Min(zoomX, zoomY);
 
-            targetZoom = Math.Clamp(targetZoom, 0.2, 3.0);
+            targetZoom = Math.Clamp(targetZoom, 0.05, 10.0);
 
             double nodesCenterX = minX + nodesWidth / 2.0;
             double nodesCenterY = minY + nodesHeight / 2.0;
@@ -243,6 +347,33 @@ public partial class NodeEditorView : UserControl
             LastRightClickCanvasPosition = e.GetPosition(_nodeCanvas);
         }
 
+        // Check for double click
+        if (e.ClickCount == 2)
+        {
+            var sourceCtrl = e.Source as Control;
+            if (!IsInputControl(sourceCtrl))
+            {
+                NodeViewModel? clickedNode = null;
+                var visual = e.Source as Visual;
+                while (visual != null && visual != _nodeCanvas)
+                {
+                    if (visual.DataContext is NodeViewModel node)
+                    {
+                        clickedNode = node;
+                        break;
+                    }
+                    visual = visual.GetVisualParent();
+                }
+
+                if (clickedNode != null)
+                {
+                    vm.NodeDoubleClickedAction?.Invoke(clickedNode);
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
         var sourceElement = e.Source as Control;
 
         // 1. Connection dragging
@@ -251,6 +382,11 @@ public partial class NodeEditorView : UserControl
         
         if (isOutputPin || isInputPin)
         {
+            if (vm.IsReadOnly)
+            {
+                e.Handled = true;
+                return;
+            }
             if (sourceElement?.DataContext is NodeViewModel nodeVM)
             {
                 _isReverseDrag = isInputPin;
@@ -310,15 +446,45 @@ public partial class NodeEditorView : UserControl
 
         // Check if pressed on a node card
         NodeViewModel? pressedNode = null;
-        var visual = e.Source as Visual;
-        while (visual != null && visual != _nodeCanvas)
+        var visualElement = e.Source as Visual;
+        while (visualElement != null && visualElement != _nodeCanvas)
         {
-            if (visual.DataContext is NodeViewModel node)
+            if (visualElement.DataContext is NodeViewModel node)
             {
                 pressedNode = node;
                 break;
             }
-            visual = visual.GetVisualParent();
+            visualElement = visualElement.GetVisualParent();
+        }
+
+        // Check if pressed on a resize grip
+        bool isResizeGrip = false;
+        var checkElement = sourceElement as Visual;
+        while (checkElement != null && checkElement != _nodeCanvas)
+        {
+            if (checkElement is Control ctrl && ctrl.Name == "ResizeGrip")
+            {
+                isResizeGrip = true;
+                break;
+            }
+            checkElement = checkElement.GetVisualParent();
+        }
+
+        if (isResizeGrip && pressedNode != null)
+        {
+            if (vm.IsReadOnly)
+            {
+                e.Handled = true;
+                return;
+            }
+            _isResizingNode = true;
+            _resizedNode = pressedNode;
+            _resizeStartPointerPosition = e.GetPosition(_canvasContainer);
+            _resizeStartWidth = pressedNode.Width;
+            _resizeStartHeight = pressedNode.Height;
+            e.Pointer.Capture(_canvasContainer);
+            e.Handled = true;
+            return;
         }
 
         // 2. Node Selection & Dragging
@@ -330,25 +496,72 @@ public partial class NodeEditorView : UserControl
                 return;
             }
 
-            bool clearOthers = !e.KeyModifiers.HasFlag(KeyModifiers.Control);
-            vm.SelectNode(pressedNode, clearOthers);
+            this.Focus();
 
-            _isDraggingNode = true;
-            _draggedNode = pressedNode;
-            _lastPointerPosition = e.GetPosition(_canvasContainer);
+            bool clearOthers = !e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                pressedNode.IsSelected = !pressedNode.IsSelected;
+                if (pressedNode.IsSelected)
+                {
+                    vm.NodeSelectedAction?.Invoke(pressedNode);
+                }
+            }
+            else
+            {
+                vm.SelectNode(pressedNode, clearOthers);
+            }
 
-            e.Pointer.Capture(_canvasContainer);
+            if (!vm.IsReadOnly)
+            {
+                _isDraggingNode = true;
+                _draggedNode = pressedNode;
+                _lastPointerPosition = e.GetPosition(_canvasContainer);
+
+                e.Pointer.Capture(_canvasContainer);
+            }
             e.Handled = true;
             return;
         }
 
-        // 3. Canvas Panning (Middle click or left drag on empty space)
-        if (properties.IsMiddleButtonPressed || properties.IsLeftButtonPressed)
+        // Focus UserControl when clicking empty background space
+        this.Focus();
+
+        // 3. Canvas Panning (Middle click or Alt + Left click on empty space)
+        bool isPanDrag = properties.IsMiddleButtonPressed || (properties.IsLeftButtonPressed && e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+        if (isPanDrag)
         {
             _isPanning = true;
             _initialPanX = vm.PanX;
             _initialPanY = vm.PanY;
             _initialPanPointerPosition = e.GetPosition(_canvasContainer);
+
+            e.Pointer.Capture(_canvasContainer);
+            e.Handled = true;
+        }
+        else if (properties.IsLeftButtonPressed)
+        {
+            // 4. Rubber-band Selection Box
+            _isSelecting = true;
+            _selectionStartCanvas = e.GetPosition(_nodeCanvas);
+
+            if (_selectionBox != null)
+            {
+                _selectionBox.IsVisible = true;
+                _selectionBox.Width = 0;
+                _selectionBox.Height = 0;
+                Canvas.SetLeft(_selectionBox, _selectionStartCanvas.X);
+                Canvas.SetTop(_selectionBox, _selectionStartCanvas.Y);
+            }
+
+            // Deselect all on clicking empty canvas if not holding modifier keys
+            if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                foreach (var n in vm.Nodes)
+                {
+                    n.IsSelected = false;
+                }
+            }
 
             e.Pointer.Capture(_canvasContainer);
             e.Handled = true;
@@ -369,17 +582,16 @@ public partial class NodeEditorView : UserControl
             foreach (var node in vm.Nodes)
             {
                 if (node == _connectionSourceNode) continue;
+                if (node is GroupNodeViewModel) continue;
 
                 double pinX, pinY;
                 if (_isReverseDrag)
                 {
-                    // Reverse drag: Target is output pin of another node (X + Width, Y + Height / 2)
                     pinX = node.X + node.Width;
                     pinY = node.Y + node.Height / 2.0;
                 }
                 else
                 {
-                    // Forward drag: Target is input pin of another node (X, Y + Height / 2)
                     pinX = node.X;
                     pinY = node.Y + node.Height / 2.0;
                 }
@@ -443,6 +655,20 @@ public partial class NodeEditorView : UserControl
             return;
         }
 
+        // 1.5. Resizing node
+        if (_isResizingNode && _resizedNode != null)
+        {
+            var currentPos = e.GetPosition(_canvasContainer);
+            double deltaX = (currentPos.X - _resizeStartPointerPosition.X) / vm.Zoom;
+            double deltaY = (currentPos.Y - _resizeStartPointerPosition.Y) / vm.Zoom;
+
+            _resizedNode.Width = Math.Max(100, _resizeStartWidth + deltaX);
+            _resizedNode.Height = Math.Max(50, _resizeStartHeight + deltaY);
+
+            e.Handled = true;
+            return;
+        }
+
         // 2. Node dragging
         if (_isDraggingNode && _draggedNode != null)
         {
@@ -468,6 +694,40 @@ public partial class NodeEditorView : UserControl
             vm.PanY = _initialPanY + deltaY;
 
             e.Handled = true;
+            return;
+        }
+
+        // 4. Selection box dragging (rubber-band selection)
+        if (_isSelecting && _selectionBox != null && _nodeCanvas != null)
+        {
+            var currentPosCanvas = e.GetPosition(_nodeCanvas);
+            double x = Math.Min(_selectionStartCanvas.X, currentPosCanvas.X);
+            double y = Math.Min(_selectionStartCanvas.Y, currentPosCanvas.Y);
+            double width = Math.Abs(_selectionStartCanvas.X - currentPosCanvas.X);
+            double height = Math.Abs(_selectionStartCanvas.Y - currentPosCanvas.Y);
+
+            Canvas.SetLeft(_selectionBox, x);
+            Canvas.SetTop(_selectionBox, y);
+            _selectionBox.Width = width;
+            _selectionBox.Height = height;
+
+            var selectionRect = new Rect(x, y, width, height);
+            bool isModifier = e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.KeyModifiers.HasFlag(KeyModifiers.Control);
+
+            foreach (var node in vm.Nodes)
+            {
+                var nodeRect = new Rect(node.X, node.Y, node.Width, node.Height);
+                if (selectionRect.Intersects(nodeRect))
+                {
+                    node.IsSelected = true;
+                }
+                else if (!isModifier)
+                {
+                    node.IsSelected = false;
+                }
+            }
+
+            e.Handled = true;
         }
     }
 
@@ -477,6 +737,15 @@ public partial class NodeEditorView : UserControl
 
         if (DataContext is not NodeEditorViewModel vm || _nodeCanvas == null)
             return;
+
+        // 0.5. Finish resizing
+        if (_isResizingNode)
+        {
+            _isResizingNode = false;
+            _resizedNode = null;
+            e.Handled = true;
+            return;
+        }
 
         // 1. Finish connection dragging
         if (_isDraggingConnection && _connectionSourceNode != null)
@@ -523,6 +792,59 @@ public partial class NodeEditorView : UserControl
         {
             _isPanning = false;
             e.Handled = true;
+            return;
+        }
+
+        // 4. Finish selection box dragging
+        if (_isSelecting)
+        {
+            _isSelecting = false;
+            if (_selectionBox != null)
+            {
+                double left = Canvas.GetLeft(_selectionBox);
+                double top = Canvas.GetTop(_selectionBox);
+                double width = _selectionBox.Width;
+                double height = _selectionBox.Height;
+                double right = left + width;
+                double bottom = top + height;
+                var rect = new Rect(new Point(left, top), new Point(right, bottom));
+
+                bool isAdding = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+                if (width < 3.0 && height < 3.0)
+                {
+                    // Simple click on empty space
+                    if (!isAdding)
+                    {
+                        foreach (var n in vm.Nodes)
+                        {
+                            n.IsSelected = false;
+                        }
+                    }
+                }
+                else
+                {
+                    // Rubber-band selection
+                    if (!isAdding)
+                    {
+                        foreach (var n in vm.Nodes)
+                        {
+                            n.IsSelected = false;
+                        }
+                    }
+                    foreach (var n in vm.Nodes)
+                    {
+                        var nodeRect = new Rect(n.X, n.Y, n.Width, n.Height);
+                        if (rect.Intersects(nodeRect))
+                        {
+                            n.IsSelected = true;
+                        }
+                    }
+                }
+
+                _selectionBox.IsVisible = false;
+            }
+            e.Handled = true;
         }
     }
 
@@ -533,7 +855,7 @@ public partial class NodeEditorView : UserControl
 
         double zoomFactor = e.Delta.Y > 0 ? 1.1 : 0.9;
         double oldZoom = vm.Zoom;
-        double newZoom = Math.Clamp(oldZoom * zoomFactor, 0.2, 3.0);
+        double newZoom = Math.Clamp(oldZoom * zoomFactor, 0.05, 10.0);
 
         if (Math.Abs(newZoom - oldZoom) > 0.0001)
         {

@@ -10,12 +10,44 @@ using CDP.Editor.Nodes.ViewModels;
 
 namespace CdpInspectorApp.ViewModels;
 
+public class CustomParamEditor : NodeEditorViewModelBase
+{
+    private readonly TestStudioNodeViewModel _owner;
+    public string Name { get; }
+
+    public string? Value
+    {
+        get => _owner.GetParameterValue(Name);
+        set
+        {
+            _owner.SetParameterValue(Name, value);
+            OnPropertyChanged(nameof(Value));
+        }
+    }
+
+    public ObservableCollection<string> ValueSuggestions { get; }
+
+    public CustomParamEditor(TestStudioNodeViewModel owner, string name)
+    {
+        _owner = owner;
+        Name = name;
+        var suggestions = FlowCommandCatalog.GetValueCompletions(owner.Action, name);
+        ValueSuggestions = new ObservableCollection<string>(suggestions);
+    }
+
+    public void NotifyValueChanged()
+    {
+        OnPropertyChanged(nameof(Value));
+    }
+}
+
 public class TestStudioNodeViewModel : NodeViewModel
 {
     private string _action = "";
     private string _selector = "";
     private string _value = "";
     private TestStudioStepModel? _step;
+    private bool _isExpanded;
 
     public TestStudioStepModel? Step
     {
@@ -30,6 +62,10 @@ public class TestStudioNodeViewModel : NodeViewModel
             if (_step != null)
             {
                 _step.PropertyChanged += OnStepPropertyChanged;
+                _action = _step.Action;
+                _selector = _step.Selector ?? "";
+                _value = _step.Value ?? "";
+                UpdateCustomParameters();
             }
             OnPropertyChanged(nameof(Step));
             OnPropertyChanged(nameof(Status));
@@ -56,12 +92,25 @@ public class TestStudioNodeViewModel : NodeViewModel
             OnPropertyChanged(nameof(IsFailed));
             UpdateVisualBrushes();
         }
+        else if (e.PropertyName == nameof(TestStudioStepModel.Parameters))
+        {
+            foreach (var cp in CustomParameters)
+            {
+                cp.NotifyValueChanged();
+            }
+        }
     }
 
     public string Action
     {
         get => _action;
-        set => RaiseAndSetIfChanged(ref _action, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _action, value))
+            {
+                UpdateCustomParameters();
+            }
+        }
     }
 
     public string Selector
@@ -75,6 +124,27 @@ public class TestStudioNodeViewModel : NodeViewModel
         get => _value;
         set => RaiseAndSetIfChanged(ref _value, value);
     }
+
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isExpanded, value))
+            {
+                Height = value ? 200 : 100;
+            }
+        }
+    }
+
+    public bool ShowSelector => FlowCommandCatalog.IsSelectorCommand(Action) || (FlowCommandCatalog.Find(Action)?.AcceptsSelector ?? false);
+
+    public bool ShowValue => FlowCommandCatalog.Find(Action)?.ValueKind == FlowCommandValueKind.String;
+
+    private ObservableCollection<CustomParamEditor> _customParameters = new();
+    public ObservableCollection<CustomParamEditor> CustomParameters => _customParameters;
+
+    public bool ShowCustomParams => CustomParameters.Count > 0;
 
     public ObservableCollection<string> CommandSuggestions { get; } = new(FlowCommandCatalog.PublicCommands.Select(c => c.Name));
     public ObservableCollection<string> SelectorSuggestions => SelectorService.Instance.AvailableSelectors;
@@ -92,6 +162,116 @@ public class TestStudioNodeViewModel : NodeViewModel
         Height = 100;
         Content = this;
         UpdateVisualBrushes();
+        UpdateCustomParameters();
+    }
+
+    public void UpdateCustomParameters()
+    {
+        CustomParameters.Clear();
+        var def = FlowCommandCatalog.Find(Action);
+        if (def != null && def.Parameters != null)
+        {
+            bool showSelector = ShowSelector;
+            foreach (var p in def.Parameters)
+            {
+                var cleanParam = p.EndsWith(":") ? p.Substring(0, p.Length - 1) : p;
+                if (showSelector && FlowCommandCatalog.IsSelectorKey(cleanParam)) continue;
+                CustomParameters.Add(new CustomParamEditor(this, cleanParam));
+            }
+        }
+        OnPropertyChanged(nameof(ShowSelector));
+        OnPropertyChanged(nameof(ShowValue));
+        OnPropertyChanged(nameof(ShowCustomParams));
+    }
+
+    public string? GetParameterValue(string name)
+    {
+        if (Step != null && Step.Parameters.TryGetValue(name, out var val))
+        {
+            if (val is System.Collections.IDictionary || val is System.Collections.IList)
+            {
+                try
+                {
+                    var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = false };
+                    return System.Text.Json.JsonSerializer.Serialize(val, options);
+                }
+                catch
+                {
+                    // Fallback to ToString
+                }
+            }
+            return val?.ToString();
+        }
+        return null;
+    }
+
+    public void SetParameterValue(string name, string? val)
+    {
+        if (Step != null)
+        {
+            if (string.IsNullOrEmpty(val))
+            {
+                Step.Parameters.Remove(name);
+            }
+            else
+            {
+                Step.Parameters[name] = ParseStructuredValue(val);
+            }
+            // Trigger parameters change to force updates/serialization
+            Step.Parameters = new System.Collections.Generic.Dictionary<string, object?>(Step.Parameters, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static object? ParseStructuredValue(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var trimmed = text.Trim();
+        if ((trimmed.StartsWith("{") && trimmed.EndsWith("}")) ||
+            (trimmed.StartsWith("[") && trimmed.EndsWith("]")))
+        {
+            try
+            {
+                var node = System.Text.Json.Nodes.JsonNode.Parse(trimmed);
+                return ConvertJsonNode(node);
+            }
+            catch
+            {
+                // Fallback to string if parsing fails
+            }
+        }
+        return text;
+    }
+
+    private static object? ConvertJsonNode(System.Text.Json.Nodes.JsonNode? node)
+    {
+        if (node == null) return null;
+        if (node is System.Text.Json.Nodes.JsonObject obj)
+        {
+            var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in obj)
+            {
+                dict[kv.Key] = ConvertJsonNode(kv.Value);
+            }
+            return dict;
+        }
+        if (node is System.Text.Json.Nodes.JsonArray arr)
+        {
+            var list = new List<object?>();
+            foreach (var item in arr)
+            {
+                list.Add(ConvertJsonNode(item));
+            }
+            return list;
+        }
+        if (node is System.Text.Json.Nodes.JsonValue val)
+        {
+            if (val.TryGetValue<string>(out var s)) return s;
+            if (val.TryGetValue<double>(out var d)) return d;
+            if (val.TryGetValue<bool>(out var b)) return b;
+            if (val.TryGetValue<int>(out var i)) return i;
+            return val.ToString();
+        }
+        return node.ToString();
     }
 
     private void UpdateVisualBrushes()

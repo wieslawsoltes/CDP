@@ -350,4 +350,159 @@ description: ""Test Flow""
         Assert.False(node.IsPassed);
         Assert.True(node.IsFailed);
     }
+
+    [Fact]
+    public void TestStudioNodeEditorViewModel_CopyPasteClonesFullStepData()
+    {
+        var editor = new TestStudioNodeEditorViewModel();
+
+        var originalStep = new TestStudioStepModel
+        {
+            Action = "tapOn",
+            Selector = "#btn1",
+            Value = "val1",
+            WhileConditionType = "visible",
+            WhileConditionValue = "#btn2"
+        };
+        originalStep.Parameters["testParam"] = "paramVal";
+
+        var node = editor.CreateNode("Step1", "tapOn", "#btn1", "val1", 10, 20);
+        node.Step = originalStep;
+
+        // Select node
+        editor.SelectNode(node);
+
+        // Copy and paste
+        editor.CopySelectedNodes();
+        editor.PasteNodes();
+
+        // Check that pasted node exists and has a step cloned with parameters and condition
+        Assert.Equal(2, editor.Nodes.Count);
+        var pastedNode = editor.Nodes.OfType<TestStudioNodeViewModel>().FirstOrDefault(n => n != node);
+        Assert.NotNull(pastedNode);
+        Assert.NotNull(pastedNode.Step);
+        Assert.NotSame(originalStep, pastedNode.Step); // should be a deep clone
+
+        Assert.Equal("tapOn", pastedNode.Step.Action);
+        Assert.Equal("#btn1", pastedNode.Step.Selector);
+        Assert.Equal("val1", pastedNode.Step.Value);
+        Assert.Equal("visible", pastedNode.Step.WhileConditionType);
+        Assert.Equal("#btn2", pastedNode.Step.WhileConditionValue);
+        Assert.True(pastedNode.Step.Parameters.ContainsKey("testParam"));
+        Assert.Equal("paramVal", pastedNode.Step.Parameters["testParam"]);
+    }
+
+    [Fact]
+    public void TestStudioNodeEditorViewModel_NodeResizingUpdatesConnectionPoints()
+    {
+        var editor = new TestStudioNodeEditorViewModel();
+
+        var node1 = editor.CreateNode("Node1", "click", "#btn1", "", 100, 200);
+        var node2 = editor.CreateNode("Node2", "click", "#btn2", "", 400, 300);
+
+        editor.ConnectNodes(node1, node2);
+        Assert.Single(editor.Connections);
+        var connection = editor.Connections[0];
+
+        // Capture initial points
+        var startX = connection.StartPoint.X;
+        var startY = connection.StartPoint.Y;
+
+        // Resize node1
+        node1.Width = 200;
+        node1.Height = 150;
+
+        // Check that connection points updated dynamically
+        Assert.Equal(300, connection.StartPoint.X); // 100 (X) + 200 (Width)
+        Assert.Equal(275, connection.StartPoint.Y); // 200 (Y) + 150/2 (Height/2)
+        Assert.NotEqual(startX, connection.StartPoint.X);
+        Assert.NotEqual(startY, connection.StartPoint.Y);
+    }
+
+    [Fact]
+    public void TestStudioNodeEditorViewModel_MultiplePastesCloneUniqueStepData()
+    {
+        var editor = new TestStudioNodeEditorViewModel();
+
+        var originalStep = new TestStudioStepModel
+        {
+            Action = "tapOn",
+            Selector = "#btn1",
+            Value = "val1"
+        };
+        originalStep.Parameters["testParam"] = "paramVal";
+
+        var node = editor.CreateNode("Step1", "tapOn", "#btn1", "val1", 10, 20);
+        node.Step = originalStep;
+
+        editor.SelectNode(node);
+        editor.CopySelectedNodes();
+
+        // Paste 1
+        editor.PasteNodes();
+        // Paste 2
+        editor.PasteNodes();
+
+        Assert.Equal(3, editor.Nodes.Count);
+        var pastedNodes = editor.Nodes.OfType<TestStudioNodeViewModel>().Where(n => n != node).ToList();
+        Assert.Equal(2, pastedNodes.Count);
+
+        var step1 = pastedNodes[0].Step;
+        var step2 = pastedNodes[1].Step;
+
+        Assert.NotNull(step1);
+        Assert.NotNull(step2);
+        Assert.NotSame(step1, step2); // Should be different instances!
+        Assert.Equal("tapOn", step1.Action);
+        Assert.Equal("tapOn", step2.Action);
+        Assert.Equal("paramVal", step1.Parameters["testParam"]);
+        Assert.Equal("paramVal", step2.Parameters["testParam"]);
+    }
+
+    [Fact]
+    public void TestStudioNodeEditorViewModel_GroupNodeViewModelCannotBeConnected()
+    {
+        var editor = new TestStudioNodeEditorViewModel();
+
+        var node1 = editor.CreateNode("Node1", "click", "#btn1", "", 100, 200);
+        var groupNode = new CDP.Editor.Nodes.ViewModels.GroupNodeViewModel { Id = "group1", Name = "Group 1", X = 300, Y = 100, Width = 400, Height = 300 };
+        editor.Nodes.Add(groupNode);
+
+        // Try to connect node1 to groupNode
+        editor.ConnectNodes(node1, groupNode);
+        Assert.Empty(editor.Connections);
+
+        // Try to connect groupNode to node1
+        editor.ConnectNodes(groupNode, node1);
+        Assert.Empty(editor.Connections);
+    }
+
+    [Fact]
+    public void TestStudioViewModel_LeavingAllScenarios_ClearsOverviewWithoutWipingSteps()
+    {
+        var dummyCdp = new DummyCdpService();
+        var vm = new TestStudioViewModel(dummyCdp);
+
+        // Add a step to the active flow
+        var step = new TestStudioStepModel { Action = "tapOn", Selector = "#btn" };
+        vm.Steps.Add(step);
+
+        // Turn on all scenarios overview (simulates project load view)
+        vm.NodeEditor.ShowAllScenarios = true;
+
+        // Add a group node to simulate the loaded scenarios
+        var groupNode = new CDP.Editor.Nodes.ViewModels.GroupNodeViewModel { Id = "group1", Name = "Overview Group" };
+        vm.NodeEditor.Nodes.Add(groupNode);
+
+        // Leave All Scenarios mode
+        vm.NodeEditor.ShowAllScenarios = false;
+
+        // Check that group nodes are cleared and active scenario steps are preserved
+        Assert.Single(vm.Steps);
+        Assert.Equal("tapOn", vm.Steps[0].Action);
+        Assert.Single(vm.NodeEditor.Nodes);
+        var visualNode = vm.NodeEditor.Nodes[0] as TestStudioNodeViewModel;
+        Assert.NotNull(visualNode);
+        Assert.Equal("tapOn", visualNode.Action);
+    }
 }

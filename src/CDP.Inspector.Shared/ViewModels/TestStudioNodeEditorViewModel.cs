@@ -25,6 +25,8 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
     public Action? SyncFromTestStudioAction { get; set; }
     public Action<TestStudioNodeViewModel>? NodeSelectedActionCustom { get; set; }
 
+    public bool IsSyncSuppressed { get; set; }
+
     public ICommand SyncStepsCommand { get; }
     public ICommand SyncToTestStudioCommand { get; }
     public ICommand SyncFromTestStudioCommand { get; }
@@ -51,6 +53,26 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
         };
 
         CollectionChangedAction = SyncSteps;
+
+        GetNodeCustomDataHandler = node =>
+        {
+            if (node is TestStudioNodeViewModel tNode && tNode.Step != null)
+            {
+                return tNode.Step.Clone();
+            }
+            return null;
+        };
+
+        SetNodeCustomDataHandler = (node, data) =>
+        {
+            if (node is TestStudioNodeViewModel tNode && data is TestStudioStepModel stepClone)
+            {
+                tNode.Step = stepClone.Clone();
+                tNode.Action = stepClone.Action;
+                tNode.Selector = stepClone.Selector ?? "";
+                tNode.Value = stepClone.Value ?? "";
+            }
+        };
     }
 
     protected override void OnNodePropertyChanged(NodeViewModel node, string? propertyName)
@@ -192,7 +214,26 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
 
     public void SyncSteps()
     {
+        if (ShowAllScenarios || IsSyncSuppressed)
+            return;
+
         CompiledSteps = CompileSteps();
         SyncToTestStudioAction?.Invoke();
     }
+
+    private bool _showAllScenarios;
+    public bool ShowAllScenarios
+    {
+        get => _showAllScenarios;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _showAllScenarios, value))
+            {
+                IsReadOnly = value;
+                OnPropertyChanged(nameof(IsSingleScenarioMode));
+            }
+        }
+    }
+
+    public bool IsSingleScenarioMode => !ShowAllScenarios;
 }
