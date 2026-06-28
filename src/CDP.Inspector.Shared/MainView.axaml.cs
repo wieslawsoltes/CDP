@@ -163,6 +163,7 @@ public partial class MainView : UserControl
         if (control.Parent is SuperSplitBox splitBox)
         {
             splitBox.InnerContent = null;
+            splitBox.UpdateLayout();
         }
         else if (control.Parent is Panel panel)
         {

@@ -451,6 +451,9 @@ public class SuperSplit : ContentControl
             boxControl.InnerContent = null;
         }
 
+        // Force layout update to immediately detach visual children before removing the boxes from visual tree
+        panel.UpdateLayout();
+
         var newChildren = new AvaloniaList<Control>();
 
         foreach (var box in boxesInTree)
