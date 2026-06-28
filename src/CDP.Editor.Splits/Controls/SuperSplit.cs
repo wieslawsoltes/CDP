@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Avalonia;
+using Avalonia.Animation.Easings;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -41,31 +42,6 @@ public class FlatSplitter : Control
         Cursor = new Cursor(node.Orientation == Orientation.Horizontal
             ? StandardCursorType.SizeWestEast
             : StandardCursorType.SizeNorthSouth);
-    }
-
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-        var visual = ElementComposition.GetElementVisual(this);
-        if (visual != null)
-        {
-            var compositor = visual.Compositor;
-            var implicitAnimations = compositor.CreateImplicitAnimationCollection();
-            
-            var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
-            offsetAnim.Duration = TimeSpan.FromMilliseconds(250);
-            offsetAnim.Target = "Offset";
-            offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
-            implicitAnimations["Offset"] = offsetAnim;
-
-            var sizeAnim = compositor.CreateVector2KeyFrameAnimation();
-            sizeAnim.Duration = TimeSpan.FromMilliseconds(250);
-            sizeAnim.Target = "Size";
-            sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
-            implicitAnimations["Size"] = sizeAnim;
-
-            visual.ImplicitAnimations = implicitAnimations;
-        }
     }
 
     protected override void OnPointerEntered(PointerEventArgs e)
@@ -156,6 +132,11 @@ public class FlatSplitPanel : Panel
     private readonly SuperSplit _parentSplit;
     private readonly Dictionary<SplitNode, Rect> _nodeBounds = new();
     private readonly Dictionary<SplitContainerNode, Rect> _containerBounds = new();
+    private readonly Dictionary<BoxNode, Rect> _previousBoxBounds = new();
+    private readonly Dictionary<SplitContainerNode, Rect> _previousSplitterBounds = new();
+
+    public Dictionary<BoxNode, Rect> PreviousBoxBounds => _previousBoxBounds;
+    public Dictionary<SplitContainerNode, Rect> PreviousSplitterBounds => _previousSplitterBounds;
 
     public FlatSplitter? ActiveSplitter { get; private set; }
     private Point _splitterDragStartPoint;
@@ -174,7 +155,6 @@ public class FlatSplitPanel : Panel
         ActiveSplitter = splitter;
         _splitterDragStartPoint = e.GetPosition(this);
         _splitterDragStartRatio = splitter.ContainerNode.SplitterRatio;
-        SetImplicitAnimationsEnabled(false);
     }
 
     public void UpdateSplitterDrag(PointerEventArgs e)
@@ -211,41 +191,6 @@ public class FlatSplitPanel : Panel
     public void EndSplitterDrag()
     {
         ActiveSplitter = null;
-        SetImplicitAnimationsEnabled(true);
-    }
-
-    private void SetImplicitAnimationsEnabled(bool enabled)
-    {
-        foreach (var child in Children)
-        {
-            var visual = ElementComposition.GetElementVisual(child);
-            if (visual != null)
-            {
-                if (enabled)
-                {
-                    var compositor = visual.Compositor;
-                    var implicitAnimations = compositor.CreateImplicitAnimationCollection();
-                    
-                    var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
-                    offsetAnim.Duration = TimeSpan.FromMilliseconds(250);
-                    offsetAnim.Target = "Offset";
-                    offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
-                    implicitAnimations["Offset"] = offsetAnim;
-
-                    var sizeAnim = compositor.CreateVector2KeyFrameAnimation();
-                    sizeAnim.Duration = TimeSpan.FromMilliseconds(250);
-                    sizeAnim.Target = "Size";
-                    sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue");
-                    implicitAnimations["Size"] = sizeAnim;
-
-                    visual.ImplicitAnimations = implicitAnimations;
-                }
-                else
-                {
-                    visual.ImplicitAnimations = null;
-                }
-            }
-        }
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -314,6 +259,11 @@ public class FlatSplitPanel : Panel
                 }
             }
         }
+
+        _previousBoxBounds.Clear();
+        _previousSplitterBounds.Clear();
+        foreach (var kv in boxes) _previousBoxBounds[kv.Key] = kv.Value;
+        foreach (var kv in splitters) _previousSplitterBounds[kv.Key] = kv.Value;
 
         return finalSize;
     }
@@ -392,6 +342,30 @@ public class SuperSplit : ContentControl
         ClipToBounds = true;
         _overlayCanvas.Children.Add(_dropHighlightOverlay);
         _overlayCanvas.Children.Add(_dragPreview);
+
+        _dropHighlightOverlay.AttachedToVisualTree += (s, e) =>
+        {
+            var visual = ElementComposition.GetElementVisual(_dropHighlightOverlay);
+            if (visual != null)
+            {
+                var compositor = visual.Compositor;
+                var implicitAnimations = compositor.CreateImplicitAnimationCollection();
+                
+                var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
+                offsetAnim.Duration = TimeSpan.FromMilliseconds(200);
+                offsetAnim.Target = "Offset";
+                offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue", new SplineEasing(0.25, 0.1, 0.25, 1.0));
+                implicitAnimations["Offset"] = offsetAnim;
+
+                var sizeAnim = compositor.CreateVector2KeyFrameAnimation();
+                sizeAnim.Duration = TimeSpan.FromMilliseconds(200);
+                sizeAnim.Target = "Size";
+                sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue", new SplineEasing(0.25, 0.1, 0.25, 1.0));
+                implicitAnimations["Size"] = sizeAnim;
+
+                visual.ImplicitAnimations = implicitAnimations;
+            }
+        };
     }
 
     private void OnRootChanged(AvaloniaPropertyChangedEventArgs e)
@@ -509,6 +483,15 @@ public class SuperSplit : ContentControl
         var existingBoxes = panel.Children.OfType<SuperSplitBox>().Where(b => b.DataContext is BoxNode).ToDictionary(b => (BoxNode)b.DataContext!);
         var existingSplitters = panel.Children.OfType<FlatSplitter>().ToDictionary(s => s.ContainerNode);
 
+        // Compute new layout bounds to compare against previous bounds for selective animation
+        var newBoxes = new Dictionary<BoxNode, Rect>();
+        var newSplitters = new Dictionary<SplitContainerNode, Rect>();
+        var newContainers = new Dictionary<SplitContainerNode, Rect>();
+        if (panel.Bounds.Width > 0 && panel.Bounds.Height > 0)
+        {
+            ComputePixelBounds(Root, new Rect(panel.Bounds.Size), 8.0, newBoxes, newSplitters, newContainers);
+        }
+
         // Temporarily clear InnerContent of all existing box controls to prevent cross-assignment conflicts during layout swaps
         foreach (var boxControl in existingBoxes.Values)
         {
@@ -530,6 +513,14 @@ public class SuperSplit : ContentControl
                 boxControl.BackgroundTint = box.BackgroundTint;
                 boxControl.InnerContent = box.Content;
                 newChildren.Add(boxControl);
+
+                bool isMoving = false;
+                if (panel.PreviousBoxBounds.TryGetValue(box, out var prevRect) && newBoxes.TryGetValue(box, out var newRect))
+                {
+                    isMoving = (prevRect.X != newRect.X || prevRect.Y != newRect.Y ||
+                                prevRect.Width != newRect.Width || prevRect.Height != newRect.Height);
+                }
+                ConfigureTransitionAnimations(boxControl, isMoving);
             }
             else
             {
@@ -559,6 +550,14 @@ public class SuperSplit : ContentControl
             if (existingSplitters.TryGetValue(container, out var splitterControl))
             {
                 newChildren.Add(splitterControl);
+
+                bool isMoving = false;
+                if (panel.PreviousSplitterBounds.TryGetValue(container, out var prevRect) && newSplitters.TryGetValue(container, out var newRect))
+                {
+                    isMoving = (prevRect.X != newRect.X || prevRect.Y != newRect.Y ||
+                                prevRect.Width != newRect.Width || prevRect.Height != newRect.Height);
+                }
+                ConfigureTransitionAnimations(splitterControl, isMoving);
             }
             else
             {
@@ -578,6 +577,46 @@ public class SuperSplit : ContentControl
 
         panel.Children.Clear();
         panel.Children.AddRange(newChildren);
+    }
+
+    private void ConfigureTransitionAnimations(Control control, bool enabled)
+    {
+        var visual = ElementComposition.GetElementVisual(control);
+        if (visual != null)
+        {
+            if (enabled)
+            {
+                var compositor = visual.Compositor;
+                var implicitAnimations = compositor.CreateImplicitAnimationCollection();
+                
+                var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
+                offsetAnim.Duration = TimeSpan.FromMilliseconds(250);
+                offsetAnim.Target = "Offset";
+                offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue", new SplineEasing(0.25, 0.1, 0.25, 1.0));
+                implicitAnimations["Offset"] = offsetAnim;
+
+                var sizeAnim = compositor.CreateVector2KeyFrameAnimation();
+                sizeAnim.Duration = TimeSpan.FromMilliseconds(250);
+                sizeAnim.Target = "Size";
+                sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue", new SplineEasing(0.25, 0.1, 0.25, 1.0));
+                implicitAnimations["Size"] = sizeAnim;
+
+                visual.ImplicitAnimations = implicitAnimations;
+
+                var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+                timer.Tick += (s, ev) =>
+                {
+                    timer.Stop();
+                    var v = ElementComposition.GetElementVisual(control);
+                    if (v != null) v.ImplicitAnimations = null;
+                };
+                timer.Start();
+            }
+            else
+            {
+                visual.ImplicitAnimations = null;
+            }
+        }
     }
 
     private void CollectNodes(SplitNode? node, List<BoxNode> boxes, List<SplitContainerNode> containers)
@@ -652,17 +691,27 @@ public class SuperSplit : ContentControl
         var visual = ElementComposition.GetElementVisual(boxControl);
         if (visual != null)
         {
-            var implicitAnims = visual.ImplicitAnimations;
+            // Set starting values directly without animation
             visual.ImplicitAnimations = null;
-
             visual.Offset = new Vector3((float)finalSibRect.X, (float)finalSibRect.Y, 0.0f);
             visual.Opacity = 0.0f;
 
-            visual.ImplicitAnimations = implicitAnims;
+            // Configure transition animations for Offset
+            var compositor = visual.Compositor;
+            var implicitAnimations = compositor.CreateImplicitAnimationCollection();
+            
+            var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
+            offsetAnim.Duration = TimeSpan.FromMilliseconds(250);
+            offsetAnim.Target = "Offset";
+            offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue", new SplineEasing(0.25, 0.1, 0.25, 1.0));
+            implicitAnimations["Offset"] = offsetAnim;
 
+            visual.ImplicitAnimations = implicitAnimations;
+
+            // Trigger the transition by setting Offset to final target
             visual.Offset = new Vector3((float)finalNewRect.X, (float)finalNewRect.Y, 0.0f);
 
-            var compositor = visual.Compositor;
+            // Animate Opacity fade-in explicitly
             var opacityAnimation = compositor.CreateScalarKeyFrameAnimation();
             opacityAnimation.Target = "Opacity";
             opacityAnimation.InsertKeyFrame(0.0f, 0.0f);
@@ -679,6 +728,8 @@ public class SuperSplit : ContentControl
                     c.ZIndex = 0;
                 }
                 boxControl.ZIndex = 0;
+                var v = ElementComposition.GetElementVisual(boxControl);
+                if (v != null) v.ImplicitAnimations = null;
             };
             timer.Start();
         }
@@ -842,7 +893,7 @@ public class SuperSplit : ContentControl
             {
                 _currentHoverNode = null;
                 _currentDropLocation = RelativeDropLocation.None;
-                _dropHighlightOverlay.IsVisible = false;
+                HideDropHighlight();
             }
         }
     }
@@ -903,15 +954,84 @@ public class SuperSplit : ContentControl
                 overlayH = h / 2;
                 break;
             default:
-                _dropHighlightOverlay.IsVisible = false;
+                HideDropHighlight();
                 return;
         }
 
-        Canvas.SetLeft(_dropHighlightOverlay, overlayX);
-        Canvas.SetTop(_dropHighlightOverlay, overlayY);
-        _dropHighlightOverlay.Width = overlayW;
-        _dropHighlightOverlay.Height = overlayH;
-        _dropHighlightOverlay.IsVisible = true;
+        var visual = ElementComposition.GetElementVisual(_dropHighlightOverlay);
+        if (!_dropHighlightOverlay.IsVisible)
+        {
+            if (visual != null)
+            {
+                var implicitAnims = visual.ImplicitAnimations;
+                visual.ImplicitAnimations = null;
+
+                Canvas.SetLeft(_dropHighlightOverlay, overlayX);
+                Canvas.SetTop(_dropHighlightOverlay, overlayY);
+                _dropHighlightOverlay.Width = overlayW;
+                _dropHighlightOverlay.Height = overlayH;
+                _dropHighlightOverlay.Opacity = 0.0;
+                _dropHighlightOverlay.IsVisible = true;
+
+                _overlayCanvas.UpdateLayout();
+
+                visual.ImplicitAnimations = implicitAnims;
+
+                var compositor = visual.Compositor;
+                var opacityAnimation = compositor.CreateScalarKeyFrameAnimation();
+                opacityAnimation.Target = "Opacity";
+                opacityAnimation.InsertKeyFrame(0.0f, 0.0f);
+                opacityAnimation.InsertKeyFrame(1.0f, 1.0f);
+                opacityAnimation.Duration = TimeSpan.FromMilliseconds(200);
+                visual.StartAnimation("Opacity", opacityAnimation);
+            }
+            else
+            {
+                Canvas.SetLeft(_dropHighlightOverlay, overlayX);
+                Canvas.SetTop(_dropHighlightOverlay, overlayY);
+                _dropHighlightOverlay.Width = overlayW;
+                _dropHighlightOverlay.Height = overlayH;
+                _dropHighlightOverlay.IsVisible = true;
+                _dropHighlightOverlay.Opacity = 1.0;
+            }
+        }
+        else
+        {
+            Canvas.SetLeft(_dropHighlightOverlay, overlayX);
+            Canvas.SetTop(_dropHighlightOverlay, overlayY);
+            _dropHighlightOverlay.Width = overlayW;
+            _dropHighlightOverlay.Height = overlayH;
+        }
+    }
+
+    private void HideDropHighlight()
+    {
+        if (!_dropHighlightOverlay.IsVisible) return;
+
+        var visual = ElementComposition.GetElementVisual(_dropHighlightOverlay);
+        if (visual != null)
+        {
+            var compositor = visual.Compositor;
+            var opacityAnimation = compositor.CreateScalarKeyFrameAnimation();
+            opacityAnimation.Target = "Opacity";
+            opacityAnimation.InsertKeyFrame(0.0f, (float)_dropHighlightOverlay.Opacity);
+            opacityAnimation.InsertKeyFrame(1.0f, 0.0f);
+            opacityAnimation.Duration = TimeSpan.FromMilliseconds(200);
+            
+            var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            timer.Tick += (s, ev) =>
+            {
+                timer.Stop();
+                _dropHighlightOverlay.IsVisible = false;
+            };
+            timer.Start();
+
+            visual.StartAnimation("Opacity", opacityAnimation);
+        }
+        else
+        {
+            _dropHighlightOverlay.IsVisible = false;
+        }
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -922,7 +1042,7 @@ public class SuperSplit : ContentControl
             _isDragging = false;
             e.Pointer.Capture(null);
             _dragPreview.IsVisible = false;
-            _dropHighlightOverlay.IsVisible = false;
+            HideDropHighlight();
 
             if (_draggedNode != null && _currentHoverNode != null && _currentDropLocation != RelativeDropLocation.None)
             {
