@@ -52,6 +52,7 @@ public class RecorderViewModel : ViewModelBase
         {
             if (RaiseAndSetIfChanged(ref _isRecording, value))
             {
+                TestStudio.IsRecording = value;
                 if (_isRecording)
                 {
                     ToggleRecordButtonText = "Stop Recording";

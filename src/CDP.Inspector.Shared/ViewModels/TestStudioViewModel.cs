@@ -453,6 +453,13 @@ public class TestStudioViewModel : ViewModelBase
     public ICommand ReplayLastVideoCommand { get; }
     public Action<ReplayIndicatorInfo?>? OnStepIndicatorChanged { get; set; }
 
+    private bool _isRecording;
+    public bool IsRecording
+    {
+        get => _isRecording;
+        set => RaiseAndSetIfChanged(ref _isRecording, value);
+    }
+
     public ObservableCollection<TestStudioStepModel> Steps
     {
         get => _steps;
@@ -845,6 +852,23 @@ public class TestStudioViewModel : ViewModelBase
         UpdateYaml();
         RaiseCommandCanExecuteChanged();
         SyncFromTestStudio();
+
+        if (e.NewItems != null && e.NewItems.Count > 0 && IsRecording)
+        {
+            if (Steps.Count == 1)
+            {
+                var firstNode = NodeEditor.Nodes.OfType<TestStudioNodeViewModel>().FirstOrDefault();
+                if (firstNode != null)
+                {
+                    NodeEditor.Zoom = 1.0;
+                    NodeEditor.BringNodeIntoView(firstNode);
+                }
+            }
+            else if (Steps.Count > 1)
+            {
+                NodeEditor.LayoutAppliedAction?.Invoke(); // ZoomToFit
+            }
+        }
     }
 
     private void SubscribeStep(TestStudioStepModel step)

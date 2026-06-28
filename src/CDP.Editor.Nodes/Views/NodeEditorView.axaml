@@ -49,13 +49,14 @@
     <Grid Name="RootGrid" Background="#202124" Classes.dragging-connection="{Binding IsDraggingConnection}">
         <!-- Zoomable/pannable area container -->
         <Border Name="CanvasContainer" Background="Transparent" ClipToBounds="True">
-            <Canvas Name="NodeCanvas" Width="5000" Height="5000" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False" RenderTransformOrigin="0%,0%">
-                <Canvas.RenderTransform>
-                    <TransformGroup>
-                        <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}"/>
-                        <TranslateTransform X="{Binding PanX}" Y="{Binding PanY}"/>
-                    </TransformGroup>
-                </Canvas.RenderTransform>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="Transparent" Focusable="False">
+                <local:NodeEditorCanvasPanel Name="NodeCanvas" Width="5000" Height="5000" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False" RenderTransformOrigin="0%,0%">
+                    <local:NodeEditorCanvasPanel.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}"/>
+                            <TranslateTransform X="{Binding PanX}" Y="{Binding PanY}"/>
+                        </TransformGroup>
+                    </local:NodeEditorCanvasPanel.RenderTransform>
 
                 <!-- Connections -->
                 <ItemsControl Name="ConnectionsItemsControl" ItemsSource="{Binding Connections}" Width="5000" Height="5000" HorizontalAlignment="Left" VerticalAlignment="Top" ClipToBounds="False">
@@ -170,8 +171,9 @@
 
                 <!-- Selection Box Overlay -->
                 <Rectangle Name="SelectionBox" Fill="#1a73e8" Opacity="0.15" Stroke="#1a73e8" StrokeThickness="1.5" IsVisible="False" Canvas.Left="0" Canvas.Top="0" Width="0" Height="0"/>
-            </Canvas>
-        </Border>
+            </local:NodeEditorCanvasPanel>
+        </ScrollViewer>
+    </Border>
 
         <!-- Overlay controls at the top right -->
         <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Padding="4" Background="#2d2f34" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" MaxWidth="500">

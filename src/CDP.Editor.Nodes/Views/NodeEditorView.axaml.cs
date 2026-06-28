@@ -239,7 +239,7 @@ public partial class NodeEditorView : UserControl
         if (DataContext is NodeEditorViewModel vm && _canvasContainer != null)
         {
             double oldZoom = vm.Zoom;
-            double newZoom = Math.Clamp(oldZoom * factor, 0.2, 3.0);
+            double newZoom = Math.Clamp(oldZoom * factor, 0.05, 10.0);
             
             if (Math.Abs(newZoom - oldZoom) > 0.0001)
             {
@@ -301,7 +301,7 @@ public partial class NodeEditorView : UserControl
             double zoomY = viewportHeight / targetHeight;
             double targetZoom = Math.Min(zoomX, zoomY);
 
-            targetZoom = Math.Clamp(targetZoom, 0.2, 3.0);
+            targetZoom = Math.Clamp(targetZoom, 0.05, 10.0);
 
             double nodesCenterX = minX + nodesWidth / 2.0;
             double nodesCenterY = minY + nodesHeight / 2.0;
@@ -850,7 +850,7 @@ public partial class NodeEditorView : UserControl
 
         double zoomFactor = e.Delta.Y > 0 ? 1.1 : 0.9;
         double oldZoom = vm.Zoom;
-        double newZoom = Math.Clamp(oldZoom * zoomFactor, 0.2, 3.0);
+        double newZoom = Math.Clamp(oldZoom * zoomFactor, 0.05, 10.0);
 
         if (Math.Abs(newZoom - oldZoom) > 0.0001)
         {
