@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Animation.Easings;
 using Avalonia.Collections;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -579,11 +580,7 @@ public class SuperSplit : ContentControl
         {
             if (existingBoxes.TryGetValue(box, out var boxControl))
             {
-                boxControl.HeaderTitle = box.Title;
-                boxControl.IconKey = box.IconKey;
-                boxControl.IsSelected = box.IsSelected;
-                boxControl.BackgroundTint = box.BackgroundTint;
-                boxControl.InnerContent = box.Content;
+                boxControl.DataContext = box;
                 newChildren.Add(boxControl);
 
                 bool isMoving = false;
@@ -598,14 +595,15 @@ public class SuperSplit : ContentControl
             {
                 var newBoxControl = new SuperSplitBox
                 {
-                    HeaderTitle = box.Title,
-                    IconKey = box.IconKey,
-                    IsSelected = box.IsSelected,
-                    BackgroundTint = box.BackgroundTint,
-                    InnerContent = box.Content,
                     DataContext = box,
                     IsEntranceAnimationRequested = true
                 };
+
+                newBoxControl.Bind(SuperSplitBox.HeaderTitleProperty, new Binding(nameof(BoxNode.Title)));
+                newBoxControl.Bind(SuperSplitBox.IconKeyProperty, new Binding(nameof(BoxNode.IconKey)));
+                newBoxControl.Bind(SuperSplitBox.IsSelectedProperty, new Binding(nameof(BoxNode.IsSelected)));
+                newBoxControl.Bind(SuperSplitBox.BackgroundTintProperty, new Binding(nameof(BoxNode.BackgroundTint)));
+                newBoxControl.Bind(SuperSplitBox.InnerContentProperty, new Binding(nameof(BoxNode.Content)));
 
                 newBoxControl.BoxSelected += (s, e) => { SelectedNode = box; };
                 newBoxControl.HeaderPressed += (s, ev) => { StartDrag(box, ev); };
