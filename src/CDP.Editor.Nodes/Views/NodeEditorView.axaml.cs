@@ -117,6 +117,13 @@ public partial class NodeEditorView : UserControl
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        var topLevel = TopLevel.GetTopLevel(this);
+        var focused = topLevel?.FocusManager?.GetFocusedElement();
+        if (focused is Control ctrl && IsInputControl(ctrl))
+        {
+            return;
+        }
+
         if (DataContext is not NodeEditorViewModel vm)
             return;
 
@@ -419,6 +426,8 @@ public partial class NodeEditorView : UserControl
             {
                 return;
             }
+
+            this.Focus();
 
             bool clearOthers = !e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Shift);
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift))
