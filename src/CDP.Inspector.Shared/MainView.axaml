@@ -7,7 +7,7 @@
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
 
-    <Grid RowDefinitions="Auto, *">
+    <Grid RowDefinitions="Auto, *" Background="#202124">
         <!-- 1. Connection, Targets, and Layout Toolbar -->
         <views:ConnectionToolbar Name="Toolbar" Grid.Row="0"/>
 
