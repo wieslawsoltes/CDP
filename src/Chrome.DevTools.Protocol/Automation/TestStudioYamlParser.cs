@@ -700,7 +700,39 @@ public static class TestStudioYamlParser
 
         if (step.Parameters.Count > 0)
         {
-            var parameters = ToSerializableDictionary(step.Parameters);
+            var sourceParams = new Dictionary<string, object?>(step.Parameters, StringComparer.OrdinalIgnoreCase);
+
+            // Preserve selector
+            if (!string.IsNullOrEmpty(step.Selector))
+            {
+                var def = FlowCommandCatalog.Find(action);
+                if (def != null && (def.AcceptsSelector || def.ValueKind == FlowCommandValueKind.Selector))
+                {
+                    var selectorKey = (def.Parameters != null && def.Parameters.Contains("element")) ? "element" : "selector";
+                    if (!sourceParams.ContainsKey(selectorKey))
+                    {
+                        sourceParams[selectorKey] = step.Selector;
+                    }
+                }
+            }
+
+            // Preserve value
+            if (!string.IsNullOrEmpty(step.Value))
+            {
+                var def = FlowCommandCatalog.Find(action);
+                if (def != null && (def.ValueKind == FlowCommandValueKind.String || def.ValueKind == FlowCommandValueKind.Map))
+                {
+                    var valueKey = (def.Parameters != null && def.Parameters.Contains("text")) ? "text" :
+                                   (def.Parameters != null && def.Parameters.Contains("key")) ? "key" : "value";
+                    if (!sourceParams.ContainsKey(valueKey))
+                    {
+                        sourceParams[valueKey] = step.Value;
+                    }
+                }
+            }
+
+            var parameters = ToSerializableDictionary(sourceParams);
+
             if ((action == "repeat" || action == "retry" || action == "runFlow") &&
                 step.NestedSteps != null &&
                 step.NestedSteps.Count > 0)

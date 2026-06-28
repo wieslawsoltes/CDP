@@ -187,6 +187,18 @@ public class TestStudioNodeViewModel : NodeViewModel
     {
         if (Step != null && Step.Parameters.TryGetValue(name, out var val))
         {
+            if (val is System.Collections.IDictionary || val is System.Collections.IList)
+            {
+                try
+                {
+                    var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = false };
+                    return System.Text.Json.JsonSerializer.Serialize(val, options);
+                }
+                catch
+                {
+                    // Fallback to ToString
+                }
+            }
             return val?.ToString();
         }
         return null;
@@ -202,11 +214,63 @@ public class TestStudioNodeViewModel : NodeViewModel
             }
             else
             {
-                Step.Parameters[name] = val;
+                Step.Parameters[name] = ParseStructuredValue(val);
             }
             // Trigger parameters change to force updates/serialization
             Step.Parameters = new System.Collections.Generic.Dictionary<string, object?>(Step.Parameters, StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    private static object? ParseStructuredValue(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var trimmed = text.Trim();
+        if ((trimmed.StartsWith("{") && trimmed.EndsWith("}")) ||
+            (trimmed.StartsWith("[") && trimmed.EndsWith("]")))
+        {
+            try
+            {
+                var node = System.Text.Json.Nodes.JsonNode.Parse(trimmed);
+                return ConvertJsonNode(node);
+            }
+            catch
+            {
+                // Fallback to string if parsing fails
+            }
+        }
+        return text;
+    }
+
+    private static object? ConvertJsonNode(System.Text.Json.Nodes.JsonNode? node)
+    {
+        if (node == null) return null;
+        if (node is System.Text.Json.Nodes.JsonObject obj)
+        {
+            var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in obj)
+            {
+                dict[kv.Key] = ConvertJsonNode(kv.Value);
+            }
+            return dict;
+        }
+        if (node is System.Text.Json.Nodes.JsonArray arr)
+        {
+            var list = new List<object?>();
+            foreach (var item in arr)
+            {
+                list.Add(ConvertJsonNode(item));
+            }
+            return list;
+        }
+        if (node is System.Text.Json.Nodes.JsonValue val)
+        {
+            if (val.TryGetValue<string>(out var s)) return s;
+            if (val.TryGetValue<double>(out var d)) return d;
+            if (val.TryGetValue<bool>(out var b)) return b;
+            if (val.TryGetValue<int>(out var i)) return i;
+            return val.ToString();
+        }
+        return node.ToString();
     }
 
     private void UpdateVisualBrushes()
