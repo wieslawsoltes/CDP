@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -96,7 +97,7 @@ public partial class NodeEditorView : UserControl
             _canvasContainer.PointerPressed += OnPointerPressed;
             _canvasContainer.PointerMoved += OnPointerMoved;
             _canvasContainer.PointerReleased += OnPointerReleased;
-            _canvasContainer.PointerWheelChanged += OnPointerWheelChanged;
+            _canvasContainer.AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheelChanged, RoutingStrategies.Tunnel);
         }
 
         if (_btnZoomIn != null)
