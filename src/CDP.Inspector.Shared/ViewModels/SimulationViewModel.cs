@@ -1458,6 +1458,16 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     {
         if (stateNode is not JsonObject json) return;
 
+        if (json.TryGetPropertyValue("selectedDevicePresetName", out var presetNode) && presetNode != null)
+        {
+            var presetName = (string?)presetNode;
+            var matchedPreset = DevicePresets.FirstOrDefault(p => p.DisplayName == presetName);
+            if (matchedPreset != null)
+            {
+                SelectedDevicePreset = matchedPreset;
+            }
+        }
+
         if (json.TryGetPropertyValue("widthText", out var wNode) && wNode != null)
         {
             WidthText = (string?)wNode ?? "800";
@@ -1477,16 +1487,6 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("navigateUrlText", out var urlNode) && urlNode != null)
         {
             NavigateUrlText = (string?)urlNode ?? "http://localhost:9222/about";
-        }
-
-        if (json.TryGetPropertyValue("selectedDevicePresetName", out var presetNode) && presetNode != null)
-        {
-            var presetName = (string?)presetNode;
-            var matchedPreset = DevicePresets.FirstOrDefault(p => p.DisplayName == presetName);
-            if (matchedPreset != null)
-            {
-                SelectedDevicePreset = matchedPreset;
-            }
         }
     }
 

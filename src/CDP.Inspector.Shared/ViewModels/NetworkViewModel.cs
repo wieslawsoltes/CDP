@@ -767,7 +767,9 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
                 var pattern = (string?)item;
                 if (!string.IsNullOrEmpty(pattern))
                 {
-                    BlockedUrls.Add(new BlockedUrlModel { Pattern = pattern });
+                    var model = new BlockedUrlModel { Pattern = pattern };
+                    model.PropertyChanged += BlockedUrl_PropertyChanged;
+                    BlockedUrls.Add(model);
                 }
             }
             _ = SyncBlockedUrlsAsync();
