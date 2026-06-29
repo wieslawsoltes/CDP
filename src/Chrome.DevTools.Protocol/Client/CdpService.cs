@@ -191,6 +191,8 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             cts = _cts;
             _ws = null;
             _cts = null;
+            IsConnected = false;
+            IsPreviewScreencastActive = false;
             ConnectionStatus = "Disconnecting...";
         }
 
@@ -199,7 +201,8 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             cts?.Cancel();
             if (ws.State == WebSocketState.Open)
             {
-                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                var closeTask = ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                await Task.WhenAny(closeTask, Task.Delay(1000));
             }
         }
         catch (Exception)
@@ -210,11 +213,9 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         {
             ws.Dispose();
             cts?.Dispose();
-            IsConnected = false;
             ConnectionStatus = "Disconnected";
             ConnectedHost = "";
             ConnectedTargetId = "";
-            IsPreviewScreencastActive = false;
             _screencastReconstructor.Dispose();
         }
     }
