@@ -43,9 +43,9 @@ public class DateTimeAssertionRule : AssertionInferenceRuleBase
             var escapedDate = dateVal.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
             {
-                Action = "assertTrue",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.SelectedDate.ToString() == \"{escapedDate}\""
+                Action = "assertVisible",
+                Selector = $"{selector}[SelectedDate=\"{escapedDate}\"]",
+                Value = ""
             });
         }
 
@@ -54,9 +54,9 @@ public class DateTimeAssertionRule : AssertionInferenceRuleBase
             var escapedTime = timeVal.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
             {
-                Action = "assertTrue",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.SelectedTime.ToString() == \"{escapedTime}\""
+                Action = "assertVisible",
+                Selector = $"{selector}[SelectedTime=\"{escapedTime}\"]",
+                Value = ""
             });
         }
 

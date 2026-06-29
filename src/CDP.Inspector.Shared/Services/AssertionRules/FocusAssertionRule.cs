@@ -28,9 +28,9 @@ public class FocusAssertionRule : AssertionInferenceRuleBase
             {
                 steps.Add(new TestStudioStepModel
                 {
-                    Action = "assertTrue",
-                    Selector = "",
-                    Value = $"document.querySelector(\"{escapedSelector}\").visual.IsFocused"
+                    Action = "assertVisible",
+                    Selector = $"{selector}[IsFocused=\"true\"]",
+                    Value = ""
                 });
             }
         }

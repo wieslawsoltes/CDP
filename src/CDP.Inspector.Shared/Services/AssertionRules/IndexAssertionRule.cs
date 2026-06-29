@@ -24,9 +24,9 @@ public class IndexAssertionRule : AssertionInferenceRuleBase
             var escapedSelector = selector.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
             {
-                Action = "assertTrue",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.SelectedIndex == {idx}"
+                Action = "assertVisible",
+                Selector = $"{selector}[SelectedIndex=\"{idx}\"]",
+                Value = ""
             });
         }
         return steps;

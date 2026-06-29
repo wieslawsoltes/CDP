@@ -25,9 +25,9 @@ public class EnabledDisabledAssertionRule : AssertionInferenceRuleBase
             {
                 steps.Add(new TestStudioStepModel
                 {
-                    Action = "assertFalse",
-                    Selector = "",
-                    Value = $"document.querySelector(\"{escapedSelector}\").visual.IsEnabled"
+                    Action = "assertVisible",
+                    Selector = $"{selector}[IsEnabled=\"false\"]",
+                    Value = ""
                 });
             }
         }

@@ -26,9 +26,9 @@ public class SelectionAssertionRule : AssertionInferenceRuleBase
             bool isTrue = isSelectedVal.Equals("true", StringComparison.OrdinalIgnoreCase);
             steps.Add(new TestStudioStepModel
             {
-                Action = isTrue ? "assertTrue" : "assertFalse",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.IsSelected"
+                Action = "assertVisible",
+                Selector = $"{selector}[IsSelected=\"{(isTrue ? "true" : "false")}\"]",
+                Value = ""
             });
         }
         return steps;

@@ -23,9 +23,9 @@ public class SliderAssertionRule : AssertionInferenceRuleBase
             var valStr = dVal.ToString(System.Globalization.CultureInfo.InvariantCulture);
             steps.Add(new TestStudioStepModel
             {
-                Action = "assertTrue",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.Value == {valStr}"
+                Action = "assertVisible",
+                Selector = $"{selector}[Value=\"{valStr}\"]",
+                Value = ""
             });
         }
         return steps;

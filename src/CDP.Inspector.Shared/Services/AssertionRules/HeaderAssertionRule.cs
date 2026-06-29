@@ -26,9 +26,9 @@ public class HeaderAssertionRule : AssertionInferenceRuleBase
             var escapedHeader = headerVal.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
             {
-                Action = "assertTrue",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.Header.ToString() == \"{escapedHeader}\""
+                Action = "assertVisible",
+                Selector = $"{selector}[Header=\"{escapedHeader}\"]",
+                Value = ""
             });
         }
         return steps;

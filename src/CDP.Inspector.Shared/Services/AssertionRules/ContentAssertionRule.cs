@@ -25,9 +25,9 @@ public class ContentAssertionRule : AssertionInferenceRuleBase
             var escapedContent = contentVal.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
             {
-                Action = "assertTrue",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.Content.ToString() == \"{escapedContent}\""
+                Action = "assertVisible",
+                Selector = $"{selector}[Content=\"{escapedContent}\"]",
+                Value = ""
             });
         }
         return steps;
