@@ -21,6 +21,7 @@
     <PackageReference Include="AvaloniaEdit.TextMate" />
     <PackageReference Include="TextMateSharp.Grammars" />
     <PackageReference Include="ProDataGrid" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
