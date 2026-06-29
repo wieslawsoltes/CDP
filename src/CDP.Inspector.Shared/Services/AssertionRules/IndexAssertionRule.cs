@@ -21,11 +21,10 @@ public class IndexAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("SelectedIndex", out var idxVal) && int.TryParse(idxVal, out var idx))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
             {
                 Action = "assertVisible",
-                Selector = $"{selector}[SelectedIndex=\"{idx}\"]",
+                Selector = $"{selector}[SelectedIndex='{idx}']",
                 Value = ""
             });
         }

@@ -21,12 +21,11 @@ public class PlaceholderAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("PlaceholderText", out var phVal) && !string.IsNullOrEmpty(phVal))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
-            var escapedPH = phVal.Replace("\"", "\\\"");
+            var escapedPH = phVal.Replace("'", "\\'");
             steps.Add(new TestStudioStepModel
             {
                 Action = "assertVisible",
-                Selector = $"{selector}[PlaceholderText=\"{escapedPH}\"]",
+                Selector = $"{selector}[PlaceholderText='{escapedPH}']",
                 Value = ""
             });
         }

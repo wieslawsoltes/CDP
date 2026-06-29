@@ -22,14 +22,13 @@ public class FocusAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("IsFocused", out var isFocusedVal) && !string.IsNullOrEmpty(isFocusedVal))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
             bool isTrue = isFocusedVal.Equals("true", StringComparison.OrdinalIgnoreCase);
             if (isTrue)
             {
                 steps.Add(new TestStudioStepModel
                 {
                     Action = "assertVisible",
-                    Selector = $"{selector}[IsFocused=\"true\"]",
+                    Selector = $"{selector}[IsFocused='true']",
                     Value = ""
                 });
             }

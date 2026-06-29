@@ -36,26 +36,24 @@ public class DateTimeAssertionRule : AssertionInferenceRuleBase
     public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
-        var escapedSelector = selector.Replace("\"", "\\\"");
-
         if (AssertDate && properties.TryGetValue("SelectedDate", out var dateVal) && !string.IsNullOrEmpty(dateVal))
         {
-            var escapedDate = dateVal.Replace("\"", "\\\"");
+            var escapedDate = dateVal.Replace("'", "\\'");
             steps.Add(new TestStudioStepModel
             {
                 Action = "assertVisible",
-                Selector = $"{selector}[SelectedDate=\"{escapedDate}\"]",
+                Selector = $"{selector}[SelectedDate='{escapedDate}']",
                 Value = ""
             });
         }
 
         if (AssertTime && properties.TryGetValue("SelectedTime", out var timeVal) && !string.IsNullOrEmpty(timeVal))
         {
-            var escapedTime = timeVal.Replace("\"", "\\\"");
+            var escapedTime = timeVal.Replace("'", "\\'");
             steps.Add(new TestStudioStepModel
             {
                 Action = "assertVisible",
-                Selector = $"{selector}[SelectedTime=\"{escapedTime}\"]",
+                Selector = $"{selector}[SelectedTime='{escapedTime}']",
                 Value = ""
             });
         }

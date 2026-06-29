@@ -22,7 +22,7 @@ public class AssertionInferenceEngineTests
         var assertionsChecked = engine.InferAssertions("CheckBox", "#chkToggle", propsChecked);
         Assert.Single(assertionsChecked);
         Assert.Equal("assertVisible", assertionsChecked[0].Action);
-        Assert.Equal("#chkToggle[IsChecked=\"true\"]", assertionsChecked[0].Selector);
+        Assert.Equal("#chkToggle[IsChecked='true']", assertionsChecked[0].Selector);
         Assert.Equal("", assertionsChecked[0].Value);
 
         // Case 2: CheckBox that is unchecked
@@ -33,7 +33,7 @@ public class AssertionInferenceEngineTests
         var assertionsUnchecked = engine.InferAssertions("CheckBox", "#chkToggle", propsUnchecked);
         Assert.Single(assertionsUnchecked);
         Assert.Equal("assertVisible", assertionsUnchecked[0].Action);
-        Assert.Equal("#chkToggle[IsChecked=\"false\"]", assertionsUnchecked[0].Selector);
+        Assert.Equal("#chkToggle[IsChecked='false']", assertionsUnchecked[0].Selector);
         Assert.Equal("", assertionsUnchecked[0].Value);
     }
 
@@ -49,7 +49,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("TextBox", "#txtInput", props);
         Assert.Single(assertions);
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#txtInput[Text=\"Hello World\"]", assertions[0].Selector);
+        Assert.Equal("#txtInput[Text='Hello World']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -65,7 +65,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("Slider", "#slider", props);
         Assert.Single(assertions);
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#slider[Value=\"42\"]", assertions[0].Selector);
+        Assert.Equal("#slider[Value='42']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -81,7 +81,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("TabItem", "#tabHome", props);
         Assert.Single(assertions);
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#tabHome[IsSelected=\"true\"]", assertions[0].Selector);
+        Assert.Equal("#tabHome[IsSelected='true']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -97,7 +97,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("ComboBox", "#cbTargets", props);
         Assert.Single(assertions);
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#cbTargets[SelectedIndex=\"2\"]", assertions[0].Selector);
+        Assert.Equal("#cbTargets[SelectedIndex='2']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -113,7 +113,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("NumericUpDown", "#numValue", props);
         Assert.Single(assertions);
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#numValue[Value=\"10.5\"]", assertions[0].Selector);
+        Assert.Equal("#numValue[Value='10.5']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -129,7 +129,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("Expander", "#expMain", props);
         Assert.Single(assertions);
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#expMain[IsExpanded=\"true\"]", assertions[0].Selector);
+        Assert.Equal("#expMain[IsExpanded='true']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -148,10 +148,10 @@ public class AssertionInferenceEngineTests
         
         // Order of registration: SelectionAssertionRule (IsSelected) first, then ExpanderAssertionRule (IsExpanded)
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#treeItem[IsSelected=\"false\"]", assertions[0].Selector);
+        Assert.Equal("#treeItem[IsSelected='false']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
         Assert.Equal("assertVisible", assertions[1].Action);
-        Assert.Equal("#treeItem[IsExpanded=\"true\"]", assertions[1].Selector);
+        Assert.Equal("#treeItem[IsExpanded='true']", assertions[1].Selector);
         Assert.Equal("", assertions[1].Value);
     }
 
@@ -167,7 +167,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("ListBox", "#lstItems", props);
         Assert.Single(assertions);
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#lstItems[SelectedIndex=\"3\"]", assertions[0].Selector);
+        Assert.Equal("#lstItems[SelectedIndex='3']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -184,10 +184,10 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("DatePicker", "#datePicker", props);
         Assert.Equal(2, assertions.Count);
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#datePicker[SelectedDate=\"2026-06-28\"]", assertions[0].Selector);
+        Assert.Equal("#datePicker[SelectedDate='2026-06-28']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
         Assert.Equal("assertVisible", assertions[1].Action);
-        Assert.Equal("#datePicker[SelectedTime=\"12:34:56\"]", assertions[1].Selector);
+        Assert.Equal("#datePicker[SelectedTime='12:34:56']", assertions[1].Selector);
         Assert.Equal("", assertions[1].Value);
     }
 
@@ -205,7 +205,7 @@ public class AssertionInferenceEngineTests
         var focusAssert = assertions.Find(a => a.Selector.Contains("IsFocused"));
         Assert.NotNull(focusAssert);
         Assert.Equal("assertVisible", focusAssert.Action);
-        Assert.Equal("#txtInput[IsFocused=\"true\"]", focusAssert.Selector);
+        Assert.Equal("#txtInput[IsFocused='true']", focusAssert.Selector);
         Assert.Equal("", focusAssert.Value);
     }
 
@@ -221,7 +221,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("Button", "#btnClick", props);
         
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#btnClick[IsEnabled=\"false\"]", assertions[0].Selector);
+        Assert.Equal("#btnClick[IsEnabled='false']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -237,7 +237,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("Button", "#btnAction", props);
         
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#btnAction[Content=\"Click Me\"]", assertions[0].Selector);
+        Assert.Equal("#btnAction[Content='Click Me']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -253,7 +253,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("TabItem", "#tabFirst", props);
         
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#tabFirst[Header=\"Tab 1\"]", assertions[0].Selector);
+        Assert.Equal("#tabFirst[Header='Tab 1']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 
@@ -269,7 +269,7 @@ public class AssertionInferenceEngineTests
         var assertions = engine.InferAssertions("TextBox", "#txtSearch", props);
         
         Assert.Equal("assertVisible", assertions[0].Action);
-        Assert.Equal("#txtSearch[PlaceholderText=\"Search...\"]", assertions[0].Selector);
+        Assert.Equal("#txtSearch[PlaceholderText='Search...']", assertions[0].Selector);
         Assert.Equal("", assertions[0].Value);
     }
 }

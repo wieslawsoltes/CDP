@@ -19,12 +19,11 @@ public class SliderAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("Value", out var val) && double.TryParse(val, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var dVal))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
             var valStr = dVal.ToString(System.Globalization.CultureInfo.InvariantCulture);
             steps.Add(new TestStudioStepModel
             {
                 Action = "assertVisible",
-                Selector = $"{selector}[Value=\"{valStr}\"]",
+                Selector = $"{selector}[Value='{valStr}']",
                 Value = ""
             });
         }
