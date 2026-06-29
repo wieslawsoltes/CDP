@@ -20,9 +20,7 @@ public partial class App : Application
     {
         var factory = LoggerFactory.Create(builder =>
         {
-#pragma warning disable CA1416
-            builder.AddConsole();
-#pragma warning restore CA1416
+            builder.AddProvider(new BrowserConsoleLoggerProvider());
             builder.SetMinimumLevel(LogLevel.Information); // default non-verbose logging
         });
         CdpLogging.LoggerFactory = factory;
@@ -93,5 +91,35 @@ public partial class App : Application
             System.Console.WriteLine($"[BrowserApp] Error parsing query parameter: {ex.Message}");
         }
         return null;
+    }
+}
+
+public class BrowserConsoleLoggerProvider : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => new BrowserConsoleLogger(categoryName);
+    public void Dispose() { }
+}
+
+public class BrowserConsoleLogger : ILogger
+{
+    private readonly string _categoryName;
+
+    public BrowserConsoleLogger(string categoryName)
+    {
+        _categoryName = categoryName;
+    }
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        var message = formatter(state, exception);
+        System.Console.WriteLine($"[{logLevel}] {_categoryName}: {message}");
+        if (exception != null)
+        {
+            System.Console.WriteLine(exception.ToString());
+        }
     }
 }
