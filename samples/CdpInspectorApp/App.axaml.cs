@@ -26,7 +26,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindow();
-            CdpServer.Start(9223);
+            Avalonia.Diagnostics.Cdp.CdpServer.Start(9223);
             desktop.Exit += (sender, args) =>
             {
                 try

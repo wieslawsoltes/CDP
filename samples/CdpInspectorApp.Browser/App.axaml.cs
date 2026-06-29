@@ -20,7 +20,9 @@ public partial class App : Application
     {
         var factory = LoggerFactory.Create(builder =>
         {
+#pragma warning disable CA1416
             builder.AddConsole();
+#pragma warning restore CA1416
             builder.SetMinimumLevel(LogLevel.Information); // default non-verbose logging
         });
         CdpLogging.LoggerFactory = factory;
