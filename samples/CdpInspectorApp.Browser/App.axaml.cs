@@ -2,6 +2,8 @@ using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.Browser;
 
@@ -16,6 +18,13 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        var factory = LoggerFactory.Create(builder =>
+        {
+            builder.AddConsole();
+            builder.SetMinimumLevel(LogLevel.Information); // default non-verbose logging
+        });
+        CdpLogging.LoggerFactory = factory;
+
         System.Console.WriteLine("[BrowserApp] OnFrameworkInitializationCompleted started.");
         if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
