@@ -7,11 +7,14 @@ using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ApplicationViewModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ApplicationViewModel>();
     private readonly ICdpService _cdpService;
     private ObservableCollection<ResourceEntryModel> _resources = new();
     private ResourceEntryModel? _selectedResource;
@@ -604,7 +607,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling domains: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error enabling domains", ex);
         }
     }
 
@@ -698,7 +701,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing resources: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error refreshing resources", ex);
         }
     }
 
@@ -724,7 +727,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving resource: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error saving resource", ex);
         }
     }
 
@@ -740,7 +743,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error deleting resource: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error deleting resource", ex);
         }
     }
 
@@ -781,7 +784,7 @@ public class ApplicationViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error resolving security origin: {ex.Message}");
+                Logger.LogWarningMessage("ApplicationViewModel", "Error resolving security origin", ex);
             }
         }
 
@@ -843,7 +846,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing DOM storage: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error refreshing DOM storage", ex);
         }
     }
 
@@ -874,7 +877,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving DOM storage item: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error saving DOM storage item", ex);
         }
     }
 
@@ -894,7 +897,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error deleting DOM storage item: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error deleting DOM storage item", ex);
         }
     }
 
@@ -912,7 +915,7 @@ public class ApplicationViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Network.getCookies failed, falling back to Page.getCookies: {ex.Message}");
+                Logger.LogWarningMessage("ApplicationViewModel", "Network.getCookies failed, falling back to Page.getCookies", ex);
                 response = await _cdpService.SendCommandAsync("Page.getCookies");
             }
 
@@ -944,7 +947,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing cookies: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error refreshing cookies", ex);
         }
     }
 
@@ -978,7 +981,7 @@ public class ApplicationViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Network.setCookie failed, falling back to Page.setCookie: {ex.Message}");
+                Logger.LogWarningMessage("ApplicationViewModel", "Network.setCookie failed, falling back to Page.setCookie", ex);
                 await _cdpService.SendCommandAsync("Page.setCookie", p);
             }
             
@@ -992,7 +995,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving cookie: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error saving cookie", ex);
         }
     }
 
@@ -1014,14 +1017,14 @@ public class ApplicationViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Network.deleteCookies failed, falling back to Page.deleteCookie: {ex.Message}");
+                Logger.LogWarningMessage("ApplicationViewModel", "Network.deleteCookies failed, falling back to Page.deleteCookie", ex);
                 await _cdpService.SendCommandAsync("Page.deleteCookie", p);
             }
             await RefreshCookiesAsync();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error deleting cookie: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error deleting cookie", ex);
         }
     }
 
@@ -1108,7 +1111,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing databases: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error refreshing databases", ex);
         }
     }
 
@@ -1147,7 +1150,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading database tables: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error loading database tables", ex);
         }
     }
 
@@ -1210,7 +1213,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error executing SQL: {ex.Message}");
+            Logger.LogErrorMessage("ApplicationViewModel", "Error executing SQL", ex);
             if (isConsole)
             {
                 Dispatcher.UIThread.Post(() =>
@@ -1318,7 +1321,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error toggling background recording: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error toggling background recording", ex);
         }
     }
 
@@ -1336,7 +1339,7 @@ public class ApplicationViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error clearing background events: {ex.Message}");
+                Logger.LogWarningMessage("ApplicationViewModel", "Error clearing background events", ex);
             }
         }
         BackgroundEvents.Clear();
@@ -1363,7 +1366,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error restarting background service observation: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error restarting background service observation", ex);
         }
     }
 
@@ -1422,7 +1425,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing IndexedDB databases: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error refreshing IndexedDB databases", ex);
         }
     }
 
@@ -1469,7 +1472,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading database stores for tree node {dbNode.Name}: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", $"Error loading database stores for tree node {dbNode.Name}", ex);
         }
     }
 
@@ -1522,7 +1525,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading IndexedDB object stores for {databaseName}: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", $"Error loading IndexedDB object stores for {databaseName}", ex);
         }
     }
 
@@ -1574,7 +1577,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading IndexedDB data: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error loading IndexedDB data", ex);
         }
     }
 
@@ -1596,7 +1599,7 @@ public class ApplicationViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error clearing IndexedDB object store: {ex.Message}");
+            Logger.LogWarningMessage("ApplicationViewModel", "Error clearing IndexedDB object store", ex);
         }
     }
 }

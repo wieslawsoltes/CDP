@@ -7,11 +7,14 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class AuditsViewModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<AuditsViewModel>();
     private readonly ICdpService _cdpService;
     private readonly Action<int> _selectNodeInDomTree;
 
@@ -141,7 +144,7 @@ public class AuditsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error running visual audits: {ex.Message}");
+            Logger.LogWarningMessage("AuditsViewModel", "Error running visual audits", ex);
         }
         finally
         {

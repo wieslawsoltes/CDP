@@ -10,11 +10,14 @@ using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ElementsViewModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ElementsViewModel>();
     private readonly ICdpService _cdpService;
     private readonly Dictionary<string, JsonObject> _axNodeDetailsMap = new();
     private ObservableCollection<DomNodeModel> _rootNodes = new();
@@ -814,7 +817,7 @@ public class ElementsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling DOM domain: {ex.Message}");
+            Logger.LogWarningMessage("ElementsViewModel", "Error enabling DOM domain", ex);
         }
 
         try
@@ -823,7 +826,7 @@ public class ElementsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling CSS domain: {ex.Message}");
+            Logger.LogWarningMessage("ElementsViewModel", "Error enabling CSS domain", ex);
         }
 
         try
@@ -832,7 +835,7 @@ public class ElementsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling DOMDebugger domain: {ex.Message}");
+            Logger.LogWarningMessage("ElementsViewModel", "Error enabling DOMDebugger domain", ex);
         }
 
         try
@@ -841,7 +844,7 @@ public class ElementsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling Accessibility domain: {ex.Message}");
+            Logger.LogWarningMessage("ElementsViewModel", "Error enabling Accessibility domain", ex);
         }
 
         await RefreshDomTreeAsync();
@@ -900,7 +903,7 @@ public class ElementsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing DOM tree: {ex.Message}");
+            Logger.LogWarningMessage("ElementsViewModel", "Error refreshing DOM tree", ex);
         }
     }
 

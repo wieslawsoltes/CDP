@@ -8,11 +8,14 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ConsoleViewModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ConsoleViewModel>();
     private readonly ICdpService _cdpService;
     private readonly List<LogModel> _allLogs = new();
     private ObservableCollection<LogModel> _logs = new();
@@ -248,7 +251,7 @@ public class ConsoleViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling Log domain: {ex.Message}");
+            Logger.LogWarningMessage("ConsoleViewModel", "Error enabling Log domain", ex);
         }
     }
 
