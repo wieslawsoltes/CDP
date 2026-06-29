@@ -273,4 +273,17 @@ public partial class MainWindow : Window
         }
         return 0;
     }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        if (MainViewControl.DataContext is MainWindowViewModel vm)
+        {
+            try
+            {
+                vm.StateService.Save();
+            }
+            catch { }
+        }
+        base.OnClosing(e);
+    }
 }

@@ -31,6 +31,15 @@ public partial class App : Application
             {
                 try
                 {
+                    if (desktop.MainWindow?.DataContext is CdpInspectorApp.ViewModels.MainWindowViewModel vm)
+                    {
+                        vm.StateService.Save();
+                    }
+                }
+                catch { }
+
+                try
+                {
                     CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
                 }
                 catch { }
