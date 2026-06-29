@@ -8,11 +8,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol;
 
 public static class CdpServer
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("CdpServer");
     private static HttpListener? _listener;
     private static bool _isRunning;
     private static int _port = 9222;
@@ -201,6 +203,7 @@ public static class CdpServer
         if (_isRunning) return;
         _port = port;
         _isRunning = true;
+        Logger.ServerStarted(port);
 
         // Initialize Network diagnostic listener
         Chrome.DevTools.Protocol.Domains.NetworkDomain.Initialize();
@@ -238,6 +241,7 @@ public static class CdpServer
     {
         if (!_isRunning) return;
         _isRunning = false;
+        Logger.ServerStopped();
 
         // Restore Console redirectors
         if (_originalOut != null)
@@ -386,7 +390,7 @@ public static class CdpServer
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"CDP Server error: {ex}");
+            Logger.ServerError(ex.Message, ex);
             response.StatusCode = 500;
             response.Close();
         }

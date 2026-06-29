@@ -8,11 +8,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol;
 
 public class CdpSession
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("CdpSession");
     private readonly WebSocket _webSocket;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
@@ -307,7 +309,7 @@ public class CdpSession
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing message: {ex}");
+            Logger.LogErrorMessage("CdpSession", "Error processing message", ex);
         }
     }
 
