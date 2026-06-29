@@ -205,37 +205,37 @@ public static class SelectorEngine
         if (visual is TextBlock textBlock)
         {
             value = textBlock.Text ?? "";
-            return !string.IsNullOrEmpty(value);
+            return true;
         }
 
         if (visual is TextBox textBox)
         {
             value = textBox.Text ?? "";
-            return !string.IsNullOrEmpty(value);
+            return true;
         }
 
-        if (visual is ContentControl contentControl && contentControl.Content is string contentStr)
+        if (visual is HeaderedContentControl headeredContentControl)
         {
-            value = contentStr;
-            return !string.IsNullOrEmpty(value);
+            value = headeredContentControl.Header?.ToString() ?? "";
+            return true;
         }
 
-        if (visual is HeaderedContentControl headeredContentControl && headeredContentControl.Header is string headerStr)
+        if (visual is HeaderedItemsControl headeredItemsControl)
         {
-            value = headerStr;
-            return !string.IsNullOrEmpty(value);
+            value = headeredItemsControl.Header?.ToString() ?? "";
+            return true;
         }
 
-        if (visual is HeaderedItemsControl headeredItemsControl && headeredItemsControl.Header is string itemsHeaderStr)
+        if (visual is ContentControl contentControl)
         {
-            value = itemsHeaderStr;
-            return !string.IsNullOrEmpty(value);
+            value = contentControl.Content?.ToString() ?? "";
+            return true;
         }
 
-        if (visual is Avalonia.Controls.Presenters.ContentPresenter contentPresenter && contentPresenter.Content is string presenterContentStr)
+        if (visual is Avalonia.Controls.Presenters.ContentPresenter contentPresenter)
         {
-            value = presenterContentStr;
-            return !string.IsNullOrEmpty(value);
+            value = contentPresenter.Content?.ToString() ?? "";
+            return true;
         }
 
         return false;
@@ -340,6 +340,14 @@ public static class SelectorEngine
                 return true;
             }
 
+            var prop = control.GetType().GetProperty("IsChecked", BindingFlags.Public | BindingFlags.Instance);
+            if (prop != null)
+            {
+                var val = prop.GetValue(control);
+                value = (val != null && (val.ToString().Equals("True", StringComparison.OrdinalIgnoreCase) || val.ToString().Equals("true", StringComparison.OrdinalIgnoreCase))).ToString().ToLowerInvariant();
+                return true;
+            }
+
             return false;
         }
 
@@ -353,6 +361,72 @@ public static class SelectorEngine
                 return true;
             }
 
+            return false;
+        }
+
+        if (normalizedName.Equals("Value", StringComparison.OrdinalIgnoreCase))
+        {
+            var valueProperty = control.GetType().GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
+            if (valueProperty != null)
+            {
+                value = valueProperty.GetValue(control)?.ToString() ?? "";
+                return true;
+            }
+            return false;
+        }
+
+        if (normalizedName.Equals("SelectedIndex", StringComparison.OrdinalIgnoreCase))
+        {
+            var prop = control.GetType().GetProperty("SelectedIndex", BindingFlags.Public | BindingFlags.Instance);
+            if (prop != null)
+            {
+                value = prop.GetValue(control)?.ToString() ?? "";
+                return true;
+            }
+            return false;
+        }
+
+        if (normalizedName.Equals("IsExpanded", StringComparison.OrdinalIgnoreCase))
+        {
+            var prop = control.GetType().GetProperty("IsExpanded", BindingFlags.Public | BindingFlags.Instance);
+            if (prop != null)
+            {
+                value = prop.GetValue(control)?.ToString().ToLowerInvariant() ?? "false";
+                return true;
+            }
+            return false;
+        }
+
+        if (normalizedName.Equals("SelectedDate", StringComparison.OrdinalIgnoreCase))
+        {
+            var prop = control.GetType().GetProperty("SelectedDate", BindingFlags.Public | BindingFlags.Instance);
+            if (prop != null)
+            {
+                value = prop.GetValue(control)?.ToString() ?? "";
+                return true;
+            }
+            return false;
+        }
+
+        if (normalizedName.Equals("SelectedTime", StringComparison.OrdinalIgnoreCase))
+        {
+            var prop = control.GetType().GetProperty("SelectedTime", BindingFlags.Public | BindingFlags.Instance);
+            if (prop != null)
+            {
+                value = prop.GetValue(control)?.ToString() ?? "";
+                return true;
+            }
+            return false;
+        }
+
+        if (normalizedName.Equals("PlaceholderText", StringComparison.OrdinalIgnoreCase))
+        {
+            var prop = control.GetType().GetProperty("PlaceholderText", BindingFlags.Public | BindingFlags.Instance);
+            if (prop != null)
+            {
+                value = prop.GetValue(control)?.ToString() ?? "";
+                return true;
+            }
             return false;
         }
 
