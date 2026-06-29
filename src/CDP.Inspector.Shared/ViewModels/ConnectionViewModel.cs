@@ -11,7 +11,7 @@ using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class ConnectionViewModel : ViewModelBase
+public class ConnectionViewModel : ViewModelBase, IStateProvider
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger<ConnectionViewModel>();
     private readonly ICdpService _cdpService;
@@ -943,4 +943,32 @@ public class ConnectionViewModel : ViewModelBase
             Logger.LogWarningMessage("ConnectionViewModel", "Error dragging window", ex);
         }
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "connection";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["hostAddress"] = HostAddress;
+        root["useAutomationSelectors"] = UseAutomationSelectors;
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("hostAddress", out var hostNode) && hostNode != null)
+        {
+            HostAddress = (string?)hostNode ?? "http://127.0.0.1:9222";
+        }
+        if (json.TryGetPropertyValue("useAutomationSelectors", out var autoNode) && autoNode != null)
+        {
+            UseAutomationSelectors = (bool?)autoNode ?? false;
+        }
+    }
+
+    #endregion
 }
