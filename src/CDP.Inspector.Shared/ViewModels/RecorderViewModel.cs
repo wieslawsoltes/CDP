@@ -312,6 +312,12 @@ public class RecorderViewModel : ViewModelBase
             {
                 try
                 {
+                    await CdpInspectorApp.Services.AppLauncherService.ShutdownAndDisconnectAsync(_cdpService);
+                }
+                catch { }
+
+                try
+                {
                     CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
                 }
                 catch { }

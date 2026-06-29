@@ -54,6 +54,61 @@ public class AppLauncherService : IAppLauncherService
         }
     }
 
+    public static async Task ShutdownAndDisconnectAsync(ICdpService cdpService)
+    {
+        if (cdpService == null || !cdpService.IsConnected) return;
+
+        int pid = 0;
+        try
+        {
+            var pidRes = await cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "System.Diagnostics.Process.GetCurrentProcess().Id",
+                ["returnByValue"] = true
+            });
+            var resultNode = pidRes["result"] as JsonObject;
+            if (resultNode != null && resultNode.ContainsKey("value"))
+            {
+                int.TryParse(resultNode["value"]?.ToString(), out pid);
+            }
+        }
+        catch { }
+
+        try
+        {
+            _ = cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "Avalonia.Application.Current?.Shutdown()",
+                ["returnByValue"] = true
+            });
+        }
+        catch { }
+
+        try
+        {
+            await cdpService.DisconnectAsync();
+        }
+        catch { }
+
+        if (pid > 0)
+        {
+            try
+            {
+                var proc = Process.GetProcessById(pid);
+                var startTime = DateTime.UtcNow;
+                while (!proc.HasExited && (DateTime.UtcNow - startTime).TotalSeconds < 3)
+                {
+                    await Task.Delay(100);
+                }
+                if (!proc.HasExited)
+                {
+                    proc.Kill();
+                }
+            }
+            catch { }
+        }
+    }
+
     public async Task AutoLaunchAppAsync(
         ICdpService cdpService, 
         ConnectionViewModel? connection, 

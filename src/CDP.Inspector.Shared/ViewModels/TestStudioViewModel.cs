@@ -1182,6 +1182,12 @@ public class TestStudioViewModel : ViewModelBase
 
                 try
                 {
+                    await CdpInspectorApp.Services.AppLauncherService.ShutdownAndDisconnectAsync(_cdpService);
+                }
+                catch { }
+
+                try
+                {
                     CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
                 }
                 catch { }
