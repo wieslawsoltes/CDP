@@ -12,7 +12,7 @@ using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class MemoryViewModel : ViewModelBase
+public class MemoryViewModel : ViewModelBase, IStateProvider
 {
     private readonly ICdpService _cdpService;
     private ObservableCollection<MemorySnapshotModel> _snapshots = new();
@@ -459,4 +459,27 @@ public class MemoryViewModel : ViewModelBase
             }
         });
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "memory";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["isComparisonMode"] = IsComparisonMode;
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("isComparisonMode", out var compNode) && compNode != null)
+        {
+            IsComparisonMode = (bool?)compNode ?? false;
+        }
+    }
+
+    #endregion
 }
