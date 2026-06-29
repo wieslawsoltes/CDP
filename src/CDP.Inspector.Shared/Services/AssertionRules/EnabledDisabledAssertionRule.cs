@@ -19,15 +19,14 @@ public class EnabledDisabledAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("IsEnabled", out var isEnabledVal) && !string.IsNullOrEmpty(isEnabledVal))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
             bool isTrue = isEnabledVal.Equals("true", StringComparison.OrdinalIgnoreCase);
             if (!isTrue)
             {
                 steps.Add(new TestStudioStepModel
                 {
-                    Action = "assertFalse",
-                    Selector = "",
-                    Value = $"document.querySelector(\"{escapedSelector}\").visual.IsEnabled"
+                    Action = "assertVisible",
+                    Selector = $"{selector}[IsEnabled='false']",
+                    Value = ""
                 });
             }
         }

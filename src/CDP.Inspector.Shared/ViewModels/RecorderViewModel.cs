@@ -188,7 +188,18 @@ public class RecorderViewModel : ViewModelBase
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
 
-        ToggleRecordCommand = new RelayCommand(async () => await ToggleRecordAsync(), () => _cdpService.IsConnected);
+        ToggleRecordCommand = new RelayCommand(
+            async () => await ToggleRecordAsync(), 
+            () => _cdpService.IsConnected || (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath)));
+
+        TestStudio.PropertyChanged += (sender, args) =>
+        {
+            if (args.PropertyName == nameof(TestStudioViewModel.IsAutoLaunchEnabled) ||
+                args.PropertyName == nameof(TestStudioViewModel.AutoLaunchPath))
+            {
+                ((RelayCommand)ToggleRecordCommand).RaiseCanExecuteChanged();
+            }
+        };
         ReplayCommand = new RelayCommand(async () => await ReplayAsync(), () => _cdpService.IsConnected && RecordedSteps.Count > 0);
         ClearCommand = new RelayCommand(ClearRecording);
         DeleteStepCommand = new RelayCommand<RecordedStepModel>(DeleteStep);
@@ -295,7 +306,51 @@ public class RecorderViewModel : ViewModelBase
 
     public async Task ToggleRecordAsync()
     {
-        if (!_cdpService.IsConnected) return;
+        if (!IsRecording)
+        {
+            if (TestStudio != null && TestStudio.IsAutoLaunchEnabled)
+            {
+                try
+                {
+                    await CdpInspectorApp.Services.AppLauncherService.ShutdownAndDisconnectAsync(_cdpService);
+                }
+                catch { }
+
+                try
+                {
+                    CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
+                }
+                catch { }
+            }
+        }
+
+        if (!_cdpService.IsConnected)
+        {
+            if (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath))
+            {
+                try
+                {
+                    var launcher = new CdpInspectorApp.Services.AppLauncherService();
+                    await launcher.AutoLaunchAppAsync(
+                        _cdpService,
+                        TestStudio.Connection,
+                        TestStudio.AutoLaunchPath,
+                        TestStudio.AutoLaunchArguments,
+                        msg => TestStudio.Log(msg),
+                        System.Threading.CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    TestStudio.Log($"Auto Launch Error: {ex.Message}");
+                    return;
+                }
+            }
+
+            if (!_cdpService.IsConnected)
+            {
+                return;
+            }
+        }
 
         try
         {
@@ -587,7 +642,7 @@ public class RecorderViewModel : ViewModelBase
 
         UpdateGeneratedCode();
 
-        if (IsTestStudioActive && TestStudio.IsAutoAssertionEnabled && (type == "click" || type == "change" || type == "keydown" || type == "scroll"))
+        if (IsTestStudioActive && TestStudio.IsAutoAssertionEnabled && (type == "click" || type == "change" || type == "keydown"))
         {
             _ = Task.Run(async () =>
             {
@@ -613,6 +668,47 @@ public class RecorderViewModel : ViewModelBase
         try
         {
             var escapedSelector = selector.Replace("\"", "\\\"");
+
+            var engine = TestStudio?.AssertionEngine;
+            int stableDelay = engine?.StableDelay ?? 400;
+            int pollInterval = engine?.PollInterval ?? 100;
+            int attempts = pollInterval > 0 ? stableDelay / pollInterval : 0;
+            if (attempts < 1) attempts = 1;
+
+            // Poll to verify if the element remains visible/attached.
+            // If it becomes invisible or is removed at any point, skip generating assertions.
+            for (int i = 0; i < attempts; i++)
+            {
+                await Task.Delay(pollInterval);
+                if (!_cdpService.IsConnected) return;
+
+                try
+                {
+                    var checkScript = $"var v = document.querySelector(\"{escapedSelector}\"); v != null && v.isEffectivelyVisible";
+                    var checkRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                    {
+                        ["expression"] = checkScript,
+                        ["returnByValue"] = true
+                    });
+
+                    if (checkRes["exceptionDetails"] != null)
+                    {
+                        return; 
+                    }
+
+                    var resultNodeObj = checkRes["result"] as JsonObject;
+                    var val = resultNodeObj?["value"];
+                    if (val == null || val.GetValue<bool>() == false)
+                    {
+                        return; 
+                    }
+                }
+                catch
+                {
+                    return; 
+                }
+            }
+
             var script = $"document.getPropertiesJson(\"{escapedSelector}\")";
 
             var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = script });
@@ -664,8 +760,15 @@ public class RecorderViewModel : ViewModelBase
 
             if (string.IsNullOrEmpty(controlTypeName)) return;
 
-            var engine = TestStudio.AssertionEngine;
+            if (engine == null) return;
             var inferredSteps = engine.InferAssertions(controlTypeName, selector, properties);
+
+            if (stepType == "click" || stepType == "keydown")
+            {
+                inferredSteps.RemoveAll(tsStep => 
+                    tsStep.Selector.Contains("[Text=") || tsStep.Selector.Contains("[Text='") || 
+                    tsStep.Selector.Contains("[Value=") || tsStep.Selector.Contains("[Value='"));
+            }
 
             if (inferredSteps.Count > 0)
             {

@@ -21,13 +21,12 @@ public class ExpanderAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("IsExpanded", out var isExpandedVal) && !string.IsNullOrEmpty(isExpandedVal))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
             bool isTrue = isExpandedVal.Equals("true", StringComparison.OrdinalIgnoreCase);
             steps.Add(new TestStudioStepModel
             {
-                Action = isTrue ? "assertTrue" : "assertFalse",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.IsExpanded"
+                Action = "assertVisible",
+                Selector = $"{selector}[IsExpanded='{(isTrue ? "true" : "false")}']",
+                Value = ""
             });
         }
         return steps;

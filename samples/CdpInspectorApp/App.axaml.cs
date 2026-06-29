@@ -18,6 +18,14 @@ public partial class App : Application
         {
             desktop.MainWindow = new MainWindow();
             CdpServer.Start(9223);
+            desktop.Exit += (sender, args) =>
+            {
+                try
+                {
+                    CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
+                }
+                catch { }
+            };
         }
 
         base.OnFrameworkInitializationCompleted();

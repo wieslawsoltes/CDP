@@ -27,6 +27,8 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
 
     public bool IsSyncSuppressed { get; set; }
 
+    public TestStudioViewModel? TestStudio { get; set; }
+
     public ICommand SyncStepsCommand { get; }
     public ICommand SyncToTestStudioCommand { get; }
     public ICommand SyncFromTestStudioCommand { get; }
@@ -39,7 +41,8 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
 
         CreateNodeHandler = () => new TestStudioNodeViewModel
         {
-            Action = "tapOn"
+            Action = "tapOn",
+            TestStudio = TestStudio
         };
 
         AutoLayoutHandler = AutoLayout;
@@ -94,7 +97,8 @@ public class TestStudioNodeEditorViewModel : NodeEditorViewModel
             Selector = selector,
             Value = value,
             X = x,
-            Y = y
+            Y = y,
+            TestStudio = TestStudio
         };
         Nodes.Add(node);
         return node;

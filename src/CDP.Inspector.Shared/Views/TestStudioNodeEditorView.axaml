@@ -36,8 +36,8 @@
                                      BorderBrush="#3c4043"/>
                 </Grid>
                 <!-- Value field -->
-                <Grid ColumnDefinitions="45, *" IsVisible="{Binding ShowValue}">
-                    <TextBlock Text="Value:" FontSize="9" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                <Grid ColumnDefinitions="45, *, Auto" IsVisible="{Binding ShowValue}">
+                    <TextBlock Grid.Column="0" Text="Value:" FontSize="9" Foreground="#9aa0a6" VerticalAlignment="Center"/>
                     <AutoCompleteBox Grid.Column="1"
                                      Text="{Binding Value, Mode=TwoWay}"
                                      ItemsSource="{Binding ValueSuggestions}"
@@ -47,6 +47,11 @@
                                      Padding="2,1"
                                      BorderThickness="1"
                                      BorderBrush="#3c4043"/>
+                    <Button Grid.Column="2"
+                            Content="..."
+                            Command="{Binding BrowseValueCommand}"
+                            IsVisible="{Binding IsLaunchApp}"
+                            FontSize="8" Padding="4,2" Margin="2,0,0,0" Height="20" VerticalAlignment="Center"/>
                 </Grid>
                 <!-- Sleek Collapsible Advanced Parameters Toggle -->
                 <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay}"
@@ -94,8 +99,8 @@
                         <ItemsControl ItemsSource="{Binding CustomParameters}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:CustomParamEditor">
-                                    <Grid ColumnDefinitions="55, *" Margin="0,2">
-                                        <TextBlock Text="{Binding Name, StringFormat='\{0\}:'}" FontSize="8" Foreground="#9aa0a6" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}"/>
+                                    <Grid ColumnDefinitions="55, *, Auto" Margin="0,2">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name, StringFormat='\{0\}:'}" FontSize="8" Foreground="#9aa0a6" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}"/>
                                         <AutoCompleteBox Grid.Column="1"
                                                          Text="{Binding Value, Mode=TwoWay}"
                                                          ItemsSource="{Binding ValueSuggestions}"
@@ -105,6 +110,11 @@
                                                          Padding="2,1"
                                                          BorderThickness="1"
                                                          BorderBrush="#3c4043"/>
+                                        <Button Grid.Column="2"
+                                                Content="..."
+                                                Command="{Binding BrowseCommand}"
+                                                IsVisible="{Binding IsPathParameter}"
+                                                FontSize="8" Padding="4,2" Margin="2,0,0,0" Height="18" VerticalAlignment="Center"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

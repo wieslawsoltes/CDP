@@ -22,13 +22,12 @@ public class HeaderAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("Header", out var headerVal) && !string.IsNullOrEmpty(headerVal))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
-            var escapedHeader = headerVal.Replace("\"", "\\\"");
+            var escapedHeader = headerVal.Replace("'", "\\'");
             steps.Add(new TestStudioStepModel
             {
-                Action = "assertTrue",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.Header.ToString() == \"{escapedHeader}\""
+                Action = "assertVisible",
+                Selector = $"{selector}[Header='{escapedHeader}']",
+                Value = ""
             });
         }
         return steps;

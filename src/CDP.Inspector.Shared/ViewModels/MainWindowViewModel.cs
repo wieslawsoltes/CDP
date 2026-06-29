@@ -90,6 +90,8 @@ public class MainWindowViewModel : ViewModelBase
             useAutomationSelectorsFunc: () => Connection.UseAutomationSelectors
         );
         Recorder = new RecorderViewModel(CdpService, () => Connection.GeneratorHostAddress, () => Connection.UseAutomationSelectors);
+        Recorder.TestStudio.Connection = Connection;
+        Connection.TestStudio = Recorder.TestStudio;
         Recorder.TestStudio.OnStepIndicatorChanged = indicator => Simulation.ActiveReplayIndicator = indicator;
 
         Simulation.InteractionDispatched += (sender, args) =>

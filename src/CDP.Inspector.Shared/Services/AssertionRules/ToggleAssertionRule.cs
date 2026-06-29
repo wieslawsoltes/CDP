@@ -23,13 +23,12 @@ public class ToggleAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("IsChecked", out var isCheckedVal) && !string.IsNullOrEmpty(isCheckedVal))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
             bool isTrue = isCheckedVal.Equals("true", StringComparison.OrdinalIgnoreCase);
             steps.Add(new TestStudioStepModel
             {
-                Action = isTrue ? "assertTrue" : "assertFalse",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.IsChecked"
+                Action = "assertVisible",
+                Selector = $"{selector}[IsChecked='{(isTrue ? "true" : "false")}']",
+                Value = ""
             });
         }
         return steps;

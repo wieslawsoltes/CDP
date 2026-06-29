@@ -22,13 +22,12 @@ public class SelectionAssertionRule : AssertionInferenceRuleBase
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("IsSelected", out var isSelectedVal) && !string.IsNullOrEmpty(isSelectedVal))
         {
-            var escapedSelector = selector.Replace("\"", "\\\"");
             bool isTrue = isSelectedVal.Equals("true", StringComparison.OrdinalIgnoreCase);
             steps.Add(new TestStudioStepModel
             {
-                Action = isTrue ? "assertTrue" : "assertFalse",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.IsSelected"
+                Action = "assertVisible",
+                Selector = $"{selector}[IsSelected='{(isTrue ? "true" : "false")}']",
+                Value = ""
             });
         }
         return steps;

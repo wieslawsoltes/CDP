@@ -32,13 +32,12 @@ public class TextBoxAssertionRule : AssertionInferenceRuleBase
                 return steps;
             }
 
-            var escapedSelector = selector.Replace("\"", "\\\"");
-            var escapedText = (textVal ?? "").Replace("\"", "\\\"");
+            var escapedText = (textVal ?? "").Replace("'", "\\'");
             steps.Add(new TestStudioStepModel
             {
-                Action = "assertTrue",
-                Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.Text == \"{escapedText}\""
+                Action = "assertVisible",
+                Selector = $"{selector}[Text='{escapedText}']",
+                Value = ""
             });
         }
         return steps;
