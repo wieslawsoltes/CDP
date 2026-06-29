@@ -379,6 +379,7 @@ public class TestStudioViewModel : ViewModelBase
 
     private bool _isRecordVideoEnabled = true;
     private bool _isGenerateReportEnabled = true;
+    private bool _isAutoAssertionEnabled = true;
     private string _outputDirectory = "TestReports";
     private bool _hasLastRunRecording = false;
     private string _lastReportPath = "";
@@ -404,6 +405,12 @@ public class TestStudioViewModel : ViewModelBase
     {
         get => _isGenerateReportEnabled;
         set => RaiseAndSetIfChanged(ref _isGenerateReportEnabled, value);
+    }
+
+    public bool IsAutoAssertionEnabled
+    {
+        get => _isAutoAssertionEnabled;
+        set => RaiseAndSetIfChanged(ref _isAutoAssertionEnabled, value);
     }
 
     public string OutputDirectory

@@ -22,6 +22,7 @@ public class RecorderViewModel : ViewModelBase
     private readonly ICdpService _cdpService;
     private readonly Func<string> _getHostAddress;
     private readonly Func<bool>? _useAutomationProvider;
+    private readonly System.Threading.SemaphoreSlim _assertionSemaphore = new(1, 1);
     private ObservableCollection<RecordedStepModel> _recordedSteps = new();
     private bool _isRecording;
     private bool _isClientSideRecording;
@@ -585,6 +586,112 @@ public class RecorderViewModel : ViewModelBase
         ((RelayCommand)ReplayCommand).RaiseCanExecuteChanged();
 
         UpdateGeneratedCode();
+
+        if (TestStudio.IsAutoAssertionEnabled && (type == "click" || type == "change" || type == "keydown" || type == "scroll"))
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(150);
+                await _assertionSemaphore.WaitAsync();
+                try
+                {
+                    await InferAndRecordAssertionsAsync(selector, type);
+                }
+                catch {}
+                finally
+                {
+                    _assertionSemaphore.Release();
+                }
+            });
+        }
+    }
+
+    private async Task InferAndRecordAssertionsAsync(string selector, string stepType)
+    {
+        if (string.IsNullOrEmpty(selector) || !_cdpService.IsConnected) return;
+
+        try
+        {
+            var escapedSelector = selector.Replace("\"", "\\\"");
+            var script = $"document.getPropertiesJson(\"{escapedSelector}\")";
+
+            var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = script });
+            if (evalRes["exceptionDetails"] != null)
+            {
+                return;
+            }
+            var resultNode = evalRes["result"] as JsonObject;
+            var jsonString = resultNode?["value"]?.GetValue<string>();
+            if (string.IsNullOrEmpty(jsonString)) return;
+
+            var properties = new Dictionary<string, string>();
+            string controlTypeName = "";
+            
+            var parsed = JsonNode.Parse(jsonString) as JsonObject;
+            if (parsed != null)
+            {
+                foreach (var kvp in parsed)
+                {
+                    if (kvp.Key == "$Type")
+                    {
+                        controlTypeName = kvp.Value?.GetValue<string>() ?? "";
+                    }
+                    else if (kvp.Key == "$FullName")
+                    {
+                        // ignore or use if needed
+                    }
+                    else
+                    {
+                        if (kvp.Value == null)
+                        {
+                            properties[kvp.Key] = "";
+                        }
+                        else
+                        {
+                            var valStr = kvp.Value.ToString();
+                            if (valStr == "null" && kvp.Value.GetValueKind() == System.Text.Json.JsonValueKind.Null)
+                            {
+                                properties[kvp.Key] = "";
+                            }
+                            else
+                            {
+                                properties[kvp.Key] = valStr;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(controlTypeName)) return;
+
+            var engine = new AssertionInferenceEngine();
+            var inferredSteps = engine.InferAssertions(controlTypeName, selector, properties);
+
+            if (inferredSteps.Count > 0)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    foreach (var tsStep in inferredSteps)
+                    {
+                        TestStudio.Steps.Add(tsStep);
+
+                        var recordedStep = new RecordedStepModel
+                        {
+                            Type = tsStep.Action,
+                            Selector = selector,
+                            Value = tsStep.Value ?? ""
+                        };
+                        RecordedSteps.Add(recordedStep);
+                    }
+                    
+                    UpdateGeneratedCode();
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Error inferring assertions: {ex.Message}");
+        }
     }
 
     private void UpdateGeneratedCode()
