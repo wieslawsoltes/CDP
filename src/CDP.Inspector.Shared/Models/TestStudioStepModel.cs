@@ -57,9 +57,12 @@ public class TestStudioStepModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(ActionDisplay));
                 OnPropertyChanged(nameof(DetailDisplay));
+                OnPropertyChanged(nameof(IsLaunchApp));
             }
         }
     }
+
+    public bool IsLaunchApp => string.Equals(Action, "launchApp", System.StringComparison.OrdinalIgnoreCase);
 
     public string? Selector
     {

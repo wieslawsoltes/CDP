@@ -413,6 +413,47 @@ public class TestStudioViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _isAutoAssertionEnabled, value);
     }
 
+    private bool _isAutoLaunchEnabled = false;
+    private string _autoLaunchPath = "";
+    private string _autoLaunchArguments = "";
+
+    public bool IsAutoLaunchEnabled
+    {
+        get => _isAutoLaunchEnabled;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isAutoLaunchEnabled, value))
+            {
+                RaiseCommandCanExecuteChanged();
+            }
+        }
+    }
+
+    public string AutoLaunchPath
+    {
+        get => _autoLaunchPath;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _autoLaunchPath, value))
+            {
+                RaiseCommandCanExecuteChanged();
+            }
+        }
+    }
+
+    public string AutoLaunchArguments
+    {
+        get => _autoLaunchArguments;
+        set => RaiseAndSetIfChanged(ref _autoLaunchArguments, value);
+    }
+
+    public ConnectionViewModel? Connection { get; set; }
+
+    public Func<Task<string?>>? FilePickerHandler { get; set; }
+
+    public ICommand BrowseAutoLaunchPathCommand { get; }
+    public ICommand BrowseExecutableCommand { get; }
+
     public CdpInspectorApp.Services.AssertionInferenceEngine AssertionEngine { get; } = new();
 
     public string OutputDirectory
@@ -675,10 +716,13 @@ public class TestStudioViewModel : ViewModelBase
         SaveEnvironmentsCommand = new RelayCommand(SaveEnvironmentsAction);
         CancelEnvironmentsCommand = new RelayCommand(CancelEnvironmentsAction);
 
-        PlayCommand = new RelayCommand(async () => await PlayAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused) && !IsSuiteExecuting);
+        BrowseAutoLaunchPathCommand = new RelayCommand(async () => await BrowseAutoLaunchPathAsync());
+        BrowseExecutableCommand = new RelayCommand<TestStudioStepModel>(async step => await BrowseExecutableAsync(step));
+
+        PlayCommand = new RelayCommand(async () => await PlayAsync(), () => (_cdpService.IsConnected || (IsAutoLaunchEnabled && !string.IsNullOrEmpty(AutoLaunchPath))) && Steps.Count > 0 && (!IsExecuting || IsPaused) && !IsSuiteExecuting);
         PauseCommand = new RelayCommand(Pause, () => IsExecuting && !IsPaused && !_isFinalizing);
         StopCommand = new RelayCommand(Stop, () => IsExecuting && !_isFinalizing);
-        StepOverCommand = new RelayCommand(async () => await StepOverAsync(), () => _cdpService.IsConnected && Steps.Count > 0 && (!IsExecuting || IsPaused) && !IsSuiteExecuting);
+        StepOverCommand = new RelayCommand(async () => await StepOverAsync(), () => (_cdpService.IsConnected || (IsAutoLaunchEnabled && !string.IsNullOrEmpty(AutoLaunchPath))) && Steps.Count > 0 && (!IsExecuting || IsPaused) && !IsSuiteExecuting);
         ClearCommand = new RelayCommand(ClearAll, () => !IsSuiteExecuting);
 
         AddTapCommand = new RelayCommand(async () => await AddTapAsync());
@@ -755,6 +799,7 @@ public class TestStudioViewModel : ViewModelBase
             IsNamePromptVisible = false;
         });
 
+        NodeEditor.TestStudio = this;
         NodeEditor.SyncToTestStudioAction = SyncToTestStudio;
         NodeEditor.SyncFromTestStudioAction = SyncFromTestStudio;
         NodeEditor.LayoutProviders.Add(new CDP.Editor.Nodes.Msagl.MsaglLayoutProvider());
@@ -1061,7 +1106,8 @@ public class TestStudioViewModel : ViewModelBase
                         X = 200.0 * i + 30.0,
                         Y = currentGroupY + 50.0,
                         Step = stepModel,
-                        ScenarioPath = file
+                        ScenarioPath = file,
+                        TestStudio = this
                     };
                     childNodes.Add(node);
                 }
@@ -1116,8 +1162,40 @@ public class TestStudioViewModel : ViewModelBase
     {
         if (IsExecuting && !IsPaused) return;
 
-        if (!IsPaused)
+        bool wasPaused = IsPaused;
+        IsExecuting = true;
+        IsPaused = false;
+        RaiseCommandCanExecuteChanged();
+
+        if (!wasPaused)
         {
+            if (IsAutoLaunchEnabled)
+            {
+                try
+                {
+                    if (_cdpService.IsConnected)
+                    {
+                        await CaptureConnectedAppLaunchInfoAsync();
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    if (_cdpService.IsConnected)
+                    {
+                        await _cdpService.DisconnectAsync();
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
+                }
+                catch { }
+            }
+
             foreach (var step in Steps)
             {
                 step.Status = StepStatus.Pending;
@@ -1139,30 +1217,50 @@ public class TestStudioViewModel : ViewModelBase
             }
             _playbackStartTime = DateTime.UtcNow;
 
+            if (IsAutoLaunchEnabled)
+            {
+                try
+                {
+                    await AutoLaunchAppAsync(CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    Log($"Auto Launch Error: {ex.Message}");
+                    IsExecuting = false;
+                    RaiseCommandCanExecuteChanged();
+                    return;
+                }
+            }
+
             if (IsRecordVideoEnabled && _cdpService.IsConnected)
             {
                 _isRecordingVideo = true;
                 _cdpService.RecordFullFrames = true;
-                try
+                if (!_cdpService.IsPreviewScreencastActive)
                 {
-                    Log("Starting video recording...");
-                    await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+                    try
                     {
-                        ["format"] = "jpeg",
-                        ["quality"] = 80,
-                        ["everyNthFrame"] = 1,
-                        ["transferMode"] = "tiled"
-                    });
+                        Log("Starting video recording...");
+                        await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
+                        {
+                            ["format"] = "jpeg",
+                            ["quality"] = 80,
+                            ["everyNthFrame"] = 1,
+                            ["transferMode"] = "tiled"
+                        });
+                        _cdpService.IsPreviewScreencastActive = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"Warning: Failed to start screencast: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    Log($"Warning: Failed to start screencast: {ex.Message}");
+                    Log("Video recording started (reusing active preview screencast).");
                 }
             }
         }
-
-        IsExecuting = true;
-        IsPaused = false;
 
         _executionCts = new CancellationTokenSource();
         var token = _executionCts.Token;
@@ -1264,6 +1362,26 @@ public class TestStudioViewModel : ViewModelBase
                 step.IsCurrent = false;
             }
             _currentStepIndex = 0;
+
+            if (IsAutoLaunchEnabled)
+            {
+                try
+                {
+                    if (_cdpService.IsConnected)
+                    {
+                        await CaptureConnectedAppLaunchInfoAsync();
+                    }
+                    await AutoLaunchAppAsync(CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    Log($"Auto Launch Error: {ex.Message}");
+                    IsExecuting = false;
+                    RaiseCommandCanExecuteChanged();
+                    return;
+                }
+            }
+
             IsExecuting = true;
         }
 
@@ -1471,27 +1589,178 @@ public class TestStudioViewModel : ViewModelBase
         {
             case "launchApp":
                 {
-                    string targetUrl = _cdpService.ConnectedHost;
-                    var appTarget = GetStepValue(step, "appId");
-                    if (!string.IsNullOrEmpty(appTarget) &&
-                        (appTarget.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                         appTarget.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                    var path = GetParameterString(step, "path");
+                    var arguments = GetParameterString(step, "arguments");
+                    if (string.IsNullOrEmpty(arguments))
                     {
-                        targetUrl = appTarget;
+                        arguments = GetParameterString(step, "args");
                     }
-                    else if (!string.IsNullOrEmpty(_appId) &&
-                             (_appId.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                              _appId.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                    var url = GetStepValue(step, "url", "appId");
+                    
+                    if (!string.IsNullOrEmpty(path))
                     {
-                        targetUrl = _appId;
+                        if (IsAutoLaunchEnabled || !_cdpService.IsConnected)
+                        {
+                            bool stopApp = GetStepBool(step, true, "stopApp");
+                            int pid = 0;
+                            if (stopApp && _cdpService.IsConnected)
+                            {
+                                try
+                                {
+                                    var pidRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                                    {
+                                        ["expression"] = "System.Diagnostics.Process.GetCurrentProcess().Id",
+                                        ["returnByValue"] = true
+                                    });
+                                    var resultNode = pidRes["result"] as JsonObject;
+                                    if (resultNode != null && resultNode.ContainsKey("value"))
+                                    {
+                                        int.TryParse(resultNode["value"]?.ToString(), out pid);
+                                    }
+                                }
+                                catch { }
+
+                                try
+                                {
+                                    Log("Shutting down connected app...");
+                                    _ = _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                                    {
+                                        ["expression"] = "Avalonia.Application.Current?.Shutdown()",
+                                        ["returnByValue"] = true
+                                    });
+                                }
+                                catch { }
+
+                                try
+                                {
+                                    await _cdpService.DisconnectAsync();
+                                }
+                                catch { }
+                                
+                                await Task.Delay(500, token);
+
+                                if (pid > 0)
+                                {
+                                    try
+                                    {
+                                        var proc = System.Diagnostics.Process.GetProcessById(pid);
+                                        var startTime = DateTime.UtcNow;
+                                        while (!proc.HasExited && (DateTime.UtcNow - startTime).TotalSeconds < 5)
+                                        {
+                                            await Task.Delay(100, token);
+                                        }
+                                        if (!proc.HasExited)
+                                        {
+                                            Log($"Process {pid} still running. Killing...");
+                                            proc.Kill();
+                                            var killStartTime = DateTime.UtcNow;
+                                            while (!proc.HasExited && (DateTime.UtcNow - killStartTime).TotalSeconds < 5)
+                                            {
+                                                await Task.Delay(100, token);
+                                            }
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+
+                            Log($"Launching executable '{path}' with arguments '{arguments}'...");
+                            try
+                            {
+                                var psi = new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = path,
+                                    Arguments = arguments,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = false
+                                };
+                                var proc = System.Diagnostics.Process.Start(psi);
+                                if (proc == null)
+                                {
+                                    throw new Exception("Process failed to start.");
+                                }
+                                CdpInspectorApp.Services.AppLauncherService.TrackProcess(proc);
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new Exception($"Failed to launch app process: {ex.Message}");
+                            }
+
+                            if (Connection == null)
+                            {
+                                throw new Exception("ConnectionViewModel reference is missing.");
+                            }
+
+                            int maxRetries = 30;
+                            bool connected = false;
+                            for (int i = 0; i < maxRetries; i++)
+                            {
+                                token.ThrowIfCancellationRequested();
+                                try
+                                {
+                                    Log($"Attempting to connect to host '{Connection.HostAddress}' (attempt {i + 1}/{maxRetries})...");
+                                    await Connection.RefreshTargetsAsync();
+                                    if (Connection.Targets.Count > 0)
+                                    {
+                                        await Connection.ConnectAsync(bypassAutoLaunch: true);
+                                        if (_cdpService.IsConnected)
+                                        {
+                                            connected = true;
+                                            Log("Successfully connected to the launched app.");
+                                            break;
+                                        }
+                                    }
+                                }
+                                catch
+                                {
+                                    // Ignore and retry
+                                }
+                                await Task.Delay(500, token);
+                            }
+
+                            if (!connected)
+                            {
+                                throw new Exception("Failed to auto-connect to the launched app.");
+                            }
+                        }
+                        else
+                        {
+                            Log($"Auto Launch is disabled (use current app session). Skipping relaunching executable '{path}'.");
+                        }
                     }
-                    if (string.IsNullOrEmpty(targetUrl))
+                    else
                     {
-                        targetUrl = "http://localhost:9222/";
+                        // Fallback/standard URL launch/navigate
+                        string targetUrl = _cdpService.ConnectedHost;
+                        if (!string.IsNullOrEmpty(url) &&
+                            (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                             url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            targetUrl = url;
+                        }
+                        else if (!string.IsNullOrEmpty(_appId) &&
+                                 (_appId.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                  _appId.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            targetUrl = _appId;
+                        }
+                        
+                        if (string.IsNullOrEmpty(targetUrl))
+                        {
+                            targetUrl = "http://localhost:9222/";
+                        }
+                        
+                        Log($"Navigating to: {targetUrl}");
+                        await _cdpService.SendCommandAsync("Page.navigate", new JsonObject { ["url"] = targetUrl });
+                        await Task.Delay(500, token);
                     }
-                    Log($"Launching app / navigating to: {targetUrl}");
-                    await _cdpService.SendCommandAsync("Page.navigate", new JsonObject { ["url"] = targetUrl });
-                    await Task.Delay(500, token);
+
+                    if (GetStepBool(step, false, "clearState"))
+                    {
+                        Log("Clearing state (reloading view)...");
+                        await _cdpService.SendCommandAsync("Page.reload", new JsonObject());
+                        await Task.Delay(500, token);
+                    }
                     break;
                 }
             case "tapOn":
@@ -3714,6 +3983,118 @@ public class TestStudioViewModel : ViewModelBase
         }
 
         return null;
+    }
+
+    public string GetRelativePathForFile(string absolutePath)
+    {
+        if (string.IsNullOrEmpty(absolutePath)) return absolutePath;
+
+        string? baseDir = null;
+        if (!string.IsNullOrEmpty(CurrentFlowFilePath))
+        {
+            baseDir = Path.GetDirectoryName(CurrentFlowFilePath);
+        }
+        else if (!string.IsNullOrEmpty(WorkspaceRootPath))
+        {
+            baseDir = WorkspaceRootPath;
+        }
+
+        if (!string.IsNullOrEmpty(baseDir))
+        {
+            try
+            {
+                return Path.GetRelativePath(baseDir, absolutePath);
+            }
+            catch {}
+        }
+        return absolutePath;
+    }
+
+    private async Task BrowseAutoLaunchPathAsync()
+    {
+        if (FilePickerHandler != null)
+        {
+            var absolutePath = await FilePickerHandler();
+            if (!string.IsNullOrEmpty(absolutePath))
+            {
+                AutoLaunchPath = GetRelativePathForFile(absolutePath);
+            }
+        }
+    }
+
+    private async Task BrowseExecutableAsync(TestStudioStepModel? step)
+    {
+        if (step == null) return;
+        if (FilePickerHandler != null)
+        {
+            var absolutePath = await FilePickerHandler();
+            if (!string.IsNullOrEmpty(absolutePath))
+            {
+                step.Value = GetRelativePathForFile(absolutePath);
+                if (step.Parameters.ContainsKey("path"))
+                {
+                    step.Parameters["path"] = step.Value;
+                    step.Parameters = new Dictionary<string, object?>(step.Parameters, StringComparer.OrdinalIgnoreCase);
+                }
+            }
+        }
+    }
+
+    private string? GetEvalResultValue(JsonObject? evalRes)
+    {
+        if (evalRes == null) return null;
+        if (evalRes["exceptionDetails"] != null)
+        {
+            var exceptionText = evalRes["exceptionDetails"]?["exception"]?["description"]?.GetValue<string>() ?? "Unknown evaluation error";
+            throw new Exception($"Expression evaluation failed with exception: {exceptionText}");
+        }
+        var resultNode = evalRes["result"] as JsonObject;
+        return resultNode?["value"]?.ToString();
+    }
+
+    private async Task CaptureConnectedAppLaunchInfoAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            var pathRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName",
+                ["returnByValue"] = true
+            });
+            string? path = GetEvalResultValue(pathRes);
+            if (!string.IsNullOrEmpty(path))
+            {
+                AutoLaunchPath = path;
+            }
+
+            var argsRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "string.Join(\" \", System.Environment.GetCommandLineArgs().Skip(1))",
+                ["returnByValue"] = true
+            });
+            string? args = GetEvalResultValue(argsRes);
+            if (args != null)
+            {
+                AutoLaunchArguments = args;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Warning: Failed to capture connected app launch info: {ex.Message}");
+        }
+    }
+
+    public async Task AutoLaunchAppAsync(CancellationToken token)
+    {
+        var launcher = new CdpInspectorApp.Services.AppLauncherService();
+        await launcher.AutoLaunchAppAsync(
+            _cdpService,
+            Connection,
+            AutoLaunchPath,
+            AutoLaunchArguments,
+            msg => Log(msg),
+            token);
     }
 
     private void ClearAll()

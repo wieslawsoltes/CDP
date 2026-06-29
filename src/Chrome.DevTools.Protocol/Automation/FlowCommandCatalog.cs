@@ -64,7 +64,7 @@ public static class FlowCommandCatalog
         new("hideKeyboard", "Hide Keyboard", "Input", FlowCommandValueKind.None, "Dismiss the software keyboard."),
         new("inputText", "Input Text", "Input", FlowCommandValueKind.String, "Input text into the focused element.", new[] { "text", "selector", "value" }),
         new("killApp", "Kill App", "App & Device", FlowCommandValueKind.String, "Kill the app under test or another app id."),
-        new("launchApp", "Launch App", "App & Device", FlowCommandValueKind.Map, "Launch an app with optional state and permissions.", new[] { "appId", "clearState", "clearKeychain", "permissions", "stopApp", "arguments" }, new[] { "true", "false" }),
+        new("launchApp", "Launch App", "App & Device", FlowCommandValueKind.Map, "Launch an app with optional state and permissions.", new[] { "appId", "path", "arguments", "url", "clearState", "clearKeychain", "permissions", "stopApp" }, new[] { "true", "false" }),
         new("longPressOn", "Long Press On", "Interactions", FlowCommandValueKind.Selector, "Long press an element or point.", TapParameters, AcceptsSelector: true),
         new("openLink", "Open Link", "Navigation", FlowCommandValueKind.Map, "Open a URL or deep link.", new[] { "link", "autoVerify" }, new[] { "true", "false" }),
         new("pasteText", "Paste Text", "Input", FlowCommandValueKind.None, "Paste clipboard text into the focused element."),
