@@ -1043,7 +1043,7 @@ public sealed class CdpRuntimeDocument
         if (root == null) return "{}";
 
         var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, selector, _session.UseLogicalTree);
-        if (visual == null || (visual is Avalonia.Controls.Control control && !control.IsEffectivelyVisible)) return "{}";
+        if (visual == null || (visual is Avalonia.Controls.Control control && (!control.IsEffectivelyVisible || !control.IsAttachedToVisualTree()))) return "{}";
 
         var dict = new Dictionary<string, object?>();
         dict["$Type"] = visual.GetType().Name;
@@ -1089,7 +1089,7 @@ public sealed class CdpRuntimeElement
     public string innerText => textContent;
     public string value => getAttribute("Text") ?? "";
     public bool isVisible => string.Equals(getAttribute("IsVisible"), "true", StringComparison.OrdinalIgnoreCase);
-    public bool isEffectivelyVisible => _visual is Avalonia.Controls.Control control ? control.IsEffectivelyVisible : true;
+    public bool isEffectivelyVisible => _visual is Avalonia.Controls.Control control ? (control.IsEffectivelyVisible && control.IsAttachedToVisualTree()) : true;
     public bool isEnabled => string.Equals(getAttribute("IsEnabled"), "true", StringComparison.OrdinalIgnoreCase);
     public object visual => _visual;
 
