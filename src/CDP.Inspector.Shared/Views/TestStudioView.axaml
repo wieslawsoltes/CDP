@@ -249,12 +249,12 @@
 
             <!-- Reporting Section -->
             <Border Grid.Row="1" Classes="panel-card" Margin="0,0,0,10">
-                <Grid RowDefinitions="Auto, Auto, Auto" Margin="0">
+                <Grid RowDefinitions="Auto, Auto, Auto, Auto" Margin="0">
                     <!-- Checkboxes -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" Margin="0,0,0,8">
-                        <CheckBox Name="chkTestStudioRecordVideo" Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0"/>
-                        <CheckBox Name="chkTestStudioGenerateReports" Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0"/>
-                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <CheckBox Name="chkTestStudioRecordVideo" Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0,0,20,0"/>
+                        <CheckBox Name="chkTestStudioGenerateReports" Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0,0,20,0"/>
+                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,20,0">
                             <CheckBox Name="chkTestStudioAutoAssertion" Content="Auto Assertions" IsChecked="{Binding Recorder.TestStudio.IsAutoAssertionEnabled}" FontSize="11" Margin="0"/>
                             <Button Name="btnConfigureAutoAssertions" Padding="4" VerticalAlignment="Center" ToolTip.Tip="Configure Auto Assertions" Background="Transparent" BorderThickness="0">
                                 <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
@@ -298,7 +298,8 @@
                                 </Button.Flyout>
                             </Button>
                         </StackPanel>
-                    </StackPanel>
+                        <CheckBox Name="chkTestStudioAutoLaunch" Content="Auto Launch App" IsChecked="{Binding Recorder.TestStudio.IsAutoLaunchEnabled}" FontSize="11" Margin="0"/>
+                    </WrapPanel>
                     
                     <!-- Path and Browse button -->
                     <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
@@ -306,8 +307,17 @@
                         <Button Name="btnBrowseReportDir" Grid.Column="1" Content="Browse..." FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
                     </Grid>
 
+                    <!-- Auto Launch Fields -->
+                    <Grid Grid.Row="2" ColumnDefinitions="Auto, *, Auto, Auto, *" Margin="0,0,0,8" IsVisible="{Binding Recorder.TestStudio.IsAutoLaunchEnabled}">
+                        <TextBlock Grid.Column="0" Text="App Path: " VerticalAlignment="Center" FontSize="11" Foreground="#9aa0a6" Margin="0,0,4,0"/>
+                        <TextBox Name="txtAutoLaunchPath" Grid.Column="1" Text="{Binding Recorder.TestStudio.AutoLaunchPath, Mode=TwoWay}" PlaceholderText="Executable path..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
+                        <Button Name="btnBrowseAutoLaunchPath" Grid.Column="2" Content="..." Command="{Binding Recorder.TestStudio.BrowseAutoLaunchPathCommand}" FontSize="10" Padding="6,3" Margin="4,0,10,0" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="3" Text="Args: " VerticalAlignment="Center" FontSize="11" Foreground="#9aa0a6" Margin="0,0,4,0"/>
+                        <TextBox Name="txtAutoLaunchArguments" Grid.Column="4" Text="{Binding Recorder.TestStudio.AutoLaunchArguments, Mode=TwoWay}" PlaceholderText="Launch arguments..." FontSize="11" Height="24" Padding="4,2" VerticalAlignment="Center"/>
+                    </Grid>
+ 
                     <!-- View buttons (WrapPanel for responsiveness) -->
-                    <WrapPanel Grid.Row="2" Orientation="Horizontal">
+                    <WrapPanel Grid.Row="3" Orientation="Horizontal">
                         <Button Name="btnViewHtmlReport" Content="HTML Report" Command="{Binding Recorder.TestStudio.OpenLastReportCommand}" FontSize="10" Padding="6,3" Margin="0,0,6,0" VerticalAlignment="Center"/>
                         <Button Name="btnViewPdfReport" Content="PDF Report" Command="{Binding Recorder.TestStudio.OpenLastPdfReportCommand}" FontSize="10" Padding="6,3" Margin="0,0,6,0" VerticalAlignment="Center"/>
                         <Button Name="btnReplayLastVideo" Content="Replay Video" Command="{Binding Recorder.TestStudio.ReplayLastVideoCommand}" CommandParameter="{Binding $parent[Window]}" FontSize="10" Padding="6,3" Margin="0,0,6,0" VerticalAlignment="Center"/>
@@ -415,7 +425,7 @@
                                                                  Height="24"
                                                                  Padding="4,2"/>
                                             </Grid>
-                                            <Grid ColumnDefinitions="100, *">
+                                            <Grid ColumnDefinitions="100, *, Auto">
                                                 <TextBlock Grid.Column="0" Text="Value:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
                                                 <AutoCompleteBox Grid.Column="1"
                                                                  Text="{Binding ((models:TestStudioStepModel)Item).Value, Mode=TwoWay}"
@@ -424,6 +434,12 @@
                                                                  FontSize="11"
                                                                  Height="24"
                                                                  Padding="4,2"/>
+                                                <Button Grid.Column="2"
+                                                        Content="..."
+                                                        Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Recorder.TestStudio.BrowseExecutableCommand}"
+                                                        CommandParameter="{Binding ((models:TestStudioStepModel)Item)}"
+                                                        IsVisible="{Binding ((models:TestStudioStepModel)Item).IsLaunchApp}"
+                                                        FontSize="10" Padding="6,3" Margin="4,0,0,0" VerticalAlignment="Center"/>
                                             </Grid>
                                             <TextBlock Text="{Binding ((models:TestStudioStepModel)Item).ErrorMessage}" FontSize="11" Foreground="#ff6b6b" IsVisible="{Binding ((models:TestStudioStepModel)Item).ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">

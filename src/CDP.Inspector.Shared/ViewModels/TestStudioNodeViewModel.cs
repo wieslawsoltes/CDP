@@ -3,6 +3,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Chrome.DevTools.Protocol;
@@ -27,12 +28,28 @@ public class CustomParamEditor : NodeEditorViewModelBase
 
     public ObservableCollection<string> ValueSuggestions { get; }
 
+    public bool IsPathParameter => string.Equals(Name, "path", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(Name, "file", StringComparison.OrdinalIgnoreCase);
+
+    public System.Windows.Input.ICommand BrowseCommand { get; }
+
     public CustomParamEditor(TestStudioNodeViewModel owner, string name)
     {
         _owner = owner;
         Name = name;
         var suggestions = FlowCommandCatalog.GetValueCompletions(owner.Action, name);
         ValueSuggestions = new ObservableCollection<string>(suggestions);
+        BrowseCommand = new RelayCommand(async () =>
+        {
+            if (_owner.TestStudio != null && _owner.TestStudio.FilePickerHandler != null)
+            {
+                var absolutePath = await _owner.TestStudio.FilePickerHandler();
+                if (!string.IsNullOrEmpty(absolutePath))
+                {
+                    Value = _owner.TestStudio.GetRelativePathForFile(absolutePath);
+                }
+            }
+        });
     }
 
     public void NotifyValueChanged()
@@ -101,6 +118,12 @@ public class TestStudioNodeViewModel : NodeViewModel
         }
     }
 
+    public TestStudioViewModel? TestStudio { get; set; }
+
+    public bool IsLaunchApp => string.Equals(Action, "launchApp", StringComparison.OrdinalIgnoreCase);
+
+    public System.Windows.Input.ICommand BrowseValueCommand { get; }
+
     public string Action
     {
         get => _action;
@@ -109,6 +132,7 @@ public class TestStudioNodeViewModel : NodeViewModel
             if (RaiseAndSetIfChanged(ref _action, value))
             {
                 UpdateCustomParameters();
+                OnPropertyChanged(nameof(IsLaunchApp));
             }
         }
     }
@@ -161,8 +185,30 @@ public class TestStudioNodeViewModel : NodeViewModel
         Width = 160;
         Height = 100;
         Content = this;
+        BrowseValueCommand = new RelayCommand(async () => await BrowseValueAsync());
         UpdateVisualBrushes();
         UpdateCustomParameters();
+    }
+
+    private async Task BrowseValueAsync()
+    {
+        if (TestStudio != null && TestStudio.FilePickerHandler != null)
+        {
+            var absolutePath = await TestStudio.FilePickerHandler();
+            if (!string.IsNullOrEmpty(absolutePath))
+            {
+                Value = TestStudio.GetRelativePathForFile(absolutePath);
+                if (Step != null)
+                {
+                    Step.Value = Value;
+                    if (Step.Parameters.ContainsKey("path"))
+                    {
+                        Step.Parameters["path"] = Value;
+                        Step.Parameters = new Dictionary<string, object?>(Step.Parameters, StringComparer.OrdinalIgnoreCase);
+                    }
+                }
+            }
+        }
     }
 
     public void UpdateCustomParameters()

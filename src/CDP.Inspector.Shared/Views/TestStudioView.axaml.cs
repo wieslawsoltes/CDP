@@ -123,6 +123,24 @@ public partial class TestStudioView : UserControl
                         return null;
                     };
 
+                    vm.Recorder.TestStudio.FilePickerHandler = async () =>
+                    {
+                        var topLevel = TopLevel.GetTopLevel(this);
+                        if (topLevel != null)
+                        {
+                            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+                            {
+                                Title = "Select Executable Application",
+                                AllowMultiple = false
+                            });
+                            if (files != null && files.Count > 0)
+                            {
+                                return files[0].Path.LocalPath;
+                            }
+                        }
+                        return null;
+                    };
+
                     // Insert Gutter status margin if not already added
                     var editor = this.FindControl<TextEditor>("txtYamlCode");
                     if (editor != null)
