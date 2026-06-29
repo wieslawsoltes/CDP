@@ -668,6 +668,41 @@ public class RecorderViewModel : ViewModelBase
         try
         {
             var escapedSelector = selector.Replace("\"", "\\\"");
+
+            // Poll to verify if the element remains visible/attached for at least 400ms.
+            // If it becomes invisible or is removed at any point, skip generating assertions.
+            for (int i = 0; i < 4; i++)
+            {
+                await Task.Delay(100);
+                if (!_cdpService.IsConnected) return;
+
+                try
+                {
+                    var checkScript = $"var v = document.querySelector(\"{escapedSelector}\"); v != null && v.isEffectivelyVisible";
+                    var checkRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                    {
+                        ["expression"] = checkScript,
+                        ["returnByValue"] = true
+                    });
+
+                    if (checkRes["exceptionDetails"] != null)
+                    {
+                        return; 
+                    }
+
+                    var resultNodeObj = checkRes["result"] as JsonObject;
+                    var val = resultNodeObj?["value"];
+                    if (val == null || val.GetValue<bool>() == false)
+                    {
+                        return; 
+                    }
+                }
+                catch
+                {
+                    return; 
+                }
+            }
+
             var script = $"document.getPropertiesJson(\"{escapedSelector}\")";
 
             var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = script });

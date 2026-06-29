@@ -1089,6 +1089,7 @@ public sealed class CdpRuntimeElement
     public string innerText => textContent;
     public string value => getAttribute("Text") ?? "";
     public bool isVisible => string.Equals(getAttribute("IsVisible"), "true", StringComparison.OrdinalIgnoreCase);
+    public bool isEffectivelyVisible => _visual is Avalonia.Controls.Control control ? control.IsEffectivelyVisible : true;
     public bool isEnabled => string.Equals(getAttribute("IsEnabled"), "true", StringComparison.OrdinalIgnoreCase);
     public object visual => _visual;
 
