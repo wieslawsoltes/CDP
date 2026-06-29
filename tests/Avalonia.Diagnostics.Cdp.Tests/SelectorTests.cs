@@ -188,4 +188,26 @@ public class SelectorTests
         Assert.Equal("Label", clientDomGen.GenerateSelector(clientLabel));
         Assert.Equal("Label:contains(\"Submit Form\")", clientAutoGen.GenerateSelector(clientLabel));
     }
+
+    [AvaloniaFact]
+    public void TestEmptyAttributeMatching()
+    {
+        var panel = new StackPanel();
+        var emptyTextBox = new TextBox { Name = "txtInput", Text = "" };
+        var nonEmptyTextBox = new TextBox { Text = "Something" };
+        panel.Children.Add(emptyTextBox);
+        panel.Children.Add(nonEmptyTextBox);
+
+        // Verify empty text matching
+        Assert.True(SelectorEngine.Matches(emptyTextBox, "#txtInput[Text=\"\"]"));
+        Assert.Same(emptyTextBox, SelectorEngine.QuerySelector(panel, "#txtInput[Text=\"\"]"));
+        Assert.False(SelectorEngine.Matches(nonEmptyTextBox, "TextBox[Text=\"\"]"));
+    }
+
+    [AvaloniaFact]
+    public void TestTabItemHeaderMatching()
+    {
+        var tabItem = new TabItem { Name = "tabScroll", Header = "Scroll Test" };
+        Assert.True(SelectorEngine.Matches(tabItem, "#tabScroll[Header=\"Scroll Test\"]"));
+    }
 }

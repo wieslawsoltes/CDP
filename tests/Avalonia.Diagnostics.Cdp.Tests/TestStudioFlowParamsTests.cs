@@ -16,8 +16,8 @@ public class TestStudioFlowParamsTests
 {
     private class MockCdpService : ICdpService
     {
-        public bool IsConnected => true;
-        public string ConnectionStatus => "Connected";
+        public bool IsConnected { get; set; } = true;
+        public string ConnectionStatus => IsConnected ? "Connected" : "Disconnected";
         public string ConnectedHost => "http://127.0.0.1:9222";
         public string ConnectedTargetId => "test_target";
         public bool IsPreviewScreencastActive { get; set; }
@@ -27,9 +27,17 @@ public class TestStudioFlowParamsTests
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<CdpEventEventArgs>? EventReceived;
 
-        public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
-        public Task ConnectAsync(string host, TargetItem target) => Task.CompletedTask;
-        public Task DisconnectAsync() => Task.CompletedTask;
+        public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>() { new TargetItem("Target", "ws://localhost:9222/devtools/page/test_target", "test_target") });
+        public Task ConnectAsync(string host, TargetItem target)
+        {
+            IsConnected = true;
+            return Task.CompletedTask;
+        }
+        public Task DisconnectAsync()
+        {
+            IsConnected = false;
+            return Task.CompletedTask;
+        }
 
         public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
         {
@@ -232,5 +240,99 @@ public class TestStudioFlowParamsTests
             Directory.Delete(tempDir, true);
         }
         catch {}
+    }
+
+    [Fact]
+    public async Task TestLaunchAppCommandParsingAndBypass()
+    {
+        var yaml = @"
+- launchApp:
+    path: ""/path/to/my/app""
+    arguments: ""--custom-flag""
+    stopApp: true
+    clearState: true
+";
+        var steps = TestStudioYamlParser.Parse(yaml, out _, out _).Select(TestStudioStepModel.FromCoreStep).ToList();
+        Assert.Single(steps);
+        var step = steps[0];
+        Assert.Equal("launchApp", step.Action);
+        Assert.Equal("/path/to/my/app", step.Parameters["path"]?.ToString());
+        Assert.Equal("--custom-flag", step.Parameters["arguments"]?.ToString());
+        Assert.True(bool.Parse(step.Parameters["stopApp"]?.ToString() ?? "false"));
+        Assert.True(bool.Parse(step.Parameters["clearState"]?.ToString() ?? "false"));
+
+        // Execute single step with mock (use current session bypass check)
+        var cdp = new MockCdpService();
+        var vm = new TestStudioViewModel(cdp)
+        {
+            IsAutoLaunchEnabled = false, // current app session enabled
+            Connection = new ConnectionViewModel(cdp)
+        };
+
+        // When IsAutoLaunchEnabled is false, path relaunch should be bypassed/skipped
+        // but it will reload state at the end
+        await vm.ExecuteSingleStepAsync(step, CancellationToken.None);
+        
+        // Assert that Page.reload was called since clearState is true
+        var reloadCall = cdp.SentCommands.Find(c => c.Method == "Page.reload");
+        Assert.NotNull(reloadCall.Method);
+    }
+
+    [Fact]
+    public void TestRelativePathResolution()
+    {
+        var cdp = new MockCdpService();
+        var vm = new TestStudioViewModel(cdp)
+        {
+            WorkspaceRootPath = "/Users/wieslawsoltes/GitHub/CDP",
+            CurrentFlowFilePath = "/Users/wieslawsoltes/GitHub/CDP/samples/CdpSampleApp/flow.yaml"
+        };
+
+        // Path relative to flow yaml file directory
+        var targetFile = "/Users/wieslawsoltes/GitHub/CDP/samples/CdpSampleApp/bin/Debug/CdpSampleApp";
+        var resolved = vm.GetRelativePathForFile(targetFile);
+        Assert.Equal("bin/Debug/CdpSampleApp", resolved.Replace('\\', '/'));
+
+        // Path fallback relative to workspace root directory (if CurrentFlowFilePath is empty)
+        vm.CurrentFlowFilePath = "";
+        resolved = vm.GetRelativePathForFile(targetFile);
+        Assert.Equal("samples/CdpSampleApp/bin/Debug/CdpSampleApp", resolved.Replace('\\', '/'));
+    }
+
+    [Fact]
+    public async Task TestToggleRecordAutoLaunchTrigger()
+    {
+        var cdp = new MockCdpService { IsConnected = false };
+        var recorder = new RecorderViewModel(cdp, () => "http://127.0.0.1:9222");
+
+        recorder.TestStudio.IsAutoLaunchEnabled = true;
+        recorder.TestStudio.AutoLaunchPath = "/usr/bin/true";
+        recorder.TestStudio.AutoLaunchArguments = "";
+        recorder.TestStudio.Connection = new ConnectionViewModel(cdp);
+
+        await recorder.ToggleRecordAsync();
+
+        Assert.True(cdp.IsConnected);
+        var recordCall = cdp.SentCommands.Find(c => c.Method == "Recorder.start");
+        Assert.NotNull(recordCall.Method);
+    }
+
+    [Fact]
+    public async Task TestManualConnectAutoLaunchTrigger()
+    {
+        var cdp = new MockCdpService { IsConnected = false };
+        var connection = new ConnectionViewModel(cdp);
+        var testStudio = new TestStudioViewModel(cdp);
+
+        connection.TestStudio = testStudio;
+        testStudio.Connection = connection;
+
+        testStudio.IsAutoLaunchEnabled = true;
+        testStudio.AutoLaunchPath = "/usr/bin/true";
+        testStudio.AutoLaunchArguments = "";
+
+        await connection.ConnectAsync();
+
+        Assert.True(cdp.IsConnected);
     }
 }
