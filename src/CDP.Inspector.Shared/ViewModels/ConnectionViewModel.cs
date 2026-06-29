@@ -6,11 +6,14 @@ using System.Windows.Input;
 using Avalonia.Media;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ConnectionViewModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ConnectionViewModel>();
     private readonly ICdpService _cdpService;
     private string _hostAddress = "http://127.0.0.1:9222";
     private string _lastHttpHost = "127.0.0.1:9222";
@@ -385,7 +388,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error scanning targets: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error scanning targets", ex);
         }
     }
 
@@ -424,7 +427,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Connect error: {ex.Message}");
+            Logger.LogErrorMessage("ConnectionViewModel", "Connect error", ex);
             try
             {
                 System.IO.File.WriteAllText("connect_error.txt", ex.ToString());
@@ -457,7 +460,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error toggling inspect mode: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error toggling inspect mode", ex);
         }
     }
 
@@ -470,7 +473,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Reload error: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Reload error", ex);
         }
     }
 
@@ -756,13 +759,13 @@ public class ConnectionViewModel : ViewModelBase
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error calling WindowChrome.getWindowDetails: {ex.Message}");
+                    Logger.LogWarningMessage("ConnectionViewModel", "Error calling WindowChrome.getWindowDetails", ex);
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing window details: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error refreshing window details", ex);
         }
     }
 
@@ -788,7 +791,7 @@ public class ConnectionViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error applying window bounds: {ex.Message}");
+                Logger.LogWarningMessage("ConnectionViewModel", "Error applying window bounds", ex);
             }
         });
     }
@@ -808,7 +811,7 @@ public class ConnectionViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error setting topmost: {ex.Message}");
+                Logger.LogWarningMessage("ConnectionViewModel", "Error setting topmost", ex);
             }
         });
     }
@@ -828,7 +831,7 @@ public class ConnectionViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error setting opacity: {ex.Message}");
+                Logger.LogWarningMessage("ConnectionViewModel", "Error setting opacity", ex);
             }
         });
     }
@@ -848,7 +851,7 @@ public class ConnectionViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error setting title: {ex.Message}");
+                Logger.LogWarningMessage("ConnectionViewModel", "Error setting title", ex);
             }
         });
     }
@@ -863,7 +866,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error minimizing window: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error minimizing window", ex);
         }
     }
 
@@ -877,7 +880,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error maximizing window: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error maximizing window", ex);
         }
     }
 
@@ -891,7 +894,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error restoring window: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error restoring window", ex);
         }
     }
 
@@ -904,7 +907,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error closing window: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error closing window", ex);
         }
     }
 
@@ -917,7 +920,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error activating window: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error activating window", ex);
         }
     }
 
@@ -937,7 +940,7 @@ public class ConnectionViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error dragging window: {ex.Message}");
+            Logger.LogWarningMessage("ConnectionViewModel", "Error dragging window", ex);
         }
     }
 }

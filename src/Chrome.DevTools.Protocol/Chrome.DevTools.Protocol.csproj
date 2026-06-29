@@ -18,6 +18,7 @@
   <ItemGroup>
     <PackageReference Include="YamlDotNet" />
     <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>

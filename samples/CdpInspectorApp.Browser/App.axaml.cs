@@ -2,6 +2,8 @@ using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.Browser;
 
@@ -16,6 +18,13 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        var factory = LoggerFactory.Create(builder =>
+        {
+            builder.AddProvider(new BrowserConsoleLoggerProvider());
+            builder.SetMinimumLevel(LogLevel.Information); // default non-verbose logging
+        });
+        CdpLogging.LoggerFactory = factory;
+
         System.Console.WriteLine("[BrowserApp] OnFrameworkInitializationCompleted started.");
         if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
@@ -82,5 +91,35 @@ public partial class App : Application
             System.Console.WriteLine($"[BrowserApp] Error parsing query parameter: {ex.Message}");
         }
         return null;
+    }
+}
+
+public class BrowserConsoleLoggerProvider : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => new BrowserConsoleLogger(categoryName);
+    public void Dispose() { }
+}
+
+public class BrowserConsoleLogger : ILogger
+{
+    private readonly string _categoryName;
+
+    public BrowserConsoleLogger(string categoryName)
+    {
+        _categoryName = categoryName;
+    }
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        var message = formatter(state, exception);
+        System.Console.WriteLine($"[{logLevel}] {_categoryName}: {message}");
+        if (exception != null)
+        {
+            System.Console.WriteLine(exception.ToString());
+        }
     }
 }

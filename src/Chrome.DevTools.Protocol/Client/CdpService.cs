@@ -10,11 +10,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol;
 
 public class CdpService : ICdpService, INotifyPropertyChanged
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<CdpService>();
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _cts;
     private int _messageId = 1;
@@ -162,6 +164,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             ConnectionStatus = "Connected";
             ConnectedHost = host;
             ConnectedTargetId = target.Id;
+            Logger.ClientConnected(target.Id, host);
 
             // Start reader thread
             _ = Task.Run(ReceiveLoopAsync);
@@ -172,6 +175,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         catch (Exception ex)
         {
             ConnectionStatus = "Connection Failed";
+            Logger.ClientConnectionFailed(ex.Message, ex);
             await DisconnectAsync();
             throw new Exception($"Failed to connect to target: {ex.Message}", ex);
         }
@@ -211,6 +215,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
         finally
         {
+            Logger.ClientDisconnected();
             ws.Dispose();
             cts?.Dispose();
             ConnectionStatus = "Disconnected";
@@ -238,6 +243,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
         var tcs = new TaskCompletionSource<JsonObject>();
         _pendingRequests[id] = tcs;
+        Logger.SendingCommand(method, id);
 
         var bytes = Encoding.UTF8.GetBytes(request.ToJsonString());
         
@@ -252,6 +258,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
 
         var response = await tcs.Task;
+        Logger.ReceivedResponse(id);
         if (response.ContainsKey("error"))
         {
             var err = response["error"] as JsonObject;
@@ -297,6 +304,10 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 {
                     string method = node["method"]!.GetValue<string>();
                     var parameters = node["params"] as JsonObject ?? new JsonObject();
+                    if (method != "Log.entryAdded")
+                    {
+                        Logger.ReceivedEvent(method);
+                    }
 
                     if (method == "Page.screencastFrame")
                     {
@@ -329,7 +340,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"Error reconstructing tiled screencast frame: {ex.Message}");
+                                Logger.LogErrorMessage("CdpService", "Error reconstructing tiled screencast frame", ex);
                             }
                         }
                     }

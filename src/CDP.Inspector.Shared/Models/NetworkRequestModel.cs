@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls.DataGridHierarchical;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.Models;
 
@@ -21,6 +23,7 @@ public class JsonTreeNode
 
 public class NetworkRequestModel : INotifyPropertyChanged
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<NetworkRequestModel>();
     private string _url = "";
     private string _status = "Pending";
     private string _time = "--";
@@ -386,7 +389,7 @@ public class NetworkRequestModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing query string: {ex.Message}");
+            Logger.LogWarningMessage("NetworkRequestModel", "Error parsing query string", ex);
         }
         QueryParameters = list;
     }
@@ -451,7 +454,7 @@ public class NetworkRequestModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing post data: {ex.Message}");
+            Logger.LogWarningMessage("NetworkRequestModel", "Error parsing post data", ex);
             list.Add(new KeyValuePairModel { Key = "raw", Value = postData });
         }
         PostParameters = list;
