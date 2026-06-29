@@ -763,6 +763,13 @@ public class RecorderViewModel : ViewModelBase
             if (engine == null) return;
             var inferredSteps = engine.InferAssertions(controlTypeName, selector, properties);
 
+            if (stepType == "click" || stepType == "keydown")
+            {
+                inferredSteps.RemoveAll(tsStep => 
+                    tsStep.Selector.Contains("[Text=") || tsStep.Selector.Contains("[Text='") || 
+                    tsStep.Selector.Contains("[Value=") || tsStep.Selector.Contains("[Value='"));
+            }
+
             if (inferredSteps.Count > 0)
             {
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
