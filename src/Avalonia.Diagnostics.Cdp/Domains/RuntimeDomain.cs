@@ -1035,6 +1035,43 @@ public sealed class CdpRuntimeDocument
         var escaped = id.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
         return querySelector($"[id=\"{escaped}\"]");
     }
+
+    public string getPropertiesJson(string selector)
+    {
+        var root = _session.Window;
+        if (root == null) return "{}";
+
+        var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, selector, _session.UseLogicalTree);
+        if (visual == null) return "{}";
+
+        var list = new System.Collections.Generic.List<string>();
+        list.Add("\"$Type\":\"" + visual.GetType().Name + "\"");
+        list.Add("\"$FullName\":\"" + visual.GetType().FullName + "\"");
+
+        var props = new[] { "IsChecked", "Text", "Value", "IsSelected", "SelectedIndex", "IsExpanded", "SelectedDate", "SelectedTime", "IsFocused", "IsEnabled", "Content", "Header", "PlaceholderText" };
+        foreach (var pName in props)
+        {
+            try
+            {
+                var p = visual.GetType().GetProperty(pName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (p != null && p.CanRead)
+                {
+                    var val = p.GetValue(visual);
+                    if (val != null)
+                    {
+                        var valStr = val.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");
+                        list.Add("\"" + pName + "\":\"" + valStr + "\"");
+                    }
+                    else
+                    {
+                        list.Add("\"" + pName + "\":null");
+                    }
+                }
+            }
+            catch {}
+        }
+        return "{" + string.Join(",", list) + "}";
+    }
 }
 
 public sealed class CdpRuntimeElement
