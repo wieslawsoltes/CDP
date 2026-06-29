@@ -345,7 +345,8 @@ public static class RuntimeDomain
         if (trimmed.Equals("false", StringComparison.OrdinalIgnoreCase)) return false;
         if ((trimmed.StartsWith("\"") && trimmed.EndsWith("\"")) || (trimmed.StartsWith("'") && trimmed.EndsWith("'")))
         {
-            return trimmed.Substring(1, trimmed.Length - 2);
+            var content = trimmed.Substring(1, trimmed.Length - 2);
+            return content.Replace("\\\"", "\"").Replace("\\\\", "\\").Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t");
         }
         if (int.TryParse(trimmed, out int iVal)) return iVal;
         if (double.TryParse(trimmed, System.Globalization.NumberStyles.Any, CultureInfo.InvariantCulture, out double dVal)) return dVal;
@@ -1034,6 +1035,35 @@ public sealed class CdpRuntimeDocument
     {
         var escaped = id.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
         return querySelector($"[id=\"{escaped}\"]");
+    }
+
+    public string getPropertiesJson(string selector)
+    {
+        var root = _session.Window;
+        if (root == null) return "{}";
+
+        var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, selector, _session.UseLogicalTree);
+        if (visual == null) return "{}";
+
+        var dict = new Dictionary<string, object?>();
+        dict["$Type"] = visual.GetType().Name;
+        dict["$FullName"] = visual.GetType().FullName;
+
+        var props = new[] { "IsChecked", "Text", "Value", "IsSelected", "SelectedIndex", "IsExpanded", "SelectedDate", "SelectedTime", "IsFocused", "IsEnabled", "Content", "Header", "PlaceholderText" };
+        foreach (var pName in props)
+        {
+            try
+            {
+                var p = visual.GetType().GetProperty(pName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (p != null && p.CanRead)
+                {
+                    var val = p.GetValue(visual);
+                    dict[pName] = val?.ToString();
+                }
+            }
+            catch {}
+        }
+        return System.Text.Json.JsonSerializer.Serialize(dict);
     }
 }
 

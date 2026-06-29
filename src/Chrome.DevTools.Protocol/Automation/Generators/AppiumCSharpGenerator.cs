@@ -182,6 +182,20 @@ public class AppiumCSharpGenerator : ICodeGenerator
                 sb.AppendLine("            }");
                 sb.AppendLine($"            Assert.IsFalse(isVisible_{i});");
             }
+            else if (step.Type == "assertTrue" || step.Type == "assertFalse")
+            {
+                bool expectedBool = step.Type == "assertTrue";
+                string expr = EscapeCSharpString(step.Value);
+                sb.AppendLine($"            var result_{i} = ((IJavaScriptExecutor)_driver).ExecuteScript(\"return {expr};\");");
+                if (expectedBool)
+                {
+                    sb.AppendLine($"            Assert.IsTrue(Convert.ToBoolean(result_{i}));");
+                }
+                else
+                {
+                    sb.AppendLine($"            Assert.IsFalse(Convert.ToBoolean(result_{i}));");
+                }
+            }
             sb.AppendLine();
         }
 

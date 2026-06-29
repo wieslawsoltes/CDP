@@ -9,6 +9,7 @@
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              xmlns:views="clr-namespace:CdpInspectorApp.Views"
+             xmlns:rules="clr-namespace:CdpInspectorApp.Services.AssertionRules"
              x:Class="CdpInspectorApp.Views.TestStudioView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -253,6 +254,50 @@
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" Margin="0,0,0,8">
                         <CheckBox Name="chkTestStudioRecordVideo" Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0"/>
                         <CheckBox Name="chkTestStudioGenerateReports" Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0"/>
+                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <CheckBox Name="chkTestStudioAutoAssertion" Content="Auto Assertions" IsChecked="{Binding Recorder.TestStudio.IsAutoAssertionEnabled}" FontSize="11" Margin="0"/>
+                            <Button Name="btnConfigureAutoAssertions" Padding="4" VerticalAlignment="Center" ToolTip.Tip="Configure Auto Assertions" Background="Transparent" BorderThickness="0">
+                                <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                        <Border Width="320" Padding="12" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                            <Grid RowDefinitions="Auto, *">
+                                                <TextBlock Grid.Row="0" Text="Auto Assertion Rules" FontWeight="Bold" FontSize="12" Foreground="White" Margin="0,0,0,10"/>
+                                                <ScrollViewer Grid.Row="1" MaxHeight="350">
+                                                    <ItemsControl ItemsSource="{Binding Recorder.TestStudio.AssertionEngine.Rules}">
+                                                        <ItemsControl.DataTemplates>
+                                                            <DataTemplate DataType="rules:TextBoxAssertionRule">
+                                                                <StackPanel Spacing="4" Margin="0,0,0,12">
+                                                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsEnabled, Mode=TwoWay}" FontSize="11" FontWeight="SemiBold"/>
+                                                                    <TextBlock Text="{Binding Description}" FontSize="10" Foreground="#9aa0a6" TextWrapping="Wrap" Margin="18,0,0,0" IsVisible="{Binding IsEnabled}"/>
+                                                                    <CheckBox Content="Assert Empty Text" IsChecked="{Binding AssertEmptyText, Mode=TwoWay}" FontSize="10" Margin="18,2,0,0" IsVisible="{Binding IsEnabled}"/>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                            <DataTemplate DataType="rules:DateTimeAssertionRule">
+                                                                <StackPanel Spacing="4" Margin="0,0,0,12">
+                                                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsEnabled, Mode=TwoWay}" FontSize="11" FontWeight="SemiBold"/>
+                                                                    <TextBlock Text="{Binding Description}" FontSize="10" Foreground="#9aa0a6" TextWrapping="Wrap" Margin="18,0,0,0" IsVisible="{Binding IsEnabled}"/>
+                                                                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="18,2,0,0" IsVisible="{Binding IsEnabled}">
+                                                                        <CheckBox Content="Assert Date" IsChecked="{Binding AssertDate, Mode=TwoWay}" FontSize="10"/>
+                                                                        <CheckBox Content="Assert Time" IsChecked="{Binding AssertTime, Mode=TwoWay}" FontSize="10"/>
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                            <DataTemplate DataType="rules:IAssertionInferenceRule">
+                                                                <StackPanel Spacing="4" Margin="0,0,0,12">
+                                                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsEnabled, Mode=TwoWay}" FontSize="11" FontWeight="SemiBold"/>
+                                                                    <TextBlock Text="{Binding Description}" FontSize="10" Foreground="#9aa0a6" TextWrapping="Wrap" Margin="18,0,0,0" IsVisible="{Binding IsEnabled}"/>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.DataTemplates>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </Grid>
+                                        </Border>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                     
                     <!-- Path and Browse button -->

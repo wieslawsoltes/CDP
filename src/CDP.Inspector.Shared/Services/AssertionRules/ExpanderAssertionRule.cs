@@ -1,0 +1,35 @@
+using System;
+using System.Collections.Generic;
+using CdpInspectorApp.Models;
+
+namespace CdpInspectorApp.Services.AssertionRules;
+
+public class ExpanderAssertionRule : AssertionInferenceRuleBase
+{
+    public override string Name => "Expanded State";
+    public override string Description => "Asserts the IsExpanded property of Expanders and TreeView items.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    {
+        return properties.ContainsKey("IsExpanded") || 
+               controlTypeName.Contains("Expander", StringComparison.OrdinalIgnoreCase) || 
+               controlTypeName.Contains("TreeViewItem", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    {
+        var steps = new List<TestStudioStepModel>();
+        if (properties.TryGetValue("IsExpanded", out var isExpandedVal) && !string.IsNullOrEmpty(isExpandedVal))
+        {
+            var escapedSelector = selector.Replace("\"", "\\\"");
+            bool isTrue = isExpandedVal.Equals("true", StringComparison.OrdinalIgnoreCase);
+            steps.Add(new TestStudioStepModel
+            {
+                Action = isTrue ? "assertTrue" : "assertFalse",
+                Selector = "",
+                Value = $"document.querySelector(\"{escapedSelector}\").visual.IsExpanded"
+            });
+        }
+        return steps;
+    }
+}

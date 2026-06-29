@@ -138,6 +138,85 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
                 sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
                 sb.AppendLine($"            Assert.True(element_{i} == null || !element_{i}.IsVisible);");
             }
+            else if (step.Type == "assertTrue" || step.Type == "assertFalse")
+            {
+                bool expectedBool = step.Type == "assertTrue";
+                string expr = step.Value ?? "";
+                
+                var match = System.Text.RegularExpressions.Regex.Match(expr, @"^document\.querySelector\(""((?:[^""\\]|\\.)*)""\)\.visual\.([\w\.\(\)]+)(?:\s*(==|!=)\s*(.*))?$");
+                if (match.Success)
+                {
+                    string rawSelector = match.Groups[1].Value.Replace("\\\"", "\"").Replace("\\\\", "\\");
+                    string selectorEscaped = EscapeCSharpString(rawSelector);
+                    string propName = match.Groups[2].Value;
+                    string op = match.Groups[3].Value;
+                    string rawVal = match.Groups[4].Value;
+
+                    bool callToString = false;
+                    if (propName.EndsWith(".ToString()", StringComparison.Ordinal))
+                    {
+                        propName = propName.Substring(0, propName.Length - 11);
+                        callToString = true;
+                    }
+
+                    sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                    sb.AppendLine($"            Assert.NotNull(element_{i});");
+                    sb.AppendLine($"            var prop_{i} = element_{i}.GetType().GetProperty(\"{propName}\");");
+                    sb.AppendLine($"            Assert.NotNull(prop_{i});");
+                    sb.AppendLine($"            var val_{i} = prop_{i}.GetValue(element_{i});");
+                    if (callToString)
+                    {
+                        sb.AppendLine($"            var valStr_{i} = val_{i}?.ToString();");
+                    }
+
+                    string valueToAssert = callToString ? $"valStr_{i}" : $"val_{i}";
+
+                    if (string.IsNullOrEmpty(op))
+                    {
+                        if (expectedBool)
+                        {
+                            sb.AppendLine($"            Assert.True({valueToAssert} != null && (bool){valueToAssert});");
+                        }
+                        else
+                        {
+                            sb.AppendLine($"            Assert.False({valueToAssert} != null && (bool){valueToAssert});");
+                        }
+                    }
+                    else
+                    {
+                        bool isEqual = op == "==";
+                        bool expectedValue = expectedBool ? isEqual : !isEqual;
+
+                        if (rawVal.StartsWith("\"") && rawVal.EndsWith("\""))
+                        {
+                            string strVal = rawVal.Substring(1, rawVal.Length - 2);
+                            if (expectedValue)
+                            {
+                                sb.AppendLine($"            Assert.Equal(\"{EscapeCSharpString(strVal)}\", {valueToAssert}?.ToString());");
+                            }
+                            else
+                            {
+                                sb.AppendLine($"            Assert.NotEqual(\"{EscapeCSharpString(strVal)}\", {valueToAssert}?.ToString());");
+                            }
+                        }
+                        else
+                        {
+                            if (expectedValue)
+                            {
+                                sb.AppendLine($"            Assert.Equal({rawVal}.ToString(), {valueToAssert}?.ToString());");
+                            }
+                            else
+                            {
+                                sb.AppendLine($"            Assert.NotEqual({rawVal}.ToString(), {valueToAssert}?.ToString());");
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    sb.AppendLine($"            // Unsupported assertion expression: {EscapeCSharpString(expr)}");
+                }
+            }
             sb.AppendLine();
         }
 
