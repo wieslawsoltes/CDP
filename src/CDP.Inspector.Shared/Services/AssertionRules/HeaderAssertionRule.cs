@@ -4,24 +4,23 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class HeaderAssertionRule : IAssertionInferenceRule
+public class HeaderAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Header Text";
+    public override string Description => "Asserts the Header property of tab items and group boxes if it is a string.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
-        return properties.TryGetValue("Header", out var headerVal) && 
-               !string.IsNullOrEmpty(headerVal) && 
-               !headerVal.Contains('{') && 
-               !headerVal.Contains(':') &&
+        return properties.ContainsKey("Header") && 
                (controlTypeName.Contains("TabItem", StringComparison.OrdinalIgnoreCase) || 
-                controlTypeName.Contains("Expander", StringComparison.OrdinalIgnoreCase) ||
-                controlTypeName.Contains("MenuItem", StringComparison.OrdinalIgnoreCase) ||
-                controlTypeName.Contains("GroupBox", StringComparison.OrdinalIgnoreCase));
+                controlTypeName.Contains("GroupBox", StringComparison.OrdinalIgnoreCase) || 
+                controlTypeName.Contains("Expander", StringComparison.OrdinalIgnoreCase));
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
-        if (properties.TryGetValue("Header", out var headerVal) && headerVal != null)
+        if (properties.TryGetValue("Header", out var headerVal) && !string.IsNullOrEmpty(headerVal))
         {
             var escapedSelector = selector.Replace("\"", "\\\"");
             var escapedHeader = headerVal.Replace("\"", "\\\"");

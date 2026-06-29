@@ -4,18 +4,20 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class SelectionAssertionRule : IAssertionInferenceRule
+public class SelectionAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Selection State";
+    public override string Description => "Asserts the IsSelected property of tab items, list boxes, and tree views.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         return properties.ContainsKey("IsSelected") || 
                controlTypeName.Contains("TabItem", StringComparison.OrdinalIgnoreCase) || 
                controlTypeName.Contains("ListBoxItem", StringComparison.OrdinalIgnoreCase) || 
-               controlTypeName.Contains("ComboBoxItem", StringComparison.OrdinalIgnoreCase) ||
                controlTypeName.Contains("TreeViewItem", StringComparison.OrdinalIgnoreCase);
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("IsSelected", out var isSelectedVal) && !string.IsNullOrEmpty(isSelectedVal))

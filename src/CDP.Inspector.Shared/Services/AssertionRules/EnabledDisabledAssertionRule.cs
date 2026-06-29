@@ -4,24 +4,33 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class EnabledDisabledAssertionRule : IAssertionInferenceRule
+public class EnabledDisabledAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Enabled/Disabled";
+    public override string Description => "Asserts the IsEnabled property of interactive controls (primarily when disabled).";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
-        return properties.TryGetValue("IsEnabled", out var isEnabledVal) && 
-               isEnabledVal.Equals("false", StringComparison.OrdinalIgnoreCase);
+        return properties.ContainsKey("IsEnabled");
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
-        var escapedSelector = selector.Replace("\"", "\\\"");
-        steps.Add(new TestStudioStepModel
+        if (properties.TryGetValue("IsEnabled", out var isEnabledVal) && !string.IsNullOrEmpty(isEnabledVal))
         {
-            Action = "assertFalse",
-            Selector = "",
-            Value = $"document.querySelector(\"{escapedSelector}\").visual.IsEnabled"
-        });
+            var escapedSelector = selector.Replace("\"", "\\\"");
+            bool isTrue = isEnabledVal.Equals("true", StringComparison.OrdinalIgnoreCase);
+            if (!isTrue)
+            {
+                steps.Add(new TestStudioStepModel
+                {
+                    Action = "assertFalse",
+                    Selector = "",
+                    Value = $"document.querySelector(\"{escapedSelector}\").visual.IsEnabled"
+                });
+            }
+        }
         return steps;
     }
 }

@@ -4,23 +4,22 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class ContentAssertionRule : IAssertionInferenceRule
+public class ContentAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Content Text";
+    public override string Description => "Asserts the Content property of buttons and labels if it is a string.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
-        return properties.TryGetValue("Content", out var contentVal) && 
-               !string.IsNullOrEmpty(contentVal) && 
-               !contentVal.Contains('{') && 
-               !contentVal.Contains(':') &&
+        return properties.ContainsKey("Content") && 
                (controlTypeName.Contains("Button", StringComparison.OrdinalIgnoreCase) || 
-                controlTypeName.Contains("Label", StringComparison.OrdinalIgnoreCase) ||
-                controlTypeName.Contains("ToolTip", StringComparison.OrdinalIgnoreCase));
+                controlTypeName.Contains("Label", StringComparison.OrdinalIgnoreCase));
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
-        if (properties.TryGetValue("Content", out var contentVal) && contentVal != null)
+        if (properties.TryGetValue("Content", out var contentVal) && !string.IsNullOrEmpty(contentVal))
         {
             var escapedSelector = selector.Replace("\"", "\\\"");
             var escapedContent = contentVal.Replace("\"", "\\\"");

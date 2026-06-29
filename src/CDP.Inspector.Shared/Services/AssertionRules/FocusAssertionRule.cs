@@ -4,24 +4,36 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class FocusAssertionRule : IAssertionInferenceRule
+public class FocusAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Keyboard Focus";
+    public override string Description => "Asserts the IsFocused property of interactive elements.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
-        return properties.TryGetValue("IsFocused", out var isFocusedVal) && 
-               isFocusedVal.Equals("true", StringComparison.OrdinalIgnoreCase);
+        return properties.ContainsKey("IsFocused") && 
+               (properties["IsFocused"].Equals("true", StringComparison.OrdinalIgnoreCase) || 
+                controlTypeName.Contains("TextBox", StringComparison.OrdinalIgnoreCase) || 
+                controlTypeName.Contains("Button", StringComparison.OrdinalIgnoreCase));
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
-        var escapedSelector = selector.Replace("\"", "\\\"");
-        steps.Add(new TestStudioStepModel
+        if (properties.TryGetValue("IsFocused", out var isFocusedVal) && !string.IsNullOrEmpty(isFocusedVal))
         {
-            Action = "assertTrue",
-            Selector = "",
-            Value = $"document.querySelector(\"{escapedSelector}\").visual.IsFocused"
-        });
+            var escapedSelector = selector.Replace("\"", "\\\"");
+            bool isTrue = isFocusedVal.Equals("true", StringComparison.OrdinalIgnoreCase);
+            if (isTrue)
+            {
+                steps.Add(new TestStudioStepModel
+                {
+                    Action = "assertTrue",
+                    Selector = "",
+                    Value = $"document.querySelector(\"{escapedSelector}\").visual.IsFocused"
+                });
+            }
+        }
         return steps;
     }
 }

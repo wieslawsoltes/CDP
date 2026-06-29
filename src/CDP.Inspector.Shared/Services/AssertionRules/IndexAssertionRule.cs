@@ -4,27 +4,29 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class IndexAssertionRule : IAssertionInferenceRule
+public class IndexAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Selection Index";
+    public override string Description => "Asserts the SelectedIndex property of dropdowns and comboboxes.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         return properties.ContainsKey("SelectedIndex") || 
-               controlTypeName.Contains("ComboBox", StringComparison.OrdinalIgnoreCase) ||
-               controlTypeName.Contains("ListBox", StringComparison.OrdinalIgnoreCase) ||
+               controlTypeName.Contains("ComboBox", StringComparison.OrdinalIgnoreCase) || 
                controlTypeName.Contains("TabControl", StringComparison.OrdinalIgnoreCase);
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
-        if (properties.TryGetValue("SelectedIndex", out var idxVal) && !string.IsNullOrEmpty(idxVal))
+        if (properties.TryGetValue("SelectedIndex", out var idxVal) && int.TryParse(idxVal, out var idx))
         {
             var escapedSelector = selector.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
             {
                 Action = "assertTrue",
                 Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.SelectedIndex == {idxVal}"
+                Value = $"document.querySelector(\"{escapedSelector}\").visual.SelectedIndex == {idx}"
             });
         }
         return steps;

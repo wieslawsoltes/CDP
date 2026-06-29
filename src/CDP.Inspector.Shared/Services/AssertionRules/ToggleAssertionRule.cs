@@ -4,9 +4,12 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class ToggleAssertionRule : IAssertionInferenceRule
+public class ToggleAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Toggle State";
+    public override string Description => "Asserts IsChecked property of checkboxes and toggle controls.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         return properties.ContainsKey("IsChecked") || 
                controlTypeName.Contains("CheckBox", StringComparison.OrdinalIgnoreCase) || 
@@ -15,7 +18,7 @@ public class ToggleAssertionRule : IAssertionInferenceRule
                controlTypeName.Contains("ToggleSwitch", StringComparison.OrdinalIgnoreCase);
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("IsChecked", out var isCheckedVal) && !string.IsNullOrEmpty(isCheckedVal))

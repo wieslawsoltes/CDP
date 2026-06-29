@@ -413,6 +413,8 @@ public class TestStudioViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _isAutoAssertionEnabled, value);
     }
 
+    public CdpInspectorApp.Services.AssertionInferenceEngine AssertionEngine { get; } = new();
+
     public string OutputDirectory
     {
         get => _outputDirectory;

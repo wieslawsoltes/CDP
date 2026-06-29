@@ -4,16 +4,19 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class ExpanderAssertionRule : IAssertionInferenceRule
+public class ExpanderAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Expanded State";
+    public override string Description => "Asserts the IsExpanded property of Expanders and TreeView items.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         return properties.ContainsKey("IsExpanded") || 
-               controlTypeName.Contains("Expander", StringComparison.OrdinalIgnoreCase) ||
+               controlTypeName.Contains("Expander", StringComparison.OrdinalIgnoreCase) || 
                controlTypeName.Contains("TreeViewItem", StringComparison.OrdinalIgnoreCase);
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
         if (properties.TryGetValue("IsExpanded", out var isExpandedVal) && !string.IsNullOrEmpty(isExpandedVal))

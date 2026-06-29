@@ -4,27 +4,30 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class PlaceholderAssertionRule : IAssertionInferenceRule
+public class PlaceholderAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override string Name => "Placeholder Text";
+    public override string Description => "Asserts the PlaceholderText property of TextBoxes and ComboBoxes.";
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
-        return properties.TryGetValue("PlaceholderText", out var pVal) && !string.IsNullOrEmpty(pVal) &&
+        return properties.ContainsKey("PlaceholderText") && 
                (controlTypeName.Contains("TextBox", StringComparison.OrdinalIgnoreCase) || 
                 controlTypeName.Contains("ComboBox", StringComparison.OrdinalIgnoreCase));
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
-        if (properties.TryGetValue("PlaceholderText", out var pVal) && pVal != null)
+        if (properties.TryGetValue("PlaceholderText", out var phVal) && !string.IsNullOrEmpty(phVal))
         {
             var escapedSelector = selector.Replace("\"", "\\\"");
-            var escapedP = pVal.Replace("\"", "\\\"");
+            var escapedPH = phVal.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
             {
                 Action = "assertTrue",
                 Selector = "",
-                Value = $"document.querySelector(\"{escapedSelector}\").visual.PlaceholderText.ToString() == \"{escapedP}\""
+                Value = $"document.querySelector(\"{escapedSelector}\").visual.PlaceholderText.ToString() == \"{escapedPH}\""
             });
         }
         return steps;

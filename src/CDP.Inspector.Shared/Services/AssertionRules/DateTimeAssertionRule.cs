@@ -4,23 +4,41 @@ using CdpInspectorApp.Models;
 
 namespace CdpInspectorApp.Services.AssertionRules;
 
-public class DateTimeAssertionRule : IAssertionInferenceRule
+public class DateTimeAssertionRule : AssertionInferenceRuleBase
 {
-    public bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    private bool _assertDate = true;
+    private bool _assertTime = true;
+
+    public override string Name => "Date & Time";
+    public override string Description => "Asserts SelectedDate and SelectedTime properties of DatePicker and TimePicker controls.";
+
+    public bool AssertDate
+    {
+        get => _assertDate;
+        set => RaiseAndSetIfChanged(ref _assertDate, value);
+    }
+
+    public bool AssertTime
+    {
+        get => _assertTime;
+        set => RaiseAndSetIfChanged(ref _assertTime, value);
+    }
+
+    public override bool CanInfer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         return properties.ContainsKey("SelectedDate") || 
                properties.ContainsKey("SelectedTime") || 
                controlTypeName.Contains("DatePicker", StringComparison.OrdinalIgnoreCase) || 
                controlTypeName.Contains("TimePicker", StringComparison.OrdinalIgnoreCase) || 
-               controlTypeName.Contains("Calendar", StringComparison.OrdinalIgnoreCase);
+               controlTypeName.Contains("CalendarDatePicker", StringComparison.OrdinalIgnoreCase);
     }
 
-    public List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
+    public override List<TestStudioStepModel> Infer(string controlTypeName, string selector, Dictionary<string, string> properties)
     {
         var steps = new List<TestStudioStepModel>();
         var escapedSelector = selector.Replace("\"", "\\\"");
 
-        if (properties.TryGetValue("SelectedDate", out var dateVal) && !string.IsNullOrEmpty(dateVal))
+        if (AssertDate && properties.TryGetValue("SelectedDate", out var dateVal) && !string.IsNullOrEmpty(dateVal))
         {
             var escapedDate = dateVal.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
@@ -31,7 +49,7 @@ public class DateTimeAssertionRule : IAssertionInferenceRule
             });
         }
 
-        if (properties.TryGetValue("SelectedTime", out var timeVal) && !string.IsNullOrEmpty(timeVal))
+        if (AssertTime && properties.TryGetValue("SelectedTime", out var timeVal) && !string.IsNullOrEmpty(timeVal))
         {
             var escapedTime = timeVal.Replace("\"", "\\\"");
             steps.Add(new TestStudioStepModel
@@ -41,6 +59,7 @@ public class DateTimeAssertionRule : IAssertionInferenceRule
                 Value = $"document.querySelector(\"{escapedSelector}\").visual.SelectedTime.ToString() == \"{escapedTime}\""
             });
         }
+
         return steps;
     }
 }

@@ -664,7 +664,7 @@ public class RecorderViewModel : ViewModelBase
 
             if (string.IsNullOrEmpty(controlTypeName)) return;
 
-            var engine = new AssertionInferenceEngine();
+            var engine = TestStudio.AssertionEngine;
             var inferredSteps = engine.InferAssertions(controlTypeName, selector, properties);
 
             if (inferredSteps.Count > 0)

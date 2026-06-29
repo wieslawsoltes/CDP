@@ -26,6 +26,8 @@ public class AssertionInferenceEngine
         _rules.Add(new PlaceholderAssertionRule());
     }
 
+    public IReadOnlyList<IAssertionInferenceRule> Rules => _rules;
+
     public void AddRule(IAssertionInferenceRule rule)
     {
         if (rule == null) throw new ArgumentNullException(nameof(rule));
@@ -39,7 +41,7 @@ public class AssertionInferenceEngine
 
         foreach (var rule in _rules)
         {
-            if (rule.CanInfer(controlTypeName, selector, properties))
+            if (rule.IsEnabled && rule.CanInfer(controlTypeName, selector, properties))
             {
                 var steps = rule.Infer(controlTypeName, selector, properties);
                 if (steps != null)
