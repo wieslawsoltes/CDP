@@ -253,6 +253,7 @@
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" Margin="0,0,0,8">
                         <CheckBox Name="chkTestStudioRecordVideo" Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0"/>
                         <CheckBox Name="chkTestStudioGenerateReports" Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0"/>
+                        <CheckBox Name="chkTestStudioAutoAssertion" Content="Auto Assertions" IsChecked="{Binding Recorder.TestStudio.IsAutoAssertionEnabled}" FontSize="11" Margin="0"/>
                     </StackPanel>
                     
                     <!-- Path and Browse button -->
