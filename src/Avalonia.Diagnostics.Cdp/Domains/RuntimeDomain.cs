@@ -345,7 +345,8 @@ public static class RuntimeDomain
         if (trimmed.Equals("false", StringComparison.OrdinalIgnoreCase)) return false;
         if ((trimmed.StartsWith("\"") && trimmed.EndsWith("\"")) || (trimmed.StartsWith("'") && trimmed.EndsWith("'")))
         {
-            return trimmed.Substring(1, trimmed.Length - 2);
+            var content = trimmed.Substring(1, trimmed.Length - 2);
+            return content.Replace("\\\"", "\"").Replace("\\\\", "\\").Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t");
         }
         if (int.TryParse(trimmed, out int iVal)) return iVal;
         if (double.TryParse(trimmed, System.Globalization.NumberStyles.Any, CultureInfo.InvariantCulture, out double dVal)) return dVal;
@@ -1044,9 +1045,9 @@ public sealed class CdpRuntimeDocument
         var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, selector, _session.UseLogicalTree);
         if (visual == null) return "{}";
 
-        var list = new System.Collections.Generic.List<string>();
-        list.Add("\"$Type\":\"" + visual.GetType().Name + "\"");
-        list.Add("\"$FullName\":\"" + visual.GetType().FullName + "\"");
+        var dict = new Dictionary<string, object?>();
+        dict["$Type"] = visual.GetType().Name;
+        dict["$FullName"] = visual.GetType().FullName;
 
         var props = new[] { "IsChecked", "Text", "Value", "IsSelected", "SelectedIndex", "IsExpanded", "SelectedDate", "SelectedTime", "IsFocused", "IsEnabled", "Content", "Header", "PlaceholderText" };
         foreach (var pName in props)
@@ -1057,20 +1058,12 @@ public sealed class CdpRuntimeDocument
                 if (p != null && p.CanRead)
                 {
                     var val = p.GetValue(visual);
-                    if (val != null)
-                    {
-                        var valStr = val.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");
-                        list.Add("\"" + pName + "\":\"" + valStr + "\"");
-                    }
-                    else
-                    {
-                        list.Add("\"" + pName + "\":null");
-                    }
+                    dict[pName] = val?.ToString();
                 }
             }
             catch {}
         }
-        return "{" + string.Join(",", list) + "}";
+        return System.Text.Json.JsonSerializer.Serialize(dict);
     }
 }
 

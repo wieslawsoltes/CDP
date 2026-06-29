@@ -143,10 +143,11 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
                 bool expectedBool = step.Type == "assertTrue";
                 string expr = step.Value ?? "";
                 
-                var match = System.Text.RegularExpressions.Regex.Match(expr, @"^document\.querySelector\(""([^""]+)""\)\.visual\.([\w\.\(\)]+)(?:\s*(==|!=)\s*(.*))?$");
+                var match = System.Text.RegularExpressions.Regex.Match(expr, @"^document\.querySelector\(""((?:[^""\\]|\\.)*)""\)\.visual\.([\w\.\(\)]+)(?:\s*(==|!=)\s*(.*))?$");
                 if (match.Success)
                 {
-                    string selectorEscaped = EscapeCSharpString(match.Groups[1].Value);
+                    string rawSelector = match.Groups[1].Value.Replace("\\\"", "\"").Replace("\\\\", "\\");
+                    string selectorEscaped = EscapeCSharpString(rawSelector);
                     string propName = match.Groups[2].Value;
                     string op = match.Groups[3].Value;
                     string rawVal = match.Groups[4].Value;
