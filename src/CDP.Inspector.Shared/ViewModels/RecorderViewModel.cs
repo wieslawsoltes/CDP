@@ -669,11 +669,17 @@ public class RecorderViewModel : ViewModelBase
         {
             var escapedSelector = selector.Replace("\"", "\\\"");
 
-            // Poll to verify if the element remains visible/attached for at least 400ms.
+            var engine = TestStudio?.AssertionEngine;
+            int stableDelay = engine?.StableDelay ?? 400;
+            int pollInterval = engine?.PollInterval ?? 100;
+            int attempts = pollInterval > 0 ? stableDelay / pollInterval : 0;
+            if (attempts < 1) attempts = 1;
+
+            // Poll to verify if the element remains visible/attached.
             // If it becomes invisible or is removed at any point, skip generating assertions.
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < attempts; i++)
             {
-                await Task.Delay(100);
+                await Task.Delay(pollInterval);
                 if (!_cdpService.IsConnected) return;
 
                 try
@@ -754,7 +760,7 @@ public class RecorderViewModel : ViewModelBase
 
             if (string.IsNullOrEmpty(controlTypeName)) return;
 
-            var engine = TestStudio.AssertionEngine;
+            if (engine == null) return;
             var inferredSteps = engine.InferAssertions(controlTypeName, selector, properties);
 
             if (inferredSteps.Count > 0)

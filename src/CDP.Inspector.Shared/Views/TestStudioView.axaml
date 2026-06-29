@@ -261,9 +261,15 @@
                                 <Button.Flyout>
                                     <Flyout Placement="BottomEdgeAlignedLeft">
                                         <Border Width="320" Padding="12" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
-                                            <Grid RowDefinitions="Auto, *">
+                                            <Grid RowDefinitions="Auto, Auto, *">
                                                 <TextBlock Grid.Row="0" Text="Auto Assertion Rules" FontWeight="Bold" FontSize="12" Foreground="White" Margin="0,0,0,10"/>
-                                                <ScrollViewer Grid.Row="1" MaxHeight="350">
+                                                <Grid Grid.Row="1" ColumnDefinitions="*, *" RowDefinitions="Auto, Auto" Margin="0,0,0,12">
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Stable Delay (ms)" FontSize="10" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+                                                    <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding Recorder.TestStudio.AssertionEngine.StableDelay, Mode=TwoWay}" FontSize="10" Height="22" Padding="4,2" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Poll Interval (ms)" FontSize="10" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+                                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Recorder.TestStudio.AssertionEngine.PollInterval, Mode=TwoWay}" FontSize="10" Height="22" Padding="4,2" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <ScrollViewer Grid.Row="2" MaxHeight="350">
                                                     <ItemsControl ItemsSource="{Binding Recorder.TestStudio.AssertionEngine.Rules}">
                                                         <ItemsControl.DataTemplates>
                                                             <DataTemplate DataType="rules:TextBoxAssertionRule">

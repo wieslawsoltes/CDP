@@ -3,11 +3,27 @@ using System.Collections.Generic;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services.AssertionRules;
 
+using CdpInspectorApp.ViewModels;
+
 namespace CdpInspectorApp.Services;
 
-public class AssertionInferenceEngine
+public class AssertionInferenceEngine : ViewModelBase
 {
     private readonly List<IAssertionInferenceRule> _rules = new();
+    private int _stableDelay = 400;
+    private int _pollInterval = 100;
+
+    public int StableDelay
+    {
+        get => _stableDelay;
+        set => RaiseAndSetIfChanged(ref _stableDelay, value);
+    }
+
+    public int PollInterval
+    {
+        get => _pollInterval;
+        set => RaiseAndSetIfChanged(ref _pollInterval, value);
+    }
 
     public AssertionInferenceEngine()
     {
