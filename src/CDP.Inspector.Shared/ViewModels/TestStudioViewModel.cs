@@ -1182,15 +1182,6 @@ public class TestStudioViewModel : ViewModelBase
 
                 try
                 {
-                    if (_cdpService.IsConnected)
-                    {
-                        await _cdpService.DisconnectAsync();
-                    }
-                }
-                catch { }
-
-                try
-                {
                     CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
                 }
                 catch { }
@@ -4070,7 +4061,7 @@ public class TestStudioViewModel : ViewModelBase
 
             var argsRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
             {
-                ["expression"] = "string.Join(\" \", System.Environment.GetCommandLineArgs().Skip(1))",
+                ["expression"] = "string.Join(\" \", System.Environment.GetCommandLineArgs().Skip(1).Select(x => x.Contains(' ') || x.Contains('\"') ? \"\\\"\" + x.Replace(\"\\\"\", \"\\\\\\\"\") + \"\\\"\" : x))",
                 ["returnByValue"] = true
             });
             string? args = GetEvalResultValue(argsRes);

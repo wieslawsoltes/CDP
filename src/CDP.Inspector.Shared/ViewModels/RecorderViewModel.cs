@@ -312,15 +312,6 @@ public class RecorderViewModel : ViewModelBase
             {
                 try
                 {
-                    if (_cdpService.IsConnected)
-                    {
-                        await _cdpService.DisconnectAsync();
-                    }
-                }
-                catch { }
-
-                try
-                {
                     CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
                 }
                 catch { }
