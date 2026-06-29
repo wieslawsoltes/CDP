@@ -188,7 +188,18 @@ public class RecorderViewModel : ViewModelBase
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
 
-        ToggleRecordCommand = new RelayCommand(async () => await ToggleRecordAsync(), () => _cdpService.IsConnected);
+        ToggleRecordCommand = new RelayCommand(
+            async () => await ToggleRecordAsync(), 
+            () => _cdpService.IsConnected || (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath)));
+
+        TestStudio.PropertyChanged += (sender, args) =>
+        {
+            if (args.PropertyName == nameof(TestStudioViewModel.IsAutoLaunchEnabled) ||
+                args.PropertyName == nameof(TestStudioViewModel.AutoLaunchPath))
+            {
+                ((RelayCommand)ToggleRecordCommand).RaiseCanExecuteChanged();
+            }
+        };
         ReplayCommand = new RelayCommand(async () => await ReplayAsync(), () => _cdpService.IsConnected && RecordedSteps.Count > 0);
         ClearCommand = new RelayCommand(ClearRecording);
         DeleteStepCommand = new RelayCommand<RecordedStepModel>(DeleteStep);
@@ -295,7 +306,54 @@ public class RecorderViewModel : ViewModelBase
 
     public async Task ToggleRecordAsync()
     {
-        if (!_cdpService.IsConnected) return;
+        if (!IsRecording)
+        {
+            if (TestStudio != null && TestStudio.IsAutoLaunchEnabled)
+            {
+                try
+                {
+                    if (_cdpService.IsConnected)
+                    {
+                        await _cdpService.DisconnectAsync();
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    CdpInspectorApp.Services.AppLauncherService.KillAllLaunchedProcesses();
+                }
+                catch { }
+            }
+        }
+
+        if (!_cdpService.IsConnected)
+        {
+            if (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath))
+            {
+                try
+                {
+                    var launcher = new CdpInspectorApp.Services.AppLauncherService();
+                    await launcher.AutoLaunchAppAsync(
+                        _cdpService,
+                        TestStudio.Connection,
+                        TestStudio.AutoLaunchPath,
+                        TestStudio.AutoLaunchArguments,
+                        msg => TestStudio.Log(msg),
+                        System.Threading.CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    TestStudio.Log($"Auto Launch Error: {ex.Message}");
+                    return;
+                }
+            }
+
+            if (!_cdpService.IsConnected)
+            {
+                return;
+            }
+        }
 
         try
         {

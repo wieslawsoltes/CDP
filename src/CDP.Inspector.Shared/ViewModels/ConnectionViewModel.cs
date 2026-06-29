@@ -106,6 +106,34 @@ public class ConnectionViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _useAutomationSelectors, value);
     }
 
+    private TestStudioViewModel? _testStudio;
+    public TestStudioViewModel? TestStudio
+    {
+        get => _testStudio;
+        set
+        {
+            if (_testStudio != null)
+            {
+                _testStudio.PropertyChanged -= TestStudio_PropertyChanged;
+            }
+            _testStudio = value;
+            if (_testStudio != null)
+            {
+                _testStudio.PropertyChanged += TestStudio_PropertyChanged;
+            }
+            ((RelayCommand)ConnectCommand).RaiseCanExecuteChanged();
+        }
+    }
+
+    private void TestStudio_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TestStudioViewModel.IsAutoLaunchEnabled) ||
+            e.PropertyName == nameof(TestStudioViewModel.AutoLaunchPath))
+        {
+            ((RelayCommand)ConnectCommand).RaiseCanExecuteChanged();
+        }
+    }
+
     public ObservableCollection<TargetItem> Targets
     {
         get => _targets;
@@ -170,7 +198,10 @@ public class ConnectionViewModel : ViewModelBase
         this.PropertyChanged += ConnectionViewModel_PropertyChanged;
 
         RefreshTargetsCommand = new RelayCommand(async () => await RefreshTargetsAsync());
-        ConnectCommand = new RelayCommand(async () => await ConnectAsync(), () => SelectedTarget != null && (IsNotConnected || SelectedTarget.Id != _cdpService.ConnectedTargetId));
+        ConnectCommand = new RelayCommand(
+            async () => await ConnectAsync(), 
+            () => (SelectedTarget != null && (IsNotConnected || SelectedTarget.Id != _cdpService.ConnectedTargetId)) ||
+                  (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath)));
         DisconnectCommand = new RelayCommand(async () => await DisconnectAsync(), () => IsConnected);
         ReloadCommand = new RelayCommand(async () => await ReloadAsync(), () => IsConnected);
 
@@ -358,8 +389,34 @@ public class ConnectionViewModel : ViewModelBase
         }
     }
 
-    public async Task ConnectAsync()
+    public Task ConnectAsync() => ConnectAsync(bypassAutoLaunch: false);
+
+    public async Task ConnectAsync(bool bypassAutoLaunch)
     {
+        if (!bypassAutoLaunch && (SelectedTarget == null || (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath) && !_cdpService.IsConnected)))
+        {
+            if (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath))
+            {
+                try
+                {
+                    var launcher = new CdpInspectorApp.Services.AppLauncherService();
+                    await launcher.AutoLaunchAppAsync(
+                        _cdpService,
+                        this,
+                        TestStudio.AutoLaunchPath,
+                        TestStudio.AutoLaunchArguments,
+                        msg => TestStudio.Log(msg),
+                        System.Threading.CancellationToken.None);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    TestStudio.Log($"Auto Launch Connection Error: {ex.Message}");
+                    if (SelectedTarget == null) return;
+                }
+            }
+        }
+
         if (SelectedTarget == null) return;
         try
         {
