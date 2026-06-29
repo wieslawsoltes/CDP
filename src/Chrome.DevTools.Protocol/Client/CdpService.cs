@@ -304,7 +304,10 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 {
                     string method = node["method"]!.GetValue<string>();
                     var parameters = node["params"] as JsonObject ?? new JsonObject();
-                    Logger.ReceivedEvent(method);
+                    if (method != "Log.entryAdded")
+                    {
+                        Logger.ReceivedEvent(method);
+                    }
 
                     if (method == "Page.screencastFrame")
                     {
