@@ -1043,7 +1043,7 @@ public sealed class CdpRuntimeDocument
         if (root == null) return "{}";
 
         var visual = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, selector, _session.UseLogicalTree);
-        if (visual == null) return "{}";
+        if (visual == null || (visual is Avalonia.Controls.Control control && !control.IsEffectivelyVisible)) return "{}";
 
         var dict = new Dictionary<string, object?>();
         dict["$Type"] = visual.GetType().Name;
