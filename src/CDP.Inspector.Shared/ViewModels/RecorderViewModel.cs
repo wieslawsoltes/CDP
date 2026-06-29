@@ -642,7 +642,7 @@ public class RecorderViewModel : ViewModelBase
 
         UpdateGeneratedCode();
 
-        if (IsTestStudioActive && TestStudio.IsAutoAssertionEnabled && (type == "click" || type == "change" || type == "keydown" || type == "scroll"))
+        if (IsTestStudioActive && TestStudio.IsAutoAssertionEnabled && (type == "click" || type == "change" || type == "keydown"))
         {
             _ = Task.Run(async () =>
             {
