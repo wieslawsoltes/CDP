@@ -162,6 +162,20 @@ public class PlaywrightGenerator : ICodeGenerator
                 sb.AppendLine($"      await expect(page.locator('{EscapeJsString(step.Selector)}')).toBeHidden();");
                 sb.AppendLine("    });");
             }
+            else if (step.Type == "assertTrue")
+            {
+                sb.AppendLine($"    await test.step('Assert True: {EscapeJsString(step.Value)}', async () => {{");
+                sb.AppendLine($"      const result = await page.evaluate('{EscapeJsString(step.Value)}');");
+                sb.AppendLine($"      await expect(result).toBeTruthy();");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "assertFalse")
+            {
+                sb.AppendLine($"    await test.step('Assert False: {EscapeJsString(step.Value)}', async () => {{");
+                sb.AppendLine($"      const result = await page.evaluate('{EscapeJsString(step.Value)}');");
+                sb.AppendLine($"      await expect(result).toBeFalsy();");
+                sb.AppendLine("    });");
+            }
         }
 
         sb.AppendLine();

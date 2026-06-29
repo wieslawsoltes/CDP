@@ -144,6 +144,18 @@ public class PuppeteerGenerator : ICodeGenerator
                 sb.AppendLine($"  // Assert element is hidden");
                 sb.AppendLine($"  await page.waitForSelector('{EscapeJsString(step.Selector)}', {{ hidden: true }});");
             }
+            else if (step.Type == "assertTrue")
+            {
+                sb.AppendLine($"  // Assert True");
+                sb.AppendLine($"  const result_{i} = await page.evaluate('{EscapeJsString(step.Value)}');");
+                sb.AppendLine($"  if (!result_{i}) throw new Error('Assertion failed: {EscapeJsString(step.Value)} is not true');");
+            }
+            else if (step.Type == "assertFalse")
+            {
+                sb.AppendLine($"  // Assert False");
+                sb.AppendLine($"  const result_{i} = await page.evaluate('{EscapeJsString(step.Value)}');");
+                sb.AppendLine($"  if (result_{i}) throw new Error('Assertion failed: {EscapeJsString(step.Value)} is not false');");
+            }
             sb.AppendLine();
         }
 
