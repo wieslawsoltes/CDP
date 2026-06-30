@@ -342,4 +342,21 @@ public class OsAutomationTests
         // Under fallback, we capture static background, so at least one frame should fire initially
         Assert.True(screencastFired);
     }
+
+    [Fact]
+    public void TestOsAutomationInputCapture()
+    {
+        var automation = OSAutomationService.Instance;
+        bool callbackInvoked = false;
+
+        // Register click callback
+        automation.StartInputCapture(GetTargetWindowId(), (x, y, btn) =>
+        {
+            callbackInvoked = true;
+        });
+
+        // Verify we can call stop without crashing
+        automation.StopInputCapture();
+        Assert.False(callbackInvoked);
+    }
 }

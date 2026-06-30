@@ -12,6 +12,11 @@ namespace CDP.Automation.OS.Windows;
 public sealed partial class WindowsAutomation : IOsAutomation
 {
     private readonly ILogger _logger;
+    private HookProc? _mouseHookCallback;
+    private IntPtr _mouseHookId = IntPtr.Zero;
+    private Action<double, double, string>? _inputCaptureCallback;
+    private string? _captureWindowId;
+    private System.Threading.Thread? _hookThread;
 
     public bool MovePhysicalCursor { get; set; }
     public bool UsePeerAutomation { get; set; } = true;
@@ -259,6 +264,52 @@ public sealed partial class WindowsAutomation : IOsAutomation
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetForegroundWindow(IntPtr hWnd);
+
+    private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [LibraryImport("user32.dll")]
+    private static partial IntPtr SetWindowsHookExW(int idHook, HookProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [LibraryImport("user32.dll")]
+    private static partial IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial IntPtr GetModuleHandleW(string? lpModuleName);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public POINT pt;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [LibraryImport("user32.dll")]
+    private static partial int GetMessageW(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool TranslateMessage(ref MSG lpMsg);
+
+    [LibraryImport("user32.dll")]
+    private static partial IntPtr DispatchMessageW(ref MSG lpMsg);
 
     public IReadOnlyList<OSWindow> GetWindows()
     {
@@ -1001,12 +1052,92 @@ public sealed partial class WindowsAutomation : IOsAutomation
         return true;
     }
 
+    private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && wParam == (IntPtr)0x0201) // WM_LBUTTONDOWN
+        {
+            try
+            {
+                var hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                var bounds = GetWindowBounds(_captureWindowId ?? "");
+                if (bounds.Width > 0 && bounds.Height > 0)
+                {
+                    if (hookStruct.pt.X >= bounds.Left && hookStruct.pt.X <= bounds.Right &&
+                        hookStruct.pt.Y >= bounds.Top && hookStruct.pt.Y <= bounds.Bottom)
+                    {
+                        _inputCaptureCallback?.Invoke(hookStruct.pt.X, hookStruct.pt.Y, "left");
+                    }
+                }
+            }
+            catch {}
+        }
+        return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
+    }
+
     public void StartInputCapture(string windowId, Action<double, double, string> onClick)
     {
+        StopInputCapture();
+
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+        _captureWindowId = windowId;
+        _inputCaptureCallback = onClick;
+
+        var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
+
+        _hookThread = new System.Threading.Thread(() =>
+        {
+            try
+            {
+                _mouseHookCallback = MouseHookCallback;
+                IntPtr hModule = GetModuleHandleW(null);
+                _mouseHookId = SetWindowsHookExW(14, _mouseHookCallback, hModule, 0); // WH_MOUSE_LL = 14
+
+                if (_mouseHookId == IntPtr.Zero)
+                {
+                    tcs.SetResult(false);
+                    return;
+                }
+
+                tcs.SetResult(true);
+
+                MSG msg;
+                while (GetMessageW(out msg, IntPtr.Zero, 0, 0) != 0)
+                {
+                    TranslateMessage(ref msg);
+                    DispatchMessageW(ref msg);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in Windows low-level mouse hook thread");
+                if (!tcs.Task.IsCompleted) tcs.SetResult(false);
+            }
+        });
+
+        _hookThread.IsBackground = true;
+        _hookThread.Start();
+        try
+        {
+            tcs.Task.Wait(500);
+        }
+        catch {}
     }
 
     public void StopInputCapture()
     {
+        _inputCaptureCallback = null;
+        _captureWindowId = null;
+
+        if (_mouseHookId != IntPtr.Zero)
+        {
+            var hookId = _mouseHookId;
+            _mouseHookId = IntPtr.Zero;
+            UnhookWindowsHookEx(hookId);
+        }
+
+        _mouseHookCallback = null;
+        _hookThread = null;
     }
 
     private bool TryAccessibilityPress(double absoluteX, double absoluteY)

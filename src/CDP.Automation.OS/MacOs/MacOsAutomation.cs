@@ -743,30 +743,14 @@ public sealed partial class MacOsAutomation : IOsAutomation
         }
         else
         {
-            if (int.TryParse(windowId, out int parsedWinId))
+            var windows = GetWindows();
+            foreach (var w in windows)
             {
-                try
+                if (w.Id == windowId)
                 {
-                    IntPtr array = CGWindowListCopyWindowInfo(1, 0);
-                    if (array != IntPtr.Zero)
-                    {
-                        int count = CFArrayGetCount(array);
-                        for (int i = 0; i < count; i++)
-                        {
-                            IntPtr dict = CFArrayGetValueAtIndex(array, i);
-                            if (dict == IntPtr.Zero) continue;
-
-                            int num = GetDictInt(dict, "kCGWindowNumber");
-                            if (num == parsedWinId)
-                            {
-                                pid = GetDictInt(dict, "kCGWindowOwnerPID");
-                                break;
-                            }
-                        }
-                        CFRelease(array);
-                    }
+                    pid = w.ProcessId;
+                    break;
                 }
-                catch {}
             }
         }
 
@@ -1406,7 +1390,11 @@ public sealed partial class MacOsAutomation : IOsAutomation
         {
             ulong mask = (1UL << 1); // LeftMouseDown
             _tapPort = CGEventTapCreateForPid(pid, 0, 1, mask, _tapCallback, IntPtr.Zero);
-            if (_tapPort != IntPtr.Zero)
+            if (_tapPort == IntPtr.Zero)
+            {
+                _logger.LogWarning("Failed to create macOS CGEventTap for PID {Pid}. Accessibility permissions might be missing in System Settings -> Privacy & Security -> Accessibility.", pid);
+            }
+            else
             {
                 _runLoopSource = CFMachPortCreateRunLoopSource(IntPtr.Zero, _tapPort, 0);
                 if (_runLoopSource != IntPtr.Zero)
