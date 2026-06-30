@@ -1274,6 +1274,11 @@ public sealed partial class WindowsAutomation : IOsAutomation
         return true;
     }
 
+    public bool HasAccessibilityPermission()
+    {
+        return true;
+    }
+
     private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
         if (nCode >= 0 && wParam == (IntPtr)0x0201) // WM_LBUTTONDOWN

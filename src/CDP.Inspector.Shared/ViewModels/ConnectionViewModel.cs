@@ -495,6 +495,15 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
                     TestStudio.Log("To fix: Go to System Settings -> Privacy & Security -> Screen Recording, and enable permission for your Terminal, iTerm, or IDE/VS Code.");
                     TestStudio.Log("IMPORTANT: You MUST restart your Terminal, iTerm, or IDE/VS Code after enabling permission for the change to take effect.");
                 }
+
+                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX) &&
+                    !CDP.Automation.OS.OSAutomationService.Instance.HasAccessibilityPermission())
+                {
+                    TestStudio.Log("⚠️ WARNING: macOS Accessibility permission is NOT granted!");
+                    TestStudio.Log("Direct clicks and typing on actual application windows will NOT be recorded.");
+                    TestStudio.Log("To fix: Go to System Settings -> Privacy & Security -> Accessibility, and enable permission for your Terminal, iTerm, or IDE/VS Code.");
+                    TestStudio.Log("IMPORTANT: You MUST restart your Terminal, iTerm, or IDE/VS Code after enabling permission for the change to take effect.");
+                }
             }
         }
         catch (Exception ex)

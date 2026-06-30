@@ -383,6 +383,11 @@ public sealed partial class LinuxAutomation : IOsAutomation
         return true;
     }
 
+    public bool HasAccessibilityPermission()
+    {
+        return true;
+    }
+
     public void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent)
     {
     }

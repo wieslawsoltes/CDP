@@ -20,6 +20,7 @@ public interface IOsAutomation
     byte[] CaptureWindow(string windowId);
     OSNode? GetFocusedElement(string windowId);
     bool HasScreenCapturePermission();
+    bool HasAccessibilityPermission();
     void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent);
     void StopInputCapture();
 }

@@ -1493,6 +1493,19 @@ public sealed partial class MacOsAutomation : IOsAutomation
         return true;
     }
 
+    public bool HasAccessibilityPermission()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            try
+            {
+                return AXIsProcessTrusted();
+            }
+            catch {}
+        }
+        return true;
+    }
+
     private IntPtr _tapPort = IntPtr.Zero;
     private IntPtr _runLoopSource = IntPtr.Zero;
     private IntPtr _runLoop = IntPtr.Zero;
@@ -1605,7 +1618,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
             // Add Event Tap
             ulong mask = (1UL << 1); // LeftMouseDown
-            _tapPort = CGEventTapCreate(0, 0, 1, mask, _tapCallback, IntPtr.Zero); // tap = 0 (kCGHIDEventTap), place = 0 (kCGHeadInsertEventTap)
+            _tapPort = CGEventTapCreate(1, 0, 1, mask, _tapCallback, IntPtr.Zero); // tap = 1 (kCGSessionEventTap), place = 0 (kCGHeadInsertEventTap)
 
             if (_tapPort == IntPtr.Zero && _observer == IntPtr.Zero)
             {
