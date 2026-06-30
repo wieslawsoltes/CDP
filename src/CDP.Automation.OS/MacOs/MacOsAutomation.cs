@@ -156,6 +156,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
     private static partial void CGEventPost(uint tapLocation, IntPtr theEvent);
 
     [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static partial void CGEventPostToPid(int pid, IntPtr theEvent);
+
+    [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     private static partial IntPtr CGEventCreateKeyboardEvent(IntPtr source, ushort virtualKey, [MarshalAs(UnmanagedType.I1)] bool keyDown);
 
     [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
@@ -622,6 +625,54 @@ public sealed partial class MacOsAutomation : IOsAutomation
         return bounds;
     }
 
+    private int GetWindowPid(string windowId)
+    {
+        int pid = 0;
+        if (windowId.EndsWith("_fallback"))
+        {
+            var parts = windowId.Split('_');
+            if (parts.Length > 0 && int.TryParse(parts[0], out int parsedPid))
+            {
+                pid = parsedPid;
+            }
+        }
+        else
+        {
+            if (int.TryParse(windowId, out int parsedWinId))
+            {
+                try
+                {
+                    IntPtr array = CGWindowListCopyWindowInfo(1, 0);
+                    if (array != IntPtr.Zero)
+                    {
+                        int count = CFArrayGetCount(array);
+                        for (int i = 0; i < count; i++)
+                        {
+                            IntPtr dict = CFArrayGetValueAtIndex(array, i);
+                            if (dict == IntPtr.Zero) continue;
+
+                            int num = GetDictInt(dict, "kCGWindowNumber");
+                            if (num == parsedWinId)
+                            {
+                                pid = GetDictInt(dict, "kCGWindowOwnerPID");
+                                break;
+                            }
+                        }
+                        CFRelease(array);
+                    }
+                }
+                catch {}
+            }
+        }
+
+        if (pid == 0 && int.TryParse(windowId, out int parsedId))
+        {
+            pid = parsedId;
+        }
+
+        return pid;
+    }
+
     private void PostAndRestoreCursor(IntPtr cgEvent, string windowId)
     {
         if (cgEvent == IntPtr.Zero) return;
@@ -648,24 +699,33 @@ public sealed partial class MacOsAutomation : IOsAutomation
                 }
             }
 
-            if (shouldRestore && !MovePhysicalCursor)
+            int targetPid = GetWindowPid(windowId);
+
+            if (shouldRestore && !MovePhysicalCursor && targetPid > 0)
             {
-                CGAssociateMouseAndMouseCursorPosition(false);
+                CGEventPostToPid(targetPid, cgEvent);
             }
-
-            CGEventPost(0, cgEvent);
-
-            if (shouldRestore && !MovePhysicalCursor)
+            else
             {
-                CGAssociateMouseAndMouseCursorPosition(true);
-
-                if (originalPt.X > 0 || originalPt.Y > 0)
+                if (shouldRestore && !MovePhysicalCursor)
                 {
-                    IntPtr restoreEvent = CGEventCreateMouseEvent(IntPtr.Zero, 5, originalPt, 0);
-                    if (restoreEvent != IntPtr.Zero)
+                    CGAssociateMouseAndMouseCursorPosition(false);
+                }
+
+                CGEventPost(0, cgEvent);
+
+                if (shouldRestore && !MovePhysicalCursor)
+                {
+                    CGAssociateMouseAndMouseCursorPosition(true);
+
+                    if (originalPt.X > 0 || originalPt.Y > 0)
                     {
-                        CGEventPost(0, restoreEvent);
-                        CFRelease(restoreEvent);
+                        IntPtr restoreEvent = CGEventCreateMouseEvent(IntPtr.Zero, 5, originalPt, 0);
+                        if (restoreEvent != IntPtr.Zero)
+                        {
+                            CGEventPost(0, restoreEvent);
+                            CFRelease(restoreEvent);
+                        }
                     }
                 }
             }
