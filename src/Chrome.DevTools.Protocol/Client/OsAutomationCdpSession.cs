@@ -278,6 +278,28 @@ public sealed class OsAutomationCdpSession : IDisposable
                     {
                         _isMouseDown = false;
 
+                        if (_pollingCts != null)
+                        {
+                            try
+                            {
+                                var rootNode = _automation.GetElementTree(_windowId);
+                                if (rootNode != null)
+                                {
+                                    double absoluteX = rootNode.Bounds.Left + x;
+                                    double absoluteY = rootNode.Bounds.Top + y;
+                                    var match = FindDeepestNodeAt(rootNode, (int)absoluteX, (int)absoluteY);
+                                    if (match != null)
+                                    {
+                                        RaiseStepRecordedEvent("click", match.Id);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error recording preview pane click step: {ex.Message}");
+                            }
+                        }
+
                         if (_automation.UsePeerAutomation && !_hasMovedSinceDown)
                         {
                             _automation.SimulateClick(_windowId, x, y);
@@ -313,6 +335,23 @@ public sealed class OsAutomationCdpSession : IDisposable
                 {
                     TriggerSimulateInputGuard();
                     string text = parameters["text"]?.GetValue<string>() ?? "";
+
+                    if (_pollingCts != null)
+                    {
+                        try
+                        {
+                            var focused = _automation.GetFocusedElement(_windowId);
+                            if (focused != null)
+                            {
+                                RaiseStepRecordedEvent("change", focused.Id, text);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error recording preview pane text change step: {ex.Message}");
+                        }
+                    }
+
                     _automation.SimulateTypeText(_windowId, text);
                     return Task.FromResult(new JsonObject());
                 }

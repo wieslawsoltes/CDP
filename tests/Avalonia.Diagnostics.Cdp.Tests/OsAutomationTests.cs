@@ -368,4 +368,88 @@ public class OsAutomationTests
         automation.StopInputCapture();
         Assert.False(callbackInvoked);
     }
+
+    [Fact]
+    public async Task TestOsAutomationPreviewPaneClickRecording()
+    {
+        var session = new OsAutomationCdpSession(GetTargetWindowId());
+
+        bool stepAdded = false;
+        string? stepType = null;
+        string? selector = null;
+
+        session.EventReceived += (sender, e) =>
+        {
+            if (e.Method == "Recorder.stepAdded")
+            {
+                stepAdded = true;
+                var step = e.Params?["step"] as JsonObject;
+                stepType = step?["type"]?.GetValue<string>();
+                var selectors = step?["selectors"] as JsonArray;
+                var innerArray = selectors?[0] as JsonArray;
+                selector = innerArray?[0]?.GetValue<string>();
+            }
+        };
+
+        // Start recording
+        await session.HandleCommandAsync("Recorder.start", new JsonObject());
+
+        // Dispatch mouse released at x = 150, y = 120 (which falls in btnClickMe bounds)
+        await session.HandleCommandAsync("Input.dispatchMouseEvent", new JsonObject
+        {
+            ["type"] = "mouseReleased",
+            ["x"] = 150.0,
+            ["y"] = 120.0,
+            ["button"] = "left"
+        });
+
+        // Stop recording
+        await session.HandleCommandAsync("Recorder.stop", new JsonObject());
+
+        Assert.True(stepAdded);
+        Assert.Equal("click", stepType);
+        Assert.Equal("#btnClickMe", selector);
+    }
+
+    [Fact]
+    public async Task TestOsAutomationPreviewPaneTextRecording()
+    {
+        var session = new OsAutomationCdpSession(GetTargetWindowId());
+
+        bool stepAdded = false;
+        string? stepType = null;
+        string? selector = null;
+        string? value = null;
+
+        session.EventReceived += (sender, e) =>
+        {
+            if (e.Method == "Recorder.stepAdded")
+            {
+                stepAdded = true;
+                var step = e.Params?["step"] as JsonObject;
+                stepType = step?["type"]?.GetValue<string>();
+                var selectors = step?["selectors"] as JsonArray;
+                var innerArray = selectors?[0] as JsonArray;
+                selector = innerArray?[0]?.GetValue<string>();
+                value = step?["value"]?.GetValue<string>();
+            }
+        };
+
+        // Start recording
+        await session.HandleCommandAsync("Recorder.start", new JsonObject());
+
+        // Insert text
+        await session.HandleCommandAsync("Input.insertText", new JsonObject
+        {
+            ["text"] = "Hello OS!"
+        });
+
+        // Stop recording
+        await session.HandleCommandAsync("Recorder.stop", new JsonObject());
+
+        Assert.True(stepAdded);
+        Assert.Equal("change", stepType);
+        Assert.Equal("#txtInput", selector);
+        Assert.Equal("Hello OS!", value);
+    }
 }
