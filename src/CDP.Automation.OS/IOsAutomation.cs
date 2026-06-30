@@ -17,4 +17,6 @@ public interface IOsAutomation
     byte[] CaptureWindow(string windowId);
     OSNode? GetFocusedElement(string windowId);
     bool HasScreenCapturePermission();
+    void StartInputCapture(string windowId, Action<double, double, string> onClick);
+    void StopInputCapture();
 }

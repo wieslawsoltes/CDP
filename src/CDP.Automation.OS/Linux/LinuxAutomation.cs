@@ -331,4 +331,12 @@ public sealed partial class LinuxAutomation : IOsAutomation
     {
         return true;
     }
+
+    public void StartInputCapture(string windowId, Action<double, double, string> onClick)
+    {
+    }
+
+    public void StopInputCapture()
+    {
+    }
 }

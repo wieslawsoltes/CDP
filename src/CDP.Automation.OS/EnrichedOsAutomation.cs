@@ -85,4 +85,6 @@ public sealed class EnrichedOsAutomation : IOsAutomation
     public byte[] CaptureWindow(string windowId) => _underlying.CaptureWindow(windowId);
     public OSNode? GetFocusedElement(string windowId) => _underlying.GetFocusedElement(windowId);
     public bool HasScreenCapturePermission() => _underlying.HasScreenCapturePermission();
+    public void StartInputCapture(string windowId, Action<double, double, string> onClick) => _underlying.StartInputCapture(windowId, onClick);
+    public void StopInputCapture() => _underlying.StopInputCapture();
 }

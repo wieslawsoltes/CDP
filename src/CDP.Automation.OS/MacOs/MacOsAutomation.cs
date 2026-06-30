@@ -139,6 +139,42 @@ public sealed partial class MacOsAutomation : IOsAutomation
     private static partial bool AXValueGetValue(IntPtr value, int type, out CGPoint point);
 
     [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
+    private static partial int AXUIElementCopyElementAtPosition(IntPtr application, float x, float y, out IntPtr element);
+
+    [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
+    private static partial int AXUIElementPerformAction(IntPtr element, IntPtr action);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr CGEventTapCallBack(IntPtr tapProxy, uint eventType, IntPtr theEvent, IntPtr refcon);
+
+    [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static partial IntPtr CGEventTapCreateForPid(
+        int pid,
+        int place,
+        int options,
+        ulong eventsOfInterest,
+        CGEventTapCallBack callback,
+        IntPtr refcon);
+
+    [LibraryImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static partial IntPtr CFMachPortCreateRunLoopSource(IntPtr allocator, IntPtr port, nint index);
+
+    [LibraryImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static partial IntPtr CFRunLoopGetCurrent();
+
+    [LibraryImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static partial void CFRunLoopAddSource(IntPtr rl, IntPtr source, IntPtr mode);
+
+    [LibraryImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static partial void CFRunLoopRun();
+
+    [LibraryImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static partial void CFRunLoopStop(IntPtr rl);
+
+    [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static partial void CGEventTapEnable(IntPtr tap, [MarshalAs(UnmanagedType.I1)] bool enable);
+
+    [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
     [return: MarshalAs(UnmanagedType.I1)]
     private static partial bool AXValueGetValue(IntPtr value, int type, out CGSize size);
 
@@ -787,6 +823,12 @@ public sealed partial class MacOsAutomation : IOsAutomation
             double absoluteX = bounds.Left + x;
             double absoluteY = bounds.Top + y;
 
+            int targetPid = GetWindowPid(windowId);
+            if (targetPid > 0 && TryAccessibilityPress(targetPid, absoluteX, absoluteY))
+            {
+                return;
+            }
+
             CGPoint pt = new CGPoint { X = absoluteX, Y = absoluteY };
             IntPtr downEvent = CGEventCreateMouseEvent(IntPtr.Zero, 1, pt, 0);
             IntPtr upEvent = CGEventCreateMouseEvent(IntPtr.Zero, 2, pt, 0);
@@ -1293,5 +1335,113 @@ public sealed partial class MacOsAutomation : IOsAutomation
             catch {}
         }
         return true;
+    }
+
+    private IntPtr _tapPort = IntPtr.Zero;
+    private IntPtr _runLoopSource = IntPtr.Zero;
+    private IntPtr _runLoop = IntPtr.Zero;
+    private System.Threading.Thread? _tapThread = null;
+    private CGEventTapCallBack? _tapCallback = null;
+
+    public void StartInputCapture(string windowId, Action<double, double, string> onClick)
+    {
+        StopInputCapture();
+
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
+
+        int pid = GetWindowPid(windowId);
+        if (pid <= 0) return;
+
+        _tapCallback = (tapProxy, eventType, theEvent, refcon) =>
+        {
+            if (eventType == 1) // kCGEventLeftMouseDown
+            {
+                CGPoint pt = CGEventGetLocation(theEvent);
+                onClick(pt.X, pt.Y, "left");
+            }
+            return theEvent;
+        };
+
+        _tapThread = new System.Threading.Thread(() =>
+        {
+            ulong mask = (1UL << 1); // LeftMouseDown
+            _tapPort = CGEventTapCreateForPid(pid, 0, 1, mask, _tapCallback, IntPtr.Zero);
+            if (_tapPort != IntPtr.Zero)
+            {
+                _runLoopSource = CFMachPortCreateRunLoopSource(IntPtr.Zero, _tapPort, 0);
+                if (_runLoopSource != IntPtr.Zero)
+                {
+                    _runLoop = CFRunLoopGetCurrent();
+                    IntPtr modeStr = CreateCFString("kCFRunLoopCommonModes");
+                    if (modeStr != IntPtr.Zero)
+                    {
+                        CFRunLoopAddSource(_runLoop, _runLoopSource, modeStr);
+                        CFRelease(modeStr);
+                    }
+                    CGEventTapEnable(_tapPort, true);
+                    CFRunLoopRun();
+                }
+            }
+        });
+        _tapThread.IsBackground = true;
+        _tapThread.Start();
+    }
+
+    public void StopInputCapture()
+    {
+        if (_runLoop != IntPtr.Zero)
+        {
+            CFRunLoopStop(_runLoop);
+            _runLoop = IntPtr.Zero;
+        }
+        if (_tapPort != IntPtr.Zero)
+        {
+            CFRelease(_tapPort);
+            _tapPort = IntPtr.Zero;
+        }
+        if (_runLoopSource != IntPtr.Zero)
+        {
+            CFRelease(_runLoopSource);
+            _runLoopSource = IntPtr.Zero;
+        }
+        _tapThread = null;
+        _tapCallback = null;
+    }
+
+    private bool TryAccessibilityPress(int pid, double absoluteX, double absoluteY)
+    {
+        IntPtr appRef = AXUIElementCreateApplication(pid);
+        if (appRef == IntPtr.Zero) return false;
+
+        try
+        {
+            IntPtr element = IntPtr.Zero;
+            int err = AXUIElementCopyElementAtPosition(appRef, (float)absoluteX, (float)absoluteY, out element);
+            if (err == 0 && element != IntPtr.Zero)
+            {
+                try
+                {
+                    IntPtr actionPress = CreateCFString("AXPress");
+                    int pressErr = AXUIElementPerformAction(element, actionPress);
+                    CFRelease(actionPress);
+                    if (pressErr == 0) return true;
+
+                    IntPtr actionPick = CreateCFString("AXPick");
+                    int pickErr = AXUIElementPerformAction(element, actionPick);
+                    CFRelease(actionPick);
+                    if (pickErr == 0) return true;
+                }
+                finally
+                {
+                    CFRelease(element);
+                }
+            }
+        }
+        catch {}
+        finally
+        {
+            CFRelease(appRef);
+        }
+        return false;
     }
 }

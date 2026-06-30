@@ -739,6 +739,19 @@ public sealed class OsAutomationCdpSession
         _pollingCts = new System.Threading.CancellationTokenSource();
         var token = _pollingCts.Token;
 
+        _automation.StartInputCapture(_windowId, (x, y, button) =>
+        {
+            if (_isSimulatingInput) return;
+            if (_rootNode != null)
+            {
+                var match = FindDeepestNodeAt(_rootNode, (int)x, (int)y);
+                if (match != null)
+                {
+                    RaiseStepRecordedEvent("click", match.Id);
+                }
+            }
+        });
+
         _ = Task.Run(async () =>
         {
             while (!token.IsCancellationRequested)
@@ -789,6 +802,7 @@ public sealed class OsAutomationCdpSession
 
     private void StopRecordingPolling()
     {
+        _automation.StopInputCapture();
         _pollingCts?.Cancel();
         _pollingCts = null;
         _lastFocusedId = null;
