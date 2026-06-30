@@ -840,6 +840,7 @@ public sealed class OsAutomationCdpSession : IDisposable
         _automation.StartInputCapture(_windowId, (x, y, button) =>
         {
             if (_isSimulatingInput) return;
+            _rootNode = _automation.GetElementTree(_windowId);
             if (_rootNode != null)
             {
                 var match = FindDeepestNodeAt(_rootNode, (int)x, (int)y);

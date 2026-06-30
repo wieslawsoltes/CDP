@@ -527,7 +527,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
                                 Id = "1",
                                 Name = "Window",
                                 Role = "AXWindow",
-                                Bounds = new SKRectI(0, 0, 1024, 768)
+                                Bounds = selectedWindow != null ? 
+                                    new SKRectI(selectedWindow.Bounds.Left, selectedWindow.Bounds.Top, selectedWindow.Bounds.Right, selectedWindow.Bounds.Bottom) : 
+                                    new SKRectI(0, 0, 1024, 768)
                             };
                             int nextId = 2;
                             BuildNodeFromElement(matchedWinElement, root, ref nextId, 0);

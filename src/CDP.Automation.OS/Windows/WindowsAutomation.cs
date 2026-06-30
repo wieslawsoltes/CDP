@@ -431,12 +431,13 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 {
                     if (automation.GetControlViewWalker(out var walker) == 0 && walker != null)
                     {
+                        var bounds = GetWindowBounds(windowId);
                         var root = new OSNode
                         {
                             Id = "1",
                             Name = "Window",
                             Role = "Window",
-                            Bounds = new SKRectI(0, 0, 1024, 768)
+                            Bounds = new SKRectI(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom)
                         };
                         int nextId = 2;
                         BuildNodeFromUia(rootElement, walker, root, ref nextId, 0);
