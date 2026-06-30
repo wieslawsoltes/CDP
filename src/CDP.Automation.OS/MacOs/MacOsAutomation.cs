@@ -1191,15 +1191,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return null;
 
-        int pid = 0;
-        if (windowId.EndsWith("_fallback"))
-        {
-            var parts = windowId.Split('_');
-            if (parts.Length > 0 && int.TryParse(parts[0], out int parsedPid))
-            {
-                pid = parsedPid;
-            }
-        }
+        int pid = GetWindowPid(windowId);
 
         if (pid > 0)
         {
