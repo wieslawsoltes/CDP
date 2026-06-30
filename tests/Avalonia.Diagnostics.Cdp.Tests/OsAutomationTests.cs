@@ -290,6 +290,7 @@ public class OsAutomationTests
     [Fact]
     public async Task TestOsAutomationInterceptionAndEventForwarding()
     {
+        Console.WriteLine("--> Starting TestOsAutomationInterceptionAndEventForwarding");
         var session = new OsAutomationCdpSession(GetTargetWindowId());
         
         bool eventFired = false;
@@ -304,16 +305,21 @@ public class OsAutomationTests
         };
 
         // Start recording
+        Console.WriteLine("--> Calling Recorder.start");
         await session.HandleCommandAsync("Recorder.start", new JsonObject());
 
         // Simulate some time or manually trigger event if needed
         // Since background thread runs asynchronously, we can wait or stop recording
+        Console.WriteLine("--> Delaying 300ms");
         await Task.Delay(300);
 
+        Console.WriteLine("--> Calling Recorder.stop");
         await session.HandleCommandAsync("Recorder.stop", new JsonObject());
 
         // The test completes successfully without throwing, verifying API correctness
+        Console.WriteLine("--> Asserting");
         Assert.False(eventFired); // since we are running on fallback which has no real focus changes
+        Console.WriteLine("--> Finished TestOsAutomationInterceptionAndEventForwarding");
     }
 
     [Fact]

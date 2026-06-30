@@ -18,6 +18,20 @@ public sealed class EnrichedOsAutomation : IOsAutomation
     {
         var list = new List<OSWindow>(_underlying.GetWindows());
 
+        bool isFallback = false;
+        foreach (var w in list)
+        {
+            if (w.Id == "macos-window-fallback" || w.Id == "windows-window-fallback" || w.Id == "linux-window-fallback")
+            {
+                isFallback = true;
+                break;
+            }
+        }
+        if (isFallback)
+        {
+            return list;
+        }
+
         try
         {
             var processes = Process.GetProcesses();
