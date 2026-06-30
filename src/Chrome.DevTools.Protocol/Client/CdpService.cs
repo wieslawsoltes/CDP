@@ -180,7 +180,38 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                     EventReceived?.Invoke(this, args);
                 };
                 IsConnected = true;
-                ConnectionStatus = "Connected";
+                bool hasAccess = true;
+                bool hasScreen = true;
+                try
+                {
+                    hasAccess = CDP.Automation.OS.OSAutomationService.Instance.HasAccessibilityPermission();
+                    hasScreen = CDP.Automation.OS.OSAutomationService.Instance.HasScreenCapturePermission();
+                }
+                catch {}
+
+                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+                {
+                    if (!hasAccess && !hasScreen)
+                    {
+                        ConnectionStatus = "Connected (No Accessibility & Screen Recording Permissions)";
+                    }
+                    else if (!hasAccess)
+                    {
+                        ConnectionStatus = "Connected (No Accessibility Permission)";
+                    }
+                    else if (!hasScreen)
+                    {
+                        ConnectionStatus = "Connected (No Screen Recording Permission)";
+                    }
+                    else
+                    {
+                        ConnectionStatus = "Connected";
+                    }
+                }
+                else
+                {
+                    ConnectionStatus = "Connected";
+                }
                 ConnectedHost = host;
                 ConnectedTargetId = target.Id;
                 Logger.ClientConnected(target.Id, host);
