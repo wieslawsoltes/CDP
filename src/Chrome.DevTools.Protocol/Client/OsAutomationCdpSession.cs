@@ -6,7 +6,7 @@ using CDP.Automation.OS;
 
 namespace Chrome.DevTools.Protocol;
 
-public sealed class OsAutomationCdpSession
+public sealed class OsAutomationCdpSession : IDisposable
 {
     private readonly string _windowId;
     private readonly IOsAutomation _automation;
@@ -16,6 +16,12 @@ public sealed class OsAutomationCdpSession
     private OSNode? _rootNode;
 
     public event EventHandler<CdpEventEventArgs>? EventReceived;
+
+    public void Dispose()
+    {
+        StopScreencast();
+        StopRecordingPolling();
+    }
 
     private System.Threading.CancellationTokenSource? _pollingCts;
     private string? _lastFocusedId;
@@ -243,13 +249,21 @@ public sealed class OsAutomationCdpSession
                     }
                     else if (type == "mousePressed")
                     {
-                        _automation.SimulateMouseDown(_windowId, x, y, button);
+                        if (!_automation.UsePeerAutomation)
+                        {
+                            _automation.SimulateMouseDown(_windowId, x, y, button);
+                        }
                     }
                     else if (type == "mouseReleased")
                     {
-                        _automation.SimulateMouseUp(_windowId, x, y, button);
-                        // Complete click action
-                        _automation.SimulateClick(_windowId, x, y);
+                        if (_automation.UsePeerAutomation)
+                        {
+                            _automation.SimulateClick(_windowId, x, y);
+                        }
+                        else
+                        {
+                            _automation.SimulateMouseUp(_windowId, x, y, button);
+                        }
                     }
 
                     return Task.FromResult(new JsonObject());

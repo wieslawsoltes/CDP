@@ -234,6 +234,11 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         {
             lock (_disconnectLock)
             {
+                try
+                {
+                    _osSession.Dispose();
+                }
+                catch {}
                 _osSession = null;
                 IsConnected = false;
                 IsPreviewScreencastActive = false;
