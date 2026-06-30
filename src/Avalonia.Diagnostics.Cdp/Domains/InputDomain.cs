@@ -135,6 +135,18 @@ public static class InputDomain
     {
         switch (action)
         {
+            case "enable":
+                {
+                    EnableInputEvents(session);
+                    return new JsonObject();
+                }
+
+            case "disable":
+                {
+                    DisableInputEvents(session);
+                    return new JsonObject();
+                }
+
             case "dispatchMouseEvent":
                 {
                     string type = @params["type"]?.GetValue<string>() ?? "";
@@ -1016,5 +1028,189 @@ public static class InputDomain
         }
 
         return Key.None;
+    }
+
+    private class InputSessionState
+    {
+        private readonly WeakReference<CdpSession> _sessionRef;
+        private readonly WeakReference<TopLevel> _windowRef;
+
+        public InputSessionState(CdpSession session, TopLevel window)
+        {
+            _sessionRef = new WeakReference<CdpSession>(session);
+            _windowRef = new WeakReference<TopLevel>(window);
+        }
+
+        public void Hook()
+        {
+            if (_windowRef.TryGetTarget(out var window))
+            {
+                window.PointerPressed += OnPointerPressed;
+                window.PointerReleased += OnPointerReleased;
+                window.PointerMoved += OnPointerMoved;
+                window.PointerWheelChanged += OnPointerWheelChanged;
+                window.KeyDown += OnKeyDown;
+                window.KeyUp += OnKeyUp;
+            }
+        }
+
+        public void Unhook()
+        {
+            if (_windowRef.TryGetTarget(out var window))
+            {
+                window.PointerPressed -= OnPointerPressed;
+                window.PointerReleased -= OnPointerReleased;
+                window.PointerMoved -= OnPointerMoved;
+                window.PointerWheelChanged -= OnPointerWheelChanged;
+                window.KeyDown -= OnKeyDown;
+                window.KeyUp -= OnKeyUp;
+            }
+        }
+
+        private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
+            {
+                var pos = e.GetPosition(window);
+                var prop = e.GetCurrentPoint(window).Properties;
+                string button = prop.IsLeftButtonPressed ? "left" :
+                                prop.IsRightButtonPressed ? "right" :
+                                prop.IsMiddleButtonPressed ? "middle" : "none";
+
+                _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mousePressed",
+                    ["x"] = pos.X,
+                    ["y"] = pos.Y,
+                    ["button"] = button,
+                    ["clickCount"] = e.ClickCount
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
+            {
+                var pos = e.GetPosition(window);
+                var prop = e.GetCurrentPoint(window).Properties;
+                string button = prop.PointerUpdateKind switch
+                {
+                    PointerUpdateKind.LeftButtonReleased => "left",
+                    PointerUpdateKind.RightButtonReleased => "right",
+                    PointerUpdateKind.MiddleButtonReleased => "middle",
+                    _ => "none"
+                };
+
+                _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mouseReleased",
+                    ["x"] = pos.X,
+                    ["y"] = pos.Y,
+                    ["button"] = button,
+                    ["clickCount"] = 1
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnPointerMoved(object? sender, PointerEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
+            {
+                var pos = e.GetPosition(window);
+                _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mouseMoved",
+                    ["x"] = pos.X,
+                    ["y"] = pos.Y,
+                    ["button"] = "none"
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
+            {
+                var pos = e.GetPosition(window);
+                _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mouseWheel",
+                    ["x"] = pos.X,
+                    ["y"] = pos.Y,
+                    ["deltaX"] = e.Delta.X,
+                    ["deltaY"] = e.Delta.Y,
+                    ["button"] = "none"
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session))
+            {
+                _ = session.SendEventAsync("Input.keyEvent", new JsonObject
+                {
+                    ["type"] = "keyDown",
+                    ["key"] = e.Key.ToString()
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnKeyUp(object? sender, KeyEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session))
+            {
+                _ = session.SendEventAsync("Input.keyEvent", new JsonObject
+                {
+                    ["type"] = "keyUp",
+                    ["key"] = e.Key.ToString()
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<CdpSession, InputSessionState> _sessionStates = new();
+
+    private static void EnableInputEvents(CdpSession session)
+    {
+        if (session.Window == null) return;
+        var state = new InputSessionState(session, session.Window);
+        if (_sessionStates.TryAdd(session, state))
+        {
+            state.Hook();
+        }
+    }
+
+    private static void DisableInputEvents(CdpSession session)
+    {
+        if (_sessionStates.TryRemove(session, out var state))
+        {
+            state.Unhook();
+        }
     }
 }

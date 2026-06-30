@@ -316,6 +316,17 @@ public sealed class OsAutomationCdpSession : IDisposable
                         _automation.SimulateMouseWheel(_windowId, x, y, deltaX, deltaY);
                     }
 
+                    EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+                    {
+                        ["type"] = type,
+                        ["x"] = x,
+                        ["y"] = y,
+                        ["button"] = button,
+                        ["deltaX"] = parameters["deltaX"]?.GetValue<double>() ?? 0.0,
+                        ["deltaY"] = parameters["deltaY"]?.GetValue<double>() ?? 0.0,
+                        ["clickCount"] = 1
+                    }));
+
                     return Task.FromResult(new JsonObject());
                 }
 
@@ -328,6 +339,13 @@ public sealed class OsAutomationCdpSession : IDisposable
                     {
                         _automation.SimulateKeyPress(_windowId, key);
                     }
+
+                    EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
+                    {
+                        ["type"] = type,
+                        ["key"] = key
+                    }));
+
                     return Task.FromResult(new JsonObject());
                 }
 
@@ -353,6 +371,13 @@ public sealed class OsAutomationCdpSession : IDisposable
                     }
 
                     _automation.SimulateTypeText(_windowId, text);
+
+                    EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
+                    {
+                        ["type"] = "textInput",
+                        ["text"] = text
+                    }));
+
                     return Task.FromResult(new JsonObject());
                 }
 
@@ -879,6 +904,24 @@ public sealed class OsAutomationCdpSession : IDisposable
         _automation.StartInputCapture(_windowId, (x, y, button) =>
         {
             if (_isSimulatingInput) return;
+
+            EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+            {
+                ["type"] = "mousePressed",
+                ["x"] = x,
+                ["y"] = y,
+                ["button"] = button,
+                ["clickCount"] = 1
+            }));
+            EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+            {
+                ["type"] = "mouseReleased",
+                ["x"] = x,
+                ["y"] = y,
+                ["button"] = button,
+                ["clickCount"] = 1
+            }));
+
             _rootNode = _automation.GetElementTree(_windowId);
             if (_rootNode != null)
             {
@@ -891,6 +934,16 @@ public sealed class OsAutomationCdpSession : IDisposable
         }, (eventType, elementId, value) =>
         {
             if (_isSimulatingInput) return;
+
+            if (eventType == "change")
+            {
+                EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
+                {
+                    ["type"] = "textInput",
+                    ["text"] = value ?? ""
+                }));
+            }
+
             if (eventType == "focus")
             {
                 if (elementId != _lastFocusedId)

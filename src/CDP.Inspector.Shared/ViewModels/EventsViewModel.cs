@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -87,8 +88,37 @@ public class EventsViewModel : ViewModelBase
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.EventReceived += CdpService_EventReceived;
+        _cdpService.PropertyChanged += CdpService_PropertyChanged;
 
         ClearEventsCommand = new RelayCommand(ClearEvents);
+
+        if (_cdpService.IsConnected)
+        {
+            _ = EnableInputDomainAsync();
+        }
+    }
+
+    private void CdpService_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ICdpService.IsConnected))
+        {
+            if (_cdpService.IsConnected)
+            {
+                _ = EnableInputDomainAsync();
+            }
+        }
+    }
+
+    private async Task EnableInputDomainAsync()
+    {
+        try
+        {
+            await _cdpService.SendCommandAsync("Input.enable");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error enabling Input domain in Events panel: {ex.Message}");
+        }
     }
 
     private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
