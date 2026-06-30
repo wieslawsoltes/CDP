@@ -11,6 +11,8 @@ public sealed partial class LinuxAutomation : IOsAutomation
 {
     private readonly ILogger _logger;
 
+    public bool MovePhysicalCursor { get; set; }
+
     public LinuxAutomation(ILogger? logger = null)
     {
         _logger = logger ?? NullLogger.Instance;

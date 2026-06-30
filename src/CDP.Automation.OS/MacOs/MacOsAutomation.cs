@@ -12,6 +12,8 @@ public sealed partial class MacOsAutomation : IOsAutomation
 {
     private readonly ILogger _logger;
 
+    public bool MovePhysicalCursor { get; set; }
+
     public MacOsAutomation(ILogger? logger = null)
     {
         _logger = logger ?? NullLogger.Instance;
@@ -646,14 +648,14 @@ public sealed partial class MacOsAutomation : IOsAutomation
                 }
             }
 
-            if (shouldRestore)
+            if (shouldRestore && !MovePhysicalCursor)
             {
                 CGAssociateMouseAndMouseCursorPosition(false);
             }
 
             CGEventPost(0, cgEvent);
 
-            if (shouldRestore)
+            if (shouldRestore && !MovePhysicalCursor)
             {
                 CGAssociateMouseAndMouseCursorPosition(true);
 

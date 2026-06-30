@@ -69,6 +69,12 @@ public sealed class EnrichedOsAutomation : IOsAutomation
         return list;
     }
 
+    public bool MovePhysicalCursor
+    {
+        get => _underlying.MovePhysicalCursor;
+        set => _underlying.MovePhysicalCursor = value;
+    }
+
     public OSNode? GetElementTree(string windowId) => _underlying.GetElementTree(windowId);
     public void SimulateClick(string windowId, double x, double y) => _underlying.SimulateClick(windowId, x, y);
     public void SimulateMouseMove(string windowId, double x, double y) => _underlying.SimulateMouseMove(windowId, x, y);

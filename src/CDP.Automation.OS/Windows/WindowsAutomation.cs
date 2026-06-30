@@ -11,6 +11,8 @@ public sealed partial class WindowsAutomation : IOsAutomation
 {
     private readonly ILogger _logger;
 
+    public bool MovePhysicalCursor { get; set; }
+
     public WindowsAutomation(ILogger? logger = null)
     {
         _logger = logger ?? NullLogger.Instance;
@@ -547,7 +549,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
             SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
 
-            if (shouldRestore && (originalPt.X > 0 || originalPt.Y > 0))
+            if (shouldRestore && !MovePhysicalCursor && (originalPt.X > 0 || originalPt.Y > 0))
             {
                 SetCursorPos(originalPt.X, originalPt.Y);
             }

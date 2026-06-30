@@ -487,6 +487,24 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         set => RaiseAndSetIfChanged(ref _autoLaunchArguments, value);
     }
 
+    private bool _movePhysicalCursor = false;
+
+    public bool MovePhysicalCursor
+    {
+        get => _movePhysicalCursor;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _movePhysicalCursor, value))
+            {
+                try
+                {
+                    CDP.Automation.OS.OSAutomationService.Instance.MovePhysicalCursor = value;
+                }
+                catch {}
+            }
+        }
+    }
+
     public ConnectionViewModel? Connection { get; set; }
 
     public Func<Task<string?>>? FilePickerHandler { get; set; }
@@ -6012,6 +6030,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         root["reportIncludeCharts"] = ReportIncludeCharts;
         root["reportIncludeMetricsTable"] = ReportIncludeMetricsTable;
         root["reportIncludeNetworkDetails"] = ReportIncludeNetworkDetails;
+        root["movePhysicalCursor"] = MovePhysicalCursor;
         return root;
     }
 
@@ -6062,6 +6081,10 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("reportIncludeNetworkDetails", out var includeNetNode) && includeNetNode != null)
         {
             ReportIncludeNetworkDetails = (bool?)includeNetNode ?? true;
+        }
+        if (json.TryGetPropertyValue("movePhysicalCursor", out var moveCursorNode) && moveCursorNode != null)
+        {
+            MovePhysicalCursor = (bool?)moveCursorNode ?? false;
         }
     }
 

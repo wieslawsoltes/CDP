@@ -5,6 +5,7 @@ namespace CDP.Automation.OS;
 
 public interface IOsAutomation
 {
+    bool MovePhysicalCursor { get; set; }
     IReadOnlyList<OSWindow> GetWindows();
     OSNode? GetElementTree(string windowId);
     void SimulateClick(string windowId, double x, double y);

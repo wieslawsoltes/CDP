@@ -37,6 +37,7 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
             {
                 UpdateLastHttpHost(value);
                 OnPropertyChanged(nameof(GeneratorHostAddress));
+                OnPropertyChanged(nameof(IsOsAutomation));
             }
         }
     }
@@ -189,6 +190,7 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
 
     public bool IsConnected => _cdpService.IsConnected;
     public bool IsNotConnected => !_cdpService.IsConnected;
+    public bool IsOsAutomation => GeneratorHostAddress != null && GeneratorHostAddress.StartsWith("os://", StringComparison.OrdinalIgnoreCase);
 
     public string ConnectionStatusText => _cdpService.ConnectionStatus;
 
