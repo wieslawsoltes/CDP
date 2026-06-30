@@ -17,6 +17,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     private Action<double, double, string>? _inputCaptureCallback;
     private string? _captureWindowId;
     private System.Threading.Thread? _hookThread;
+    private uint _hookThreadId;
 
     public bool MovePhysicalCursor { get; set; }
     public bool UsePeerAutomation { get; set; } = true;
@@ -264,6 +265,9 @@ public sealed partial class WindowsAutomation : IOsAutomation
     private static partial bool SetCursorPos(int x, int y);
 
     [LibraryImport("user32.dll")]
+    private static partial IntPtr GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetForegroundWindow(IntPtr hWnd);
 
@@ -278,6 +282,13 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
     [LibraryImport("user32.dll")]
     private static partial IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool PostThreadMessageW(uint idThread, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [LibraryImport("kernel32.dll")]
+    private static partial uint GetCurrentThreadId();
 
     [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
     private static partial IntPtr GetModuleHandleW(string? lpModuleName);
@@ -909,7 +920,57 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
     public void SimulateKeyPress(string windowId, string key)
     {
-        _logger.LogInformation("Windows KeyPress simulated: {Key}", key);
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+        ushort vk = 0;
+        switch (key.ToLowerInvariant())
+        {
+            case "tab": vk = 0x09; break;
+            case "escape": vk = 0x1B; break;
+            case "enter":
+            case "return": vk = 0x0D; break;
+            case "backspace": vk = 0x08; break;
+        }
+
+        if (vk == 0)
+        {
+            _logger.LogWarning("Windows KeyPress simulated: {Key} (unmapped key)", key);
+            return;
+        }
+
+        try
+        {
+            var inputs = new INPUT[2];
+            inputs[0] = new INPUT
+            {
+                type = 1, // INPUT_KEYBOARD = 1
+                u = new INPUT_UNION
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = vk,
+                        dwFlags = 0 // KEYEVENTF_KEYDOWN = 0
+                    }
+                }
+            };
+            inputs[1] = new INPUT
+            {
+                type = 1,
+                u = new INPUT_UNION
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = vk,
+                        dwFlags = 2 // KEYEVENTF_KEYUP = 2
+                    }
+                }
+            };
+            SendInput(2, inputs, Marshal.SizeOf<INPUT>());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to simulate Windows KeyPress: {Key}", key);
+        }
     }
 
     public void SimulateTypeText(string windowId, string text)
@@ -1081,8 +1142,58 @@ public sealed partial class WindowsAutomation : IOsAutomation
         return data.ToArray();
     }
 
+    private OSNode BuildSingleNode(IUIAutomationElement element)
+    {
+        element.get_CurrentName(out string name);
+        element.get_CurrentAutomationId(out string automationId);
+        element.get_CurrentClassName(out string className);
+        element.get_CurrentControlType(out int controlType);
+        element.get_CurrentBoundingRectangle(out RECT rect);
+
+        string role = MapControlType(controlType) ?? className ?? "Control";
+        return new OSNode
+        {
+            Id = string.IsNullOrEmpty(automationId) ? "focused_element" : automationId,
+            Name = string.IsNullOrEmpty(name) ? role : name,
+            Role = role,
+            Text = name ?? string.Empty,
+            Bounds = new SKRectI(rect.Left, rect.Top, rect.Right, rect.Bottom)
+        };
+    }
+
     public OSNode? GetFocusedElement(string windowId)
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return null;
+
+        IntPtr targetHWnd = GetWindowHandle(windowId);
+        if (targetHWnd == IntPtr.Zero) return null;
+
+        GetWindowThreadProcessId(targetHWnd, out uint targetPid);
+
+        IntPtr activeHWnd = GetForegroundWindow();
+        if (activeHWnd == IntPtr.Zero) return null;
+
+        GetWindowThreadProcessId(activeHWnd, out uint activePid);
+
+        if (targetPid != activePid) return null;
+
+        try
+        {
+            var automation = (IUIAutomation)new CUIAutomation();
+            if (automation.GetFocusedElement(out var element) == 0 && element != null)
+            {
+                try
+                {
+                    return BuildSingleNode(element);
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(element);
+                }
+            }
+        }
+        catch {}
+
         return null;
     }
 
@@ -1128,6 +1239,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
         {
             try
             {
+                _hookThreadId = GetCurrentThreadId();
                 _mouseHookCallback = MouseHookCallback;
                 IntPtr hModule = GetModuleHandleW(null);
                 _mouseHookId = SetWindowsHookExW(14, _mouseHookCallback, hModule, 0); // WH_MOUSE_LL = 14
@@ -1175,8 +1287,23 @@ public sealed partial class WindowsAutomation : IOsAutomation
             UnhookWindowsHookEx(hookId);
         }
 
+        if (_hookThreadId != 0)
+        {
+            PostThreadMessageW(_hookThreadId, 0x0012, IntPtr.Zero, IntPtr.Zero); // WM_QUIT = 0x0012
+            _hookThreadId = 0;
+        }
+
+        if (_hookThread != null)
+        {
+            try
+            {
+                _hookThread.Join(500);
+            }
+            catch {}
+            _hookThread = null;
+        }
+
         _mouseHookCallback = null;
-        _hookThread = null;
     }
 
     private bool TryAccessibilityPress(double absoluteX, double absoluteY)

@@ -28,6 +28,13 @@ public sealed class OsAutomationCdpSession : IDisposable
     private string? _lastFocusedValue;
     private string? _lastFocusedRole;
     private bool _isSimulatingInput;
+    private bool _peerClicked;
+
+    private bool _isMouseDown;
+    private double _mouseDownX;
+    private double _mouseDownY;
+    private bool _hasMovedSinceDown;
+    private string _mouseDownButton = "none";
 
     private System.Threading.CancellationTokenSource? _screencastCts;
     private byte[]? _lastFrameBytes;
@@ -242,6 +249,12 @@ public sealed class OsAutomationCdpSession : IDisposable
 
                     if (type == "mouseMoved")
                     {
+                        if (_isMouseDown && !_hasMovedSinceDown && button != "none")
+                        {
+                            _hasMovedSinceDown = true;
+                            _automation.SimulateMouseDown(_windowId, _mouseDownX, _mouseDownY, _mouseDownButton);
+                        }
+
                         if (button != "none")
                         {
                             _automation.SimulateMouseMove(_windowId, x, y);
@@ -249,6 +262,13 @@ public sealed class OsAutomationCdpSession : IDisposable
                     }
                     else if (type == "mousePressed")
                     {
+                        _isMouseDown = true;
+                        _mouseDownX = x;
+                        _mouseDownY = y;
+                        _mouseDownButton = button;
+                        _hasMovedSinceDown = false;
+                        _peerClicked = false;
+
                         if (!_automation.UsePeerAutomation)
                         {
                             _automation.SimulateMouseDown(_windowId, x, y, button);
@@ -256,7 +276,9 @@ public sealed class OsAutomationCdpSession : IDisposable
                     }
                     else if (type == "mouseReleased")
                     {
-                        if (_automation.UsePeerAutomation)
+                        _isMouseDown = false;
+
+                        if (_automation.UsePeerAutomation && !_hasMovedSinceDown)
                         {
                             _automation.SimulateClick(_windowId, x, y);
                         }

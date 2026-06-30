@@ -981,7 +981,49 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     public void SimulateKeyPress(string windowId, string key)
     {
-        _logger.LogInformation("macOS KeyPress simulated: {Key}", key);
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
+
+        ushort vk = 0;
+        switch (key.ToLowerInvariant())
+        {
+            case "tab": vk = 48; break;
+            case "escape": vk = 53; break;
+            case "enter":
+            case "return": vk = 36; break;
+            case "backspace": vk = 51; break;
+        }
+
+        if (vk == 0)
+        {
+            _logger.LogWarning("macOS KeyPress simulated: {Key} (unmapped key)", key);
+            return;
+        }
+
+        try
+        {
+            IntPtr downEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, vk, true);
+            IntPtr upEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, vk, false);
+            if (downEvent != IntPtr.Zero && upEvent != IntPtr.Zero)
+            {
+                int targetPid = GetWindowPid(windowId);
+                if (targetPid > 0)
+                {
+                    CGEventPostToPid(targetPid, downEvent);
+                    CGEventPostToPid(targetPid, upEvent);
+                }
+                else
+                {
+                    CGEventPost(0, downEvent);
+                    CGEventPost(0, upEvent);
+                }
+                CFRelease(downEvent);
+                CFRelease(upEvent);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to simulate macOS KeyPress: {Key}", key);
+        }
     }
 
     public void SimulateTypeText(string windowId, string text)
