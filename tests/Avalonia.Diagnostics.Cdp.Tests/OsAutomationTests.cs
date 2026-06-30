@@ -334,7 +334,10 @@ public class OsAutomationTests
         await session.HandleCommandAsync("Page.startScreencast", new JsonObject());
 
         // Wait to allow at least one frame capture to poll and trigger
-        await Task.Delay(400);
+        for (int i = 0; i < 30 && !screencastFired; i++)
+        {
+            await Task.Delay(100);
+        }
 
         // Stop screencast
         await session.HandleCommandAsync("Page.stopScreencast", new JsonObject());

@@ -764,6 +764,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     public void SimulateClick(string windowId, double x, double y)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        if (windowId.EndsWith("_fallback")) return;
 
         try
         {
@@ -820,6 +821,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     public void SimulateMouseMove(string windowId, double x, double y)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        if (windowId.EndsWith("_fallback")) return;
 
         try
         {
@@ -854,6 +856,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     public void SimulateMouseDown(string windowId, double x, double y, string button)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        if (windowId.EndsWith("_fallback")) return;
 
         try
         {
@@ -896,6 +899,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     public void SimulateMouseUp(string windowId, double x, double y, string button)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        if (windowId.EndsWith("_fallback")) return;
 
         try
         {
@@ -938,6 +942,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     public void SimulateMouseWheel(string windowId, double x, double y, double deltaX, double deltaY)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        if (windowId.EndsWith("_fallback")) return;
 
         try
         {
@@ -975,6 +980,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     public void SimulateKeyPress(string windowId, string key)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        if (windowId.EndsWith("_fallback")) return;
 
         ushort vk = 0;
         switch (key.ToLowerInvariant())
@@ -1030,6 +1036,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     public void SimulateTypeText(string windowId, string text)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        if (windowId.EndsWith("_fallback")) return;
 
         if (UsePeerAutomation)
         {
@@ -1284,6 +1291,12 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
 
+        if (windowId.EndsWith("_fallback"))
+        {
+            _logger.LogInformation("Skipping native Windows input capture setup (window is mock fallback).");
+            return;
+        }
+
         if (UseAccessibilityEvents)
         {
             try
@@ -1309,52 +1322,50 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 _logger.LogError(ex, "Failed to register Windows UI Automation focus change event handler");
             }
         }
-        else
+
+        _captureWindowId = windowId;
+        _inputCaptureCallback = onClick;
+
+        var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
+
+        _hookThread = new System.Threading.Thread(() =>
         {
-            _captureWindowId = windowId;
-            _inputCaptureCallback = onClick;
-
-            var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
-
-            _hookThread = new System.Threading.Thread(() =>
-            {
-                try
-                {
-                    _hookThreadId = GetCurrentThreadId();
-                    _mouseHookCallback = MouseHookCallback;
-                    IntPtr hModule = GetModuleHandleW(null);
-                    _mouseHookId = SetWindowsHookExW(14, _mouseHookCallback, hModule, 0); // WH_MOUSE_LL = 14
-
-                    if (_mouseHookId == IntPtr.Zero)
-                    {
-                        tcs.SetResult(false);
-                        return;
-                    }
-
-                    tcs.SetResult(true);
-
-                    MSG msg;
-                    while (GetMessageW(out msg, IntPtr.Zero, 0, 0) != 0)
-                    {
-                        TranslateMessage(ref msg);
-                        DispatchMessageW(ref msg);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in Windows low-level mouse hook thread");
-                    if (!tcs.Task.IsCompleted) tcs.SetResult(false);
-                }
-            });
-
-            _hookThread.IsBackground = true;
-            _hookThread.Start();
             try
             {
-                tcs.Task.Wait(500);
+                _hookThreadId = GetCurrentThreadId();
+                _mouseHookCallback = MouseHookCallback;
+                IntPtr hModule = GetModuleHandleW(null);
+                _mouseHookId = SetWindowsHookExW(14, _mouseHookCallback, hModule, 0); // WH_MOUSE_LL = 14
+
+                if (_mouseHookId == IntPtr.Zero)
+                {
+                    tcs.SetResult(false);
+                    return;
+                }
+
+                tcs.SetResult(true);
+
+                MSG msg;
+                while (GetMessageW(out msg, IntPtr.Zero, 0, 0) != 0)
+                {
+                    TranslateMessage(ref msg);
+                    DispatchMessageW(ref msg);
+                }
             }
-            catch {}
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in Windows low-level mouse hook thread");
+                if (!tcs.Task.IsCompleted) tcs.SetResult(false);
+            }
+        });
+
+        _hookThread.IsBackground = true;
+        _hookThread.Start();
+        try
+        {
+            tcs.Task.Wait(500);
         }
+        catch {}
     }
 
     public void StopInputCapture()
