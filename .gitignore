@@ -401,3 +401,4 @@ FodyWeavers.xsd
 *.sln.iml
 /samples/CdpInspectorApp/TestReports
 /TestReports
+/.agents

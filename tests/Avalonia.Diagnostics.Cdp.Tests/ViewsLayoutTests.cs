@@ -4,6 +4,7 @@ using CdpInspectorApp.Views;
 using CdpInspectorApp.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.VisualTree;
 using System;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -408,10 +409,22 @@ public class ViewsLayoutTests
             var telemetryView = win.FindControl<StepTelemetryView>("stepTelemetry");
             Assert.NotNull(telemetryView);
 
-            var lblCpu = telemetryView.FindControl<TextBlock>("lblStepCpu");
-            var lblMemory = telemetryView.FindControl<TextBlock>("lblStepMemory");
-            var lblFpsDom = telemetryView.FindControl<TextBlock>("lblStepFpsDom");
-            var lblNetwork = telemetryView.FindControl<TextBlock>("lblStepNetwork");
+            var tabControl = telemetryView.FindControl<TabControl>("tabTelemetry");
+            Assert.NotNull(tabControl);
+            Assert.Equal(2, tabControl.Items.Count);
+
+            var perfTab = tabControl.Items[0] as TabItem;
+            var perfGrid = perfTab?.Content as Grid;
+            Assert.NotNull(perfGrid);
+
+            var netTab = tabControl.Items[1] as TabItem;
+            var netGrid = netTab?.Content as Grid;
+            Assert.NotNull(netGrid);
+
+            var lblCpu = FindVisualDescendantByName<TextBlock>(perfGrid, "lblStepCpu");
+            var lblMemory = FindVisualDescendantByName<TextBlock>(perfGrid, "lblStepMemory");
+            var lblFpsDom = FindVisualDescendantByName<TextBlock>(perfGrid, "lblStepFpsDom");
+            var lblNetwork = FindVisualDescendantByName<TextBlock>(netGrid, "lblStepNetwork");
 
             Assert.NotNull(lblCpu);
             Assert.NotNull(lblMemory);
@@ -427,5 +440,17 @@ public class ViewsLayoutTests
         {
             app.Styles.Remove(sharedStyles);
         }
+    }
+
+    private static T? FindVisualDescendantByName<T>(Avalonia.Visual? visual, string name) where T : Control
+    {
+        if (visual == null) return null;
+        if (visual is T t && t.Name == name) return t;
+        foreach (var child in visual.GetVisualChildren())
+        {
+            var result = FindVisualDescendantByName<T>(child, name);
+            if (result != null) return result;
+        }
+        return null;
     }
 }
