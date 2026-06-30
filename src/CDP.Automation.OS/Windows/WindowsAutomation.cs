@@ -620,6 +620,29 @@ public sealed partial class WindowsAutomation : IOsAutomation
         }
     }
 
+    private void GetNormalizedCoordinates(double absoluteX, double absoluteY, out int dx, out int dy, out uint dwFlags)
+    {
+        int virtualX = GetSystemMetrics(76);
+        int virtualY = GetSystemMetrics(77);
+        int virtualWidth = GetSystemMetrics(78);
+        int virtualHeight = GetSystemMetrics(79);
+
+        if (virtualWidth <= 0)
+        {
+            virtualX = 0;
+            virtualY = 0;
+            virtualWidth = GetSystemMetrics(0);
+            virtualHeight = GetSystemMetrics(1);
+        }
+
+        if (virtualWidth <= 0) virtualWidth = 1920;
+        if (virtualHeight <= 0) virtualHeight = 1080;
+
+        dx = (int)((absoluteX - virtualX) * 65535.0 / virtualWidth);
+        dy = (int)((absoluteY - virtualY) * 65535.0 / virtualHeight);
+        dwFlags = 0x0001 | 0x8000 | 0x4000;
+    }
+
     public void SimulateClick(string windowId, double x, double y)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
@@ -635,10 +658,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 return;
             }
 
-            int screenWidth = GetSystemMetrics(0);
-            int screenHeight = GetSystemMetrics(1);
-            if (screenWidth <= 0) screenWidth = 1920;
-            if (screenHeight <= 0) screenHeight = 1080;
+            GetNormalizedCoordinates(absoluteX, absoluteY, out int dx, out int dy, out uint dwFlags);
 
             var inputs = new INPUT[3];
             inputs[0] = new INPUT
@@ -648,9 +668,9 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 {
                     mi = new MOUSEINPUT
                     {
-                        dx = (int)(absoluteX * 65535 / screenWidth),
-                        dy = (int)(absoluteY * 65535 / screenHeight),
-                        dwFlags = 0x0001 | 0x8000
+                        dx = dx,
+                        dy = dy,
+                        dwFlags = dwFlags
                     }
                 }
             };
@@ -689,10 +709,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
             double absoluteX = bounds.Left + x;
             double absoluteY = bounds.Top + y;
 
-            int screenWidth = GetSystemMetrics(0);
-            int screenHeight = GetSystemMetrics(1);
-            if (screenWidth <= 0) screenWidth = 1920;
-            if (screenHeight <= 0) screenHeight = 1080;
+            GetNormalizedCoordinates(absoluteX, absoluteY, out int dx, out int dy, out uint dwFlags);
 
             var inputs = new INPUT[1];
             inputs[0] = new INPUT
@@ -702,9 +719,9 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 {
                     mi = new MOUSEINPUT
                     {
-                        dx = (int)(absoluteX * 65535 / screenWidth),
-                        dy = (int)(absoluteY * 65535 / screenHeight),
-                        dwFlags = 0x0001 | 0x8000
+                        dx = dx,
+                        dy = dy,
+                        dwFlags = dwFlags
                     }
                 }
             };
@@ -726,10 +743,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
             double absoluteX = bounds.Left + x;
             double absoluteY = bounds.Top + y;
 
-            int screenWidth = GetSystemMetrics(0);
-            int screenHeight = GetSystemMetrics(1);
-            if (screenWidth <= 0) screenWidth = 1920;
-            if (screenHeight <= 0) screenHeight = 1080;
+            GetNormalizedCoordinates(absoluteX, absoluteY, out int dx, out int dy, out uint dwFlags);
 
             var inputs = new INPUT[2];
             inputs[0] = new INPUT
@@ -739,9 +753,9 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 {
                     mi = new MOUSEINPUT
                     {
-                        dx = (int)(absoluteX * 65535 / screenWidth),
-                        dy = (int)(absoluteY * 65535 / screenHeight),
-                        dwFlags = 0x0001 | 0x8000
+                        dx = dx,
+                        dy = dy,
+                        dwFlags = dwFlags
                     }
                 }
             };
@@ -771,10 +785,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
             double absoluteX = bounds.Left + x;
             double absoluteY = bounds.Top + y;
 
-            int screenWidth = GetSystemMetrics(0);
-            int screenHeight = GetSystemMetrics(1);
-            if (screenWidth <= 0) screenWidth = 1920;
-            if (screenHeight <= 0) screenHeight = 1080;
+            GetNormalizedCoordinates(absoluteX, absoluteY, out int dx, out int dy, out uint dwFlags);
 
             var inputs = new INPUT[2];
             inputs[0] = new INPUT
@@ -784,9 +795,9 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 {
                     mi = new MOUSEINPUT
                     {
-                        dx = (int)(absoluteX * 65535 / screenWidth),
-                        dy = (int)(absoluteY * 65535 / screenHeight),
-                        dwFlags = 0x0001 | 0x8000
+                        dx = dx,
+                        dy = dy,
+                        dwFlags = dwFlags
                     }
                 }
             };

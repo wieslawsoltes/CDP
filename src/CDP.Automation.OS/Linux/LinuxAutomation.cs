@@ -45,6 +45,23 @@ public sealed partial class LinuxAutomation : IOsAutomation
         public IntPtr screen;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XImage
+    {
+        public int width;
+        public int height;
+        public int xoffset;
+        public int format;
+        public IntPtr data;
+        public int byte_order;
+        public int bitmap_unit;
+        public int bitmap_bit_order;
+        public int bitmap_pad;
+        public int depth;
+        public int bytes_per_line;
+        public int bits_per_pixel;
+    }
+
     [LibraryImport("libX11.so.6")]
     private static partial IntPtr XOpenDisplay(IntPtr display);
 
@@ -277,8 +294,9 @@ public sealed partial class LinuxAutomation : IOsAutomation
                             {
                                 try
                                 {
-                                    IntPtr pixelPtr = Marshal.ReadIntPtr(image, 16);
-                                    int bytesPerLine = Marshal.ReadInt32(image, 32);
+                                    var xImg = Marshal.PtrToStructure<XImage>(image);
+                                    IntPtr pixelPtr = xImg.data;
+                                    int bytesPerLine = xImg.bytes_per_line;
 
                                     using var bitmap = new SKBitmap();
                                     var info = new SKImageInfo(attrs.width, attrs.height, SKColorType.Bgra8888, SKAlphaType.Premul);

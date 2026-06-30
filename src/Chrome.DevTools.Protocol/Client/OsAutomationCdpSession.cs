@@ -329,15 +329,42 @@ public sealed class OsAutomationCdpSession
     {
         if (action == "evaluate")
         {
-            // Dummy implementation of evaluate to return empty result for console calls
-            return Task.FromResult(new JsonObject
+            string expression = parameters["expression"]?.GetValue<string>() ?? "";
+            try
             {
-                ["result"] = new JsonObject
+                var val = EvaluateOsDomExpression(expression);
+                return Task.FromResult(new JsonObject
                 {
-                    ["type"] = "string",
-                    ["value"] = "OS Automation Session"
-                }
-            });
+                    ["result"] = new JsonObject
+                    {
+                        ["type"] = val is bool ? "boolean" : "string",
+                        ["value"] = val is bool b ? b : val.ToString()
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(new JsonObject
+                {
+                    ["result"] = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["subtype"] = "error",
+                        ["className"] = ex.GetType().FullName,
+                        ["description"] = ex.Message
+                    },
+                    ["exceptionDetails"] = new JsonObject
+                    {
+                        ["text"] = ex.Message,
+                        ["exception"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["className"] = ex.GetType().FullName,
+                            ["description"] = ex.Message
+                        }
+                    }
+                });
+            }
         }
         else if (action == "getProperties")
         {
@@ -935,5 +962,59 @@ public sealed class OsAutomationCdpSession
             if (a[i] != b[i]) return false;
         }
         return true;
+    }
+
+    private object EvaluateOsDomExpression(string expression)
+    {
+        expression = expression.Trim();
+        if (_rootNode == null)
+        {
+            throw new InvalidOperationException("No DOM document available to evaluate expression.");
+        }
+
+        // Handle: document.querySelector("...") != null
+        if (expression.Contains("document.querySelector") && (expression.Contains("!= null") || expression.Contains("!== null")))
+        {
+            var selector = ExtractSelectorFromExpression(expression);
+            var node = QuerySelectorInternal(_rootNode, selector);
+            return node != null;
+        }
+
+        // Handle: document.querySelector("...") == null
+        if (expression.Contains("document.querySelector") && (expression.Contains("== null") || expression.Contains("=== null")))
+        {
+            var selector = ExtractSelectorFromExpression(expression);
+            var node = QuerySelectorInternal(_rootNode, selector);
+            return node == null;
+        }
+
+        // Handle: document.querySelector("...") directly (exists check)
+        if (expression.StartsWith("document.querySelector(") && expression.EndsWith(")"))
+        {
+            var selector = ExtractSelectorFromExpression(expression);
+            var node = QuerySelectorInternal(_rootNode, selector);
+            return node != null ? "Element" : "null";
+        }
+
+        throw new NotSupportedException($"Expression evaluation is not supported in OS Automation mode: '{expression}'");
+    }
+
+    private string ExtractSelectorFromExpression(string expression)
+    {
+        int startIdx = expression.IndexOf("document.querySelector(");
+        if (startIdx >= 0)
+        {
+            int openQuote = expression.IndexOf('\"', startIdx);
+            if (openQuote < 0) openQuote = expression.IndexOf('\'', startIdx);
+            if (openQuote >= 0)
+            {
+                int closeQuote = expression.IndexOf(expression[openQuote], openQuote + 1);
+                if (closeQuote >= 0)
+                {
+                    return expression.Substring(openQuote + 1, closeQuote - openQuote - 1);
+                }
+            }
+        }
+        return "";
     }
 }
