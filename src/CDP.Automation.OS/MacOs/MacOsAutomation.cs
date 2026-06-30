@@ -113,6 +113,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
     private static partial int AXUIElementCopyAttributeValue(IntPtr element, IntPtr attribute, out IntPtr value);
 
     [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
+    private static partial int AXUIElementSetAttributeValue(IntPtr element, IntPtr attribute, IntPtr value);
+
+    [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
     [return: MarshalAs(UnmanagedType.I1)]
     private static partial bool AXValueGetValue(IntPtr value, int type, out CGPoint point);
 
@@ -158,6 +161,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     private static partial CGPoint CGEventGetLocation(IntPtr theEvent);
+
+    [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static partial int CGAssociateMouseAndMouseCursorPosition([MarshalAs(UnmanagedType.I1)] bool associate);
 
     private static IntPtr CreateCFString(string str)
     {
@@ -640,15 +646,25 @@ public sealed partial class MacOsAutomation : IOsAutomation
                 }
             }
 
+            if (shouldRestore)
+            {
+                CGAssociateMouseAndMouseCursorPosition(false);
+            }
+
             CGEventPost(0, cgEvent);
 
-            if (shouldRestore && (originalPt.X > 0 || originalPt.Y > 0))
+            if (shouldRestore)
             {
-                IntPtr restoreEvent = CGEventCreateMouseEvent(IntPtr.Zero, 5, originalPt, 0);
-                if (restoreEvent != IntPtr.Zero)
+                CGAssociateMouseAndMouseCursorPosition(true);
+
+                if (originalPt.X > 0 || originalPt.Y > 0)
                 {
-                    CGEventPost(0, restoreEvent);
-                    CFRelease(restoreEvent);
+                    IntPtr restoreEvent = CGEventCreateMouseEvent(IntPtr.Zero, 5, originalPt, 0);
+                    if (restoreEvent != IntPtr.Zero)
+                    {
+                        CGEventPost(0, restoreEvent);
+                        CFRelease(restoreEvent);
+                    }
                 }
             }
         }
@@ -765,7 +781,55 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     public void SimulateTypeText(string windowId, string text)
     {
-        _logger.LogInformation("macOS TypeText simulated: {Text}", text);
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
+
+        int pid = 0;
+        if (windowId.EndsWith("_fallback"))
+        {
+            var parts = windowId.Split('_');
+            if (parts.Length > 0 && int.TryParse(parts[0], out int parsedPid))
+            {
+                pid = parsedPid;
+            }
+        }
+        else
+        {
+            int.TryParse(windowId, out pid);
+        }
+
+        if (pid > 0)
+        {
+            IntPtr appRef = AXUIElementCreateApplication(pid);
+            if (appRef != IntPtr.Zero)
+            {
+                try
+                {
+                    IntPtr focusedRef = GetAttribute(appRef, "AXFocusedUIElement");
+                    if (focusedRef != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            IntPtr valueStr = CreateCFString(text);
+                            IntPtr attributeStr = CreateCFString("AXValue");
+                            if (valueStr != IntPtr.Zero && attributeStr != IntPtr.Zero)
+                            {
+                                AXUIElementSetAttributeValue(focusedRef, attributeStr, valueStr);
+                            }
+                            if (valueStr != IntPtr.Zero) CFRelease(valueStr);
+                            if (attributeStr != IntPtr.Zero) CFRelease(attributeStr);
+                        }
+                        finally
+                        {
+                            CFRelease(focusedRef);
+                        }
+                    }
+                }
+                finally
+                {
+                    CFRelease(appRef);
+                }
+            }
+        }
     }
 
     public byte[] CaptureWindow(string windowId)

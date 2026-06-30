@@ -208,6 +208,21 @@ public sealed partial class WindowsAutomation : IOsAutomation
     [LibraryImport("user32.dll")]
     private static partial uint SendInput(uint nInputs, [MarshalAs(UnmanagedType.LPArray)] INPUT[] pInputs, int cbSize);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetCursorPos(out POINT lpPoint);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetCursorPos(int x, int y);
+
     public IReadOnlyList<OSWindow> GetWindows()
     {
         var list = new List<OSWindow>();
@@ -508,6 +523,41 @@ public sealed partial class WindowsAutomation : IOsAutomation
         return bounds;
     }
 
+    private void PostAndRestoreCursor(INPUT[] inputs, string windowId)
+    {
+        if (inputs == null || inputs.Length == 0) return;
+
+        POINT originalPt = new POINT { X = 0, Y = 0 };
+        bool shouldRestore = false;
+
+        try
+        {
+            if (GetCursorPos(out originalPt))
+            {
+                var bounds = GetWindowBounds(windowId);
+                if (bounds.Width > 0 && bounds.Height > 0)
+                {
+                    if (originalPt.X < bounds.Left || originalPt.X > bounds.Right ||
+                        originalPt.Y < bounds.Top || originalPt.Y > bounds.Bottom)
+                    {
+                        shouldRestore = true;
+                    }
+                }
+            }
+
+            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+
+            if (shouldRestore && (originalPt.X > 0 || originalPt.Y > 0))
+            {
+                SetCursorPos(originalPt.X, originalPt.Y);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to post and restore cursor on Windows");
+        }
+    }
+
     public void SimulateClick(string windowId, double x, double y)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
@@ -554,7 +604,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 }
             };
 
-            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+            PostAndRestoreCursor(inputs, windowId);
         }
         catch (Exception ex)
         {
@@ -591,7 +641,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
                     }
                 }
             };
-            SendInput(1, inputs, Marshal.SizeOf<INPUT>());
+            PostAndRestoreCursor(inputs, windowId);
         }
         catch (Exception ex)
         {
@@ -636,7 +686,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
                     mi = new MOUSEINPUT { dwFlags = 0x0002 }
                 }
             };
-            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+            PostAndRestoreCursor(inputs, windowId);
         }
         catch (Exception ex)
         {
@@ -681,7 +731,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
                     mi = new MOUSEINPUT { dwFlags = 0x0004 }
                 }
             };
-            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+            PostAndRestoreCursor(inputs, windowId);
         }
         catch (Exception ex)
         {
