@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp;
@@ -8,9 +9,10 @@ using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class MainWindowViewModel : ViewModelBase
+public class MainWindowViewModel : ViewModelBase, IStateProvider
 {
     public ICdpService CdpService { get; }
+    public IStateService StateService { get; }
     public ConnectionViewModel Connection { get; }
     public ElementsViewModel Elements { get; }
     public ConsoleViewModel Console { get; }
@@ -67,7 +69,7 @@ public class MainWindowViewModel : ViewModelBase
 
 
 
-    public MainWindowViewModel(ICdpService? cdpService = null)
+    public MainWindowViewModel(ICdpService? cdpService = null, bool loadState = false)
     {
         CdpService = cdpService ?? new CdpService();
 
@@ -169,6 +171,23 @@ public class MainWindowViewModel : ViewModelBase
 
         // Set up the default split layout
         ResetLayout();
+
+        // Initialize state service and load state
+        StateService = new StateService();
+        StateService.RegisterProvider(Connection);
+        StateService.RegisterProvider(Recorder.TestStudio);
+        StateService.RegisterProvider(Elements);
+        StateService.RegisterProvider(Console);
+        StateService.RegisterProvider(Sources);
+        StateService.RegisterProvider(Network);
+        StateService.RegisterProvider(Memory);
+        StateService.RegisterProvider(Application);
+        StateService.RegisterProvider(Simulation);
+        StateService.RegisterProvider(this);
+        if (loadState)
+        {
+            StateService.Load();
+        }
     }
 
     private void UpdateSelectedSelector()
@@ -453,4 +472,174 @@ public class MainWindowViewModel : ViewModelBase
             _ => "DocumentIcon"
         };
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "layout";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["isPreviewPanelVisible"] = IsPreviewPanelVisible;
+        root["layoutRoot"] = SerializeSplitNode(LayoutRoot);
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        var isPreviewVisible = (bool?)json["isPreviewPanelVisible"] ?? true;
+        
+        var layoutRootNode = json["layoutRoot"];
+        if (layoutRootNode != null)
+        {
+            var root = DeserializeSplitNode(layoutRootNode);
+            if (root != null)
+            {
+                // Find selected pane in the deserialized tree
+                BoxNode? selected = FindSelectedPane(root);
+                
+                _isPreviewPanelVisible = isPreviewVisible;
+                LayoutRoot = root;
+                SelectedPane = selected ?? FindFirstBoxNode(root);
+                OnPropertyChanged(nameof(IsPreviewPanelVisible));
+                return;
+            }
+        }
+    }
+
+    private JsonNode? SerializeSplitNode(SplitNode? node)
+    {
+        if (node == null) return null;
+
+        var json = new JsonObject();
+        if (node is BoxNode box)
+        {
+            json["type"] = "box";
+            json["backgroundTint"] = box.BackgroundTint;
+            json["isSelected"] = box.IsSelected;
+            
+            var tabsArray = new JsonArray();
+            foreach (var tab in box.Tabs)
+            {
+                var tabJson = new JsonObject
+                {
+                    ["title"] = tab.Title,
+                    ["iconKey"] = tab.IconKey,
+                    ["selectedViewName"] = tab.SelectedViewName
+                };
+                tabsArray.Add(tabJson);
+            }
+            json["tabs"] = tabsArray;
+            
+            if (box.ActiveTab != null)
+            {
+                json["activeViewName"] = box.ActiveTab.SelectedViewName;
+            }
+        }
+        else if (node is SplitContainerNode container)
+        {
+            json["type"] = "container";
+            json["orientation"] = container.Orientation.ToString();
+            json["splitterRatio"] = container.SplitterRatio;
+            json["child1"] = SerializeSplitNode(container.Child1);
+            json["child2"] = SerializeSplitNode(container.Child2);
+        }
+
+        return json;
+    }
+
+    private SplitNode? DeserializeSplitNode(JsonNode? node)
+    {
+        if (node == null || node is not JsonObject json) return null;
+
+        var type = (string?)json["type"];
+        if (type == "box")
+        {
+            var box = new BoxNode
+            {
+                BackgroundTint = (string?)json["backgroundTint"],
+                IsSelected = (bool?)json["isSelected"] ?? false
+            };
+
+            var tabsArray = json["tabs"] as JsonArray;
+            if (tabsArray != null)
+            {
+                foreach (var tabNode in tabsArray)
+                {
+                    if (tabNode is JsonObject tabJson)
+                    {
+                        var title = (string?)tabJson["title"] ?? "";
+                        var iconKey = (string?)tabJson["iconKey"] ?? "";
+                        var viewName = (string?)tabJson["selectedViewName"] ?? "";
+                        box.AddTab(title, iconKey, viewName);
+                    }
+                }
+            }
+
+            var activeViewName = (string?)json["activeViewName"];
+            if (!string.IsNullOrEmpty(activeViewName))
+            {
+                foreach (var tab in box.Tabs)
+                {
+                    if (tab.SelectedViewName == activeViewName)
+                    {
+                        box.ActiveTab = tab;
+                        break;
+                    }
+                }
+            }
+
+            return box;
+        }
+        else if (type == "container")
+        {
+            var orientationStr = (string?)json["orientation"] ?? "Horizontal";
+            var orientation = Enum.TryParse<Avalonia.Layout.Orientation>(orientationStr, out var orient) ? orient : Avalonia.Layout.Orientation.Horizontal;
+            var splitterRatio = (double?)json["splitterRatio"] ?? 0.5;
+
+            var child1 = DeserializeSplitNode(json["child1"]);
+            var child2 = DeserializeSplitNode(json["child2"]);
+
+            if (child1 != null && child2 != null)
+            {
+                var container = new SplitContainerNode(orientation, child1, child2)
+                {
+                    SplitterRatio = splitterRatio
+                };
+                return container;
+            }
+        }
+
+        return null;
+    }
+
+    private BoxNode? FindSelectedPane(SplitNode? node)
+    {
+        if (node == null) return null;
+        if (node is BoxNode box && box.IsSelected) return box;
+        if (node is SplitContainerNode container)
+        {
+            var found = FindSelectedPane(container.Child1);
+            if (found != null) return found;
+            return FindSelectedPane(container.Child2);
+        }
+        return null;
+    }
+
+    private BoxNode? FindFirstBoxNode(SplitNode? node)
+    {
+        if (node == null) return null;
+        if (node is BoxNode box) return box;
+        if (node is SplitContainerNode container)
+        {
+            var found = FindFirstBoxNode(container.Child1);
+            if (found != null) return found;
+            return FindFirstBoxNode(container.Child2);
+        }
+        return null;
+    }
+
+    #endregion
 }

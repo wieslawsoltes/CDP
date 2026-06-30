@@ -12,7 +12,7 @@ using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class ApplicationViewModel : ViewModelBase
+public class ApplicationViewModel : ViewModelBase, IStateProvider
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger<ApplicationViewModel>();
     private readonly ICdpService _cdpService;
@@ -1602,4 +1602,32 @@ public class ApplicationViewModel : ViewModelBase
             Logger.LogWarningMessage("ApplicationViewModel", "Error clearing IndexedDB object store", ex);
         }
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "application";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["customSqlQuery"] = CustomSqlQuery;
+        root["selectedBackgroundService"] = SelectedBackgroundService;
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("customSqlQuery", out var queryNode) && queryNode != null)
+        {
+            CustomSqlQuery = (string?)queryNode ?? "SELECT * FROM sqlite_master;";
+        }
+        if (json.TryGetPropertyValue("selectedBackgroundService", out var serviceNode) && serviceNode != null)
+        {
+            SelectedBackgroundService = (string?)serviceNode ?? "notifications";
+        }
+    }
+
+    #endregion
 }

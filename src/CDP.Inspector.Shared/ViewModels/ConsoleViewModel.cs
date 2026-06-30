@@ -13,7 +13,7 @@ using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class ConsoleViewModel : ViewModelBase
+public class ConsoleViewModel : ViewModelBase, IStateProvider
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger<ConsoleViewModel>();
     private readonly ICdpService _cdpService;
@@ -686,4 +686,81 @@ public class ConsoleViewModel : ViewModelBase
             _isEvaluatingPinned = false;
         }
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "console";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["filterAll"] = FilterAll;
+        root["filterError"] = FilterError;
+        root["filterWarning"] = FilterWarning;
+        root["filterInfo"] = FilterInfo;
+        root["filterVerbose"] = FilterVerbose;
+        root["filterQuery"] = FilterQuery;
+        root["consoleInputText"] = ConsoleInputText;
+
+        var pinnedArray = new JsonArray();
+        foreach (var pinned in PinnedExpressions)
+        {
+            if (!string.IsNullOrEmpty(pinned.Expression))
+            {
+                pinnedArray.Add(pinned.Expression);
+            }
+        }
+        root["pinnedExpressions"] = pinnedArray;
+
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("filterAll", out var allNode) && allNode != null)
+        {
+            FilterAll = (bool?)allNode ?? true;
+        }
+        if (json.TryGetPropertyValue("filterError", out var errorNode) && errorNode != null)
+        {
+            FilterError = (bool?)errorNode ?? false;
+        }
+        if (json.TryGetPropertyValue("filterWarning", out var warnNode) && warnNode != null)
+        {
+            FilterWarning = (bool?)warnNode ?? false;
+        }
+        if (json.TryGetPropertyValue("filterInfo", out var infoNode) && infoNode != null)
+        {
+            FilterInfo = (bool?)infoNode ?? false;
+        }
+        if (json.TryGetPropertyValue("filterVerbose", out var verboseNode) && verboseNode != null)
+        {
+            FilterVerbose = (bool?)verboseNode ?? false;
+        }
+        if (json.TryGetPropertyValue("filterQuery", out var queryNode) && queryNode != null)
+        {
+            FilterQuery = (string?)queryNode ?? "";
+        }
+        if (json.TryGetPropertyValue("consoleInputText", out var inputNode) && inputNode != null)
+        {
+            ConsoleInputText = (string?)inputNode ?? "";
+        }
+
+        if (json.TryGetPropertyValue("pinnedExpressions", out var pinnedNode) && pinnedNode is JsonArray pinnedArray)
+        {
+            PinnedExpressions.Clear();
+            foreach (var item in pinnedArray)
+            {
+                var expr = (string?)item;
+                if (!string.IsNullOrEmpty(expr))
+                {
+                    PinnedExpressions.Add(new PinnedExpressionViewModel { Expression = expr });
+                }
+            }
+        }
+    }
+
+    #endregion
 }

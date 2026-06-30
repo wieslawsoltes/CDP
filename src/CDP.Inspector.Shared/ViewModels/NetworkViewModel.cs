@@ -13,7 +13,7 @@ using CdpInspectorApp.Services;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class NetworkViewModel : ViewModelBase
+public class NetworkViewModel : ViewModelBase, IStateProvider
 {
     private readonly ICdpService _cdpService;
     private ObservableCollection<NetworkRequestModel> _networkRequests = new();
@@ -711,6 +711,102 @@ public class NetworkViewModel : ViewModelBase
 
         return !string.IsNullOrEmpty(cdpType) ? cdpType : "XHR";
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "network";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["selectedProfileName"] = SelectedProfile?.DisplayName;
+        root["activeFilter"] = ActiveFilter;
+
+        var blockedArray = new JsonArray();
+        foreach (var blocked in BlockedUrls)
+        {
+            if (!string.IsNullOrEmpty(blocked.Pattern))
+            {
+                blockedArray.Add(blocked.Pattern);
+            }
+        }
+        root["blockedUrls"] = blockedArray;
+
+        var mockRulesArray = new JsonArray();
+        foreach (var rule in MockRules)
+        {
+            var ruleObj = new JsonObject
+            {
+                ["urlPattern"] = rule.UrlPattern,
+                ["isActive"] = rule.IsActive,
+                ["statusCode"] = rule.StatusCode,
+                ["mockBody"] = rule.MockBody,
+                ["responseHeaders"] = rule.ResponseHeaders
+            };
+            mockRulesArray.Add(ruleObj);
+        }
+        root["mockRules"] = mockRulesArray;
+
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("activeFilter", out var filterNode) && filterNode != null)
+        {
+            ActiveFilter = (string?)filterNode ?? "All";
+        }
+
+        if (json.TryGetPropertyValue("blockedUrls", out var blockedNode) && blockedNode is JsonArray blockedArray)
+        {
+            BlockedUrls.Clear();
+            foreach (var item in blockedArray)
+            {
+                var pattern = (string?)item;
+                if (!string.IsNullOrEmpty(pattern))
+                {
+                    var model = new BlockedUrlModel { Pattern = pattern };
+                    model.PropertyChanged += BlockedUrl_PropertyChanged;
+                    BlockedUrls.Add(model);
+                }
+            }
+            _ = SyncBlockedUrlsAsync();
+        }
+
+        if (json.TryGetPropertyValue("mockRules", out var mockRulesNode) && mockRulesNode is JsonArray mockRulesArray)
+        {
+            MockRules.Clear();
+            foreach (var item in mockRulesArray)
+            {
+                if (item is JsonObject ruleObj)
+                {
+                    var rule = new MockRuleModel
+                    {
+                        UrlPattern = (string?)ruleObj["urlPattern"] ?? "",
+                        IsActive = (bool?)ruleObj["isActive"] ?? true,
+                        StatusCode = (int?)ruleObj["statusCode"] ?? 200,
+                        MockBody = (string?)ruleObj["mockBody"] ?? "",
+                        ResponseHeaders = (string?)ruleObj["responseHeaders"] ?? "Content-Type: application/json"
+                    };
+                    MockRules.Add(rule);
+                }
+            }
+        }
+
+        if (json.TryGetPropertyValue("selectedProfileName", out var profileNode) && profileNode != null)
+        {
+            var profileName = (string?)profileNode;
+            var matchedProfile = ThrottlingProfiles.FirstOrDefault(p => p.DisplayName == profileName);
+            if (matchedProfile != null)
+            {
+                SelectedProfile = matchedProfile;
+            }
+        }
+    }
+
+    #endregion
 }
 
 public class ThrottlingProfile

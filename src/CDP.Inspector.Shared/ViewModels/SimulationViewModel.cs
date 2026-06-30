@@ -11,7 +11,7 @@ using CdpInspectorApp.Services;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class SimulationViewModel : ViewModelBase
+public class SimulationViewModel : ViewModelBase, IStateProvider
 {
     private readonly ICdpService _cdpService;
     private readonly Func<DomNodeModel?> _getSelectedNodeFunc;
@@ -963,6 +963,15 @@ public class SimulationViewModel : ViewModelBase
             }
             catch { }
 
+            if (SelectedDevicePreset != null && SelectedDevicePreset.Width == 0 && SelectedDevicePreset.Height == 0)
+            {
+                await ResizeResetAsync();
+            }
+            else
+            {
+                await ResizeAsync();
+            }
+
             var url = await QueryCurrentUrlAsync();
             if (!string.IsNullOrEmpty(url))
             {
@@ -1437,6 +1446,60 @@ public class SimulationViewModel : ViewModelBase
         _lastInspectX = -999;
         _lastInspectY = -999;
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "simulation";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["selectedDevicePresetName"] = SelectedDevicePreset?.DisplayName;
+        root["widthText"] = WidthText;
+        root["heightText"] = HeightText;
+        root["scaleFactorText"] = ScaleFactorText;
+        root["isMobileActive"] = IsMobileActive;
+        root["navigateUrlText"] = NavigateUrlText;
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("selectedDevicePresetName", out var presetNode) && presetNode != null)
+        {
+            var presetName = (string?)presetNode;
+            var matchedPreset = DevicePresets.FirstOrDefault(p => p.DisplayName == presetName);
+            if (matchedPreset != null)
+            {
+                SelectedDevicePreset = matchedPreset;
+            }
+        }
+
+        if (json.TryGetPropertyValue("widthText", out var wNode) && wNode != null)
+        {
+            WidthText = (string?)wNode ?? "800";
+        }
+        if (json.TryGetPropertyValue("heightText", out var hNode) && hNode != null)
+        {
+            HeightText = (string?)hNode ?? "600";
+        }
+        if (json.TryGetPropertyValue("scaleFactorText", out var scaleNode) && scaleNode != null)
+        {
+            ScaleFactorText = (string?)scaleNode ?? "1.0";
+        }
+        if (json.TryGetPropertyValue("isMobileActive", out var mobNode) && mobNode != null)
+        {
+            IsMobileActive = (bool?)mobNode ?? false;
+        }
+        if (json.TryGetPropertyValue("navigateUrlText", out var urlNode) && urlNode != null)
+        {
+            NavigateUrlText = (string?)urlNode ?? "http://localhost:9222/about";
+        }
+    }
+
+    #endregion
 }
 
 public class DevicePreset

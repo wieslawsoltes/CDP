@@ -18,7 +18,7 @@ using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class TestStudioViewModel : ViewModelBase
+public class TestStudioViewModel : ViewModelBase, IStateProvider
 {
     private readonly ICdpService _cdpService;
     private ObservableCollection<TestStudioStepModel> _steps = new();
@@ -5613,4 +5613,57 @@ public class TestStudioViewModel : ViewModelBase
         LoadEnvironments();
         IsManageEnvironmentsVisible = false;
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "testStudio";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["workspaceRootPath"] = WorkspaceRootPath;
+        root["isAutoLaunchEnabled"] = IsAutoLaunchEnabled;
+        root["autoLaunchPath"] = AutoLaunchPath;
+        root["autoLaunchArguments"] = AutoLaunchArguments;
+        root["isRecordVideoEnabled"] = IsRecordVideoEnabled;
+        root["isGenerateReportEnabled"] = IsGenerateReportEnabled;
+        root["outputDirectory"] = OutputDirectory;
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("workspaceRootPath", out var wsNode) && wsNode != null)
+        {
+            WorkspaceRootPath = (string?)wsNode;
+        }
+        if (json.TryGetPropertyValue("isAutoLaunchEnabled", out var autoLaunchNode) && autoLaunchNode != null)
+        {
+            IsAutoLaunchEnabled = (bool?)autoLaunchNode ?? false;
+        }
+        if (json.TryGetPropertyValue("autoLaunchPath", out var pathNode) && pathNode != null)
+        {
+            AutoLaunchPath = (string?)pathNode ?? "";
+        }
+        if (json.TryGetPropertyValue("autoLaunchArguments", out var argsNode) && argsNode != null)
+        {
+            AutoLaunchArguments = (string?)argsNode ?? "";
+        }
+        if (json.TryGetPropertyValue("isRecordVideoEnabled", out var videoNode) && videoNode != null)
+        {
+            IsRecordVideoEnabled = (bool?)videoNode ?? false;
+        }
+        if (json.TryGetPropertyValue("isGenerateReportEnabled", out var reportNode) && reportNode != null)
+        {
+            IsGenerateReportEnabled = (bool?)reportNode ?? false;
+        }
+        if (json.TryGetPropertyValue("outputDirectory", out var outDirNode) && outDirNode != null)
+        {
+            OutputDirectory = (string?)outDirNode ?? "TestReports";
+        }
+    }
+
+    #endregion
 }

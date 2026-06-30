@@ -10,8 +10,9 @@ using Avalonia.Controls.DataGridHierarchical;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class SourcesViewModel : ViewModelBase
+public class SourcesViewModel : ViewModelBase, IStateProvider
 {
+    private string? _pendingFilePathToSelect;
     private readonly ICdpService _cdpService;
     private ObservableCollection<WorkspaceFileNode> _workspaceFiles = new();
     private string _selectedFileName = "Select a file from workspace";
@@ -582,6 +583,17 @@ public class SourcesViewModel : ViewModelBase
         {
             WorkspaceFiles.Add(child);
         }
+
+        // Restore pending selected file
+        if (!string.IsNullOrEmpty(_pendingFilePathToSelect))
+        {
+            var file = FindFileByPath(_pendingFilePathToSelect);
+            if (file != null)
+            {
+                SelectedFile = file;
+                _pendingFilePathToSelect = null;
+            }
+        }
     }
 
     private async Task SaveFileAsync(string content)
@@ -702,4 +714,51 @@ public class SourcesViewModel : ViewModelBase
             Console.WriteLine($"Search failed: {ex.Message}");
         }
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "sources";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["searchQuery"] = SearchQuery;
+        root["searchCaseSensitive"] = SearchCaseSensitive;
+        root["breakpointCondition"] = BreakpointCondition;
+        root["selectedFilePath"] = SelectedFile?.Path;
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("searchQuery", out var searchNode) && searchNode != null)
+        {
+            SearchQuery = (string?)searchNode ?? "";
+        }
+        if (json.TryGetPropertyValue("searchCaseSensitive", out var caseNode) && caseNode != null)
+        {
+            SearchCaseSensitive = (bool?)caseNode ?? false;
+        }
+        if (json.TryGetPropertyValue("breakpointCondition", out var bpNode) && bpNode != null)
+        {
+            BreakpointCondition = (string?)bpNode ?? "";
+        }
+        if (json.TryGetPropertyValue("selectedFilePath", out var pathNode) && pathNode != null)
+        {
+            _pendingFilePathToSelect = (string?)pathNode;
+            if (!string.IsNullOrEmpty(_pendingFilePathToSelect))
+            {
+                var file = FindFileByPath(_pendingFilePathToSelect);
+                if (file != null)
+                {
+                    SelectedFile = file;
+                    _pendingFilePathToSelect = null;
+                }
+            }
+        }
+    }
+
+    #endregion
 }

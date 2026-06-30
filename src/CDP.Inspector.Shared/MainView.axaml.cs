@@ -23,7 +23,7 @@ public partial class MainView : UserControl
     {
         InitializeComponent();
 
-        var vm = new MainWindowViewModel();
+        var vm = new MainWindowViewModel(loadState: true);
         DataContext = vm;
 
         SplitControl.BoxMenuClicked += OnBoxMenuClicked;

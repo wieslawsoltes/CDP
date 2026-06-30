@@ -15,7 +15,7 @@ using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
-public class ElementsViewModel : ViewModelBase
+public class ElementsViewModel : ViewModelBase, IStateProvider
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger<ElementsViewModel>();
     private readonly ICdpService _cdpService;
@@ -2320,5 +2320,63 @@ public class ElementsViewModel : ViewModelBase
         
         await UpdateControlClassesAsync();
     }
+
+    #region IStateProvider Implementation
+
+    public string StateKey => "elements";
+
+    public JsonNode? SaveState()
+    {
+        var root = new JsonObject();
+        root["showVisualTree"] = ShowVisualTree;
+        root["selectedTreeTabIndex"] = SelectedTreeTabIndex;
+        root["searchQuery"] = SearchQuery;
+        root["axSearchQuery"] = AxSearchQuery;
+        root["propertySearchText"] = PropertySearchText;
+        root["cssSearchText"] = CssSearchText;
+        root["computedSearchText"] = ComputedSearchText;
+        root["attributeSearchText"] = AttributeSearchText;
+        return root;
+    }
+
+    public void LoadState(JsonNode? stateNode)
+    {
+        if (stateNode is not JsonObject json) return;
+
+        if (json.TryGetPropertyValue("showVisualTree", out var showNode) && showNode != null)
+        {
+            ShowVisualTree = (bool?)showNode ?? false;
+        }
+        if (json.TryGetPropertyValue("selectedTreeTabIndex", out var tabNode) && tabNode != null)
+        {
+            SelectedTreeTabIndex = (int?)tabNode ?? 0;
+        }
+        if (json.TryGetPropertyValue("searchQuery", out var searchNode) && searchNode != null)
+        {
+            SearchQuery = (string?)searchNode ?? "";
+        }
+        if (json.TryGetPropertyValue("axSearchQuery", out var axSearchNode) && axSearchNode != null)
+        {
+            AxSearchQuery = (string?)axSearchNode ?? "";
+        }
+        if (json.TryGetPropertyValue("propertySearchText", out var propSearchNode) && propSearchNode != null)
+        {
+            PropertySearchText = (string?)propSearchNode ?? "";
+        }
+        if (json.TryGetPropertyValue("cssSearchText", out var cssSearchNode) && cssSearchNode != null)
+        {
+            CssSearchText = (string?)cssSearchNode ?? "";
+        }
+        if (json.TryGetPropertyValue("computedSearchText", out var compSearchNode) && compSearchNode != null)
+        {
+            ComputedSearchText = (string?)compSearchNode ?? "";
+        }
+        if (json.TryGetPropertyValue("attributeSearchText", out var attrSearchNode) && attrSearchNode != null)
+        {
+            AttributeSearchText = (string?)attrSearchNode ?? "";
+        }
+    }
+
+    #endregion
 }
 
