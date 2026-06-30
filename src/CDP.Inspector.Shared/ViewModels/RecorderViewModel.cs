@@ -356,19 +356,32 @@ public class RecorderViewModel : ViewModelBase
         {
             if (!IsRecording)
             {
-                var mode = _useAutomationProvider?.Invoke() == true ? "automation" : "dom";
-                try
+                bool isOsSession = _cdpService.ConnectedHost != null && _cdpService.ConnectedHost.StartsWith("os://", StringComparison.OrdinalIgnoreCase);
+                if (isOsSession)
                 {
-                    await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
-                    IsClientSideRecording = false;
-                }
-                catch (Exception ex) when (ex.Message.Contains("method") || ex.Message.Contains("not found") || ex.Message.Contains("not implemented") || ex.Message.Contains("Recorder"))
-                {
-                    Console.WriteLine("Recorder domain not supported by target. Falling back to client-side simulation recording.");
                     IsClientSideRecording = true;
-
-                    // Emit initial steps locally
                     ClearData(resetRecordingState: false);
+                }
+                else
+                {
+                    var mode = _useAutomationProvider?.Invoke() == true ? "automation" : "dom";
+                    try
+                    {
+                        await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
+                        IsClientSideRecording = false;
+                    }
+                    catch (Exception ex) when (ex.Message.Contains("method") || ex.Message.Contains("not found") || ex.Message.Contains("not implemented") || ex.Message.Contains("Recorder"))
+                    {
+                        Console.WriteLine("Recorder domain not supported by target. Falling back to client-side simulation recording.");
+                        IsClientSideRecording = true;
+
+                        // Emit initial steps locally
+                        ClearData(resetRecordingState: false);
+                    }
+                }
+
+                if (IsClientSideRecording)
+                {
                     
                     // Emit setViewport step
                     var sizeNode = new JsonObject

@@ -21,6 +21,12 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
     private TargetItem? _selectedTarget;
     private bool _isInspectModeActive;
     private bool _useAutomationSelectors;
+    public ObservableCollection<string> SuggestedHosts { get; } = new()
+    {
+        "http://127.0.0.1:9222",
+        "http://127.0.0.1:9223",
+        "os://"
+    };
 
     public string HostAddress
     {
@@ -42,6 +48,11 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
             if (string.IsNullOrEmpty(HostAddress))
             {
                 return "http://127.0.0.1:9222";
+            }
+
+            if (HostAddress.StartsWith("os://", StringComparison.OrdinalIgnoreCase))
+            {
+                return HostAddress;
             }
 
             if (HostAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
@@ -149,6 +160,33 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
         set => RaiseAndSetIfChanged(ref _selectedTarget, value);
     }
 
+    private string _targetSearchText = string.Empty;
+    public string TargetSearchText
+    {
+        get => _targetSearchText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _targetSearchText, value))
+            {
+                OnPropertyChanged(nameof(FilteredTargets));
+            }
+        }
+    }
+
+    public IEnumerable<TargetItem> FilteredTargets
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(TargetSearchText))
+            {
+                return Targets;
+            }
+            return System.Linq.Enumerable.Where(Targets, t => 
+                (t.Title != null && t.Title.Contains(TargetSearchText, StringComparison.OrdinalIgnoreCase)) || 
+                (t.Id != null && t.Id.Contains(TargetSearchText, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
     public bool IsConnected => _cdpService.IsConnected;
     public bool IsNotConnected => !_cdpService.IsConnected;
 
@@ -199,6 +237,10 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
         this.PropertyChanged += ConnectionViewModel_PropertyChanged;
+        _targets.CollectionChanged += (sender, e) =>
+        {
+            OnPropertyChanged(nameof(FilteredTargets));
+        };
 
         RefreshTargetsCommand = new RelayCommand(async () => await RefreshTargetsAsync());
         ConnectCommand = new RelayCommand(
@@ -396,7 +438,9 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
 
     public async Task ConnectAsync(bool bypassAutoLaunch)
     {
-        if (!bypassAutoLaunch && (SelectedTarget == null || (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath) && !_cdpService.IsConnected)))
+        bool isOsAutomation = GeneratorHostAddress != null && GeneratorHostAddress.StartsWith("os://", StringComparison.OrdinalIgnoreCase);
+
+        if (!isOsAutomation && !bypassAutoLaunch && (SelectedTarget == null || (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath) && !_cdpService.IsConnected)))
         {
             if (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath))
             {
@@ -420,10 +464,36 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
             }
         }
 
-        if (SelectedTarget == null) return;
+        if (SelectedTarget == null)
+        {
+            if (isOsAutomation && TestStudio != null)
+            {
+                TestStudio.Log("OS Automation: No target process selected. Please select a process window from the targets dropdown before connecting.");
+            }
+            return;
+        }
+
         try
         {
+            if (isOsAutomation && TestStudio != null)
+            {
+                TestStudio.Log($"OS Automation: Connecting to process window '{SelectedTarget.Title}' (ID: {SelectedTarget.Id})...");
+            }
+
             await _cdpService.ConnectAsync(GeneratorHostAddress, SelectedTarget);
+
+            if (isOsAutomation && TestStudio != null && _cdpService.IsConnected)
+            {
+                TestStudio.Log($"OS Automation: Successfully connected to '{SelectedTarget.Title}'!");
+
+                if (!CDP.Automation.OS.OSAutomationService.Instance.HasScreenCapturePermission())
+                {
+                    TestStudio.Log("⚠️ WARNING: macOS Screen Recording permission is NOT granted!");
+                    TestStudio.Log("Simulation Preview and screenshots will display blank grey boxes, other windows, or desktop wallpaper.");
+                    TestStudio.Log("To fix: Go to System Settings -> Privacy & Security -> Screen Recording, and enable permission for your Terminal, iTerm, or IDE/VS Code.");
+                    TestStudio.Log("IMPORTANT: You MUST restart your Terminal, iTerm, or IDE/VS Code after enabling permission for the change to take effect.");
+                }
+            }
         }
         catch (Exception ex)
         {
