@@ -963,6 +963,15 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
             }
             catch { }
 
+            if (SelectedDevicePreset != null && SelectedDevicePreset.Width == 0 && SelectedDevicePreset.Height == 0)
+            {
+                await ResizeResetAsync();
+            }
+            else
+            {
+                await ResizeAsync();
+            }
+
             var url = await QueryCurrentUrlAsync();
             if (!string.IsNullOrEmpty(url))
             {
