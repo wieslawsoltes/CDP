@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Interactivity;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -1045,12 +1046,12 @@ public static class InputDomain
         {
             if (_windowRef.TryGetTarget(out var window))
             {
-                window.PointerPressed += OnPointerPressed;
-                window.PointerReleased += OnPointerReleased;
-                window.PointerMoved += OnPointerMoved;
-                window.PointerWheelChanged += OnPointerWheelChanged;
-                window.KeyDown += OnKeyDown;
-                window.KeyUp += OnKeyUp;
+                window.AddHandler(InputElement.PointerPressedEvent, (EventHandler<PointerPressedEventArgs>)OnPointerPressed, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.PointerReleasedEvent, (EventHandler<PointerReleasedEventArgs>)OnPointerReleased, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.PointerMovedEvent, (EventHandler<PointerEventArgs>)OnPointerMoved, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.PointerWheelChangedEvent, (EventHandler<PointerWheelEventArgs>)OnPointerWheelChanged, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.KeyDownEvent, (EventHandler<KeyEventArgs>)OnKeyDown, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.KeyUpEvent, (EventHandler<KeyEventArgs>)OnKeyUp, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
             }
         }
 
@@ -1058,12 +1059,12 @@ public static class InputDomain
         {
             if (_windowRef.TryGetTarget(out var window))
             {
-                window.PointerPressed -= OnPointerPressed;
-                window.PointerReleased -= OnPointerReleased;
-                window.PointerMoved -= OnPointerMoved;
-                window.PointerWheelChanged -= OnPointerWheelChanged;
-                window.KeyDown -= OnKeyDown;
-                window.KeyUp -= OnKeyUp;
+                window.RemoveHandler(InputElement.PointerPressedEvent, (EventHandler<PointerPressedEventArgs>)OnPointerPressed);
+                window.RemoveHandler(InputElement.PointerReleasedEvent, (EventHandler<PointerReleasedEventArgs>)OnPointerReleased);
+                window.RemoveHandler(InputElement.PointerMovedEvent, (EventHandler<PointerEventArgs>)OnPointerMoved);
+                window.RemoveHandler(InputElement.PointerWheelChangedEvent, (EventHandler<PointerWheelEventArgs>)OnPointerWheelChanged);
+                window.RemoveHandler(InputElement.KeyDownEvent, (EventHandler<KeyEventArgs>)OnKeyDown);
+                window.RemoveHandler(InputElement.KeyUpEvent, (EventHandler<KeyEventArgs>)OnKeyUp);
             }
         }
 

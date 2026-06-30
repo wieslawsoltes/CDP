@@ -294,7 +294,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                                     var match = FindDeepestNodeAt(rootNode, (int)absoluteX, (int)absoluteY);
                                     if (match != null)
                                     {
-                                        RaiseStepRecordedEvent("click", match.Id);
+                                        RaiseStepRecordedEvent("click", match.Id, fromNativeHook: true);
                                     }
                                 }
                             }
@@ -365,7 +365,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                             var focused = _automation.GetFocusedElement(_windowId);
                             if (focused != null)
                             {
-                                RaiseStepRecordedEvent("change", focused.Id, text);
+                                RaiseStepRecordedEvent("change", focused.Id, text, fromNativeHook: true);
                             }
                         }
                         catch (Exception ex)
@@ -909,30 +909,38 @@ public sealed class OsAutomationCdpSession : IDisposable
         {
             if (_isSimulatingInput) return;
 
+            double relX = x;
+            double relY = y;
+            _rootNode = _automation.GetElementTree(_windowId);
+            if (_rootNode != null)
+            {
+                relX = x - _rootNode.Bounds.Left;
+                relY = y - _rootNode.Bounds.Top;
+            }
+
             EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
             {
                 ["type"] = "mousePressed",
-                ["x"] = x,
-                ["y"] = y,
+                ["x"] = relX,
+                ["y"] = relY,
                 ["button"] = button,
                 ["clickCount"] = 1
             }));
             EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
             {
                 ["type"] = "mouseReleased",
-                ["x"] = x,
-                ["y"] = y,
+                ["x"] = relX,
+                ["y"] = relY,
                 ["button"] = button,
                 ["clickCount"] = 1
             }));
 
-            _rootNode = _automation.GetElementTree(_windowId);
             if (_rootNode != null)
             {
                 var match = FindDeepestNodeAt(_rootNode, (int)x, (int)y);
                 if (match != null)
                 {
-                    RaiseStepRecordedEvent("click", match.Id);
+                    RaiseStepRecordedEvent("click", match.Id, fromNativeHook: true);
                 }
             }
         }, (eventType, elementId, value) =>
@@ -963,14 +971,14 @@ public sealed class OsAutomationCdpSession : IDisposable
                     if (value != _lastFocusedValue)
                     {
                         _lastFocusedValue = value;
-                        RaiseStepRecordedEvent("change", elementId, value);
+                        RaiseStepRecordedEvent("change", elementId, value, fromNativeHook: true);
                     }
                 }
                 else
                 {
                     _lastFocusedId = elementId;
                     _lastFocusedValue = value;
-                    RaiseStepRecordedEvent("change", elementId, value);
+                    RaiseStepRecordedEvent("change", elementId, value, fromNativeHook: true);
                 }
             }
         });
@@ -1033,7 +1041,7 @@ public sealed class OsAutomationCdpSession : IDisposable
         _lastFocusedRole = null;
     }
 
-    private void RaiseStepRecordedEvent(string type, string elementId, string? value = null)
+    private void RaiseStepRecordedEvent(string type, string elementId, string? value = null, bool fromNativeHook = false)
     {
         var step = new JsonObject
         {
@@ -1051,6 +1059,37 @@ public sealed class OsAutomationCdpSession : IDisposable
         };
 
         EventReceived?.Invoke(this, new CdpEventEventArgs("Recorder.stepAdded", eventParams));
+
+        if (!fromNativeHook)
+        {
+            if (type == "click")
+            {
+                EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mousePressed",
+                    ["x"] = 0.0,
+                    ["y"] = 0.0,
+                    ["button"] = "left",
+                    ["clickCount"] = 1
+                }));
+                EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mouseReleased",
+                    ["x"] = 0.0,
+                    ["y"] = 0.0,
+                    ["button"] = "left",
+                    ["clickCount"] = 1
+                }));
+            }
+            else if (type == "change")
+            {
+                EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
+                {
+                    ["type"] = "textInput",
+                    ["text"] = value ?? ""
+                }));
+            }
+        }
     }
 
     private void StartScreencast()
