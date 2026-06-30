@@ -69,7 +69,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
 
 
 
-    public MainWindowViewModel(ICdpService? cdpService = null)
+    public MainWindowViewModel(ICdpService? cdpService = null, bool loadState = false)
     {
         CdpService = cdpService ?? new CdpService();
 
@@ -184,7 +184,10 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         StateService.RegisterProvider(Application);
         StateService.RegisterProvider(Simulation);
         StateService.RegisterProvider(this);
-        StateService.Load();
+        if (loadState)
+        {
+            StateService.Load();
+        }
     }
 
     private void UpdateSelectedSelector()
