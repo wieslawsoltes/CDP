@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
@@ -60,12 +61,7 @@ public partial class StepTelemetryView : UserControl
     public StepTelemetryView()
     {
         InitializeComponent();
-
-        var imgChart = this.FindControl<Image>("imgStepChart");
-        if (imgChart != null)
-        {
-            imgChart.SizeChanged += (s, e) => UpdateDetails();
-        }
+        this.SizeChanged += (s, e) => UpdateDetails();
     }
 
     private void InitializeComponent()
@@ -78,49 +74,123 @@ public partial class StepTelemetryView : UserControl
         var step = SelectedStep;
         var metrics = Metrics;
         var network = Network;
-        var chartService = ChartService ?? new TelemetryChartService();
 
-        var lblCpu = this.FindControl<TextBlock>("lblStepCpu");
-        var lblMemory = this.FindControl<TextBlock>("lblStepMemory");
-        var lblFpsDom = this.FindControl<TextBlock>("lblStepFpsDom");
-        var lblNetwork = this.FindControl<TextBlock>("lblStepNetwork");
-        var listNetwork = this.FindControl<ListBox>("listStepNetwork");
-        var imgChart = this.FindControl<Image>("imgStepChart");
+        var tabControl = this.FindControl<TabControl>("tabTelemetry");
+        if (tabControl == null) return;
 
         if (step == null)
         {
-            if (lblCpu != null) lblCpu.Text = "0.0 %";
-            if (lblMemory != null) lblMemory.Text = "0.0 / 0.0 MB";
-            if (lblFpsDom != null) lblFpsDom.Text = "60.0 FPS / 0 nodes";
-            if (lblNetwork != null) lblNetwork.Text = "0 requests / 0.00 KB";
-            if (listNetwork != null) listNetwork.ItemsSource = null;
-            if (imgChart != null) imgChart.Source = null;
+            tabControl.Items.Clear();
             return;
         }
 
-        if (lblCpu != null) lblCpu.Text = $"{step.CpuUsage:F1} %";
-        if (lblMemory != null) lblMemory.Text = $"{step.MemoryJsHeapUsed:F2} / {step.MemoryJsHeapTotal:F2} MB";
-        if (lblFpsDom != null) lblFpsDom.Text = $"{step.Fps:F1} FPS / {step.DomNodes} nodes";
-        if (lblNetwork != null) lblNetwork.Text = $"{step.NetworkRequestCount} requests / {(step.NetworkResponseBytes / 1024.0):F2} KB";
-
-        if (listNetwork != null)
+        // Initialize tabs if empty or count mismatch
+        if (tabControl.Items.Count != TelemetryUiRegistry.UiProviders.Count)
         {
-            var stepRequests = network?
-                .Where(r => r.RelativeStartMs >= step.RelativeStartMs && r.RelativeStartMs <= (step.RelativeStartMs + step.DurationMs))
-                .Select(r => new PlaybackNetworkItemViewModel(r, step.RelativeStartMs, step.DurationMs))
-                .ToList() ?? new List<PlaybackNetworkItemViewModel>();
+            tabControl.Items.Clear();
+            foreach (var uiProvider in TelemetryUiRegistry.UiProviders)
+            {
+                var stepData = GetStepData(uiProvider.ProviderId, step);
+                var runData = GetRunData(uiProvider.ProviderId, metrics, network);
 
-            listNetwork.ItemsSource = stepRequests;
+                var view = uiProvider.CreateView(stepData, runData);
+                var tabItem = new TabItem
+                {
+                    Header = uiProvider.Name,
+                    Content = view
+                };
+                tabControl.Items.Add(tabItem);
+            }
+        }
+        else
+        {
+            // Just update views
+            for (int i = 0; i < TelemetryUiRegistry.UiProviders.Count; i++)
+            {
+                var uiProvider = TelemetryUiRegistry.UiProviders[i];
+                var tabItem = tabControl.Items[i] as TabItem;
+                var view = tabItem?.Content as Control;
+                if (view != null)
+                {
+                    var stepData = GetStepData(uiProvider.ProviderId, step);
+                    var runData = GetRunData(uiProvider.ProviderId, metrics, network);
+                    uiProvider.UpdateView(view, stepData, runData);
+                }
+            }
+        }
+    }
+
+    private JsonNode? GetStepData(string providerId, StepReportItem step)
+    {
+        if (step.Telemetry != null && step.Telemetry.TryGetValue(providerId, out var stepData))
+        {
+            return stepData;
         }
 
-        if (imgChart != null && metrics != null)
+        // Fallback for legacy data
+        if (providerId == "Performance")
         {
-            int w = (int)imgChart.Bounds.Width;
-            int h = (int)imgChart.Bounds.Height;
-            if (w <= 0) w = 800;
-            if (h <= 0) h = 150;
-
-            imgChart.Source = chartService.RenderPerformanceChart(metrics, step.RelativeStartMs, step.DurationMs, w, h);
+            return new JsonObject
+            {
+                ["CpuUsage"] = step.CpuUsage,
+                ["MemoryJsHeapUsed"] = step.MemoryJsHeapUsed,
+                ["MemoryJsHeapTotal"] = step.MemoryJsHeapTotal,
+                ["Fps"] = step.Fps,
+                ["DomNodes"] = step.DomNodes,
+                ["DomDocuments"] = step.DomDocuments,
+                ["RelativeStartMs"] = step.RelativeStartMs,
+                ["DurationMs"] = step.DurationMs
+            };
         }
+        else if (providerId == "Network")
+        {
+            return new JsonObject
+            {
+                ["NetworkRequestCount"] = step.NetworkRequestCount,
+                ["NetworkResponseBytes"] = step.NetworkResponseBytes,
+                ["RelativeStartMs"] = step.RelativeStartMs,
+                ["DurationMs"] = step.DurationMs
+            };
+        }
+
+        return null;
+    }
+
+    private JsonNode? GetRunData(string providerId, List<RunMetricSample>? metrics, List<NetworkReportItem>? network)
+    {
+        if (providerId == "Performance" && metrics != null)
+        {
+            var arr = new JsonArray();
+            foreach (var s in metrics)
+            {
+                arr.Add(new JsonObject
+                {
+                    ["RelativeTimeMs"] = s.RelativeTimeMs,
+                    ["CpuUsage"] = s.CpuUsage,
+                    ["MemoryJsHeapUsed"] = s.MemoryJsHeapUsed,
+                    ["Fps"] = s.Fps
+                });
+            }
+            return arr;
+        }
+        else if (providerId == "Network" && network != null)
+        {
+            var arr = new JsonArray();
+            foreach (var r in network)
+            {
+                arr.Add(new JsonObject
+                {
+                    ["RequestId"] = r.RequestId,
+                    ["Url"] = r.Url,
+                    ["Method"] = r.Method,
+                    ["Status"] = r.Status,
+                    ["RelativeStartMs"] = r.RelativeStartMs,
+                    ["DurationMs"] = r.DurationMs,
+                    ["EncodedDataLength"] = r.EncodedDataLength
+                });
+            }
+            return arr;
+        }
+        return null;
     }
 }

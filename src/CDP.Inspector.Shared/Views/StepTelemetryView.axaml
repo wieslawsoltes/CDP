@@ -1,59 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:views="clr-namespace:CdpInspectorApp.Views"
              x:Class="CdpInspectorApp.Views.StepTelemetryView"
              x:CompileBindings="True">
-    <Grid RowDefinitions="Auto, *">
-        <!-- Row 0: Metrics & Waterfall -->
-        <Grid Grid.Row="0" ColumnDefinitions="250, *" Height="95" Margin="0,0,0,8">
-            <!-- Col 0: Step Metrics -->
-            <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
-                <TextBlock Text="STEP METRICS" FontSize="9" FontWeight="Bold" Foreground="#3b82f6"/>
-                <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*" Margin="0,2,0,0">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="CPU Usage:" Foreground="#8a8f98" FontSize="10" VerticalAlignment="Center"/>
-                    <TextBlock Name="lblStepCpu" Grid.Row="0" Grid.Column="1" Text="0.0 %" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="10" Margin="6,0,0,2" VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="JS Heap:" Foreground="#8a8f98" FontSize="10" VerticalAlignment="Center"/>
-                    <TextBlock Name="lblStepMemory" Grid.Row="1" Grid.Column="1" Text="0.0 / 0.0 MB" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="10" Margin="6,0,0,2" VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="FPS / DOM:" Foreground="#8a8f98" FontSize="10" VerticalAlignment="Center"/>
-                    <TextBlock Name="lblStepFpsDom" Grid.Row="2" Grid.Column="1" Text="60.0 FPS / 0 nodes" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="10" Margin="6,0,0,2" VerticalAlignment="Center"/>
-
-                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Network:" Foreground="#8a8f98" FontSize="10" VerticalAlignment="Center"/>
-                    <TextBlock Name="lblStepNetwork" Grid.Row="3" Grid.Column="1" Text="0 requests / 0.00 KB" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="10" Margin="6,0,0,2" VerticalAlignment="Center"/>
-                </Grid>
-            </StackPanel>
-
-            <!-- Col 1: Network Waterfall -->
-            <Grid Grid.Column="1" RowDefinitions="Auto, *" VerticalAlignment="Stretch" Margin="12,0,0,0">
-                <TextBlock Grid.Row="0" Text="NETWORK WATERFALL" FontSize="9" FontWeight="Bold" Foreground="#3b82f6" Margin="0,0,0,4"/>
-                <ListBox Grid.Row="1" Name="listStepNetwork" Background="#0f1015" BorderBrush="#2d313f" BorderThickness="1" CornerRadius="4" Padding="2" VerticalAlignment="Stretch">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="views:PlaybackNetworkItemViewModel">
-                            <Grid ColumnDefinitions="35, *, 30, 45, 110" Margin="0,1">
-                                <TextBlock Grid.Column="0" Text="{Binding Method}" Foreground="#3b82f6" FontWeight="Bold" FontSize="9" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="1" Text="{Binding DisplayUrl}" Foreground="#e8eaed" FontSize="9" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="3,0"/>
-                                <TextBlock Grid.Column="2" Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="9" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="3" Text="{Binding DurationText}" Foreground="#8a8f98" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                <Border Grid.Column="4" Background="#1c1e26" Height="8" CornerRadius="2" Margin="8,0,2,0" HorizontalAlignment="Stretch" VerticalAlignment="Center">
-                                    <Border Background="#2563eb" CornerRadius="2" Height="8"
-                                            Width="{Binding TimelineWidth}"
-                                            Margin="{Binding TimelineMargin}"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Grid>
-        </Grid>
-
-        <!-- Row 1: Full-width Performance Timeline -->
-        <Grid Grid.Row="1" RowDefinitions="Auto, *">
-            <TextBlock Grid.Row="0" Text="PERFORMANCE TIMELINE" FontSize="9" FontWeight="Bold" Foreground="#3b82f6" Margin="0,0,0,4"/>
-            <Border Grid.Row="1" BorderBrush="#2d313f" BorderThickness="1" CornerRadius="4" Background="#0f1015" ClipToBounds="True" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-                <Image Name="imgStepChart" Stretch="Fill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-            </Border>
-        </Grid>
-    </Grid>
+    <TabControl Name="tabTelemetry" Background="#0f1015" BorderBrush="#2d313f" BorderThickness="1" CornerRadius="4" Padding="6">
+        <!-- Dynamic tabs generated at runtime -->
+    </TabControl>
 </UserControl>
