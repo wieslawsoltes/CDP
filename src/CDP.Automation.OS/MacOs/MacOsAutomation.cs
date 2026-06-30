@@ -14,6 +14,23 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     public bool MovePhysicalCursor { get; set; }
 
+    private static readonly IntPtr _kCFBooleanTrue;
+
+    static MacOsAutomation()
+    {
+        try
+        {
+            if (NativeLibrary.TryLoad("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", out IntPtr cfLib))
+            {
+                if (NativeLibrary.TryGetExport(cfLib, "kCFBooleanTrue", out IntPtr ptr))
+                {
+                    _kCFBooleanTrue = Marshal.ReadIntPtr(ptr);
+                }
+            }
+        }
+        catch {}
+    }
+
     public MacOsAutomation(ILogger? logger = null)
     {
         _logger = logger ?? NullLogger.Instance;
@@ -673,6 +690,29 @@ public sealed partial class MacOsAutomation : IOsAutomation
         return pid;
     }
 
+    private void ActivateProcess(int pid)
+    {
+        if (pid <= 0) return;
+        IntPtr appRef = AXUIElementCreateApplication(pid);
+        if (appRef != IntPtr.Zero)
+        {
+            try
+            {
+                IntPtr attrName = CreateCFString("AXFrontmost");
+                if (attrName != IntPtr.Zero && _kCFBooleanTrue != IntPtr.Zero)
+                {
+                    AXUIElementSetAttributeValue(appRef, attrName, _kCFBooleanTrue);
+                }
+                if (attrName != IntPtr.Zero) CFRelease(attrName);
+            }
+            catch {}
+            finally
+            {
+                CFRelease(appRef);
+            }
+        }
+    }
+
     private void PostAndRestoreCursor(IntPtr cgEvent, string windowId)
     {
         if (cgEvent == IntPtr.Zero) return;
@@ -682,6 +722,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
         try
         {
+            int targetPid = GetWindowPid(windowId);
+            ActivateProcess(targetPid);
+
             IntPtr currentEvent = CGEventCreate(IntPtr.Zero);
             if (currentEvent != IntPtr.Zero)
             {
@@ -698,8 +741,6 @@ public sealed partial class MacOsAutomation : IOsAutomation
                     }
                 }
             }
-
-            int targetPid = GetWindowPid(windowId);
 
             if (shouldRestore && !MovePhysicalCursor && targetPid > 0)
             {

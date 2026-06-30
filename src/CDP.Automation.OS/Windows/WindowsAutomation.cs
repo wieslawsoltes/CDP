@@ -225,6 +225,10 @@ public sealed partial class WindowsAutomation : IOsAutomation
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetCursorPos(int x, int y);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetForegroundWindow(IntPtr hWnd);
+
     public IReadOnlyList<OSWindow> GetWindows()
     {
         var list = new List<OSWindow>();
@@ -477,9 +481,8 @@ public sealed partial class WindowsAutomation : IOsAutomation
         return root;
     }
 
-    private SKRectI GetWindowBounds(string windowId)
+    private IntPtr GetWindowHandle(string windowId)
     {
-        SKRectI bounds = new SKRectI(0, 0, 0, 0);
         IntPtr hWnd = IntPtr.Zero;
 
         if (windowId.EndsWith("_fallback"))
@@ -502,6 +505,26 @@ public sealed partial class WindowsAutomation : IOsAutomation
                 hWnd = parsedHWnd;
             }
         }
+
+        if (hWnd == IntPtr.Zero)
+        {
+            var windows = GetWindows();
+            foreach (var w in windows)
+            {
+                if (w.Id == windowId && IntPtr.TryParse(w.Id, out var h))
+                {
+                    hWnd = h;
+                    break;
+                }
+            }
+        }
+        return hWnd;
+    }
+
+    private SKRectI GetWindowBounds(string windowId)
+    {
+        SKRectI bounds = new SKRectI(0, 0, 0, 0);
+        IntPtr hWnd = GetWindowHandle(windowId);
 
         if (hWnd != IntPtr.Zero)
         {
@@ -534,6 +557,12 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
         try
         {
+            IntPtr hWnd = GetWindowHandle(windowId);
+            if (hWnd != IntPtr.Zero)
+            {
+                SetForegroundWindow(hWnd);
+            }
+
             if (GetCursorPos(out originalPt))
             {
                 var bounds = GetWindowBounds(windowId);
