@@ -21,6 +21,24 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
     public bool MovePhysicalCursor { get; set; }
     public bool UsePeerAutomation { get; set; } = true;
+    public bool UseAccessibilityEvents { get; set; } = true;
+    private WindowsFocusChangedEventHandler? _focusHandler;
+
+    private sealed class WindowsFocusChangedEventHandler : IUIAutomationFocusChangedEventHandler
+    {
+        private readonly Action<IUIAutomationElement> _onFocusChanged;
+
+        public WindowsFocusChangedEventHandler(Action<IUIAutomationElement> onFocusChanged)
+        {
+            _onFocusChanged = onFocusChanged;
+        }
+
+        public int HandleFocusChangedEvent(IUIAutomationElement sender)
+        {
+            _onFocusChanged(sender);
+            return 0;
+        }
+    }
 
     public WindowsAutomation(ILogger? logger = null)
     {
@@ -113,6 +131,41 @@ public sealed partial class WindowsAutomation : IOsAutomation
         [PreserveSig] int GetFocusedElementBuildCache(IntPtr cacheRequest, out IUIAutomationElement element);
         [PreserveSig] int CreateTreeWalker(IUIAutomationCondition condition, out IUIAutomationTreeWalker walker);
         [PreserveSig] int GetControlViewWalker(out IUIAutomationTreeWalker walker);
+        [PreserveSig] int GetContentViewWalker(out IUIAutomationTreeWalker walker);
+        [PreserveSig] int GetRawViewWalker(out IUIAutomationTreeWalker walker);
+        [PreserveSig] int get_RawViewCondition(out IntPtr condition);
+        [PreserveSig] int get_ControlViewCondition(out IntPtr condition);
+        [PreserveSig] int get_ContentViewCondition(out IntPtr condition);
+        [PreserveSig] int CreateCacheRequest(out IntPtr cacheRequest);
+        [PreserveSig] int CreateTrueCondition(out IntPtr condition);
+        [PreserveSig] int CreateFalseCondition(out IntPtr condition);
+        [PreserveSig] int CreatePropertyCondition(int propertyId, object value, out IntPtr condition);
+        [PreserveSig] int CreatePropertyConditionEx(int propertyId, object value, int flags, out IntPtr condition);
+        [PreserveSig] int CreateAndCondition(IntPtr condition1, IntPtr condition2, out IntPtr condition);
+        [PreserveSig] int CreateAndConditionFromArray(IntPtr conditionsArray, out IntPtr condition);
+        [PreserveSig] int CreateAndConditionFromList(IntPtr conditionsList, out IntPtr condition);
+        [PreserveSig] int CreateOrCondition(IntPtr condition1, IntPtr condition2, out IntPtr condition);
+        [PreserveSig] int CreateOrConditionFromArray(IntPtr conditionsArray, out IntPtr condition);
+        [PreserveSig] int CreateOrConditionFromList(IntPtr conditionsList, out IntPtr condition);
+        [PreserveSig] int CreateNotCondition(IntPtr condition1, out IntPtr condition);
+        [PreserveSig] int AddAutomationEventHandler(int eventId, IUIAutomationElement element, int scope, IntPtr cacheRequest, IntPtr handler);
+        [PreserveSig] int RemoveAutomationEventHandler(int eventId, IUIAutomationElement element, IntPtr handler);
+        [PreserveSig] int AddPropertyChangedEventHandler(IUIAutomationElement element, int scope, IntPtr cacheRequest, IntPtr handler, IntPtr propertyIds);
+        [PreserveSig] int RemovePropertyChangedEventHandler(IUIAutomationElement element, IntPtr handler);
+        [PreserveSig] int AddStructureChangedEventHandler(IUIAutomationElement element, int scope, IntPtr cacheRequest, IntPtr handler);
+        [PreserveSig] int RemoveStructureChangedEventHandler(IUIAutomationElement element, IntPtr handler);
+        [PreserveSig] int AddFocusChangedEventHandler(IntPtr cacheRequest, IUIAutomationFocusChangedEventHandler handler);
+        [PreserveSig] int RemoveFocusChangedEventHandler(IUIAutomationFocusChangedEventHandler handler);
+        [PreserveSig] int RemoveAllEventHandlers();
+    }
+
+    [ComImport]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [Guid("c270f6f9-05c8-4e3a-8671-247de719f95f")]
+    private interface IUIAutomationFocusChangedEventHandler
+    {
+        [PreserveSig]
+        int HandleFocusChangedEvent(IUIAutomationElement sender);
     }
 
     [ComImport]
@@ -1225,61 +1278,100 @@ public sealed partial class WindowsAutomation : IOsAutomation
         return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
     }
 
-    public void StartInputCapture(string windowId, Action<double, double, string> onClick)
+    public void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent)
     {
         StopInputCapture();
 
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
 
-        _captureWindowId = windowId;
-        _inputCaptureCallback = onClick;
-
-        var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
-
-        _hookThread = new System.Threading.Thread(() =>
+        if (UseAccessibilityEvents)
         {
             try
             {
-                _hookThreadId = GetCurrentThreadId();
-                _mouseHookCallback = MouseHookCallback;
-                IntPtr hModule = GetModuleHandleW(null);
-                _mouseHookId = SetWindowsHookExW(14, _mouseHookCallback, hModule, 0); // WH_MOUSE_LL = 14
-
-                if (_mouseHookId == IntPtr.Zero)
+                _focusHandler = new WindowsFocusChangedEventHandler(sender =>
                 {
-                    tcs.SetResult(false);
-                    return;
-                }
+                    try
+                    {
+                        var node = BuildSingleNode(sender);
+                        onAccessibilityEvent("focus", node.Id, node.Text);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in focus changed handler");
+                    }
+                });
 
-                tcs.SetResult(true);
-
-                MSG msg;
-                while (GetMessageW(out msg, IntPtr.Zero, 0, 0) != 0)
-                {
-                    TranslateMessage(ref msg);
-                    DispatchMessageW(ref msg);
-                }
+                var automation = (IUIAutomation)new CUIAutomation();
+                automation.AddFocusChangedEventHandler(IntPtr.Zero, _focusHandler);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in Windows low-level mouse hook thread");
-                if (!tcs.Task.IsCompleted) tcs.SetResult(false);
+                _logger.LogError(ex, "Failed to register Windows UI Automation focus change event handler");
             }
-        });
-
-        _hookThread.IsBackground = true;
-        _hookThread.Start();
-        try
-        {
-            tcs.Task.Wait(500);
         }
-        catch {}
+        else
+        {
+            _captureWindowId = windowId;
+            _inputCaptureCallback = onClick;
+
+            var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
+
+            _hookThread = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    _hookThreadId = GetCurrentThreadId();
+                    _mouseHookCallback = MouseHookCallback;
+                    IntPtr hModule = GetModuleHandleW(null);
+                    _mouseHookId = SetWindowsHookExW(14, _mouseHookCallback, hModule, 0); // WH_MOUSE_LL = 14
+
+                    if (_mouseHookId == IntPtr.Zero)
+                    {
+                        tcs.SetResult(false);
+                        return;
+                    }
+
+                    tcs.SetResult(true);
+
+                    MSG msg;
+                    while (GetMessageW(out msg, IntPtr.Zero, 0, 0) != 0)
+                    {
+                        TranslateMessage(ref msg);
+                        DispatchMessageW(ref msg);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in Windows low-level mouse hook thread");
+                    if (!tcs.Task.IsCompleted) tcs.SetResult(false);
+                }
+            });
+
+            _hookThread.IsBackground = true;
+            _hookThread.Start();
+            try
+            {
+                tcs.Task.Wait(500);
+            }
+            catch {}
+        }
     }
 
     public void StopInputCapture()
     {
         _inputCaptureCallback = null;
         _captureWindowId = null;
+
+        if (_focusHandler != null)
+        {
+            try
+            {
+                var automation = (IUIAutomation)new CUIAutomation();
+                automation.RemoveFocusChangedEventHandler(_focusHandler);
+            }
+            catch {}
+            _focusHandler = null;
+        }
 
         if (_mouseHookId != IntPtr.Zero)
         {

@@ -7,6 +7,7 @@ public interface IOsAutomation
 {
     bool MovePhysicalCursor { get; set; }
     bool UsePeerAutomation { get; set; }
+    bool UseAccessibilityEvents { get; set; }
     IReadOnlyList<OSWindow> GetWindows();
     OSNode? GetElementTree(string windowId);
     void SimulateClick(string windowId, double x, double y);
@@ -19,6 +20,6 @@ public interface IOsAutomation
     byte[] CaptureWindow(string windowId);
     OSNode? GetFocusedElement(string windowId);
     bool HasScreenCapturePermission();
-    void StartInputCapture(string windowId, Action<double, double, string> onClick);
+    void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent);
     void StopInputCapture();
 }

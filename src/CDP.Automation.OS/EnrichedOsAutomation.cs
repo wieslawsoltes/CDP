@@ -81,6 +81,12 @@ public sealed class EnrichedOsAutomation : IOsAutomation
         set => _underlying.UsePeerAutomation = value;
     }
 
+    public bool UseAccessibilityEvents
+    {
+        get => _underlying.UseAccessibilityEvents;
+        set => _underlying.UseAccessibilityEvents = value;
+    }
+
     public OSNode? GetElementTree(string windowId) => _underlying.GetElementTree(windowId);
     public void SimulateClick(string windowId, double x, double y) => _underlying.SimulateClick(windowId, x, y);
     public void SimulateMouseMove(string windowId, double x, double y) => _underlying.SimulateMouseMove(windowId, x, y);
@@ -92,6 +98,6 @@ public sealed class EnrichedOsAutomation : IOsAutomation
     public byte[] CaptureWindow(string windowId) => _underlying.CaptureWindow(windowId);
     public OSNode? GetFocusedElement(string windowId) => _underlying.GetFocusedElement(windowId);
     public bool HasScreenCapturePermission() => _underlying.HasScreenCapturePermission();
-    public void StartInputCapture(string windowId, Action<double, double, string> onClick) => _underlying.StartInputCapture(windowId, onClick);
+    public void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent) => _underlying.StartInputCapture(windowId, onClick, onAccessibilityEvent);
     public void StopInputCapture() => _underlying.StopInputCapture();
 }

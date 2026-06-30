@@ -13,6 +13,7 @@ public sealed partial class LinuxAutomation : IOsAutomation
 
     public bool MovePhysicalCursor { get; set; }
     public bool UsePeerAutomation { get; set; } = true;
+    public bool UseAccessibilityEvents { get; set; } = true;
 
     public LinuxAutomation(ILogger? logger = null)
     {
@@ -372,7 +373,7 @@ public sealed partial class LinuxAutomation : IOsAutomation
         return true;
     }
 
-    public void StartInputCapture(string windowId, Action<double, double, string> onClick)
+    public void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent)
     {
     }
 

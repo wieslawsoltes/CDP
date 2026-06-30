@@ -849,6 +849,34 @@ public sealed class OsAutomationCdpSession : IDisposable
                     RaiseStepRecordedEvent("click", match.Id);
                 }
             }
+        }, (eventType, elementId, value) =>
+        {
+            if (_isSimulatingInput) return;
+            if (eventType == "focus")
+            {
+                if (elementId != _lastFocusedId)
+                {
+                    _lastFocusedId = elementId;
+                    _lastFocusedValue = value;
+                }
+            }
+            else if (eventType == "change")
+            {
+                if (elementId == _lastFocusedId)
+                {
+                    if (value != _lastFocusedValue)
+                    {
+                        _lastFocusedValue = value;
+                        RaiseStepRecordedEvent("change", elementId, value);
+                    }
+                }
+                else
+                {
+                    _lastFocusedId = elementId;
+                    _lastFocusedValue = value;
+                    RaiseStepRecordedEvent("change", elementId, value);
+                }
+            }
         });
 
         _ = Task.Run(async () =>

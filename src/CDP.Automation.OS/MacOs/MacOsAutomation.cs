@@ -14,6 +14,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     public bool MovePhysicalCursor { get; set; }
     public bool UsePeerAutomation { get; set; } = true;
+    public bool UseAccessibilityEvents { get; set; } = true;
 
     private static readonly IntPtr _kCFBooleanTrue;
 
@@ -144,6 +145,21 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
     private static partial int AXUIElementPerformAction(IntPtr element, IntPtr action);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void AXObserverCallback(IntPtr observer, IntPtr element, IntPtr notification, IntPtr refcon);
+
+    [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
+    private static partial int AXObserverCreate(int pid, AXObserverCallback callback, out IntPtr observer);
+
+    [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
+    private static partial int AXObserverAddNotification(IntPtr observer, IntPtr element, IntPtr notification, IntPtr refcon);
+
+    [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
+    private static partial int AXObserverRemoveNotification(IntPtr observer, IntPtr element, IntPtr notification);
+
+    [LibraryImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
+    private static partial IntPtr AXObserverGetRunLoopSource(IntPtr observer);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate IntPtr CGEventTapCallBack(IntPtr tapProxy, uint eventType, IntPtr theEvent, IntPtr refcon);
@@ -1435,57 +1451,135 @@ public sealed partial class MacOsAutomation : IOsAutomation
     private System.Threading.Thread? _tapThread = null;
     private CGEventTapCallBack? _tapCallback = null;
 
-    public void StartInputCapture(string windowId, Action<double, double, string> onClick)
+    private IntPtr _observer = IntPtr.Zero;
+    private AXObserverCallback? _observerCallback = null;
+    private IntPtr _observerRunLoopSource = IntPtr.Zero;
+    private IntPtr _appElement = IntPtr.Zero;
+
+    public void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent)
     {
         StopInputCapture();
 
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
 
-        _tapCallback = (tapProxy, eventType, theEvent, refcon) =>
+        if (UseAccessibilityEvents)
         {
-            if (eventType == 1) // kCGEventLeftMouseDown
+            int pid = GetWindowPid(windowId);
+            if (pid <= 0) return;
+
+            _appElement = AXUIElementCreateApplication(pid);
+            if (_appElement == IntPtr.Zero) return;
+
+            _observerCallback = (observer, element, notification, refcon) =>
             {
-                CGPoint pt = CGEventGetLocation(theEvent);
-                var bounds = GetWindowBounds(windowId);
-                if (bounds.Width > 0 && bounds.Height > 0)
+                try
                 {
-                    if (pt.X >= bounds.Left && pt.X <= bounds.Right &&
-                        pt.Y >= bounds.Top && pt.Y <= bounds.Bottom)
+                    string notifStr = CFTypeToString(notification) ?? "";
+                    string role = CFTypeToString(GetAttribute(element, "AXRole")) ?? "";
+                    string id = CFTypeToString(GetAttribute(element, "AXIdentifier")) ?? "";
+                    if (string.IsNullOrEmpty(id))
                     {
-                        onClick(pt.X, pt.Y, "left");
+                        id = CFTypeToString(GetAttribute(element, "AXTitle")) ?? "";
+                    }
+                    if (string.IsNullOrEmpty(id))
+                    {
+                        id = "focused_element";
+                    }
+                    string text = CFTypeToString(GetAttribute(element, "AXValue")) ?? "";
+
+                    if (notifStr == "AXFocusedUIElementChanged")
+                    {
+                        onAccessibilityEvent("focus", id, text);
+                    }
+                    else if (notifStr == "AXValueChanged")
+                    {
+                        onAccessibilityEvent("change", id, text);
                     }
                 }
-            }
-            return theEvent;
-        };
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in AXObserver callback");
+                }
+            };
 
-        _tapThread = new System.Threading.Thread(() =>
-        {
-            ulong mask = (1UL << 1); // LeftMouseDown
-            _tapPort = CGEventTapCreate(0, 0, 1, mask, _tapCallback, IntPtr.Zero); // tap = 0 (kCGHIDEventTap), place = 0 (kCGHeadInsertEventTap)
-            if (_tapPort == IntPtr.Zero)
+            int err = AXObserverCreate(pid, _observerCallback, out _observer);
+            if (err == 0 && _observer != IntPtr.Zero)
             {
-                _logger.LogWarning("Failed to create macOS global CGEventTap. Accessibility permissions might be missing in System Settings -> Privacy & Security -> Accessibility.");
-            }
-            else
-            {
-                _runLoopSource = CFMachPortCreateRunLoopSource(IntPtr.Zero, _tapPort, 0);
-                if (_runLoopSource != IntPtr.Zero)
+                IntPtr focusNotif = CreateCFString("AXFocusedUIElementChanged");
+                IntPtr valueNotif = CreateCFString("AXValueChanged");
+                AXObserverAddNotification(_observer, _appElement, focusNotif, IntPtr.Zero);
+                AXObserverAddNotification(_observer, _appElement, valueNotif, IntPtr.Zero);
+                CFRelease(focusNotif);
+                CFRelease(valueNotif);
+
+                _observerRunLoopSource = AXObserverGetRunLoopSource(_observer);
+                _tapThread = new System.Threading.Thread(() =>
                 {
                     _runLoop = CFRunLoopGetCurrent();
                     IntPtr modeStr = CreateCFString("kCFRunLoopCommonModes");
                     if (modeStr != IntPtr.Zero)
                     {
-                        CFRunLoopAddSource(_runLoop, _runLoopSource, modeStr);
+                        CFRunLoopAddSource(_runLoop, _observerRunLoopSource, modeStr);
                         CFRelease(modeStr);
                     }
-                    CGEventTapEnable(_tapPort, true);
                     CFRunLoopRun();
-                }
+                });
+                _tapThread.IsBackground = true;
+                _tapThread.Start();
             }
-        });
-        _tapThread.IsBackground = true;
-        _tapThread.Start();
+            else
+            {
+                _logger.LogWarning("Failed to create macOS AXObserver for PID {Pid}.", pid);
+            }
+        }
+        else
+        {
+            _tapCallback = (tapProxy, eventType, theEvent, refcon) =>
+            {
+                if (eventType == 1) // kCGEventLeftMouseDown
+                {
+                    CGPoint pt = CGEventGetLocation(theEvent);
+                    var bounds = GetWindowBounds(windowId);
+                    if (bounds.Width > 0 && bounds.Height > 0)
+                    {
+                        if (pt.X >= bounds.Left && pt.X <= bounds.Right &&
+                            pt.Y >= bounds.Top && pt.Y <= bounds.Bottom)
+                        {
+                            onClick(pt.X, pt.Y, "left");
+                        }
+                    }
+                }
+                return theEvent;
+            };
+
+            _tapThread = new System.Threading.Thread(() =>
+            {
+                ulong mask = (1UL << 1); // LeftMouseDown
+                _tapPort = CGEventTapCreate(0, 0, 1, mask, _tapCallback, IntPtr.Zero); // tap = 0 (kCGHIDEventTap), place = 0 (kCGHeadInsertEventTap)
+                if (_tapPort == IntPtr.Zero)
+                {
+                    _logger.LogWarning("Failed to create macOS global CGEventTap. Accessibility permissions might be missing in System Settings -> Privacy & Security -> Accessibility.");
+                }
+                else
+                {
+                    _runLoopSource = CFMachPortCreateRunLoopSource(IntPtr.Zero, _tapPort, 0);
+                    if (_runLoopSource != IntPtr.Zero)
+                    {
+                        _runLoop = CFRunLoopGetCurrent();
+                        IntPtr modeStr = CreateCFString("kCFRunLoopCommonModes");
+                        if (modeStr != IntPtr.Zero)
+                        {
+                            CFRunLoopAddSource(_runLoop, _runLoopSource, modeStr);
+                            CFRelease(modeStr);
+                        }
+                        CGEventTapEnable(_tapPort, true);
+                        CFRunLoopRun();
+                    }
+                }
+            });
+            _tapThread.IsBackground = true;
+            _tapThread.Start();
+        }
     }
 
     public void StopInputCapture()
@@ -1495,6 +1589,32 @@ public sealed partial class MacOsAutomation : IOsAutomation
             CFRunLoopStop(_runLoop);
             _runLoop = IntPtr.Zero;
         }
+
+        if (_observer != IntPtr.Zero)
+        {
+            if (_appElement != IntPtr.Zero)
+            {
+                try
+                {
+                    IntPtr focusNotif = CreateCFString("AXFocusedUIElementChanged");
+                    IntPtr valueNotif = CreateCFString("AXValueChanged");
+                    AXObserverRemoveNotification(_observer, _appElement, focusNotif);
+                    AXObserverRemoveNotification(_observer, _appElement, valueNotif);
+                    CFRelease(focusNotif);
+                    CFRelease(valueNotif);
+                }
+                catch {}
+            }
+            CFRelease(_observer);
+            _observer = IntPtr.Zero;
+        }
+
+        if (_appElement != IntPtr.Zero)
+        {
+            CFRelease(_appElement);
+            _appElement = IntPtr.Zero;
+        }
+
         if (_tapPort != IntPtr.Zero)
         {
             CFRelease(_tapPort);
@@ -1505,8 +1625,11 @@ public sealed partial class MacOsAutomation : IOsAutomation
             CFRelease(_runLoopSource);
             _runLoopSource = IntPtr.Zero;
         }
+
         _tapThread = null;
         _tapCallback = null;
+        _observerCallback = null;
+        _observerRunLoopSource = IntPtr.Zero;
     }
 
     private bool TryAccessibilityPress(int pid, double absoluteX, double absoluteY)

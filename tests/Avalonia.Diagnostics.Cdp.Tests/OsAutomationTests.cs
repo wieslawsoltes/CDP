@@ -353,7 +353,7 @@ public class OsAutomationTests
         automation.StartInputCapture(GetTargetWindowId(), (x, y, btn) =>
         {
             callbackInvoked = true;
-        });
+        }, (eventType, elementId, value) => {});
 
         // Verify we can call stop without crashing
         automation.StopInputCapture();

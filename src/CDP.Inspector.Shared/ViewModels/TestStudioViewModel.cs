@@ -523,6 +523,24 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    private bool _useAccessibilityEvents = true;
+
+    public bool UseAccessibilityEvents
+    {
+        get => _useAccessibilityEvents;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _useAccessibilityEvents, value))
+            {
+                try
+                {
+                    CDP.Automation.OS.OSAutomationService.Instance.UseAccessibilityEvents = value;
+                }
+                catch {}
+            }
+        }
+    }
+
     public ConnectionViewModel? Connection { get; set; }
 
     public Func<Task<string?>>? FilePickerHandler { get; set; }
@@ -6050,6 +6068,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         root["reportIncludeNetworkDetails"] = ReportIncludeNetworkDetails;
         root["movePhysicalCursor"] = MovePhysicalCursor;
         root["usePeerAutomation"] = UsePeerAutomation;
+        root["useAccessibilityEvents"] = UseAccessibilityEvents;
         return root;
     }
 
@@ -6108,6 +6127,10 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("usePeerAutomation", out var usePeerNode) && usePeerNode != null)
         {
             UsePeerAutomation = (bool?)usePeerNode ?? true;
+        }
+        if (json.TryGetPropertyValue("useAccessibilityEvents", out var useAccNode) && useAccNode != null)
+        {
+            UseAccessibilityEvents = (bool?)useAccNode ?? true;
         }
     }
 
