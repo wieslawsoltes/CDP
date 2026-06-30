@@ -1284,13 +1284,14 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
             if (_cdpService.IsConnected)
             {
-                try
+                foreach (var provider in TelemetryRegistry.Providers)
                 {
-                    await _cdpService.SendCommandAsync("Performance.enable");
-                    await _cdpService.SendCommandAsync("Memory.enable");
-                    await _cdpService.SendCommandAsync("Network.enable");
+                    try
+                    {
+                        await provider.InitializeAsync(_cdpService);
+                    }
+                    catch { }
                 }
-                catch { }
             }
 
             if (IsRecordVideoEnabled && _cdpService.IsConnected)
@@ -4559,15 +4560,22 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                         else if (name == "FPS") fps = val;
                     }
                     var relTimeMs = (DateTime.UtcNow - _playbackStartTime).TotalMilliseconds;
+                    var sample = new RunMetricSample
+                    {
+                        RelativeTimeMs = relTimeMs,
+                        CpuUsage = cpu,
+                        MemoryJsHeapUsed = memory,
+                        Fps = fps
+                    };
+
                     lock (_runMetricsSamples)
                     {
-                        _runMetricsSamples.Add(new RunMetricSample
-                        {
-                            RelativeTimeMs = relTimeMs,
-                            CpuUsage = cpu,
-                            MemoryJsHeapUsed = memory,
-                            Fps = fps
-                        });
+                        _runMetricsSamples.Add(sample);
+                    }
+
+                    if (TelemetryRegistry.Providers.FirstOrDefault(p => p.Id == "Performance") is PerformanceTelemetryProvider perfProv)
+                    {
+                        perfProv.AddMetricSample(sample);
                     }
                 }
             }
@@ -4585,21 +4593,29 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     string method = request["method"]?.GetValue<string>() ?? "GET";
                     double relStartMs = (DateTime.UtcNow - _playbackStartTime).TotalMilliseconds;
 
+                    var reqItem = new NetworkReportItem
+                    {
+                        RequestId = requestId,
+                        Url = url,
+                        Method = method,
+                        Status = "Pending",
+                        RelativeStartMs = relStartMs,
+                        DurationMs = 0,
+                        EncodedDataLength = 0
+                    };
+
                     lock (_runNetworkRequests)
                     {
                         if (!_runNetworkRequests.Any(r => r.RequestId == requestId))
                         {
-                            _runNetworkRequests.Add(new NetworkReportItem
-                            {
-                                RequestId = requestId,
-                                Url = url,
-                                Method = method,
-                                Status = "Pending",
-                                RelativeStartMs = relStartMs,
-                                DurationMs = 0,
-                                EncodedDataLength = 0
-                            });
+                            _runNetworkRequests.Add(reqItem);
                         }
+                    }
+
+                    if (TelemetryRegistry.Providers.FirstOrDefault(p => p.Id == "Network") is NetworkTelemetryProvider netProv)
+                    {
+                        netProv.RecordRequest(reqItem);
+                        netProv.IncrementStepCount();
                     }
 
                     lock (_networkLock)
@@ -4629,6 +4645,11 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                             existing.Status = $"{status} {statusText}";
                         }
                     }
+
+                    if (TelemetryRegistry.Providers.FirstOrDefault(p => p.Id == "Network") is NetworkTelemetryProvider netProv)
+                    {
+                        netProv.UpdateResponse(requestId, $"{status} {statusText}");
+                    }
                 }
             }
             catch { }
@@ -4641,6 +4662,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 var lenNode = e.Params?["encodedDataLength"];
                 long length = lenNode?.GetValue<long>() ?? 0;
 
+                double dur = 0;
                 lock (_runNetworkRequests)
                 {
                     var existing = _runNetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
@@ -4649,11 +4671,18 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                         existing.EncodedDataLength = length;
                         existing.DurationMs = (DateTime.UtcNow - _playbackStartTime).TotalMilliseconds - existing.RelativeStartMs;
                         if (existing.DurationMs < 0) existing.DurationMs = 0;
+                        dur = existing.DurationMs;
                         if (existing.Status == "Pending")
                         {
                             existing.Status = "Finished";
                         }
                     }
+                }
+
+                if (TelemetryRegistry.Providers.FirstOrDefault(p => p.Id == "Network") is NetworkTelemetryProvider netProv)
+                {
+                    netProv.FinishLoading(requestId, length, dur);
+                    netProv.AddStepBytes(length);
                 }
 
                 lock (_networkLock)
@@ -4770,6 +4799,31 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 DomNodes = domNodes,
                 DomDocuments = domDocs
             };
+
+            foreach (var provider in TelemetryRegistry.Providers)
+            {
+                try
+                {
+                    if (provider is PerformanceTelemetryProvider perfProv)
+                    {
+                        perfProv.SetStepMetrics(cpu, jsHeapUsed, jsHeapTotal, fps, domNodes, domDocs);
+                    }
+                    else if (provider is NetworkTelemetryProvider netProv)
+                    {
+                        netProv.SetStepNetwork(stepNetReqs, stepNetBytes);
+                    }
+
+                    var stepData = provider.CaptureStepData();
+                    if (stepData != null)
+                    {
+                        // Add step relativeStartMs/durationMs for Skia/HTML waterfall alignment
+                        stepData["RelativeStartMs"] = relativeStartMs;
+                        stepData["DurationMs"] = durationMs;
+                        reportItem.Telemetry[provider.Id] = stepData;
+                    }
+                }
+                catch { }
+            }
 
             lock (_stepReports)
             {
@@ -4946,6 +5000,19 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 StartTime = _playbackStartTime,
                 EndTime = endTime
             };
+
+            foreach (var provider in TelemetryRegistry.Providers)
+            {
+                try
+                {
+                    var runData = provider.CaptureRunData();
+                    if (runData != null)
+                    {
+                        reportData.Telemetry[provider.Id] = runData;
+                    }
+                }
+                catch { }
+            }
             
             TestStudioReportGenerator.GenerateHtmlReport(
                 outputFolder,
