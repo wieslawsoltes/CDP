@@ -10,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Rendering.Composition;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CDP.Editor.Splits.Models;
 
@@ -80,6 +81,10 @@ public class SuperSplitBox : ContentControl
     private readonly Border _mainBorder;
     private readonly Border _headerPanel;
     private BoxNode? _currentBoxNode;
+    private readonly StackPanel _tabsPanel;
+    private readonly ScrollViewer _tabsScrollViewer;
+    private readonly Button _btnScrollLeft;
+    private readonly Button _btnScrollRight;
 
     public SuperSplitBox()
     {
@@ -99,12 +104,108 @@ public class SuperSplitBox : ContentControl
             CornerRadius = new CornerRadius(8, 8, 0, 0)
         };
 
-        var tabsPanel = new StackPanel
+        _tabsPanel = new StackPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
         };
-        _headerPanel.Child = tabsPanel;
+
+        _tabsScrollViewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Content = _tabsPanel,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
+        };
+
+        _tabsScrollViewer.PointerWheelChanged += (sender, e) =>
+        {
+            double delta = e.Delta.Y * 40;
+            _tabsScrollViewer.Offset = new Point(Math.Max(0, Math.Min(_tabsScrollViewer.Offset.X - delta, _tabsScrollViewer.Extent.Width - _tabsScrollViewer.Viewport.Width)), 0);
+            e.Handled = true;
+        };
+
+        _btnScrollLeft = new Button
+        {
+            Width = 20,
+            Height = 32,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
+            Background = Brush.Parse("#202124"),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            IsVisible = false
+        };
+        var leftIcon = new PathIcon
+        {
+            Width = 10,
+            Height = 10,
+            Foreground = Brush.Parse("#8ab4f8")
+        };
+        if (Application.Current != null && Application.Current.TryFindResource("ChevronLeftIcon", out var leftRes) && leftRes is Geometry leftGeom)
+        {
+            leftIcon.Data = leftGeom;
+        }
+        _btnScrollLeft.Content = leftIcon;
+
+        _btnScrollRight = new Button
+        {
+            Width = 20,
+            Height = 32,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
+            Background = Brush.Parse("#202124"),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            IsVisible = false
+        };
+        var rightIcon = new PathIcon
+        {
+            Width = 10,
+            Height = 10,
+            Foreground = Brush.Parse("#8ab4f8")
+        };
+        if (Application.Current != null && Application.Current.TryFindResource("ChevronRightIcon", out var rightRes) && rightRes is Geometry rightGeom)
+        {
+            rightIcon.Data = rightGeom;
+        }
+        _btnScrollRight.Content = rightIcon;
+
+        _btnScrollLeft.Click += (sender, e) =>
+        {
+            double newOffset = Math.Max(0, _tabsScrollViewer.Offset.X - 100);
+            _tabsScrollViewer.Offset = new Point(newOffset, 0);
+        };
+
+        _btnScrollRight.Click += (sender, e) =>
+        {
+            double newOffset = Math.Min(_tabsScrollViewer.Extent.Width - _tabsScrollViewer.Viewport.Width, _tabsScrollViewer.Offset.X + 100);
+            _tabsScrollViewer.Offset = new Point(newOffset, 0);
+        };
+
+        _tabsScrollViewer.PropertyChanged += (sender, e) =>
+        {
+            if (e.Property == ScrollViewer.OffsetProperty ||
+                e.Property == ScrollViewer.ExtentProperty ||
+                e.Property == ScrollViewer.ViewportProperty)
+            {
+                UpdateScrollButtonsVisibility();
+            }
+        };
+
+        var headerLayoutGrid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto, *, Auto"),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
+        };
+
+        Grid.SetColumn(_btnScrollLeft, 0);
+        Grid.SetColumn(_tabsScrollViewer, 1);
+        Grid.SetColumn(_btnScrollRight, 2);
+
+        headerLayoutGrid.Children.Add(_btnScrollLeft);
+        headerLayoutGrid.Children.Add(_tabsScrollViewer);
+        headerLayoutGrid.Children.Add(_btnScrollRight);
+
+        _headerPanel.Child = headerLayoutGrid;
 
         Grid.SetRow(_headerPanel, 0);
         grid.Children.Add(_headerPanel);
@@ -213,10 +314,7 @@ public class SuperSplitBox : ContentControl
 
     private void RebuildHeaderTabs()
     {
-        var tabsPanel = _headerPanel.Child as StackPanel;
-        if (tabsPanel == null) return;
-
-        tabsPanel.Children.Clear();
+        _tabsPanel.Children.Clear();
 
         if (DataContext is BoxNode boxNode)
         {
@@ -367,7 +465,49 @@ public class SuperSplitBox : ContentControl
                     args.Handled = true;
                 };
 
-                tabsPanel.Children.Add(tabBorder);
+                _tabsPanel.Children.Add(tabBorder);
+            }
+
+            if (boxNode.ActiveTab != null)
+            {
+                var activeTab = boxNode.ActiveTab;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    int activeIdx = boxNode.Tabs.IndexOf(activeTab);
+                    if (activeIdx >= 0 && activeIdx < _tabsPanel.Children.Count)
+                    {
+                        var targetControl = _tabsPanel.Children[activeIdx] as Control;
+                        if (targetControl != null)
+                        {
+                            var transform = targetControl.TransformToVisual(_tabsPanel);
+                            if (transform.HasValue)
+                            {
+                                var relativePoint = new Point(0, 0).Transform(transform.Value);
+
+                                double viewLeft = _tabsScrollViewer.Offset.X;
+                                double viewRight = viewLeft + _tabsScrollViewer.Viewport.Width;
+
+                                double tabLeft = relativePoint.X;
+                                double tabRight = tabLeft + targetControl.Bounds.Width;
+
+                                if (tabLeft < viewLeft)
+                                {
+                                    _tabsScrollViewer.Offset = new Point(Math.Max(0, tabLeft - 20), 0);
+                                }
+                                else if (tabRight > viewRight)
+                                {
+                                    double targetOffset = tabRight - _tabsScrollViewer.Viewport.Width + 20;
+                                    _tabsScrollViewer.Offset = new Point(Math.Min(_tabsScrollViewer.Extent.Width - _tabsScrollViewer.Viewport.Width, targetOffset), 0);
+                                }
+                            }
+                        }
+                    }
+                    UpdateScrollButtonsVisibility();
+                }, DispatcherPriority.Render);
+            }
+            else
+            {
+                UpdateScrollButtonsVisibility();
             }
         }
     }
@@ -375,10 +515,29 @@ public class SuperSplitBox : ContentControl
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
+        UpdateScrollButtonsVisibility();
         var visual = ElementComposition.GetElementVisual(this);
         if (visual != null)
         {
             visual.CenterPoint = new Vector3((float)e.NewSize.Width / 2, (float)e.NewSize.Height / 2, 0);
+        }
+    }
+
+    private void UpdateScrollButtonsVisibility()
+    {
+        double offset = _tabsScrollViewer.Offset.X;
+        double extent = _tabsScrollViewer.Extent.Width;
+        double viewport = _tabsScrollViewer.Viewport.Width;
+
+        if (extent <= viewport)
+        {
+            _btnScrollLeft.IsVisible = false;
+            _btnScrollRight.IsVisible = false;
+        }
+        else
+        {
+            _btnScrollLeft.IsVisible = offset > 0.1;
+            _btnScrollRight.IsVisible = offset < (extent - viewport - 0.1);
         }
     }
 
