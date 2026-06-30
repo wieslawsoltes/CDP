@@ -95,16 +95,25 @@ graph TD
 
 This design intercepts the `os://` connection scheme in `CdpService` to bypass network sockets entirely, providing high-performance, low-allocation UI tree query resolution (`DOM.getDocument`, `DOM.querySelector`), coordinate box calculations (`DOM.getBoxModel`), raw mouse/keyboard injection (`Input`), and displayed window capturing (`Page.captureScreenshot`).
 
-## macOS Accessibility & Screen Recording Permissions
+## macOS/Windows OS Automation Permissions & Layout Notes
 
-When utilizing **OS Automation Mode (`os://`)** on macOS, CoreGraphics and Accessibility APIs require explicit OS-level permissions to inspect visual trees, simulate inputs, and capture target window screenshots.
+When utilizing **OS Automation Mode (`os://`)** on macOS/Windows, CoreGraphics, UIAutomation, and low-level Input/Accessibility APIs require explicit OS-level permissions to inspect visual trees, simulate inputs, capture target window screenshots, and record native input event taps.
 
-### 1. Accessibility Permission
-To query the UI visual tree of other applications, retrieve elements, and simulate keyboard/mouse inputs:
-- Go to **System Settings** -> **Privacy & Security** -> **Accessibility**.
-- Enable permission for your terminal app (e.g., **Terminal**, **iTerm**), IDE (e.g., **VS Code**, **Rider**), or the runner executable.
+### 1. Accessibility & Input Permissions
+To query the UI visual tree of other applications, retrieve elements, simulate keyboard/mouse inputs, and capture global native pointer taps:
+- **macOS**:
+  - Go to **System Settings** -> **Privacy & Security** -> **Accessibility** (and **Input Monitoring** if required).
+  - Enable permission for your terminal app (e.g., **Terminal**, **iTerm**), IDE (e.g., **VS Code**, **Rider**), or the runner executable.
+  - > [!NOTE]
+    > On macOS/Windows, global native event taps require elevated Accessibility/Input Monitoring permissions. Without them, native mouse taps are skipped, and the inspector falls back to polling focus changes to log click events.
+- **Windows**:
+  - Ensure the executing process runs with sufficient privileges to interact with other desktop windows under User Account Control (UAC).
 
-### 2. Screen Recording Permission
+### 2. Layout & Workspace Panel Navigation
+- **Split Panels Tab Bar**:
+  - In the split panels tab items panel, scrolling support via mouse wheel is supported. The scrollbar is hidden, and Left/Right scroll navigation buttons are shown dynamically on the sides of the tab bar when the tabs overflow.
+
+### 3. Screen Recording Permission (macOS)
 To capture window screenshots and stream real-time screencast frames to the Simulation Preview pane:
 - Go to **System Settings** -> **Privacy & Security** -> **Screen Recording**.
 - Enable permission for your terminal app (e.g., **Terminal**, **iTerm**) or IDE/VS Code.
