@@ -67,6 +67,52 @@ All interactions with Avalonia UI visual elements are thread-safe, marshalling o
 
 ---
 
+## OS Automation Architecture (CDP Emulation)
+
+When a target application does not have a native CDP server enabled, the inspector can connect to applications using native operating system automation and accessibility APIs (e.g. ApplicationServices/AXUIElement on macOS, UIAutomation on Windows, and X11/libX11 on Linux). The inspector emulates the Chrome DevTools Protocol in-process, translating CDP domains transparently.
+
+```mermaid
+graph TD
+    subgraph CDP Inspector App
+        ConnectionViewModel --> ICdpService
+        CdpService[CdpService Facade] -->|os:// host| OsAutomationCdpSession
+        CdpService -->|http/ws host| ClientWebSocket
+    end
+    
+    subgraph CDP.Automation.OS
+        OsAutomationCdpSession --> OSAutomationService
+        OSAutomationService -->|macOS| MacOsAutomation
+        OSAutomationService -->|Windows| WindowsAutomation
+        OSAutomationService -->|Linux| LinuxAutomation
+    end
+    
+    subgraph Native Operating System
+        MacOsAutomation -->|CoreGraphics/AXUIElement| macOS[macOS Accessibility]
+        WindowsAutomation -->|UIAutomationCore/Win32| Windows[Windows UIA]
+        LinuxAutomation -->|X11/libX11| Linux[Linux X11]
+    end
+```
+
+This design intercepts the `os://` connection scheme in `CdpService` to bypass network sockets entirely, providing high-performance, low-allocation UI tree query resolution (`DOM.getDocument`, `DOM.querySelector`), coordinate box calculations (`DOM.getBoxModel`), raw mouse/keyboard injection (`Input`), and displayed window capturing (`Page.captureScreenshot`).
+
+## macOS Accessibility & Screen Recording Permissions
+
+When utilizing **OS Automation Mode (`os://`)** on macOS, CoreGraphics and Accessibility APIs require explicit OS-level permissions to inspect visual trees, simulate inputs, and capture target window screenshots.
+
+### 1. Accessibility Permission
+To query the UI visual tree of other applications, retrieve elements, and simulate keyboard/mouse inputs:
+- Go to **System Settings** -> **Privacy & Security** -> **Accessibility**.
+- Enable permission for your terminal app (e.g., **Terminal**, **iTerm**), IDE (e.g., **VS Code**, **Rider**), or the runner executable.
+
+### 2. Screen Recording Permission
+To capture window screenshots and stream real-time screencast frames to the Simulation Preview pane:
+- Go to **System Settings** -> **Privacy & Security** -> **Screen Recording**.
+- Enable permission for your terminal app (e.g., **Terminal**, **iTerm**) or IDE/VS Code.
+- > [!IMPORTANT]
+  > **You must completely restart** your terminal, iTerm, or IDE after granting these permissions for the changes to take effect. If you run the inspector or target app before restarting, macOS will silently deny access, resulting in blank grey boxes, wallpapers, or incorrect window composite crops.
+
+---
+
 ## Getting Started
 
 ### Add Reference
