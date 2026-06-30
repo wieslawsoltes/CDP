@@ -4,6 +4,8 @@ This library implements server-side support for the **Chrome DevTools Protocol (
 
 By embedding a lightweight HTTP and WebSocket server inside an Avalonia application, it enables automated testing, live inspection, selector querying, layout highlighting, input simulation, and runtime scripting from standard browser automation tools (like **Playwright**, **Puppeteer**, **Chrome DevTools**, and **AI Coding Agents**).
 
+<img width="3824" height="2318" alt="image" src="https://github.com/user-attachments/assets/3b9d860d-fc57-421c-b947-742c0f9f70e9" />
+
 ## NuGet Packages
 
 | Package Name | Target | Version | Downloads |
