@@ -253,7 +253,25 @@
                     <!-- Checkboxes -->
                     <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                         <CheckBox Name="chkTestStudioRecordVideo" Content="Record Video" IsChecked="{Binding Recorder.TestStudio.IsRecordVideoEnabled}" FontSize="11" Margin="0,0,20,0"/>
-                        <CheckBox Name="chkTestStudioGenerateReports" Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0,0,20,0"/>
+                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,20,0">
+                            <CheckBox Name="chkTestStudioGenerateReports" Content="Generate Reports" IsChecked="{Binding Recorder.TestStudio.IsGenerateReportEnabled}" FontSize="11" Margin="0"/>
+                            <Button Name="btnConfigureReports" Padding="4" VerticalAlignment="Center" ToolTip.Tip="Configure Report Options" Background="Transparent" BorderThickness="0">
+                                <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                        <Border Width="280" Padding="12" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                            <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto">
+                                                <TextBlock Grid.Row="0" Text="Report Options" FontWeight="Bold" FontSize="12" Foreground="White" Margin="0,0,0,10"/>
+                                                <CheckBox Grid.Row="1" Content="Include Screenshots" IsChecked="{Binding Recorder.TestStudio.ReportIncludeScreenshots, Mode=TwoWay}" FontSize="11" Margin="0,0,0,6"/>
+                                                <CheckBox Grid.Row="2" Content="Include Performance Charts" IsChecked="{Binding Recorder.TestStudio.ReportIncludeCharts, Mode=TwoWay}" FontSize="11" Margin="0,0,0,6"/>
+                                                <CheckBox Grid.Row="3" Content="Include Metrics Table" IsChecked="{Binding Recorder.TestStudio.ReportIncludeMetricsTable, Mode=TwoWay}" FontSize="11" Margin="0,0,0,6"/>
+                                                <CheckBox Grid.Row="4" Content="Include Network Details" IsChecked="{Binding Recorder.TestStudio.ReportIncludeNetworkDetails, Mode=TwoWay}" FontSize="11" Margin="0"/>
+                                            </Grid>
+                                        </Border>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,20,0">
                             <CheckBox Name="chkTestStudioAutoAssertion" Content="Auto Assertions" IsChecked="{Binding Recorder.TestStudio.IsAutoAssertionEnabled}" FontSize="11" Margin="0"/>
                             <Button Name="btnConfigureAutoAssertions" Padding="4" VerticalAlignment="Center" ToolTip.Tip="Configure Auto Assertions" Background="Transparent" BorderThickness="0">
