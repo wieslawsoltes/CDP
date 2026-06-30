@@ -357,19 +357,16 @@ public class RecorderViewModel : ViewModelBase
             if (!IsRecording)
             {
                 bool isOsSession = _cdpService.ConnectedHost != null && _cdpService.ConnectedHost.StartsWith("os://", StringComparison.OrdinalIgnoreCase);
-                if (isOsSession)
+                var mode = _useAutomationProvider?.Invoke() == true ? "automation" : "dom";
+                try
                 {
-                    IsClientSideRecording = true;
-                    ClearData(resetRecordingState: false);
-                }
-                else
-                {
-                    var mode = _useAutomationProvider?.Invoke() == true ? "automation" : "dom";
-                    try
+                    await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
+                    IsClientSideRecording = isOsSession;
+                    if (isOsSession)
                     {
-                        await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
-                        IsClientSideRecording = false;
+                        ClearData(resetRecordingState: false);
                     }
+                }
                     catch (Exception ex) when (ex.Message.Contains("method") || ex.Message.Contains("not found") || ex.Message.Contains("not implemented") || ex.Message.Contains("Recorder"))
                     {
                         Console.WriteLine("Recorder domain not supported by target. Falling back to client-side simulation recording.");
@@ -378,7 +375,6 @@ public class RecorderViewModel : ViewModelBase
                         // Emit initial steps locally
                         ClearData(resetRecordingState: false);
                     }
-                }
 
                 if (IsClientSideRecording)
                 {
@@ -405,9 +401,14 @@ public class RecorderViewModel : ViewModelBase
             }
             else
             {
-                if (!IsClientSideRecording)
+                bool isOsSession = _cdpService.ConnectedHost != null && _cdpService.ConnectedHost.StartsWith("os://", StringComparison.OrdinalIgnoreCase);
+                if (!IsClientSideRecording || isOsSession)
                 {
-                    await _cdpService.SendCommandAsync("Recorder.stop");
+                    try
+                    {
+                        await _cdpService.SendCommandAsync("Recorder.stop");
+                    }
+                    catch {}
                 }
                 IsRecording = false;
                 IsClientSideRecording = false;

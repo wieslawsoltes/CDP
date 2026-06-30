@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using SkiaSharp;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CDP.Automation.OS.Windows;
 
+[SupportedOSPlatform("windows")]
 public sealed partial class WindowsAutomation : IOsAutomation
 {
     private readonly ILogger _logger;
@@ -162,11 +164,12 @@ public sealed partial class WindowsAutomation : IOsAutomation
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IUIAutomationTreeWalker
     {
-        [PreserveSig]
-        int GetFirstChildElement(IUIAutomationElement element, out IUIAutomationElement firstChild);
-
-        [PreserveSig]
-        int GetNextSiblingElement(IUIAutomationElement element, out IUIAutomationElement nextSibling);
+        [PreserveSig] int GetFirstChildElement(IUIAutomationElement element, out IUIAutomationElement firstChild);
+        [PreserveSig] int GetLastChildElement(IUIAutomationElement element, out IUIAutomationElement lastChild);
+        [PreserveSig] int GetNextSiblingElement(IUIAutomationElement element, out IUIAutomationElement nextSibling);
+        [PreserveSig] int GetPreviousSiblingElement(IUIAutomationElement element, out IUIAutomationElement previousSibling);
+        [PreserveSig] int GetParentElement(IUIAutomationElement element, out IUIAutomationElement parent);
+        [PreserveSig] int NormalizeElement(IUIAutomationElement element, out IUIAutomationElement normalized);
     }
 
     [ComImport]
@@ -484,7 +487,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
         {
             Id = "1",
             Name = "Window",
-            Role = "Window",
+            Role = "AXWindow",
             Bounds = new SKRectI(0, 0, 1024, 768)
         };
 

@@ -458,32 +458,83 @@ public sealed partial class MacOsAutomation : IOsAutomation
             {
                 try
                 {
+                    OSWindow? selectedWindow = null;
+                    var windows = GetWindows();
+                    foreach (var w in windows)
+                    {
+                        if (w.Id == windowId)
+                        {
+                            selectedWindow = w;
+                            break;
+                        }
+                    }
+
                     bool traversed = false;
                     IntPtr windowsValue = GetAttribute(appRef, "AXWindows");
                     if (windowsValue != IntPtr.Zero)
                     {
                         int winCount = CFArrayGetCount(windowsValue);
+                        IntPtr matchedWinElement = IntPtr.Zero;
+
                         for (int j = 0; j < winCount; j++)
                         {
                             IntPtr winElement = CFArrayGetValueAtIndex(windowsValue, j);
                             if (winElement != IntPtr.Zero)
                             {
-                                var root = new OSNode
+                                if (selectedWindow != null)
                                 {
-                                    Id = "1",
-                                    Name = "Window",
-                                    Role = "AXWindow",
-                                    Bounds = new SKRectI(0, 0, 1024, 768)
-                                };
-                                int nextId = 2;
-                                BuildNodeFromElement(winElement, root, ref nextId, 0);
-                                if (root.Children.Count > 0)
-                                {
-                                    var winNode = root.Children[0];
-                                    winNode.Id = "1";
-                                    traversed = true;
-                                    return winNode;
+                                    string winTitle = CFTypeToString(GetAttribute(winElement, "AXTitle")) ?? "";
+                                    CGPoint pt = new CGPoint { X = 0, Y = 0 };
+                                    CGSize sz = new CGSize { Width = 0, Height = 0 };
+                                    IntPtr posRef = GetAttribute(winElement, "AXPosition");
+                                    IntPtr sizeRef = GetAttribute(winElement, "AXSize");
+                                    if (posRef != IntPtr.Zero)
+                                    {
+                                        AXValueGetValue(posRef, 1, out pt);
+                                        CFRelease(posRef);
+                                    }
+                                    if (sizeRef != IntPtr.Zero)
+                                    {
+                                        AXValueGetValue(sizeRef, 2, out sz);
+                                        CFRelease(sizeRef);
+                                    }
+
+                                    if ((!string.IsNullOrEmpty(winTitle) && winTitle == selectedWindow.Title) ||
+                                        (Math.Abs(pt.X - selectedWindow.Bounds.Left) < 5 &&
+                                         Math.Abs(pt.Y - selectedWindow.Bounds.Top) < 5 &&
+                                         Math.Abs(sz.Width - selectedWindow.Bounds.Width) < 5 &&
+                                         Math.Abs(sz.Height - selectedWindow.Bounds.Height) < 5))
+                                    {
+                                        matchedWinElement = winElement;
+                                        break;
+                                    }
                                 }
+                            }
+                        }
+
+                        if (matchedWinElement == IntPtr.Zero && winCount > 0)
+                        {
+                            matchedWinElement = CFArrayGetValueAtIndex(windowsValue, 0);
+                        }
+
+                        if (matchedWinElement != IntPtr.Zero)
+                        {
+                            var root = new OSNode
+                            {
+                                Id = "1",
+                                Name = "Window",
+                                Role = "AXWindow",
+                                Bounds = new SKRectI(0, 0, 1024, 768)
+                            };
+                            int nextId = 2;
+                            BuildNodeFromElement(matchedWinElement, root, ref nextId, 0);
+                            if (root.Children.Count > 0)
+                            {
+                                var winNode = root.Children[0];
+                                winNode.Id = "1";
+                                traversed = true;
+                                CFRelease(windowsValue);
+                                return winNode;
                             }
                         }
                         CFRelease(windowsValue);
@@ -929,19 +980,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
 
-        int pid = 0;
-        if (windowId.EndsWith("_fallback"))
-        {
-            var parts = windowId.Split('_');
-            if (parts.Length > 0 && int.TryParse(parts[0], out int parsedPid))
-            {
-                pid = parsedPid;
-            }
-        }
-        else
-        {
-            int.TryParse(windowId, out pid);
-        }
+        int pid = GetWindowPid(windowId);
 
         if (pid > 0)
         {

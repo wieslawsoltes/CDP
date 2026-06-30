@@ -85,7 +85,7 @@ public sealed class OsAutomationCdpSession
                     var children = new JsonArray();
                     if (_rootNode != null)
                     {
-                        children.Add(BuildCdpNode(_rootNode));
+                        children.Add(BuildCdpNode(_rootNode, 1));
                     }
 
                     var root = new JsonObject
@@ -204,9 +204,9 @@ public sealed class OsAutomationCdpSession
                     if (_idToNode.TryGetValue(nodeId, out var node))
                     {
                         TriggerSimulateInputGuard();
-                        // Simulate focus by clicking at the center of the element bounds
-                        double cx = node.Bounds.Left + node.Bounds.Width / 2.0;
-                        double cy = node.Bounds.Top + node.Bounds.Height / 2.0;
+                        // Simulate focus by clicking at the center of the element bounds (window-relative)
+                        double cx = (node.Bounds.Left + node.Bounds.Width / 2.0) - (_rootNode?.Bounds.Left ?? 0);
+                        double cy = (node.Bounds.Top + node.Bounds.Height / 2.0) - (_rootNode?.Bounds.Top ?? 0);
                         _automation.SimulateMouseMove(_windowId, cx, cy);
                         _automation.SimulateClick(_windowId, cx, cy);
                     }
@@ -252,6 +252,18 @@ public sealed class OsAutomationCdpSession
                         _automation.SimulateClick(_windowId, x, y);
                     }
 
+                    return Task.FromResult(new JsonObject());
+                }
+
+            case "dispatchKeyEvent":
+                {
+                    TriggerSimulateInputGuard();
+                    string type = parameters["type"]?.GetValue<string>() ?? "";
+                    string key = parameters["key"]?.GetValue<string>() ?? "";
+                    if (type == "keyDown" || type == "rawKeyDown")
+                    {
+                        _automation.SimulateKeyPress(_windowId, key);
+                    }
                     return Task.FromResult(new JsonObject());
                 }
 
@@ -370,7 +382,7 @@ public sealed class OsAutomationCdpSession
         return Task.FromResult(new JsonObject());
     }
 
-    private JsonObject BuildCdpNode(OSNode node)
+    private JsonObject BuildCdpNode(OSNode node, int parentId)
     {
         int nodeId = _nextNodeId++;
         _idToNode[nodeId] = node;
@@ -379,7 +391,7 @@ public sealed class OsAutomationCdpSession
         var childrenArray = new JsonArray();
         foreach (var child in node.Children)
         {
-            childrenArray.Add(BuildCdpNode(child));
+            childrenArray.Add(BuildCdpNode(child, nodeId));
         }
 
         var attributesArray = new JsonArray();
@@ -413,7 +425,7 @@ public sealed class OsAutomationCdpSession
         var cdpNode = new JsonObject
         {
             ["nodeId"] = nodeId,
-            ["parentId"] = 1,
+            ["parentId"] = parentId,
             ["backendNodeId"] = nodeId,
             ["nodeType"] = 1, // Element Node
             ["nodeName"] = node.Name,
@@ -444,10 +456,16 @@ public sealed class OsAutomationCdpSession
             return FindNodeRecursive(root, n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase));
         }
         
-        if (sel.StartsWith("[id=") || sel.StartsWith("[Id=") || sel.StartsWith("[Name="))
+        if (sel.StartsWith("[id=") || sel.StartsWith("[Id="))
         {
-            var clean = selector.Replace("[id=", "").Replace("[Id=", "").Replace("[Name=", "").Replace("]", "").Replace("\"", "").Trim();
+            var clean = selector.Replace("[id=", "").Replace("[Id=", "").Replace("]", "").Replace("\"", "").Trim();
             return FindNodeRecursive(root, n => string.Equals(n.Id, clean, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (sel.StartsWith("[Name="))
+        {
+            var clean = selector.Replace("[Name=", "").Replace("]", "").Replace("\"", "").Trim();
+            return FindNodeRecursive(root, n => string.Equals(n.Name, clean, StringComparison.OrdinalIgnoreCase));
         }
 
         if (sel.StartsWith("[AccessibilityId=") || sel.StartsWith("[AutomationId=") || sel.StartsWith("[AutomationProperties.AutomationId="))

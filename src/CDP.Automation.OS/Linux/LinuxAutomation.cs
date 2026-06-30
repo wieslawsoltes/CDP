@@ -156,13 +156,13 @@ public sealed partial class LinuxAutomation : IOsAutomation
         }
     }
 
-    public OSNode? GetElementTree(string windowId)
+    private OSNode GetFallbackTree()
     {
         var root = new OSNode
         {
             Id = "1",
             Name = "Window",
-            Role = "window",
+            Role = "AXWindow",
             Bounds = new SKRectI(0, 0, 1024, 768)
         };
 
@@ -187,34 +187,49 @@ public sealed partial class LinuxAutomation : IOsAutomation
         return root;
     }
 
+    public OSNode? GetElementTree(string windowId)
+    {
+        if (windowId == "linux-window-fallback" || !RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return GetFallbackTree();
+        }
+        throw new NotSupportedException("Accessibility tree traversal is not supported on Linux OS targets.");
+    }
+
     public void SimulateClick(string windowId, double x, double y)
     {
-        _logger.LogInformation("Linux Click simulated at ({X}, {Y})", x, y);
+        if (windowId == "linux-window-fallback") return;
+        throw new NotSupportedException("Click simulation is not supported on Linux OS targets.");
     }
 
     public void SimulateMouseMove(string windowId, double x, double y)
     {
-        _logger.LogInformation("Linux MouseMove simulated at ({X}, {Y})", x, y);
+        if (windowId == "linux-window-fallback") return;
+        throw new NotSupportedException("MouseMove simulation is not supported on Linux OS targets.");
     }
 
     public void SimulateMouseDown(string windowId, double x, double y, string button)
     {
-        _logger.LogInformation("Linux MouseDown simulated at ({X}, {Y})", x, y);
+        if (windowId == "linux-window-fallback") return;
+        throw new NotSupportedException("MouseDown simulation is not supported on Linux OS targets.");
     }
 
     public void SimulateMouseUp(string windowId, double x, double y, string button)
     {
-        _logger.LogInformation("Linux MouseUp simulated at ({X}, {Y})", x, y);
+        if (windowId == "linux-window-fallback") return;
+        throw new NotSupportedException("MouseUp simulation is not supported on Linux OS targets.");
     }
 
     public void SimulateKeyPress(string windowId, string key)
     {
-        _logger.LogInformation("Linux KeyPress simulated: {Key}", key);
+        if (windowId == "linux-window-fallback") return;
+        throw new NotSupportedException("KeyPress simulation is not supported on Linux OS targets.");
     }
 
     public void SimulateTypeText(string windowId, string text)
     {
-        _logger.LogInformation("Linux TypeText simulated: {Text}", text);
+        if (windowId == "linux-window-fallback") return;
+        throw new NotSupportedException("TypeText simulation is not supported on Linux OS targets.");
     }
 
     public byte[] CaptureWindow(string windowId)
