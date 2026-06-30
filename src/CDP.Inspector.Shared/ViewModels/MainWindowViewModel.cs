@@ -337,6 +337,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         rightPane.AddTab("Audits", "EyeIcon", "Audits");
         rightPane.AddTab("Recorder", "RecordIcon", "Recorder");
         rightPane.AddTab("Window", "WindowMultipleIcon", "Window");
+        rightPane.AddTab("Events", "FlowchartIcon", "Events");
 
         LayoutRoot = new SplitContainerNode(
             Avalonia.Layout.Orientation.Horizontal,

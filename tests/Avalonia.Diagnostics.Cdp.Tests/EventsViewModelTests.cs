@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Xunit;
+using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using CdpInspectorApp.ViewModels;
 using Chrome.DevTools.Protocol;
@@ -35,7 +36,7 @@ public class EventsViewModelTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestEventsViewModelLogsIncomingEvents()
     {
         var service = new FakeCdpService();
@@ -57,7 +58,7 @@ public class EventsViewModelTests
         Assert.Contains("test-node", vm.FilteredEvents[0].ParamsJson);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestEventsViewModelIgnoreScreencast()
     {
         var service = new FakeCdpService();
@@ -81,7 +82,7 @@ public class EventsViewModelTests
         Assert.Equal("Page.screencastFrame", vm.FilteredEvents[0].Method);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestEventsViewModelSearchFilter()
     {
         var service = new FakeCdpService();
@@ -111,7 +112,7 @@ public class EventsViewModelTests
         Assert.Empty(vm.FilteredEvents);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestEventsViewModelPause()
     {
         var service = new FakeCdpService();
@@ -124,7 +125,7 @@ public class EventsViewModelTests
         Assert.Empty(vm.FilteredEvents);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestEventsViewModelClear()
     {
         var service = new FakeCdpService();
@@ -140,7 +141,7 @@ public class EventsViewModelTests
         Assert.Empty(vm.SelectedEventPayload);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestEventsViewModelBufferCap()
     {
         var service = new FakeCdpService();
