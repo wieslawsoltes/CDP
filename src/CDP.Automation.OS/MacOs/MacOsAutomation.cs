@@ -149,10 +149,10 @@ public sealed partial class MacOsAutomation : IOsAutomation
     private delegate IntPtr CGEventTapCallBack(IntPtr tapProxy, uint eventType, IntPtr theEvent, IntPtr refcon);
 
     [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
-    private static partial IntPtr CGEventTapCreateForPid(
-        int pid,
-        int place,
-        int options,
+    private static partial IntPtr CGEventTapCreate(
+        uint tap,
+        uint place,
+        uint options,
         ulong eventsOfInterest,
         CGEventTapCallBack callback,
         IntPtr refcon);
@@ -1441,15 +1441,20 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
 
-        int pid = GetWindowPid(windowId);
-        if (pid <= 0) return;
-
         _tapCallback = (tapProxy, eventType, theEvent, refcon) =>
         {
             if (eventType == 1) // kCGEventLeftMouseDown
             {
                 CGPoint pt = CGEventGetLocation(theEvent);
-                onClick(pt.X, pt.Y, "left");
+                var bounds = GetWindowBounds(windowId);
+                if (bounds.Width > 0 && bounds.Height > 0)
+                {
+                    if (pt.X >= bounds.Left && pt.X <= bounds.Right &&
+                        pt.Y >= bounds.Top && pt.Y <= bounds.Bottom)
+                    {
+                        onClick(pt.X, pt.Y, "left");
+                    }
+                }
             }
             return theEvent;
         };
@@ -1457,10 +1462,10 @@ public sealed partial class MacOsAutomation : IOsAutomation
         _tapThread = new System.Threading.Thread(() =>
         {
             ulong mask = (1UL << 1); // LeftMouseDown
-            _tapPort = CGEventTapCreateForPid(pid, 0, 1, mask, _tapCallback, IntPtr.Zero);
+            _tapPort = CGEventTapCreate(0, 0, 1, mask, _tapCallback, IntPtr.Zero); // tap = 0 (kCGHIDEventTap), place = 0 (kCGHeadInsertEventTap)
             if (_tapPort == IntPtr.Zero)
             {
-                _logger.LogWarning("Failed to create macOS CGEventTap for PID {Pid}. Accessibility permissions might be missing in System Settings -> Privacy & Security -> Accessibility.", pid);
+                _logger.LogWarning("Failed to create macOS global CGEventTap. Accessibility permissions might be missing in System Settings -> Privacy & Security -> Accessibility.");
             }
             else
             {
