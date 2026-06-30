@@ -152,7 +152,9 @@ public sealed class OsAutomationCdpSession
                     int matchedNodeId = 0;
                     if (_rootNode != null)
                     {
-                        var match = FindDeepestNodeAt(_rootNode, x, y);
+                        int absX = _rootNode.Bounds.Left + x;
+                        int absY = _rootNode.Bounds.Top + y;
+                        var match = FindDeepestNodeAt(_rootNode, absX, absY);
                         if (match != null && _osIdToCdpId.TryGetValue(match.Id, out int cdpId))
                         {
                             matchedNodeId = cdpId;
