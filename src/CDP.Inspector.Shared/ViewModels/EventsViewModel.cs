@@ -28,6 +28,13 @@ public class EventsViewModel : ViewModelBase
     private bool _ignoreScreencast = true;
     private bool _isPaused = false;
     private string _selectedEventPayload = "";
+    private bool _filterDom = true;
+    private bool _filterPage = true;
+    private bool _filterInput = true;
+    private bool _filterRuntime = true;
+    private bool _filterConsoleLog = true;
+    private bool _filterNetwork = true;
+    private bool _filterOther = true;
 
     public ObservableCollection<CdpEventEntry> FilteredEvents => _filteredEvents;
 
@@ -73,6 +80,90 @@ public class EventsViewModel : ViewModelBase
         set
         {
             RaiseAndSetIfChanged(ref _isPaused, value);
+        }
+    }
+
+    public bool FilterDom
+    {
+        get => _filterDom;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterDom, value))
+            {
+                ApplyFiltering();
+            }
+        }
+    }
+
+    public bool FilterPage
+    {
+        get => _filterPage;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterPage, value))
+            {
+                ApplyFiltering();
+            }
+        }
+    }
+
+    public bool FilterInput
+    {
+        get => _filterInput;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterInput, value))
+            {
+                ApplyFiltering();
+            }
+        }
+    }
+
+    public bool FilterRuntime
+    {
+        get => _filterRuntime;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterRuntime, value))
+            {
+                ApplyFiltering();
+            }
+        }
+    }
+
+    public bool FilterConsoleLog
+    {
+        get => _filterConsoleLog;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterConsoleLog, value))
+            {
+                ApplyFiltering();
+            }
+        }
+    }
+
+    public bool FilterNetwork
+    {
+        get => _filterNetwork;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterNetwork, value))
+            {
+                ApplyFiltering();
+            }
+        }
+    }
+
+    public bool FilterOther
+    {
+        get => _filterOther;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterOther, value))
+            {
+                ApplyFiltering();
+            }
         }
     }
 
@@ -176,6 +267,29 @@ public class EventsViewModel : ViewModelBase
     private bool MatchesFilter(CdpEventEntry entry)
     {
         if (IgnoreScreencast && entry.Method == "Page.screencastFrame")
+        {
+            return false;
+        }
+
+        string domain = "";
+        int dot = entry.Method.IndexOf('.');
+        if (dot >= 0)
+        {
+            domain = entry.Method.Substring(0, dot).ToUpperInvariant();
+        }
+
+        bool passDomain = domain switch
+        {
+            "DOM" or "DOMDEBUGGER" => FilterDom,
+            "PAGE" => FilterPage,
+            "INPUT" => FilterInput,
+            "RUNTIME" => FilterRuntime,
+            "CONSOLE" or "LOG" => FilterConsoleLog,
+            "NETWORK" => FilterNetwork,
+            _ => FilterOther
+        };
+
+        if (!passDomain)
         {
             return false;
         }

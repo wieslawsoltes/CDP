@@ -4,7 +4,7 @@
              x:Class="CdpInspectorApp.Views.EventsView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
-    <Grid RowDefinitions="Auto, *" Margin="10">
+    <Grid RowDefinitions="Auto, Auto, *" Margin="10">
         <!-- Filter and Action Toolbar -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto, Auto, Auto, *, Auto" Margin="0,0,0,8">
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
@@ -17,8 +17,20 @@
             <TextBox Grid.Column="3" Text="{Binding Events.SearchQuery, Mode=TwoWay}" Watermark="Filter events by method or payload..." Margin="16,0,0,0" VerticalAlignment="Center"/>
         </Grid>
 
+        <!-- Domain filters -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="16" Margin="0,0,0,12" VerticalAlignment="Center">
+            <TextBlock Text="Filter Domains:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11" FontWeight="SemiBold"/>
+            <CheckBox Content="DOM" IsChecked="{Binding Events.FilterDom, Mode=TwoWay}" FontSize="11"/>
+            <CheckBox Content="Page" IsChecked="{Binding Events.FilterPage, Mode=TwoWay}" FontSize="11"/>
+            <CheckBox Content="Input" IsChecked="{Binding Events.FilterInput, Mode=TwoWay}" FontSize="11"/>
+            <CheckBox Content="Runtime" IsChecked="{Binding Events.FilterRuntime, Mode=TwoWay}" FontSize="11"/>
+            <CheckBox Content="Console/Log" IsChecked="{Binding Events.FilterConsoleLog, Mode=TwoWay}" FontSize="11"/>
+            <CheckBox Content="Network" IsChecked="{Binding Events.FilterNetwork, Mode=TwoWay}" FontSize="11"/>
+            <CheckBox Content="Other" IsChecked="{Binding Events.FilterOther, Mode=TwoWay}" FontSize="11"/>
+        </StackPanel>
+
         <!-- Main Workspace split into List (Left) and Detailed Payload (Right) -->
-        <Grid Grid.Row="1" ColumnDefinitions="*, 4, 1.5*">
+        <Grid Grid.Row="2" ColumnDefinitions="*, 4, 1.5*">
             <!-- Left Column: DataGrid of Events -->
             <DataGrid Grid.Column="0" ItemsSource="{Binding Events.FilteredEvents}" SelectedItem="{Binding Events.SelectedEvent, Mode=TwoWay}" CanUserResizeColumns="True" GridLinesVisibility="All" Background="#292a2d">
                 <DataGrid.Columns>

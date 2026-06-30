@@ -236,7 +236,11 @@ public sealed class OsAutomationCdpSession : IDisposable
         switch (action)
         {
             case "enable":
+                StartRecordingPolling();
+                return Task.FromResult(new JsonObject());
+
             case "disable":
+                StopRecordingPolling();
                 return Task.FromResult(new JsonObject());
 
             case "dispatchMouseEvent":
