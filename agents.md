@@ -300,6 +300,20 @@ After introducing new XAML code or modifying resources:
 - Prefer not using XML namespace prefixes in XAML if controls/objects are part of the default Avalonia XAML namespace (`https://github.com/avaloniaui`) (e.g., use `<DataGrid>` instead of `<dg:DataGrid>`).
 - Compiled bindings must always be enabled (`x:CompileBindings="True"`) on all XAML views. The use of `ReflectionBinding` or disabling compiled bindings via `x:CompileBindings="False"` is strictly forbidden to ensure full linker-trimming safety and runtime performance. All bindings must be statically compiled using proper `x:DataType` annotations and path casting where appropriate.
 
+### OS Automation
+
+- Create a standalone project named `CDP.Automation.OS` targeting `net10.0` with centrally managed packages.
+- Common API: Implement a unified cross-platform API for querying windows, finding UI elements (via accessibility/automation hierarchies), retrieving box models, and simulating input (clicks, keyboard focus, text insertion).
+- Modern .NET API & Performance Interop:
+  - Prefer modern interop with `[LibraryImport]` instead of `[DllImport]` for high-performance marshalling.
+  - Minimize heap allocations: use `ReadOnlySpan<char>`, `ref struct`, and avoid boxing or allocating arrays in traversal/query loops.
+  - On macOS, use `AppKit` and `Accessibility` APIs via native P/Invoke.
+  - On Windows, use `UIAutomationCore` (via direct COM interop/low-level native calls) or `User32` for window and input automation.
+  - On Linux, use `AT-SPI2` or a high-performance DBus/sockets interface, or a lightweight fallback structure for Linux desktop automation.
+- CDP Emulation:
+  - Expose OS automation targets to the inspector as virtual CDP pages/apps.
+  - Support `DOM.getDocument`, `DOM.querySelector`, `DOM.getBoxModel`, `Input.dispatchMouseEvent`, `Input.insertText`, `Page.captureScreenshot`, and `SystemInfo.getInfo` by mapping them directly to OS automation implementations.
+
 ### Tests
 
 - Add focused unit tests for selector parsing, attribute exposure, runtime helpers, and protocol response shapes.
@@ -315,3 +329,4 @@ After introducing new XAML code or modifying resources:
 - If preview clicks do not record expected sample selectors, verify coordinate mapping between sample viewport and inspector `#imgScreenshot`.
 - If Test Studio replay generates no frames, check `IsRecordVideoEnabled`, `Page.startScreencast`, and report finalization.
 - If a direct sample click is not visible as a preview-based recording demo, drive the inspector preview instead of the sample endpoint.
+
