@@ -12,6 +12,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
     private readonly ILogger _logger;
 
     public bool MovePhysicalCursor { get; set; }
+    public bool UsePeerAutomation { get; set; } = true;
 
     public WindowsAutomation(ILogger? logger = null)
     {
@@ -92,14 +93,18 @@ public sealed partial class WindowsAutomation : IOsAutomation
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IUIAutomation
     {
-        [PreserveSig]
-        int ElementFromHandle(IntPtr hwnd, out IUIAutomationElement element);
-
-        [PreserveSig]
-        int CreateTreeWalker(IUIAutomationCondition condition, out IUIAutomationTreeWalker walker);
-
-        [PreserveSig]
-        int GetControlViewWalker(out IUIAutomationTreeWalker walker);
+        [PreserveSig] int CompareElements(IUIAutomationElement el1, IUIAutomationElement el2, out int areSame);
+        [PreserveSig] int CompareRuntimeIds(IntPtr id1, IntPtr id2, out int areSame);
+        [PreserveSig] int GetRootElement(out IUIAutomationElement root);
+        [PreserveSig] int ElementFromHandle(IntPtr hwnd, out IUIAutomationElement element);
+        [PreserveSig] int ElementFromPoint(POINT pt, out IUIAutomationElement element);
+        [PreserveSig] int GetFocusedElement(out IUIAutomationElement element);
+        [PreserveSig] int GetRootElementBuildCache(IntPtr cacheRequest, out IUIAutomationElement root);
+        [PreserveSig] int ElementFromHandleBuildCache(IntPtr hwnd, IntPtr cacheRequest, out IUIAutomationElement element);
+        [PreserveSig] int ElementFromPointBuildCache(POINT pt, IntPtr cacheRequest, out IUIAutomationElement element);
+        [PreserveSig] int GetFocusedElementBuildCache(IntPtr cacheRequest, out IUIAutomationElement element);
+        [PreserveSig] int CreateTreeWalker(IUIAutomationCondition condition, out IUIAutomationTreeWalker walker);
+        [PreserveSig] int GetControlViewWalker(out IUIAutomationTreeWalker walker);
     }
 
     [ComImport]
@@ -107,26 +112,49 @@ public sealed partial class WindowsAutomation : IOsAutomation
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IUIAutomationElement
     {
-        [PreserveSig]
-        int GetCurrentPropertyValue(int propertyId, out object value);
+        [PreserveSig] int SetFocus();
+        [PreserveSig] int GetRuntimeId(out IntPtr runtimeId);
+        [PreserveSig] int FindFirst(int scope, IUIAutomationCondition condition, out IUIAutomationElement found);
+        [PreserveSig] int FindAll(int scope, IUIAutomationCondition condition, out IntPtr foundArray);
+        [PreserveSig] int FindFirstBuildCache(int scope, IUIAutomationCondition condition, IntPtr cacheRequest, out IUIAutomationElement found);
+        [PreserveSig] int FindAllBuildCache(int scope, IUIAutomationCondition condition, IntPtr cacheRequest, out IntPtr foundArray);
+        [PreserveSig] int BuildUpdatedCache(IntPtr cacheRequest, out IUIAutomationElement updatedElement);
+        [PreserveSig] int GetCurrentPropertyValue(int propertyId, out object value);
+        [PreserveSig] int GetCurrentPropertyValueEx(int propertyId, [MarshalAs(UnmanagedType.Bool)] bool ignoreDefaultValue, out object value);
+        [PreserveSig] int GetCachedPropertyValue(int propertyId, out object value);
+        [PreserveSig] int GetCachedPropertyValueEx(int propertyId, [MarshalAs(UnmanagedType.Bool)] bool ignoreDefaultValue, out object value);
+        [PreserveSig] int GetCurrentPattern(int patternId, out IntPtr patternObject);
+        [PreserveSig] int GetCachedPattern(int patternId, out IntPtr patternObject);
+        [PreserveSig] int GetCachedParent(out IUIAutomationElement parent);
+        [PreserveSig] int GetCachedChildren(out IntPtr childrenArray);
+        [PreserveSig] int get_CurrentName(out string name);
+        [PreserveSig] int get_CurrentAutomationId(out string automationId);
+        [PreserveSig] int get_CurrentClassName(out string className);
+        [PreserveSig] int get_CurrentLocalizedControlType(out string localizedControlType);
+        [PreserveSig] int get_CurrentControlType(out int controlType);
+        [PreserveSig] int get_CurrentBoundingRectangle(out RECT rect);
+    }
 
+    [ComImport]
+    [Guid("fb377fbe-8e6d-46b4-ab50-928b33742517")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IUIAutomationInvokePattern
+    {
         [PreserveSig]
-        int get_CurrentName(out string name);
+        int Invoke();
+    }
 
+    [ComImport]
+    [Guid("c9743dd0-c134-4008-8a70-6fbe7d5c78a8")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IUIAutomationValuePattern
+    {
         [PreserveSig]
-        int get_CurrentAutomationId(out string automationId);
-
+        int SetValue([MarshalAs(UnmanagedType.BStr)] string val);
         [PreserveSig]
-        int get_CurrentClassName(out string className);
-
+        int get_CurrentValue([MarshalAs(UnmanagedType.BStr)] out string val);
         [PreserveSig]
-        int get_CurrentLocalizedControlType(out string localizedControlType);
-
-        [PreserveSig]
-        int get_CurrentControlType(out int controlType);
-
-        [PreserveSig]
-        int get_CurrentBoundingRectangle(out RECT rect);
+        int get_CurrentIsReadOnly(out int isReadOnly);
     }
 
     [ComImport]
@@ -599,6 +627,11 @@ public sealed partial class WindowsAutomation : IOsAutomation
             double absoluteX = bounds.Left + x;
             double absoluteY = bounds.Top + y;
 
+            if (UsePeerAutomation && TryAccessibilityPress(absoluteX, absoluteY))
+            {
+                return;
+            }
+
             int screenWidth = GetSystemMetrics(0);
             int screenHeight = GetSystemMetrics(1);
             if (screenWidth <= 0) screenWidth = 1920;
@@ -777,6 +810,35 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
     public void SimulateTypeText(string windowId, string text)
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+        if (UsePeerAutomation)
+        {
+            try
+            {
+                var automation = (IUIAutomation)new CUIAutomation();
+                if (automation.GetFocusedElement(out var focusedElement) == 0 && focusedElement != null)
+                {
+                    // Try ValuePattern (10002)
+                    int valuePatternId = 10002;
+                    if (focusedElement.GetCurrentPattern(valuePatternId, out IntPtr patternPtr) == 0 && patternPtr != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            var valuePattern = (IUIAutomationValuePattern)Marshal.GetObjectForIUnknown(patternPtr);
+                            int hr = valuePattern.SetValue(text);
+                            if (hr == 0) return;
+                        }
+                        finally
+                        {
+                            Marshal.Release(patternPtr);
+                        }
+                    }
+                }
+            }
+            catch {}
+        }
+
         _logger.LogInformation("Windows TypeText simulated: {Text}", text);
     }
 
@@ -931,5 +993,34 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
     public void StopInputCapture()
     {
+    }
+
+    private bool TryAccessibilityPress(double absoluteX, double absoluteY)
+    {
+        try
+        {
+            var automation = (IUIAutomation)new CUIAutomation();
+            POINT pt = new POINT { X = (int)absoluteX, Y = (int)absoluteY };
+            if (automation.ElementFromPoint(pt, out var element) == 0 && element != null)
+            {
+                // Try InvokePattern (10000)
+                int invokePatternId = 10000;
+                if (element.GetCurrentPattern(invokePatternId, out IntPtr patternPtr) == 0 && patternPtr != IntPtr.Zero)
+                {
+                    try
+                    {
+                        var invokePattern = (IUIAutomationInvokePattern)Marshal.GetObjectForIUnknown(patternPtr);
+                        int hr = invokePattern.Invoke();
+                        if (hr == 0) return true;
+                    }
+                    finally
+                    {
+                        Marshal.Release(patternPtr);
+                    }
+                }
+            }
+        }
+        catch {}
+        return false;
     }
 }

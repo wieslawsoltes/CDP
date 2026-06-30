@@ -13,6 +13,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
     private readonly ILogger _logger;
 
     public bool MovePhysicalCursor { get; set; }
+    public bool UsePeerAutomation { get; set; } = true;
 
     private static readonly IntPtr _kCFBooleanTrue;
 
@@ -824,7 +825,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
             double absoluteY = bounds.Top + y;
 
             int targetPid = GetWindowPid(windowId);
-            if (targetPid > 0 && TryAccessibilityPress(targetPid, absoluteX, absoluteY))
+            if (UsePeerAutomation && targetPid > 0 && TryAccessibilityPress(targetPid, absoluteX, absoluteY))
             {
                 return;
             }

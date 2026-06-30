@@ -505,6 +505,24 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    private bool _usePeerAutomation = true;
+
+    public bool UsePeerAutomation
+    {
+        get => _usePeerAutomation;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _usePeerAutomation, value))
+            {
+                try
+                {
+                    CDP.Automation.OS.OSAutomationService.Instance.UsePeerAutomation = value;
+                }
+                catch {}
+            }
+        }
+    }
+
     public ConnectionViewModel? Connection { get; set; }
 
     public Func<Task<string?>>? FilePickerHandler { get; set; }
@@ -6031,6 +6049,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         root["reportIncludeMetricsTable"] = ReportIncludeMetricsTable;
         root["reportIncludeNetworkDetails"] = ReportIncludeNetworkDetails;
         root["movePhysicalCursor"] = MovePhysicalCursor;
+        root["usePeerAutomation"] = UsePeerAutomation;
         return root;
     }
 
@@ -6085,6 +6104,10 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("movePhysicalCursor", out var moveCursorNode) && moveCursorNode != null)
         {
             MovePhysicalCursor = (bool?)moveCursorNode ?? false;
+        }
+        if (json.TryGetPropertyValue("usePeerAutomation", out var usePeerNode) && usePeerNode != null)
+        {
+            UsePeerAutomation = (bool?)usePeerNode ?? true;
         }
     }
 

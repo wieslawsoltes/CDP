@@ -323,7 +323,8 @@
                             </Button>
                         </StackPanel>
                         <CheckBox Name="chkTestStudioAutoLaunch" Content="Auto Launch App" IsChecked="{Binding Recorder.TestStudio.IsAutoLaunchEnabled}" FontSize="11" Margin="0,0,20,0"/>
-                        <CheckBox Name="chkTestStudioMovePhysicalCursor" Content="Move OS Pointer" IsChecked="{Binding Recorder.TestStudio.MovePhysicalCursor}" FontSize="11" Margin="0" IsVisible="{Binding Connection.IsOsAutomation}"/>
+                        <CheckBox Name="chkTestStudioMovePhysicalCursor" Content="Move OS Pointer" IsChecked="{Binding Recorder.TestStudio.MovePhysicalCursor}" FontSize="11" Margin="0,0,20,0" IsVisible="{Binding Connection.IsOsAutomation}"/>
+                        <CheckBox Name="chkTestStudioUsePeerAutomation" Content="Use Peer Automation" IsChecked="{Binding Recorder.TestStudio.UsePeerAutomation}" FontSize="11" Margin="0" IsVisible="{Binding Connection.IsOsAutomation}"/>
                     </WrapPanel>
                     
                     <!-- Path and Browse button -->
