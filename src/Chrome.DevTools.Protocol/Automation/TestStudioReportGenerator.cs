@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using SkiaSharp;
 
 namespace Chrome.DevTools.Protocol;
@@ -32,6 +33,8 @@ public class StepReportItem
     public long NetworkResponseBytes { get; set; }
     public int DomNodes { get; set; }
     public int DomDocuments { get; set; }
+
+    public Dictionary<string, JsonNode?> Telemetry { get; set; } = new();
 }
 
 public class VideoFrameItem
@@ -78,6 +81,7 @@ public class TestRunReportData
     public List<NetworkReportItem> NetworkRequests { get; set; } = new();
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
+    public Dictionary<string, JsonNode?> Telemetry { get; set; } = new();
 }
 
 [System.Text.Json.Serialization.JsonSerializable(typeof(List<StepReportItem>))]
@@ -86,6 +90,11 @@ public class TestRunReportData
 [System.Text.Json.Serialization.JsonSerializable(typeof(List<NetworkReportItem>))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(TestRunReportData))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(TestStudioReportOptions))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Dictionary<string, JsonNode?>))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Dictionary<string, JsonNode>))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(JsonNode))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(JsonObject))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(JsonArray))]
 internal partial class ReportJsonContext : System.Text.Json.Serialization.JsonSerializerContext
 {
 }
@@ -124,8 +133,25 @@ public static class TestStudioReportGenerator
 
         var stepsJson = JsonSerializer.Serialize(steps, ReportJsonContext.Default.ListStepReportItem);
         var framesJson = JsonSerializer.Serialize(videoFrames, ReportJsonContext.Default.ListVideoFrameItem);
-        var timelineJson = JsonSerializer.Serialize(metricsTimeline, ReportJsonContext.Default.ListRunMetricSample);
-        var networkRequestsJson = JsonSerializer.Serialize(networkRequests, ReportJsonContext.Default.ListNetworkReportItem);
+        string timelineJson;
+        if (data.Telemetry != null && data.Telemetry.TryGetValue("Performance", out var perfTimelineNode) && perfTimelineNode != null)
+        {
+            timelineJson = perfTimelineNode.ToString();
+        }
+        else
+        {
+            timelineJson = JsonSerializer.Serialize(metricsTimeline, ReportJsonContext.Default.ListRunMetricSample);
+        }
+
+        string networkRequestsJson;
+        if (data.Telemetry != null && data.Telemetry.TryGetValue("Network", out var netRequestsNode) && netRequestsNode != null)
+        {
+            networkRequestsJson = netRequestsNode.ToString();
+        }
+        else
+        {
+            networkRequestsJson = JsonSerializer.Serialize(networkRequests, ReportJsonContext.Default.ListNetworkReportItem);
+        }
         var optionsJson = JsonSerializer.Serialize(options, ReportJsonContext.Default.TestStudioReportOptions);
 
         var sb = new StringBuilder();
@@ -666,39 +692,48 @@ public static class TestStudioReportGenerator
             var showScreenshot = options.IncludeScreenshots && hasScreenshot;
             var showMetricsTable = options.IncludeMetricsTable;
 
-            var metricsTableHtml = "";
-            if (showMetricsTable)
+            var telemetryHtml = new StringBuilder();
+            foreach (var provider in TelemetryRegistry.Providers)
             {
-                metricsTableHtml = $@"
-                                    <div style=""margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;"">
-                                        <h4 style=""font-size:0.9rem; color:var(--primary); margin-bottom:0.5rem;"">Step Performance Metrics</h4>
-                                        <table class=""metadata-table"">
-                                            <tr>
-                                                <td class=""label"">CPU Usage:</td>
-                                                <td class=""value"">{step.CpuUsage:F1} %</td>
-                                            </tr>
-                                            <tr>
-                                                <td class=""label"">JS Heap Used:</td>
-                                                <td class=""value"">{step.MemoryJsHeapUsed:F2} MB</td>
-                                            </tr>
-                                            <tr>
-                                                <td class=""label"">JS Heap Total:</td>
-                                                <td class=""value"">{step.MemoryJsHeapTotal:F2} MB</td>
-                                            </tr>
-                                            <tr>
-                                                <td class=""label"">FPS:</td>
-                                                <td class=""value"">{step.Fps:F1} FPS</td>
-                                            </tr>
-                                            <tr>
-                                                <td class=""label"">DOM Nodes / Docs:</td>
-                                                <td class=""value"">{step.DomNodes} / {step.DomDocuments}</td>
-                                            </tr>
-                                            <tr>
-                                                <td class=""label"">Network Traffic:</td>
-                                                <td class=""value"">{step.NetworkRequestCount} requests | {(step.NetworkResponseBytes / 1024.0):F2} KB</td>
-                                            </tr>
-                                        </table>
-                                    </div>";
+                JsonNode? stepData = null;
+                step.Telemetry?.TryGetValue(provider.Id, out stepData);
+
+                JsonNode? runData = null;
+                data.Telemetry?.TryGetValue(provider.Id, out runData);
+
+                if (stepData == null)
+                {
+                    if (provider.Id == "Performance")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["CpuUsage"] = step.CpuUsage,
+                            ["MemoryJsHeapUsed"] = step.MemoryJsHeapUsed,
+                            ["MemoryJsHeapTotal"] = step.MemoryJsHeapTotal,
+                            ["Fps"] = step.Fps,
+                            ["DomNodes"] = step.DomNodes,
+                            ["DomDocuments"] = step.DomDocuments,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                    else if (provider.Id == "Network")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["NetworkRequestCount"] = step.NetworkRequestCount,
+                            ["NetworkResponseBytes"] = step.NetworkResponseBytes,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                }
+
+                string pVal = provider.RenderHtml(i, stepData, runData, options);
+                if (!string.IsNullOrEmpty(pVal))
+                {
+                    telemetryHtml.Append(pVal);
+                }
             }
 
             sb.Append($@"                    <div class=""step-card {stepStatusClass}"" id=""step-card-{i}"">
@@ -723,7 +758,6 @@ public static class TestStudioReportGenerator
                                         {(!string.IsNullOrEmpty(step.Value) ? $"<tr><td class=\"label\">Value:</td><td class=\"value\">{encValue}</td></tr>" : "")}
                                         {(!string.IsNullOrEmpty(step.Url) ? $"<tr><td class=\"label\">Active URL:</td><td class=\"value\"><a href=\"{encUrl}\" target=\"_blank\" style=\"color:#8ab4f8\">{encUrl}</a></td></tr>" : "")}
                                     </table>
-                                    {metricsTableHtml}
                                     {(hasError ? $"<div class=\"error-message\">{encErrorMsg}</div>" : "")}
                                 </div>
                                 {(showScreenshot ? $@"
@@ -731,25 +765,7 @@ public static class TestStudioReportGenerator
                                     <img src=""{encScreenshotFile}"" class=""step-screenshot"" onclick=""openModal('{encScreenshotFile}')"" alt=""Step Screenshot"">
                                 </div>" : "")}
                             </div>
-                            
-                            {(options.IncludeCharts ? $@"
-                            <!-- Step Performance Chart -->
-                            <div style=""margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;"">
-                                <h4 style=""font-size:0.9rem; color:var(--text-muted); margin-bottom:0.5rem;"">Performance Timeline Highlight</h4>
-                                <div style=""height: 120px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: 8px; position: relative; overflow: hidden;"">
-                                    <svg id=""step-chart-{i}"" style=""width:100%; height:100%;""></svg>
-                                </div>
-                            </div>
-                            " : "")}
-
-                            {(options.IncludeNetworkDetails ? $@"
-                            <!-- Step Network Waterfall -->
-                            <div style=""margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;"" id=""step-network-section-{i}"">
-                                <h4 style=""font-size:0.9rem; color:var(--text-muted); margin-bottom:0.5rem;"">Step Network Waterfall</h4>
-                                <div id=""step-waterfall-{i}"" style=""background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: var(--text-main); overflow-x: auto;"">
-                                </div>
-                            </div>
-                            " : "")}
+                            {telemetryHtml}
                         </div>
                     </div>
 ");
@@ -1228,27 +1244,49 @@ public static class TestStudioReportGenerator
             
             // Check remaining space
             float requiredHeight = 85;
-            bool drawMetricsRow = options.IncludeMetricsTable || (options.IncludeCharts && metricsTimeline != null && metricsTimeline.Count > 0);
-            if (drawMetricsRow)
-            {
-                requiredHeight += 80;
-            }
 
-            List<NetworkReportItem> stepReqs = null;
-            bool drawWaterfall = false;
-            float waterfallHeight = 0;
-            if (options.IncludeNetworkDetails && networkRequests != null && networkRequests.Count > 0)
+            // Pluggable telemetry height calculation
+            float telemetryHeight = 0;
+            foreach (var provider in TelemetryRegistry.Providers)
             {
-                var stepStart = step.RelativeStartMs;
-                var stepEnd = step.RelativeStartMs + step.DurationMs;
-                stepReqs = networkRequests.Where(r => r.RelativeStartMs <= stepEnd && (r.RelativeStartMs + r.DurationMs) >= stepStart).ToList();
-                drawWaterfall = stepReqs.Count > 0;
-                if (drawWaterfall)
+                JsonNode? stepData = null;
+                step.Telemetry?.TryGetValue(provider.Id, out stepData);
+
+                JsonNode? runData = null;
+                data.Telemetry?.TryGetValue(provider.Id, out runData);
+
+                // Fallback for legacy data
+                if (stepData == null)
                 {
-                    waterfallHeight = 20 + 10 * Math.Min(4, stepReqs.Count) + (stepReqs.Count > 4 ? 10 : 0);
-                    requiredHeight += waterfallHeight;
+                    if (provider.Id == "Performance")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["CpuUsage"] = step.CpuUsage,
+                            ["MemoryJsHeapUsed"] = step.MemoryJsHeapUsed,
+                            ["MemoryJsHeapTotal"] = step.MemoryJsHeapTotal,
+                            ["Fps"] = step.Fps,
+                            ["DomNodes"] = step.DomNodes,
+                            ["DomDocuments"] = step.DomDocuments,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                    else if (provider.Id == "Network")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["NetworkRequestCount"] = step.NetworkRequestCount,
+                            ["NetworkResponseBytes"] = step.NetworkResponseBytes,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
                 }
+
+                telemetryHeight += provider.GetRequiredPdfHeight(i, stepData, runData, options);
             }
+            requiredHeight += telemetryHeight;
 
             bool hasScreenshot = false;
             SKBitmap? screenshotBitmap = null;
@@ -1345,118 +1383,51 @@ public static class TestStudioReportGenerator
                 currentCanvas.DrawText($"Error: {step.ErrorMessage}", cx, cy, errPaint);
             }
 
-            if (drawMetricsRow)
+            // Pluggable telemetry PDF drawing
+            float telemetryY = cardTop + requiredHeight - (hasScreenshot ? 120 : 0) - telemetryHeight - 10;
+            foreach (var provider in TelemetryRegistry.Providers)
             {
-                float rowTop = cardTop + requiredHeight - (hasScreenshot ? 120 : 0) - waterfallHeight - 80;
-                
-                // Draw metrics table on the left
-                if (options.IncludeMetricsTable)
-                {
-                    float tx = cx;
-                    float ty = rowTop + 10;
-                    
-                    using var paintMetricsHeader = new SKPaint { TextSize = 8.5f, Color = new SKColor(37, 99, 235), IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) };
-                    currentCanvas.DrawText("Step Metrics", tx, ty, paintMetricsHeader);
-                    ty += 12;
+                JsonNode? stepData = null;
+                step.Telemetry?.TryGetValue(provider.Id, out stepData);
 
-                    currentCanvas.DrawText($"CPU: {step.CpuUsage:F1} %  |  FPS: {step.Fps:F1}", tx, ty, paintText);
-                    ty += 11;
-                    currentCanvas.DrawText($"Memory: {step.MemoryJsHeapUsed:F2} / {step.MemoryJsHeapTotal:F2} MB", tx, ty, paintText);
-                    ty += 11;
-                    currentCanvas.DrawText($"DOM: {step.DomNodes} nodes / {step.DomDocuments} docs", tx, ty, paintText);
-                    ty += 11;
-                    currentCanvas.DrawText($"Network: {step.NetworkRequestCount} reqs | {(step.NetworkResponseBytes / 1024.0):F1} KB", tx, ty, paintText);
+                JsonNode? runData = null;
+                data.Telemetry?.TryGetValue(provider.Id, out runData);
+
+                // Fallback for legacy data
+                if (stepData == null)
+                {
+                    if (provider.Id == "Performance")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["CpuUsage"] = step.CpuUsage,
+                            ["MemoryJsHeapUsed"] = step.MemoryJsHeapUsed,
+                            ["MemoryJsHeapTotal"] = step.MemoryJsHeapTotal,
+                            ["Fps"] = step.Fps,
+                            ["DomNodes"] = step.DomNodes,
+                            ["DomDocuments"] = step.DomDocuments,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                    else if (provider.Id == "Network")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["NetworkRequestCount"] = step.NetworkRequestCount,
+                            ["NetworkResponseBytes"] = step.NetworkResponseBytes,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
                 }
 
-                // Draw mini-chart on the right
-                if (options.IncludeCharts && metricsTimeline != null && metricsTimeline.Count > 0)
+                float hReq = provider.GetRequiredPdfHeight(i, stepData, runData, options);
+                if (hReq > 0)
                 {
-                    float chartX = pageWidth - margin - 250;
-                    float chartY = rowTop + 2;
-                    var chartRect = new SKRect(chartX, chartY, pageWidth - margin - 15, chartY + 68);
-                    
-                    DrawMiniPerformanceChart(currentCanvas, chartRect, metricsTimeline, step.RelativeStartMs, step.DurationMs);
-                }
-            }
-
-            if (drawWaterfall && stepReqs != null)
-            {
-                float rowTop = cardTop + requiredHeight - (hasScreenshot ? 120 : 0) - waterfallHeight - 80;
-                float wfTop = rowTop + 80;
-                float tx = cx;
-                float ty = wfTop + 10;
-
-                using var paintWfHeader = new SKPaint { TextSize = 8.5f, Color = new SKColor(37, 99, 235), IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) };
-                currentCanvas.DrawText("Step Network Waterfall", tx, ty, paintWfHeader);
-                ty += 12;
-
-                // Draw waterfall grid / timeline border
-                float chartLeft = tx + 180; // Method + URL text takes ~180 points
-                float chartWidth = pageWidth - margin - 15 - chartLeft;
-                float chartHeight = 10 * Math.Min(4, stepReqs.Count) + (stepReqs.Count > 4 ? 10 : 0);
-
-                using var paintWfBg = new SKPaint { Color = new SKColor(245, 246, 248), Style = SKPaintStyle.Fill };
-                currentCanvas.DrawRect(new SKRect(chartLeft, ty - 2, chartLeft + chartWidth, ty + chartHeight), paintWfBg);
-                using var paintWfBorder = new SKPaint { Color = new SKColor(218, 220, 224), Style = SKPaintStyle.Stroke, StrokeWidth = 0.5f };
-                currentCanvas.DrawRect(new SKRect(chartLeft, ty - 2, chartLeft + chartWidth, ty + chartHeight), paintWfBorder);
-
-                // Draw vertical grid lines (start, mid, end)
-                currentCanvas.DrawLine(chartLeft + chartWidth / 2f, ty - 2, chartLeft + chartWidth / 2f, ty + chartHeight, paintWfBorder);
-
-                int drawLimit = Math.Min(4, stepReqs.Count);
-                for (int rIdx = 0; rIdx < drawLimit; rIdx++)
-                {
-                    var req = stepReqs[rIdx];
-
-                    // Method & Url text
-                    string urlText = req.Url;
-                    try
-                    {
-                        var uri = new Uri(req.Url);
-                        urlText = uri.PathAndQuery;
-                        if (urlText.Length > 22) urlText = urlText.Substring(0, 20) + "..";
-                    }
-                    catch
-                    {
-                        if (urlText.Length > 22) urlText = urlText.Substring(0, 20) + "..";
-                    }
-                    string lineText = $"{req.Method}  {urlText} ({req.DurationMs:F0}ms)";
-                    currentCanvas.DrawText(lineText, tx, ty + 7, paintText);
-
-                    // Draw request bar
-                    float reqStart = (float)Math.Max(step.RelativeStartMs, req.RelativeStartMs);
-                    float reqEnd = (float)Math.Min(step.RelativeStartMs + step.DurationMs, req.RelativeStartMs + req.DurationMs);
-                    
-                    float leftVal = (reqStart - (float)step.RelativeStartMs) / (float)step.DurationMs;
-                    float widthVal = Math.Max(0.02f, (reqEnd - reqStart) / (float)step.DurationMs);
-
-                    float barLeft = chartLeft + leftVal * chartWidth;
-                    float barWidth = widthVal * chartWidth;
-
-                    // Color coordinate based on status
-                    SKColor barColor = new SKColor(37, 99, 235); // Blue for pending/loading
-                    if (req.Status.StartsWith("4") || req.Status.StartsWith("5") || req.Status == "Failed")
-                    {
-                        barColor = new SKColor(239, 68, 68); // Red
-                    }
-                    else if (req.Status.StartsWith("3"))
-                    {
-                        barColor = new SKColor(245, 158, 11); // Orange
-                    }
-                    else if (req.Status.StartsWith("2") || req.Status == "Finished")
-                    {
-                        barColor = new SKColor(16, 185, 129); // Green
-                    }
-
-                    using var paintBar = new SKPaint { Color = barColor, Style = SKPaintStyle.Fill };
-                    currentCanvas.DrawRect(new SKRect(barLeft, ty, barLeft + barWidth, ty + 6), paintBar);
-
-                    ty += 10;
-                }
-
-                if (stepReqs.Count > 4)
-                {
-                    currentCanvas.DrawText($"+ {stepReqs.Count - 4} more network requests...", tx, ty + 7, paintSub);
+                    var provRect = new SKRect(margin, telemetryY, pageWidth - margin, telemetryY + hReq);
+                    provider.RenderPdf(i, currentCanvas, provRect, stepData, runData, options);
+                    telemetryY += hReq;
                 }
             }
 
