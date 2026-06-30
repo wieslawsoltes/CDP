@@ -18,6 +18,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger<CdpService>();
     private ClientWebSocket? _ws;
+    private OsAutomationCdpSession? _osSession;
     private CancellationTokenSource? _cts;
     private int _messageId = 1;
     private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonObject>> _pendingRequests = new();
@@ -87,6 +88,24 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
     public async Task<List<TargetItem>> GetTargetsAsync(string host)
     {
+        if (host != null && host.StartsWith("os://", StringComparison.OrdinalIgnoreCase))
+        {
+            var list = new List<TargetItem>();
+            try
+            {
+                var windows = CDP.Automation.OS.OSAutomationService.Instance.GetWindows();
+                foreach (var win in windows)
+                {
+                    list.Add(new TargetItem(win.Title, $"os://{win.Id}", win.Id));
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to get OS windows for target list");
+            }
+            return list;
+        }
+
         try
         {
             var targetHost = host;
@@ -150,6 +169,32 @@ public class CdpService : ICdpService, INotifyPropertyChanged
     {
         await DisconnectAsync();
 
+        if (host != null && host.StartsWith("os://", StringComparison.OrdinalIgnoreCase))
+        {
+            ConnectionStatus = "Connecting...";
+            try
+            {
+                _osSession = new OsAutomationCdpSession(target.Id);
+                _osSession.EventReceived += (sender, args) =>
+                {
+                    EventReceived?.Invoke(this, args);
+                };
+                IsConnected = true;
+                ConnectionStatus = "Connected";
+                ConnectedHost = host;
+                ConnectedTargetId = target.Id;
+                Logger.ClientConnected(target.Id, host);
+                return;
+            }
+            catch (Exception ex)
+            {
+                ConnectionStatus = "Connection Failed";
+                Logger.ClientConnectionFailed(ex.Message, ex);
+                await DisconnectAsync();
+                throw new Exception($"Failed to connect to target: {ex.Message}", ex);
+            }
+        }
+
         _ws = new ClientWebSocket();
         _cts = new CancellationTokenSource();
         _messageId = 1;
@@ -185,6 +230,21 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
     public async Task DisconnectAsync()
     {
+        if (_osSession != null)
+        {
+            lock (_disconnectLock)
+            {
+                _osSession = null;
+                IsConnected = false;
+                IsPreviewScreencastActive = false;
+                ConnectionStatus = "Disconnected";
+                ConnectedHost = "";
+                ConnectedTargetId = "";
+            }
+            Logger.ClientDisconnected();
+            return;
+        }
+
         ClientWebSocket? ws = null;
         CancellationTokenSource? cts = null;
 
@@ -227,6 +287,11 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
     public async Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
     {
+        if (_osSession != null)
+        {
+            return await _osSession.HandleCommandAsync(method, parameters);
+        }
+
         var ws = _ws;
         if (ws == null || ws.State != WebSocketState.Open)
         {

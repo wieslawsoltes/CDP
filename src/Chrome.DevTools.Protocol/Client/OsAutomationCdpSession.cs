@@ -1,0 +1,905 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
+using CDP.Automation.OS;
+
+namespace Chrome.DevTools.Protocol;
+
+public sealed class OsAutomationCdpSession
+{
+    private readonly string _windowId;
+    private readonly IOsAutomation _automation;
+    private readonly Dictionary<int, OSNode> _idToNode = new();
+    private readonly Dictionary<string, int> _osIdToCdpId = new();
+    private int _nextNodeId = 2;
+    private OSNode? _rootNode;
+
+    public event EventHandler<CdpEventEventArgs>? EventReceived;
+
+    private System.Threading.CancellationTokenSource? _pollingCts;
+    private string? _lastFocusedId;
+    private string? _lastFocusedValue;
+    private string? _lastFocusedRole;
+    private bool _isSimulatingInput;
+
+    private System.Threading.CancellationTokenSource? _screencastCts;
+    private byte[]? _lastFrameBytes;
+    private int _screencastSessionId;
+
+    private void TriggerSimulateInputGuard()
+    {
+        _isSimulatingInput = true;
+        _ = Task.Delay(500).ContinueWith(_ => _isSimulatingInput = false);
+    }
+
+    public OsAutomationCdpSession(string windowId)
+    {
+        _windowId = windowId;
+        _automation = OSAutomationService.Instance;
+    }
+
+    public async Task<JsonObject> HandleCommandAsync(string method, JsonObject? parameters)
+    {
+        parameters ??= new JsonObject();
+        var dotIndex = method.IndexOf('.');
+        if (dotIndex == -1)
+        {
+            throw new Exception($"Invalid method format: {method}");
+        }
+
+        var domain = method.Substring(0, dotIndex);
+        var action = method.Substring(dotIndex + 1);
+
+        return domain switch
+        {
+            "DOM" => await HandleDomDomainAsync(action, parameters),
+            "Input" => await HandleInputDomainAsync(action, parameters),
+            "Page" => await HandlePageDomainAsync(action, parameters),
+            "SystemInfo" => await HandleSystemInfoDomainAsync(action, parameters),
+            "Runtime" => await HandleRuntimeDomainAsync(action, parameters),
+            "Target" => await HandleTargetDomainAsync(action, parameters),
+            "Accessibility" => await HandleAccessibilityDomainAsync(action, parameters),
+            "CSS" => await HandleCssDomainAsync(action, parameters),
+            "Overlay" => await HandleOverlayDomainAsync(action, parameters),
+            "Recorder" => await HandleRecorderDomainAsync(action, parameters),
+            _ => new JsonObject()
+        };
+    }
+
+    private Task<JsonObject> HandleDomDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "getDocument":
+                {
+                    _idToNode.Clear();
+                    _osIdToCdpId.Clear();
+                    _nextNodeId = 2;
+
+                    _rootNode = _automation.GetElementTree(_windowId);
+                    var children = new JsonArray();
+                    if (_rootNode != null)
+                    {
+                        children.Add(BuildCdpNode(_rootNode));
+                    }
+
+                    var root = new JsonObject
+                    {
+                        ["nodeId"] = 1,
+                        ["backendNodeId"] = 1,
+                        ["nodeType"] = 9, // Document Node
+                        ["nodeName"] = "#document",
+                        ["localName"] = "",
+                        ["nodeValue"] = "",
+                        ["childNodeCount"] = children.Count,
+                        ["children"] = children,
+                        ["documentURL"] = "os://localhost/",
+                        ["baseURL"] = "os://localhost/"
+                    };
+
+                    return Task.FromResult(new JsonObject { ["root"] = root });
+                }
+
+            case "querySelector":
+                {
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    string selector = parameters["selector"]?.GetValue<string>() ?? "";
+                    
+                    OSNode? searchRoot = null;
+                    if (nodeId == 1)
+                    {
+                        searchRoot = _rootNode;
+                    }
+                    else if (_idToNode.TryGetValue(nodeId, out var n))
+                    {
+                        searchRoot = n;
+                    }
+
+                    int matchId = 0;
+                    if (searchRoot != null)
+                    {
+                        var match = QuerySelectorInternal(searchRoot, selector);
+                        if (match != null && _osIdToCdpId.TryGetValue(match.Id, out int cdpId))
+                        {
+                            matchId = cdpId;
+                        }
+                    }
+
+                    return Task.FromResult(new JsonObject { ["nodeId"] = matchId });
+                }
+
+            case "resolveNode":
+                {
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    var obj = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["objectId"] = $"node_{nodeId}"
+                    };
+                    return Task.FromResult(new JsonObject { ["object"] = obj });
+                }
+
+            case "getNodeForLocation":
+                {
+                    int x = parameters["x"]?.GetValue<int>() ?? 0;
+                    int y = parameters["y"]?.GetValue<int>() ?? 0;
+
+                    int matchedNodeId = 0;
+                    if (_rootNode != null)
+                    {
+                        var match = FindDeepestNodeAt(_rootNode, x, y);
+                        if (match != null && _osIdToCdpId.TryGetValue(match.Id, out int cdpId))
+                        {
+                            matchedNodeId = cdpId;
+                        }
+                    }
+
+                    return Task.FromResult(new JsonObject { ["nodeId"] = matchedNodeId });
+                }
+
+            case "getBoxModel":
+                {
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    if (!_idToNode.TryGetValue(nodeId, out var node))
+                    {
+                        throw new Exception($"Node with ID {nodeId} not found");
+                    }
+
+                    double ox = _rootNode != null ? _rootNode.Bounds.Left : 0.0;
+                    double oy = _rootNode != null ? _rootNode.Bounds.Top : 0.0;
+
+                    double x1 = node.Bounds.Left - ox;
+                    double y1 = node.Bounds.Top - oy;
+                    double x2 = node.Bounds.Right - ox;
+                    double y2 = node.Bounds.Top - oy;
+                    double x3 = node.Bounds.Right - ox;
+                    double y3 = node.Bounds.Bottom - oy;
+                    double x4 = node.Bounds.Left - ox;
+                    double y4 = node.Bounds.Bottom - oy;
+
+                    var quad = new JsonArray { x1, y1, x2, y2, x3, y3, x4, y4 };
+                    var model = new JsonObject
+                    {
+                        ["content"] = (JsonArray)quad.DeepClone()!,
+                        ["padding"] = (JsonArray)quad.DeepClone()!,
+                        ["border"] = (JsonArray)quad.DeepClone()!,
+                        ["margin"] = (JsonArray)quad.DeepClone()!,
+                        ["width"] = node.Bounds.Width,
+                        ["height"] = node.Bounds.Height
+                    };
+
+                    return Task.FromResult(new JsonObject { ["model"] = model });
+                }
+
+            case "focus":
+                {
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    if (_idToNode.TryGetValue(nodeId, out var node))
+                    {
+                        TriggerSimulateInputGuard();
+                        // Simulate focus by clicking at the center of the element bounds
+                        double cx = node.Bounds.Left + node.Bounds.Width / 2.0;
+                        double cy = node.Bounds.Top + node.Bounds.Height / 2.0;
+                        _automation.SimulateMouseMove(_windowId, cx, cy);
+                        _automation.SimulateClick(_windowId, cx, cy);
+                    }
+                    return Task.FromResult(new JsonObject());
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private Task<JsonObject> HandleInputDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "dispatchMouseEvent":
+                {
+                    TriggerSimulateInputGuard();
+                    string type = parameters["type"]?.GetValue<string>() ?? "";
+                    double x = parameters["x"]?.GetValue<double>() ?? 0.0;
+                    double y = parameters["y"]?.GetValue<double>() ?? 0.0;
+                    string button = parameters["button"]?.GetValue<string>() ?? "none";
+
+                    if (type == "mouseMoved")
+                    {
+                        if (button != "none")
+                        {
+                            _automation.SimulateMouseMove(_windowId, x, y);
+                        }
+                    }
+                    else if (type == "mousePressed")
+                    {
+                        _automation.SimulateMouseDown(_windowId, x, y, button);
+                    }
+                    else if (type == "mouseReleased")
+                    {
+                        _automation.SimulateMouseUp(_windowId, x, y, button);
+                        // Complete click action
+                        _automation.SimulateClick(_windowId, x, y);
+                    }
+
+                    return Task.FromResult(new JsonObject());
+                }
+
+            case "insertText":
+                {
+                    TriggerSimulateInputGuard();
+                    string text = parameters["text"]?.GetValue<string>() ?? "";
+                    _automation.SimulateTypeText(_windowId, text);
+                    return Task.FromResult(new JsonObject());
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private Task<JsonObject> HandlePageDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "captureScreenshot":
+                {
+                    byte[] bytes = _automation.CaptureWindow(_windowId);
+                    string base64 = Convert.ToBase64String(bytes);
+                    return Task.FromResult(new JsonObject { ["data"] = base64 });
+                }
+
+            case "startScreencast":
+                StartScreencast();
+                return Task.FromResult(new JsonObject());
+
+            case "stopScreencast":
+                StopScreencast();
+                return Task.FromResult(new JsonObject());
+
+            case "screencastFrameAck":
+                return Task.FromResult(new JsonObject());
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private Task<JsonObject> HandleSystemInfoDomainAsync(string action, JsonObject parameters)
+    {
+        if (action == "getInfo")
+        {
+            return Task.FromResult(new JsonObject
+            {
+                ["modelName"] = "OS Automation Bridge",
+                ["modelVersion"] = "1.0",
+                ["commandLine"] = "N/A"
+            });
+        }
+        return Task.FromResult(new JsonObject());
+    }
+
+    private Task<JsonObject> HandleRuntimeDomainAsync(string action, JsonObject parameters)
+    {
+        if (action == "evaluate")
+        {
+            // Dummy implementation of evaluate to return empty result for console calls
+            return Task.FromResult(new JsonObject
+            {
+                ["result"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = "OS Automation Session"
+                }
+            });
+        }
+        else if (action == "getProperties")
+        {
+            string objectId = parameters["objectId"]?.GetValue<string>() ?? "";
+            var results = new JsonArray();
+            if (objectId.StartsWith("node_"))
+            {
+                if (int.TryParse(objectId.Substring(5), out int nodeId) && _idToNode.TryGetValue(nodeId, out var node))
+                {
+                    void AddProp(string name, string? val, string type = "string")
+                    {
+                        results.Add(new JsonObject
+                        {
+                            ["name"] = name,
+                            ["value"] = new JsonObject
+                            {
+                                ["type"] = type,
+                                ["value"] = val ?? ""
+                            }
+                        });
+                    }
+
+                    AddProp("id", node.Id);
+                    AddProp("name", node.Name);
+                    AddProp("role", node.Role);
+                    AddProp("text", node.Text);
+                    AddProp("bounds", node.Bounds.ToString());
+
+                    foreach (var kvp in node.Attributes)
+                    {
+                        AddProp(kvp.Key, kvp.Value);
+                    }
+                }
+            }
+            return Task.FromResult(new JsonObject { ["result"] = results });
+        }
+        return Task.FromResult(new JsonObject());
+    }
+
+    private Task<JsonObject> HandleTargetDomainAsync(string action, JsonObject parameters)
+    {
+        return Task.FromResult(new JsonObject());
+    }
+
+    private JsonObject BuildCdpNode(OSNode node)
+    {
+        int nodeId = _nextNodeId++;
+        _idToNode[nodeId] = node;
+        _osIdToCdpId[node.Id] = nodeId;
+
+        var childrenArray = new JsonArray();
+        foreach (var child in node.Children)
+        {
+            childrenArray.Add(BuildCdpNode(child));
+        }
+
+        var attributesArray = new JsonArray();
+        foreach (var kvp in node.Attributes)
+        {
+            attributesArray.Add(kvp.Key);
+            attributesArray.Add(kvp.Value);
+        }
+
+        // Add some default attributes from fields
+        if (!string.IsNullOrEmpty(node.Text))
+        {
+            attributesArray.Add("Text");
+            attributesArray.Add(node.Text);
+            attributesArray.Add("value");
+            attributesArray.Add(node.Text);
+        }
+        attributesArray.Add("id");
+        attributesArray.Add(node.Id);
+        attributesArray.Add("Id");
+        attributesArray.Add(node.Id);
+        attributesArray.Add("Name");
+        attributesArray.Add(node.Name);
+        attributesArray.Add("Role");
+        attributesArray.Add(node.Role);
+        attributesArray.Add("AutomationId");
+        attributesArray.Add(node.Id);
+        attributesArray.Add("AccessibilityId");
+        attributesArray.Add(node.Id);
+
+        var cdpNode = new JsonObject
+        {
+            ["nodeId"] = nodeId,
+            ["parentId"] = 1,
+            ["backendNodeId"] = nodeId,
+            ["nodeType"] = 1, // Element Node
+            ["nodeName"] = node.Name,
+            ["localName"] = node.Name,
+            ["nodeValue"] = "",
+            ["childNodeCount"] = node.Children.Count,
+            ["attributes"] = attributesArray
+        };
+
+        if (childrenArray.Count > 0)
+        {
+            cdpNode["children"] = childrenArray;
+        }
+
+        return cdpNode;
+    }
+
+    private OSNode? QuerySelectorInternal(OSNode root, string selector)
+    {
+        if (string.IsNullOrEmpty(selector)) return null;
+
+        ReadOnlySpan<char> sel = selector.AsSpan();
+
+        // 1. ID selector: #name or [id="name"] or [AutomationId="name"]
+        if (sel.StartsWith("#"))
+        {
+            var id = sel.Slice(1).ToString();
+            return FindNodeRecursive(root, n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase));
+        }
+        
+        if (sel.StartsWith("[id=") || sel.StartsWith("[Id=") || sel.StartsWith("[Name="))
+        {
+            var clean = selector.Replace("[id=", "").Replace("[Id=", "").Replace("[Name=", "").Replace("]", "").Replace("\"", "").Trim();
+            return FindNodeRecursive(root, n => string.Equals(n.Id, clean, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (sel.StartsWith("[AccessibilityId=") || sel.StartsWith("[AutomationId=") || sel.StartsWith("[AutomationProperties.AutomationId="))
+        {
+            var clean = selector
+                .Replace("[AccessibilityId=", "")
+                .Replace("[AutomationId=", "")
+                .Replace("[AutomationProperties.AutomationId=", "")
+                .Replace("]", "")
+                .Replace("\"", "")
+                .Trim();
+            return FindNodeRecursive(root, n => string.Equals(n.Id, clean, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 2. Text selector: [Text="value"] or :contains("value")
+        if (sel.Contains("[Text=".AsSpan(), StringComparison.OrdinalIgnoreCase))
+        {
+            var clean = selector.Replace("[Text=", "").Replace("]", "").Replace("\"", "").Trim();
+            return FindNodeRecursive(root, n => string.Equals(n.Text, clean, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (sel.Contains(":contains(".AsSpan(), StringComparison.OrdinalIgnoreCase))
+        {
+            var clean = selector.Replace(":contains(", "").Replace(")", "").Replace("\"", "").Trim();
+            return FindNodeRecursive(root, n => n.Text.Contains(clean, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 3. Name/Role selector
+        return FindNodeRecursive(root, n => string.Equals(n.Name, selector, StringComparison.OrdinalIgnoreCase) || string.Equals(n.Role, selector, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private OSNode? FindNodeRecursive(OSNode root, Func<OSNode, bool> predicate)
+    {
+        if (predicate(root)) return root;
+        foreach (var child in root.Children)
+        {
+            var found = FindNodeRecursive(child, predicate);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private Task<JsonObject> HandleAccessibilityDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "getFullAXTree":
+                {
+                    var nodes = new JsonArray();
+                    if (_rootNode != null)
+                    {
+                        var list = new List<OSNode>();
+                        TraverseOSNodes(_rootNode, list);
+                        foreach (var node in list)
+                        {
+                            nodes.Add(BuildAXNode(node));
+                        }
+                    }
+                    return Task.FromResult(new JsonObject { ["nodes"] = nodes });
+                }
+
+            case "getAXNode":
+            case "getAXNodeAndAncestors":
+            case "getPartialAXTree":
+                {
+                    int? nodeId = parameters["nodeId"]?.GetValue<int>();
+                    OSNode? targetNode = null;
+                    if (nodeId.HasValue && _idToNode.TryGetValue(nodeId.Value, out var n))
+                    {
+                        targetNode = n;
+                    }
+                    else
+                    {
+                        targetNode = _rootNode;
+                    }
+
+                    var nodes = new JsonArray();
+                    if (targetNode != null)
+                    {
+                        var current = targetNode;
+                        while (current != null)
+                        {
+                            nodes.Add(BuildAXNode(current));
+                            current = FindParentOSNode(_rootNode, current);
+                        }
+                    }
+                    return Task.FromResult(new JsonObject { ["nodes"] = nodes });
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private void TraverseOSNodes(OSNode root, List<OSNode> list)
+    {
+        list.Add(root);
+        foreach (var child in root.Children)
+        {
+            TraverseOSNodes(child, list);
+        }
+    }
+
+    private OSNode? FindParentOSNode(OSNode? root, OSNode target)
+    {
+        if (root == null) return null;
+        foreach (var child in root.Children)
+        {
+            if (child == target) return root;
+            var found = FindParentOSNode(child, target);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private JsonObject BuildAXNode(OSNode node)
+    {
+        int domNodeId = _osIdToCdpId.TryGetValue(node.Id, out int cdpId) ? cdpId : 0;
+        string axId = "ax_" + node.Id;
+
+        var roleJson = new JsonObject
+        {
+            ["type"] = "role",
+            ["value"] = node.Role
+        };
+
+        var nameJson = new JsonObject
+        {
+            ["type"] = "string",
+            ["value"] = node.Text
+        };
+
+        var propertiesJson = new JsonArray();
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "focusable",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = true
+            }
+        });
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "focused",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = false
+            }
+        });
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "disabled",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = false
+            }
+        });
+
+        if (!string.IsNullOrEmpty(node.Text))
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "value",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = node.Text
+                }
+            });
+        }
+
+        var nodeJson = new JsonObject
+        {
+            ["nodeId"] = axId,
+            ["ignored"] = false,
+            ["role"] = roleJson,
+            ["name"] = nameJson
+        };
+
+        if (domNodeId > 0)
+        {
+            nodeJson["backendDOMNodeId"] = domNodeId;
+        }
+
+        var parentNode = FindParentOSNode(_rootNode, node);
+        if (parentNode != null)
+        {
+            nodeJson["parentId"] = "ax_" + parentNode.Id;
+        }
+
+        var childIds = new JsonArray();
+        foreach (var child in node.Children)
+        {
+            childIds.Add("ax_" + child.Id);
+        }
+        if (childIds.Count > 0)
+        {
+            nodeJson["childIds"] = childIds;
+        }
+
+        if (propertiesJson.Count > 0)
+        {
+            nodeJson["properties"] = propertiesJson;
+        }
+
+        return nodeJson;
+    }
+
+    private Task<JsonObject> HandleCssDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "getComputedStyleForNode":
+                {
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    var style = new JsonArray();
+
+                    if (_idToNode.TryGetValue(nodeId, out var node))
+                    {
+                        style.Add(new JsonObject { ["name"] = "width", ["value"] = $"{node.Bounds.Width}px" });
+                        style.Add(new JsonObject { ["name"] = "height", ["value"] = $"{node.Bounds.Height}px" });
+                        style.Add(new JsonObject { ["name"] = "visibility", ["value"] = "visible" });
+                        style.Add(new JsonObject { ["name"] = "display", ["value"] = "block" });
+                    }
+
+                    return Task.FromResult(new JsonObject { ["computedStyle"] = style });
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private OSNode? FindDeepestNodeAt(OSNode root, int x, int y)
+    {
+        if (x < root.Bounds.Left || x > root.Bounds.Right || y < root.Bounds.Top || y > root.Bounds.Bottom)
+        {
+            return null;
+        }
+
+        foreach (var child in root.Children)
+        {
+            var found = FindDeepestNodeAt(child, x, y);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return root;
+    }
+
+    private Task<JsonObject> HandleOverlayDomainAsync(string action, JsonObject parameters)
+    {
+        return Task.FromResult(new JsonObject());
+    }
+
+    private Task<JsonObject> HandleRecorderDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "start":
+                StartRecordingPolling();
+                return Task.FromResult(new JsonObject());
+
+            case "stop":
+                StopRecordingPolling();
+                return Task.FromResult(new JsonObject());
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private void StartRecordingPolling()
+    {
+        StopRecordingPolling();
+        _pollingCts = new System.Threading.CancellationTokenSource();
+        var token = _pollingCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(200, token);
+                    if (_isSimulatingInput) continue;
+
+                    var focused = _automation.GetFocusedElement(_windowId);
+                    if (focused != null)
+                    {
+                        if (focused.Role == "AXButton" || focused.Role == "AXCheckBox" || focused.Role == "AXRadioButton" || focused.Role == "AXMenuItem" || focused.Role == "AXPopUpButton" || focused.Role == "button" || focused.Role == "check box" || focused.Role == "radio button")
+                        {
+                            if (focused.Id != _lastFocusedId)
+                            {
+                                _lastFocusedId = focused.Id;
+                                _lastFocusedValue = focused.Text;
+                                _lastFocusedRole = focused.Role;
+
+                                RaiseStepRecordedEvent("click", focused.Id);
+                            }
+                        }
+                        else if (focused.Role == "AXTextField" || focused.Role == "AXTextArea" || focused.Role == "AXComboBox" || focused.Role == "Edit" || focused.Role == "AXScrollArea" || focused.Role == "edit" || focused.Role == "combo box")
+                        {
+                            if (focused.Id != _lastFocusedId)
+                            {
+                                _lastFocusedId = focused.Id;
+                                _lastFocusedValue = focused.Text;
+                                _lastFocusedRole = focused.Role;
+                            }
+                            else if (focused.Text != _lastFocusedValue)
+                            {
+                                _lastFocusedValue = focused.Text;
+                                RaiseStepRecordedEvent("change", focused.Id, focused.Text);
+                            }
+                        }
+                    }
+                }
+                catch (TaskCanceledException) {}
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error polling focused element: {ex.Message}");
+                }
+            }
+        }, token);
+    }
+
+    private void StopRecordingPolling()
+    {
+        _pollingCts?.Cancel();
+        _pollingCts = null;
+        _lastFocusedId = null;
+        _lastFocusedValue = null;
+        _lastFocusedRole = null;
+    }
+
+    private void RaiseStepRecordedEvent(string type, string elementId, string? value = null)
+    {
+        var step = new JsonObject
+        {
+            ["type"] = type,
+            ["selectors"] = new JsonArray { new JsonArray { JsonValue.Create($"#{elementId}") } }
+        };
+        if (value != null)
+        {
+            step["value"] = value;
+        }
+
+        var eventParams = new JsonObject
+        {
+            ["step"] = step
+        };
+
+        EventReceived?.Invoke(this, new CdpEventEventArgs("Recorder.stepAdded", eventParams));
+    }
+
+    private void StartScreencast()
+    {
+        StopScreencast();
+        _screencastCts = new System.Threading.CancellationTokenSource();
+        var token = _screencastCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(250, token);
+
+                    byte[] newBytes = _automation.CaptureWindow(_windowId);
+                    if (newBytes != null && newBytes.Length > 0)
+                    {
+                        bool changed = _lastFrameBytes == null || !CompareBytes(_lastFrameBytes, newBytes);
+                        if (changed)
+                        {
+                            _lastFrameBytes = newBytes;
+
+                            double deviceWidth = 800.0;
+                            double deviceHeight = 600.0;
+                            try
+                            {
+                                var windows = _automation.GetWindows();
+                                int pid = 0;
+                                int.TryParse(_windowId, out pid);
+                                foreach (var w in windows)
+                                {
+                                     if (w.Id == _windowId || (pid > 0 && w.ProcessId == pid))
+                                     {
+                                         deviceWidth = w.Bounds.Width;
+                                         deviceHeight = w.Bounds.Height;
+                                         break;
+                                     }
+                                }
+                            }
+                            catch {}
+
+                            var metadata = new JsonObject
+                            {
+                                ["offsetTop"] = 0.0,
+                                ["pageScaleFactor"] = 1.0,
+                                ["deviceWidth"] = deviceWidth,
+                                ["deviceHeight"] = deviceHeight,
+                                ["scrollOffsetX"] = 0.0,
+                                ["scrollOffsetY"] = 0.0,
+                                ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0
+                            };
+
+                            var frameParams = new JsonObject
+                            {
+                                ["data"] = Convert.ToBase64String(newBytes),
+                                ["metadata"] = metadata,
+                                ["sessionId"] = _screencastSessionId++
+                            };
+
+                            EventReceived?.Invoke(this, new CdpEventEventArgs("Page.screencastFrame", frameParams));
+                        }
+                    }
+                }
+                catch (TaskCanceledException) {}
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in screencast: {ex.Message}");
+                }
+            }
+        }, token);
+    }
+
+    private void StopScreencast()
+    {
+        _screencastCts?.Cancel();
+        _screencastCts = null;
+        _lastFrameBytes = null;
+    }
+
+    private bool CompareBytes(byte[] a, byte[] b)
+    {
+        if (a.Length != b.Length) return false;
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (a[i] != b[i]) return false;
+        }
+        return true;
+    }
+}

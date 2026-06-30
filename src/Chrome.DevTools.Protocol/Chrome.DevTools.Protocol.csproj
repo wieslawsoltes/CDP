@@ -25,4 +25,8 @@
     <Using Include="Chrome.DevTools.Protocol" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../CDP.Automation.OS/CDP.Automation.OS.csproj" />
+  </ItemGroup>
+
 </Project>
