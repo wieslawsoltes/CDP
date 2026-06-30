@@ -86,6 +86,7 @@ public sealed class EnrichedOsAutomation : IOsAutomation
     public void SimulateMouseMove(string windowId, double x, double y) => _underlying.SimulateMouseMove(windowId, x, y);
     public void SimulateMouseDown(string windowId, double x, double y, string button) => _underlying.SimulateMouseDown(windowId, x, y, button);
     public void SimulateMouseUp(string windowId, double x, double y, string button) => _underlying.SimulateMouseUp(windowId, x, y, button);
+    public void SimulateMouseWheel(string windowId, double x, double y, double deltaX, double deltaY) => _underlying.SimulateMouseWheel(windowId, x, y, deltaX, deltaY);
     public void SimulateKeyPress(string windowId, string key) => _underlying.SimulateKeyPress(windowId, key);
     public void SimulateTypeText(string windowId, string text) => _underlying.SimulateTypeText(windowId, text);
     public byte[] CaptureWindow(string windowId) => _underlying.CaptureWindow(windowId);

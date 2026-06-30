@@ -207,6 +207,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
     private static partial IntPtr CGEventCreateMouseEvent(IntPtr source, uint mouseType, CGPoint mouseCursorPosition, uint mouseButton);
 
     [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static partial IntPtr CGEventCreateScrollWheelEvent(IntPtr source, int units, uint wheelCount, int wheel1);
+
+    [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     private static partial void CGEventPost(uint tapLocation, IntPtr theEvent);
 
     [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
@@ -952,6 +955,27 @@ public sealed partial class MacOsAutomation : IOsAutomation
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to simulate macOS mouse up at ({X}, {Y})", x, y);
+        }
+    }
+
+    public void SimulateMouseWheel(string windowId, double x, double y, double deltaX, double deltaY)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
+
+        try
+        {
+            SimulateMouseMove(windowId, x, y);
+
+            IntPtr scrollEvent = CGEventCreateScrollWheelEvent(IntPtr.Zero, 0, 1, (int)deltaY);
+            if (scrollEvent != IntPtr.Zero)
+            {
+                PostAndRestoreCursor(scrollEvent, windowId);
+                CFRelease(scrollEvent);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to simulate macOS mouse wheel scroll at ({X}, {Y}) with delta {DeltaY}", x, y, deltaY);
         }
     }
 

@@ -265,6 +265,12 @@ public sealed class OsAutomationCdpSession : IDisposable
                             _automation.SimulateMouseUp(_windowId, x, y, button);
                         }
                     }
+                    else if (type == "mouseWheel")
+                    {
+                        double deltaX = parameters["deltaX"]?.GetValue<double>() ?? 0.0;
+                        double deltaY = parameters["deltaY"]?.GetValue<double>() ?? 0.0;
+                        _automation.SimulateMouseWheel(_windowId, x, y, deltaX, deltaY);
+                    }
 
                     return Task.FromResult(new JsonObject());
                 }
@@ -530,8 +536,19 @@ public sealed class OsAutomationCdpSession : IDisposable
 
         if (sel.Contains(":contains(".AsSpan(), StringComparison.OrdinalIgnoreCase))
         {
-            var clean = selector.Replace(":contains(", "").Replace(")", "").Replace("\"", "").Trim();
-            return FindNodeRecursive(root, n => n.Text.Contains(clean, StringComparison.OrdinalIgnoreCase));
+            string clean = selector;
+            int startIdx = selector.IndexOf(":contains(", StringComparison.OrdinalIgnoreCase);
+            if (startIdx >= 0)
+            {
+                int argStart = startIdx + ":contains(".Length;
+                int endIdx = selector.IndexOf(')', argStart);
+                if (endIdx >= 0)
+                {
+                    clean = selector.Substring(argStart, endIdx - argStart);
+                }
+            }
+            clean = clean.Trim('\'', '"', ' ');
+            return FindNodeRecursive(root, n => n.Text != null && n.Text.Contains(clean, StringComparison.OrdinalIgnoreCase));
         }
 
         // 3. Name/Role selector

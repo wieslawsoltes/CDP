@@ -13,6 +13,7 @@ public interface IOsAutomation
     void SimulateMouseMove(string windowId, double x, double y);
     void SimulateMouseDown(string windowId, double x, double y, string button);
     void SimulateMouseUp(string windowId, double x, double y, string button);
+    void SimulateMouseWheel(string windowId, double x, double y, double deltaX, double deltaY);
     void SimulateKeyPress(string windowId, string key);
     void SimulateTypeText(string windowId, string text);
     byte[] CaptureWindow(string windowId);

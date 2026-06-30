@@ -130,6 +130,8 @@ public sealed partial class WindowsAutomation : IOsAutomation
         [PreserveSig] int GetCurrentPropertyValueEx(int propertyId, [MarshalAs(UnmanagedType.Bool)] bool ignoreDefaultValue, out object value);
         [PreserveSig] int GetCachedPropertyValue(int propertyId, out object value);
         [PreserveSig] int GetCachedPropertyValueEx(int propertyId, [MarshalAs(UnmanagedType.Bool)] bool ignoreDefaultValue, out object value);
+        [PreserveSig] int GetCurrentPatternAs(int patternId, ref Guid riid, out IntPtr patternObject);
+        [PreserveSig] int GetCachedPatternAs(int patternId, ref Guid riid, out IntPtr patternObject);
         [PreserveSig] int GetCurrentPattern(int patternId, out IntPtr patternObject);
         [PreserveSig] int GetCachedPattern(int patternId, out IntPtr patternObject);
         [PreserveSig] int GetCachedParent(out IUIAutomationElement parent);
@@ -865,6 +867,43 @@ public sealed partial class WindowsAutomation : IOsAutomation
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to simulate Windows mouse up at ({X}, {Y})", x, y);
+        }
+    }
+
+    public void SimulateMouseWheel(string windowId, double x, double y, double deltaX, double deltaY)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+        try
+        {
+            SimulateMouseMove(windowId, x, y);
+
+            var bounds = GetWindowBounds(windowId);
+            double absoluteX = bounds.Left + x;
+            double absoluteY = bounds.Top + y;
+
+            GetNormalizedCoordinates(absoluteX, absoluteY, out int dx, out int dy, out uint dwFlags);
+
+            var inputs = new INPUT[1];
+            inputs[0] = new INPUT
+            {
+                type = 0,
+                u = new INPUT_UNION
+                {
+                    mi = new MOUSEINPUT
+                    {
+                        dx = dx,
+                        dy = dy,
+                        mouseData = (uint)(-(int)deltaY),
+                        dwFlags = 0x0800 // MOUSEEVENTF_WHEEL
+                    }
+                }
+            };
+            PostAndRestoreCursor(inputs, windowId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to simulate Windows mouse wheel scroll at ({X}, {Y}) with delta {DeltaY}", x, y, deltaY);
         }
     }
 
