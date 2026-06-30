@@ -88,10 +88,18 @@
                 </Grid>
             </Border>
 
-            <!-- Right Panel: Video Frame View -->
-            <Border Grid.Column="1" Background="Black" CornerRadius="8" ClipToBounds="True" BorderBrush="#2d313f" BorderThickness="1">
-                <Image Name="imgFrame" Stretch="Uniform"/>
-            </Border>
+            <!-- Right Panel: Video Frame View and Step Telemetry -->
+            <Grid Grid.Column="1" RowDefinitions="*, 260" Margin="0,0,0,0">
+                <!-- Top: Video Frame View -->
+                <Border Grid.Row="0" Background="Black" CornerRadius="8" ClipToBounds="True" BorderBrush="#2d313f" BorderThickness="1" Margin="0,0,0,10">
+                    <Image Name="imgFrame" Stretch="Uniform"/>
+                </Border>
+                
+                <!-- Bottom: Selected Step Details & Telemetry -->
+                <Border Grid.Row="1" Background="#161821" CornerRadius="8" BorderBrush="#2d313f" BorderThickness="1" Padding="10">
+                    <views:StepTelemetryView Name="stepTelemetry" />
+                </Border>
+            </Grid>
         </Grid>
 
         <!-- Controls panel -->

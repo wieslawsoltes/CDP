@@ -248,4 +248,197 @@ public class TestStudioE2ETests
         Assert.Equal("assertTrue", vm.Steps[0].Action);
         Assert.Equal("document.querySelector(\"[AccessibilityId=\\\"txtTarget\\\"]\").visual.IsEnabled", vm.Steps[0].Value);
     }
+
+    [Fact]
+    public void Test_ReportOptions_Initialization_And_Persistence()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+
+        // Verify default options are true
+        Assert.True(vm.ReportIncludeScreenshots);
+        Assert.True(vm.ReportIncludeCharts);
+        Assert.True(vm.ReportIncludeMetricsTable);
+        Assert.True(vm.ReportIncludeNetworkDetails);
+
+        // Modify options
+        vm.ReportIncludeScreenshots = false;
+        vm.ReportIncludeCharts = false;
+        vm.ReportIncludeMetricsTable = true;
+        vm.ReportIncludeNetworkDetails = false;
+
+        // Serialize state
+        var state = vm.SaveState();
+        Assert.NotNull(state);
+
+        // Verify state object values
+        var json = state.AsObject();
+        Assert.False(json["reportIncludeScreenshots"]?.GetValue<bool>());
+        Assert.False(json["reportIncludeCharts"]?.GetValue<bool>());
+        Assert.True(json["reportIncludeMetricsTable"]?.GetValue<bool>());
+        Assert.False(json["reportIncludeNetworkDetails"]?.GetValue<bool>());
+
+        // Restore state onto a new instance
+        var vm2 = new TestStudioViewModel(new DummyCdpService());
+        vm2.LoadState(state);
+
+        // Assert values are restored
+        Assert.False(vm2.ReportIncludeScreenshots);
+        Assert.False(vm2.ReportIncludeCharts);
+        Assert.True(vm2.ReportIncludeMetricsTable);
+        Assert.False(vm2.ReportIncludeNetworkDetails);
+    }
+
+    [Fact]
+    public void Test_ReportGenerators_Honors_Options()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var steps = new List<StepReportItem>
+            {
+                new StepReportItem
+                {
+                    Index = 1,
+                    Action = "tap",
+                    ActionDisplay = "Tap button",
+                    Selector = "#btn",
+                    Status = "Passed",
+                    DurationMs = 250,
+                    RelativeStartMs = 10,
+                    CpuUsage = 15.5,
+                    MemoryJsHeapUsed = 42.1,
+                    MemoryJsHeapTotal = 64.0,
+                    Fps = 60,
+                    NetworkRequestCount = 2,
+                    NetworkResponseBytes = 2048,
+                    DomNodes = 450,
+                    DomDocuments = 2
+                }
+            };
+
+            var data = new TestRunReportData
+            {
+                TestName = "Test Run",
+                Description = "Report unit test description",
+                AppId = "test.app",
+                Steps = steps,
+                StartTime = DateTime.UtcNow.AddSeconds(-5),
+                EndTime = DateTime.UtcNow,
+                MetricsTimeline = new List<RunMetricSample>
+                {
+                    new RunMetricSample { RelativeTimeMs = 0, CpuUsage = 10.0, MemoryJsHeapUsed = 40.0, Fps = 60 },
+                    new RunMetricSample { RelativeTimeMs = 260, CpuUsage = 15.5, MemoryJsHeapUsed = 42.1, Fps = 60 }
+                }
+            };
+
+            var options = new TestStudioReportOptions
+            {
+                IncludeScreenshots = false,
+                IncludeCharts = false,
+                IncludeMetricsTable = false,
+                IncludeNetworkDetails = false
+            };
+
+            // Generate HTML report with all disabled
+            Chrome.DevTools.Protocol.TestStudioReportGenerator.GenerateHtmlReport(tempDir, data, options);
+            var htmlPath = Path.Combine(tempDir, "index.html");
+            Assert.True(File.Exists(htmlPath));
+
+            var htmlContent = File.ReadAllText(htmlPath);
+            Assert.DoesNotContain("step_1_screenshot.png", htmlContent);
+            Assert.Contains("options = {\"IncludeScreenshots\":false,", htmlContent);
+
+            // Generate PDF report with all disabled
+            var pdfPath = Path.Combine(tempDir, "report.pdf");
+            Chrome.DevTools.Protocol.TestStudioReportGenerator.GeneratePdfReport(pdfPath, data, options);
+            Assert.True(File.Exists(pdfPath));
+            
+            // Check size to ensure PDF is non-empty
+            var fileInfo = new FileInfo(pdfPath);
+            Assert.True(fileInfo.Length > 0);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_ReportGenerators_WaterfallChart()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var steps = new List<StepReportItem>
+            {
+                new StepReportItem
+                {
+                    Index = 1,
+                    Action = "tap",
+                    ActionDisplay = "Tap button",
+                    Selector = "#btn",
+                    Status = "Passed",
+                    DurationMs = 500,
+                    RelativeStartMs = 100,
+                    NetworkRequestCount = 1
+                }
+            };
+
+            var networkRequests = new List<NetworkReportItem>
+            {
+                new NetworkReportItem
+                {
+                    RequestId = "req-1",
+                    Url = "http://example.com/api/test",
+                    Method = "GET",
+                    Status = "200 OK",
+                    RelativeStartMs = 150,
+                    DurationMs = 200,
+                    EncodedDataLength = 512
+                }
+            };
+
+            var data = new TestRunReportData
+            {
+                TestName = "Test Run Waterfall",
+                Steps = steps,
+                NetworkRequests = networkRequests,
+                StartTime = DateTime.UtcNow.AddSeconds(-2),
+                EndTime = DateTime.UtcNow
+            };
+
+            var options = new TestStudioReportOptions
+            {
+                IncludeNetworkDetails = true,
+                IncludeCharts = false,
+                IncludeScreenshots = false,
+                IncludeMetricsTable = false
+            };
+
+            // Generate HTML report with waterfall enabled
+            Chrome.DevTools.Protocol.TestStudioReportGenerator.GenerateHtmlReport(tempDir, data, options);
+            var htmlPath = Path.Combine(tempDir, "index.html");
+            Assert.True(File.Exists(htmlPath));
+
+            var htmlContent = File.ReadAllText(htmlPath);
+            Assert.Contains("step-network-section-0", htmlContent);
+            Assert.Contains("renderStepNetworkWaterfall", htmlContent);
+
+            // Generate PDF report with waterfall enabled
+            var pdfPath = Path.Combine(tempDir, "report.pdf");
+            Chrome.DevTools.Protocol.TestStudioReportGenerator.GeneratePdfReport(pdfPath, data, options);
+            Assert.True(File.Exists(pdfPath));
+            
+            var fileInfo = new FileInfo(pdfPath);
+            Assert.True(fileInfo.Length > 0);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

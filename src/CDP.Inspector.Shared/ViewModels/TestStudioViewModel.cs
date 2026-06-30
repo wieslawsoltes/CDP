@@ -15,6 +15,7 @@ using Jint;
 using ProDataGrid;
 using Avalonia.Controls;
 using Avalonia.Controls.DataGridHierarchical;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -385,15 +386,54 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     private string _lastReportPath = "";
     private string _lastPdfReportPath = "";
 
+    // Report configuration settings
+    private bool _reportIncludeScreenshots = true;
+    private bool _reportIncludeCharts = true;
+    private bool _reportIncludeMetricsTable = true;
+    private bool _reportIncludeNetworkDetails = true;
+
+    // Telemetry collection lists and step accumulators
+    private readonly List<RunMetricSample> _runMetricsSamples = new();
+    private readonly List<NetworkReportItem> _runNetworkRequests = new();
+    private int _stepNetworkRequestCount = 0;
+    private long _stepNetworkResponseBytes = 0;
+    private readonly object _networkLock = new object();
+
     private readonly List<VideoFrameItem> _lastRunVideoFrames = new();
     private readonly List<byte[]> _lastRunRawFrameBytes = new();
     private readonly List<double> _lastRunFrameTimestamps = new();
     private readonly List<StepReportItem> _lastRunSteps = new();
+    private readonly List<RunMetricSample> _lastRunMetricsSamples = new();
+    private readonly List<NetworkReportItem> _lastRunNetworkRequests = new();
     private bool _isRecordingVideo = false;
     private bool _isAirplaneModeEnabled = false;
     private DateTime _playbackStartTime = DateTime.MinValue;
     private readonly Dictionary<int, StepReportItem> _stepReports = new();
     private bool _isFinalizing = false;
+
+    public bool ReportIncludeScreenshots
+    {
+        get => _reportIncludeScreenshots;
+        set => RaiseAndSetIfChanged(ref _reportIncludeScreenshots, value);
+    }
+
+    public bool ReportIncludeCharts
+    {
+        get => _reportIncludeCharts;
+        set => RaiseAndSetIfChanged(ref _reportIncludeCharts, value);
+    }
+
+    public bool ReportIncludeMetricsTable
+    {
+        get => _reportIncludeMetricsTable;
+        set => RaiseAndSetIfChanged(ref _reportIncludeMetricsTable, value);
+    }
+
+    public bool ReportIncludeNetworkDetails
+    {
+        get => _reportIncludeNetworkDetails;
+        set => RaiseAndSetIfChanged(ref _reportIncludeNetworkDetails, value);
+    }
 
     public bool IsRecordVideoEnabled
     {
@@ -1212,6 +1252,19 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             {
                 _stepReports.Clear();
             }
+            lock (_runMetricsSamples)
+            {
+                _runMetricsSamples.Clear();
+            }
+            lock (_runNetworkRequests)
+            {
+                _runNetworkRequests.Clear();
+            }
+            lock (_networkLock)
+            {
+                _stepNetworkRequestCount = 0;
+                _stepNetworkResponseBytes = 0;
+            }
             _playbackStartTime = DateTime.UtcNow;
 
             if (IsAutoLaunchEnabled)
@@ -1226,6 +1279,18 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     IsExecuting = false;
                     RaiseCommandCanExecuteChanged();
                     return;
+                }
+            }
+
+            if (_cdpService.IsConnected)
+            {
+                foreach (var provider in TelemetryRegistry.Providers)
+                {
+                    try
+                    {
+                        await provider.InitializeAsync(_cdpService);
+                    }
+                    catch { }
                 }
             }
 
@@ -1475,6 +1540,12 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     Log($"Running step {_currentStepIndex + 1}: {step.ActionDisplay}...");
 
                     var stepStartTime = DateTime.UtcNow;
+
+                    lock (_networkLock)
+                    {
+                        _stepNetworkRequestCount = 0;
+                        _stepNetworkResponseBytes = 0;
+                    }
 
                     try
                     {
@@ -4470,6 +4541,157 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 System.Diagnostics.Debug.WriteLine($"Error capturing frame: {ex.Message}");
             }
         }
+        else if (e.Method == "Performance.metrics" && IsExecuting)
+        {
+            try
+            {
+                var metrics = e.Params["metrics"] as JsonArray;
+                if (metrics != null)
+                {
+                    double cpu = 0;
+                    double memory = 0;
+                    double fps = 0;
+                    foreach (var m in metrics)
+                    {
+                        string name = m?["name"]?.GetValue<string>() ?? "";
+                        double val = m?["value"]?.GetValue<double>() ?? 0;
+                        if (name == "CPUUsage") cpu = val;
+                        else if (name == "JSHeapUsedSize") memory = val / 1024.0 / 1024.0; // MB
+                        else if (name == "FPS") fps = val;
+                    }
+                    var relTimeMs = (DateTime.UtcNow - _playbackStartTime).TotalMilliseconds;
+                    var sample = new RunMetricSample
+                    {
+                        RelativeTimeMs = relTimeMs,
+                        CpuUsage = cpu,
+                        MemoryJsHeapUsed = memory,
+                        Fps = fps
+                    };
+
+                    lock (_runMetricsSamples)
+                    {
+                        _runMetricsSamples.Add(sample);
+                    }
+
+                    if (TelemetryRegistry.Providers.FirstOrDefault(p => p.Id == "Performance") is PerformanceTelemetryProvider perfProv)
+                    {
+                        perfProv.AddMetricSample(sample);
+                    }
+                }
+            }
+            catch { }
+        }
+        else if (e.Method == "Network.requestWillBeSent" && IsExecuting)
+        {
+            try
+            {
+                string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
+                var request = e.Params["request"] as JsonObject;
+                if (request != null && !string.IsNullOrEmpty(requestId))
+                {
+                    string url = request["url"]?.GetValue<string>() ?? "";
+                    string method = request["method"]?.GetValue<string>() ?? "GET";
+                    double relStartMs = (DateTime.UtcNow - _playbackStartTime).TotalMilliseconds;
+
+                    var reqItem = new NetworkReportItem
+                    {
+                        RequestId = requestId,
+                        Url = url,
+                        Method = method,
+                        Status = "Pending",
+                        RelativeStartMs = relStartMs,
+                        DurationMs = 0,
+                        EncodedDataLength = 0
+                    };
+
+                    lock (_runNetworkRequests)
+                    {
+                        if (!_runNetworkRequests.Any(r => r.RequestId == requestId))
+                        {
+                            _runNetworkRequests.Add(reqItem);
+                        }
+                    }
+
+                    if (TelemetryRegistry.Providers.FirstOrDefault(p => p.Id == "Network") is NetworkTelemetryProvider netProv)
+                    {
+                        netProv.RecordRequest(reqItem);
+                        netProv.IncrementStepCount();
+                    }
+
+                    lock (_networkLock)
+                    {
+                        _stepNetworkRequestCount++;
+                    }
+                }
+            }
+            catch { }
+        }
+        else if (e.Method == "Network.responseReceived" && IsExecuting)
+        {
+            try
+            {
+                string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
+                var response = e.Params["response"] as JsonObject;
+                if (response != null && !string.IsNullOrEmpty(requestId))
+                {
+                    int status = response["status"]?.GetValue<int>() ?? 200;
+                    string statusText = response["statusText"]?.GetValue<string>() ?? "OK";
+
+                    lock (_runNetworkRequests)
+                    {
+                        var existing = _runNetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
+                        if (existing != null)
+                        {
+                            existing.Status = $"{status} {statusText}";
+                        }
+                    }
+
+                    if (TelemetryRegistry.Providers.FirstOrDefault(p => p.Id == "Network") is NetworkTelemetryProvider netProv)
+                    {
+                        netProv.UpdateResponse(requestId, $"{status} {statusText}");
+                    }
+                }
+            }
+            catch { }
+        }
+        else if (e.Method == "Network.loadingFinished" && IsExecuting)
+        {
+            try
+            {
+                string requestId = e.Params["requestId"]?.GetValue<string>() ?? "";
+                var lenNode = e.Params?["encodedDataLength"];
+                long length = lenNode?.GetValue<long>() ?? 0;
+
+                double dur = 0;
+                lock (_runNetworkRequests)
+                {
+                    var existing = _runNetworkRequests.FirstOrDefault(r => r.RequestId == requestId);
+                    if (existing != null)
+                    {
+                        existing.EncodedDataLength = length;
+                        existing.DurationMs = (DateTime.UtcNow - _playbackStartTime).TotalMilliseconds - existing.RelativeStartMs;
+                        if (existing.DurationMs < 0) existing.DurationMs = 0;
+                        dur = existing.DurationMs;
+                        if (existing.Status == "Pending")
+                        {
+                            existing.Status = "Finished";
+                        }
+                    }
+                }
+
+                if (TelemetryRegistry.Providers.FirstOrDefault(p => p.Id == "Network") is NetworkTelemetryProvider netProv)
+                {
+                    netProv.FinishLoading(requestId, length, dur);
+                    netProv.AddStepBytes(length);
+                }
+
+                lock (_networkLock)
+                {
+                    _stepNetworkResponseBytes += length;
+                }
+            }
+            catch { }
+        }
     }
 
     private async Task CaptureStepDetailsAsync(TestStudioStepModel step, int index, double durationMs, double relativeStartMs)
@@ -4501,6 +4723,60 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 Log($"Warning: Failed to capture step screenshot: {ex.Message}");
             }
 
+            double cpu = 0;
+            double jsHeapUsed = 0;
+            double jsHeapTotal = 0;
+            double fps = 0;
+            int domNodes = 0;
+            int domDocs = 0;
+
+            try
+            {
+                var perfRes = await _cdpService.SendCommandAsync("Performance.getMetrics");
+                var metrics = perfRes["metrics"] as JsonArray;
+                if (metrics != null)
+                {
+                    foreach (var m in metrics)
+                    {
+                        string name = m?["name"]?.GetValue<string>() ?? "";
+                        double val = m?["value"]?.GetValue<double>() ?? 0;
+                        if (name == "Nodes") domNodes = (int)val;
+                        else if (name == "JSHeapUsedSize") jsHeapUsed = val / 1024.0 / 1024.0;
+                        else if (name == "JSHeapTotalSize") jsHeapTotal = val / 1024.0 / 1024.0;
+                        else if (name == "CPUUsage") cpu = val;
+                        else if (name == "FPS") fps = val;
+                    }
+                }
+
+                // Add to run metrics timeline
+                lock (_runMetricsSamples)
+                {
+                    _runMetricsSamples.Add(new RunMetricSample
+                    {
+                        RelativeTimeMs = relativeStartMs + durationMs,
+                        CpuUsage = cpu,
+                        MemoryJsHeapUsed = jsHeapUsed,
+                        Fps = fps
+                    });
+                }
+            }
+            catch { }
+
+            try
+            {
+                var memRes = await _cdpService.SendCommandAsync("Memory.getDOMCounters");
+                domDocs = memRes["documents"]?.GetValue<int>() ?? 0;
+            }
+            catch { }
+
+            int stepNetReqs = 0;
+            long stepNetBytes = 0;
+            lock (_networkLock)
+            {
+                stepNetReqs = _stepNetworkRequestCount;
+                stepNetBytes = _stepNetworkResponseBytes;
+            }
+
             var reportItem = new StepReportItem
             {
                 Index = index + 1,
@@ -4513,8 +4789,41 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 ErrorMessage = step.ErrorMessage ?? "",
                 Url = url,
                 ScreenshotFileName = screenshotBase64, // Store base64 temporarily
-                RelativeStartMs = relativeStartMs
+                RelativeStartMs = relativeStartMs,
+                CpuUsage = cpu,
+                MemoryJsHeapUsed = jsHeapUsed,
+                MemoryJsHeapTotal = jsHeapTotal,
+                Fps = fps,
+                NetworkRequestCount = stepNetReqs,
+                NetworkResponseBytes = stepNetBytes,
+                DomNodes = domNodes,
+                DomDocuments = domDocs
             };
+
+            foreach (var provider in TelemetryRegistry.Providers)
+            {
+                try
+                {
+                    if (provider is PerformanceTelemetryProvider perfProv)
+                    {
+                        perfProv.SetStepMetrics(cpu, jsHeapUsed, jsHeapTotal, fps, domNodes, domDocs);
+                    }
+                    else if (provider is NetworkTelemetryProvider netProv)
+                    {
+                        netProv.SetStepNetwork(stepNetReqs, stepNetBytes);
+                    }
+
+                    var stepData = provider.CaptureStepData();
+                    if (stepData != null)
+                    {
+                        // Add step relativeStartMs/durationMs for Skia/HTML waterfall alignment
+                        stepData["RelativeStartMs"] = relativeStartMs;
+                        stepData["DurationMs"] = durationMs;
+                        reportItem.Telemetry[provider.Id] = stepData;
+                    }
+                }
+                catch { }
+            }
 
             lock (_stepReports)
             {
@@ -4571,6 +4880,24 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         {
             _lastRunSteps.Clear();
             _lastRunSteps.AddRange(tempReports);
+        }
+
+        lock (_lastRunMetricsSamples)
+        {
+            _lastRunMetricsSamples.Clear();
+            lock (_runMetricsSamples)
+            {
+                _lastRunMetricsSamples.AddRange(_runMetricsSamples);
+            }
+        }
+
+        lock (_lastRunNetworkRequests)
+        {
+            _lastRunNetworkRequests.Clear();
+            lock (_runNetworkRequests)
+            {
+                _lastRunNetworkRequests.AddRange(_runNetworkRequests);
+            }
         }
 
         // If video frames were recorded, mark as available for native replay regardless of HTML/PDF report option
@@ -4638,23 +4965,64 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             }
 
             // 3. Generate HTML report
+            var options = new TestStudioReportOptions
+            {
+                IncludeScreenshots = ReportIncludeScreenshots,
+                IncludeCharts = ReportIncludeCharts,
+                IncludeMetricsTable = ReportIncludeMetricsTable,
+                IncludeNetworkDetails = ReportIncludeNetworkDetails
+            };
+
             var endTime = DateTime.UtcNow;
             var testName = string.IsNullOrEmpty(_description) ? "Test Studio Run" : _description;
+
+            List<RunMetricSample> timelineCopy;
+            lock (_runMetricsSamples)
+            {
+                timelineCopy = _runMetricsSamples.ToList();
+            }
+
+            List<NetworkReportItem> networkCopy;
+            lock (_runNetworkRequests)
+            {
+                networkCopy = _runNetworkRequests.ToList();
+            }
+
+            var reportData = new TestRunReportData
+            {
+                TestName = testName,
+                Description = _description ?? "",
+                AppId = _appId ?? "",
+                Steps = stepReportItems,
+                VideoFrames = videoFrameItems,
+                MetricsTimeline = timelineCopy,
+                NetworkRequests = networkCopy,
+                StartTime = _playbackStartTime,
+                EndTime = endTime
+            };
+
+            foreach (var provider in TelemetryRegistry.Providers)
+            {
+                try
+                {
+                    var runData = provider.CaptureRunData();
+                    if (runData != null)
+                    {
+                        reportData.Telemetry[provider.Id] = runData;
+                    }
+                }
+                catch { }
+            }
             
             TestStudioReportGenerator.GenerateHtmlReport(
                 outputFolder,
-                testName,
-                _description,
-                _appId,
-                stepReportItems,
-                videoFrameItems,
-                _playbackStartTime,
-                endTime
+                reportData,
+                options
             );
 
             // 4. Generate PDF report
             var pdfPath = Path.Combine(outputFolder, "report.pdf");
-            TestStudioReportGenerator.GeneratePdfReport(pdfPath, testName, stepReportItems);
+            TestStudioReportGenerator.GeneratePdfReport(pdfPath, reportData, options);
 
             LastReportPath = Path.GetFullPath(Path.Combine(outputFolder, "index.html"));
             LastPdfReportPath = Path.GetFullPath(pdfPath);
@@ -4732,12 +5100,24 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             playbackSteps = _lastRunSteps.ToList();
         }
 
+        List<RunMetricSample> playbackMetrics;
+        lock (_lastRunMetricsSamples)
+        {
+            playbackMetrics = _lastRunMetricsSamples.ToList();
+        }
+
+        List<NetworkReportItem> playbackNetwork;
+        lock (_lastRunNetworkRequests)
+        {
+            playbackNetwork = _lastRunNetworkRequests.ToList();
+        }
+
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             try
             {
                 var win = new CdpInspectorApp.Views.VideoPlaybackWindow();
-                win.SetFramesAndSteps(playbackFrames, playbackSteps, LastPdfReportPath);
+                win.SetFramesAndSteps(playbackFrames, playbackSteps, playbackMetrics, playbackNetwork, LastPdfReportPath);
                 
                 if (ownerWindow is Avalonia.Controls.Window parentWin)
                 {
@@ -5628,6 +6008,10 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         root["isRecordVideoEnabled"] = IsRecordVideoEnabled;
         root["isGenerateReportEnabled"] = IsGenerateReportEnabled;
         root["outputDirectory"] = OutputDirectory;
+        root["reportIncludeScreenshots"] = ReportIncludeScreenshots;
+        root["reportIncludeCharts"] = ReportIncludeCharts;
+        root["reportIncludeMetricsTable"] = ReportIncludeMetricsTable;
+        root["reportIncludeNetworkDetails"] = ReportIncludeNetworkDetails;
         return root;
     }
 
@@ -5662,6 +6046,22 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("outputDirectory", out var outDirNode) && outDirNode != null)
         {
             OutputDirectory = (string?)outDirNode ?? "TestReports";
+        }
+        if (json.TryGetPropertyValue("reportIncludeScreenshots", out var includeScreenshotsNode) && includeScreenshotsNode != null)
+        {
+            ReportIncludeScreenshots = (bool?)includeScreenshotsNode ?? true;
+        }
+        if (json.TryGetPropertyValue("reportIncludeCharts", out var includeChartsNode) && includeChartsNode != null)
+        {
+            ReportIncludeCharts = (bool?)includeChartsNode ?? true;
+        }
+        if (json.TryGetPropertyValue("reportIncludeMetricsTable", out var includeTableNode) && includeTableNode != null)
+        {
+            ReportIncludeMetricsTable = (bool?)includeTableNode ?? true;
+        }
+        if (json.TryGetPropertyValue("reportIncludeNetworkDetails", out var includeNetNode) && includeNetNode != null)
+        {
+            ReportIncludeNetworkDetails = (bool?)includeNetNode ?? true;
         }
     }
 

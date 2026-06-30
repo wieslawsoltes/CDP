@@ -4,6 +4,7 @@ using CdpInspectorApp.Views;
 using CdpInspectorApp.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.VisualTree;
 using System;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -339,5 +340,117 @@ public class ViewsLayoutTests
 
         Assert.Contains(source, boxNodes);
         Assert.Same(source, superSplit.SelectedNode);
+    }
+
+    [AvaloniaFact]
+    public void Test_VideoPlaybackWindow_Telemetry_Loading()
+    {
+        var app = Avalonia.Application.Current;
+        Assert.NotNull(app);
+
+        var sharedStyles = new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://Avalonia.Diagnostics.Cdp.Tests/"))
+        {
+            Source = new Uri("avares://CDP.Inspector.Shared/Styles.axaml")
+        };
+        app.Styles.Add(sharedStyles);
+
+        try
+        {
+            var win = new VideoPlaybackWindow();
+
+            var steps = new System.Collections.Generic.List<StepReportItem>
+            {
+                new StepReportItem
+                {
+                    Index = 1,
+                    Action = "tap",
+                    ActionDisplay = "Tap element",
+                    Status = "Passed",
+                    DurationMs = 150,
+                    RelativeStartMs = 10,
+                    CpuUsage = 5.2,
+                    MemoryJsHeapUsed = 33.4,
+                    MemoryJsHeapTotal = 64.0,
+                    Fps = 60,
+                    NetworkRequestCount = 1,
+                    NetworkResponseBytes = 1024
+                }
+            };
+
+            var metrics = new System.Collections.Generic.List<RunMetricSample>
+            {
+                new RunMetricSample { RelativeTimeMs = 0, CpuUsage = 5.0, MemoryJsHeapUsed = 33.0, Fps = 60 },
+                new RunMetricSample { RelativeTimeMs = 20, CpuUsage = 5.2, MemoryJsHeapUsed = 33.4, Fps = 60 }
+            };
+
+            var network = new System.Collections.Generic.List<NetworkReportItem>
+            {
+                new NetworkReportItem
+                {
+                    RequestId = "req-1",
+                    Url = "http://example.com/data",
+                    Method = "GET",
+                    Status = "200",
+                    RelativeStartMs = 15,
+                    DurationMs = 50
+                }
+            };
+
+            var frames = new System.Collections.Generic.List<PlaybackFrame>
+            {
+                new PlaybackFrame { Data = new byte[10], TimestampMs = 0 },
+                new PlaybackFrame { Data = new byte[10], TimestampMs = 100 }
+            };
+
+            // Call telemetry overload
+            win.SetFramesAndSteps(frames, steps, metrics, network, null);
+
+            // Access TextBlocks via the telemetry view control and verify values are rendered
+            var telemetryView = win.FindControl<StepTelemetryView>("stepTelemetry");
+            Assert.NotNull(telemetryView);
+
+            var tabControl = telemetryView.FindControl<TabControl>("tabTelemetry");
+            Assert.NotNull(tabControl);
+            Assert.Equal(2, tabControl.Items.Count);
+
+            var perfTab = tabControl.Items[0] as TabItem;
+            var perfGrid = perfTab?.Content as Grid;
+            Assert.NotNull(perfGrid);
+
+            var netTab = tabControl.Items[1] as TabItem;
+            var netGrid = netTab?.Content as Grid;
+            Assert.NotNull(netGrid);
+
+            var lblCpu = FindVisualDescendantByName<TextBlock>(perfGrid, "lblStepCpu");
+            var lblMemory = FindVisualDescendantByName<TextBlock>(perfGrid, "lblStepMemory");
+            var lblFpsDom = FindVisualDescendantByName<TextBlock>(perfGrid, "lblStepFpsDom");
+            var lblNetwork = FindVisualDescendantByName<TextBlock>(netGrid, "lblStepNetwork");
+
+            Assert.NotNull(lblCpu);
+            Assert.NotNull(lblMemory);
+            Assert.NotNull(lblFpsDom);
+            Assert.NotNull(lblNetwork);
+
+            Assert.Equal($"{5.2:F1} %", lblCpu.Text);
+            Assert.Equal($"{33.40:F2} / {64.00:F2} MB", lblMemory.Text);
+            Assert.Equal($"{60.0:F1} FPS / 0 nodes", lblFpsDom.Text);
+            Assert.Equal($"1 requests / {1.00:F2} KB", lblNetwork.Text);
+        }
+        finally
+        {
+            app.Styles.Remove(sharedStyles);
+        }
+    }
+
+    private static T? FindVisualDescendantByName<T>(Avalonia.Visual? visual, string name) where T : Control
+    {
+        if (visual == null) return null;
+        if (visual is T t && t.Name == name) return t;
+        foreach (var child in visual.GetVisualChildren())
+        {
+            var result = FindVisualDescendantByName<T>(child, name);
+            if (result != null) return result;
+        }
+        return null;
     }
 }

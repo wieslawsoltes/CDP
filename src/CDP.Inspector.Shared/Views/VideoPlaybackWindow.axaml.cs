@@ -5,8 +5,11 @@ using System.IO;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
+using Avalonia;
 using Avalonia.Threading;
 using CdpInspectorApp.Services;
+
+using SkiaSharp;
 
 namespace CdpInspectorApp.Views;
 
@@ -14,6 +17,71 @@ public class PlaybackFrame
 {
     public byte[] Data { get; set; } = Array.Empty<byte>();
     public double TimestampMs { get; set; }
+}
+
+public class PlaybackNetworkItemViewModel
+{
+    public string Method { get; }
+    public string Url { get; }
+    public string DisplayUrl
+    {
+        get
+        {
+            try
+            {
+                var uri = new Uri(Url);
+                return uri.PathAndQuery;
+            }
+            catch
+            {
+                return Url;
+            }
+        }
+    }
+    public string Status { get; }
+    public string StatusColor => (Status.StartsWith("4") || Status.StartsWith("5") || Status == "Failed") ? "#ef4444" :
+                                 Status.StartsWith("3") ? "#f59e0b" : "#10b981";
+    public double DurationMs { get; }
+    public string DurationText => $"{DurationMs:F0} ms";
+
+    public Thickness TimelineMargin { get; }
+    public double TimelineWidth { get; }
+
+    public PlaybackNetworkItemViewModel(NetworkReportItem item)
+    {
+        Method = item.Method;
+        Url = item.Url;
+        Status = item.Status;
+        DurationMs = item.DurationMs;
+        TimelineMargin = new Thickness(0);
+        TimelineWidth = 0;
+    }
+
+    public PlaybackNetworkItemViewModel(NetworkReportItem item, double stepStartMs, double stepDurationMs)
+    {
+        Method = item.Method;
+        Url = item.Url;
+        Status = item.Status;
+        DurationMs = item.DurationMs;
+
+        double offsetMs = Math.Max(0, item.RelativeStartMs - stepStartMs);
+        double stepDur = stepDurationMs <= 0 ? 1.0 : stepDurationMs;
+
+        double offsetPct = Math.Min(1.0, offsetMs / stepDur);
+        double durationPct = Math.Min(1.0 - offsetPct, item.DurationMs / stepDur);
+
+        double totalWidth = 100.0;
+        double left = offsetPct * totalWidth;
+        double width = Math.Max(4.0, durationPct * totalWidth);
+
+        if (left + width > totalWidth)
+        {
+            width = totalWidth - left;
+        }
+
+        TimelineMargin = new Thickness(left, 0, 0, 0);
+        TimelineWidth = width;
+    }
 }
 
 public class PlaybackStepViewModel
@@ -34,8 +102,20 @@ public class PlaybackStepViewModel
     public double RelativeStartMs { get; }
     public Bitmap? Screenshot { get; }
 
+    public double CpuUsage { get; }
+    public double MemoryJsHeapUsed { get; }
+    public double MemoryJsHeapTotal { get; }
+    public double Fps { get; }
+    public int NetworkRequestCount { get; }
+    public long NetworkResponseBytes { get; }
+    public int DomNodes { get; }
+    public int DomDocuments { get; }
+
+    public StepReportItem Step { get; }
+
     public PlaybackStepViewModel(StepReportItem item, Bitmap? screenshot)
     {
+        Step = item;
         Index = item.Index;
         Action = item.Action;
         ActionDisplay = item.ActionDisplay;
@@ -45,6 +125,15 @@ public class PlaybackStepViewModel
         DurationMs = item.DurationMs;
         RelativeStartMs = item.RelativeStartMs;
         Screenshot = screenshot;
+
+        CpuUsage = item.CpuUsage;
+        MemoryJsHeapUsed = item.MemoryJsHeapUsed;
+        MemoryJsHeapTotal = item.MemoryJsHeapTotal;
+        Fps = item.Fps;
+        NetworkRequestCount = item.NetworkRequestCount;
+        NetworkResponseBytes = item.NetworkResponseBytes;
+        DomNodes = item.DomNodes;
+        DomDocuments = item.DomDocuments;
     }
 }
 
@@ -58,6 +147,9 @@ public partial class VideoPlaybackWindow : Window
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _stopwatch = new();
     
+    private List<RunMetricSample> _metricsTimeline = new();
+    private List<NetworkReportItem> _networkRequests = new();
+    private PlaybackStepViewModel? _lastUpdatedStep = null;
     private bool _isPlaying = false;
     private double _currentPositionMs = 0;
     private double _playbackSpeed = 1.0;
@@ -93,6 +185,24 @@ public partial class VideoPlaybackWindow : Window
 
     public void SetFramesAndSteps(List<PlaybackFrame> frames, List<StepReportItem> steps, string? pdfReportPath)
     {
+        SetFramesAndSteps(frames, steps, new List<RunMetricSample>(), new List<NetworkReportItem>(), pdfReportPath);
+    }
+
+    public void SetFramesAndSteps(
+        List<PlaybackFrame> frames,
+        List<StepReportItem> steps,
+        List<RunMetricSample> metrics,
+        List<NetworkReportItem> networkRequests,
+        string? pdfReportPath)
+    {
+        _metricsTimeline = metrics ?? new List<RunMetricSample>();
+        _networkRequests = networkRequests ?? new List<NetworkReportItem>();
+        _lastUpdatedStep = null;
+
+        // Set telemetry view dependencies
+        stepTelemetry.Metrics = _metricsTimeline;
+        stepTelemetry.Network = _networkRequests;
+
         _frames = frames ?? new List<PlaybackFrame>();
         
         // 1. Clear old cache
@@ -170,6 +280,17 @@ public partial class VideoPlaybackWindow : Window
         }
 
         UpdateStatusText();
+
+        // 5. Select first step and show its details
+        if (_stepViewModels.Count > 0)
+        {
+            listSteps.SelectedItem = _stepViewModels[0];
+            UpdateSelectedStepDetails(_stepViewModels[0]);
+        }
+        else
+        {
+            UpdateSelectedStepDetails(null);
+        }
     }
 
     private void BtnPlay_Click(object? sender, EventArgs e)
@@ -344,6 +465,7 @@ public partial class VideoPlaybackWindow : Window
         if (listSteps.SelectedItem is PlaybackStepViewModel stepVm)
         {
             SeekToTime(stepVm.RelativeStartMs);
+            UpdateSelectedStepDetails(stepVm);
         }
     }
 
@@ -355,7 +477,7 @@ public partial class VideoPlaybackWindow : Window
         _isSeeking = true;
         sliderSeek.Value = frameIndex;
         _isSeeking = false;
-
+ 
         ShowFrame(frameIndex);
         UpdateStatusText();
     }
@@ -374,8 +496,26 @@ public partial class VideoPlaybackWindow : Window
             listSteps.SelectedItem = currentStep;
             listSteps.ScrollIntoView(currentStep);
             _isUpdatingSelectionFromPlayback = false;
+
+            UpdateSelectedStepDetails(currentStep);
         }
     }
+
+    private void UpdateSelectedStepDetails(PlaybackStepViewModel? stepVm)
+    {
+        if (stepVm == null)
+        {
+            stepTelemetry.SelectedStep = null;
+            _lastUpdatedStep = null;
+            return;
+        }
+
+        if (_lastUpdatedStep == stepVm) return;
+        _lastUpdatedStep = stepVm;
+
+        stepTelemetry.SelectedStep = stepVm.Step;
+    }
+
 
     private void SetSpeed(double speed)
     {

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using SkiaSharp;
 
 namespace Chrome.DevTools.Protocol;
@@ -22,6 +23,18 @@ public class StepReportItem
     public string Url { get; set; } = "";
     public string ExtraMetadataJson { get; set; } = "{}";
     public double RelativeStartMs { get; set; }
+
+    // Telemetry fields for extensible reporting
+    public double CpuUsage { get; set; }
+    public double MemoryJsHeapUsed { get; set; }
+    public double MemoryJsHeapTotal { get; set; }
+    public double Fps { get; set; }
+    public int NetworkRequestCount { get; set; }
+    public long NetworkResponseBytes { get; set; }
+    public int DomNodes { get; set; }
+    public int DomDocuments { get; set; }
+
+    public Dictionary<string, JsonNode?> Telemetry { get; set; } = new();
 }
 
 public class VideoFrameItem
@@ -30,8 +43,58 @@ public class VideoFrameItem
     public double TimestampMs { get; set; }
 }
 
+public class TestStudioReportOptions
+{
+    public bool IncludeScreenshots { get; set; } = true;
+    public bool IncludeCharts { get; set; } = true;
+    public bool IncludeMetricsTable { get; set; } = true;
+    public bool IncludeNetworkDetails { get; set; } = true;
+}
+
+public class RunMetricSample
+{
+    public double RelativeTimeMs { get; set; }
+    public double CpuUsage { get; set; }
+    public double MemoryJsHeapUsed { get; set; }
+    public double Fps { get; set; }
+}
+
+public class NetworkReportItem
+{
+    public string RequestId { get; set; } = "";
+    public string Url { get; set; } = "";
+    public string Method { get; set; } = "";
+    public string Status { get; set; } = "";
+    public double RelativeStartMs { get; set; }
+    public double DurationMs { get; set; }
+    public long EncodedDataLength { get; set; }
+}
+
+public class TestRunReportData
+{
+    public string TestName { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string AppId { get; set; } = "";
+    public List<StepReportItem> Steps { get; set; } = new();
+    public List<VideoFrameItem> VideoFrames { get; set; } = new();
+    public List<RunMetricSample> MetricsTimeline { get; set; } = new();
+    public List<NetworkReportItem> NetworkRequests { get; set; } = new();
+    public DateTime StartTime { get; set; }
+    public DateTime EndTime { get; set; }
+    public Dictionary<string, JsonNode?> Telemetry { get; set; } = new();
+}
+
 [System.Text.Json.Serialization.JsonSerializable(typeof(List<StepReportItem>))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(List<VideoFrameItem>))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(List<RunMetricSample>))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(List<NetworkReportItem>))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(TestRunReportData))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(TestStudioReportOptions))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Dictionary<string, JsonNode?>))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Dictionary<string, JsonNode>))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(JsonNode))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(JsonObject))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(JsonArray))]
 internal partial class ReportJsonContext : System.Text.Json.Serialization.JsonSerializerContext
 {
 }
@@ -40,15 +103,20 @@ public static class TestStudioReportGenerator
 {
     public static void GenerateHtmlReport(
         string outputFolder,
-        string testName,
-        string description,
-        string appId,
-        List<StepReportItem> steps,
-        List<VideoFrameItem> videoFrames,
-        DateTime startTime,
-        DateTime endTime)
+        TestRunReportData data,
+        TestStudioReportOptions options)
     {
         Directory.CreateDirectory(outputFolder);
+
+        var steps = data.Steps;
+        var videoFrames = data.VideoFrames;
+        var startTime = data.StartTime;
+        var endTime = data.EndTime;
+        var testName = data.TestName;
+        var description = data.Description;
+        var appId = data.AppId;
+        var metricsTimeline = data.MetricsTimeline;
+        var networkRequests = data.NetworkRequests;
 
         var encTestName = System.Net.WebUtility.HtmlEncode(testName ?? "");
         var encDescription = System.Net.WebUtility.HtmlEncode(description ?? "");
@@ -65,6 +133,26 @@ public static class TestStudioReportGenerator
 
         var stepsJson = JsonSerializer.Serialize(steps, ReportJsonContext.Default.ListStepReportItem);
         var framesJson = JsonSerializer.Serialize(videoFrames, ReportJsonContext.Default.ListVideoFrameItem);
+        string timelineJson;
+        if (data.Telemetry != null && data.Telemetry.TryGetValue("Performance", out var perfTimelineNode) && perfTimelineNode != null)
+        {
+            timelineJson = perfTimelineNode.ToString();
+        }
+        else
+        {
+            timelineJson = JsonSerializer.Serialize(metricsTimeline, ReportJsonContext.Default.ListRunMetricSample);
+        }
+
+        string networkRequestsJson;
+        if (data.Telemetry != null && data.Telemetry.TryGetValue("Network", out var netRequestsNode) && netRequestsNode != null)
+        {
+            networkRequestsJson = netRequestsNode.ToString();
+        }
+        else
+        {
+            networkRequestsJson = JsonSerializer.Serialize(networkRequests, ReportJsonContext.Default.ListNetworkReportItem);
+        }
+        var optionsJson = JsonSerializer.Serialize(options, ReportJsonContext.Default.TestStudioReportOptions);
 
         var sb = new StringBuilder();
         sb.Append($@"<!DOCTYPE html>
@@ -601,6 +689,53 @@ public static class TestStudioReportGenerator
             var encErrorMsg = System.Net.WebUtility.HtmlEncode(step.ErrorMessage ?? "");
             var encScreenshotFile = System.Net.WebUtility.HtmlEncode(step.ScreenshotFileName ?? "");
 
+            var showScreenshot = options.IncludeScreenshots && hasScreenshot;
+            var showMetricsTable = options.IncludeMetricsTable;
+
+            var telemetryHtml = new StringBuilder();
+            foreach (var provider in TelemetryRegistry.Providers)
+            {
+                JsonNode? stepData = null;
+                step.Telemetry?.TryGetValue(provider.Id, out stepData);
+
+                JsonNode? runData = null;
+                data.Telemetry?.TryGetValue(provider.Id, out runData);
+
+                if (stepData == null)
+                {
+                    if (provider.Id == "Performance")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["CpuUsage"] = step.CpuUsage,
+                            ["MemoryJsHeapUsed"] = step.MemoryJsHeapUsed,
+                            ["MemoryJsHeapTotal"] = step.MemoryJsHeapTotal,
+                            ["Fps"] = step.Fps,
+                            ["DomNodes"] = step.DomNodes,
+                            ["DomDocuments"] = step.DomDocuments,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                    else if (provider.Id == "Network")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["NetworkRequestCount"] = step.NetworkRequestCount,
+                            ["NetworkResponseBytes"] = step.NetworkResponseBytes,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                }
+
+                string pVal = provider.RenderHtml(i, stepData, runData, options);
+                if (!string.IsNullOrEmpty(pVal))
+                {
+                    telemetryHtml.Append(pVal);
+                }
+            }
+
             sb.Append($@"                    <div class=""step-card {stepStatusClass}"" id=""step-card-{i}"">
                         <div class=""step-header"" onclick=""toggleStep({i})"">
                             <div class=""step-info"">
@@ -612,7 +747,7 @@ public static class TestStudioReportGenerator
                             <span class=""step-duration"">{(step.DurationMs):F0} ms</span>
                         </div>
                         <div class=""step-body"" id=""step-body-{i}"">
-                            <div class=""step-details-grid"">
+                            <div class=""step-details-grid"" style=""grid-template-columns: {(showScreenshot ? "1.2fr 1fr" : "1fr")};"">
                                 <div>
                                     <table class=""metadata-table"">
                                         <tr>
@@ -625,10 +760,12 @@ public static class TestStudioReportGenerator
                                     </table>
                                     {(hasError ? $"<div class=\"error-message\">{encErrorMsg}</div>" : "")}
                                 </div>
+                                {(showScreenshot ? $@"
                                 <div class=""step-screenshot-container"">
-                                    {(hasScreenshot ? $@"<img src=""{encScreenshotFile}"" class=""step-screenshot"" onclick=""openModal('{encScreenshotFile}')"" alt=""Step Screenshot"">" : "<span style='color:var(--text-muted); font-size:0.9rem'>No screenshot captured</span>")}
-                                </div>
+                                    <img src=""{encScreenshotFile}"" class=""step-screenshot"" onclick=""openModal('{encScreenshotFile}')"" alt=""Step Screenshot"">
+                                </div>" : "")}
                             </div>
+                            {telemetryHtml}
                         </div>
                     </div>
 ");
@@ -680,6 +817,9 @@ public static class TestStudioReportGenerator
         // Data injected from backend
         const steps = {stepsJson};
         const frames = {framesJson};
+        const timeline = {timelineJson};
+        const networkRequests = {networkRequestsJson};
+        const options = {optionsJson};
 
         function toggleStep(index) {{
             const body = document.getElementById('step-body-' + index);
@@ -690,7 +830,90 @@ public static class TestStudioReportGenerator
                 const allBodies = document.querySelectorAll('.step-body');
                 allBodies.forEach(b => b.style.display = 'none');
                 body.style.display = 'block';
+
+                if (options.IncludeCharts) {{
+                    renderStepChart(index);
+                }}
+                if (options.IncludeNetworkDetails) {{
+                    renderStepNetworkWaterfall(index);
+                }}
             }}
+        }}
+
+        function renderStepChart(idx) {{
+            const svg = document.getElementById('step-chart-' + idx);
+            if (!svg || svg.children.length > 0) return;
+
+            const step = steps[idx];
+            if (!timeline || timeline.length === 0) {{
+                svg.innerHTML = `<text x='50%' y='50%' fill='var(--text-muted)' text-anchor='middle' font-size='10'>No timeline data collected</text>`;
+                return;
+            }}
+
+            const rect = svg.getBoundingClientRect();
+            const width = rect.width || 600;
+            const height = rect.height || 120;
+            const padding = {{ top: 15, right: 40, bottom: 20, left: 40 }};
+
+            const plotW = width - padding.left - padding.right;
+            const plotH = height - padding.top - padding.bottom;
+
+            const tMax = timeline[timeline.length - 1].RelativeTimeMs || 1;
+            const cpuVals = timeline.map(t => t.CpuUsage);
+            const memVals = timeline.map(t => t.MemoryJsHeapUsed);
+            
+            const maxCpu = Math.max(...cpuVals, 100);
+            const maxMem = Math.max(...memVals, 128);
+
+            // 1. Highlight Step Range
+            const stepStartMs = step.RelativeStartMs;
+            const stepEndMs = step.RelativeStartMs + step.DurationMs;
+            
+            const hX1 = padding.left + (stepStartMs / tMax) * plotW;
+            const hX2 = padding.left + (stepEndMs / tMax) * plotW;
+            const hW = Math.max(2, hX2 - hX1);
+
+            let highlightHtml = `<rect x='${{hX1}}' y='${{padding.top}}' width='${{hW}}' height='${{plotH}}' fill='rgba(37, 99, 235, 0.15)' stroke='var(--primary)' stroke-width='1' />`;
+
+            // 2. Lines
+            let cpuPoints = [];
+            let memPoints = [];
+            
+            timeline.forEach(pt => {{
+                const x = padding.left + (pt.RelativeTimeMs / tMax) * plotW;
+                const yCpu = padding.top + plotH - (pt.CpuUsage / maxCpu) * plotH;
+                const yMem = padding.top + plotH - (pt.MemoryJsHeapUsed / maxMem) * plotH;
+                cpuPoints.push(`${{x}},${{yCpu}}`);
+                memPoints.push(`${{x}},${{yMem}}`);
+            }});
+
+            const cpuPath = `<path d='M ${{cpuPoints.join("" L "")}}' fill='none' stroke='#ff9800' stroke-width='1.5' />`;
+            const memPath = `<path d='M ${{memPoints.join("" L "")}}' fill='none' stroke='#10b981' stroke-width='1.5' />`;
+
+            // 3. Grid Lines
+            let gridHtml = '';
+            for (let i = 0; i <= 4; i++) {{
+                const y = padding.top + (i / 4) * plotH;
+                gridHtml += `<line x1='${{padding.left}}' y1='${{y}}' x2='${{width - padding.right}}' y2='${{y}}' stroke='rgba(255,255,255,0.05)' stroke-width='1' />`;
+            }}
+
+            const leftAxisLabel = `<text x='${{padding.left - 8}}' y='${{padding.top + 8}}' fill='#10b981' font-size='8' text-anchor='end'>${{maxMem.toFixed(0)}} MB</text>`;
+            const rightAxisLabel = `<text x='${{width - padding.right + 8}}' y='${{padding.top + 8}}' fill='#ff9800' font-size='8' text-anchor='start'>${{maxCpu.toFixed(0)}}% CPU</text>`;
+            const bottomAxisLabelStart = `<text x='${{padding.left}}' y='${{height - 4}}' fill='var(--text-muted)' font-size='8' text-anchor='middle'>0.0s</text>`;
+            const bottomAxisLabelEnd = `<text x='${{width - padding.right}}' y='${{height - 4}}' fill='var(--text-muted)' font-size='8' text-anchor='middle'>${{(tMax/1000).toFixed(1)}}s</text>`;
+
+            const legend = `
+                <g transform='translate(${{padding.left}}, 10)'>
+                    <circle cx='5' cy='0' r='3' fill='#10b981' />
+                    <text x='12' y='3' fill='#10b981' font-size='8'>Memory</text>
+                    <circle cx='70' cy='0' r='3' fill='#ff9800' />
+                    <text x='77' y='3' fill='#ff9800' font-size='8'>CPU</text>
+                    <rect x='130' y='-3' width='10' height='6' fill='rgba(37, 99, 235, 0.15)' stroke='var(--primary)' stroke-width='0.5' />
+                    <text x='145' y='3' fill='var(--primary)' font-size='8'>Step Duration</text>
+                </g>
+            `;
+
+            svg.innerHTML = gridHtml + highlightHtml + cpuPath + memPath + leftAxisLabel + rightAxisLabel + bottomAxisLabelStart + bottomAxisLabelEnd + legend;
         }}
 
         function openModal(src) {{
@@ -702,6 +925,72 @@ public static class TestStudioReportGenerator
 
         function closeModal() {{
             document.getElementById('screenshot-modal').style.display = 'none';
+        }}
+
+        function renderStepNetworkWaterfall(idx) {{
+            const container = document.getElementById('step-waterfall-' + idx);
+            if (!container || container.children.length > 0) return;
+
+            const step = steps[idx];
+            const stepStart = step.RelativeStartMs;
+            const stepEnd = step.RelativeStartMs + step.DurationMs;
+
+            const stepReqs = networkRequests.filter(r => {{
+                const reqEnd = r.RelativeStartMs + (r.DurationMs || 0);
+                return r.RelativeStartMs <= stepEnd && reqEnd >= stepStart;
+            }});
+
+            const section = document.getElementById('step-network-section-' + idx);
+            if (stepReqs.length === 0) {{
+                if (section) section.style.display = 'none';
+                return;
+            }}
+
+            let html = `<div style='display: grid; grid-template-columns: 80px 180px 60px 70px 1fr; gap: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; margin-bottom: 6px; font-weight: bold; color: var(--text-muted);'>` +
+                       `<div>Method</div>` +
+                       `<div>URL</div>` +
+                       `<div>Status</div>` +
+                       `<div>Duration</div>` +
+                       `<div>Timeline (${{(step.DurationMs/1000).toFixed(2)}}s)</div>` +
+                       `</div>`;
+
+            stepReqs.forEach(r => {{
+                const reqStart = Math.max(stepStart, r.RelativeStartMs);
+                const reqEnd = Math.min(stepEnd, r.RelativeStartMs + (r.DurationMs || 0));
+                
+                const leftPct = ((reqStart - stepStart) / step.DurationMs) * 100;
+                const widthPct = Math.max(1, ((reqEnd - reqStart) / step.DurationMs) * 100);
+
+                let displayUrl = r.Url;
+                try {{
+                    const urlObj = new URL(r.Url);
+                    displayUrl = urlObj.pathname + urlObj.search;
+                    if (displayUrl.length > 30) displayUrl = displayUrl.substring(0, 27) + '...';
+                }} catch (e) {{
+                    if (displayUrl.length > 30) displayUrl = displayUrl.substring(0, 27) + '...';
+                }}
+
+                let statusColor = '#10b981';
+                if (r.Status.startsWith('4') || r.Status.startsWith('5') || r.Status === 'Failed') {{
+                    statusColor = '#ef4848';
+                }} else if (r.Status.startsWith('3')) {{
+                    statusColor = '#ff9800';
+                }} else if (r.Status === 'Pending') {{
+                    statusColor = '#2563eb';
+                }}
+
+                html += `<div style='display: grid; grid-template-columns: 80px 180px 60px 70px 1fr; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.03);'>` +
+                        `<div style='color: var(--primary); font-weight: bold;'>${{r.Method}}</div>` +
+                        `<div title='${{r.Url}}' style='white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>${{displayUrl}}</div>` +
+                        `<div style='color: ${{statusColor}};'>${{r.Status}}</div>` +
+                        `<div>${{r.DurationMs.toFixed(0)}} ms</div>` +
+                        `<div style='position: relative; height: 12px; background: rgba(255,255,255,0.05); border-radius: 2px;'>` +
+                        `<div style='position: absolute; left: ${{leftPct}}%; width: ${{widthPct}}%; height: 100%; background: var(--primary); border-radius: 2px; box-shadow: 0 0 4px var(--primary);'></div>` +
+                        `</div>` +
+                        `</div>`;
+            }});
+
+            container.innerHTML = html;
         }}
 
         // Video playback player logic
@@ -842,8 +1131,13 @@ public static class TestStudioReportGenerator
         File.WriteAllText(Path.Combine(outputFolder, "index.html"), sb.ToString());
     }
 
-    public static void GeneratePdfReport(string pdfPath, string testName, List<StepReportItem> steps)
+    public static void GeneratePdfReport(string pdfPath, TestRunReportData data, TestStudioReportOptions options)
     {
+        var steps = data.Steps;
+        var testName = data.TestName;
+        var metricsTimeline = data.MetricsTimeline;
+        var networkRequests = data.NetworkRequests;
+
         using var stream = File.Create(pdfPath);
         using var document = SKDocument.CreatePdf(stream);
 
@@ -949,10 +1243,54 @@ public static class TestStudioReportGenerator
             var step = steps[i];
             
             // Check remaining space
-            float requiredHeight = 110;
+            float requiredHeight = 85;
+
+            // Pluggable telemetry height calculation
+            float telemetryHeight = 0;
+            foreach (var provider in TelemetryRegistry.Providers)
+            {
+                JsonNode? stepData = null;
+                step.Telemetry?.TryGetValue(provider.Id, out stepData);
+
+                JsonNode? runData = null;
+                data.Telemetry?.TryGetValue(provider.Id, out runData);
+
+                // Fallback for legacy data
+                if (stepData == null)
+                {
+                    if (provider.Id == "Performance")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["CpuUsage"] = step.CpuUsage,
+                            ["MemoryJsHeapUsed"] = step.MemoryJsHeapUsed,
+                            ["MemoryJsHeapTotal"] = step.MemoryJsHeapTotal,
+                            ["Fps"] = step.Fps,
+                            ["DomNodes"] = step.DomNodes,
+                            ["DomDocuments"] = step.DomDocuments,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                    else if (provider.Id == "Network")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["NetworkRequestCount"] = step.NetworkRequestCount,
+                            ["NetworkResponseBytes"] = step.NetworkResponseBytes,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                }
+
+                telemetryHeight += provider.GetRequiredPdfHeight(i, stepData, runData, options);
+            }
+            requiredHeight += telemetryHeight;
+
             bool hasScreenshot = false;
             SKBitmap? screenshotBitmap = null;
-            if (!string.IsNullOrEmpty(step.ScreenshotFileName))
+            if (options.IncludeScreenshots && !string.IsNullOrEmpty(step.ScreenshotFileName))
             {
                 // Check if it is base64
                 if (!step.ScreenshotFileName.Contains("/") && !step.ScreenshotFileName.Contains("\\") && step.ScreenshotFileName.Length > 100)
@@ -1045,9 +1383,57 @@ public static class TestStudioReportGenerator
                 currentCanvas.DrawText($"Error: {step.ErrorMessage}", cx, cy, errPaint);
             }
 
+            // Pluggable telemetry PDF drawing
+            float telemetryY = cardTop + requiredHeight - (hasScreenshot ? 120 : 0) - telemetryHeight - 10;
+            foreach (var provider in TelemetryRegistry.Providers)
+            {
+                JsonNode? stepData = null;
+                step.Telemetry?.TryGetValue(provider.Id, out stepData);
+
+                JsonNode? runData = null;
+                data.Telemetry?.TryGetValue(provider.Id, out runData);
+
+                // Fallback for legacy data
+                if (stepData == null)
+                {
+                    if (provider.Id == "Performance")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["CpuUsage"] = step.CpuUsage,
+                            ["MemoryJsHeapUsed"] = step.MemoryJsHeapUsed,
+                            ["MemoryJsHeapTotal"] = step.MemoryJsHeapTotal,
+                            ["Fps"] = step.Fps,
+                            ["DomNodes"] = step.DomNodes,
+                            ["DomDocuments"] = step.DomDocuments,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                    else if (provider.Id == "Network")
+                    {
+                        stepData = new JsonObject
+                        {
+                            ["NetworkRequestCount"] = step.NetworkRequestCount,
+                            ["NetworkResponseBytes"] = step.NetworkResponseBytes,
+                            ["RelativeStartMs"] = step.RelativeStartMs,
+                            ["DurationMs"] = step.DurationMs
+                        };
+                    }
+                }
+
+                float hReq = provider.GetRequiredPdfHeight(i, stepData, runData, options);
+                if (hReq > 0)
+                {
+                    var provRect = new SKRect(margin, telemetryY, pageWidth - margin, telemetryY + hReq);
+                    provider.RenderPdf(i, currentCanvas, provRect, stepData, runData, options);
+                    telemetryY += hReq;
+                }
+            }
+
             if (hasScreenshot && screenshotBitmap != null)
             {
-                cy += 15;
+                cy = cardTop + requiredHeight - 110;
                 try
                 {
                     // Scale bitmap to fit
@@ -1078,5 +1464,89 @@ public static class TestStudioReportGenerator
         DrawFooter(currentCanvas, pageNum);
         document.EndPage();
         document.Close();
+    }
+
+    private static void DrawMiniPerformanceChart(
+        SKCanvas canvas,
+        SKRect rect,
+        List<RunMetricSample> samples,
+        double stepStartMs,
+        double stepDurationMs)
+    {
+        using var paintBg = new SKPaint { Color = new SKColor(245, 246, 248), Style = SKPaintStyle.Fill };
+        canvas.DrawRect(rect, paintBg);
+
+        using var paintBorder = new SKPaint { Color = new SKColor(218, 220, 224), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+        canvas.DrawRect(rect, paintBorder);
+
+        if (samples == null || samples.Count < 2)
+        {
+            using var paintNoData = new SKPaint { Color = SKColors.Gray, TextSize = 8, IsAntialias = true };
+            canvas.DrawText("No timeline data", rect.Left + 10, rect.Top + 20, paintNoData);
+            return;
+        }
+
+        double maxTime = samples.Max(s => s.RelativeTimeMs);
+        if (maxTime <= 0) maxTime = 1;
+
+        double maxCpu = samples.Max(s => s.CpuUsage);
+        if (maxCpu < 100) maxCpu = 100;
+        double maxMem = samples.Max(s => s.MemoryJsHeapUsed);
+        if (maxMem <= 0) maxMem = 128;
+
+        // Draw step range highlight
+        float highlightLeft = rect.Left + (float)(stepStartMs / maxTime * rect.Width);
+        float highlightRight = rect.Left + (float)((stepStartMs + stepDurationMs) / maxTime * rect.Width);
+        highlightLeft = Math.Max(rect.Left, highlightLeft);
+        highlightRight = Math.Min(rect.Right, highlightRight);
+
+        if (highlightRight > highlightLeft)
+        {
+            using var paintHighlight = new SKPaint { Color = new SKColor(37, 99, 235, 30), Style = SKPaintStyle.Fill };
+            canvas.DrawRect(new SKRect(highlightLeft, rect.Top, highlightRight, rect.Bottom), paintHighlight);
+
+            using var paintLine = new SKPaint { Color = new SKColor(37, 99, 235, 100), Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+            canvas.DrawLine(highlightLeft, rect.Top, highlightLeft, rect.Bottom, paintLine);
+        }
+
+        // Draw paths
+        using var pathCpu = new SKPath();
+        using var pathMem = new SKPath();
+
+        for (int i = 0; i < samples.Count; i++)
+        {
+            var sample = samples[i];
+            float x = rect.Left + (float)(sample.RelativeTimeMs / maxTime * rect.Width);
+            float yCpu = rect.Bottom - (float)(sample.CpuUsage / maxCpu * rect.Height);
+            float yMem = rect.Bottom - (float)(sample.MemoryJsHeapUsed / maxMem * rect.Height);
+
+            x = Math.Max(rect.Left, Math.Min(rect.Right, x));
+            yCpu = Math.Max(rect.Top, Math.Min(rect.Bottom, yCpu));
+            yMem = Math.Max(rect.Top, Math.Min(rect.Bottom, yMem));
+
+            if (i == 0)
+            {
+                pathCpu.MoveTo(x, yCpu);
+                pathMem.MoveTo(x, yMem);
+            }
+            else
+            {
+                pathCpu.LineTo(x, yCpu);
+                pathMem.LineTo(x, yMem);
+            }
+        }
+
+        using var paintCpu = new SKPaint { Color = new SKColor(245, 158, 11), Style = SKPaintStyle.Stroke, StrokeWidth = 1.2f, IsAntialias = true };
+        using var paintMem = new SKPaint { Color = new SKColor(16, 185, 129), Style = SKPaintStyle.Stroke, StrokeWidth = 1.2f, IsAntialias = true };
+
+        canvas.DrawPath(pathCpu, paintCpu);
+        canvas.DrawPath(pathMem, paintMem);
+
+        // Draw legend
+        using var paintLegend = new SKPaint { TextSize = 6.5f, IsAntialias = true };
+        paintLegend.Color = new SKColor(245, 158, 11);
+        canvas.DrawText("CPU", rect.Left + 5, rect.Top + 8, paintLegend);
+        paintLegend.Color = new SKColor(16, 185, 129);
+        canvas.DrawText("Memory", rect.Left + 30, rect.Top + 8, paintLegend);
     }
 }

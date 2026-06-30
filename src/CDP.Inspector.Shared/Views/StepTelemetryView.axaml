@@ -1,0 +1,8 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpInspectorApp.Views.StepTelemetryView"
+             x:CompileBindings="True">
+    <TabControl Name="tabTelemetry" Background="#0f1015" BorderBrush="#2d313f" BorderThickness="1" CornerRadius="4" Padding="6">
+        <!-- Dynamic tabs generated at runtime -->
+    </TabControl>
+</UserControl>
