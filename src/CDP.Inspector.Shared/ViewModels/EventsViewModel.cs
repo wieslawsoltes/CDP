@@ -15,6 +15,7 @@ public class CdpEventEntry
 {
     public string Timestamp { get; set; } = "";
     public string Method { get; set; } = "";
+    public string Selector { get; set; } = "";
     public string ParamsJson { get; set; } = "";
 }
 
@@ -237,10 +238,34 @@ public class EventsViewModel : ViewModelBase
             formattedJson = parameters?.ToString() ?? "{}";
         }
 
+        string selector = "";
+        try
+        {
+            if (parameters != null)
+            {
+                if (parameters.TryGetPropertyValue("selector", out var selNode) && selNode != null)
+                {
+                    selector = selNode.GetValue<string>() ?? "";
+                }
+                else if (parameters.TryGetPropertyValue("step", out var stepNode) && stepNode != null)
+                {
+                    if (stepNode is JsonObject stepObj && stepObj.TryGetPropertyValue("selectors", out var selsNode) && selsNode is JsonArray selsArr && selsArr.Count > 0)
+                    {
+                        if (selsArr[0] is JsonArray innerArr && innerArr.Count > 0)
+                        {
+                            selector = innerArr[0]?.GetValue<string>() ?? "";
+                        }
+                    }
+                }
+            }
+        }
+        catch {}
+
         var entry = new CdpEventEntry
         {
             Timestamp = DateTime.Now.ToString("HH:mm:ss.fff"),
             Method = method,
+            Selector = selector,
             ParamsJson = formattedJson
         };
 

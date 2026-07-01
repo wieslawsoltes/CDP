@@ -1078,13 +1078,21 @@ public static class InputDomain
                                 prop.IsRightButtonPressed ? "right" :
                                 prop.IsMiddleButtonPressed ? "middle" : "none";
 
+                var control = window.InputHitTest(pos);
+                string selector = "";
+                if (control is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
                 _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
                 {
                     ["type"] = "mousePressed",
                     ["x"] = pos.X,
                     ["y"] = pos.Y,
                     ["button"] = button,
-                    ["clickCount"] = e.ClickCount
+                    ["clickCount"] = e.ClickCount,
+                    ["selector"] = selector
                 });
             }
             else
@@ -1107,13 +1115,21 @@ public static class InputDomain
                     _ => "none"
                 };
 
+                var control = window.InputHitTest(pos);
+                string selector = "";
+                if (control is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
                 _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
                 {
                     ["type"] = "mouseReleased",
                     ["x"] = pos.X,
                     ["y"] = pos.Y,
                     ["button"] = button,
-                    ["clickCount"] = 1
+                    ["clickCount"] = 1,
+                    ["selector"] = selector
                 });
             }
             else
@@ -1127,12 +1143,20 @@ public static class InputDomain
             if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
             {
                 var pos = e.GetPosition(window);
+                var control = window.InputHitTest(pos);
+                string selector = "";
+                if (control is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
                 _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
                 {
                     ["type"] = "mouseMoved",
                     ["x"] = pos.X,
                     ["y"] = pos.Y,
-                    ["button"] = "none"
+                    ["button"] = "none",
+                    ["selector"] = selector
                 });
             }
             else
@@ -1146,6 +1170,13 @@ public static class InputDomain
             if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
             {
                 var pos = e.GetPosition(window);
+                var control = window.InputHitTest(pos);
+                string selector = "";
+                if (control is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
                 _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
                 {
                     ["type"] = "mouseWheel",
@@ -1153,7 +1184,8 @@ public static class InputDomain
                     ["y"] = pos.Y,
                     ["deltaX"] = e.Delta.X,
                     ["deltaY"] = e.Delta.Y,
-                    ["button"] = "none"
+                    ["button"] = "none",
+                    ["selector"] = selector
                 });
             }
             else
@@ -1166,10 +1198,18 @@ public static class InputDomain
         {
             if (_sessionRef.TryGetTarget(out var session))
             {
+                var focused = session.Window?.FocusManager?.GetFocusedElement();
+                string selector = "";
+                if (focused is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
                 _ = session.SendEventAsync("Input.keyEvent", new JsonObject
                 {
                     ["type"] = "keyDown",
-                    ["key"] = e.Key.ToString()
+                    ["key"] = e.Key.ToString(),
+                    ["selector"] = selector
                 });
             }
             else
@@ -1182,10 +1222,18 @@ public static class InputDomain
         {
             if (_sessionRef.TryGetTarget(out var session))
             {
+                var focused = session.Window?.FocusManager?.GetFocusedElement();
+                string selector = "";
+                if (focused is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
                 _ = session.SendEventAsync("Input.keyEvent", new JsonObject
                 {
                     ["type"] = "keyUp",
-                    ["key"] = e.Key.ToString()
+                    ["key"] = e.Key.ToString(),
+                    ["selector"] = selector
                 });
             }
             else

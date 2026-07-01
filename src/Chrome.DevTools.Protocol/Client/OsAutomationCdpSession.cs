@@ -961,13 +961,25 @@ public sealed class OsAutomationCdpSession : IDisposable
                 relY = y - _rootNode.Bounds.Top;
             }
 
+            string clickSelector = "";
+            if (_rootNode != null)
+            {
+                var match = FindDeepestNodeAt(_rootNode, (int)x, (int)y);
+                if (match != null)
+                {
+                    clickSelector = $"#{match.Id}";
+                    RaiseStepRecordedEvent("click", match.Id, fromNativeHook: true);
+                }
+            }
+
             EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
             {
                 ["type"] = "mousePressed",
                 ["x"] = relX,
                 ["y"] = relY,
                 ["button"] = button,
-                ["clickCount"] = 1
+                ["clickCount"] = 1,
+                ["selector"] = clickSelector
             }));
             EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
             {
@@ -975,17 +987,9 @@ public sealed class OsAutomationCdpSession : IDisposable
                 ["x"] = relX,
                 ["y"] = relY,
                 ["button"] = button,
-                ["clickCount"] = 1
+                ["clickCount"] = 1,
+                ["selector"] = clickSelector
             }));
-
-            if (_rootNode != null)
-            {
-                var match = FindDeepestNodeAt(_rootNode, (int)x, (int)y);
-                if (match != null)
-                {
-                    RaiseStepRecordedEvent("click", match.Id, fromNativeHook: true);
-                }
-            }
         }, (eventType, elementId, value) =>
         {
             if (_isSimulatingInput) return;
@@ -995,7 +999,8 @@ public sealed class OsAutomationCdpSession : IDisposable
                 EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
                 {
                     ["type"] = "textInput",
-                    ["text"] = value ?? ""
+                    ["text"] = value ?? "",
+                    ["selector"] = $"#{elementId}"
                 }));
             }
 
@@ -1132,7 +1137,8 @@ public sealed class OsAutomationCdpSession : IDisposable
                     ["x"] = 0.0,
                     ["y"] = 0.0,
                     ["button"] = "left",
-                    ["clickCount"] = 1
+                    ["clickCount"] = 1,
+                    ["selector"] = $"#{elementId}"
                 }));
                 EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
                 {
@@ -1140,7 +1146,8 @@ public sealed class OsAutomationCdpSession : IDisposable
                     ["x"] = 0.0,
                     ["y"] = 0.0,
                     ["button"] = "left",
-                    ["clickCount"] = 1
+                    ["clickCount"] = 1,
+                    ["selector"] = $"#{elementId}"
                 }));
             }
             else if (type == "change")
@@ -1148,7 +1155,8 @@ public sealed class OsAutomationCdpSession : IDisposable
                 EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
                 {
                     ["type"] = "textInput",
-                    ["text"] = value ?? ""
+                    ["text"] = value ?? "",
+                    ["selector"] = $"#{elementId}"
                 }));
             }
         }

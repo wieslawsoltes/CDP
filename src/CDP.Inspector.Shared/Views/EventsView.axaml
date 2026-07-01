@@ -35,7 +35,8 @@
             <DataGrid Grid.Column="0" ItemsSource="{Binding Events.FilteredEvents}" SelectedItem="{Binding Events.SelectedEvent, Mode=TwoWay}" CanUserResizeColumns="True" GridLinesVisibility="All" Background="#292a2d">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp}" Width="110" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="Method" Binding="{Binding Method}" Width="*" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Method" Binding="{Binding Method}" Width="180" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Selector" Binding="{Binding Selector}" Width="*" IsReadOnly="True"/>
                 </DataGrid.Columns>
             </DataGrid>
 
