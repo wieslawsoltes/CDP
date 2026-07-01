@@ -270,8 +270,8 @@ public sealed class OsAutomationCdpSession : IDisposable
                 {
                     TriggerSimulateInputGuard();
                     string type = parameters["type"]?.GetValue<string>() ?? "";
-                    double x = parameters["x"]?.GetValue<double>() ?? 0.0;
-                    double y = parameters["y"]?.GetValue<double>() ?? 0.0;
+                    double x = GetDouble(parameters["x"]);
+                    double y = GetDouble(parameters["y"]);
                     string button = parameters["button"]?.GetValue<string>() ?? "none";
 
                     if (type == "mouseMoved")
@@ -364,8 +364,8 @@ public sealed class OsAutomationCdpSession : IDisposable
                     }
                     else if (type == "mouseWheel")
                     {
-                        double deltaX = parameters["deltaX"]?.GetValue<double>() ?? 0.0;
-                        double deltaY = parameters["deltaY"]?.GetValue<double>() ?? 0.0;
+                        double deltaX = GetDouble(parameters["deltaX"]);
+                        double deltaY = GetDouble(parameters["deltaY"]);
                         _automation.SimulateMouseWheel(_windowId, x, y, deltaX, deltaY);
                     }
 
@@ -375,8 +375,8 @@ public sealed class OsAutomationCdpSession : IDisposable
                         ["x"] = x,
                         ["y"] = y,
                         ["button"] = button,
-                        ["deltaX"] = parameters["deltaX"]?.GetValue<double>() ?? 0.0,
-                        ["deltaY"] = parameters["deltaY"]?.GetValue<double>() ?? 0.0,
+                        ["deltaX"] = GetDouble(parameters["deltaX"]),
+                        ["deltaY"] = GetDouble(parameters["deltaY"]),
                         ["clickCount"] = 1
                     }));
 
@@ -1473,5 +1473,32 @@ public sealed class OsAutomationCdpSession : IDisposable
             }
         }
         return "";
+    }
+
+    private static double GetDouble(JsonNode? node)
+    {
+        if (node == null) return 0.0;
+        try
+        {
+            return node.GetValue<double>();
+        }
+        catch
+        {
+            try
+            {
+                return node.GetValue<int>();
+            }
+            catch
+            {
+                try
+                {
+                    return node.GetValue<long>();
+                }
+                catch
+                {
+                    return 0.0;
+                }
+            }
+        }
     }
 }
