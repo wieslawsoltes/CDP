@@ -273,6 +273,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
     private static partial IntPtr CGEventCreateKeyboardEvent(IntPtr source, ushort virtualKey, [MarshalAs(UnmanagedType.I1)] bool keyDown);
 
     [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static partial void CGEventSetFlags(IntPtr theEvent, ulong flags);
+
+    [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     private static partial IntPtr CGEventCreate(IntPtr source);
 
     [LibraryImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
@@ -1137,7 +1140,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
         }
     }
 
-    public void SimulateKeyPress(string windowId, string key)
+    public void SimulateKeyPress(string windowId, string key, int modifiers = 0)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
         if (windowId.EndsWith("_fallback")) return;
@@ -1150,9 +1153,10 @@ public sealed partial class MacOsAutomation : IOsAutomation
             case "enter":
             case "return": vk = 36; break;
             case "backspace": vk = 51; break;
+            case "a": vk = 0; break;
         }
 
-        if (vk == 0)
+        if (vk == 0 && key.ToLowerInvariant() != "a")
         {
             _logger.LogWarning("macOS KeyPress simulated: {Key} (unmapped key)", key);
             return;
@@ -1164,6 +1168,18 @@ public sealed partial class MacOsAutomation : IOsAutomation
             IntPtr upEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, vk, false);
             if (downEvent != IntPtr.Zero && upEvent != IntPtr.Zero)
             {
+                ulong flags = 0;
+                if ((modifiers & 1) != 0) flags |= 0x00080000; // kCGEventFlagMaskAlternate (Alt)
+                if ((modifiers & 2) != 0) flags |= 0x00040000; // kCGEventFlagMaskControl (Ctrl)
+                if ((modifiers & 4) != 0) flags |= 0x00100000; // kCGEventFlagMaskCommand (Cmd)
+                if ((modifiers & 8) != 0) flags |= 0x00020000; // kCGEventFlagMaskShift (Shift)
+
+                if (flags != 0)
+                {
+                    CGEventSetFlags(downEvent, flags);
+                    CGEventSetFlags(upEvent, flags);
+                }
+
                 int targetPid = GetWindowPid(windowId);
                 if (targetPid > 0)
                 {

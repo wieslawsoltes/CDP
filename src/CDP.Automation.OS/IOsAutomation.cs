@@ -15,7 +15,7 @@ public interface IOsAutomation
     void SimulateMouseDown(string windowId, double x, double y, string button);
     void SimulateMouseUp(string windowId, double x, double y, string button);
     void SimulateMouseWheel(string windowId, double x, double y, double deltaX, double deltaY);
-    void SimulateKeyPress(string windowId, string key);
+    void SimulateKeyPress(string windowId, string key, int modifiers = 0);
     void SimulateTypeText(string windowId, string text);
     byte[] CaptureWindow(string windowId);
     OSNode? GetFocusedElement(string windowId);

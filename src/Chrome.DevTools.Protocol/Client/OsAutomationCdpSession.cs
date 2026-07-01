@@ -393,9 +393,10 @@ public sealed class OsAutomationCdpSession : IDisposable
                     TriggerSimulateInputGuard();
                     string type = parameters["type"]?.GetValue<string>() ?? "";
                     string key = parameters["key"]?.GetValue<string>() ?? "";
+                    int modifiers = parameters["modifiers"]?.GetValue<int>() ?? 0;
                     if (type == "keyDown" || type == "rawKeyDown")
                     {
-                        _automation.SimulateKeyPress(_windowId, key);
+                        _automation.SimulateKeyPress(_windowId, key, modifiers);
                     }
 
                     EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
@@ -682,68 +683,108 @@ public sealed class OsAutomationCdpSession : IDisposable
         _rootNode = newRoot;
     }
 
-    private bool MatchNodeAttributes(OSNode node, List<(string Name, string Value)> predicates)
+    private bool MatchNodeAttributes(OSNode node, List<(string Name, string? Value)> predicates)
     {
         foreach (var pred in predicates)
         {
             var name = pred.Name;
             var val = pred.Value;
 
-            if (name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
-                name.Equals("Content", StringComparison.OrdinalIgnoreCase) ||
-                name.Equals("Header", StringComparison.OrdinalIgnoreCase) ||
-                name.Equals("Value", StringComparison.OrdinalIgnoreCase))
+            if (val == null) // Presence Check
             {
-                if (!string.Equals(node.Text, val, StringComparison.OrdinalIgnoreCase)) return false;
-            }
-            else if (name.Equals("Name", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!string.Equals(node.Name, val, StringComparison.OrdinalIgnoreCase)) return false;
-            }
-            else if (name.Equals("Role", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!string.Equals(node.Role, val, StringComparison.OrdinalIgnoreCase)) return false;
-            }
-            else if (name.Equals("Id", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!string.Equals(node.Id, val, StringComparison.OrdinalIgnoreCase)) return false;
-            }
-            else if (name.Equals("IsEnabled", StringComparison.OrdinalIgnoreCase))
-            {
-                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (!expected) return false; // Default to true in OS mode
-            }
-            else if (name.Equals("IsVisible", StringComparison.OrdinalIgnoreCase))
-            {
-                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (!expected) return false; // Default to true
-            }
-            else if (name.Equals("IsFocused", StringComparison.OrdinalIgnoreCase))
-            {
-                var focused = _automation.GetFocusedElement(_windowId);
-                bool isFocused = (focused != null && string.Equals(focused.Id, node.Id, StringComparison.OrdinalIgnoreCase)) || string.Equals(node.Id, _lastFocusedId, StringComparison.OrdinalIgnoreCase);
-                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (isFocused != expected) return false;
-            }
-            else if (name.Equals("IsChecked", StringComparison.OrdinalIgnoreCase))
-            {
-                bool isChecked = false;
-                if (node.Role == "AXCheckBox" || node.Role == "AXRadioButton" || node.Role == "check box" || node.Role == "radio button")
+                if (name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Content", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Header", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Value", StringComparison.OrdinalIgnoreCase))
                 {
-                    isChecked = (node.Text == "1" || node.Text.Equals("true", StringComparison.OrdinalIgnoreCase));
+                    if (string.IsNullOrEmpty(node.Text)) return false;
                 }
-                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (isChecked != expected) return false;
+                else if (name.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrEmpty(node.Name)) return false;
+                }
+                else if (name.Equals("Role", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrEmpty(node.Role)) return false;
+                }
+                else if (name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+                         name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase) ||
+                         name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrEmpty(node.Id)) return false;
+                }
+                else
+                {
+                    if (!node.Attributes.ContainsKey(name)) return false;
+                }
             }
-            else if (name.Equals("IsSelected", StringComparison.OrdinalIgnoreCase))
+            else // Value Check
             {
-                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (expected) return false; // Default to false
-            }
-            else if (name.Equals("IsExpanded", StringComparison.OrdinalIgnoreCase))
-            {
-                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
-                if (expected) return false; // Default to false
+                if (name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Content", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Header", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Value", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(node.Text, val, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                else if (name.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(node.Name, val, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                else if (name.Equals("Role", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(node.Role, val, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                else if (name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+                         name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase) ||
+                         name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(node.Id, val, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                else if (name.Equals("IsEnabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (!expected) return false; // Default to true in OS mode
+                }
+                else if (name.Equals("IsVisible", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (!expected) return false; // Default to true
+                }
+                else if (name.Equals("IsFocused", StringComparison.OrdinalIgnoreCase))
+                {
+                    var focused = _automation.GetFocusedElement(_windowId);
+                    bool isFocused = (focused != null && string.Equals(focused.Id, node.Id, StringComparison.OrdinalIgnoreCase)) || string.Equals(node.Id, _lastFocusedId, StringComparison.OrdinalIgnoreCase);
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (isFocused != expected) return false;
+                }
+                else if (name.Equals("IsChecked", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool isChecked = false;
+                    if (node.Role == "AXCheckBox" || node.Role == "AXRadioButton" || node.Role == "check box" || node.Role == "radio button")
+                    {
+                        isChecked = (node.Text == "1" || node.Text.Equals("true", StringComparison.OrdinalIgnoreCase));
+                    }
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (isChecked != expected) return false;
+                }
+                else if (name.Equals("IsSelected", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (expected) return false; // Default to false
+                }
+                else if (name.Equals("IsExpanded", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (expected) return false; // Default to false
+                }
+                else
+                {
+                    if (!node.Attributes.TryGetValue(name, out var actualVal) || !string.Equals(actualVal, val, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
             }
         }
         return true;
@@ -772,7 +813,7 @@ public sealed class OsAutomationCdpSession : IDisposable
         }
 
         // Parse attributes and base selector
-        var attributePredicates = new List<(string Name, string Value)>();
+        var attributePredicates = new List<(string Name, string? Value)>();
         int bracketStart = selector.IndexOf('[');
         string baseSelector = selector;
         if (bracketStart >= 0)
@@ -793,6 +834,11 @@ public sealed class OsAutomationCdpSession : IDisposable
                     string attrName = content.Substring(0, eq).Trim();
                     string attrVal = content.Substring(eq + 1).Trim('\'', '\"', ' ');
                     attributePredicates.Add((attrName, attrVal));
+                }
+                else
+                {
+                    string attrName = content.Trim();
+                    attributePredicates.Add((attrName, null));
                 }
                 searchIdx = close + 1;
             }
@@ -843,7 +889,14 @@ public sealed class OsAutomationCdpSession : IDisposable
             // Match Base Selector Role or Name
             if (!string.IsNullOrEmpty(baseRoleOrName))
             {
-                if (!string.Equals(node.Role, baseRoleOrName, StringComparison.OrdinalIgnoreCase) &&
+                string roleClean = node.Role;
+                if (roleClean.StartsWith("AX", StringComparison.OrdinalIgnoreCase))
+                {
+                    roleClean = roleClean.Substring(2);
+                }
+
+                if (!string.Equals(roleClean, baseRoleOrName, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(node.Role, baseRoleOrName, StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(node.Name, baseRoleOrName, StringComparison.OrdinalIgnoreCase))
                 {
                     return false;
@@ -1433,19 +1486,107 @@ public sealed class OsAutomationCdpSession : IDisposable
             throw new InvalidOperationException("No DOM document available to evaluate expression.");
         }
 
-        // Handle: var v = document.querySelector("..."); v != null && v.isEffectivelyVisible
-        if (expression.Contains("isEffectivelyVisible"))
+        // Extract selector
+        var selector = ExtractSelectorFromExpression(expression);
+        var node = string.IsNullOrEmpty(selector) ? null : QuerySelectorInternal(_rootNode, selector);
+
+        // 1. Check for standard querySelector null/exists checks
+        if (expression.Contains("document.querySelector") && (expression.Contains("!= null") || expression.Contains("!== null")))
         {
-            var selector = ExtractSelectorFromExpression(expression);
-            var node = QuerySelectorInternal(_rootNode, selector);
             return node != null;
         }
+        if (expression.Contains("document.querySelector") && (expression.Contains("== null") || expression.Contains("=== null")))
+        {
+            return node == null;
+        }
+        if (expression.StartsWith("document.querySelector(") && expression.EndsWith(")"))
+        {
+            return node != null ? "Element" : "null";
+        }
 
-        // Handle: document.getPropertiesJson("...")
+        // 2. Check for properties
+        if (node != null)
+        {
+            if (expression.Contains(".isEffectivelyVisible") || expression.Contains(".isVisible"))
+            {
+                return true;
+            }
+            if (expression.Contains(".isEnabled"))
+            {
+                return true;
+            }
+            if (expression.Contains(".IsFocused"))
+            {
+                var focused = _automation.GetFocusedElement(_windowId);
+                bool isFocused = (focused != null && string.Equals(focused.Id, node.Id, StringComparison.OrdinalIgnoreCase)) || string.Equals(node.Id, _lastFocusedId, StringComparison.OrdinalIgnoreCase);
+                return isFocused;
+            }
+            if (expression.Contains(".IsChecked"))
+            {
+                bool isChecked = false;
+                if (node.Role == "AXCheckBox" || node.Role == "AXRadioButton" || node.Role == "check box" || node.Role == "radio button")
+                {
+                    isChecked = node.Text == "1" || node.Text.Equals("true", StringComparison.OrdinalIgnoreCase);
+                }
+                return isChecked;
+            }
+            if (expression.Contains(".IsSelected"))
+            {
+                return false;
+            }
+            if (expression.Contains(".IsExpanded"))
+            {
+                return false;
+            }
+
+            // Text comparisons (e.g. .textContent == "Value")
+            if (expression.Contains("==") || expression.Contains("===") || expression.Contains("!=") || expression.Contains("!=="))
+            {
+                int lastQuote = expression.LastIndexOf('\"');
+                char expectedQuote = '\"';
+                if (lastQuote < 0)
+                {
+                    lastQuote = expression.LastIndexOf('\'');
+                    expectedQuote = '\'';
+                }
+                if (lastQuote >= 0)
+                {
+                    int firstQuote = expression.LastIndexOf(expectedQuote, lastQuote - 1);
+                    if (firstQuote >= 0)
+                    {
+                        string expectedVal = expression.Substring(firstQuote + 1, lastQuote - firstQuote - 1);
+                        expectedVal = expectedVal.Replace("\\\"", "\"").Replace("\\'", "'");
+                        
+                        string actualVal = node.Text ?? node.Name ?? "";
+                        bool isEquals = expression.Contains("==") || expression.Contains("===");
+                        bool matches = string.Equals(actualVal.Trim(), expectedVal.Trim(), StringComparison.OrdinalIgnoreCase);
+                        return isEquals ? matches : !matches;
+                    }
+                }
+            }
+
+            // Direct text property reads
+            if (expression.Contains(".textContent") || expression.Contains(".Text") || expression.Contains(".value") || expression.Contains(".Content") || expression.Contains(".Header"))
+            {
+                return node.Text ?? node.Name ?? "";
+            }
+        }
+        else
+        {
+            // Node is null, if the expression asks for text, return empty string, for bool return false
+            if (expression.Contains(".textContent") || expression.Contains(".Text") || expression.Contains(".value") || expression.Contains(".Content") || expression.Contains(".Header"))
+            {
+                return "";
+            }
+            if (expression.Contains(".isEffectivelyVisible") || expression.Contains(".isVisible") || expression.Contains(".isEnabled") || expression.Contains(".IsFocused") || expression.Contains(".IsChecked") || expression.Contains(".IsSelected") || expression.Contains(".IsExpanded"))
+            {
+                return false;
+            }
+        }
+
+        // 3. Fallback to getPropertiesJson
         if (expression.Contains("document.getPropertiesJson"))
         {
-            var selector = ExtractSelectorFromExpression(expression);
-            var node = QuerySelectorInternal(_rootNode, selector);
             if (node != null)
             {
                 var typeName = node.Role;
@@ -1487,43 +1628,47 @@ public sealed class OsAutomationCdpSession : IDisposable
             return "{}";
         }
 
-        // Handle: document.querySelector("...") != null
-        if (expression.Contains("document.querySelector") && (expression.Contains("!= null") || expression.Contains("!== null")))
-        {
-            var selector = ExtractSelectorFromExpression(expression);
-            var node = QuerySelectorInternal(_rootNode, selector);
-            return node != null;
-        }
-
-        // Handle: document.querySelector("...") == null
-        if (expression.Contains("document.querySelector") && (expression.Contains("== null") || expression.Contains("=== null")))
-        {
-            var selector = ExtractSelectorFromExpression(expression);
-            var node = QuerySelectorInternal(_rootNode, selector);
-            return node == null;
-        }
-
-        // Handle: document.querySelector("...") directly (exists check)
-        if (expression.StartsWith("document.querySelector(") && expression.EndsWith(")"))
-        {
-            var selector = ExtractSelectorFromExpression(expression);
-            var node = QuerySelectorInternal(_rootNode, selector);
-            return node != null ? "Element" : "null";
-        }
-
         throw new NotSupportedException($"Expression evaluation is not supported in OS Automation mode: '{expression}'");
     }
 
     private string ExtractSelectorFromExpression(string expression)
     {
         int openQuote = expression.IndexOf('\"');
-        if (openQuote < 0) openQuote = expression.IndexOf('\'');
+        char quoteChar = '\"';
+        if (openQuote < 0)
+        {
+            openQuote = expression.IndexOf('\'');
+            quoteChar = '\'';
+        }
+        
         if (openQuote >= 0)
         {
-            int closeQuote = expression.IndexOf(expression[openQuote], openQuote + 1);
+            int closeQuote = -1;
+            bool escaped = false;
+            for (int i = openQuote + 1; i < expression.Length; i++)
+            {
+                char c = expression[i];
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (c == quoteChar)
+                {
+                    closeQuote = i;
+                    break;
+                }
+            }
+
             if (closeQuote >= 0)
             {
-                return expression.Substring(openQuote + 1, closeQuote - openQuote - 1);
+                string raw = expression.Substring(openQuote + 1, closeQuote - openQuote - 1);
+                return raw.Replace("\\\"", "\"").Replace("\\'", "'");
             }
         }
         return "";

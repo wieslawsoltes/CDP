@@ -244,7 +244,7 @@ public sealed partial class LinuxAutomation : IOsAutomation
         throw new NotSupportedException("MouseWheel simulation is not supported on Linux OS targets.");
     }
 
-    public void SimulateKeyPress(string windowId, string key)
+    public void SimulateKeyPress(string windowId, string key, int modifiers = 0)
     {
         if (windowId == "linux-window-fallback") return;
         throw new NotSupportedException("KeyPress simulation is not supported on Linux OS targets.");

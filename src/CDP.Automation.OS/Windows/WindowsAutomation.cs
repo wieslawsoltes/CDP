@@ -977,7 +977,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
         }
     }
 
-    public void SimulateKeyPress(string windowId, string key)
+    public void SimulateKeyPress(string windowId, string key, int modifiers = 0)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
         if (windowId.EndsWith("_fallback")) return;
@@ -990,9 +990,10 @@ public sealed partial class WindowsAutomation : IOsAutomation
             case "enter":
             case "return": vk = 0x0D; break;
             case "backspace": vk = 0x08; break;
+            case "a": vk = 0x41; break;
         }
 
-        if (vk == 0)
+        if (vk == 0 && key.ToLowerInvariant() != "a")
         {
             _logger.LogWarning("Windows KeyPress simulated: {Key} (unmapped key)", key);
             return;
@@ -1000,37 +1001,54 @@ public sealed partial class WindowsAutomation : IOsAutomation
 
         try
         {
-            var inputs = new INPUT[2];
-            inputs[0] = new INPUT
-            {
-                type = 1, // INPUT_KEYBOARD = 1
-                u = new INPUT_UNION
-                {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = vk,
-                        dwFlags = 0 // KEYEVENTF_KEYDOWN = 0
-                    }
-                }
-            };
-            inputs[1] = new INPUT
-            {
-                type = 1,
-                u = new INPUT_UNION
-                {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = vk,
-                        dwFlags = 2 // KEYEVENTF_KEYUP = 2
-                    }
-                }
-            };
-            SendInput(2, inputs, Marshal.SizeOf<INPUT>());
+            var inputs = new List<INPUT>();
+            
+            // Modifier KEYDOWNs
+            if ((modifiers & 1) != 0) // Alt
+                inputs.Add(CreateKeyInput(0x12, 0));
+            if ((modifiers & 2) != 0) // Ctrl
+                inputs.Add(CreateKeyInput(0x11, 0));
+            if ((modifiers & 4) != 0) // Win
+                inputs.Add(CreateKeyInput(0x5B, 0));
+            if ((modifiers & 8) != 0) // Shift
+                inputs.Add(CreateKeyInput(0x10, 0));
+
+            // Main key press
+            inputs.Add(CreateKeyInput(vk, 0));
+            inputs.Add(CreateKeyInput(vk, 2)); // KEYEVENTF_KEYUP = 2
+
+            // Modifier KEYUPs (reverse order)
+            if ((modifiers & 8) != 0) // Shift
+                inputs.Add(CreateKeyInput(0x10, 2));
+            if ((modifiers & 4) != 0) // Win
+                inputs.Add(CreateKeyInput(0x5B, 2));
+            if ((modifiers & 2) != 0) // Ctrl
+                inputs.Add(CreateKeyInput(0x11, 2));
+            if ((modifiers & 1) != 0) // Alt
+                inputs.Add(CreateKeyInput(0x12, 2));
+
+            SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to simulate Windows KeyPress: {Key}", key);
         }
+    }
+
+    private static INPUT CreateKeyInput(ushort vk, uint flags)
+    {
+        return new INPUT
+        {
+            type = 1, // INPUT_KEYBOARD = 1
+            u = new INPUT_UNION
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = vk,
+                    dwFlags = flags
+                }
+            }
+        };
     }
 
     public void SimulateTypeText(string windowId, string text)

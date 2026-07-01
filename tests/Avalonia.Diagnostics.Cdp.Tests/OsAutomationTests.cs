@@ -624,6 +624,58 @@ public class OsAutomationTests
         Assert.NotNull(callFuncResNode);
         Assert.Equal("string", callFuncResNode["type"]?.GetValue<string>());
         Assert.Equal("Click Me", callFuncResNode["value"]?.GetValue<string>());
+
+        // Test escaped selector visibility checks and property assertions
+        var isVisibleRes = await session.HandleCommandAsync("Runtime.evaluate", new JsonObject
+        {
+            ["expression"] = "document.querySelector(\"[Text=\\\"Click Me\\\"]\").isVisible"
+        });
+        Assert.NotNull(isVisibleRes);
+        var isVisibleResNode = isVisibleRes["result"] as JsonObject;
+        Assert.NotNull(isVisibleResNode);
+        Assert.Equal("boolean", isVisibleResNode["type"]?.GetValue<string>());
+        Assert.True(isVisibleResNode["value"]?.GetValue<bool>());
+
+        // Test text comparison assertion
+        var textCompareRes = await session.HandleCommandAsync("Runtime.evaluate", new JsonObject
+        {
+            ["expression"] = "document.querySelector(\"#btnClickMe\").textContent == \"Click Me\""
+        });
+        Assert.NotNull(textCompareRes);
+        var textCompareResNode = textCompareRes["result"] as JsonObject;
+        Assert.NotNull(textCompareResNode);
+        Assert.Equal("boolean", textCompareResNode["type"]?.GetValue<string>());
+        Assert.True(textCompareResNode["value"]?.GetValue<bool>());
+
+        // Test type-qualified tag selector resolution
+        var tagSelectorResult = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "Button#btnClickMe"
+        });
+        Assert.NotNull(tagSelectorResult);
+        int tagBtnId = tagSelectorResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(btnId, tagBtnId);
+
+        // Test attribute presence selector matching
+        var presenceSelectorResult = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe[Name]"
+        });
+        Assert.NotNull(presenceSelectorResult);
+        int presenceBtnId = presenceSelectorResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(btnId, presenceBtnId);
+
+        // Test invalid/unknown attribute presence selector (must fail closed to 0)
+        var invalidPresenceResult = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe[UnknownAttributePresenceCheck]"
+        });
+        Assert.NotNull(invalidPresenceResult);
+        int invalidBtnId = invalidPresenceResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(0, invalidBtnId);
     }
 
     private void PrintNode(OSNode node, int indent, System.Text.StringBuilder sb)
