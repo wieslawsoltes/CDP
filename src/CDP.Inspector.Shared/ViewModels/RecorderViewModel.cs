@@ -252,7 +252,7 @@ public class RecorderViewModel : ViewModelBase
     {
         if (e.Method == "Recorder.stepAdded" && e.Params != null)
         {
-            if (TestStudio.IsExecuting) return;
+            if (TestStudio.IsExecuting || !IsRecording) return;
 
             var step = e.Params["step"] as JsonObject;
             if (step != null)
