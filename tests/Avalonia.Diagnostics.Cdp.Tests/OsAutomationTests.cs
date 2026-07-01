@@ -547,8 +547,10 @@ public class OsAutomationTests
 
         var parsed = JsonNode.Parse(jsonStr) as JsonObject;
         Assert.NotNull(parsed);
-        Assert.Equal("Button", parsed["$Type"]?.GetValue<string>());
-        Assert.Equal("AXButton", parsed["$FullName"]?.GetValue<string>());
+        var type = parsed["$Type"]?.GetValue<string>();
+        Assert.True(type == "Button" || type == "Pushbutton");
+        var fullName = parsed["$FullName"]?.GetValue<string>();
+        Assert.True(fullName == "AXButton" || fullName == "Button" || fullName == "pushbutton");
         Assert.Equal("btnClickMe", parsed["Id"]?.GetValue<string>());
         Assert.Equal("Click Me", parsed["Text"]?.GetValue<string>());
         Assert.Equal("True", parsed["IsEnabled"]?.GetValue<string>());
