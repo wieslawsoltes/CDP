@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Interactivity;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -135,6 +136,18 @@ public static class InputDomain
     {
         switch (action)
         {
+            case "enable":
+                {
+                    EnableInputEvents(session);
+                    return new JsonObject();
+                }
+
+            case "disable":
+                {
+                    DisableInputEvents(session);
+                    return new JsonObject();
+                }
+
             case "dispatchMouseEvent":
                 {
                     string type = @params["type"]?.GetValue<string>() ?? "";
@@ -1016,5 +1029,237 @@ public static class InputDomain
         }
 
         return Key.None;
+    }
+
+    private class InputSessionState
+    {
+        private readonly WeakReference<CdpSession> _sessionRef;
+        private readonly WeakReference<TopLevel> _windowRef;
+
+        public InputSessionState(CdpSession session, TopLevel window)
+        {
+            _sessionRef = new WeakReference<CdpSession>(session);
+            _windowRef = new WeakReference<TopLevel>(window);
+        }
+
+        public void Hook()
+        {
+            if (_windowRef.TryGetTarget(out var window))
+            {
+                window.AddHandler(InputElement.PointerPressedEvent, (EventHandler<PointerPressedEventArgs>)OnPointerPressed, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.PointerReleasedEvent, (EventHandler<PointerReleasedEventArgs>)OnPointerReleased, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.PointerMovedEvent, (EventHandler<PointerEventArgs>)OnPointerMoved, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.PointerWheelChangedEvent, (EventHandler<PointerWheelEventArgs>)OnPointerWheelChanged, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.KeyDownEvent, (EventHandler<KeyEventArgs>)OnKeyDown, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+                window.AddHandler(InputElement.KeyUpEvent, (EventHandler<KeyEventArgs>)OnKeyUp, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+            }
+        }
+
+        public void Unhook()
+        {
+            if (_windowRef.TryGetTarget(out var window))
+            {
+                window.RemoveHandler(InputElement.PointerPressedEvent, (EventHandler<PointerPressedEventArgs>)OnPointerPressed);
+                window.RemoveHandler(InputElement.PointerReleasedEvent, (EventHandler<PointerReleasedEventArgs>)OnPointerReleased);
+                window.RemoveHandler(InputElement.PointerMovedEvent, (EventHandler<PointerEventArgs>)OnPointerMoved);
+                window.RemoveHandler(InputElement.PointerWheelChangedEvent, (EventHandler<PointerWheelEventArgs>)OnPointerWheelChanged);
+                window.RemoveHandler(InputElement.KeyDownEvent, (EventHandler<KeyEventArgs>)OnKeyDown);
+                window.RemoveHandler(InputElement.KeyUpEvent, (EventHandler<KeyEventArgs>)OnKeyUp);
+            }
+        }
+
+        private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
+            {
+                var pos = e.GetPosition(window);
+                var prop = e.GetCurrentPoint(window).Properties;
+                string button = prop.IsLeftButtonPressed ? "left" :
+                                prop.IsRightButtonPressed ? "right" :
+                                prop.IsMiddleButtonPressed ? "middle" : "none";
+
+                var control = window.InputHitTest(pos);
+                string selector = "";
+                if (control is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
+                _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mousePressed",
+                    ["x"] = pos.X,
+                    ["y"] = pos.Y,
+                    ["button"] = button,
+                    ["clickCount"] = e.ClickCount,
+                    ["selector"] = selector
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
+            {
+                var pos = e.GetPosition(window);
+                var prop = e.GetCurrentPoint(window).Properties;
+                string button = prop.PointerUpdateKind switch
+                {
+                    PointerUpdateKind.LeftButtonReleased => "left",
+                    PointerUpdateKind.RightButtonReleased => "right",
+                    PointerUpdateKind.MiddleButtonReleased => "middle",
+                    _ => "none"
+                };
+
+                var control = window.InputHitTest(pos);
+                string selector = "";
+                if (control is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
+                _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mouseReleased",
+                    ["x"] = pos.X,
+                    ["y"] = pos.Y,
+                    ["button"] = button,
+                    ["clickCount"] = 1,
+                    ["selector"] = selector
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnPointerMoved(object? sender, PointerEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
+            {
+                var pos = e.GetPosition(window);
+                var control = window.InputHitTest(pos);
+                string selector = "";
+                if (control is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
+                _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mouseMoved",
+                    ["x"] = pos.X,
+                    ["y"] = pos.Y,
+                    ["button"] = "none",
+                    ["selector"] = selector
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session) && _windowRef.TryGetTarget(out var window))
+            {
+                var pos = e.GetPosition(window);
+                var control = window.InputHitTest(pos);
+                string selector = "";
+                if (control is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
+                _ = session.SendEventAsync("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mouseWheel",
+                    ["x"] = pos.X,
+                    ["y"] = pos.Y,
+                    ["deltaX"] = e.Delta.X,
+                    ["deltaY"] = e.Delta.Y,
+                    ["button"] = "none",
+                    ["selector"] = selector
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session))
+            {
+                var focused = session.Window?.FocusManager?.GetFocusedElement();
+                string selector = "";
+                if (focused is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
+                _ = session.SendEventAsync("Input.keyEvent", new JsonObject
+                {
+                    ["type"] = "keyDown",
+                    ["key"] = e.Key.ToString(),
+                    ["selector"] = selector
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+
+        private void OnKeyUp(object? sender, KeyEventArgs e)
+        {
+            if (_sessionRef.TryGetTarget(out var session))
+            {
+                var focused = session.Window?.FocusManager?.GetFocusedElement();
+                string selector = "";
+                if (focused is Avalonia.Visual visual)
+                {
+                    selector = SelectorEngine.GetSelector(visual, session.UseLogicalTree);
+                }
+
+                _ = session.SendEventAsync("Input.keyEvent", new JsonObject
+                {
+                    ["type"] = "keyUp",
+                    ["key"] = e.Key.ToString(),
+                    ["selector"] = selector
+                });
+            }
+            else
+            {
+                Unhook();
+            }
+        }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<CdpSession, InputSessionState> _sessionStates = new();
+
+    private static void EnableInputEvents(CdpSession session)
+    {
+        if (session.Window == null) return;
+        var state = new InputSessionState(session, session.Window);
+        if (_sessionStates.TryAdd(session, state))
+        {
+            state.Hook();
+        }
+    }
+
+    private static void DisableInputEvents(CdpSession session)
+    {
+        if (_sessionStates.TryRemove(session, out var state))
+        {
+            state.Unhook();
+        }
     }
 }

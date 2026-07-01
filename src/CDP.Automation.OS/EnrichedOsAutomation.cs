@@ -1,0 +1,118 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using SkiaSharp;
+
+namespace CDP.Automation.OS;
+
+public sealed class EnrichedOsAutomation : IOsAutomation
+{
+    private readonly IOsAutomation _underlying;
+
+    public EnrichedOsAutomation(IOsAutomation underlying)
+    {
+        _underlying = underlying;
+    }
+
+    public IReadOnlyList<OSWindow> GetWindows()
+    {
+        var list = new List<OSWindow>(_underlying.GetWindows());
+
+        bool isFallback = false;
+        foreach (var w in list)
+        {
+            if (w.Id == "macos-window-fallback" || w.Id == "windows-window-fallback" || w.Id == "linux-window-fallback")
+            {
+                isFallback = true;
+                break;
+            }
+        }
+        if (isFallback)
+        {
+            return list;
+        }
+
+        try
+        {
+            var processes = Process.GetProcesses();
+            foreach (var proc in processes)
+            {
+                try
+                {
+                    if (proc.Id <= 0) continue;
+
+                    bool exists = false;
+                    foreach (var w in list)
+                    {
+                        if (w.ProcessId == proc.Id)
+                        {
+                            exists = true;
+                            break;
+                        }
+                    }
+
+                    if (!exists)
+                    {
+                        string title = proc.MainWindowTitle;
+                        if (string.IsNullOrEmpty(title))
+                        {
+                            title = $"{proc.ProcessName} (Universal Window)";
+                        }
+
+                        string id = proc.MainWindowHandle != IntPtr.Zero ? proc.MainWindowHandle.ToString() : $"{proc.Id}_fallback";
+
+                        list.Add(new OSWindow
+                        {
+                            Id = id,
+                            Title = title,
+                            ProcessName = proc.ProcessName,
+                            ProcessId = proc.Id,
+                            Bounds = new SKRectI(100, 100, 1124, 868)
+                        });
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return list;
+    }
+
+    public bool MovePhysicalCursor
+    {
+        get => _underlying.MovePhysicalCursor;
+        set => _underlying.MovePhysicalCursor = value;
+    }
+
+    public bool UsePeerAutomation
+    {
+        get => _underlying.UsePeerAutomation;
+        set => _underlying.UsePeerAutomation = value;
+    }
+
+    public bool UseAccessibilityEvents
+    {
+        get => _underlying.UseAccessibilityEvents;
+        set => _underlying.UseAccessibilityEvents = value;
+    }
+
+    public OSNode? GetElementTree(string windowId) => _underlying.GetElementTree(windowId);
+    public void SimulateClick(string windowId, double x, double y, string? nodeId = null) => _underlying.SimulateClick(windowId, x, y, nodeId);
+    public void SimulateMouseMove(string windowId, double x, double y) => _underlying.SimulateMouseMove(windowId, x, y);
+    public void SimulateMouseDown(string windowId, double x, double y, string button) => _underlying.SimulateMouseDown(windowId, x, y, button);
+    public void SimulateMouseUp(string windowId, double x, double y, string button) => _underlying.SimulateMouseUp(windowId, x, y, button);
+    public void SimulateMouseWheel(string windowId, double x, double y, double deltaX, double deltaY) => _underlying.SimulateMouseWheel(windowId, x, y, deltaX, deltaY);
+    public void SimulateKeyPress(string windowId, string key, int modifiers = 0) => _underlying.SimulateKeyPress(windowId, key, modifiers);
+    public void SimulateTypeText(string windowId, string text) => _underlying.SimulateTypeText(windowId, text);
+    public byte[] CaptureWindow(string windowId) => _underlying.CaptureWindow(windowId);
+    public OSNode? GetFocusedElement(string windowId) => _underlying.GetFocusedElement(windowId);
+    public bool HasScreenCapturePermission() => _underlying.HasScreenCapturePermission();
+    public bool HasAccessibilityPermission() => _underlying.HasAccessibilityPermission();
+    public void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent) => _underlying.StartInputCapture(windowId, onClick, onAccessibilityEvent);
+    public void StopInputCapture() => _underlying.StopInputCapture();
+}

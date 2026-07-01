@@ -12,6 +12,8 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -19,6 +21,8 @@ namespace CdpInspectorApp.ViewModels;
 
 public class RecorderViewModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<RecorderViewModel>();
+
     private readonly ICdpService _cdpService;
     private readonly Func<string> _getHostAddress;
     private readonly Func<bool>? _useAutomationProvider;
@@ -163,7 +167,7 @@ public class RecorderViewModel : ViewModelBase
         {
             if (RaiseAndSetIfChanged(ref _isTestStudioActive, value))
             {
-                Console.WriteLine($"[DEBUG] IsTestStudioActive setter called: new value = {value}");
+                Logger.LogDebug("IsTestStudioActive setter called: new value = {Value}", value);
             }
         }
     }
@@ -248,7 +252,7 @@ public class RecorderViewModel : ViewModelBase
     {
         if (e.Method == "Recorder.stepAdded" && e.Params != null)
         {
-            if (TestStudio.IsExecuting) return;
+            if (TestStudio.IsExecuting || !IsRecording) return;
 
             var step = e.Params["step"] as JsonObject;
             if (step != null)
@@ -283,7 +287,7 @@ public class RecorderViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DEBUG] Failed to get URL via navigation history: {ex.Message}");
+            Logger.LogDebug(ex, "Failed to get URL via navigation history");
         }
 
         try
@@ -298,7 +302,7 @@ public class RecorderViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DEBUG] Failed to get URL via DOM document: {ex.Message}");
+            Logger.LogDebug(ex, "Failed to get URL via DOM document");
         }
 
         return _getHostAddress?.Invoke() ?? "http://localhost:9222/";
@@ -356,19 +360,28 @@ public class RecorderViewModel : ViewModelBase
         {
             if (!IsRecording)
             {
+                bool isOsSession = _cdpService.ConnectedHost != null && _cdpService.ConnectedHost.StartsWith("os://", StringComparison.OrdinalIgnoreCase);
                 var mode = _useAutomationProvider?.Invoke() == true ? "automation" : "dom";
                 try
                 {
                     await _cdpService.SendCommandAsync("Recorder.start", new JsonObject { ["selectorMode"] = mode });
-                    IsClientSideRecording = false;
+                    IsClientSideRecording = isOsSession;
+                    if (isOsSession)
+                    {
+                        ClearData(resetRecordingState: false);
+                    }
                 }
-                catch (Exception ex) when (ex.Message.Contains("method") || ex.Message.Contains("not found") || ex.Message.Contains("not implemented") || ex.Message.Contains("Recorder"))
-                {
-                    Console.WriteLine("Recorder domain not supported by target. Falling back to client-side simulation recording.");
-                    IsClientSideRecording = true;
+                    catch (Exception ex) when (ex.Message.Contains("method") || ex.Message.Contains("not found") || ex.Message.Contains("not implemented") || ex.Message.Contains("Recorder"))
+                    {
+                        Console.WriteLine("Recorder domain not supported by target. Falling back to client-side simulation recording.");
+                        IsClientSideRecording = true;
 
-                    // Emit initial steps locally
-                    ClearData(resetRecordingState: false);
+                        // Emit initial steps locally
+                        ClearData(resetRecordingState: false);
+                    }
+
+                if (IsClientSideRecording)
+                {
                     
                     // Emit setViewport step
                     var sizeNode = new JsonObject
@@ -392,9 +405,14 @@ public class RecorderViewModel : ViewModelBase
             }
             else
             {
-                if (!IsClientSideRecording)
+                bool isOsSession = _cdpService.ConnectedHost != null && _cdpService.ConnectedHost.StartsWith("os://", StringComparison.OrdinalIgnoreCase);
+                if (!IsClientSideRecording || isOsSession)
                 {
-                    await _cdpService.SendCommandAsync("Recorder.stop");
+                    try
+                    {
+                        await _cdpService.SendCommandAsync("Recorder.stop");
+                    }
+                    catch {}
                 }
                 IsRecording = false;
                 IsClientSideRecording = false;
@@ -485,7 +503,7 @@ public class RecorderViewModel : ViewModelBase
     private void AddRecordedStep(JsonObject stepJson)
     {
         string type = stepJson["type"]?.GetValue<string>() ?? "";
-        Console.WriteLine($"[DEBUG] AddRecordedStep: type={type}, IsTestStudioActive={IsTestStudioActive}");
+        Logger.LogDebug("AddRecordedStep: type={Type}, IsTestStudioActive={IsTestStudioActive}", type, IsTestStudioActive);
         string value = stepJson["value"]?.GetValue<string>() ?? "";
         double offsetX = GetDouble(stepJson["offsetX"]);
         double offsetY = GetDouble(stepJson["offsetY"]);
@@ -793,7 +811,7 @@ public class RecorderViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[DEBUG] Error inferring assertions: {ex.Message}");
+            Logger.LogDebug(ex, "Error inferring assertions");
         }
     }
 

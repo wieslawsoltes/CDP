@@ -1,0 +1,1703 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
+using CDP.Automation.OS;
+using Microsoft.Extensions.Logging;
+
+namespace Chrome.DevTools.Protocol;
+
+public sealed class OsAutomationCdpSession : IDisposable
+{
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<OsAutomationCdpSession>();
+
+    private readonly string _windowId;
+    private readonly IOsAutomation _automation;
+    private readonly Dictionary<int, OSNode> _idToNode = new();
+    private readonly Dictionary<string, int> _osIdToCdpId = new();
+    private int _nextNodeId = 2;
+    private OSNode? _rootNode;
+
+    public event EventHandler<CdpEventEventArgs>? EventReceived;
+
+    public void Dispose()
+    {
+        StopScreencast();
+        StopRecordingPolling();
+    }
+
+    private System.Threading.CancellationTokenSource? _pollingCts;
+    private string? _lastFocusedId;
+    private string? _lastFocusedNodeId;
+    private string? _lastFocusedValue;
+    private string? _lastFocusedRole;
+    private bool _isSimulatingInput;
+    private bool _peerClicked;
+    private bool _isInputEnabled;
+    private bool _isRecordingActive;
+    private string? _lastClickedElementId;
+    private DateTime _lastClickTime;
+
+    private bool _isMouseDown;
+    private double _mouseDownX;
+    private double _mouseDownY;
+    private bool _hasMovedSinceDown;
+    private string _mouseDownButton = "none";
+
+    private System.Threading.CancellationTokenSource? _screencastCts;
+    private byte[]? _lastFrameBytes;
+    private int _screencastSessionId;
+
+    private void TriggerSimulateInputGuard()
+    {
+        _isSimulatingInput = true;
+        _ = Task.Delay(500).ContinueWith(_ => _isSimulatingInput = false);
+    }
+
+    public OsAutomationCdpSession(string windowId)
+    {
+        _windowId = windowId;
+        _automation = OSAutomationService.Instance;
+    }
+
+    public async Task<JsonObject> HandleCommandAsync(string method, JsonObject? parameters)
+    {
+        parameters ??= new JsonObject();
+        var dotIndex = method.IndexOf('.');
+        if (dotIndex == -1)
+        {
+            throw new Exception($"Invalid method format: {method}");
+        }
+
+        var domain = method.Substring(0, dotIndex);
+        var action = method.Substring(dotIndex + 1);
+
+        return domain switch
+        {
+            "DOM" => await HandleDomDomainAsync(action, parameters),
+            "Input" => await HandleInputDomainAsync(action, parameters),
+            "Page" => await HandlePageDomainAsync(action, parameters),
+            "SystemInfo" => await HandleSystemInfoDomainAsync(action, parameters),
+            "Runtime" => await HandleRuntimeDomainAsync(action, parameters),
+            "Target" => await HandleTargetDomainAsync(action, parameters),
+            "Accessibility" => await HandleAccessibilityDomainAsync(action, parameters),
+            "CSS" => await HandleCssDomainAsync(action, parameters),
+            "Overlay" => await HandleOverlayDomainAsync(action, parameters),
+            "Recorder" => await HandleRecorderDomainAsync(action, parameters),
+            _ => new JsonObject()
+        };
+    }
+
+    private Task<JsonObject> HandleDomDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "getDocument":
+                {
+                    _idToNode.Clear();
+                    _osIdToCdpId.Clear();
+                    _nextNodeId = 2;
+
+                    _rootNode = _automation.GetElementTree(_windowId);
+                    var children = new JsonArray();
+                    if (_rootNode != null)
+                    {
+                        children.Add(BuildCdpNode(_rootNode, 1));
+                    }
+
+                    var root = new JsonObject
+                    {
+                        ["nodeId"] = 1,
+                        ["backendNodeId"] = 1,
+                        ["nodeType"] = 9, // Document Node
+                        ["nodeName"] = "#document",
+                        ["localName"] = "",
+                        ["nodeValue"] = "",
+                        ["childNodeCount"] = children.Count,
+                        ["children"] = children,
+                        ["documentURL"] = "os://localhost/",
+                        ["baseURL"] = "os://localhost/"
+                    };
+
+                    return Task.FromResult(new JsonObject { ["root"] = root });
+                }
+
+            case "querySelector":
+                {
+                    RefreshRootNode();
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    string selector = parameters["selector"]?.GetValue<string>() ?? "";
+                    
+                    OSNode? searchRoot = null;
+                    if (nodeId == 1)
+                    {
+                        searchRoot = _rootNode;
+                    }
+                    else if (_idToNode.TryGetValue(nodeId, out var n))
+                    {
+                        searchRoot = n;
+                    }
+
+                    int matchId = 0;
+                    if (searchRoot != null)
+                    {
+                        var match = QuerySelectorInternal(searchRoot, selector);
+                        if (match != null)
+                        {
+                            if (_osIdToCdpId.TryGetValue(match.Id, out int cdpId))
+                            {
+                                matchId = cdpId;
+                            }
+                            else
+                            {
+                                int newId = _nextNodeId++;
+                                _idToNode[newId] = match;
+                                _osIdToCdpId[match.Id] = newId;
+                                matchId = newId;
+                            }
+                        }
+                    }
+
+                    return Task.FromResult(new JsonObject { ["nodeId"] = matchId });
+                }
+
+            case "resolveNode":
+                {
+                    RefreshRootNode();
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    var obj = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["objectId"] = $"node_{nodeId}"
+                    };
+                    return Task.FromResult(new JsonObject { ["object"] = obj });
+                }
+
+            case "getNodeForLocation":
+                {
+                    RefreshRootNode();
+                    int x = parameters["x"]?.GetValue<int>() ?? 0;
+                    int y = parameters["y"]?.GetValue<int>() ?? 0;
+
+                    int matchedNodeId = 0;
+                    if (_rootNode != null)
+                    {
+                        int absX = _rootNode.Bounds.Left + x;
+                        int absY = _rootNode.Bounds.Top + y;
+                        var match = FindDeepestNodeAt(_rootNode, absX, absY);
+                        if (match != null && _osIdToCdpId.TryGetValue(match.Id, out int cdpId))
+                        {
+                            matchedNodeId = cdpId;
+                        }
+                    }
+
+                    return Task.FromResult(new JsonObject { ["nodeId"] = matchedNodeId });
+                }
+
+            case "getBoxModel":
+                {
+                    RefreshRootNode();
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    if (!_idToNode.TryGetValue(nodeId, out var node))
+                    {
+                        throw new Exception($"Node with ID {nodeId} not found");
+                    }
+
+                    double ox = _rootNode != null ? _rootNode.Bounds.Left : 0.0;
+                    double oy = _rootNode != null ? _rootNode.Bounds.Top : 0.0;
+
+                    double x1 = node.Bounds.Left - ox;
+                    double y1 = node.Bounds.Top - oy;
+                    double x2 = node.Bounds.Right - ox;
+                    double y2 = node.Bounds.Top - oy;
+                    double x3 = node.Bounds.Right - ox;
+                    double y3 = node.Bounds.Bottom - oy;
+                    double x4 = node.Bounds.Left - ox;
+                    double y4 = node.Bounds.Bottom - oy;
+
+                    var quad = new JsonArray { x1, y1, x2, y2, x3, y3, x4, y4 };
+                    var model = new JsonObject
+                    {
+                        ["content"] = (JsonArray)quad.DeepClone()!,
+                        ["padding"] = (JsonArray)quad.DeepClone()!,
+                        ["border"] = (JsonArray)quad.DeepClone()!,
+                        ["margin"] = (JsonArray)quad.DeepClone()!,
+                        ["width"] = node.Bounds.Width,
+                        ["height"] = node.Bounds.Height
+                    };
+
+                    return Task.FromResult(new JsonObject { ["model"] = model });
+                }
+
+            case "focus":
+                {
+                    RefreshRootNode();
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    if (_idToNode.TryGetValue(nodeId, out var node))
+                    {
+                        TriggerSimulateInputGuard();
+                        _lastFocusedNodeId = node.Id;
+                        // Simulate focus by moving the cursor to the center of the element bounds (window-relative)
+                        double cx = (node.Bounds.Left + node.Bounds.Width / 2.0) - (_rootNode?.Bounds.Left ?? 0);
+                        double cy = (node.Bounds.Top + node.Bounds.Height / 2.0) - (_rootNode?.Bounds.Top ?? 0);
+                        _automation.SimulateMouseMove(_windowId, cx, cy);
+                    }
+                    return Task.FromResult(new JsonObject());
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private Task<JsonObject> HandleInputDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+                _isInputEnabled = true;
+                StartRecordingPolling();
+                return Task.FromResult(new JsonObject());
+
+            case "disable":
+                _isInputEnabled = false;
+                if (!_isRecordingActive)
+                {
+                    StopRecordingPolling();
+                }
+                return Task.FromResult(new JsonObject());
+
+            case "dispatchMouseEvent":
+                {
+                    TriggerSimulateInputGuard();
+                    string type = parameters["type"]?.GetValue<string>() ?? "";
+                    double x = GetDouble(parameters["x"]);
+                    double y = GetDouble(parameters["y"]);
+                    string button = parameters["button"]?.GetValue<string>() ?? "none";
+
+                    if (type == "mouseMoved")
+                    {
+                        if (_isMouseDown && !_hasMovedSinceDown && button != "none")
+                        {
+                            _hasMovedSinceDown = true;
+                            _automation.SimulateMouseDown(_windowId, _mouseDownX, _mouseDownY, _mouseDownButton);
+                        }
+
+                        if (button != "none")
+                        {
+                            _automation.SimulateMouseMove(_windowId, x, y);
+                        }
+                    }
+                    else if (type == "mousePressed")
+                    {
+                        _isMouseDown = true;
+                        _mouseDownX = x;
+                        _mouseDownY = y;
+                        _mouseDownButton = button;
+                        _hasMovedSinceDown = false;
+                        _peerClicked = false;
+
+                        if (!_automation.UsePeerAutomation)
+                        {
+                            _automation.SimulateMouseDown(_windowId, x, y, button);
+                        }
+                    }
+                    else if (type == "mouseReleased")
+                    {
+                        _isMouseDown = false;
+
+                        if (_pollingCts != null)
+                        {
+                            try
+                            {
+                                var rootNode = _automation.GetElementTree(_windowId);
+                                if (rootNode != null)
+                                {
+                                    double absoluteX = rootNode.Bounds.Left + x;
+                                    double absoluteY = rootNode.Bounds.Top + y;
+                                    var match = FindDeepestNodeAt(rootNode, (int)absoluteX, (int)absoluteY);
+                                    if (match != null)
+                                    {
+                                        RaiseStepRecordedEvent("click", match.Id, fromNativeHook: true);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error recording preview pane click step: {ex.Message}");
+                            }
+                        }
+
+                        if (_automation.UsePeerAutomation && !_hasMovedSinceDown)
+                        {
+                            string? nodeId = _lastFocusedNodeId;
+                            _lastFocusedNodeId = null;
+
+                            if (string.IsNullOrEmpty(nodeId))
+                            {
+                                try
+                                {
+                                    var rootNode = _automation.GetElementTree(_windowId);
+                                    if (rootNode != null)
+                                    {
+                                        double absoluteX = rootNode.Bounds.Left + x;
+                                        double absoluteY = rootNode.Bounds.Top + y;
+                                        var match = FindDeepestNodeAt(rootNode, (int)absoluteX, (int)absoluteY);
+                                        if (match != null)
+                                        {
+                                            nodeId = match.Id;
+                                        }
+                                    }
+                                }
+                                catch {}
+                            }
+
+                            if (!string.IsNullOrEmpty(nodeId))
+                            {
+                                _lastFocusedId = nodeId;
+                            }
+                            _automation.SimulateClick(_windowId, x, y, nodeId);
+                        }
+                        else
+                        {
+                            _automation.SimulateMouseUp(_windowId, x, y, button);
+                        }
+                    }
+                    else if (type == "mouseWheel")
+                    {
+                        double deltaX = GetDouble(parameters["deltaX"]);
+                        double deltaY = GetDouble(parameters["deltaY"]);
+                        _automation.SimulateMouseWheel(_windowId, x, y, deltaX, deltaY);
+                    }
+
+                    EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+                    {
+                        ["type"] = type,
+                        ["x"] = x,
+                        ["y"] = y,
+                        ["button"] = button,
+                        ["deltaX"] = GetDouble(parameters["deltaX"]),
+                        ["deltaY"] = GetDouble(parameters["deltaY"]),
+                        ["clickCount"] = 1
+                    }));
+
+                    return Task.FromResult(new JsonObject());
+                }
+
+            case "dispatchKeyEvent":
+                {
+                    TriggerSimulateInputGuard();
+                    string type = parameters["type"]?.GetValue<string>() ?? "";
+                    string key = parameters["key"]?.GetValue<string>() ?? "";
+                    int modifiers = parameters["modifiers"]?.GetValue<int>() ?? 0;
+                    if (type == "keyDown" || type == "rawKeyDown")
+                    {
+                        _automation.SimulateKeyPress(_windowId, key, modifiers);
+                    }
+
+                    EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
+                    {
+                        ["type"] = type,
+                        ["key"] = key
+                    }));
+
+                    return Task.FromResult(new JsonObject());
+                }
+
+            case "insertText":
+                {
+                    TriggerSimulateInputGuard();
+                    string text = parameters["text"]?.GetValue<string>() ?? "";
+
+                    if (_pollingCts != null)
+                    {
+                        try
+                        {
+                            var focused = _automation.GetFocusedElement(_windowId);
+                            if (focused != null)
+                            {
+                                RaiseStepRecordedEvent("change", focused.Id, text, fromNativeHook: true);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error recording preview pane text change step: {ex.Message}");
+                        }
+                    }
+
+                    _automation.SimulateTypeText(_windowId, text);
+
+                    EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
+                    {
+                        ["type"] = "textInput",
+                        ["text"] = text
+                    }));
+
+                    return Task.FromResult(new JsonObject());
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private Task<JsonObject> HandlePageDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "captureScreenshot":
+                {
+                    byte[] bytes = _automation.CaptureWindow(_windowId);
+                    string base64 = Convert.ToBase64String(bytes);
+                    return Task.FromResult(new JsonObject { ["data"] = base64 });
+                }
+
+            case "startScreencast":
+                StartScreencast();
+                return Task.FromResult(new JsonObject());
+
+            case "stopScreencast":
+                StopScreencast();
+                return Task.FromResult(new JsonObject());
+
+            case "screencastFrameAck":
+                return Task.FromResult(new JsonObject());
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private Task<JsonObject> HandleSystemInfoDomainAsync(string action, JsonObject parameters)
+    {
+        if (action == "getInfo")
+        {
+            return Task.FromResult(new JsonObject
+            {
+                ["modelName"] = "OS Automation Bridge",
+                ["modelVersion"] = "1.0",
+                ["commandLine"] = "N/A"
+            });
+        }
+        return Task.FromResult(new JsonObject());
+    }
+
+    private Task<JsonObject> HandleRuntimeDomainAsync(string action, JsonObject parameters)
+    {
+        if (action == "evaluate")
+        {
+            string expression = parameters["expression"]?.GetValue<string>() ?? "";
+            try
+            {
+                var val = EvaluateOsDomExpression(expression);
+                return Task.FromResult(new JsonObject
+                {
+                    ["result"] = new JsonObject
+                    {
+                        ["type"] = val is bool ? "boolean" : "string",
+                        ["value"] = val is bool b ? b : val.ToString()
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(new JsonObject
+                {
+                    ["result"] = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["subtype"] = "error",
+                        ["className"] = ex.GetType().FullName,
+                        ["description"] = ex.Message
+                    },
+                    ["exceptionDetails"] = new JsonObject
+                    {
+                        ["text"] = ex.Message,
+                        ["exception"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["className"] = ex.GetType().FullName,
+                            ["description"] = ex.Message
+                        }
+                    }
+                });
+            }
+        }
+        else if (action == "getProperties")
+        {
+            RefreshRootNode();
+            string objectId = parameters["objectId"]?.GetValue<string>() ?? "";
+            var results = new JsonArray();
+            if (objectId.StartsWith("node_"))
+            {
+                if (int.TryParse(objectId.Substring(5), out int nodeId) && _idToNode.TryGetValue(nodeId, out var node))
+                {
+                    void AddProp(string name, string? val, string type = "string")
+                    {
+                        results.Add(new JsonObject
+                        {
+                            ["name"] = name,
+                            ["value"] = new JsonObject
+                            {
+                                ["type"] = type,
+                                ["value"] = val ?? ""
+                            }
+                        });
+                    }
+
+                    AddProp("id", node.Id);
+                    AddProp("name", node.Name);
+                    AddProp("role", node.Role);
+                    AddProp("text", node.Text);
+                    AddProp("bounds", node.Bounds.ToString());
+
+                    foreach (var kvp in node.Attributes)
+                    {
+                        AddProp(kvp.Key, kvp.Value);
+                    }
+                }
+            }
+            return Task.FromResult(new JsonObject { ["result"] = results });
+        }
+        else if (action == "callFunctionOn")
+        {
+            RefreshRootNode();
+            string objectId = parameters["objectId"]?.GetValue<string>() ?? "";
+            string value = "";
+            if (objectId.StartsWith("node_"))
+            {
+                if (int.TryParse(objectId.Substring(5), out int nodeId) && _idToNode.TryGetValue(nodeId, out var node))
+                {
+                    value = node.Text ?? node.Name ?? "";
+                }
+            }
+            return Task.FromResult(new JsonObject
+            {
+                ["result"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = value
+                }
+            });
+        }
+        return Task.FromResult(new JsonObject());
+    }
+
+    private Task<JsonObject> HandleTargetDomainAsync(string action, JsonObject parameters)
+    {
+        return Task.FromResult(new JsonObject());
+    }
+
+    private JsonObject BuildCdpNode(OSNode node, int parentId)
+    {
+        int nodeId = _nextNodeId++;
+        _idToNode[nodeId] = node;
+        _osIdToCdpId[node.Id] = nodeId;
+
+        var childrenArray = new JsonArray();
+        foreach (var child in node.Children)
+        {
+            childrenArray.Add(BuildCdpNode(child, nodeId));
+        }
+
+        var attributesArray = new JsonArray();
+        foreach (var kvp in node.Attributes)
+        {
+            attributesArray.Add(kvp.Key);
+            attributesArray.Add(kvp.Value);
+        }
+
+        // Add some default attributes from fields
+        if (!string.IsNullOrEmpty(node.Text))
+        {
+            attributesArray.Add("Text");
+            attributesArray.Add(node.Text);
+            attributesArray.Add("value");
+            attributesArray.Add(node.Text);
+        }
+        attributesArray.Add("id");
+        attributesArray.Add(node.Id);
+        attributesArray.Add("Id");
+        attributesArray.Add(node.Id);
+        attributesArray.Add("Name");
+        attributesArray.Add(node.Name);
+        attributesArray.Add("Role");
+        attributesArray.Add(node.Role);
+        attributesArray.Add("AutomationId");
+        attributesArray.Add(node.Id);
+        attributesArray.Add("AccessibilityId");
+        attributesArray.Add(node.Id);
+
+        var cdpNode = new JsonObject
+        {
+            ["nodeId"] = nodeId,
+            ["parentId"] = parentId,
+            ["backendNodeId"] = nodeId,
+            ["nodeType"] = 1, // Element Node
+            ["nodeName"] = node.Name,
+            ["localName"] = node.Name,
+            ["nodeValue"] = "",
+            ["childNodeCount"] = node.Children.Count,
+            ["attributes"] = attributesArray
+        };
+
+        if (childrenArray.Count > 0)
+        {
+            cdpNode["children"] = childrenArray;
+        }
+
+        return cdpNode;
+    }
+
+    private void RefreshRootNode()
+    {
+        var newRoot = _automation.GetElementTree(_windowId);
+        if (newRoot == null) return;
+        
+        var newIdMap = new Dictionary<string, OSNode>(StringComparer.OrdinalIgnoreCase);
+        var list = new List<OSNode>();
+        TraverseOSNodes(newRoot, list);
+        foreach (var node in list)
+        {
+            newIdMap[node.Id] = node;
+        }
+
+        var keys = _idToNode.Keys.ToList();
+        foreach (var key in keys)
+        {
+            var oldNode = _idToNode[key];
+            if (newIdMap.TryGetValue(oldNode.Id, out var newNode))
+            {
+                _idToNode[key] = newNode;
+            }
+        }
+
+        _rootNode = newRoot;
+    }
+
+    private bool MatchNodeAttributes(OSNode node, List<(string Name, string? Value)> predicates)
+    {
+        foreach (var pred in predicates)
+        {
+            var name = pred.Name;
+            var val = pred.Value;
+
+            if (val == null) // Presence Check
+            {
+                if (name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Content", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Header", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Value", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrEmpty(node.Text)) return false;
+                }
+                else if (name.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrEmpty(node.Name)) return false;
+                }
+                else if (name.Equals("Role", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrEmpty(node.Role)) return false;
+                }
+                else if (name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+                         name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase) ||
+                         name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrEmpty(node.Id)) return false;
+                }
+                else
+                {
+                    if (!node.Attributes.ContainsKey(name)) return false;
+                }
+            }
+            else // Value Check
+            {
+                if (name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Content", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Header", StringComparison.OrdinalIgnoreCase) ||
+                    name.Equals("Value", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(node.Text, val, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                else if (name.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(node.Name, val, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                else if (name.Equals("Role", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(node.Role, val, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                else if (name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+                         name.Equals("AutomationId", StringComparison.OrdinalIgnoreCase) ||
+                         name.Equals("AccessibilityId", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(node.Id, val, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                else if (name.Equals("IsEnabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (!expected) return false; // Default to true in OS mode
+                }
+                else if (name.Equals("IsVisible", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (!expected) return false; // Default to true
+                }
+                else if (name.Equals("IsFocused", StringComparison.OrdinalIgnoreCase))
+                {
+                    var focused = _automation.GetFocusedElement(_windowId);
+                    bool isFocused = (focused != null && string.Equals(focused.Id, node.Id, StringComparison.OrdinalIgnoreCase)) || string.Equals(node.Id, _lastFocusedId, StringComparison.OrdinalIgnoreCase);
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (isFocused != expected) return false;
+                }
+                else if (name.Equals("IsChecked", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool isChecked = false;
+                    if (node.Role == "AXCheckBox" || node.Role == "AXRadioButton" || node.Role == "check box" || node.Role == "radio button")
+                    {
+                        isChecked = (node.Text == "1" || node.Text.Equals("true", StringComparison.OrdinalIgnoreCase));
+                    }
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (isChecked != expected) return false;
+                }
+                else if (name.Equals("IsSelected", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (expected) return false; // Default to false
+                }
+                else if (name.Equals("IsExpanded", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    if (expected) return false; // Default to false
+                }
+                else
+                {
+                    if (!node.Attributes.TryGetValue(name, out var actualVal) || !string.Equals(actualVal, val, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private OSNode? QuerySelectorInternal(OSNode root, string selector)
+    {
+        if (string.IsNullOrEmpty(selector)) return null;
+
+        // Handle legacy :contains selector first
+        if (selector.Contains(":contains(", StringComparison.OrdinalIgnoreCase))
+        {
+            string clean = selector;
+            int startIdx = selector.IndexOf(":contains(", StringComparison.OrdinalIgnoreCase);
+            if (startIdx >= 0)
+            {
+                int argStart = startIdx + ":contains(".Length;
+                int endIdx = selector.IndexOf(')', argStart);
+                if (endIdx >= 0)
+                {
+                    clean = selector.Substring(argStart, endIdx - argStart);
+                }
+            }
+            clean = clean.Trim('\'', '"', ' ');
+            return FindNodeRecursive(root, n => n.Text != null && n.Text.Contains(clean, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Parse attributes and base selector
+        var attributePredicates = new List<(string Name, string? Value)>();
+        int bracketStart = selector.IndexOf('[');
+        string baseSelector = selector;
+        if (bracketStart >= 0)
+        {
+            baseSelector = selector.Substring(0, bracketStart).Trim();
+            int searchIdx = bracketStart;
+            while (true)
+            {
+                int open = selector.IndexOf('[', searchIdx);
+                if (open < 0) break;
+                int close = selector.IndexOf(']', open);
+                if (close < 0) break;
+                
+                string content = selector.Substring(open + 1, close - open - 1);
+                int eq = content.IndexOf('=');
+                if (eq >= 0)
+                {
+                    string attrName = content.Substring(0, eq).Trim();
+                    string attrVal = content.Substring(eq + 1).Trim('\'', '\"', ' ');
+                    attributePredicates.Add((attrName, attrVal));
+                }
+                else
+                {
+                    string attrName = content.Trim();
+                    attributePredicates.Add((attrName, null));
+                }
+                searchIdx = close + 1;
+            }
+        }
+
+        string baseId = "";
+        string baseRoleOrName = "";
+        int hashIdx = baseSelector.IndexOf('#');
+        if (hashIdx >= 0)
+        {
+            baseRoleOrName = baseSelector.Substring(0, hashIdx).Trim();
+            baseId = baseSelector.Substring(hashIdx + 1).Trim();
+        }
+        else
+        {
+            if (baseSelector.StartsWith("#"))
+            {
+                baseId = baseSelector.Substring(1).Trim();
+            }
+            else
+            {
+                baseRoleOrName = baseSelector;
+            }
+        }
+
+        // Handle focused_element fallback in baseId
+        if (string.Equals(baseId, "focused_element", StringComparison.OrdinalIgnoreCase))
+        {
+            var focused = _automation.GetFocusedElement(_windowId);
+            if (focused != null)
+            {
+                if (MatchNodeAttributes(focused, attributePredicates))
+                {
+                    return focused;
+                }
+            }
+        }
+
+        // Recursive search for a matching node
+        return FindNodeRecursive(root, node =>
+        {
+            // Match Base Selector ID
+            if (!string.IsNullOrEmpty(baseId))
+            {
+                if (!string.Equals(node.Id, baseId, StringComparison.OrdinalIgnoreCase)) return false;
+            }
+
+            // Match Base Selector Role or Name
+            if (!string.IsNullOrEmpty(baseRoleOrName))
+            {
+                string roleClean = node.Role;
+                if (roleClean.StartsWith("AX", StringComparison.OrdinalIgnoreCase))
+                {
+                    roleClean = roleClean.Substring(2);
+                }
+
+                if (!string.Equals(roleClean, baseRoleOrName, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(node.Role, baseRoleOrName, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(node.Name, baseRoleOrName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            // Match all attribute predicates
+            return MatchNodeAttributes(node, attributePredicates);
+        });
+    }
+
+    private OSNode? FindNodeRecursive(OSNode root, Func<OSNode, bool> predicate)
+    {
+        if (predicate(root)) return root;
+        foreach (var child in root.Children)
+        {
+            var found = FindNodeRecursive(child, predicate);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private Task<JsonObject> HandleAccessibilityDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "getFullAXTree":
+                {
+                    var nodes = new JsonArray();
+                    if (_rootNode != null)
+                    {
+                        var list = new List<OSNode>();
+                        TraverseOSNodes(_rootNode, list);
+                        foreach (var node in list)
+                        {
+                            nodes.Add(BuildAXNode(node));
+                        }
+                    }
+                    return Task.FromResult(new JsonObject { ["nodes"] = nodes });
+                }
+
+            case "getAXNode":
+            case "getAXNodeAndAncestors":
+            case "getPartialAXTree":
+                {
+                    int? nodeId = parameters["nodeId"]?.GetValue<int>();
+                    OSNode? targetNode = null;
+                    if (nodeId.HasValue && _idToNode.TryGetValue(nodeId.Value, out var n))
+                    {
+                        targetNode = n;
+                    }
+                    else
+                    {
+                        targetNode = _rootNode;
+                    }
+
+                    var nodes = new JsonArray();
+                    if (targetNode != null)
+                    {
+                        var current = targetNode;
+                        while (current != null)
+                        {
+                            nodes.Add(BuildAXNode(current));
+                            current = FindParentOSNode(_rootNode, current);
+                        }
+                    }
+                    return Task.FromResult(new JsonObject { ["nodes"] = nodes });
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private void TraverseOSNodes(OSNode root, List<OSNode> list)
+    {
+        list.Add(root);
+        foreach (var child in root.Children)
+        {
+            TraverseOSNodes(child, list);
+        }
+    }
+
+    private OSNode? FindParentOSNode(OSNode? root, OSNode target)
+    {
+        if (root == null) return null;
+        foreach (var child in root.Children)
+        {
+            if (child == target) return root;
+            var found = FindParentOSNode(child, target);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private JsonObject BuildAXNode(OSNode node)
+    {
+        int domNodeId = _osIdToCdpId.TryGetValue(node.Id, out int cdpId) ? cdpId : 0;
+        string axId = "ax_" + node.Id;
+
+        var roleJson = new JsonObject
+        {
+            ["type"] = "role",
+            ["value"] = node.Role
+        };
+
+        var nameJson = new JsonObject
+        {
+            ["type"] = "string",
+            ["value"] = node.Text
+        };
+
+        var propertiesJson = new JsonArray();
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "focusable",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = true
+            }
+        });
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "focused",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = false
+            }
+        });
+        propertiesJson.Add(new JsonObject
+        {
+            ["name"] = "disabled",
+            ["value"] = new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = false
+            }
+        });
+
+        if (!string.IsNullOrEmpty(node.Text))
+        {
+            propertiesJson.Add(new JsonObject
+            {
+                ["name"] = "value",
+                ["value"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = node.Text
+                }
+            });
+        }
+
+        var nodeJson = new JsonObject
+        {
+            ["nodeId"] = axId,
+            ["ignored"] = false,
+            ["role"] = roleJson,
+            ["name"] = nameJson
+        };
+
+        if (domNodeId > 0)
+        {
+            nodeJson["backendDOMNodeId"] = domNodeId;
+        }
+
+        var parentNode = FindParentOSNode(_rootNode, node);
+        if (parentNode != null)
+        {
+            nodeJson["parentId"] = "ax_" + parentNode.Id;
+        }
+
+        var childIds = new JsonArray();
+        foreach (var child in node.Children)
+        {
+            childIds.Add("ax_" + child.Id);
+        }
+        if (childIds.Count > 0)
+        {
+            nodeJson["childIds"] = childIds;
+        }
+
+        if (propertiesJson.Count > 0)
+        {
+            nodeJson["properties"] = propertiesJson;
+        }
+
+        return nodeJson;
+    }
+
+    private Task<JsonObject> HandleCssDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return Task.FromResult(new JsonObject());
+
+            case "getComputedStyleForNode":
+                {
+                    int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
+                    var style = new JsonArray();
+
+                    if (_idToNode.TryGetValue(nodeId, out var node))
+                    {
+                        style.Add(new JsonObject { ["name"] = "width", ["value"] = $"{node.Bounds.Width}px" });
+                        style.Add(new JsonObject { ["name"] = "height", ["value"] = $"{node.Bounds.Height}px" });
+                        style.Add(new JsonObject { ["name"] = "visibility", ["value"] = "visible" });
+                        style.Add(new JsonObject { ["name"] = "display", ["value"] = "block" });
+                    }
+
+                    return Task.FromResult(new JsonObject { ["computedStyle"] = style });
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private OSNode? FindDeepestNodeAt(OSNode root, int x, int y)
+    {
+        if (x < root.Bounds.Left || x > root.Bounds.Right || y < root.Bounds.Top || y > root.Bounds.Bottom)
+        {
+            return null;
+        }
+
+        foreach (var child in root.Children)
+        {
+            var found = FindDeepestNodeAt(child, x, y);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return root;
+    }
+
+    private Task<JsonObject> HandleOverlayDomainAsync(string action, JsonObject parameters)
+    {
+        return Task.FromResult(new JsonObject());
+    }
+
+    private Task<JsonObject> HandleRecorderDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "start":
+                _isRecordingActive = true;
+                StartRecordingPolling();
+                return Task.FromResult(new JsonObject());
+
+            case "stop":
+                _isRecordingActive = false;
+                if (!_isInputEnabled)
+                {
+                    StopRecordingPolling();
+                }
+                return Task.FromResult(new JsonObject());
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private void StartRecordingPolling()
+    {
+        StopRecordingPolling();
+        _pollingCts = new System.Threading.CancellationTokenSource();
+        var token = _pollingCts.Token;
+
+        _automation.StartInputCapture(_windowId, (x, y, button) =>
+        {
+            if (_isSimulatingInput) return;
+
+            double relX = x;
+            double relY = y;
+            _rootNode = _automation.GetElementTree(_windowId);
+            if (_rootNode != null)
+            {
+                relX = x - _rootNode.Bounds.Left;
+                relY = y - _rootNode.Bounds.Top;
+            }
+
+            string clickSelector = "";
+            if (_rootNode != null)
+            {
+                var match = FindDeepestNodeAt(_rootNode, (int)x, (int)y);
+                if (match != null)
+                {
+                    clickSelector = $"#{match.Id}";
+                    _lastFocusedId = match.Id;
+                    RaiseStepRecordedEvent("click", match.Id, fromNativeHook: true);
+                }
+            }
+
+            EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+            {
+                ["type"] = "mousePressed",
+                ["x"] = relX,
+                ["y"] = relY,
+                ["button"] = button,
+                ["clickCount"] = 1,
+                ["selector"] = clickSelector
+            }));
+            EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+            {
+                ["type"] = "mouseReleased",
+                ["x"] = relX,
+                ["y"] = relY,
+                ["button"] = button,
+                ["clickCount"] = 1,
+                ["selector"] = clickSelector
+            }));
+        }, (eventType, elementId, value) =>
+        {
+            if (_isSimulatingInput) return;
+
+            if (eventType == "change")
+            {
+                EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
+                {
+                    ["type"] = "textInput",
+                    ["text"] = value ?? "",
+                    ["selector"] = $"#{elementId}"
+                }));
+            }
+
+            if (eventType == "focus")
+            {
+                if (elementId != _lastFocusedId)
+                {
+                    _lastFocusedId = elementId;
+                    _lastFocusedValue = value;
+                }
+            }
+            else if (eventType == "change")
+            {
+                if (elementId == _lastFocusedId)
+                {
+                    if (value != _lastFocusedValue)
+                    {
+                        _lastFocusedValue = value;
+                        RaiseStepRecordedEvent("change", elementId, value, fromNativeHook: true);
+                    }
+                }
+                else
+                {
+                    _lastFocusedId = elementId;
+                    _lastFocusedValue = value;
+                    RaiseStepRecordedEvent("change", elementId, value, fromNativeHook: true);
+                }
+            }
+        });
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(200, token);
+                    if (_isSimulatingInput) continue;
+
+                    var focused = _automation.GetFocusedElement(_windowId);
+                    if (focused != null)
+                    {
+                        if (focused.Role == "AXButton" || focused.Role == "AXCheckBox" || focused.Role == "AXRadioButton" || focused.Role == "AXMenuItem" || focused.Role == "AXPopUpButton" || focused.Role == "button" || focused.Role == "check box" || focused.Role == "radio button")
+                        {
+                            if (focused.Id != _lastFocusedId)
+                            {
+                                _lastFocusedId = focused.Id;
+                                _lastFocusedValue = focused.Text;
+                                _lastFocusedRole = focused.Role;
+
+                                RaiseStepRecordedEvent("click", focused.Id);
+                            }
+                        }
+                        else if (focused.Role == "AXTextField" || focused.Role == "AXTextArea" || focused.Role == "AXComboBox" || focused.Role == "Edit" || focused.Role == "AXScrollArea" || focused.Role == "edit" || focused.Role == "combo box")
+                        {
+                            if (focused.Id != _lastFocusedId)
+                            {
+                                _lastFocusedId = focused.Id;
+                                _lastFocusedValue = focused.Text;
+                                _lastFocusedRole = focused.Role;
+                            }
+                            else if (focused.Text != _lastFocusedValue)
+                            {
+                                _lastFocusedValue = focused.Text;
+                                RaiseStepRecordedEvent("change", focused.Id, focused.Text);
+                            }
+                        }
+                    }
+                }
+                catch (TaskCanceledException) {}
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error polling focused element: {ex.Message}");
+                }
+            }
+        }, token);
+    }
+
+    private void StopRecordingPolling()
+    {
+        _automation.StopInputCapture();
+        _pollingCts?.Cancel();
+        _pollingCts = null;
+        _lastFocusedId = null;
+        _lastFocusedValue = null;
+        _lastFocusedRole = null;
+    }
+
+    private void RaiseStepRecordedEvent(string type, string elementId, string? value = null, bool fromNativeHook = false)
+    {
+        if (!_isRecordingActive) return;
+
+        if (type == "click")
+        {
+            _lastClickedElementId = elementId;
+            _lastClickTime = DateTime.UtcNow;
+        }
+        else if (type == "change")
+        {
+            if (_lastClickedElementId != null && _lastClickedElementId != elementId)
+            {
+                if ((DateTime.UtcNow - _lastClickTime).TotalMilliseconds < 1000)
+                {
+                    Logger.LogDebug("Suppressing programmatic change step on '{ElementId}' due to recent click on '{LastClickedElementId}'", elementId, _lastClickedElementId);
+                    return;
+                }
+            }
+        }
+
+        var step = new JsonObject
+        {
+            ["type"] = type,
+            ["selectors"] = new JsonArray { new JsonArray { JsonValue.Create($"#{elementId}") } }
+        };
+        if (value != null)
+        {
+            step["value"] = value;
+        }
+
+        var eventParams = new JsonObject
+        {
+            ["step"] = step
+        };
+
+        EventReceived?.Invoke(this, new CdpEventEventArgs("Recorder.stepAdded", eventParams));
+
+        if (!fromNativeHook)
+        {
+            if (type == "click")
+            {
+                EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mousePressed",
+                    ["x"] = 0.0,
+                    ["y"] = 0.0,
+                    ["button"] = "left",
+                    ["clickCount"] = 1,
+                    ["selector"] = $"#{elementId}"
+                }));
+                EventReceived?.Invoke(this, new CdpEventEventArgs("Input.mouseEvent", new JsonObject
+                {
+                    ["type"] = "mouseReleased",
+                    ["x"] = 0.0,
+                    ["y"] = 0.0,
+                    ["button"] = "left",
+                    ["clickCount"] = 1,
+                    ["selector"] = $"#{elementId}"
+                }));
+            }
+            else if (type == "change")
+            {
+                EventReceived?.Invoke(this, new CdpEventEventArgs("Input.keyEvent", new JsonObject
+                {
+                    ["type"] = "textInput",
+                    ["text"] = value ?? "",
+                    ["selector"] = $"#{elementId}"
+                }));
+            }
+        }
+    }
+
+    private void StartScreencast()
+    {
+        StopScreencast();
+        _screencastCts = new System.Threading.CancellationTokenSource();
+        var token = _screencastCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(250, token);
+
+                    byte[] newBytes = _automation.CaptureWindow(_windowId);
+                    if (newBytes != null && newBytes.Length > 0)
+                    {
+                        bool changed = _lastFrameBytes == null || !CompareBytes(_lastFrameBytes, newBytes);
+                        if (changed)
+                        {
+                            _lastFrameBytes = newBytes;
+
+                            double deviceWidth = 800.0;
+                            double deviceHeight = 600.0;
+                            try
+                            {
+                                var windows = _automation.GetWindows();
+                                int pid = 0;
+                                int.TryParse(_windowId, out pid);
+                                foreach (var w in windows)
+                                {
+                                     if (w.Id == _windowId || (pid > 0 && w.ProcessId == pid))
+                                     {
+                                         deviceWidth = w.Bounds.Width;
+                                         deviceHeight = w.Bounds.Height;
+                                         break;
+                                     }
+                                }
+                            }
+                            catch {}
+
+                            var metadata = new JsonObject
+                            {
+                                ["offsetTop"] = 0.0,
+                                ["pageScaleFactor"] = 1.0,
+                                ["deviceWidth"] = deviceWidth,
+                                ["deviceHeight"] = deviceHeight,
+                                ["scrollOffsetX"] = 0.0,
+                                ["scrollOffsetY"] = 0.0,
+                                ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0
+                            };
+
+                            var frameParams = new JsonObject
+                            {
+                                ["data"] = Convert.ToBase64String(newBytes),
+                                ["metadata"] = metadata,
+                                ["sessionId"] = _screencastSessionId++
+                            };
+
+                            EventReceived?.Invoke(this, new CdpEventEventArgs("Page.screencastFrame", frameParams));
+                        }
+                    }
+                }
+                catch (TaskCanceledException) {}
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in screencast: {ex.Message}");
+                }
+            }
+        }, token);
+    }
+
+    private void StopScreencast()
+    {
+        _screencastCts?.Cancel();
+        _screencastCts = null;
+        _lastFrameBytes = null;
+    }
+
+    private bool CompareBytes(byte[] a, byte[] b)
+    {
+        if (a.Length != b.Length) return false;
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (a[i] != b[i]) return false;
+        }
+        return true;
+    }
+
+    private object EvaluateOsDomExpression(string expression)
+    {
+        expression = expression.Trim();
+        RefreshRootNode();
+        if (_rootNode == null)
+        {
+            throw new InvalidOperationException("No DOM document available to evaluate expression.");
+        }
+
+        // Extract selector
+        var selector = ExtractSelectorFromExpression(expression);
+        var node = string.IsNullOrEmpty(selector) ? null : QuerySelectorInternal(_rootNode, selector);
+
+        // 1. Check for standard querySelector null/exists checks
+        if (expression.Contains("document.querySelector") && (expression.Contains("!= null") || expression.Contains("!== null")))
+        {
+            return node != null;
+        }
+        if (expression.Contains("document.querySelector") && (expression.Contains("== null") || expression.Contains("=== null")))
+        {
+            return node == null;
+        }
+        if (expression.StartsWith("document.querySelector(") && expression.EndsWith(")"))
+        {
+            return node != null ? "Element" : "null";
+        }
+
+        // 2. Check for properties
+        if (node != null)
+        {
+            if (expression.Contains(".isEffectivelyVisible") || expression.Contains(".isVisible"))
+            {
+                return true;
+            }
+            if (expression.Contains(".isEnabled"))
+            {
+                return true;
+            }
+            if (expression.Contains(".IsFocused"))
+            {
+                var focused = _automation.GetFocusedElement(_windowId);
+                bool isFocused = (focused != null && string.Equals(focused.Id, node.Id, StringComparison.OrdinalIgnoreCase)) || string.Equals(node.Id, _lastFocusedId, StringComparison.OrdinalIgnoreCase);
+                return isFocused;
+            }
+            if (expression.Contains(".IsChecked"))
+            {
+                bool isChecked = false;
+                if (node.Role == "AXCheckBox" || node.Role == "AXRadioButton" || node.Role == "check box" || node.Role == "radio button")
+                {
+                    isChecked = node.Text == "1" || node.Text.Equals("true", StringComparison.OrdinalIgnoreCase);
+                }
+                return isChecked;
+            }
+            if (expression.Contains(".IsSelected"))
+            {
+                return false;
+            }
+            if (expression.Contains(".IsExpanded"))
+            {
+                return false;
+            }
+
+            // Text comparisons (e.g. .textContent == "Value")
+            if (expression.Contains("==") || expression.Contains("===") || expression.Contains("!=") || expression.Contains("!=="))
+            {
+                int lastQuote = expression.LastIndexOf('\"');
+                char expectedQuote = '\"';
+                if (lastQuote < 0)
+                {
+                    lastQuote = expression.LastIndexOf('\'');
+                    expectedQuote = '\'';
+                }
+                if (lastQuote >= 0)
+                {
+                    int firstQuote = expression.LastIndexOf(expectedQuote, lastQuote - 1);
+                    if (firstQuote >= 0)
+                    {
+                        string expectedVal = expression.Substring(firstQuote + 1, lastQuote - firstQuote - 1);
+                        expectedVal = expectedVal.Replace("\\\"", "\"").Replace("\\'", "'");
+                        
+                        string actualVal = node.Text ?? node.Name ?? "";
+                        bool isEquals = expression.Contains("==") || expression.Contains("===");
+                        bool matches = string.Equals(actualVal.Trim(), expectedVal.Trim(), StringComparison.OrdinalIgnoreCase);
+                        return isEquals ? matches : !matches;
+                    }
+                }
+            }
+
+            // Direct text property reads
+            if (expression.Contains(".textContent") || expression.Contains(".Text") || expression.Contains(".value") || expression.Contains(".Content") || expression.Contains(".Header"))
+            {
+                return node.Text ?? node.Name ?? "";
+            }
+        }
+        else
+        {
+            // Node is null, if the expression asks for text, return empty string, for bool return false
+            if (expression.Contains(".textContent") || expression.Contains(".Text") || expression.Contains(".value") || expression.Contains(".Content") || expression.Contains(".Header"))
+            {
+                return "";
+            }
+            if (expression.Contains(".isEffectivelyVisible") || expression.Contains(".isVisible") || expression.Contains(".isEnabled") || expression.Contains(".IsFocused") || expression.Contains(".IsChecked") || expression.Contains(".IsSelected") || expression.Contains(".IsExpanded"))
+            {
+                return false;
+            }
+        }
+
+        // 3. Fallback to getPropertiesJson
+        if (expression.Contains("document.getPropertiesJson"))
+        {
+            if (node != null)
+            {
+                var typeName = node.Role;
+                if (typeName.StartsWith("AX")) typeName = typeName.Substring(2);
+                if (!string.IsNullOrEmpty(typeName))
+                {
+                    typeName = char.ToUpper(typeName[0]) + typeName.Substring(1);
+                }
+
+                var isChecked = "False";
+                if (node.Role == "AXCheckBox" || node.Role == "AXRadioButton" || node.Role == "check box" || node.Role == "radio button")
+                {
+                    if (node.Text == "1" || node.Text.Equals("true", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isChecked = "True";
+                    }
+                }
+
+                var props = new JsonObject();
+                props["$Type"] = typeName;
+                props["$FullName"] = node.Role;
+                props["Id"] = node.Id;
+                props["Name"] = node.Name;
+                props["Text"] = node.Text;
+                props["Content"] = node.Text;
+                props["Header"] = node.Text;
+                props["Value"] = node.Text;
+                props["IsEnabled"] = "True";
+                props["IsVisible"] = "True";
+                var focused = _automation.GetFocusedElement(_windowId);
+                bool isFocused = (focused != null && string.Equals(focused.Id, node.Id, StringComparison.OrdinalIgnoreCase)) || string.Equals(node.Id, _lastFocusedId, StringComparison.OrdinalIgnoreCase);
+                props["IsFocused"] = (isFocused ? "True" : "False");
+                props["IsSelected"] = "False";
+                props["IsExpanded"] = "False";
+                props["IsChecked"] = isChecked;
+
+                return props.ToJsonString();
+            }
+            return "{}";
+        }
+
+        throw new NotSupportedException($"Expression evaluation is not supported in OS Automation mode: '{expression}'");
+    }
+
+    private string ExtractSelectorFromExpression(string expression)
+    {
+        int openQuote = expression.IndexOf('\"');
+        char quoteChar = '\"';
+        if (openQuote < 0)
+        {
+            openQuote = expression.IndexOf('\'');
+            quoteChar = '\'';
+        }
+        
+        if (openQuote >= 0)
+        {
+            int closeQuote = -1;
+            bool escaped = false;
+            for (int i = openQuote + 1; i < expression.Length; i++)
+            {
+                char c = expression[i];
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (c == quoteChar)
+                {
+                    closeQuote = i;
+                    break;
+                }
+            }
+
+            if (closeQuote >= 0)
+            {
+                string raw = expression.Substring(openQuote + 1, closeQuote - openQuote - 1);
+                return raw.Replace("\\\"", "\"").Replace("\\'", "'");
+            }
+        }
+        return "";
+    }
+
+    private static double GetDouble(JsonNode? node)
+    {
+        if (node == null) return 0.0;
+        try
+        {
+            return node.GetValue<double>();
+        }
+        catch
+        {
+            try
+            {
+                return node.GetValue<int>();
+            }
+            catch
+            {
+                try
+                {
+                    return node.GetValue<long>();
+                }
+                catch
+                {
+                    return 0.0;
+                }
+            }
+        }
+    }
+}

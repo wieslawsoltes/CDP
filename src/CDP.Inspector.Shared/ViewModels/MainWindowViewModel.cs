@@ -24,6 +24,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public AuditsViewModel Audits { get; }
     public SimulationViewModel Simulation { get; }
     public RecorderViewModel Recorder { get; }
+    public EventsViewModel Events { get; }
 
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
@@ -92,6 +93,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
             useAutomationSelectorsFunc: () => Connection.UseAutomationSelectors
         );
         Recorder = new RecorderViewModel(CdpService, () => Connection.GeneratorHostAddress, () => Connection.UseAutomationSelectors);
+        Events = new EventsViewModel(CdpService);
         Recorder.TestStudio.Connection = Connection;
         Connection.TestStudio = Recorder.TestStudio;
         Recorder.TestStudio.OnStepIndicatorChanged = indicator => Simulation.ActiveReplayIndicator = indicator;
@@ -335,6 +337,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         rightPane.AddTab("Audits", "EyeIcon", "Audits");
         rightPane.AddTab("Recorder", "RecordIcon", "Recorder");
         rightPane.AddTab("Window", "WindowMultipleIcon", "Window");
+        rightPane.AddTab("Events", "FlowchartIcon", "Events");
 
         LayoutRoot = new SplitContainerNode(
             Avalonia.Layout.Orientation.Horizontal,
@@ -469,6 +472,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
             "Audits" => "EyeIcon",
             "Recorder" => "RecordIcon",
             "Window" => "WindowMultipleIcon",
+            "Events" => "FlowchartIcon",
             _ => "DocumentIcon"
         };
     }

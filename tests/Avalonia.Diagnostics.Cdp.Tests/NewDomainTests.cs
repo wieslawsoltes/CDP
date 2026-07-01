@@ -1379,10 +1379,10 @@ public class NewDomainTests
         // Run breakpoint checking on a background thread so it doesn't block the test
         var checkTask = Task.Run(() => DebuggerDomain.CheckBreakpoint(session, "C# Evaluation", 1));
 
-        // Wait a short time for thread to pause
+        // Wait a short time for thread to pause and event to be received
         for (int i = 0; i < 100; i++)
         {
-            if (DebuggerDomain.IsPaused) break;
+            if (DebuggerDomain.IsPaused && receivedEvent != null) break;
             await Task.Delay(20);
         }
 

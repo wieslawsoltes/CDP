@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.ConnectionToolbar"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -14,7 +15,11 @@
             <!-- Group 2: Host -->
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,12,4">
                 <TextBlock Text="Host:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,6,0"/>
-                <TextBox Name="txtHost" Text="{Binding Connection.HostAddress, Mode=TwoWay}" PlaceholderText="e.g. http://localhost:9222" Width="170" Height="28" VerticalContentAlignment="Center"/>
+                <controls:EditableComboBox Name="txtHost"
+                                           Text="{Binding Connection.HostAddress, Mode=TwoWay}"
+                                           ItemsSource="{Binding Connection.SuggestedHosts}"
+                                           Width="170" Height="28"
+                                           PlaceholderText="e.g. http://localhost:9222"/>
             </StackPanel>
 
             <!-- Group 3: Target scanning -->
@@ -22,7 +27,8 @@
                 <Button Name="btnRefreshTargets" Command="{Binding Connection.RefreshTargetsCommand}" ToolTip.Tip="Scan Targets" Classes="accent" Height="28" Width="30" Padding="0" VerticalAlignment="Center">
                     <PathIcon Data="{StaticResource RefreshIcon}" Width="13" Height="13"/>
                 </Button>
-                <ComboBox Name="cbTargets" ItemsSource="{Binding Connection.Targets}" SelectedItem="{Binding Connection.SelectedTarget, Mode=TwoWay}" Width="240" PlaceholderText="Select target window..." Height="28" Background="#202124" BorderBrush="#3c4043"/>
+                <TextBox Name="txtTargetSearch" Text="{Binding Connection.TargetSearchText, Mode=TwoWay}" Watermark="Search..." Width="120" Height="28" VerticalContentAlignment="Center" Background="#202124" BorderBrush="#3c4043"/>
+                <ComboBox Name="cbTargets" ItemsSource="{Binding Connection.FilteredTargets}" SelectedItem="{Binding Connection.SelectedTarget, Mode=TwoWay}" Width="240" PlaceholderText="Select target window..." Height="28" Background="#202124" BorderBrush="#3c4043"/>
             </StackPanel>
 
             <!-- Group 4: Connection actions -->

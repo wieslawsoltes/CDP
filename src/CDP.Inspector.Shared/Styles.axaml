@@ -319,6 +319,7 @@
                     <TextBox Name="PART_EditableTextBox"
                              Grid.Column="0"
                              Text="{Binding $parent[controls:EditableComboBox].Text, Mode=TwoWay}"
+                             Watermark="{TemplateBinding PlaceholderText}"
                              Background="Transparent"
                              BorderThickness="0"
                              Foreground="{TemplateBinding Foreground}"

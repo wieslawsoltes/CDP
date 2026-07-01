@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\CDP.Inspector.Shared\CDP.Inspector.Shared.csproj" />
     <ProjectReference Include="..\..\src\CDP.Editor.Nodes\CDP.Editor.Nodes.csproj" />
     <ProjectReference Include="..\..\src\CDP.Editor.Nodes.Msagl\CDP.Editor.Nodes.Msagl.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Automation.OS\CDP.Automation.OS.csproj" />
   </ItemGroup>
 
   <ItemGroup>
