@@ -210,6 +210,14 @@ public class FlatSplitPanel : Panel
 
         if (_parentSplit.ZoomedNode != null)
         {
+            if (!boxes.ContainsKey(_parentSplit.ZoomedNode))
+            {
+                _parentSplit.ClearStaleZoom();
+            }
+        }
+
+        if (_parentSplit.ZoomedNode != null)
+        {
             var zoomedBox = _parentSplit.ZoomedNode;
             var normalBoxes = new Dictionary<BoxNode, Rect>(boxes);
             var normalSplitters = new Dictionary<SplitContainerNode, Rect>(splitters);
@@ -296,6 +304,14 @@ public class FlatSplitPanel : Panel
         var containers = new Dictionary<SplitContainerNode, Rect>();
 
         _parentSplit.ComputePixelBounds(_parentSplit.Root, new Rect(finalSize), 8.0, boxes, splitters, containers);
+
+        if (_parentSplit.ZoomedNode != null)
+        {
+            if (!boxes.ContainsKey(_parentSplit.ZoomedNode))
+            {
+                _parentSplit.ClearStaleZoom();
+            }
+        }
 
         if (_parentSplit.ZoomedNode != null)
         {
@@ -518,6 +534,10 @@ public class SuperSplit : ContentControl
     private Avalonia.Threading.DispatcherTimer? _hideHighlightTimer;
     private BoxNode? _zoomedNode;
     public BoxNode? ZoomedNode => _zoomedNode;
+    public void ClearStaleZoom()
+    {
+        _zoomedNode = null;
+    }
     private bool _isZoomTransitionPending;
     public bool IsZoomTransitionPending
     {
@@ -1422,7 +1442,7 @@ public class SuperSplit : ContentControl
             System.Diagnostics.Debug.WriteLine($"Native drag initiation failed: {ex.Message}");
         }
 
-        if (!success && !SuperSplitDragManager.IsOverDropTarget)
+        if (!success && !SuperSplitDragManager.IsOverDropTarget && SuperSplitDragManager.FloatNodeCallback != null)
         {
             if (draggedBox != null)
             {
@@ -1431,11 +1451,8 @@ public class SuperSplit : ContentControl
                     PruneEmptyNode(node);
                 }
 
-                if (SuperSplitDragManager.FloatNodeCallback != null)
-                {
-                    SuperSplitDragManager.FloatNodeCallback(this, draggedBox);
-                    success = true;
-                }
+                SuperSplitDragManager.FloatNodeCallback(this, draggedBox);
+                success = true;
             }
         }
 

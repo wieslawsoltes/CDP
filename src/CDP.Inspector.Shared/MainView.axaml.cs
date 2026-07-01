@@ -31,7 +31,7 @@ public partial class MainView : UserControl
 
         CDP.Editor.Splits.Models.SuperSplitDragManager.FloatNodeCallback = (sourceSplit, nodeToFloat) =>
         {
-            var window = new CDP.Inspector.Shared.Controls.FloatingSplitWindow(sourceSplit, nodeToFloat);
+            var window = new CDP.Inspector.Shared.Controls.FloatingSplitWindow(SplitControl, nodeToFloat);
             window.Show();
         };
 
@@ -171,10 +171,7 @@ public partial class MainView : UserControl
         var visualParent = control.GetVisualParent();
         if (visualParent is ContentPresenter presenter)
         {
-            if (control.Parent == null)
-            {
-                presenter.Content = null;
-            }
+            presenter.Content = null;
         }
         else if (visualParent is Panel visualPanel)
         {
