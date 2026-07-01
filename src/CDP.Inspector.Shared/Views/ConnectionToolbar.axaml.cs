@@ -5,7 +5,7 @@ namespace CdpInspectorApp.Views;
 
 public partial class ConnectionToolbar : UserControl
 {
-    public AutoCompleteBox TxtHost => txtHost;
+    public Controls.EditableComboBox TxtHost => txtHost;
     public ComboBox CbTargets => cbTargets;
     public Button BtnRefreshTargets => btnRefreshTargets;
     public Button BtnConnect => btnConnect;

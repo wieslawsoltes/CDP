@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.ConnectionToolbar"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -14,13 +15,11 @@
             <!-- Group 2: Host -->
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,12,4">
                 <TextBlock Text="Host:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,6,0"/>
-                <AutoCompleteBox Name="txtHost"
-                                 Text="{Binding Connection.HostAddress, Mode=TwoWay}"
-                                 ItemsSource="{Binding Connection.SuggestedHosts}"
-                                 FilterMode="None"
-                                 MinimumPrefixLength="0"
-                                 Width="170" Height="28"
-                                 PlaceholderText="e.g. http://localhost:9222"/>
+                <controls:EditableComboBox Name="txtHost"
+                                           Text="{Binding Connection.HostAddress, Mode=TwoWay}"
+                                           ItemsSource="{Binding Connection.SuggestedHosts}"
+                                           Width="170" Height="28"
+                                           PlaceholderText="e.g. http://localhost:9222"/>
             </StackPanel>
 
             <!-- Group 3: Target scanning -->
