@@ -11,6 +11,7 @@ namespace CDP.Automation.OS.MacOs;
 public sealed partial class MacOsAutomation : IOsAutomation
 {
     private readonly ILogger _logger;
+    private readonly Dictionary<string, IntPtr> _nodeIdToElement = new();
 
     public bool MovePhysicalCursor { get; set; }
     public bool UsePeerAutomation { get; set; } = true;
@@ -36,6 +37,26 @@ public sealed partial class MacOsAutomation : IOsAutomation
     public MacOsAutomation(ILogger? logger = null)
     {
         _logger = logger ?? NullLogger.Instance;
+    }
+
+    ~MacOsAutomation()
+    {
+        ClearElementCache();
+    }
+
+    private void ClearElementCache()
+    {
+        lock (_nodeIdToElement)
+        {
+            foreach (var kvp in _nodeIdToElement)
+            {
+                if (kvp.Value != IntPtr.Zero)
+                {
+                    CFRelease(kvp.Value);
+                }
+            }
+            _nodeIdToElement.Clear();
+        }
     }
 
     private static bool IsTestEnvironment()
@@ -445,6 +466,8 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     public OSNode? GetElementTree(string windowId)
     {
+        ClearElementCache();
+
         if (windowId == "macos-window-fallback" || IsTestEnvironment() || !AXIsProcessTrusted())
         {
             return GetFallbackTree();
@@ -662,6 +685,12 @@ public sealed partial class MacOsAutomation : IOsAutomation
         };
 
         parentNode.Children.Add(node);
+
+        lock (_nodeIdToElement)
+        {
+            CFRetain(element);
+            _nodeIdToElement[node.Id] = element;
+        }
 
         IntPtr childrenRef = GetAttribute(element, "AXChildren");
         if (childrenRef != IntPtr.Zero)
@@ -956,7 +985,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
             {
                 if (!string.IsNullOrEmpty(nodeId))
                 {
-                    if (TryAccessibilityPressById(targetPid, nodeId))
+                    if (TryAccessibilityPressById(nodeId))
                     {
                         return;
                     }
@@ -1827,108 +1856,50 @@ public sealed partial class MacOsAutomation : IOsAutomation
         return false;
     }
 
-    private IntPtr FindElementById(IntPtr element, string targetId, ref int nextId, int depth)
-    {
-        if (depth > 20) return IntPtr.Zero;
-
-        string idAttr = CFTypeToString(GetAttribute(element, "AXIdentifier")) ?? "";
-        if (string.IsNullOrEmpty(idAttr))
-        {
-            idAttr = CFTypeToString(GetAttribute(element, "AXTitle")) ?? "";
-        }
-
-        int myId = nextId++;
-        string currentId = string.IsNullOrEmpty(idAttr) ? $"node_{myId}" : idAttr;
-
-        if (string.Equals(currentId, targetId, StringComparison.OrdinalIgnoreCase))
-        {
-            CFRetain(element);
-            return element;
-        }
-
-        IntPtr childrenRef = GetAttribute(element, "AXChildren");
-        if (childrenRef != IntPtr.Zero)
-        {
-            int count = CFArrayGetCount(childrenRef);
-            for (int i = 0; i < count; i++)
-            {
-                IntPtr childElement = CFArrayGetValueAtIndex(childrenRef, i);
-                if (childElement != IntPtr.Zero)
-                {
-                    IntPtr found = FindElementById(childElement, targetId, ref nextId, depth + 1);
-                    if (found != IntPtr.Zero)
-                    {
-                        CFRelease(childrenRef);
-                        return found;
-                    }
-                }
-            }
-            CFRelease(childrenRef);
-        }
-
-        return IntPtr.Zero;
-    }
-
-    private bool TryAccessibilityPressById(int pid, string targetId)
+    private bool TryAccessibilityPressById(string targetId)
     {
         if (IsTestEnvironment() || !AXIsProcessTrusted()) return false;
-        IntPtr appRef = AXUIElementCreateApplication(pid);
-        if (appRef == IntPtr.Zero) return false;
 
-        try
+        IntPtr found = IntPtr.Zero;
+        lock (_nodeIdToElement)
         {
-            IntPtr windowsValue = GetAttribute(appRef, "AXWindows");
-            if (windowsValue != IntPtr.Zero)
+            if (_nodeIdToElement.TryGetValue(targetId, out var element))
             {
-                int winCount = CFArrayGetCount(windowsValue);
-                for (int j = 0; j < winCount; j++)
-                {
-                    IntPtr winElement = CFArrayGetValueAtIndex(windowsValue, j);
-                    if (winElement != IntPtr.Zero)
-                    {
-                        int nextId = 2;
-                        IntPtr found = FindElementById(winElement, targetId, ref nextId, 0);
-                        if (found != IntPtr.Zero)
-                        {
-                            try
-                            {
-                                IntPtr actionPress = CreateCFString("AXPress");
-                                int pressErr = AXUIElementPerformAction(found, actionPress);
-                                CFRelease(actionPress);
-                                if (pressErr == 0)
-                                {
-                                    _logger.LogInformation("Successfully performed AXPress on element with ID: {Id}", targetId);
-                                    CFRelease(windowsValue);
-                                    return true;
-                                }
-
-                                IntPtr actionPick = CreateCFString("AXPick");
-                                int pickErr = AXUIElementPerformAction(found, actionPick);
-                                CFRelease(actionPick);
-                                if (pickErr == 0)
-                                {
-                                    _logger.LogInformation("Successfully performed AXPick on element with ID: {Id}", targetId);
-                                    CFRelease(windowsValue);
-                                    return true;
-                                }
-                            }
-                            finally
-                            {
-                                CFRelease(found);
-                            }
-                        }
-                    }
-                }
-                CFRelease(windowsValue);
+                found = element;
+                CFRetain(found);
             }
         }
-        catch (Exception ex)
+
+        if (found != IntPtr.Zero)
         {
-            _logger.LogError(ex, "Failed to perform accessibility press by ID: {Id}", targetId);
-        }
-        finally
-        {
-            CFRelease(appRef);
+            try
+            {
+                IntPtr actionPress = CreateCFString("AXPress");
+                int pressErr = AXUIElementPerformAction(found, actionPress);
+                CFRelease(actionPress);
+                if (pressErr == 0)
+                {
+                    _logger.LogInformation("Successfully performed AXPress on element with ID: {Id}", targetId);
+                    return true;
+                }
+
+                IntPtr actionPick = CreateCFString("AXPick");
+                int pickErr = AXUIElementPerformAction(found, actionPick);
+                CFRelease(actionPick);
+                if (pickErr == 0)
+                {
+                    _logger.LogInformation("Successfully performed AXPick on element with ID: {Id}", targetId);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to perform accessibility press by ID: {Id}", targetId);
+            }
+            finally
+            {
+                CFRelease(found);
+            }
         }
         return false;
     }
