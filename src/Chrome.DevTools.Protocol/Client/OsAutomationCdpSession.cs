@@ -991,6 +991,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                 if (match != null)
                 {
                     clickSelector = $"#{match.Id}";
+                    _lastFocusedId = match.Id;
                     RaiseStepRecordedEvent("click", match.Id, fromNativeHook: true);
                 }
             }

@@ -601,21 +601,12 @@ public sealed partial class MacOsAutomation : IOsAutomation
                                     new SKRectI(0, 0, 1024, 768)
                             };
                             int nextId = 2;
-                            BuildNodeFromElement(matchedWinElement, root, ref nextId, 0);
+                            BuildNodeFromElement(matchedWinElement, root, ref nextId, 0, new HashSet<string>());
                             if (root.Children.Count > 0)
                             {
                                 var winNode = root.Children[0];
                                 winNode.Id = "1";
                                 traversed = true;
-                                lock (_nodeIdToElement)
-                                {
-                                    var sbCache = new System.Text.StringBuilder();
-                                    foreach (var kvp in _nodeIdToElement)
-                                    {
-                                        sbCache.AppendLine($"Key='{kvp.Key}', Pointer=0x{kvp.Value.ToString("X")}");
-                                    }
-                                    System.IO.File.WriteAllText("/Users/wieslawsoltes/.gemini/antigravity/brain/6dc4a072-a770-4166-a8d5-a4a06436908f/cache_dump.txt", sbCache.ToString());
-                                }
                                 CFRelease(windowsValue);
                                 return winNode;
                             }
@@ -633,7 +624,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
                             Bounds = new SKRectI(0, 0, 1024, 768)
                         };
                         int nextId = 2;
-                        BuildNodeFromElement(appRef, root, ref nextId, 0);
+                        BuildNodeFromElement(appRef, root, ref nextId, 0, new HashSet<string>());
                         if (root.Children.Count > 0)
                         {
                             var appNode = root.Children[0];
@@ -656,14 +647,28 @@ public sealed partial class MacOsAutomation : IOsAutomation
         return GetFallbackTree();
     }
 
-    private void BuildNodeFromElement(IntPtr element, OSNode parentNode, ref int nextId, int depth)
+    private string? GetStringAttribute(IntPtr element, string attrName)
+    {
+        IntPtr valueRef = GetAttribute(element, attrName);
+        if (valueRef == IntPtr.Zero) return null;
+        try
+        {
+            return CFTypeToString(valueRef);
+        }
+        finally
+        {
+            CFRelease(valueRef);
+        }
+    }
+
+    private void BuildNodeFromElement(IntPtr element, OSNode parentNode, ref int nextId, int depth, HashSet<string> traversedIds)
     {
         if (depth > 20) return;
 
-        string role = CFTypeToString(GetAttribute(element, "AXRole")) ?? "AXUnknown";
-        string? title = CFTypeToString(GetAttribute(element, "AXTitle"));
-        string? description = CFTypeToString(GetAttribute(element, "AXDescription"));
-        string? value = CFTypeToString(GetAttribute(element, "AXValue"));
+        string role = GetStringAttribute(element, "AXRole") ?? "AXUnknown";
+        string? title = GetStringAttribute(element, "AXTitle");
+        string? description = GetStringAttribute(element, "AXDescription");
+        string? value = GetStringAttribute(element, "AXValue");
 
         SKRectI bounds = new SKRectI(0, 0, 0, 0);
         IntPtr posRef = GetAttribute(element, "AXPosition");
@@ -678,16 +683,21 @@ public sealed partial class MacOsAutomation : IOsAutomation
             CFRelease(sizeRef);
         }
 
-        string idAttr = CFTypeToString(GetAttribute(element, "AXIdentifier")) ?? "";
-        if (string.IsNullOrEmpty(idAttr))
+        string idAttr = GetStringAttribute(element, "AXIdentifier") ?? "";
+        string assignedId;
+        if (!string.IsNullOrEmpty(idAttr) && !traversedIds.Contains(idAttr))
         {
-            idAttr = CFTypeToString(GetAttribute(element, "AXTitle")) ?? "";
+            assignedId = idAttr;
+            traversedIds.Add(idAttr);
+        }
+        else
+        {
+            assignedId = $"node_{nextId++}";
         }
 
-        int myId = nextId++;
         var node = new OSNode
         {
-            Id = string.IsNullOrEmpty(idAttr) ? $"node_{myId}" : idAttr,
+            Id = assignedId,
             Name = string.IsNullOrEmpty(title) ? role : title,
             Role = role,
             Text = value ?? (string.IsNullOrEmpty(title) ? description ?? string.Empty : title),
@@ -711,7 +721,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
                 IntPtr childElement = CFArrayGetValueAtIndex(childrenRef, i);
                 if (childElement != IntPtr.Zero)
                 {
-                    BuildNodeFromElement(childElement, node, ref nextId, depth + 1);
+                    BuildNodeFromElement(childElement, node, ref nextId, depth + 1, traversedIds);
                 }
             }
             CFRelease(childrenRef);
