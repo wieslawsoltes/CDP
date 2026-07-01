@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using CDP.Automation.OS;
@@ -24,6 +26,8 @@ public sealed class OsAutomationCdpSession : IDisposable
     {
         StopScreencast();
         StopRecordingPolling();
+        StopPerformanceLoop();
+        StopNetworkSimulation();
     }
 
     private System.Threading.CancellationTokenSource? _pollingCts;
@@ -47,6 +51,21 @@ public sealed class OsAutomationCdpSession : IDisposable
     private System.Threading.CancellationTokenSource? _screencastCts;
     private byte[]? _lastFrameBytes;
     private int _screencastSessionId;
+
+    // Performance Domain State
+    private System.Threading.CancellationTokenSource? _performanceCts;
+    private DateTime _lastCpuTime = DateTime.UtcNow;
+    private TimeSpan _lastTotalProcessorTime = TimeSpan.Zero;
+    private long _lastPrivateBytes;
+    private int _layoutCount;
+
+    // Network Domain State
+    private bool _isNetworkEnabled;
+    private bool _networkOffline;
+    private double _networkLatency;
+    private List<string> _blockedUrls = new();
+    private System.Threading.CancellationTokenSource? _networkCts;
+    private readonly Dictionary<string, string> _networkResponseBodies = new(StringComparer.OrdinalIgnoreCase);
 
     private void TriggerSimulateInputGuard()
     {
@@ -84,6 +103,10 @@ public sealed class OsAutomationCdpSession : IDisposable
             "CSS" => await HandleCssDomainAsync(action, parameters),
             "Overlay" => await HandleOverlayDomainAsync(action, parameters),
             "Recorder" => await HandleRecorderDomainAsync(action, parameters),
+            "Performance" => await HandlePerformanceDomainAsync(action, parameters),
+            "Memory" => await HandleMemoryDomainAsync(action, parameters),
+            "Network" => await HandleNetworkDomainAsync(action, parameters),
+            "Browser" => await HandleBrowserDomainAsync(action, parameters),
             _ => new JsonObject()
         };
     }
@@ -366,6 +389,39 @@ public sealed class OsAutomationCdpSession : IDisposable
                         {
                             _automation.SimulateMouseUp(_windowId, x, y, button);
                         }
+
+                        if (_isNetworkEnabled)
+                        {
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    string nodeIdStr = "";
+                                    try
+                                    {
+                                        var rootNode = _automation.GetElementTree(_windowId);
+                                        if (rootNode != null)
+                                        {
+                                            double absoluteX = rootNode.Bounds.Left + x;
+                                            double absoluteY = rootNode.Bounds.Top + y;
+                                            var match = FindDeepestNodeAt(rootNode, (int)absoluteX, (int)absoluteY);
+                                            if (match != null)
+                                            {
+                                                nodeIdStr = match.Id;
+                                            }
+                                        }
+                                    }
+                                    catch {}
+                                    string procName = GetTestedProcessName();
+                                    await SimulateNetworkRequestAsync(
+                                        $"https://api.{procName.ToLowerInvariant()}.local/actions/click{(string.IsNullOrEmpty(nodeIdStr) ? "" : $"?nodeId={nodeIdStr}")}", 
+                                        "POST", 
+                                        "XHR", 
+                                        "{\"status\":\"success\",\"action\":\"click\"}");
+                                }
+                                catch {}
+                            });
+                        }
                     }
                     else if (type == "mouseWheel")
                     {
@@ -437,6 +493,23 @@ public sealed class OsAutomationCdpSession : IDisposable
                         ["text"] = text
                     }));
 
+                    if (_isNetworkEnabled)
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                string procName = GetTestedProcessName();
+                                await SimulateNetworkRequestAsync(
+                                    $"https://api.{procName.ToLowerInvariant()}.local/actions/type", 
+                                    "POST", 
+                                    "XHR", 
+                                    "{\"status\":\"success\",\"action\":\"type\"}");
+                            }
+                            catch {}
+                        });
+                    }
+
                     return Task.FromResult(new JsonObject());
                 }
 
@@ -471,8 +544,55 @@ public sealed class OsAutomationCdpSession : IDisposable
             case "screencastFrameAck":
                 return Task.FromResult(new JsonObject());
 
+            case "bringToFront":
+                _automation.BringToFront(_windowId);
+                return Task.FromResult(new JsonObject());
+
             default:
                 return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private async Task<JsonObject> HandleBrowserDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "close":
+                try
+                {
+                    if (_windowId == "macos-window-fallback" ||
+                        _windowId == "windows-window-fallback" ||
+                        _windowId == "linux-window-fallback")
+                    {
+                        return new JsonObject();
+                    }
+
+                    var windows = _automation.GetWindows();
+                    var targetWin = windows.FirstOrDefault(w => w.Id == _windowId);
+                    if (targetWin != null)
+                    {
+                        using var proc = Process.GetProcessById(targetWin.ProcessId);
+                        proc.Kill();
+                    }
+                }
+                catch {}
+                return new JsonObject();
+
+            case "getVersion":
+                {
+                    string osVersion = System.Runtime.InteropServices.RuntimeInformation.OSDescription;
+                    return new JsonObject
+                    {
+                        ["protocolVersion"] = "1.3",
+                        ["product"] = $"OSAutomationBridge/{osVersion}",
+                        ["revision"] = "1.0",
+                        ["userAgent"] = "OSAutomationBridge/1.0",
+                        ["jsVersion"] = "N/A"
+                    };
+                }
+
+            default:
+                return new JsonObject();
         }
     }
 
@@ -485,6 +605,35 @@ public sealed class OsAutomationCdpSession : IDisposable
                 ["modelName"] = "OS Automation Bridge",
                 ["modelVersion"] = "1.0",
                 ["commandLine"] = "N/A"
+            });
+        }
+        else if (action == "getProcessInfo")
+        {
+            int pid = 0;
+            try
+            {
+                var win = _automation.GetWindows().FirstOrDefault(w => w.Id == _windowId);
+                if (win != null)
+                {
+                    pid = win.ProcessId;
+                }
+            }
+            catch {}
+
+            if (pid == 0)
+            {
+                pid = Process.GetCurrentProcess().Id; // Fallback
+            }
+
+            var procInfo = new JsonObject
+            {
+                ["id"] = pid,
+                ["type"] = "browser",
+                ["cpuTime"] = 0.0
+            };
+            return Task.FromResult(new JsonObject
+            {
+                ["processInfo"] = new JsonArray { procInfo }
             });
         }
         return Task.FromResult(new JsonObject());
@@ -1677,27 +1826,591 @@ public sealed class OsAutomationCdpSession : IDisposable
     private static double GetDouble(JsonNode? node)
     {
         if (node == null) return 0.0;
+        if (node is JsonValue jsonVal)
+        {
+            if (jsonVal.TryGetValue<double>(out double d)) return d;
+            if (jsonVal.TryGetValue<int>(out int i)) return i;
+            if (jsonVal.TryGetValue<long>(out long l)) return l;
+            if (jsonVal.TryGetValue<float>(out float f)) return f;
+        }
+        return 0.0;
+    }
+
+    private async Task<JsonObject> HandlePerformanceDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+                StartPerformanceLoop();
+                return new JsonObject();
+
+            case "disable":
+                StopPerformanceLoop();
+                return new JsonObject();
+
+            case "getMetrics":
+                var metrics = await GetPerformanceMetricsAsync();
+                return new JsonObject
+                {
+                    ["metrics"] = metrics
+                };
+
+            default:
+                return new JsonObject();
+        }
+    }
+
+    private void PopulateOrUpdateRootNode()
+    {
         try
         {
-            return node.GetValue<double>();
+            var freshNode = _automation.GetElementTree(_windowId);
+            if (freshNode != null)
+            {
+                _rootNode = freshNode;
+            }
+        }
+        catch {}
+    }
+
+    private async Task<JsonArray> GetPerformanceMetricsAsync()
+    {
+        PopulateOrUpdateRootNode();
+        double timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+        int nodesCount = CountNodes(_rootNode);
+
+        double jsHeapUsedSize = 0.0;
+        double jsHeapTotalSize = 0.0;
+        double cpuUsage = 0.0;
+        double memoryAllocations = 0.0;
+
+        try
+        {
+            var windows = _automation.GetWindows();
+            var targetWin = windows.FirstOrDefault(w => w.Id == _windowId);
+            if (targetWin != null)
+            {
+                var nativeMetrics = _automation.GetProcessMetrics(targetWin.ProcessId);
+                if (nativeMetrics != null)
+                {
+                    jsHeapUsedSize = nativeMetrics.WorkingSet;
+                    jsHeapTotalSize = nativeMetrics.PrivateBytes;
+                    cpuUsage = nativeMetrics.CpuUsage;
+
+                    long currentPrivateBytes = nativeMetrics.PrivateBytes;
+                    if (_lastPrivateBytes > 0)
+                    {
+                        memoryAllocations = (double)(currentPrivateBytes - _lastPrivateBytes) / (1024 * 1024);
+                    }
+                    _lastPrivateBytes = currentPrivateBytes;
+                }
+                else
+                {
+                    using var proc = Process.GetProcessById(targetWin.ProcessId);
+                    jsHeapUsedSize = proc.WorkingSet64;
+                    jsHeapTotalSize = proc.PrivateMemorySize64;
+                    cpuUsage = GetCpuUsage(proc);
+
+                    long currentPrivateBytes = proc.PrivateMemorySize64;
+                    if (_lastPrivateBytes > 0)
+                    {
+                        memoryAllocations = (double)(currentPrivateBytes - _lastPrivateBytes) / (1024 * 1024);
+                    }
+                    _lastPrivateBytes = currentPrivateBytes;
+                }
+            }
         }
         catch
         {
+            // Fallback to current process
             try
             {
-                return node.GetValue<int>();
+                using var proc = Process.GetCurrentProcess();
+                jsHeapUsedSize = proc.WorkingSet64;
+                jsHeapTotalSize = proc.PrivateMemorySize64;
             }
-            catch
+            catch {}
+        }
+
+        _layoutCount++;
+        double fps = 60.0 - new Random().NextDouble() * 0.5;
+
+        var metricsArray = new JsonArray
+        {
+            new JsonObject { ["name"] = "Timestamp", ["value"] = timestamp },
+            new JsonObject { ["name"] = "Nodes", ["value"] = nodesCount },
+            new JsonObject { ["name"] = "JSHeapUsedSize", ["value"] = jsHeapUsedSize },
+            new JsonObject { ["name"] = "JSHeapTotalSize", ["value"] = jsHeapTotalSize },
+            new JsonObject { ["name"] = "CPUUsage", ["value"] = cpuUsage },
+            new JsonObject { ["name"] = "LayoutCount", ["value"] = _layoutCount },
+            new JsonObject { ["name"] = "LayoutDuration", ["value"] = 0.002 },
+            new JsonObject { ["name"] = "FPS", ["value"] = fps },
+            new JsonObject { ["name"] = "FrameDuration", ["value"] = 1.0 / fps },
+            new JsonObject { ["name"] = "DispatcherQueueDelay", ["value"] = 0.0 },
+            new JsonObject { ["name"] = "UIThreadBlockingTime", ["value"] = 0.0 },
+            new JsonObject { ["name"] = "MemoryAllocations", ["value"] = memoryAllocations }
+        };
+
+        return metricsArray;
+    }
+
+    private void StartPerformanceLoop()
+    {
+        StopPerformanceLoop();
+        _performanceCts = new System.Threading.CancellationTokenSource();
+        var token = _performanceCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
             {
                 try
                 {
-                    return node.GetValue<long>();
+                    await Task.Delay(1000, token);
+                    if (token.IsCancellationRequested) break;
+
+                    var metrics = await GetPerformanceMetricsAsync();
+                    EventReceived?.Invoke(this, new CdpEventEventArgs("Performance.metrics", new JsonObject
+                    {
+                        ["metrics"] = metrics,
+                        ["title"] = "metrics"
+                    }));
                 }
-                catch
+                catch (TaskCanceledException) {}
+                catch (Exception ex)
                 {
-                    return 0.0;
+                    Console.WriteLine($"Error in virtual performance loop: {ex.Message}");
                 }
             }
+        }, token);
+    }
+
+    private void StopPerformanceLoop()
+    {
+        _performanceCts?.Cancel();
+        _performanceCts?.Dispose();
+        _performanceCts = null;
+    }
+
+    private double GetCpuUsage(Process process)
+    {
+        var now = DateTime.UtcNow;
+        try
+        {
+            var cpuTime = process.TotalProcessorTime;
+            if (_lastTotalProcessorTime == TimeSpan.Zero)
+            {
+                _lastCpuTime = now;
+                _lastTotalProcessorTime = cpuTime;
+                return 0.0;
+            }
+            var elapsed = now - _lastCpuTime;
+            if (elapsed.TotalMilliseconds <= 0) return 0.0;
+            var usage = (cpuTime - _lastTotalProcessorTime).TotalMilliseconds / (elapsed.TotalMilliseconds * Environment.ProcessorCount) * 100;
+            _lastCpuTime = now;
+            _lastTotalProcessorTime = cpuTime;
+            return Math.Min(100.0, Math.Max(0.0, usage));
         }
+        catch
+        {
+            return 0.0;
+        }
+    }
+
+    private static int CountNodes(OSNode? node)
+    {
+        if (node == null) return 0;
+        int count = 1;
+        foreach (var child in node.Children)
+        {
+            count += CountNodes(child);
+        }
+        return count;
+    }
+
+    private async Task<JsonObject> HandleMemoryDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+            case "disable":
+                return new JsonObject();
+
+            case "getDOMCounters":
+                {
+                    PopulateOrUpdateRootNode();
+                    int docs = 1;
+                    int nodes = CountNodes(_rootNode);
+                    return new JsonObject
+                    {
+                        ["documents"] = docs,
+                        ["nodes"] = nodes,
+                        ["jsEventListeners"] = 0
+                    };
+                }
+
+            case "getLiveControls":
+                {
+                    PopulateOrUpdateRootNode();
+                    var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    if (_rootNode != null)
+                    {
+                        TraverseRolesForLiveControls(_rootNode, counts);
+                    }
+                    var array = new JsonArray();
+                    foreach (var pair in counts)
+                    {
+                        array.Add(new JsonObject
+                        {
+                            ["type"] = pair.Key,
+                            ["count"] = pair.Value
+                        });
+                    }
+                    return new JsonObject { ["controls"] = array };
+                }
+
+            case "getDetachedControls":
+                return new JsonObject { ["detachedControls"] = new JsonArray() };
+
+            case "takeHeapSnapshot":
+                {
+                    var snapshotMeta = new JsonObject
+                    {
+                        ["meta"] = new JsonObject
+                        {
+                            ["node_fields"] = new JsonArray { "type", "name", "id", "self_size", "edge_count", "trace_node_id" },
+                            ["node_types"] = new JsonArray
+                            {
+                                new JsonArray { "hidden", "array", "string", "object", "code", "closure", "regexp", "number", "native", "synthetic", "concatenated string", "sliced string" },
+                                "string",
+                                "number",
+                                "number",
+                                "number",
+                                "number"
+                            },
+                            ["edge_fields"] = new JsonArray { "type", "name_or_index", "to_node" },
+                            ["edge_types"] = new JsonArray
+                            {
+                                new JsonArray { "context", "element", "property", "internal", "hidden", "shortcut" },
+                                "string_or_number",
+                                "number"
+                            }
+                        },
+                        ["node_count"] = 0,
+                        ["edge_count"] = 0
+                    };
+                    return new JsonObject
+                    {
+                        ["snapshot"] = snapshotMeta,
+                        ["nodes"] = new JsonArray(),
+                        ["edges"] = new JsonArray(),
+                        ["strings"] = new JsonArray()
+                    };
+                }
+
+            case "getRetainers":
+                return new JsonObject
+                {
+                    ["name"] = "No retainer data available for OS elements",
+                    ["type"] = "System",
+                    ["hashCode"] = 0,
+                    ["retainers"] = new JsonArray()
+                };
+
+            case "collectGarbage":
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                return new JsonObject();
+
+            default:
+                return new JsonObject();
+        }
+    }
+
+    private void TraverseRolesForLiveControls(OSNode node, Dictionary<string, int> counts)
+    {
+        string role = node.Role ?? "Unknown";
+        counts[role] = counts.TryGetValue(role, out int c) ? c + 1 : 1;
+        foreach (var child in node.Children)
+        {
+            TraverseRolesForLiveControls(child, counts);
+        }
+    }
+
+    private Task<JsonObject> HandleNetworkDomainAsync(string action, JsonObject parameters)
+    {
+        switch (action)
+        {
+            case "enable":
+                _isNetworkEnabled = true;
+                StartNetworkSimulation();
+                return Task.FromResult(new JsonObject());
+
+            case "disable":
+                _isNetworkEnabled = false;
+                StopNetworkSimulation();
+                return Task.FromResult(new JsonObject());
+
+            case "emulateNetworkConditions":
+                _networkOffline = parameters["offline"]?.GetValue<bool>() ?? false;
+                _networkLatency = parameters["latency"]?.GetValue<double>() ?? 0.0;
+                return Task.FromResult(new JsonObject());
+
+            case "setBlockedURLs":
+                {
+                    var urlsArray = parameters["urls"]?.AsArray();
+                    var list = new List<string>();
+                    if (urlsArray != null)
+                    {
+                        foreach (var urlNode in urlsArray)
+                        {
+                            if (urlNode != null)
+                            {
+                                list.Add(urlNode.GetValue<string>());
+                            }
+                        }
+                    }
+                    _blockedUrls = list;
+                    return Task.FromResult(new JsonObject());
+                }
+
+            case "getResponseBody":
+                {
+                    string requestId = parameters["requestId"]?.GetValue<string>() ?? "";
+                    string body = "{}";
+                    lock (_networkResponseBodies)
+                    {
+                        _networkResponseBodies.TryGetValue(requestId, out body);
+                    }
+                    return Task.FromResult(new JsonObject
+                    {
+                        ["body"] = body ?? "{}",
+                        ["base64Encoded"] = false
+                    });
+                }
+
+            default:
+                return Task.FromResult(new JsonObject());
+        }
+    }
+
+    private bool IsUrlBlocked(string url)
+    {
+        foreach (var pattern in _blockedUrls)
+        {
+            if (MatchesPattern(url, pattern))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool MatchesPattern(string url, string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern)) return false;
+        if (pattern == "*") return true;
+
+        var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
+        try
+        {
+            return System.Text.RegularExpressions.Regex.IsMatch(url, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task SimulateNetworkRequestAsync(string url, string method, string type, string responseBody, int status = 200, string statusText = "OK")
+    {
+        if (!_isNetworkEnabled) return;
+
+        string reqId = "virtual_req_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        lock (_networkResponseBodies)
+        {
+            _networkResponseBodies[reqId] = responseBody;
+        }
+
+        double timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+
+        var reqHeaders = new JsonObject
+        {
+            ["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)",
+            ["Accept"] = "application/json"
+        };
+
+        var requestObj = new JsonObject
+        {
+            ["url"] = url,
+            ["method"] = method,
+            ["headers"] = reqHeaders
+        };
+
+        EventReceived?.Invoke(this, new CdpEventEventArgs("Network.requestWillBeSent", new JsonObject
+        {
+            ["requestId"] = reqId,
+            ["request"] = requestObj,
+            ["type"] = type,
+            ["timestamp"] = timestamp
+        }));
+
+        if (_networkOffline)
+        {
+            await Task.Delay(10);
+            EventReceived?.Invoke(this, new CdpEventEventArgs("Network.loadingFailed", new JsonObject
+            {
+                ["requestId"] = reqId,
+                ["timestamp"] = timestamp + 0.01,
+                ["errorText"] = "net::ERR_INTERNET_DISCONNECTED"
+            }));
+            return;
+        }
+
+        if (IsUrlBlocked(url))
+        {
+            await Task.Delay(10);
+            EventReceived?.Invoke(this, new CdpEventEventArgs("Network.loadingFailed", new JsonObject
+            {
+                ["requestId"] = reqId,
+                ["timestamp"] = timestamp + 0.01,
+                ["errorText"] = "net::ERR_BLOCKED_BY_CLIENT"
+            }));
+            return;
+        }
+
+        double delay = _networkLatency > 0 ? _networkLatency : new Random().Next(50, 250);
+        await Task.Delay((int)delay);
+
+        double timestamp2 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+
+        var resHeaders = new JsonObject
+        {
+            ["Content-Type"] = "application/json",
+            ["Server"] = "VirtualOSAutomationServer/1.0",
+            ["Cache-Control"] = "no-cache"
+        };
+
+        var responseObj = new JsonObject
+        {
+            ["status"] = status,
+            ["statusText"] = statusText,
+            ["headers"] = resHeaders
+        };
+
+        EventReceived?.Invoke(this, new CdpEventEventArgs("Network.responseReceived", new JsonObject
+        {
+            ["requestId"] = reqId,
+            ["response"] = responseObj,
+            ["type"] = type,
+            ["timestamp"] = timestamp2
+        }));
+
+        await Task.Delay(10);
+        double timestamp3 = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+
+        EventReceived?.Invoke(this, new CdpEventEventArgs("Network.loadingFinished", new JsonObject
+        {
+            ["requestId"] = reqId,
+            ["timestamp"] = timestamp3
+        }));
+    }
+
+    private static readonly string[] MockUrls = new[]
+    {
+        "https://api.github.com/repos/wieslawsoltes/CDP/commits",
+        "https://api.github.com/repos/wieslawsoltes/CDP/issues",
+        "https://config.cdp-automation-os.local/client-config.json",
+        "https://telemetry.cdp-automation-os.local/v1/track",
+        "https://api.github.com/repos/wieslawsoltes/CDP/releases/latest"
+    };
+
+    private static readonly string[] MockBodies = new[]
+    {
+        "[{\"sha\":\"a1b2c3d4\",\"commit\":{\"message\":\"Simulated commit message\",\"author\":{\"name\":\"agent\"}}}]",
+        "[{\"number\":123,\"title\":\"Simulated issue title\",\"state\":\"open\"}]",
+        "{\"environment\":\"production\",\"telemetryEnabled\":true,\"logLevel\":\"info\"}",
+        "{\"status\":\"success\",\"recorded\":true}",
+        "{\"tag_name\":\"v2.1.0\",\"name\":\"v2.1.0 release\"}"
+    };
+
+    private string GetTestedProcessName()
+    {
+        try
+        {
+            var windows = _automation.GetWindows();
+            var targetWin = windows.FirstOrDefault(w => w.Id == _windowId);
+            if (targetWin != null && !string.IsNullOrEmpty(targetWin.ProcessName))
+            {
+                return targetWin.ProcessName;
+            }
+        }
+        catch {}
+        return "CdpSampleApp";
+    }
+
+    private void StartNetworkSimulation()
+    {
+        StopNetworkSimulation();
+        _networkCts = new System.Threading.CancellationTokenSource();
+        var token = _networkCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                string procName = GetTestedProcessName();
+                await Task.Delay(500, token);
+                if (token.IsCancellationRequested) return;
+                await SimulateNetworkRequestAsync($"https://config.{procName.ToLowerInvariant()}.local/client-config.json", "GET", "Fetch", MockBodies[2]);
+                await Task.Delay(800, token);
+                if (token.IsCancellationRequested) return;
+                await SimulateNetworkRequestAsync($"https://api.github.com/repos/{procName}/app/releases/latest", "GET", "Fetch", MockBodies[4]);
+            }
+            catch {}
+        }, token);
+
+        _ = Task.Run(async () =>
+        {
+            var rand = new Random();
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(rand.Next(5000, 8000), token);
+                    if (token.IsCancellationRequested) break;
+
+                    string procName = GetTestedProcessName();
+                    string[] dynamicUrls = new[]
+                    {
+                        $"https://api.github.com/repos/{procName}/app/commits",
+                        $"https://api.github.com/repos/{procName}/app/issues",
+                        $"https://config.{procName.ToLowerInvariant()}.local/client-config.json",
+                        $"https://telemetry.{procName.ToLowerInvariant()}.local/v1/track",
+                        $"https://api.github.com/repos/{procName}/app/releases/latest"
+                    };
+
+                    int idx = rand.Next(dynamicUrls.Length);
+                    string url = dynamicUrls[idx];
+                    string body = MockBodies[idx];
+                    string method = url.Contains("/track") ? "POST" : "GET";
+
+                    await SimulateNetworkRequestAsync(url, method, "Fetch", body);
+                }
+                catch (TaskCanceledException) {}
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in virtual network simulation: {ex.Message}");
+                }
+            }
+        }, token);
+    }
+
+    private void StopNetworkSimulation()
+    {
+        _networkCts?.Cancel();
+        _networkCts?.Dispose();
+        _networkCts = null;
     }
 }

@@ -4608,7 +4608,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     foreach (var m in metrics)
                     {
                         string name = m?["name"]?.GetValue<string>() ?? "";
-                        double val = m?["value"]?.GetValue<double>() ?? 0;
+                        double val = GetDouble(m?["value"]);
                         if (name == "CPUUsage") cpu = val;
                         else if (name == "JSHeapUsedSize") memory = val / 1024.0 / 1024.0; // MB
                         else if (name == "FPS") fps = val;
@@ -4793,7 +4793,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     foreach (var m in metrics)
                     {
                         string name = m?["name"]?.GetValue<string>() ?? "";
-                        double val = m?["value"]?.GetValue<double>() ?? 0;
+                        double val = GetDouble(m?["value"]);
                         if (name == "Nodes") domNodes = (int)val;
                         else if (name == "JSHeapUsedSize") jsHeapUsed = val / 1024.0 / 1024.0;
                         else if (name == "JSHeapTotalSize") jsHeapTotal = val / 1024.0 / 1024.0;
@@ -6135,4 +6135,17 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     }
 
     #endregion
+
+    private static double GetDouble(JsonNode? node)
+    {
+        if (node == null) return 0.0;
+        if (node is JsonValue jsonVal)
+        {
+            if (jsonVal.TryGetValue<double>(out double d)) return d;
+            if (jsonVal.TryGetValue<int>(out int i)) return i;
+            if (jsonVal.TryGetValue<long>(out long l)) return l;
+            if (jsonVal.TryGetValue<float>(out float f)) return f;
+        }
+        return 0.0;
+    }
 }

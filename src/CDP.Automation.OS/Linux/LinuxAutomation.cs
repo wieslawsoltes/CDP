@@ -395,4 +395,116 @@ public sealed partial class LinuxAutomation : IOsAutomation
     public void StopInputCapture()
     {
     }
+
+    private DateTime _lastCpuTime = DateTime.UtcNow;
+    private ulong _lastTotalTimeTicks = 0;
+
+    public OSProcessMetrics? GetProcessMetrics(int pid)
+    {
+        try
+        {
+            string statPath = $"/proc/{pid}/stat";
+            if (!System.IO.File.Exists(statPath)) return null;
+
+            string content = System.IO.File.ReadAllText(statPath);
+            int lastParen = content.LastIndexOf(')');
+            if (lastParen == -1) return null;
+
+            string rest = content.Substring(lastParen + 2);
+            string[] parts = rest.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length < 22) return null;
+
+            ulong utime = ulong.Parse(parts[11]);
+            ulong stime = ulong.Parse(parts[12]);
+            ulong vsize = ulong.Parse(parts[20]);
+            long rssPages = long.Parse(parts[21]);
+
+            long workingSet = rssPages * 4096;
+
+            ulong currentTotalTicks = utime + stime;
+            double cpuUsage = 0.0;
+
+            var now = DateTime.UtcNow;
+            if (_lastTotalTimeTicks > 0)
+            {
+                var elapsedMs = (now - _lastCpuTime).TotalMilliseconds;
+                if (elapsedMs > 0)
+                {
+                    double ticksToMs = 10.0;
+                    double cpuTimeMs = (double)(currentTotalTicks - _lastTotalTimeTicks) * ticksToMs;
+                    cpuUsage = (cpuTimeMs / (elapsedMs * Environment.ProcessorCount)) * 100.0;
+                }
+            }
+            _lastCpuTime = now;
+            _lastTotalTimeTicks = currentTotalTicks;
+
+            return new OSProcessMetrics
+            {
+                CpuUsage = Math.Min(100.0, Math.Max(0.0, cpuUsage)),
+                WorkingSet = workingSet,
+                PrivateBytes = (long)vsize
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [LibraryImport("libX11.so.6")]
+    private static partial int XRaiseWindow(IntPtr display, IntPtr w);
+
+    [LibraryImport("libX11.so.6")]
+    private static partial int XSetInputFocus(IntPtr display, IntPtr focus, int revert_to, IntPtr time);
+
+    private const int RevertToParent = 2;
+    private static readonly IntPtr CurrentTime = IntPtr.Zero;
+
+    public void BringToFront(string windowId)
+    {
+        if (windowId == "linux-window-fallback" || !RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+        try
+        {
+            IntPtr window = IntPtr.Zero;
+            if (IntPtr.TryParse(windowId, out var parsedWindow))
+            {
+                window = parsedWindow;
+            }
+            else if (windowId.EndsWith("_fallback"))
+            {
+                var parts = windowId.Split('_');
+                if (parts.Length > 0 && int.TryParse(parts[0], out int pid))
+                {
+                    var windows = GetWindows();
+                    foreach (var w in windows)
+                    {
+                        if (w.ProcessId == pid && IntPtr.TryParse(w.Id, out var parsedW))
+                        {
+                            window = parsedW;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (window != IntPtr.Zero)
+            {
+                IntPtr display = XOpenDisplay(IntPtr.Zero);
+                if (display != IntPtr.Zero)
+                {
+                    try
+                    {
+                        XRaiseWindow(display, window);
+                        XSetInputFocus(display, window, RevertToParent, CurrentTime);
+                    }
+                    finally
+                    {
+                        XCloseDisplay(display);
+                    }
+                }
+            }
+        }
+        catch {}
+    }
 }

@@ -23,4 +23,13 @@ public interface IOsAutomation
     bool HasAccessibilityPermission();
     void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent);
     void StopInputCapture();
+    OSProcessMetrics? GetProcessMetrics(int pid);
+    void BringToFront(string windowId);
+}
+
+public sealed class OSProcessMetrics
+{
+    public double CpuUsage { get; set; }
+    public long WorkingSet { get; set; }
+    public long PrivateBytes { get; set; }
 }
