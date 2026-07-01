@@ -1239,25 +1239,25 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
 
                         if (marginQuad != null && borderQuad != null && paddingQuad != null && contentQuad != null)
                         {
-                            double bx = borderQuad[0]?.GetValue<double>() ?? 0;
-                            double by = borderQuad[1]?.GetValue<double>() ?? 0;
-                            double bxw = borderQuad[2]?.GetValue<double>() ?? 0;
-                            double byh = borderQuad[5]?.GetValue<double>() ?? 0;
+                            double bx = GetDoubleValue(borderQuad[0]);
+                            double by = GetDoubleValue(borderQuad[1]);
+                            double bxw = GetDoubleValue(borderQuad[2]);
+                            double byh = GetDoubleValue(borderQuad[5]);
 
-                            double ml = marginQuad[0]?.GetValue<double>() ?? 0;
-                            double mt = marginQuad[1]?.GetValue<double>() ?? 0;
-                            double mr = marginQuad[2]?.GetValue<double>() ?? 0;
-                            double mb = marginQuad[5]?.GetValue<double>() ?? 0;
+                            double ml = GetDoubleValue(marginQuad[0]);
+                            double mt = GetDoubleValue(marginQuad[1]);
+                            double mr = GetDoubleValue(marginQuad[2]);
+                            double mb = GetDoubleValue(marginQuad[5]);
 
-                            double pl = paddingQuad[0]?.GetValue<double>() ?? 0;
-                            double pt = paddingQuad[1]?.GetValue<double>() ?? 0;
-                            double pr = paddingQuad[2]?.GetValue<double>() ?? 0;
-                            double pb = paddingQuad[5]?.GetValue<double>() ?? 0;
+                            double pl = GetDoubleValue(paddingQuad[0]);
+                            double pt = GetDoubleValue(paddingQuad[1]);
+                            double pr = GetDoubleValue(paddingQuad[2]);
+                            double pb = GetDoubleValue(paddingQuad[5]);
 
-                            double cl = contentQuad[0]?.GetValue<double>() ?? 0;
-                            double ct = contentQuad[1]?.GetValue<double>() ?? 0;
-                            double cr = contentQuad[2]?.GetValue<double>() ?? 0;
-                            double cb = contentQuad[5]?.GetValue<double>() ?? 0;
+                            double cl = GetDoubleValue(contentQuad[0]);
+                            double ct = GetDoubleValue(contentQuad[1]);
+                            double cr = GetDoubleValue(contentQuad[2]);
+                            double cb = GetDoubleValue(contentQuad[5]);
 
                             BoxMarginTop = Math.Round(by - mt, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
                             BoxMarginRight = Math.Round(mr - bxw, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -1274,8 +1274,8 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
                             BoxPaddingBottom = Math.Round(pb - cb, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
                             BoxPaddingLeft = Math.Round(cl - pl, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-                            BoxWidth = Math.Round(model["width"]?.GetValue<double>() ?? 0, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                            BoxHeight = Math.Round(model["height"]?.GetValue<double>() ?? 0, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxWidth = Math.Round(GetDoubleValue(model["width"]), 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            BoxHeight = Math.Round(GetDoubleValue(model["height"]), 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
                         }
                     }
                 }
@@ -1291,6 +1291,24 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         {
             _ = TriggerHighlightAsync();
         }
+    }
+
+    private static double GetDoubleValue(JsonNode? node)
+    {
+        if (node == null) return 0;
+        try
+        {
+            if (node is JsonValue jv)
+            {
+                if (jv.TryGetValue<double>(out var d)) return d;
+                if (jv.TryGetValue<int>(out var i)) return i;
+                if (jv.TryGetValue<long>(out var l)) return l;
+                if (jv.TryGetValue<float>(out var f)) return f;
+            }
+            if (double.TryParse(node.ToString(), out var parsed)) return parsed;
+        }
+        catch {}
+        return 0;
     }
 
     private async Task FocusSelectedNodeAsync()
