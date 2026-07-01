@@ -23,6 +23,7 @@ public class FloatingSplitWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = Brush.Parse("#202124");
         RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+        DataContext = mainSplit.DataContext;
 
         _superSplit = new SuperSplit
         {

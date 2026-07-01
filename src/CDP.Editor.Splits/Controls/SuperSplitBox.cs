@@ -678,6 +678,7 @@ public class SuperSplitBox : ContentControl
     private void UpdateViewContent()
     {
         var viewName = SelectedViewName;
+        System.Diagnostics.Debug.WriteLine($"[SuperSplitBox] UpdateViewContent called! viewName='{viewName}'");
         if (string.IsNullOrEmpty(viewName))
         {
             InnerContent = null;
@@ -685,9 +686,11 @@ public class SuperSplitBox : ContentControl
         }
 
         var superSplit = this.FindAncestorOfType<SuperSplit>();
+        System.Diagnostics.Debug.WriteLine($"[SuperSplitBox] FindAncestorOfType<SuperSplit>() found superSplit={(superSplit != null)}, ViewResolver={(superSplit?.ViewResolver != null)}");
         if (superSplit?.ViewResolver != null)
         {
             var view = superSplit.ViewResolver(viewName, this);
+            System.Diagnostics.Debug.WriteLine($"[SuperSplitBox] ViewResolver returned view={(view != null ? view.GetType().Name : "null")}, view.Parent={(view?.Parent != null ? view.Parent.GetType().Name : "null")}");
             if (view != null)
             {
                 if (view.Parent is SuperSplitBox oldParent && oldParent != this)
@@ -704,6 +707,7 @@ public class SuperSplitBox : ContentControl
                 }
 
                 InnerContent = view;
+                System.Diagnostics.Debug.WriteLine($"[SuperSplitBox] Set InnerContent to view!");
             }
         }
     }
