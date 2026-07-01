@@ -7,6 +7,7 @@
     <Description>Standalone, generic graph node editor control for Avalonia UI.</Description>
     <PackageTags>avalonia;editor;nodes;graph;canvas</PackageTags>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>

@@ -7,6 +7,7 @@
     <Description>Standalone Minimap and Inline Editor Extensions for AvaloniaEdit.</Description>
     <PackageTags>avalonia;editor;minimap;avaloniaedit</PackageTags>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>

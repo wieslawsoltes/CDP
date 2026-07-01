@@ -7,10 +7,16 @@
     <Description>Dynamic binary split layout container for Avalonia applications.</Description>
     <PackageTags>avalonia;editor;split;layout</PackageTags>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
 </Project>
