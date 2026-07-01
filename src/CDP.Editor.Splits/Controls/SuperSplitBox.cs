@@ -4,6 +4,8 @@ using System.ComponentModel;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Animation;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
@@ -85,9 +87,12 @@ public class SuperSplitBox : ContentControl
     private readonly ScrollViewer _tabsScrollViewer;
     private readonly Button _btnScrollLeft;
     private readonly Button _btnScrollRight;
+    private readonly Button _btnZoom;
 
     public SuperSplitBox()
     {
+        ClipToBounds = true;
+
         var grid = new Grid
         {
             RowDefinitions = new RowDefinitions("Auto, *"),
@@ -102,6 +107,12 @@ public class SuperSplitBox : ContentControl
             BorderBrush = Brush.Parse("#3c4043"),
             BorderThickness = new Thickness(0, 0, 0, 1),
             CornerRadius = new CornerRadius(8, 8, 0, 0)
+        };
+
+        _headerPanel.DoubleTapped += (sender, e) =>
+        {
+            ToggleZoom();
+            e.Handled = true;
         };
 
         _tabsPanel = new StackPanel
@@ -169,6 +180,38 @@ public class SuperSplitBox : ContentControl
         }
         _btnScrollRight.Content = rightIcon;
 
+        _btnZoom = new Button
+        {
+            Name = "btnZoom",
+            Width = 32,
+            Height = 32,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            Cursor = new Cursor(StandardCursorType.Hand)
+        };
+        AutomationProperties.SetAutomationId(_btnZoom, "btnZoom");
+        AutomationProperties.SetName(_btnZoom, "Zoom Panel Button");
+        ToolTip.SetTip(_btnZoom, "Zoom Panel");
+
+        var zoomIcon = new PathIcon
+        {
+            Width = 10,
+            Height = 10,
+            Foreground = Brush.Parse("#8ab4f8")
+        };
+        if (Application.Current != null && Application.Current.TryFindResource("MaximizeIcon", out var zoomRes) && zoomRes is Geometry zoomGeom)
+        {
+            zoomIcon.Data = zoomGeom;
+        }
+        _btnZoom.Content = zoomIcon;
+
+        _btnZoom.Click += (sender, e) =>
+        {
+            ToggleZoom();
+        };
+
         _btnScrollLeft.Click += (sender, e) =>
         {
             double newOffset = Math.Max(0, _tabsScrollViewer.Offset.X - 100);
@@ -193,17 +236,19 @@ public class SuperSplitBox : ContentControl
 
         var headerLayoutGrid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto, *, Auto"),
+            ColumnDefinitions = new ColumnDefinitions("Auto, *, Auto, Auto"),
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
         };
 
         Grid.SetColumn(_btnScrollLeft, 0);
         Grid.SetColumn(_tabsScrollViewer, 1);
         Grid.SetColumn(_btnScrollRight, 2);
+        Grid.SetColumn(_btnZoom, 3);
 
         headerLayoutGrid.Children.Add(_btnScrollLeft);
         headerLayoutGrid.Children.Add(_tabsScrollViewer);
         headerLayoutGrid.Children.Add(_btnScrollRight);
+        headerLayoutGrid.Children.Add(_btnZoom);
 
         _headerPanel.Child = headerLayoutGrid;
 
@@ -246,6 +291,9 @@ public class SuperSplitBox : ContentControl
         UpdateBorderHighlight();
         UpdateBackground();
 
+        AutomationProperties.SetHelpText(this, "Split Box Pane");
+        AutomationProperties.SetName(this, "Split Box Pane");
+
         // Use tunneling PointerPressed handler to capture clicks anywhere inside the box (even handled by children)
         AddHandler(PointerPressedEvent, (sender, args) =>
         {
@@ -266,6 +314,17 @@ public class SuperSplitBox : ContentControl
             IsEntranceAnimationRequested = false;
             AnimateEntranceComposition();
         }
+
+        _currentBoxNode = DataContext as BoxNode;
+        if (_currentBoxNode != null)
+        {
+            // Unsubscribe first to avoid double subscriptions
+            _currentBoxNode.Tabs.CollectionChanged -= OnTabsCollectionChanged;
+            _currentBoxNode.Tabs.CollectionChanged += OnTabsCollectionChanged;
+            _currentBoxNode.PropertyChanged -= OnBoxNodePropertyChanged;
+            _currentBoxNode.PropertyChanged += OnBoxNodePropertyChanged;
+        }
+        RebuildHeaderTabs();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -348,6 +407,9 @@ public class SuperSplitBox : ContentControl
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
                     Cursor = new Cursor(StandardCursorType.Hand)
                 };
+
+                AutomationProperties.SetName(tabBorder, tab.Title + " Tab");
+                AutomationProperties.SetHelpText(tabBorder, tab.Title + " Tab");
 
                 // Add subtle hover effects to inactive tabs
                 if (!isActive)
@@ -641,28 +703,42 @@ public class SuperSplitBox : ContentControl
                     contentControl.Content = null;
                 }
 
-                // Ensure the view is synchronously detached from any visual parent to prevent crashes
-                var visualParent = view.GetVisualParent();
-                if (visualParent is ContentPresenter cp)
-                {
-                    cp.Content = null;
-                }
-                else if (visualParent is Panel p)
-                {
-                    p.Children.Remove(view);
-                }
-
                 InnerContent = view;
             }
         }
+    }
+
+    private void ToggleZoom()
+    {
+        var superSplit = this.FindAncestorOfType<SuperSplit>();
+        var boxNode = DataContext as BoxNode;
+        Console.WriteLine($"[SuperSplitBox] ToggleZoom clicked! parent found={superSplit != null}, boxNode={(boxNode != null ? boxNode.GetHashCode() : 0)}");
+        if (superSplit != null && boxNode != null)
+        {
+            superSplit.ToggleZoomNode(boxNode);
+        }
+    }
+
+    public void UpdateZoomButton(bool isZoomed)
+    {
+        var icon = _btnZoom.Content as PathIcon;
+        if (icon != null && Application.Current != null)
+        {
+            var resKey = isZoomed ? "WindowMultipleIcon" : "MaximizeIcon";
+            if (Application.Current.TryFindResource(resKey, out var res) && res is Geometry geom)
+            {
+                icon.Data = geom;
+            }
+        }
+        ToolTip.SetTip(_btnZoom, isZoomed ? "Unzoom Panel" : "Zoom Panel");
     }
 
     private void UpdateBorderHighlight()
     {
         if (_mainBorder != null)
         {
-            _mainBorder.BorderBrush = IsSelected ? Brush.Parse("#1a73e8") : Brush.Parse("#3c4043");
-            _mainBorder.BorderThickness = IsSelected ? new Thickness(2.0) : new Thickness(1.5);
+            _mainBorder.BorderBrush = Brush.Parse("#3c4043");
+            _mainBorder.BorderThickness = new Thickness(1.5);
         }
     }
 
@@ -680,5 +756,10 @@ public class SuperSplitBox : ContentControl
                 _mainBorder.Background = Brush.Parse("#292a2d");
             }
         }
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer()
+    {
+        return new ControlAutomationPeer(this);
     }
 }
