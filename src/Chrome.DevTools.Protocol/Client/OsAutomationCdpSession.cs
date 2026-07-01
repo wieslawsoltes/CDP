@@ -28,6 +28,7 @@ public sealed class OsAutomationCdpSession : IDisposable
 
     private System.Threading.CancellationTokenSource? _pollingCts;
     private string? _lastFocusedId;
+    private string? _lastFocusedNodeId;
     private string? _lastFocusedValue;
     private string? _lastFocusedRole;
     private bool _isSimulatingInput;
@@ -234,11 +235,11 @@ public sealed class OsAutomationCdpSession : IDisposable
                     if (_idToNode.TryGetValue(nodeId, out var node))
                     {
                         TriggerSimulateInputGuard();
-                        // Simulate focus by clicking at the center of the element bounds (window-relative)
+                        _lastFocusedNodeId = node.Id;
+                        // Simulate focus by moving the cursor to the center of the element bounds (window-relative)
                         double cx = (node.Bounds.Left + node.Bounds.Width / 2.0) - (_rootNode?.Bounds.Left ?? 0);
                         double cy = (node.Bounds.Top + node.Bounds.Height / 2.0) - (_rootNode?.Bounds.Top ?? 0);
                         _automation.SimulateMouseMove(_windowId, cx, cy);
-                        _automation.SimulateClick(_windowId, cx, cy);
                     }
                     return Task.FromResult(new JsonObject());
                 }
@@ -328,22 +329,27 @@ public sealed class OsAutomationCdpSession : IDisposable
 
                         if (_automation.UsePeerAutomation && !_hasMovedSinceDown)
                         {
-                            string? nodeId = null;
-                            try
+                            string? nodeId = _lastFocusedNodeId;
+                            _lastFocusedNodeId = null;
+
+                            if (string.IsNullOrEmpty(nodeId))
                             {
-                                var rootNode = _automation.GetElementTree(_windowId);
-                                if (rootNode != null)
+                                try
                                 {
-                                    double absoluteX = rootNode.Bounds.Left + x;
-                                    double absoluteY = rootNode.Bounds.Top + y;
-                                    var match = FindDeepestNodeAt(rootNode, (int)absoluteX, (int)absoluteY);
-                                    if (match != null)
+                                    var rootNode = _automation.GetElementTree(_windowId);
+                                    if (rootNode != null)
                                     {
-                                        nodeId = match.Id;
+                                        double absoluteX = rootNode.Bounds.Left + x;
+                                        double absoluteY = rootNode.Bounds.Top + y;
+                                        var match = FindDeepestNodeAt(rootNode, (int)absoluteX, (int)absoluteY);
+                                        if (match != null)
+                                        {
+                                            nodeId = match.Id;
+                                        }
                                     }
                                 }
+                                catch {}
                             }
-                            catch {}
 
                             _automation.SimulateClick(_windowId, x, y, nodeId);
                         }
