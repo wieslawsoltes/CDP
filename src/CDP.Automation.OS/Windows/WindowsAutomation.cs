@@ -1472,4 +1472,142 @@ public sealed partial class WindowsAutomation : IOsAutomation
         catch {}
         return false;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct PROCESS_MEMORY_COUNTERS_EX
+    {
+        public uint cb;
+        public uint PageFaultCount;
+        public ulong PeakWorkingSetSize;
+        public ulong WorkingSetSize;
+        public ulong QuotaPeakPagedPoolUsage;
+        public ulong QuotaPagedPoolUsage;
+        public ulong QuotaPeakNonPagedPoolUsage;
+        public ulong QuotaNonPagedPoolUsage;
+        public ulong PagefileUsage;
+        public ulong PeakPagefileUsage;
+        public ulong PrivateUsage;
+    }
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial IntPtr OpenProcess(uint processAccess, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, int processId);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CloseHandle(IntPtr hObject);
+
+    [LibraryImport("psapi.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetProcessMemoryInfo(IntPtr hProcess, ref PROCESS_MEMORY_COUNTERS_EX mCounters, uint size);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetProcessTimes(
+        IntPtr hProcess, 
+        out ulong lpCreationTime, 
+        out ulong lpExitTime, 
+        out ulong lpKernelTime, 
+        out ulong lpUserTime);
+
+    private DateTime _lastCpuTime = DateTime.UtcNow;
+    private ulong _lastTotalTime100ns = 0;
+
+    public OSProcessMetrics? GetProcessMetrics(int pid)
+    {
+        IntPtr hProcess = IntPtr.Zero;
+        try
+        {
+            const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+            const uint PROCESS_VM_READ = 0x0010;
+            hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, false, pid);
+            if (hProcess == IntPtr.Zero)
+            {
+                hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+            }
+
+            if (hProcess == IntPtr.Zero) return null;
+
+            var counters = new PROCESS_MEMORY_COUNTERS_EX();
+            counters.cb = (uint)Marshal.SizeOf<PROCESS_MEMORY_COUNTERS_EX>();
+            long workingSet = 0;
+            long privateBytes = 0;
+
+            if (GetProcessMemoryInfo(hProcess, ref counters, counters.cb))
+            {
+                workingSet = (long)counters.WorkingSetSize;
+                privateBytes = (long)counters.PrivateUsage;
+            }
+
+            double cpuUsage = 0.0;
+            if (GetProcessTimes(hProcess, out _, out _, out ulong kernelTime, out ulong userTime))
+            {
+                ulong currentTotalTime100ns = kernelTime + userTime;
+                var now = DateTime.UtcNow;
+                if (_lastTotalTime100ns > 0)
+                {
+                    var elapsedMs = (now - _lastCpuTime).TotalMilliseconds;
+                    if (elapsedMs > 0)
+                    {
+                        double cpuTimeMs = (double)(currentTotalTime100ns - _lastTotalTime100ns) / 10000.0;
+                        cpuUsage = (cpuTimeMs / (elapsedMs * Environment.ProcessorCount)) * 100.0;
+                    }
+                }
+                _lastCpuTime = now;
+                _lastTotalTime100ns = currentTotalTime100ns;
+            }
+
+            return new OSProcessMetrics
+            {
+                CpuUsage = Math.Min(100.0, Math.Max(0.0, cpuUsage)),
+                WorkingSet = workingSet,
+                PrivateBytes = privateBytes
+            };
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (hProcess != IntPtr.Zero)
+            {
+                CloseHandle(hProcess);
+            }
+        }
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    private const int SW_RESTORE = 9;
+
+    public void BringToFront(string windowId)
+    {
+        if (windowId == "windows-window-fallback") return;
+        try
+        {
+            IntPtr hWnd = IntPtr.Zero;
+            if (IntPtr.TryParse(windowId, out var parsedHwnd))
+            {
+                hWnd = parsedHwnd;
+            }
+            else if (windowId.EndsWith("_fallback"))
+            {
+                var parts = windowId.Split('_');
+                if (parts.Length > 0 && int.TryParse(parts[0], out int pid))
+                {
+                    using var proc = System.Diagnostics.Process.GetProcessById(pid);
+                    hWnd = proc.MainWindowHandle;
+                }
+            }
+
+            if (hWnd != IntPtr.Zero)
+            {
+                ShowWindow(hWnd, SW_RESTORE);
+                SetForegroundWindow(hWnd);
+            }
+        }
+        catch {}
+    }
 }

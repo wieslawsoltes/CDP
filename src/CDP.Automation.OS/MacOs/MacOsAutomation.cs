@@ -1983,4 +1983,114 @@ public sealed partial class MacOsAutomation : IOsAutomation
         }
         return false;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct proc_taskinfo
+    {
+        public ulong pti_virtual_size;      /* virtual memory size (bytes) */
+        public ulong pti_resident_size;     /* resident memory size (bytes) */
+        public ulong pti_total_user;        /* total time (ns) */
+        public ulong pti_total_system;
+        public ulong pti_threads_user;
+        public ulong pti_threads_system;
+        public int pti_policy;
+        public int pti_faults;
+        public int pti_pageins;
+        public int pti_cow_faults;
+        public int pti_messages_sent;
+        public int pti_messages_received;
+        public int pti_syscalls_mach;
+        public int pti_syscalls_unix;
+        public int pti_csw;
+        public int pti_threadnum;
+        public int pti_numrunning;
+        public int pti_priority;
+    }
+
+    [LibraryImport("libproc", EntryPoint = "proc_pidinfo")]
+    private static partial int proc_pidinfo(int pid, int flavor, ulong arg, ref proc_taskinfo info, int buffersize);
+
+    private const int PROC_PIDTASKINFO = 4;
+
+    private DateTime _lastCpuTime = DateTime.UtcNow;
+    private ulong _lastTotalTimeNs = 0;
+
+    public OSProcessMetrics? GetProcessMetrics(int pid)
+    {
+        try
+        {
+            var info = new proc_taskinfo();
+            int size = Marshal.SizeOf<proc_taskinfo>();
+            int result = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, ref info, size);
+            if (result <= 0) return null;
+
+            ulong currentTotalTimeNs = info.pti_total_user + info.pti_total_system;
+            double cpuUsage = 0.0;
+
+            var now = DateTime.UtcNow;
+            if (_lastTotalTimeNs > 0)
+            {
+                var elapsedMs = (now - _lastCpuTime).TotalMilliseconds;
+                if (elapsedMs > 0)
+                {
+                    double cpuTimeMs = (double)(currentTotalTimeNs - _lastTotalTimeNs) / 1_000_000.0;
+                    cpuUsage = (cpuTimeMs / (elapsedMs * Environment.ProcessorCount)) * 100.0;
+                }
+            }
+            _lastCpuTime = now;
+            _lastTotalTimeNs = currentTotalTimeNs;
+
+            return new OSProcessMetrics
+            {
+                CpuUsage = Math.Min(100.0, Math.Max(0.0, cpuUsage)),
+                WorkingSet = (long)info.pti_resident_size,
+                PrivateBytes = (long)info.pti_resident_size
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public void BringToFront(string windowId)
+    {
+        if (windowId == "macos-window-fallback") return;
+        try
+        {
+            int pid = 0;
+            if (windowId.EndsWith("_fallback"))
+            {
+                var parts = windowId.Split('_');
+                if (parts.Length > 0 && int.TryParse(parts[0], out int parsedPid))
+                {
+                    pid = parsedPid;
+                }
+            }
+            else
+            {
+                var win = GetWindows().FirstOrDefault(w => w.Id == windowId);
+                if (win != null)
+                {
+                    pid = win.ProcessId;
+                }
+            }
+
+            if (pid > 0)
+            {
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "osascript",
+                    Arguments = $"-e \"tell application \\\"System Events\\\" to set frontmost of first process whose unix id is {pid} to true\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = System.Diagnostics.Process.Start(startInfo);
+                proc?.WaitForExit(1000);
+            }
+        }
+        catch {}
+    }
 }

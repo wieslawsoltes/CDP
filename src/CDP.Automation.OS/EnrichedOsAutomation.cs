@@ -115,4 +115,6 @@ public sealed class EnrichedOsAutomation : IOsAutomation
     public bool HasAccessibilityPermission() => _underlying.HasAccessibilityPermission();
     public void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent) => _underlying.StartInputCapture(windowId, onClick, onAccessibilityEvent);
     public void StopInputCapture() => _underlying.StopInputCapture();
+    public OSProcessMetrics? GetProcessMetrics(int pid) => _underlying.GetProcessMetrics(pid);
+    public void BringToFront(string windowId) => _underlying.BringToFront(windowId);
 }
