@@ -642,10 +642,16 @@ public sealed partial class MacOsAutomation : IOsAutomation
             CFRelease(sizeRef);
         }
 
+        string idAttr = CFTypeToString(GetAttribute(element, "AXIdentifier")) ?? "";
+        if (string.IsNullOrEmpty(idAttr))
+        {
+            idAttr = CFTypeToString(GetAttribute(element, "AXTitle")) ?? "";
+        }
+
         int myId = nextId++;
         var node = new OSNode
         {
-            Id = myId.ToString(),
+            Id = string.IsNullOrEmpty(idAttr) ? myId.ToString() : idAttr,
             Name = string.IsNullOrEmpty(title) ? role : title,
             Role = role,
             Text = value ?? (string.IsNullOrEmpty(title) ? description ?? string.Empty : title),
@@ -1454,6 +1460,19 @@ public sealed partial class MacOsAutomation : IOsAutomation
                             {
                                 id = "focused_element";
                             }
+                            SKRectI bounds = new SKRectI(0, 0, 0, 0);
+                            IntPtr posRef = GetAttribute(focusedRef, "AXPosition");
+                            IntPtr sizeRef = GetAttribute(focusedRef, "AXSize");
+                            if (posRef != IntPtr.Zero && sizeRef != IntPtr.Zero)
+                            {
+                                if (AXValueGetValue(posRef, 1, out CGPoint pt) && AXValueGetValue(sizeRef, 2, out CGSize sz))
+                                {
+                                    bounds = new SKRectI((int)pt.X, (int)pt.Y, (int)(pt.X + sz.Width), (int)(pt.Y + sz.Height));
+                                }
+                                CFRelease(posRef);
+                                CFRelease(sizeRef);
+                            }
+
                             string text = CFTypeToString(GetAttribute(focusedRef, "AXValue")) ?? "";
 
                             return new OSNode
@@ -1462,7 +1481,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
                                 Name = id,
                                 Role = role,
                                 Text = text,
-                                Bounds = new SKRectI(0, 0, 0, 0)
+                                Bounds = bounds
                             };
                         }
                         finally
