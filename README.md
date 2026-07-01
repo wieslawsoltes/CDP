@@ -12,9 +12,12 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 | :--- | :--- | :--- | :--- |
 | **Chrome.DevTools.Protocol** | Core Protocol & Client Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) |
 | **Chrome.DevTools.Avalonia** | Avalonia Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) |
+| **Chrome.DevTools.Automation.OS** | OS Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.OS.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.OS/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.OS.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.OS/) |
 | **Chrome.DevTools.Inspector.Shared** | Shared UI Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) |
 | **Chrome.DevTools.Editor.Minimap** | Standalone Minimap & Inline Editor | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Minimap.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Minimap/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Minimap.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Minimap/) |
 | **Chrome.DevTools.Editor.Nodes** | Standalone Graph Node Editor | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Nodes.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Nodes.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes/) |
+| **Chrome.DevTools.Editor.Nodes.Msagl** | MSAGL Layout Provider | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Nodes.Msagl.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes.Msagl/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Nodes.Msagl.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes.Msagl/) |
+| **Chrome.DevTools.Editor.Splits** | Dynamic Splits Layout Container | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Splits.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Splits/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Splits.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Splits/) |
 | **Chrome.DevTools.DiagnosticTools** | In-Process Diagnostics | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) |
 | **Chrome.DevTools.Inspector** | .NET Global Tool | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) |
 
@@ -142,6 +145,25 @@ If manually adding the package reference to your `.csproj` file, specify the ver
 </ItemGroup>
 ```
 
+### OS Automation Support
+
+If you want to use accessibility-driven operating system automation (AXUIElement on macOS, UIAutomation on Windows, and X11 on Linux) to emulate CDP endpoints in-process, install `Chrome.DevTools.Automation.OS` instead:
+
+```bash
+dotnet add package Chrome.DevTools.Automation.OS --prerelease
+```
+
+You can then query window status, list open windows, or perform low-level inputs directly:
+```csharp
+using CDP.Automation.OS;
+
+var windows = OSAutomationService.Instance.GetWindows();
+foreach (var win in windows)
+{
+    Console.WriteLine($"Found Window: {win.Title} ({win.Id})");
+}
+```
+
 ### Standalone Minimap & Editor Support
 
 If you only need the standalone `MinimapTextEditor` control, the code annotation inline layers, or visual gutter margins for your `AvaloniaEdit` editors without any Chrome DevTools Protocol or network server dependencies, install `Chrome.DevTools.Editor.Minimap` instead:
@@ -192,6 +214,38 @@ var vm = new NodeEditorViewModel();
 var node1 = vm.CreateNode("Step Node 1", 10.0, 20.0);
 var node2 = vm.CreateNode("Step Node 2", 210.0, 20.0);
 vm.ConnectNodes(node1, node2);
+```
+
+### MSAGL Graph Layout Support
+
+If you want automatic graph layout capabilities (such as Sugiyama hierarchical, spring, or MDS layouts) powered by Microsoft Automatic Graph Layout (MSAGL) in the node editor, install `Chrome.DevTools.Editor.Nodes.Msagl` instead:
+
+```bash
+dotnet add package Chrome.DevTools.Editor.Nodes.Msagl --prerelease
+```
+
+Register the `MsaglLayoutProvider` in the layout providers list of your `NodeEditorViewModel` instance:
+```csharp
+using CDP.Editor.Nodes.Msagl;
+
+NodeEditor.LayoutProviders.Add(new MsaglLayoutProvider());
+```
+
+### Dynamic Splits Layout Support
+
+If you want a dynamic, user-resizable split pane layout container for your views, install `Chrome.DevTools.Editor.Splits` instead:
+
+```bash
+dotnet add package Chrome.DevTools.Editor.Splits --prerelease
+```
+
+In your XAML, declare a `SuperSplit` layout element:
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:splits="using:CDP.Editor.Splits.Controls">
+    <splits:SuperSplit Name="SplitLayout" />
+</UserControl>
 ```
 
 
