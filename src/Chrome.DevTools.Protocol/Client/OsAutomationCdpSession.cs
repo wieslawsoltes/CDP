@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using CDP.Automation.OS;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol;
 
 public sealed class OsAutomationCdpSession : IDisposable
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<OsAutomationCdpSession>();
+
     private readonly string _windowId;
     private readonly IOsAutomation _automation;
     private readonly Dictionary<int, OSNode> _idToNode = new();
@@ -1096,7 +1099,7 @@ public sealed class OsAutomationCdpSession : IDisposable
             {
                 if ((DateTime.UtcNow - _lastClickTime).TotalMilliseconds < 1000)
                 {
-                    Console.WriteLine($"[DEBUG OS AUTOMATION] Suppressing programmatic change step on '{elementId}' due to recent click on '{_lastClickedElementId}'.");
+                    Logger.LogDebug("Suppressing programmatic change step on '{ElementId}' due to recent click on '{LastClickedElementId}'", elementId, _lastClickedElementId);
                     return;
                 }
             }

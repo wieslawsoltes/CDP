@@ -1521,37 +1521,37 @@ public sealed partial class MacOsAutomation : IOsAutomation
     {
         StopInputCapture();
 
-        Console.WriteLine($"[DEBUG OS AUTOMATION] StartInputCapture called for windowId: {windowId}");
+        _logger.LogInformation("StartInputCapture called for windowId: {WindowId}", windowId);
 
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
 
         // Skip starting capture if we don't have Accessibility permissions or if it's a fallback window in unit tests
         if (IsTestEnvironment() || !AXIsProcessTrusted() || windowId.EndsWith("_fallback"))
         {
-            Console.WriteLine($"[DEBUG OS AUTOMATION] Skipping native macOS capture setup. IsTest={IsTestEnvironment()}, Trusted={AXIsProcessTrusted()}, fallback={windowId.EndsWith("_fallback")}");
+            _logger.LogInformation("Skipping native macOS capture setup. IsTest={IsTest}, Trusted={Trusted}, Fallback={Fallback}", IsTestEnvironment(), AXIsProcessTrusted(), windowId.EndsWith("_fallback"));
             return;
         }
 
         // 1. Setup global mouse event tap callback (For coordinates-based click capture)
         _tapCallback = (tapProxy, eventType, theEvent, refcon) =>
         {
-            Console.WriteLine($"[DEBUG OS AUTOMATION] _tapCallback triggered, eventType={eventType}");
+            _logger.LogDebug("_tapCallback triggered, eventType={EventType}", eventType);
             if (eventType == 1) // kCGEventLeftMouseDown
             {
                 CGPoint pt = CGEventGetLocation(theEvent);
                 var bounds = GetWindowBounds(windowId);
-                Console.WriteLine($"[DEBUG OS AUTOMATION] Left Mouse Down at ({pt.X}, {pt.Y}), Window Bounds: {bounds.Left},{bounds.Top},{bounds.Right},{bounds.Bottom}");
+                _logger.LogDebug("Left Mouse Down at ({X}, {Y}), Window Bounds: {Left},{Top},{Right},{Bottom}", pt.X, pt.Y, bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
                 if (bounds.Width > 0 && bounds.Height > 0)
                 {
                     if (pt.X >= bounds.Left && pt.X <= bounds.Right &&
                         pt.Y >= bounds.Top && pt.Y <= bounds.Bottom)
                     {
-                        Console.WriteLine("[DEBUG OS AUTOMATION] Click inside bounds, invoking onClick");
+                        _logger.LogDebug("Click inside bounds, invoking onClick");
                         onClick(pt.X, pt.Y, "left");
                     }
                     else
                     {
-                        Console.WriteLine("[DEBUG OS AUTOMATION] Click outside bounds");
+                        _logger.LogDebug("Click outside bounds");
                     }
                 }
             }
@@ -1562,7 +1562,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
         if (UseAccessibilityEvents)
         {
             int pid = GetWindowPid(windowId);
-            Console.WriteLine($"[DEBUG OS AUTOMATION] Setting up AXObserver for PID: {pid}");
+            _logger.LogInformation("Setting up AXObserver for PID: {Pid}", pid);
             if (pid > 0)
             {
                 _appElement = AXUIElementCreateApplication(pid);
@@ -1585,7 +1585,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
                             }
                             string text = CFTypeToString(GetAttribute(element, "AXValue")) ?? "";
 
-                            Console.WriteLine($"[DEBUG OS AUTOMATION] AXObserver callback: notif={notifStr}, role={role}, id={id}, text={text}");
+                            _logger.LogDebug("AXObserver callback: notif={Notification}, role={Role}, id={Id}, text={Text}", notifStr, role, id, text);
 
                             if (notifStr == "AXFocusedUIElementChanged")
                             {
@@ -1598,14 +1598,14 @@ public sealed partial class MacOsAutomation : IOsAutomation
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[DEBUG OS AUTOMATION] Error in AXObserver callback: {ex.Message}");
+                            _logger.LogError(ex, "Error in AXObserver callback: {Message}", ex.Message);
                         }
                     };
 
                     int err = AXObserverCreate(pid, _observerCallback, out _observer);
                     if (err == 0 && _observer != IntPtr.Zero)
                     {
-                        Console.WriteLine("[DEBUG OS AUTOMATION] AXObserverCreate succeeded");
+                        _logger.LogInformation("AXObserverCreate succeeded");
                         IntPtr focusNotif = CreateCFString("AXFocusedUIElementChanged");
                         IntPtr valueNotif = CreateCFString("AXValueChanged");
                         AXObserverAddNotification(_observer, _appElement, focusNotif, IntPtr.Zero);
@@ -1617,7 +1617,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
                     }
                     else
                     {
-                        Console.WriteLine($"[DEBUG OS AUTOMATION] AXObserverCreate failed with error: {err}");
+                        _logger.LogWarning("AXObserverCreate failed with error: {Error}", err);
                     }
                 }
             }
@@ -1632,11 +1632,11 @@ public sealed partial class MacOsAutomation : IOsAutomation
             // Add Event Tap
             ulong mask = (1UL << 1); // LeftMouseDown
             _tapPort = CGEventTapCreate(1, 0, 1, mask, _tapCallback, IntPtr.Zero); // tap = 1 (kCGSessionEventTap), place = 0 (kCGHeadInsertEventTap)
-            Console.WriteLine($"[DEBUG OS AUTOMATION] CGEventTapCreate returned: {_tapPort}");
+            _logger.LogInformation("CGEventTapCreate returned: {TapPort}", _tapPort);
 
             if (_tapPort == IntPtr.Zero && _observer == IntPtr.Zero)
             {
-                Console.WriteLine("[DEBUG OS AUTOMATION] Event tap and AXObserver are both null. RunLoop thread exiting early.");
+                _logger.LogWarning("Event tap and AXObserver are both null. RunLoop thread exiting early.");
                 if (modeStr != IntPtr.Zero) CFRelease(modeStr);
                 return;
             }
@@ -1649,14 +1649,14 @@ public sealed partial class MacOsAutomation : IOsAutomation
                     CFRunLoopAddSource(_runLoop, _runLoopSource, modeStr);
                 }
                 CGEventTapEnable(_tapPort, true);
-                Console.WriteLine("[DEBUG OS AUTOMATION] Event tap enabled and run loop source added");
+                _logger.LogInformation("Event tap enabled and run loop source added");
             }
 
             // Add AXObserver if active
             if (_observerRunLoopSource != IntPtr.Zero && modeStr != IntPtr.Zero)
             {
                 CFRunLoopAddSource(_runLoop, _observerRunLoopSource, modeStr);
-                Console.WriteLine("[DEBUG OS AUTOMATION] AXObserver run loop source added");
+                _logger.LogInformation("AXObserver run loop source added");
             }
 
             if (modeStr != IntPtr.Zero)
@@ -1664,9 +1664,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
                 CFRelease(modeStr);
             }
 
-            Console.WriteLine("[DEBUG OS AUTOMATION] Starting CFRunLoopRun...");
+            _logger.LogInformation("Starting CFRunLoopRun...");
             CFRunLoopRun();
-            Console.WriteLine("[DEBUG OS AUTOMATION] CFRunLoopRun stopped");
+            _logger.LogInformation("CFRunLoopRun stopped");
         });
         _tapThread.IsBackground = true;
         _tapThread.Start();
