@@ -560,6 +560,13 @@ public sealed class OsAutomationCdpSession : IDisposable
             case "close":
                 try
                 {
+                    if (_windowId == "macos-window-fallback" ||
+                        _windowId == "windows-window-fallback" ||
+                        _windowId == "linux-window-fallback")
+                    {
+                        return new JsonObject();
+                    }
+
                     var windows = _automation.GetWindows();
                     var targetWin = windows.FirstOrDefault(w => w.Id == _windowId);
                     if (targetWin != null)
@@ -1853,8 +1860,22 @@ public sealed class OsAutomationCdpSession : IDisposable
         }
     }
 
+    private void PopulateOrUpdateRootNode()
+    {
+        try
+        {
+            var freshNode = _automation.GetElementTree(_windowId);
+            if (freshNode != null)
+            {
+                _rootNode = freshNode;
+            }
+        }
+        catch {}
+    }
+
     private async Task<JsonArray> GetPerformanceMetricsAsync()
     {
+        PopulateOrUpdateRootNode();
         double timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
         int nodesCount = CountNodes(_rootNode);
 
@@ -2017,6 +2038,7 @@ public sealed class OsAutomationCdpSession : IDisposable
 
             case "getDOMCounters":
                 {
+                    PopulateOrUpdateRootNode();
                     int docs = 1;
                     int nodes = CountNodes(_rootNode);
                     return new JsonObject
@@ -2029,6 +2051,7 @@ public sealed class OsAutomationCdpSession : IDisposable
 
             case "getLiveControls":
                 {
+                    PopulateOrUpdateRootNode();
                     var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                     if (_rootNode != null)
                     {
