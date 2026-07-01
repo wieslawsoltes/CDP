@@ -196,7 +196,7 @@ public class PerformanceViewModel : ViewModelBase
         foreach (var m in metrics)
         {
             string name = m?["name"]?.GetValue<string>() ?? "";
-            double val = m?["value"]?.GetValue<double>() ?? 0;
+            double val = GetDouble(m?["value"]);
             if (name == "Nodes")
             {
                 PerfNodesText = val.ToString("0");
@@ -374,5 +374,18 @@ public class PerformanceViewModel : ViewModelBase
             CpuHistory = null;
             FpsHistory = null;
         });
+    }
+
+    private static double GetDouble(JsonNode? node)
+    {
+        if (node == null) return 0.0;
+        if (node is JsonValue jsonVal)
+        {
+            if (jsonVal.TryGetValue<double>(out double d)) return d;
+            if (jsonVal.TryGetValue<int>(out int i)) return i;
+            if (jsonVal.TryGetValue<long>(out long l)) return l;
+            if (jsonVal.TryGetValue<float>(out float f)) return f;
+        }
+        return 0.0;
     }
 }

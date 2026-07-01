@@ -51,7 +51,7 @@ public class PerformanceTelemetryProvider : ITelemetryProvider
                     foreach (var m in metrics)
                     {
                         string name = m?["name"]?.GetValue<string>() ?? "";
-                        double val = m?["value"]?.GetValue<double>() ?? 0;
+                        double val = GetDouble(m?["value"]);
                         if (name == "CPUUsage") cpu = val;
                         else if (name == "JSHeapUsedSize") memory = val / 1024.0 / 1024.0; // MB
                         else if (name == "FPS") fps = val;
@@ -90,7 +90,7 @@ public class PerformanceTelemetryProvider : ITelemetryProvider
                     foreach (var m in metrics)
                     {
                         string name = m?["name"]?.GetValue<string>() ?? "";
-                        double val = m?["value"]?.GetValue<double>() ?? 0;
+                        double val = GetDouble(m?["value"]);
                         if (name == "Nodes") _stepDomNodes = (int)val;
                         else if (name == "JSHeapUsedSize") _stepMemoryJsHeapUsed = val / 1024.0 / 1024.0;
                         else if (name == "JSHeapTotalSize") _stepMemoryJsHeapTotal = val / 1024.0 / 1024.0;
@@ -175,12 +175,12 @@ public class PerformanceTelemetryProvider : ITelemetryProvider
     {
         if (stepData == null) return "";
 
-        double cpu = stepData["CpuUsage"]?.GetValue<double>() ?? 0;
-        double jsUsed = stepData["MemoryJsHeapUsed"]?.GetValue<double>() ?? 0;
-        double jsTotal = stepData["MemoryJsHeapTotal"]?.GetValue<double>() ?? 0;
-        double fps = stepData["Fps"]?.GetValue<double>() ?? 0;
-        int domNodes = stepData["DomNodes"]?.GetValue<int>() ?? 0;
-        int domDocs = stepData["DomDocuments"]?.GetValue<int>() ?? 0;
+        double cpu = GetDouble(stepData["CpuUsage"]);
+        double jsUsed = GetDouble(stepData["MemoryJsHeapUsed"]);
+        double jsTotal = GetDouble(stepData["MemoryJsHeapTotal"]);
+        double fps = GetDouble(stepData["Fps"]);
+        int domNodes = (int)GetDouble(stepData["DomNodes"]);
+        int domDocs = (int)GetDouble(stepData["DomDocuments"]);
 
         var html = "";
 
@@ -248,12 +248,12 @@ public class PerformanceTelemetryProvider : ITelemetryProvider
         // Draw metrics table on the left
         if (options.IncludeMetricsTable && stepData != null)
         {
-            double cpu = stepData["CpuUsage"]?.GetValue<double>() ?? 0;
-            double jsUsed = stepData["MemoryJsHeapUsed"]?.GetValue<double>() ?? 0;
-            double jsTotal = stepData["MemoryJsHeapTotal"]?.GetValue<double>() ?? 0;
-            double fps = stepData["Fps"]?.GetValue<double>() ?? 0;
-            int domNodes = stepData["DomNodes"]?.GetValue<int>() ?? 0;
-            int domDocs = stepData["DomDocuments"]?.GetValue<int>() ?? 0;
+            double cpu = GetDouble(stepData["CpuUsage"]);
+            double jsUsed = GetDouble(stepData["MemoryJsHeapUsed"]);
+            double jsTotal = GetDouble(stepData["MemoryJsHeapTotal"]);
+            double fps = GetDouble(stepData["Fps"]);
+            int domNodes = (int)GetDouble(stepData["DomNodes"]);
+            int domDocs = (int)GetDouble(stepData["DomDocuments"]);
 
             float tx = cx;
             float ty = rowTop + 10;
@@ -278,8 +278,8 @@ public class PerformanceTelemetryProvider : ITelemetryProvider
             // Wait, does stepData have relativeStartMs and durationMs? We can save them in CaptureStepData!
             // But let's check:
             // StepReportItem has DurationMs and RelativeStartMs. Let's make sure our CaptureStepData saves them!
-            double relativeStartMs = stepData["RelativeStartMs"]?.GetValue<double>() ?? 0;
-            double durationMs = stepData["DurationMs"]?.GetValue<double>() ?? 0;
+            double relativeStartMs = GetDouble(stepData["RelativeStartMs"]);
+            double durationMs = GetDouble(stepData["DurationMs"]);
 
             float chartX = bounds.Right - 250;
             float chartY = rowTop + 2;
@@ -301,10 +301,10 @@ public class PerformanceTelemetryProvider : ITelemetryProvider
                 if (node == null) continue;
                 list.Add(new RunMetricSample
                 {
-                    RelativeTimeMs = node["RelativeTimeMs"]?.GetValue<double>() ?? 0,
-                    CpuUsage = node["CpuUsage"]?.GetValue<double>() ?? 0,
-                    MemoryJsHeapUsed = node["MemoryJsHeapUsed"]?.GetValue<double>() ?? 0,
-                    Fps = node["Fps"]?.GetValue<double>() ?? 0
+                    RelativeTimeMs = GetDouble(node["RelativeTimeMs"]),
+                    CpuUsage = GetDouble(node["CpuUsage"]),
+                    MemoryJsHeapUsed = GetDouble(node["MemoryJsHeapUsed"]),
+                    Fps = GetDouble(node["Fps"])
                 });
             }
         }
@@ -386,5 +386,18 @@ public class PerformanceTelemetryProvider : ITelemetryProvider
         canvas.DrawText("CPU", rect.Left + 5, rect.Top + 8, paintLegend);
         paintLegend.Color = new SKColor(16, 185, 129);
         canvas.DrawText("Memory", rect.Left + 30, rect.Top + 8, paintLegend);
+    }
+
+    private static double GetDouble(JsonNode? node)
+    {
+        if (node == null) return 0.0;
+        if (node is JsonValue jsonVal)
+        {
+            if (jsonVal.TryGetValue<double>(out double d)) return d;
+            if (jsonVal.TryGetValue<int>(out int i)) return i;
+            if (jsonVal.TryGetValue<long>(out long l)) return l;
+            if (jsonVal.TryGetValue<float>(out float f)) return f;
+        }
+        return 0.0;
     }
 }
