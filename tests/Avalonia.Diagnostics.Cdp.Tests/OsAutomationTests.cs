@@ -485,6 +485,46 @@ public class OsAutomationTests
         }
     }
 
+    [Fact]
+    public async Task TestOsAutomationCdpSessionEvaluateAssertionExpressions()
+    {
+        var session = new OsAutomationCdpSession(GetTargetWindowId());
+        // We must call getDocument first to initialize the node maps
+        await session.HandleCommandAsync("DOM.getDocument", new JsonObject());
+
+        // Test isEffectivelyVisible check
+        var visibleResult = await session.HandleCommandAsync("Runtime.evaluate", new JsonObject
+        {
+            ["expression"] = "var v = document.querySelector(\"#btnClickMe\"); v != null && v.isEffectivelyVisible"
+        });
+        Assert.NotNull(visibleResult);
+        var resultNode = visibleResult["result"] as JsonObject;
+        Assert.NotNull(resultNode);
+        Assert.Equal("boolean", resultNode["type"]?.GetValue<string>());
+        Assert.True(resultNode["value"]?.GetValue<bool>());
+
+        // Test getPropertiesJson retrieval
+        var propsResult = await session.HandleCommandAsync("Runtime.evaluate", new JsonObject
+        {
+            ["expression"] = "document.getPropertiesJson(\"#btnClickMe\")"
+        });
+        Assert.NotNull(propsResult);
+        var propsResNode = propsResult["result"] as JsonObject;
+        Assert.NotNull(propsResNode);
+        Assert.Equal("string", propsResNode["type"]?.GetValue<string>());
+        var jsonStr = propsResNode["value"]?.GetValue<string>();
+        Assert.NotNull(jsonStr);
+
+        var parsed = JsonNode.Parse(jsonStr) as JsonObject;
+        Assert.NotNull(parsed);
+        Assert.Equal("Button", parsed["$Type"]?.GetValue<string>());
+        Assert.Equal("AXButton", parsed["$FullName"]?.GetValue<string>());
+        Assert.Equal("btnClickMe", parsed["Id"]?.GetValue<string>());
+        Assert.Equal("Click Me", parsed["Text"]?.GetValue<string>());
+        Assert.Equal("True", parsed["IsEnabled"]?.GetValue<string>());
+        Assert.Equal("True", parsed["IsVisible"]?.GetValue<string>());
+    }
+
     private void PrintNode(OSNode node, int indent, System.Text.StringBuilder sb)
     {
         var ind = new string(' ', indent * 2);

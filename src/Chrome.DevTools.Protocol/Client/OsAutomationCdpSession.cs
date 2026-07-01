@@ -1283,6 +1283,58 @@ public sealed class OsAutomationCdpSession : IDisposable
             throw new InvalidOperationException("No DOM document available to evaluate expression.");
         }
 
+        // Handle: var v = document.querySelector("..."); v != null && v.isEffectivelyVisible
+        if (expression.Contains("isEffectivelyVisible"))
+        {
+            var selector = ExtractSelectorFromExpression(expression);
+            var node = QuerySelectorInternal(_rootNode, selector);
+            return node != null;
+        }
+
+        // Handle: document.getPropertiesJson("...")
+        if (expression.Contains("document.getPropertiesJson"))
+        {
+            var selector = ExtractSelectorFromExpression(expression);
+            var node = QuerySelectorInternal(_rootNode, selector);
+            if (node != null)
+            {
+                var typeName = node.Role;
+                if (typeName.StartsWith("AX")) typeName = typeName.Substring(2);
+                if (!string.IsNullOrEmpty(typeName))
+                {
+                    typeName = char.ToUpper(typeName[0]) + typeName.Substring(1);
+                }
+
+                var isChecked = "False";
+                if (node.Role == "AXCheckBox" || node.Role == "AXRadioButton" || node.Role == "check box" || node.Role == "radio button")
+                {
+                    if (node.Text == "1" || node.Text.Equals("true", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isChecked = "True";
+                    }
+                }
+
+                var props = new JsonObject();
+                props["$Type"] = typeName;
+                props["$FullName"] = node.Role;
+                props["Id"] = node.Id;
+                props["Name"] = node.Name;
+                props["Text"] = node.Text;
+                props["Content"] = node.Text;
+                props["Header"] = node.Text;
+                props["Value"] = node.Text;
+                props["IsEnabled"] = "True";
+                props["IsVisible"] = "True";
+                props["IsFocused"] = (node.Id == _lastFocusedId ? "True" : "False");
+                props["IsSelected"] = "False";
+                props["IsExpanded"] = "False";
+                props["IsChecked"] = isChecked;
+
+                return props.ToJsonString();
+            }
+            return "{}";
+        }
+
         // Handle: document.querySelector("...") != null
         if (expression.Contains("document.querySelector") && (expression.Contains("!= null") || expression.Contains("!== null")))
         {
@@ -1312,18 +1364,14 @@ public sealed class OsAutomationCdpSession : IDisposable
 
     private string ExtractSelectorFromExpression(string expression)
     {
-        int startIdx = expression.IndexOf("document.querySelector(");
-        if (startIdx >= 0)
+        int openQuote = expression.IndexOf('\"');
+        if (openQuote < 0) openQuote = expression.IndexOf('\'');
+        if (openQuote >= 0)
         {
-            int openQuote = expression.IndexOf('\"', startIdx);
-            if (openQuote < 0) openQuote = expression.IndexOf('\'', startIdx);
-            if (openQuote >= 0)
+            int closeQuote = expression.IndexOf(expression[openQuote], openQuote + 1);
+            if (closeQuote >= 0)
             {
-                int closeQuote = expression.IndexOf(expression[openQuote], openQuote + 1);
-                if (closeQuote >= 0)
-                {
-                    return expression.Substring(openQuote + 1, closeQuote - openQuote - 1);
-                }
+                return expression.Substring(openQuote + 1, closeQuote - openQuote - 1);
             }
         }
         return "";
