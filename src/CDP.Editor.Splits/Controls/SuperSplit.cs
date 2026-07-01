@@ -7,8 +7,10 @@ using Avalonia;
 using Avalonia.Animation.Easings;
 using Avalonia.Collections;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Rendering.Composition;
@@ -40,6 +42,7 @@ public class FlatSplitter : Control
     public FlatSplitter(SplitContainerNode node)
     {
         ContainerNode = node;
+        ZIndex = 1;
         Cursor = new Cursor(node.Orientation == Orientation.Horizontal
             ? StandardCursorType.SizeWestEast
             : StandardCursorType.SizeNorthSouth);
@@ -146,6 +149,7 @@ public class FlatSplitPanel : Panel
     public FlatSplitPanel(SuperSplit parentSplit)
     {
         _parentSplit = parentSplit;
+        ClipToBounds = true;
     }
 
     public Dictionary<SplitNode, Rect> NodeBounds => _nodeBounds;
@@ -204,6 +208,32 @@ public class FlatSplitPanel : Panel
 
         _parentSplit.ComputePixelBounds(_parentSplit.Root, new Rect(availableSize), 8.0, boxes, splitters, containers);
 
+        if (_parentSplit.ZoomedNode != null)
+        {
+            var zoomedBox = _parentSplit.ZoomedNode;
+            var normalBoxes = new Dictionary<BoxNode, Rect>(boxes);
+            var normalSplitters = new Dictionary<SplitContainerNode, Rect>(splitters);
+
+            foreach (var key in normalBoxes.Keys)
+            {
+                if (key == zoomedBox)
+                {
+                    boxes[key] = new Rect(0, 0, availableSize.Width, availableSize.Height);
+                }
+                else
+                {
+                    var edge = GetNearestEdge(normalBoxes[key], availableSize);
+                    boxes[key] = GetOutOfBoundsRect(normalBoxes[key], edge, availableSize);
+                }
+            }
+
+            foreach (var key in normalSplitters.Keys)
+            {
+                var edge = GetNearestEdge(normalSplitters[key], availableSize);
+                splitters[key] = GetOutOfBoundsRect(normalSplitters[key], edge, availableSize);
+            }
+        }
+
         foreach (var kv in boxes) _nodeBounds[kv.Key] = kv.Value;
         foreach (var kv in splitters) _nodeBounds[kv.Key] = kv.Value;
         foreach (var kv in containers) _containerBounds[kv.Key] = kv.Value;
@@ -224,6 +254,34 @@ public class FlatSplitPanel : Panel
                     splitterControl.Measure(rect.Size);
                 }
             }
+            else if (child is FlatCornerGrabHandle cornerControl)
+            {
+                if (_parentSplit.ZoomedNode != null)
+                {
+                    cornerControl.Measure(new Size(0, 0));
+                    continue;
+                }
+
+                Rect rectP = default;
+                Rect rectC = default;
+                bool hasP = splitters.TryGetValue(cornerControl.ParentContainer, out rectP);
+                bool hasC = splitters.TryGetValue(cornerControl.ChildContainer, out rectC);
+
+                if (hasP && hasC)
+                {
+                    double centerX = cornerControl.ParentContainer.Orientation == Orientation.Horizontal
+                        ? rectP.X + rectP.Width / 2
+                        : rectC.X + rectC.Width / 2;
+
+                    double centerY = cornerControl.ParentContainer.Orientation == Orientation.Vertical
+                        ? rectP.Y + rectP.Height / 2
+                        : rectC.Y + rectC.Height / 2;
+
+                    var handleSize = 16.0;
+                    var rect = new Rect(centerX - handleSize / 2, centerY - handleSize / 2, handleSize, handleSize);
+                    cornerControl.Measure(rect.Size);
+                }
+            }
         }
 
         return availableSize;
@@ -239,6 +297,32 @@ public class FlatSplitPanel : Panel
 
         _parentSplit.ComputePixelBounds(_parentSplit.Root, new Rect(finalSize), 8.0, boxes, splitters, containers);
 
+        if (_parentSplit.ZoomedNode != null)
+        {
+            var zoomedBox = _parentSplit.ZoomedNode;
+            var normalBoxes = new Dictionary<BoxNode, Rect>(boxes);
+            var normalSplitters = new Dictionary<SplitContainerNode, Rect>(splitters);
+
+            foreach (var key in normalBoxes.Keys)
+            {
+                if (key == zoomedBox)
+                {
+                    boxes[key] = new Rect(0, 0, finalSize.Width, finalSize.Height);
+                }
+                else
+                {
+                    var edge = GetNearestEdge(normalBoxes[key], finalSize);
+                    boxes[key] = GetOutOfBoundsRect(normalBoxes[key], edge, finalSize);
+                }
+            }
+
+            foreach (var key in normalSplitters.Keys)
+            {
+                var edge = GetNearestEdge(normalSplitters[key], finalSize);
+                splitters[key] = GetOutOfBoundsRect(normalSplitters[key], edge, finalSize);
+            }
+        }
+
         foreach (var kv in boxes) _nodeBounds[kv.Key] = kv.Value;
         foreach (var kv in splitters) _nodeBounds[kv.Key] = kv.Value;
         foreach (var kv in containers) _containerBounds[kv.Key] = kv.Value;
@@ -249,6 +333,19 @@ public class FlatSplitPanel : Panel
             {
                 if (boxes.TryGetValue(boxNode, out var rect))
                 {
+                    if (_parentSplit.IsZoomTransitionPending)
+                    {
+                        bool boundsChanged = true;
+                        if (_previousBoxBounds.TryGetValue(boxNode, out var prev))
+                        {
+                            boundsChanged = (prev.X != rect.X || prev.Y != rect.Y ||
+                                             prev.Width != rect.Width || prev.Height != rect.Height);
+                        }
+                        if (boundsChanged)
+                        {
+                            _parentSplit.ConfigureTransitionAnimations(boxControl, true);
+                        }
+                    }
                     boxControl.Arrange(rect);
                 }
             }
@@ -256,7 +353,48 @@ public class FlatSplitPanel : Panel
             {
                 if (splitters.TryGetValue(splitterControl.ContainerNode, out var rect))
                 {
+                    if (_parentSplit.IsZoomTransitionPending)
+                    {
+                        bool boundsChanged = true;
+                        if (_previousSplitterBounds.TryGetValue(splitterControl.ContainerNode, out var prev))
+                        {
+                            boundsChanged = (prev.X != rect.X || prev.Y != rect.Y ||
+                                             prev.Width != rect.Width || prev.Height != rect.Height);
+                        }
+                        if (boundsChanged)
+                        {
+                            _parentSplit.ConfigureTransitionAnimations(splitterControl, true);
+                        }
+                    }
                     splitterControl.Arrange(rect);
+                }
+            }
+            else if (child is FlatCornerGrabHandle cornerControl)
+            {
+                if (_parentSplit.ZoomedNode != null)
+                {
+                    cornerControl.Arrange(new Rect(0, 0, 0, 0));
+                    continue;
+                }
+
+                Rect rectP = default;
+                Rect rectC = default;
+                bool hasP = splitters.TryGetValue(cornerControl.ParentContainer, out rectP);
+                bool hasC = splitters.TryGetValue(cornerControl.ChildContainer, out rectC);
+
+                if (hasP && hasC)
+                {
+                    double centerX = cornerControl.ParentContainer.Orientation == Orientation.Horizontal
+                        ? rectP.X + rectP.Width / 2
+                        : rectC.X + rectC.Width / 2;
+
+                    double centerY = cornerControl.ParentContainer.Orientation == Orientation.Vertical
+                        ? rectP.Y + rectP.Height / 2
+                        : rectC.Y + rectC.Height / 2;
+
+                    var handleSize = 16.0;
+                    var rect = new Rect(centerX - handleSize / 2, centerY - handleSize / 2, handleSize, handleSize);
+                    cornerControl.Arrange(rect);
                 }
             }
         }
@@ -266,7 +404,61 @@ public class FlatSplitPanel : Panel
         foreach (var kv in boxes) _previousBoxBounds[kv.Key] = kv.Value;
         foreach (var kv in splitters) _previousSplitterBounds[kv.Key] = kv.Value;
 
+        if (_parentSplit.IsZoomTransitionPending)
+        {
+            _parentSplit.IsZoomTransitionPending = false;
+        }
+
+        _parentSplit.UpdateFocusOverlay();
+
         return finalSize;
+    }
+
+    private enum WindowEdge { Left, Right, Top, Bottom }
+
+    private WindowEdge GetNearestEdge(Rect normalRect, Size panelSize)
+    {
+        bool touchesLeft = normalRect.Left < 1.0;
+        bool touchesRight = panelSize.Width - normalRect.Right < 1.0;
+        bool touchesTop = normalRect.Top < 1.0;
+        bool touchesBottom = panelSize.Height - normalRect.Bottom < 1.0;
+
+        if (touchesLeft || touchesRight || touchesTop || touchesBottom)
+        {
+            if (touchesLeft) return WindowEdge.Left;
+            if (touchesRight) return WindowEdge.Right;
+            if (touchesTop) return WindowEdge.Top;
+            return WindowEdge.Bottom;
+        }
+
+        double distLeft = normalRect.Left;
+        double distRight = panelSize.Width - normalRect.Right;
+        double distTop = normalRect.Top;
+        double distBottom = panelSize.Height - normalRect.Bottom;
+
+        double minDist = Math.Min(Math.Min(distLeft, distRight), Math.Min(distTop, distBottom));
+
+        if (minDist == distLeft) return WindowEdge.Left;
+        if (minDist == distRight) return WindowEdge.Right;
+        if (minDist == distTop) return WindowEdge.Top;
+        return WindowEdge.Bottom;
+    }
+
+    private Rect GetOutOfBoundsRect(Rect normalRect, WindowEdge edge, Size panelSize)
+    {
+        double padding = 100.0;
+        switch (edge)
+        {
+            case WindowEdge.Left:
+                return new Rect(-normalRect.Width - padding, normalRect.Y, normalRect.Width, normalRect.Height);
+            case WindowEdge.Right:
+                return new Rect(panelSize.Width + padding, normalRect.Y, normalRect.Width, normalRect.Height);
+            case WindowEdge.Top:
+                return new Rect(normalRect.X, -normalRect.Height - padding, normalRect.Width, normalRect.Height);
+            case WindowEdge.Bottom:
+            default:
+                return new Rect(normalRect.X, panelSize.Height + padding, normalRect.Width, normalRect.Height);
+        }
     }
 }
 
@@ -288,6 +480,9 @@ public class SuperSplit : ContentControl
     public static readonly StyledProperty<BoxNode?> SelectedNodeProperty =
         AvaloniaProperty.Register<SuperSplit, BoxNode?>(nameof(SelectedNode), null, defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
+    public static readonly StyledProperty<IDataTemplate?> FocusTemplateProperty =
+        AvaloniaProperty.Register<SuperSplit, IDataTemplate?>(nameof(FocusTemplate), null);
+
     public SplitNode? Root
     {
         get => GetValue(RootProperty);
@@ -300,20 +495,34 @@ public class SuperSplit : ContentControl
         set => SetValue(SelectedNodeProperty, value);
     }
 
+    public IDataTemplate? FocusTemplate
+    {
+        get => GetValue(FocusTemplateProperty);
+        set => SetValue(FocusTemplateProperty, value);
+    }
+
     public event EventHandler<BoxMenuEventArgs>? BoxMenuClicked;
 
     public Func<string, SuperSplitBox?, Control>? ViewResolver { get; set; }
 
     private bool _isRebuilding;
-    private bool _isDragging;
     private bool _isDragPending;
     private BoxNode? _pendingDragNode;
-    private BoxNode? _draggedNode;
-    private BoxTabNode? _draggedTab;
-    private BoxNode? _draggedTabOriginalBox;
+    private PointerPressedEventArgs? _pointerPressedEventArgs;
     private Point _dragStartPoint;
     private BoxNode? _currentHoverNode;
     private RelativeDropLocation _currentDropLocation = RelativeDropLocation.None;
+    private Avalonia.Rendering.Composition.Animations.ImplicitAnimationCollection? _focusOverlayImplicitAnimations;
+    private BoxNode? _lastFocusOverlayNode;
+    private Avalonia.Threading.DispatcherTimer? _hideHighlightTimer;
+    private BoxNode? _zoomedNode;
+    public BoxNode? ZoomedNode => _zoomedNode;
+    private bool _isZoomTransitionPending;
+    public bool IsZoomTransitionPending
+    {
+        get => _isZoomTransitionPending;
+        set => _isZoomTransitionPending = value;
+    }
 
     private FlatSplitPanel? _flatPanel;
     private Grid? _wrapperGrid;
@@ -332,10 +541,18 @@ public class SuperSplit : ContentControl
         IsVisible = false,
         IsHitTestVisible = false,
         Background = Brush.Parse("#2d2d2d"),
+        BorderBrush = Brush.Parse("#3c4043"),
+        BorderThickness = new Thickness(1.0),
+        CornerRadius = new CornerRadius(10)
+    };
+    private readonly Border _focusOverlay = new()
+    {
+        IsVisible = false,
+        IsHitTestVisible = false,
+        Background = Brushes.Transparent,
         BorderBrush = Brush.Parse("#1a73e8"),
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(4),
-        Padding = new Thickness(10, 6)
+        BorderThickness = new Thickness(2.0),
+        CornerRadius = new CornerRadius(10)
     };
 
     static SuperSplit()
@@ -349,10 +566,40 @@ public class SuperSplit : ContentControl
         ClipToBounds = true;
         _overlayCanvas.Children.Add(_dropHighlightOverlay);
         _overlayCanvas.Children.Add(_dragPreview);
+        _overlayCanvas.Children.Add(_focusOverlay);
+
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
+        AddHandler(DragDrop.DropEvent, OnDrop);
 
         _dropHighlightOverlay.AttachedToVisualTree += (s, e) =>
         {
             var visual = ElementComposition.GetElementVisual(_dropHighlightOverlay);
+            if (visual != null)
+            {
+                var compositor = visual.Compositor;
+                var implicitAnimations = compositor.CreateImplicitAnimationCollection();
+                
+                var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
+                offsetAnim.Duration = TimeSpan.FromMilliseconds(120);
+                offsetAnim.Target = "Offset";
+                offsetAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue", new SplineEasing(0.25, 0.1, 0.25, 1.0));
+                implicitAnimations["Offset"] = offsetAnim;
+
+                var sizeAnim = compositor.CreateVector2KeyFrameAnimation();
+                sizeAnim.Duration = TimeSpan.FromMilliseconds(120);
+                sizeAnim.Target = "Size";
+                sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue", new SplineEasing(0.25, 0.1, 0.25, 1.0));
+                implicitAnimations["Size"] = sizeAnim;
+
+                visual.ImplicitAnimations = implicitAnimations;
+            }
+        };
+
+        _focusOverlay.AttachedToVisualTree += (s, e) =>
+        {
+            var visual = ElementComposition.GetElementVisual(_focusOverlay);
             if (visual != null)
             {
                 var compositor = visual.Compositor;
@@ -370,6 +617,7 @@ public class SuperSplit : ContentControl
                 sizeAnim.InsertExpressionKeyFrame(1.0f, "this.FinalValue", new SplineEasing(0.25, 0.1, 0.25, 1.0));
                 implicitAnimations["Size"] = sizeAnim;
 
+                _focusOverlayImplicitAnimations = implicitAnimations;
                 visual.ImplicitAnimations = implicitAnimations;
             }
         };
@@ -390,6 +638,7 @@ public class SuperSplit : ContentControl
     {
         var selected = e.NewValue as BoxNode;
         UpdateSelectionInTree(Root, selected);
+        UpdateFocusOverlay();
     }
 
     private void UpdateSelectionInTree(SplitNode? node, BoxNode? selected)
@@ -555,14 +804,166 @@ public class SuperSplit : ContentControl
         }
     }
 
+    public bool IsInteractiveResizing()
+    {
+        if (_flatPanel == null) return false;
+        if (_flatPanel.ActiveSplitter != null) return true;
+
+        foreach (var child in _flatPanel.Children)
+        {
+            if (child is FlatCornerGrabHandle handle && handle.IsPressed)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void UpdateFocusOverlay()
+    {
+        if (SelectedNode == null || _flatPanel == null || _zoomedNode != null)
+        {
+            _focusOverlay.IsVisible = false;
+            return;
+        }
+
+        if (_flatPanel.NodeBounds.TryGetValue(SelectedNode, out var rect))
+        {
+            if (FocusTemplate != null)
+            {
+                if (_lastFocusOverlayNode != SelectedNode || _focusOverlay.Child == null)
+                {
+                    var builtControl = FocusTemplate.Build(SelectedNode) as Control;
+                    if (builtControl != null)
+                    {
+                        builtControl.DataContext = SelectedNode;
+                    }
+                    _focusOverlay.Child = builtControl;
+                    _focusOverlay.BorderThickness = new Thickness(0);
+                    _lastFocusOverlayNode = SelectedNode;
+                }
+            }
+            else
+            {
+                _focusOverlay.Child = null;
+                _focusOverlay.BorderThickness = new Thickness(2.0);
+                _lastFocusOverlayNode = null;
+            }
+
+            var visual = ElementComposition.GetElementVisual(_focusOverlay);
+            if (visual != null)
+            {
+                if (IsInteractiveResizing())
+                {
+                    visual.ImplicitAnimations = null;
+                }
+                else
+                {
+                    visual.ImplicitAnimations = _focusOverlayImplicitAnimations;
+                }
+            }
+
+            if (!_focusOverlay.IsVisible)
+            {
+                if (visual != null)
+                {
+                    var anims = visual.ImplicitAnimations;
+                    visual.ImplicitAnimations = null;
+                    Canvas.SetLeft(_focusOverlay, rect.X);
+                    Canvas.SetTop(_focusOverlay, rect.Y);
+                    _focusOverlay.Width = rect.Width;
+                    _focusOverlay.Height = rect.Height;
+                    _focusOverlay.IsVisible = true;
+                    _overlayCanvas.UpdateLayout();
+                    visual.ImplicitAnimations = anims;
+                }
+                else
+                {
+                    Canvas.SetLeft(_focusOverlay, rect.X);
+                    Canvas.SetTop(_focusOverlay, rect.Y);
+                    _focusOverlay.Width = rect.Width;
+                    _focusOverlay.Height = rect.Height;
+                    _focusOverlay.IsVisible = true;
+                }
+            }
+            else
+            {
+                Canvas.SetLeft(_focusOverlay, rect.X);
+                Canvas.SetTop(_focusOverlay, rect.Y);
+                _focusOverlay.Width = rect.Width;
+                _focusOverlay.Height = rect.Height;
+            }
+        }
+        else
+        {
+            _focusOverlay.IsVisible = false;
+        }
+    }
+
+    private void CollectCornerHandles(SplitNode? node, List<FlatCornerGrabHandle> list)
+    {
+        if (node == null || node is BoxNode) return;
+
+        if (node is SplitContainerNode container)
+        {
+            if (container.Orientation == Orientation.Horizontal)
+            {
+                // Check child 1
+                if (container.Child1 is SplitContainerNode child1 && child1.Orientation == Orientation.Vertical)
+                {
+                    list.Add(new FlatCornerGrabHandle(container, child1));
+                }
+                // Check child 2
+                if (container.Child2 is SplitContainerNode child2 && child2.Orientation == Orientation.Vertical)
+                {
+                    list.Add(new FlatCornerGrabHandle(container, child2));
+                }
+
+                CollectCornerHandles(container.Child1, list);
+                CollectCornerHandles(container.Child2, list);
+            }
+            else
+            {
+                // Check child 1
+                if (container.Child1 is SplitContainerNode child1 && child1.Orientation == Orientation.Horizontal)
+                {
+                    list.Add(new FlatCornerGrabHandle(container, child1));
+                }
+                // Check child 2
+                if (container.Child2 is SplitContainerNode child2 && child2.Orientation == Orientation.Horizontal)
+                {
+                    list.Add(new FlatCornerGrabHandle(container, child2));
+                }
+
+                CollectCornerHandles(container.Child1, list);
+                CollectCornerHandles(container.Child2, list);
+            }
+        }
+    }
+
     private void SyncChildren(FlatSplitPanel panel)
     {
         var boxesInTree = new List<BoxNode>();
         var containersInTree = new List<SplitContainerNode>();
         CollectNodes(Root, boxesInTree, containersInTree);
 
-        var existingBoxes = panel.Children.OfType<SuperSplitBox>().Where(b => b.DataContext is BoxNode).ToDictionary(b => (BoxNode)b.DataContext!);
-        var existingSplitters = panel.Children.OfType<FlatSplitter>().ToDictionary(s => s.ContainerNode);
+        var existingBoxes = new Dictionary<BoxNode, SuperSplitBox>();
+        foreach (var b in panel.Children.OfType<SuperSplitBox>())
+        {
+            if (b.DataContext is BoxNode boxNode)
+            {
+                existingBoxes[boxNode] = b;
+            }
+        }
+
+        var existingSplitters = new Dictionary<SplitContainerNode, FlatSplitter>();
+        foreach (var s in panel.Children.OfType<FlatSplitter>())
+        {
+            if (s.ContainerNode != null)
+            {
+                existingSplitters[s.ContainerNode] = s;
+            }
+        }
 
         // Compute new layout bounds to compare against previous bounds for selective animation
         var newBoxes = new Dictionary<BoxNode, Rect>();
@@ -644,6 +1045,13 @@ public class SuperSplit : ContentControl
             }
         }
 
+        var cornerHandles = new List<FlatCornerGrabHandle>();
+        CollectCornerHandles(Root, cornerHandles);
+        foreach (var handle in cornerHandles)
+        {
+            newChildren.Add(handle);
+        }
+
         // Clear InnerContent of discarded boxes to release their hosted views cleanly
         foreach (var oldBoxControl in existingBoxes.Values)
         {
@@ -657,7 +1065,35 @@ public class SuperSplit : ContentControl
         panel.Children.AddRange(newChildren);
     }
 
-    private void ConfigureTransitionAnimations(Control control, bool enabled)
+    public void ToggleZoomNode(BoxNode node)
+    {
+        Console.WriteLine($"[SuperSplit] ToggleZoomNode called! current zoomed={(_zoomedNode != null ? _zoomedNode.GetHashCode() : 0)}, requesting node={(node != null ? node.GetHashCode() : 0)}");
+        if (_zoomedNode == node)
+        {
+            _zoomedNode = null;
+        }
+        else
+        {
+            _zoomedNode = node;
+        }
+
+        if (_flatPanel != null)
+        {
+            foreach (var child in _flatPanel.Children)
+            {
+                if (child is SuperSplitBox boxControl && boxControl.DataContext is BoxNode boxNode)
+                {
+                    boxControl.UpdateZoomButton(boxNode == _zoomedNode);
+                }
+            }
+        }
+
+        _isZoomTransitionPending = true;
+        _flatPanel?.InvalidateMeasure();
+        _flatPanel?.InvalidateArrange();
+    }
+
+    public void ConfigureTransitionAnimations(Control control, bool enabled)
     {
         var visual = ElementComposition.GetElementVisual(control);
         if (visual != null)
@@ -681,7 +1117,7 @@ public class SuperSplit : ContentControl
 
                 visual.ImplicitAnimations = implicitAnimations;
 
-                var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+                var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
                 timer.Tick += (s, ev) =>
                 {
                     timer.Stop();
@@ -867,6 +1303,7 @@ public class SuperSplit : ContentControl
             _isDragPending = true;
             _pendingDragNode = node;
             _dragStartPoint = e.GetPosition(this);
+            _pointerPressedEventArgs = e;
             e.Pointer.Capture(this);
             e.Handled = true;
         }
@@ -914,11 +1351,6 @@ public class SuperSplit : ContentControl
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        HandlePointerMoved(e);
-    }
-
-    private void HandlePointerMoved(PointerEventArgs e)
-    {
         var pos = e.GetPosition(this);
 
         if (_isDragPending && _pendingDragNode != null)
@@ -927,91 +1359,197 @@ public class SuperSplit : ContentControl
             var dist = Math.Sqrt(diff.X * diff.X + diff.Y * diff.Y);
             if (dist > 6)
             {
-                _isDragPending = false;
-                _isDragging = true;
-
-                var node = _pendingDragNode;
-                var activeTab = node.ActiveTab;
-                if (activeTab != null && node.Tabs.Count > 1)
-                {
-                    _draggedTab = activeTab;
-                    _draggedTabOriginalBox = node;
-
-                    node.Tabs.Remove(activeTab);
-                    if (node.Tabs.Count > 0)
-                    {
-                        node.ActiveTab = node.Tabs[0];
-                    }
-
-                    var draggedBox = new BoxNode { BackgroundTint = "#292a2d" };
-                    draggedBox.Tabs.Add(activeTab);
-                    draggedBox.ActiveTab = activeTab;
-
-                    _draggedNode = draggedBox;
-                }
-                else
-                {
-                    _draggedTab = activeTab;
-                    _draggedTabOriginalBox = node;
-                    _draggedNode = node;
-                }
-
-                SetupDragPreview(_draggedNode);
-                UpdateDragPreviewPosition(pos);
+                InitiateNativeDrag(e);
             }
+        }
+    }
+
+    private async void InitiateNativeDrag(PointerEventArgs e)
+    {
+        _isDragPending = false;
+        var node = _pendingDragNode;
+        if (node == null) return;
+
+        var activeTab = node.ActiveTab;
+        BoxNode draggedBox;
+        BoxTabNode? draggedTab = null;
+
+        if (activeTab != null && node.Tabs.Count > 1)
+        {
+            draggedTab = activeTab;
+            node.Tabs.Remove(activeTab);
+            if (node.Tabs.Count > 0)
+            {
+                node.ActiveTab = node.Tabs[0];
+            }
+
+            draggedBox = new BoxNode { BackgroundTint = "#292a2d" };
+            draggedBox.Tabs.Add(activeTab);
+            draggedBox.ActiveTab = activeTab;
+        }
+        else
+        {
+            draggedTab = activeTab;
+            draggedBox = node;
+        }
+
+        SuperSplitDragManager.IsDragging = true;
+        SuperSplitDragManager.SourceNode = node;
+        SuperSplitDragManager.SourceTab = draggedTab;
+        SuperSplitDragManager.SourceSplit = this;
+        SuperSplitDragManager.DraggedNode = draggedBox;
+
+        SetupDragPreview(draggedBox);
+        UpdateDragPreviewPosition(e.GetPosition(this));
+
+        var dataObject = new DataTransfer();
+        dataObject.Add(DataTransferItem.CreateText("SuperSplitDraggedNode"));
+
+        bool success = false;
+        try
+        {
+            if (_pointerPressedEventArgs != null)
+            {
+                _pointerPressedEventArgs.Source = this;
+                var result = await DragDrop.DoDragDropAsync(_pointerPressedEventArgs, dataObject, DragDropEffects.Move);
+                success = (result == DragDropEffects.Move);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Native drag initiation failed: {ex.Message}");
+        }
+
+        CleanUpDrag(success);
+    }
+
+    private void CleanUpDrag(bool success)
+    {
+        try
+        {
+            if (_pointerPressedEventArgs != null)
+            {
+                _pointerPressedEventArgs.Pointer?.Capture(null);
+            }
+        }
+        catch {}
+        _pointerPressedEventArgs = null;
+
+        if (SuperSplitDragManager.IsDragging)
+        {
+            var sourceTab = SuperSplitDragManager.SourceTab;
+            var sourceNode = SuperSplitDragManager.SourceNode;
+            var draggedNode = SuperSplitDragManager.DraggedNode;
+
+            if (!success && sourceTab != null && sourceNode != null && draggedNode != sourceNode)
+            {
+                if (!sourceNode.Tabs.Contains(sourceTab))
+                {
+                    sourceNode.Tabs.Add(sourceTab);
+                    sourceNode.ActiveTab = sourceTab;
+                }
+            }
+
+            SuperSplitDragManager.Reset();
+        }
+
+        _isDragPending = false;
+        _pendingDragNode = null;
+        _dragPreview.IsVisible = false;
+        HideDropHighlight();
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        if (!SuperSplitDragManager.IsDragging || SuperSplitDragManager.DraggedNode == null)
+        {
+            e.DragEffects = DragDropEffects.None;
             return;
         }
 
-        if (_isDragging && _draggedNode != null)
+        var pos = e.GetPosition(this);
+        _dragPreview.IsVisible = true;
+        UpdateDragPreviewPosition(pos);
+
+        var hitBox = FindBoxAtPosition(pos);
+        if (hitBox != null && hitBox.DataContext is BoxNode targetNode && targetNode != SuperSplitDragManager.DraggedNode)
         {
-            UpdateDragPreviewPosition(pos);
+            _currentHoverNode = targetNode;
 
-            var hitBox = FindBoxAtPosition(pos);
-            if (hitBox != null && hitBox.DataContext is BoxNode targetNode && targetNode != _draggedNode)
+            var bounds = hitBox.Bounds;
+            var topLeft = hitBox.TranslatePoint(new Point(0, 0), this);
+            if (topLeft.HasValue)
             {
-                _currentHoverNode = targetNode;
+                double x = pos.X - topLeft.Value.X;
+                double y = pos.Y - topLeft.Value.Y;
+                double w = bounds.Width;
+                double h = bounds.Height;
 
-                var bounds = hitBox.Bounds;
-                var topLeft = hitBox.TranslatePoint(new Point(0, 0), this);
-                if (topLeft.HasValue)
+                double normX = x / w;
+                double normY = y / h;
+
+                if (normX >= 0.25 && normX <= 0.75 && normY >= 0.25 && normY <= 0.75)
                 {
-                    double x = pos.X - topLeft.Value.X;
-                    double y = pos.Y - topLeft.Value.Y;
-                    double w = bounds.Width;
-                    double h = bounds.Height;
-
-                    double normX = x / w;
-                    double normY = y / h;
-
-                    if (normX >= 0.25 && normX <= 0.75 && normY >= 0.25 && normY <= 0.75)
-                    {
-                        _currentDropLocation = RelativeDropLocation.Center;
-                    }
-                    else if (normX < normY)
-                    {
-                        if (normX < 1.0 - normY)
-                            _currentDropLocation = RelativeDropLocation.Left;
-                        else
-                            _currentDropLocation = RelativeDropLocation.Bottom;
-                    }
-                    else
-                    {
-                        if (normX < 1.0 - normY)
-                            _currentDropLocation = RelativeDropLocation.Top;
-                        else
-                            _currentDropLocation = RelativeDropLocation.Right;
-                    }
-
-                    ShowDropHighlight(topLeft.Value, w, h, _currentDropLocation);
+                    _currentDropLocation = RelativeDropLocation.Center;
                 }
-            }
-            else
-            {
-                _currentHoverNode = null;
-                _currentDropLocation = RelativeDropLocation.None;
-                HideDropHighlight();
+                else if (normX < normY)
+                {
+                    if (normX < 1.0 - normY)
+                        _currentDropLocation = RelativeDropLocation.Left;
+                    else
+                        _currentDropLocation = RelativeDropLocation.Bottom;
+                }
+                else
+                {
+                    if (normX < 1.0 - normY)
+                        _currentDropLocation = RelativeDropLocation.Top;
+                    else
+                        _currentDropLocation = RelativeDropLocation.Right;
+                }
+
+                ShowDropHighlight(topLeft.Value, w, h, _currentDropLocation);
+                e.DragEffects = DragDropEffects.Move;
             }
         }
+        else
+        {
+            _currentHoverNode = null;
+            _currentDropLocation = RelativeDropLocation.None;
+            HideDropHighlight();
+            e.DragEffects = DragDropEffects.None;
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnDragLeave(object? sender, RoutedEventArgs e)
+    {
+        HideDropHighlight();
+        _dragPreview.IsVisible = false;
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        bool success = false;
+        if (SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode != null &&
+            _currentHoverNode != null && _currentDropLocation != RelativeDropLocation.None)
+        {
+            var sourceNode = SuperSplitDragManager.DraggedNode;
+            var targetNode = _currentHoverNode;
+            var sourceSplit = SuperSplitDragManager.SourceSplit;
+
+            MoveNodeCrossWindow(sourceNode, targetNode, _currentDropLocation, sourceSplit);
+
+            e.DragEffects = DragDropEffects.Move;
+            success = true;
+        }
+        else
+        {
+            e.DragEffects = DragDropEffects.None;
+        }
+
+        CleanUpDrag(success);
+        e.Handled = true;
     }
 
     private SuperSplitBox? FindBoxAtPosition(Point p)
@@ -1053,7 +1591,6 @@ public class SuperSplit : ContentControl
         switch (loc)
         {
             case RelativeDropLocation.Center:
-                // Highlight the entire bounds for swapping
                 break;
             case RelativeDropLocation.Left:
                 overlayW = w / 2;
@@ -1075,6 +1612,28 @@ public class SuperSplit : ContentControl
         }
 
         var visual = ElementComposition.GetElementVisual(_dropHighlightOverlay);
+
+        if (_hideHighlightTimer != null)
+        {
+            _hideHighlightTimer.Stop();
+            _hideHighlightTimer = null;
+
+            if (visual != null)
+            {
+                var compositor = visual.Compositor;
+                var opacityAnimation = compositor.CreateScalarKeyFrameAnimation();
+                opacityAnimation.Target = "Opacity";
+                opacityAnimation.InsertKeyFrame(0.0f, (float)visual.Opacity);
+                opacityAnimation.InsertKeyFrame(1.0f, 1.0f);
+                opacityAnimation.Duration = TimeSpan.FromMilliseconds(120);
+                visual.StartAnimation("Opacity", opacityAnimation);
+            }
+            else
+            {
+                _dropHighlightOverlay.Opacity = 1.0;
+            }
+        }
+
         if (!_dropHighlightOverlay.IsVisible)
         {
             if (visual != null)
@@ -1098,7 +1657,7 @@ public class SuperSplit : ContentControl
                 opacityAnimation.Target = "Opacity";
                 opacityAnimation.InsertKeyFrame(0.0f, 0.0f);
                 opacityAnimation.InsertKeyFrame(1.0f, 1.0f);
-                opacityAnimation.Duration = TimeSpan.FromMilliseconds(200);
+                opacityAnimation.Duration = TimeSpan.FromMilliseconds(120);
                 visual.StartAnimation("Opacity", opacityAnimation);
             }
             else
@@ -1122,6 +1681,7 @@ public class SuperSplit : ContentControl
 
     private void HideDropHighlight()
     {
+        if (_hideHighlightTimer != null) return;
         if (!_dropHighlightOverlay.IsVisible) return;
 
         var visual = ElementComposition.GetElementVisual(_dropHighlightOverlay);
@@ -1130,17 +1690,18 @@ public class SuperSplit : ContentControl
             var compositor = visual.Compositor;
             var opacityAnimation = compositor.CreateScalarKeyFrameAnimation();
             opacityAnimation.Target = "Opacity";
-            opacityAnimation.InsertKeyFrame(0.0f, (float)_dropHighlightOverlay.Opacity);
+            opacityAnimation.InsertKeyFrame(0.0f, (float)visual.Opacity);
             opacityAnimation.InsertKeyFrame(1.0f, 0.0f);
-            opacityAnimation.Duration = TimeSpan.FromMilliseconds(200);
+            opacityAnimation.Duration = TimeSpan.FromMilliseconds(120);
             
-            var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-            timer.Tick += (s, ev) =>
+            _hideHighlightTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+            _hideHighlightTimer.Tick += (s, ev) =>
             {
-                timer.Stop();
+                _hideHighlightTimer.Stop();
+                _hideHighlightTimer = null;
                 _dropHighlightOverlay.IsVisible = false;
             };
-            timer.Start();
+            _hideHighlightTimer.Start();
 
             visual.StartAnimation("Opacity", opacityAnimation);
         }
@@ -1159,38 +1720,21 @@ public class SuperSplit : ContentControl
             _pendingDragNode = null;
             e.Pointer.Capture(null);
         }
-        else if (_isDragging)
-        {
-            _isDragging = false;
-            e.Pointer.Capture(null);
-            _dragPreview.IsVisible = false;
-            HideDropHighlight();
-
-            if (_draggedNode != null && _currentHoverNode != null && _currentDropLocation != RelativeDropLocation.None)
-            {
-                MoveNode(_draggedNode, _currentHoverNode, _currentDropLocation);
-            }
-            else if (_draggedTab != null && _draggedTabOriginalBox != null && _draggedNode != _draggedTabOriginalBox)
-            {
-                _draggedTabOriginalBox.Tabs.Add(_draggedTab);
-                _draggedTabOriginalBox.ActiveTab = _draggedTab;
-            }
-
-            _draggedNode = null;
-            _draggedTab = null;
-            _draggedTabOriginalBox = null;
-            _currentHoverNode = null;
-            _currentDropLocation = RelativeDropLocation.None;
-        }
     }
 
     private void MoveNode(BoxNode source, BoxNode target, RelativeDropLocation loc)
     {
+        MoveNodeCrossWindow(source, target, loc, this);
+    }
+
+    private void MoveNodeCrossWindow(BoxNode source, BoxNode target, RelativeDropLocation loc, SuperSplit? sourceSplit)
+    {
+        sourceSplit ??= this;
+
         if (source == target) return;
 
         if (loc == RelativeDropLocation.Center)
         {
-            // Move all tabs from source to target
             var sourceTabs = new System.Collections.Generic.List<BoxTabNode>(source.Tabs);
             foreach (var tab in sourceTabs)
             {
@@ -1202,6 +1746,13 @@ public class SuperSplit : ContentControl
                 target.ActiveTab = sourceTabs[sourceTabs.Count - 1];
             }
             SelectedNode = target;
+
+            if (source.Tabs.Count == 0)
+            {
+                sourceSplit.PruneEmptyNode(source);
+            }
+            sourceSplit.Rebuild();
+            Rebuild();
             return;
         }
 
@@ -1212,9 +1763,9 @@ public class SuperSplit : ContentControl
 
             sibling.Parent = grandparent;
 
-            if (sourceParent == Root)
+            if (sourceParent == sourceSplit.Root)
             {
-                Root = sibling;
+                sourceSplit.Root = sibling;
             }
             else if (grandparent is SplitContainerNode gp)
             {
@@ -1227,6 +1778,10 @@ public class SuperSplit : ContentControl
                     gp.Child2 = sibling;
                 }
             }
+        }
+        else if (source == sourceSplit.Root)
+        {
+            sourceSplit.Root = null;
         }
 
         var orientation = (loc == RelativeDropLocation.Left || loc == RelativeDropLocation.Right)
@@ -1265,6 +1820,7 @@ public class SuperSplit : ContentControl
 
         SelectedNode = source;
 
+        sourceSplit.Rebuild();
         Rebuild();
     }
 }
