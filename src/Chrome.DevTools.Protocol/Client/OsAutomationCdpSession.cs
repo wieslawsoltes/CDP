@@ -29,6 +29,8 @@ public sealed class OsAutomationCdpSession : IDisposable
     private string? _lastFocusedRole;
     private bool _isSimulatingInput;
     private bool _peerClicked;
+    private bool _isInputEnabled;
+    private bool _isRecordingActive;
 
     private bool _isMouseDown;
     private double _mouseDownX;
@@ -246,11 +248,16 @@ public sealed class OsAutomationCdpSession : IDisposable
         switch (action)
         {
             case "enable":
+                _isInputEnabled = true;
                 StartRecordingPolling();
                 return Task.FromResult(new JsonObject());
 
             case "disable":
-                StopRecordingPolling();
+                _isInputEnabled = false;
+                if (!_isRecordingActive)
+                {
+                    StopRecordingPolling();
+                }
                 return Task.FromResult(new JsonObject());
 
             case "dispatchMouseEvent":
@@ -913,11 +920,16 @@ public sealed class OsAutomationCdpSession : IDisposable
         switch (action)
         {
             case "start":
+                _isRecordingActive = true;
                 StartRecordingPolling();
                 return Task.FromResult(new JsonObject());
 
             case "stop":
-                StopRecordingPolling();
+                _isRecordingActive = false;
+                if (!_isInputEnabled)
+                {
+                    StopRecordingPolling();
+                }
                 return Task.FromResult(new JsonObject());
 
             default:
@@ -1069,6 +1081,8 @@ public sealed class OsAutomationCdpSession : IDisposable
 
     private void RaiseStepRecordedEvent(string type, string elementId, string? value = null, bool fromNativeHook = false)
     {
+        if (!_isRecordingActive) return;
+
         var step = new JsonObject
         {
             ["type"] = type,
