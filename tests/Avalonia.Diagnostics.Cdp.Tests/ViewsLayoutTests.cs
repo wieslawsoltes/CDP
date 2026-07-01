@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.VisualTree;
 using System;
+using CDP.Editor.Splits.Models;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -440,6 +441,426 @@ public class ViewsLayoutTests
         {
             app.Styles.Remove(sharedStyles);
         }
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Focus_Overlay_Updates()
+    {
+        var root = new BoxNode();
+        root.AddTab("Sim", "GlobeIcon", "Simulation");
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = root,
+            SelectedNode = root
+        };
+
+        var window = new Window { Width = 800, Height = 600, Content = superSplit };
+        window.Show();
+        superSplit.Rebuild();
+        superSplit.UpdateLayout();
+
+        // Trigger focus overlay update manually or via selection change
+        superSplit.SelectedNode = root;
+        superSplit.UpdateLayout();
+
+        var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
+            .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?.GetValue(superSplit) as Border;
+
+        Assert.NotNull(overlay);
+        Assert.True(overlay.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Corner_Grab_Handle_Collection()
+    {
+        var rootNode = new BoxNode();
+        rootNode.AddTab("Tab1", "GlobeIcon", "Sim");
+
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = rootNode
+        };
+
+        var window = new Window { Width = 800, Height = 600, Content = superSplit };
+        window.Show();
+        superSplit.Rebuild();
+        superSplit.UpdateLayout();
+
+        // Perform split to create an intersection structure
+        var targetBox = superSplit.Root as BoxNode;
+        Assert.NotNull(targetBox);
+
+        // Perform split operation via reflection or by updating root manually
+        var hChild1 = new BoxNode();
+        hChild1.AddTab("SubTab1", "GlobeIcon", "Sim");
+        var hChild2 = new BoxNode();
+        hChild2.AddTab("SubTab2", "GlobeIcon", "Sim");
+        
+        var vChild1 = new BoxNode();
+        vChild1.AddTab("SubSubTab1", "GlobeIcon", "Sim");
+        var vChild2 = new BoxNode();
+        vChild2.AddTab("SubSubTab2", "GlobeIcon", "Sim");
+
+        var vContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, vChild1, vChild2);
+        var hContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, hChild1, hChild2);
+
+        var topContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, hContainer, vContainer);
+        superSplit.Root = topContainer;
+
+        superSplit.Rebuild();
+        superSplit.UpdateLayout();
+
+        // Verify that FlatCornerGrabHandle is populated in the panel
+        var handles = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(superSplit)
+            .OfType<CDP.Editor.Splits.Controls.FlatCornerGrabHandle>()
+            .ToList();
+
+        Assert.NotEmpty(handles);
+        var handle = handles.First();
+        Assert.Same(topContainer, handle.ParentContainer);
+        Assert.True(handle.ChildContainer == hContainer || handle.ChildContainer == vContainer);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Cross_Window_Drag_Drop_MoveNode()
+    {
+        var vm1 = new MainWindowViewModel();
+        var superSplit1 = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm1.LayoutRoot,
+            SelectedNode = vm1.SelectedPane
+        };
+        superSplit1.Rebuild();
+
+        var vm2 = new MainWindowViewModel();
+        var superSplit2 = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = vm2.LayoutRoot,
+            SelectedNode = vm2.SelectedPane
+        };
+        superSplit2.Rebuild();
+
+        // Grab boxes
+        var boxNodes1 = new System.Collections.Generic.List<BoxNode>();
+        void Collect(SplitNode? node, System.Collections.Generic.List<BoxNode> list)
+        {
+            if (node is BoxNode box) list.Add(box);
+            else if (node is SplitContainerNode container)
+            {
+                Collect(container.Child1, list);
+                Collect(container.Child2, list);
+            }
+        }
+        Collect(superSplit1.Root, boxNodes1);
+
+        var boxNodes2 = new System.Collections.Generic.List<BoxNode>();
+        Collect(superSplit2.Root, boxNodes2);
+
+        var sourceNode = boxNodes1[0];
+        var targetNode = boxNodes2[0];
+
+        int initialTabs1 = sourceNode.Tabs.Count;
+        int initialTabs2 = targetNode.Tabs.Count;
+
+        // Perform cross-window move node drop to Center
+        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNodeCrossWindow", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        method.Invoke(superSplit2, new object[] { sourceNode, targetNode, 5, superSplit1 });
+
+        // Verify tabs moved
+        Assert.Empty(sourceNode.Tabs);
+        Assert.Equal(initialTabs1 + initialTabs2, targetNode.Tabs.Count);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Drag_Drop_Sibling_Split_Robustness()
+    {
+        var paneA = new BoxNode();
+        paneA.AddTab("Pane A", "FolderIcon", "A");
+        var paneB = new BoxNode();
+        paneB.AddTab("Pane B", "PlayIcon", "B");
+        var paneC = new BoxNode();
+        paneC.AddTab("Pane C", "VideoIcon", "C");
+
+        var subContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, paneA, paneB);
+        var root = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, subContainer, paneC);
+
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = root,
+            SelectedNode = paneA
+        };
+        superSplit.Rebuild();
+
+        // Drag paneA (sibling of paneB) and drop it to split paneB (on its Left / insertBefore=true)
+        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNodeCrossWindow", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        // RelativeDropLocation.Left is represented as 1
+        method.Invoke(superSplit, new object[] { paneA, paneB, 1, superSplit });
+
+        // Verify Rebuild succeeds without duplicate key crashes, and layout maintains all 3 panels
+        superSplit.Rebuild();
+
+        var boxNodes = new System.Collections.Generic.List<BoxNode>();
+        void Collect(SplitNode? node, System.Collections.Generic.List<BoxNode> list)
+        {
+            if (node is BoxNode box) list.Add(box);
+            else if (node is SplitContainerNode container)
+            {
+                Collect(container.Child1, list);
+                Collect(container.Child2, list);
+            }
+        }
+        Collect(superSplit.Root, boxNodes);
+
+        Assert.Equal(3, boxNodes.Count);
+        Assert.Contains(paneA, boxNodes);
+        Assert.Contains(paneB, boxNodes);
+        Assert.Contains(paneC, boxNodes);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Corner_Grab_Handles_Creation_And_Layout()
+    {
+        // Setup a horizontal-vertical split layout to produce corner intersections
+        var paneA = new BoxNode();
+        paneA.AddTab("Pane A", "FolderIcon", "A");
+        var paneB = new BoxNode();
+        paneB.AddTab("Pane B", "PlayIcon", "B");
+        var paneC = new BoxNode();
+        paneC.AddTab("Pane C", "VideoIcon", "C");
+
+        var rightSubContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, paneB, paneC);
+        var root = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, paneA, rightSubContainer);
+
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = root
+        };
+
+        // Rebuild is called, which creates a new FlatSplitPanel with 0x0 size and runs SyncChildren
+        superSplit.Rebuild();
+
+        // Get the panel
+        var panelField = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetField("_flatPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(panelField);
+        var panel = panelField.GetValue(superSplit) as Avalonia.Controls.Panel;
+        Assert.NotNull(panel);
+
+        // Verify that even with 0x0 size, corner grab handles are successfully created and added to the panel
+        var handles = new System.Collections.Generic.List<CDP.Editor.Splits.Controls.FlatCornerGrabHandle>();
+        foreach (var child in panel.Children)
+        {
+            if (child is CDP.Editor.Splits.Controls.FlatCornerGrabHandle handle)
+            {
+                handles.Add(handle);
+            }
+        }
+
+        Assert.Single(handles);
+        var cornerHandle = handles[0];
+        Assert.Equal(root, cornerHandle.ParentContainer);
+        Assert.Equal(rightSubContainer, cornerHandle.ChildContainer);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Zoom_And_Unzoom_Layout_Transitions()
+    {
+        var paneA = new BoxNode();
+        paneA.AddTab("Pane A", "FolderIcon", "A");
+        var paneB = new BoxNode();
+        paneB.AddTab("Pane B", "PlayIcon", "B");
+
+        var root = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, paneA, paneB);
+
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = root,
+            Width = 800,
+            Height = 600
+        };
+
+        superSplit.Rebuild();
+
+        var panelField = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetField("_flatPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(panelField);
+        var panel = panelField.GetValue(superSplit) as Avalonia.Controls.Panel;
+        Assert.NotNull(panel);
+
+        // First layout pass with size 800x600
+        panel.Measure(new Avalonia.Size(800, 600));
+        panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
+
+        // Get the internal layout dictionaries of FlatSplitPanel
+        var nodeBoundsField = panel.GetType().GetField("_nodeBounds", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(nodeBoundsField);
+        var nodeBounds = nodeBoundsField.GetValue(panel) as System.Collections.Generic.Dictionary<SplitNode, Avalonia.Rect>;
+        Assert.NotNull(nodeBounds);
+
+        // Verify normal layout split sizes: each gets roughly 400 width
+        Assert.True(nodeBounds.TryGetValue(paneA, out var rectA));
+        Assert.True(nodeBounds.TryGetValue(paneB, out var rectB));
+        Assert.Equal(0, rectA.X);
+        Assert.Equal(396, rectA.Width); // 800 - 8 (splitter) = 792 / 2 = 396
+        Assert.Equal(404, rectB.X);
+        Assert.Equal(396, rectB.Width);
+
+        // Zoom paneA
+        superSplit.ToggleZoomNode(paneA);
+        Assert.Equal(paneA, superSplit.ZoomedNode);
+        Assert.True(superSplit.IsZoomTransitionPending);
+
+        // Re-arrange layout with zoom active
+        panel.Measure(new Avalonia.Size(800, 600));
+        panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
+
+        // Verify zoomed bounds: paneA fills entire screen, paneB is translated out-of-bounds to the right
+        Assert.True(nodeBounds.TryGetValue(paneA, out rectA));
+        Assert.True(nodeBounds.TryGetValue(paneB, out rectB));
+
+        Assert.Equal(0, rectA.X);
+        Assert.Equal(0, rectA.Y);
+        Assert.Equal(800, rectA.Width);
+        Assert.Equal(600, rectA.Height);
+
+        // paneB touches the right edge, so it should translate to the right
+        Assert.True(rectB.X >= 800);
+
+        // Unzoom
+        superSplit.ToggleZoomNode(paneA);
+        Assert.Null(superSplit.ZoomedNode);
+
+        // Re-arrange layout to unzoomed state
+        panel.Measure(new Avalonia.Size(800, 600));
+        panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
+
+        // Verify bounds restored
+        Assert.True(nodeBounds.TryGetValue(paneA, out rectA));
+        Assert.True(nodeBounds.TryGetValue(paneB, out rectB));
+        Assert.Equal(0, rectA.X);
+        Assert.Equal(396, rectA.Width);
+        Assert.Equal(404, rectB.X);
+        Assert.Equal(396, rectB.Width);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Focus_Overlay_Resizing_Toggles_Animations()
+    {
+        var root = new BoxNode();
+        root.AddTab("Pane1", "GlobeIcon", "Simulation");
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = root,
+            SelectedNode = root
+        };
+
+        var window = new Window { Width = 800, Height = 600, Content = superSplit };
+        window.Show();
+        superSplit.Rebuild();
+        superSplit.UpdateLayout();
+
+        // Initially not interactive resizing
+        Assert.False(superSplit.IsInteractiveResizing());
+
+        var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
+            .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?.GetValue(superSplit) as Border;
+
+        Assert.NotNull(overlay);
+        var visual = Avalonia.Rendering.Composition.ElementComposition.GetElementVisual(overlay);
+        Assert.NotNull(visual);
+
+        // Under normal circumstances, implicit animations are assigned
+        superSplit.UpdateFocusOverlay();
+        Assert.NotNull(visual.ImplicitAnimations);
+
+        // Simulate interactive resize by adding a pressed corner handle or active splitter
+        var panel = typeof(CDP.Editor.Splits.Controls.SuperSplit)
+            .GetField("_flatPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?.GetValue(superSplit) as CDP.Editor.Splits.Controls.FlatSplitPanel;
+        Assert.NotNull(panel);
+
+        var child1 = new BoxNode();
+        child1.AddTab("Sub1", "GlobeIcon", "Sim");
+        var child2 = new BoxNode();
+        child2.AddTab("Sub2", "GlobeIcon", "Sim");
+        var container = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, child1, child2);
+        superSplit.Root = container;
+        superSplit.SelectedNode = child1;
+        superSplit.Rebuild();
+        superSplit.UpdateLayout();
+
+        var cornerHandle = new CDP.Editor.Splits.Controls.FlatCornerGrabHandle(container, container);
+        panel.Children.Add(cornerHandle);
+
+        // Simulating the corner handle press
+        var pressedField = typeof(CDP.Editor.Splits.Controls.FlatCornerGrabHandle)
+            .GetField("_isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(pressedField);
+        pressedField.SetValue(cornerHandle, true);
+
+        // Now interactive resizing is active
+        Assert.True(superSplit.IsInteractiveResizing());
+
+        // Focus overlay updates during resize should have null implicit animations to stay in lock-step
+        superSplit.UpdateFocusOverlay();
+        Assert.Null(visual.ImplicitAnimations);
+
+        // Releasing drag restores animations
+        pressedField.SetValue(cornerHandle, false);
+        Assert.False(superSplit.IsInteractiveResizing());
+        superSplit.UpdateFocusOverlay();
+        Assert.NotNull(visual.ImplicitAnimations);
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplit_Focus_Template_Rebuilds_On_Selection_Change()
+    {
+        var root = new BoxNode();
+        var tab1 = root.AddTab("Pane1", "GlobeIcon", "Simulation");
+        var child2 = new BoxNode();
+        var tab2 = child2.AddTab("Pane2", "GlobeIcon", "Simulation");
+
+        var container = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, root, child2);
+
+        var customTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<BoxNode>((node, namescope) => {
+            return new TextBlock { Text = node?.Title };
+        });
+
+        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            Root = container,
+            FocusTemplate = customTemplate,
+            SelectedNode = root
+        };
+
+        var window = new Window { Width = 800, Height = 600, Content = superSplit };
+        window.Show();
+        superSplit.Rebuild();
+        superSplit.UpdateLayout();
+
+        var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
+            .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?.GetValue(superSplit) as Border;
+
+        Assert.NotNull(overlay);
+        Assert.NotNull(overlay.Child);
+        var txtBlock = overlay.Child as TextBlock;
+        Assert.NotNull(txtBlock);
+        Assert.Equal("Pane1", txtBlock.Text);
+
+        // Change selection
+        superSplit.SelectedNode = child2;
+        superSplit.UpdateFocusOverlay();
+
+        // Verify focus template is rebuilt with correct new selected node Title
+        Assert.NotNull(overlay.Child);
+        var txtBlock2 = overlay.Child as TextBlock;
+        Assert.NotNull(txtBlock2);
+        Assert.Equal("Pane2", txtBlock2.Text);
     }
 
     private static T? FindVisualDescendantByName<T>(Avalonia.Visual? visual, string name) where T : Control
