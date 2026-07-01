@@ -96,6 +96,36 @@ public class OsAutomationTests
         Assert.NotNull(textResult);
         int textId = textResult["nodeId"]?.GetValue<int>() ?? 0;
         Assert.Equal(btnId, textId);
+
+        // Test querying by ID with attribute content
+        var attrContentResult = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe[Content='Click Me']"
+        });
+        Assert.NotNull(attrContentResult);
+        int attrContentId = attrContentResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(btnId, attrContentId);
+
+        // Test querying by ID with negative attribute assertion (should return 0/null)
+        var attrNegResult = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe[IsChecked='true']"
+        });
+        Assert.NotNull(attrNegResult);
+        int attrNegId = attrNegResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(0, attrNegId);
+
+        // Test querying by ID with positive attribute assertion IsChecked='false'
+        var attrCheckedResult = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe[IsChecked='false']"
+        });
+        Assert.NotNull(attrCheckedResult);
+        int attrCheckedId = attrCheckedResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(btnId, attrCheckedId);
     }
 
     [Fact]

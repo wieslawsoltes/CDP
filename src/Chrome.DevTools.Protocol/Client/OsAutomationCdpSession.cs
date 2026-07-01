@@ -625,67 +625,78 @@ public sealed class OsAutomationCdpSession : IDisposable
         return cdpNode;
     }
 
+    private bool MatchNodeAttributes(OSNode node, List<(string Name, string Value)> predicates)
+    {
+        foreach (var pred in predicates)
+        {
+            var name = pred.Name;
+            var val = pred.Value;
+
+            if (name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("Content", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("Header", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("Value", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.Equals(node.Text, val, StringComparison.OrdinalIgnoreCase)) return false;
+            }
+            else if (name.Equals("Name", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.Equals(node.Name, val, StringComparison.OrdinalIgnoreCase)) return false;
+            }
+            else if (name.Equals("Role", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.Equals(node.Role, val, StringComparison.OrdinalIgnoreCase)) return false;
+            }
+            else if (name.Equals("Id", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.Equals(node.Id, val, StringComparison.OrdinalIgnoreCase)) return false;
+            }
+            else if (name.Equals("IsEnabled", StringComparison.OrdinalIgnoreCase))
+            {
+                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                if (!expected) return false; // Default to true in OS mode
+            }
+            else if (name.Equals("IsVisible", StringComparison.OrdinalIgnoreCase))
+            {
+                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                if (!expected) return false; // Default to true
+            }
+            else if (name.Equals("IsFocused", StringComparison.OrdinalIgnoreCase))
+            {
+                bool isFocused = (node.Id == _lastFocusedId);
+                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                if (isFocused != expected) return false;
+            }
+            else if (name.Equals("IsChecked", StringComparison.OrdinalIgnoreCase))
+            {
+                bool isChecked = false;
+                if (node.Role == "AXCheckBox" || node.Role == "AXRadioButton" || node.Role == "check box" || node.Role == "radio button")
+                {
+                    isChecked = (node.Text == "1" || node.Text.Equals("true", StringComparison.OrdinalIgnoreCase));
+                }
+                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                if (isChecked != expected) return false;
+            }
+            else if (name.Equals("IsSelected", StringComparison.OrdinalIgnoreCase))
+            {
+                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                if (expected) return false; // Default to false
+            }
+            else if (name.Equals("IsExpanded", StringComparison.OrdinalIgnoreCase))
+            {
+                bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                if (expected) return false; // Default to false
+            }
+        }
+        return true;
+    }
+
     private OSNode? QuerySelectorInternal(OSNode root, string selector)
     {
         if (string.IsNullOrEmpty(selector)) return null;
 
-        ReadOnlySpan<char> sel = selector.AsSpan();
-
-        // 1. ID selector: #name or [id="name"] or [AutomationId="name"]
-        if (sel.StartsWith("#"))
-        {
-            var id = sel.Slice(1).ToString();
-            if (string.Equals(id, "focused_element", StringComparison.OrdinalIgnoreCase))
-            {
-                var focused = _automation.GetFocusedElement(_windowId);
-                if (focused != null)
-                {
-                    return focused;
-                }
-            }
-            return FindNodeRecursive(root, n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase));
-        }
-        
-        if (sel.StartsWith("[id=") || sel.StartsWith("[Id="))
-        {
-            var clean = selector.Replace("[id=", "").Replace("[Id=", "").Replace("]", "").Replace("\"", "").Trim();
-            if (string.Equals(clean, "focused_element", StringComparison.OrdinalIgnoreCase))
-            {
-                var focused = _automation.GetFocusedElement(_windowId);
-                if (focused != null)
-                {
-                    return focused;
-                }
-            }
-            return FindNodeRecursive(root, n => string.Equals(n.Id, clean, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (sel.StartsWith("[Name="))
-        {
-            var clean = selector.Replace("[Name=", "").Replace("]", "").Replace("\"", "").Trim();
-            return FindNodeRecursive(root, n => string.Equals(n.Name, clean, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (sel.StartsWith("[AccessibilityId=") || sel.StartsWith("[AutomationId=") || sel.StartsWith("[AutomationProperties.AutomationId="))
-        {
-            var clean = selector
-                .Replace("[AccessibilityId=", "")
-                .Replace("[AutomationId=", "")
-                .Replace("[AutomationProperties.AutomationId=", "")
-                .Replace("]", "")
-                .Replace("\"", "")
-                .Trim();
-            return FindNodeRecursive(root, n => string.Equals(n.Id, clean, StringComparison.OrdinalIgnoreCase));
-        }
-
-        // 2. Text selector: [Text="value"] or :contains("value")
-        if (sel.Contains("[Text=".AsSpan(), StringComparison.OrdinalIgnoreCase))
-        {
-            var clean = selector.Replace("[Text=", "").Replace("]", "").Replace("\"", "").Trim();
-            return FindNodeRecursive(root, n => string.Equals(n.Text, clean, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (sel.Contains(":contains(".AsSpan(), StringComparison.OrdinalIgnoreCase))
+        // Handle legacy :contains selector first
+        if (selector.Contains(":contains(", StringComparison.OrdinalIgnoreCase))
         {
             string clean = selector;
             int startIdx = selector.IndexOf(":contains(", StringComparison.OrdinalIgnoreCase);
@@ -702,8 +713,88 @@ public sealed class OsAutomationCdpSession : IDisposable
             return FindNodeRecursive(root, n => n.Text != null && n.Text.Contains(clean, StringComparison.OrdinalIgnoreCase));
         }
 
-        // 3. Name/Role selector
-        return FindNodeRecursive(root, n => string.Equals(n.Name, selector, StringComparison.OrdinalIgnoreCase) || string.Equals(n.Role, selector, StringComparison.OrdinalIgnoreCase));
+        // Parse attributes and base selector
+        var attributePredicates = new List<(string Name, string Value)>();
+        int bracketStart = selector.IndexOf('[');
+        string baseSelector = selector;
+        if (bracketStart >= 0)
+        {
+            baseSelector = selector.Substring(0, bracketStart).Trim();
+            int searchIdx = bracketStart;
+            while (true)
+            {
+                int open = selector.IndexOf('[', searchIdx);
+                if (open < 0) break;
+                int close = selector.IndexOf(']', open);
+                if (close < 0) break;
+                
+                string content = selector.Substring(open + 1, close - open - 1);
+                int eq = content.IndexOf('=');
+                if (eq >= 0)
+                {
+                    string attrName = content.Substring(0, eq).Trim();
+                    string attrVal = content.Substring(eq + 1).Trim('\'', '\"', ' ');
+                    attributePredicates.Add((attrName, attrVal));
+                }
+                searchIdx = close + 1;
+            }
+        }
+
+        string baseId = "";
+        string baseRoleOrName = "";
+        int hashIdx = baseSelector.IndexOf('#');
+        if (hashIdx >= 0)
+        {
+            baseRoleOrName = baseSelector.Substring(0, hashIdx).Trim();
+            baseId = baseSelector.Substring(hashIdx + 1).Trim();
+        }
+        else
+        {
+            if (baseSelector.StartsWith("#"))
+            {
+                baseId = baseSelector.Substring(1).Trim();
+            }
+            else
+            {
+                baseRoleOrName = baseSelector;
+            }
+        }
+
+        // Handle focused_element fallback in baseId
+        if (string.Equals(baseId, "focused_element", StringComparison.OrdinalIgnoreCase))
+        {
+            var focused = _automation.GetFocusedElement(_windowId);
+            if (focused != null)
+            {
+                if (MatchNodeAttributes(focused, attributePredicates))
+                {
+                    return focused;
+                }
+            }
+        }
+
+        // Recursive search for a matching node
+        return FindNodeRecursive(root, node =>
+        {
+            // Match Base Selector ID
+            if (!string.IsNullOrEmpty(baseId))
+            {
+                if (!string.Equals(node.Id, baseId, StringComparison.OrdinalIgnoreCase)) return false;
+            }
+
+            // Match Base Selector Role or Name
+            if (!string.IsNullOrEmpty(baseRoleOrName))
+            {
+                if (!string.Equals(node.Role, baseRoleOrName, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(node.Name, baseRoleOrName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            // Match all attribute predicates
+            return MatchNodeAttributes(node, attributePredicates);
+        });
     }
 
     private OSNode? FindNodeRecursive(OSNode root, Func<OSNode, bool> predicate)
