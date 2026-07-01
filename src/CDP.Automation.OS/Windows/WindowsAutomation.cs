@@ -761,7 +761,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
         dwFlags = 0x0001 | 0x8000 | 0x4000;
     }
 
-    public void SimulateClick(string windowId, double x, double y)
+    public void SimulateClick(string windowId, double x, double y, string? nodeId = null)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
         if (windowId.EndsWith("_fallback")) return;

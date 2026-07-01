@@ -328,7 +328,24 @@ public sealed class OsAutomationCdpSession : IDisposable
 
                         if (_automation.UsePeerAutomation && !_hasMovedSinceDown)
                         {
-                            _automation.SimulateClick(_windowId, x, y);
+                            string? nodeId = null;
+                            try
+                            {
+                                var rootNode = _automation.GetElementTree(_windowId);
+                                if (rootNode != null)
+                                {
+                                    double absoluteX = rootNode.Bounds.Left + x;
+                                    double absoluteY = rootNode.Bounds.Top + y;
+                                    var match = FindDeepestNodeAt(rootNode, (int)absoluteX, (int)absoluteY);
+                                    if (match != null)
+                                    {
+                                        nodeId = match.Id;
+                                    }
+                                }
+                            }
+                            catch {}
+
+                            _automation.SimulateClick(_windowId, x, y, nodeId);
                         }
                         else
                         {

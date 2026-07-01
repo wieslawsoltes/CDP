@@ -102,7 +102,7 @@ public sealed class EnrichedOsAutomation : IOsAutomation
     }
 
     public OSNode? GetElementTree(string windowId) => _underlying.GetElementTree(windowId);
-    public void SimulateClick(string windowId, double x, double y) => _underlying.SimulateClick(windowId, x, y);
+    public void SimulateClick(string windowId, double x, double y, string? nodeId = null) => _underlying.SimulateClick(windowId, x, y, nodeId);
     public void SimulateMouseMove(string windowId, double x, double y) => _underlying.SimulateMouseMove(windowId, x, y);
     public void SimulateMouseDown(string windowId, double x, double y, string button) => _underlying.SimulateMouseDown(windowId, x, y, button);
     public void SimulateMouseUp(string windowId, double x, double y, string button) => _underlying.SimulateMouseUp(windowId, x, y, button);

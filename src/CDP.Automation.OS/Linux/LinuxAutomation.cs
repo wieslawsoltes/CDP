@@ -214,7 +214,7 @@ public sealed partial class LinuxAutomation : IOsAutomation
         throw new NotSupportedException("Accessibility tree traversal is not supported on Linux OS targets.");
     }
 
-    public void SimulateClick(string windowId, double x, double y)
+    public void SimulateClick(string windowId, double x, double y, string? nodeId = null)
     {
         if (windowId == "linux-window-fallback") return;
         throw new NotSupportedException("Click simulation is not supported on Linux OS targets.");

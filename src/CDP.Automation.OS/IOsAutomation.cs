@@ -10,7 +10,7 @@ public interface IOsAutomation
     bool UseAccessibilityEvents { get; set; }
     IReadOnlyList<OSWindow> GetWindows();
     OSNode? GetElementTree(string windowId);
-    void SimulateClick(string windowId, double x, double y);
+    void SimulateClick(string windowId, double x, double y, string? nodeId = null);
     void SimulateMouseMove(string windowId, double x, double y);
     void SimulateMouseDown(string windowId, double x, double y, string button);
     void SimulateMouseUp(string windowId, double x, double y, string button);
