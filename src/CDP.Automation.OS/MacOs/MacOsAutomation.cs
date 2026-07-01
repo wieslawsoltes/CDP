@@ -712,39 +712,9 @@ public sealed partial class MacOsAutomation : IOsAutomation
         SKRectI bounds = new SKRectI(0, 0, 1024, 768);
         if (IsTestEnvironment() || !AXIsProcessTrusted()) return bounds;
 
-        var windows = GetWindows();
-        foreach (var w in windows)
-        {
-            if (w.Id == windowId)
-            {
-                return w.Bounds;
-            }
-        }
-
-        int pid = 0;
-        if (windowId.EndsWith("_fallback"))
-        {
-            var parts = windowId.Split('_');
-            if (parts.Length > 0 && int.TryParse(parts[0], out int parsedPid))
-            {
-                pid = parsedPid;
-            }
-        }
-        else
-        {
-            int.TryParse(windowId, out pid);
-        }
-
+        int pid = GetWindowPid(windowId);
         if (pid > 0)
         {
-            foreach (var w in windows)
-            {
-                if (w.ProcessId == pid)
-                {
-                    return w.Bounds;
-                }
-            }
-
             IntPtr appRef = AXUIElementCreateApplication(pid);
             if (appRef != IntPtr.Zero)
             {
@@ -754,7 +724,54 @@ public sealed partial class MacOsAutomation : IOsAutomation
                     if (windowsValue != IntPtr.Zero)
                     {
                         int winCount = CFArrayGetCount(windowsValue);
-                        if (winCount > 0)
+                        OSWindow? selectedWindow = null;
+                        var windows = GetWindows();
+                        foreach (var w in windows)
+                        {
+                            if (w.Id == windowId)
+                            {
+                                selectedWindow = w;
+                                break;
+                            }
+                        }
+
+                        bool matched = false;
+                        for (int j = 0; j < winCount; j++)
+                        {
+                            IntPtr winElement = CFArrayGetValueAtIndex(windowsValue, j);
+                            if (winElement != IntPtr.Zero)
+                            {
+                                string winTitle = CFTypeToString(GetAttribute(winElement, "AXTitle")) ?? "";
+                                CGPoint pt = new CGPoint { X = 0, Y = 0 };
+                                CGSize sz = new CGSize { Width = 0, Height = 0 };
+                                IntPtr posRef = GetAttribute(winElement, "AXPosition");
+                                IntPtr sizeRef = GetAttribute(winElement, "AXSize");
+                                if (posRef != IntPtr.Zero)
+                                {
+                                    AXValueGetValue(posRef, 1, out pt);
+                                    CFRelease(posRef);
+                                }
+                                if (sizeRef != IntPtr.Zero)
+                                {
+                                    AXValueGetValue(sizeRef, 2, out sz);
+                                    CFRelease(sizeRef);
+                                }
+
+                                if (selectedWindow != null)
+                                {
+                                    if ((!string.IsNullOrEmpty(winTitle) && winTitle == selectedWindow.Title) ||
+                                        (Math.Abs(pt.X - selectedWindow.Bounds.Left) < 50 &&
+                                         Math.Abs(pt.Y - selectedWindow.Bounds.Top) < 50))
+                                    {
+                                        bounds = new SKRectI((int)pt.X, (int)pt.Y, (int)(pt.X + sz.Width), (int)(pt.Y + sz.Height));
+                                        matched = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!matched && winCount > 0)
                         {
                             IntPtr winElement = CFArrayGetValueAtIndex(windowsValue, 0);
                             if (winElement != IntPtr.Zero)
@@ -766,13 +783,19 @@ public sealed partial class MacOsAutomation : IOsAutomation
                                     if (AXValueGetValue(posRef, 1, out CGPoint pt) && AXValueGetValue(sizeRef, 2, out CGSize sz))
                                     {
                                         bounds = new SKRectI((int)pt.X, (int)pt.Y, (int)(pt.X + sz.Width), (int)(pt.Y + sz.Height));
+                                        matched = true;
                                     }
                                     CFRelease(posRef);
                                     CFRelease(sizeRef);
                                 }
                             }
                         }
+
                         CFRelease(windowsValue);
+                        if (matched)
+                        {
+                            return bounds;
+                        }
                     }
                 }
                 finally
@@ -781,6 +804,17 @@ public sealed partial class MacOsAutomation : IOsAutomation
                 }
             }
         }
+
+        // Fallback to CGWindow bounds if accessibility query failed
+        var wins = GetWindows();
+        foreach (var w in wins)
+        {
+            if (w.Id == windowId)
+            {
+                return w.Bounds;
+            }
+        }
+
         return bounds;
     }
 
