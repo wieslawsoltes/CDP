@@ -4,11 +4,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>Chrome.DevTools.Automation.OS</PackageId>
+    <Title>Chrome.DevTools.Automation.OS</Title>
+    <Description>Cross-platform operating system automation and accessibility provider for Chrome DevTools Protocol (CDP).</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>cdp;chrome-devtools-protocol;automation;os;os-automation</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
 </Project>
