@@ -442,7 +442,7 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
     {
         bool isOsAutomation = GeneratorHostAddress != null && GeneratorHostAddress.StartsWith("os://", StringComparison.OrdinalIgnoreCase);
 
-        if (!isOsAutomation && !bypassAutoLaunch && (SelectedTarget == null || (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath) && !_cdpService.IsConnected)))
+        if (!bypassAutoLaunch && (SelectedTarget == null || (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath) && !_cdpService.IsConnected)))
         {
             if (TestStudio != null && TestStudio.IsAutoLaunchEnabled && !string.IsNullOrEmpty(TestStudio.AutoLaunchPath))
             {

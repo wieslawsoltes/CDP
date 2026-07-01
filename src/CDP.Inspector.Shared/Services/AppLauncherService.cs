@@ -123,34 +123,43 @@ public class AppLauncherService : IAppLauncherService
             return;
         }
 
+        bool isOs = connection?.IsOsAutomation ?? false;
         int pid = 0;
+
         if (cdpService.IsConnected)
         {
-            try
+            if (!isOs)
             {
-                var pidRes = await cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                try
                 {
-                    ["expression"] = "System.Diagnostics.Process.GetCurrentProcess().Id",
-                    ["returnByValue"] = true
-                });
-                var resultNode = pidRes["result"] as JsonObject;
-                if (resultNode != null && resultNode.ContainsKey("value"))
-                {
-                    int.TryParse(resultNode["value"]?.ToString(), out pid);
+                    var pidRes = await cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                    {
+                        ["expression"] = "System.Diagnostics.Process.GetCurrentProcess().Id",
+                        ["returnByValue"] = true
+                    });
+                    var resultNode = pidRes["result"] as JsonObject;
+                    if (resultNode != null && resultNode.ContainsKey("value"))
+                    {
+                        int.TryParse(resultNode["value"]?.ToString(), out pid);
+                    }
                 }
-            }
-            catch { }
+                catch { }
 
-            try
-            {
-                logAction("Auto Launch: Shutting down connected app...");
-                _ = cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                try
                 {
-                    ["expression"] = "Avalonia.Application.Current?.Shutdown()",
-                    ["returnByValue"] = true
-                });
+                    logAction("Auto Launch: Shutting down connected app...");
+                    _ = cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                    {
+                        ["expression"] = "Avalonia.Application.Current?.Shutdown()",
+                        ["returnByValue"] = true
+                    });
+                }
+                catch { }
             }
-            catch { }
+            else
+            {
+                logAction("Auto Launch: Disconnecting from current OS window target...");
+            }
 
             try
             {
@@ -185,17 +194,48 @@ public class AppLauncherService : IAppLauncherService
             }
         }
 
+        var existingWindowIds = new System.Collections.Generic.HashSet<string>();
+        if (isOs)
+        {
+            try
+            {
+                var windows = CDP.Automation.OS.OSAutomationService.Instance.GetWindows();
+                foreach (var w in windows)
+                {
+                    existingWindowIds.Add(w.Id);
+                }
+            }
+            catch { }
+        }
+
         logAction($"Auto Launch: Starting process '{autoLaunchPath}' with arguments '{autoLaunchArguments}'...");
         try
         {
-            var psi = new ProcessStartInfo
+            Process? process = null;
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX) &&
+                (autoLaunchPath.EndsWith(".app", StringComparison.OrdinalIgnoreCase) || autoLaunchPath.EndsWith(".app/", StringComparison.OrdinalIgnoreCase)))
             {
-                FileName = autoLaunchPath,
-                Arguments = autoLaunchArguments,
-                UseShellExecute = false,
-                CreateNoWindow = false
-            };
-            var process = Process.Start(psi);
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "open",
+                    Arguments = $"-a \"{autoLaunchPath}\" --args {autoLaunchArguments}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                process = Process.Start(psi);
+            }
+            else
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = autoLaunchPath,
+                    Arguments = autoLaunchArguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = false
+                };
+                process = Process.Start(psi);
+            }
+
             if (process == null)
             {
                 throw new Exception("Process failed to start.");
@@ -214,29 +254,112 @@ public class AppLauncherService : IAppLauncherService
 
         int maxRetries = 30;
         bool connected = false;
+        var appName = Path.GetFileNameWithoutExtension(autoLaunchPath);
+
         for (int i = 0; i < maxRetries; i++)
         {
             token.ThrowIfCancellationRequested();
             try
             {
-                logAction($"Auto Launch: Attempting to connect to host '{connection.HostAddress}' (attempt {i + 1}/{maxRetries})...");
-                await connection.RefreshTargetsAsync();
-                if (connection.Targets.Count > 0)
+                if (isOs)
                 {
-                    await connection.ConnectAsync(bypassAutoLaunch: true);
-                    if (cdpService.IsConnected)
+                    logAction($"Auto Launch: Scanning for launched application window '{appName}' (attempt {i + 1}/{maxRetries})...");
+                    var windows = CDP.Automation.OS.OSAutomationService.Instance.GetWindows();
+                    CDP.Automation.OS.OSWindow? targetWindow = null;
+
+                    // 1. Look for a newly opened window matching appName
+                    foreach (var w in windows)
                     {
-                        connected = true;
-                        logAction("Auto Launch: Successfully connected to application.");
-                        break;
+                        if (!existingWindowIds.Contains(w.Id))
+                        {
+                            if (w.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase) ||
+                                w.Title.Contains(appName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                targetWindow = w;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 2. Fallback to any window matching appName
+                    if (targetWindow == null)
+                    {
+                        foreach (var w in windows)
+                        {
+                            if (w.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase) ||
+                                w.Title.Contains(appName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                targetWindow = w;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 3. Fallback to any new window
+                    if (targetWindow == null)
+                    {
+                        foreach (var w in windows)
+                        {
+                            if (!existingWindowIds.Contains(w.Id))
+                            {
+                                targetWindow = w;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (targetWindow != null)
+                    {
+                        logAction($"Auto Launch: Found window '{targetWindow.Title}' (ID: {targetWindow.Id}). Connecting...");
+                        await connection.RefreshTargetsAsync();
+                        TargetItem? foundTarget = null;
+                        foreach (var t in connection.Targets)
+                        {
+                            if (t.Id == targetWindow.Id)
+                            {
+                                foundTarget = t;
+                                break;
+                            }
+                        }
+
+                        if (foundTarget == null)
+                        {
+                            foundTarget = new TargetItem(targetWindow.Title, $"os://{targetWindow.Id}", targetWindow.Id);
+                            connection.Targets.Add(foundTarget);
+                        }
+
+                        connection.SelectedTarget = foundTarget;
+                        await connection.ConnectAsync(bypassAutoLaunch: true);
+
+                        if (cdpService.IsConnected)
+                        {
+                            connected = true;
+                            logAction("Auto Launch: Successfully connected to OS window target.");
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    logAction($"Auto Launch: Attempting to connect to host '{connection.HostAddress}' (attempt {i + 1}/{maxRetries})...");
+                    await connection.RefreshTargetsAsync();
+                    if (connection.Targets.Count > 0)
+                    {
+                        await connection.ConnectAsync(bypassAutoLaunch: true);
+                        if (cdpService.IsConnected)
+                        {
+                            connected = true;
+                            logAction("Auto Launch: Successfully connected to application.");
+                            break;
+                        }
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore, wait and retry
+                logAction($"Auto Launch warning: {ex.Message}");
             }
-            await Task.Delay(500, token);
+            await Task.Delay(1000, token);
         }
 
         if (!connected)
