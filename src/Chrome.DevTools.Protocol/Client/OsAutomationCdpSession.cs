@@ -137,9 +137,19 @@ public sealed class OsAutomationCdpSession : IDisposable
                     if (searchRoot != null)
                     {
                         var match = QuerySelectorInternal(searchRoot, selector);
-                        if (match != null && _osIdToCdpId.TryGetValue(match.Id, out int cdpId))
+                        if (match != null)
                         {
-                            matchId = cdpId;
+                            if (_osIdToCdpId.TryGetValue(match.Id, out int cdpId))
+                            {
+                                matchId = cdpId;
+                            }
+                            else
+                            {
+                                int newId = _nextNodeId++;
+                                _idToNode[newId] = match;
+                                _osIdToCdpId[match.Id] = newId;
+                                matchId = newId;
+                            }
                         }
                     }
 
@@ -590,12 +600,28 @@ public sealed class OsAutomationCdpSession : IDisposable
         if (sel.StartsWith("#"))
         {
             var id = sel.Slice(1).ToString();
+            if (string.Equals(id, "focused_element", StringComparison.OrdinalIgnoreCase))
+            {
+                var focused = _automation.GetFocusedElement(_windowId);
+                if (focused != null)
+                {
+                    return focused;
+                }
+            }
             return FindNodeRecursive(root, n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase));
         }
         
         if (sel.StartsWith("[id=") || sel.StartsWith("[Id="))
         {
             var clean = selector.Replace("[id=", "").Replace("[Id=", "").Replace("]", "").Replace("\"", "").Trim();
+            if (string.Equals(clean, "focused_element", StringComparison.OrdinalIgnoreCase))
+            {
+                var focused = _automation.GetFocusedElement(_windowId);
+                if (focused != null)
+                {
+                    return focused;
+                }
+            }
             return FindNodeRecursive(root, n => string.Equals(n.Id, clean, StringComparison.OrdinalIgnoreCase));
         }
 
