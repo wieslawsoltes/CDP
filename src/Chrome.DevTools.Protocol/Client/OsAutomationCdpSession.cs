@@ -245,6 +245,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                         double cx = (node.Bounds.Left + node.Bounds.Width / 2.0) - (_rootNode?.Bounds.Left ?? 0);
                         double cy = (node.Bounds.Top + node.Bounds.Height / 2.0) - (_rootNode?.Bounds.Top ?? 0);
                         _automation.SimulateMouseMove(_windowId, cx, cy);
+                        _automation.SimulateClick(_windowId, cx, cy, node.Id);
                     }
                     return Task.FromResult(new JsonObject());
                 }
