@@ -351,6 +351,10 @@ public sealed class OsAutomationCdpSession : IDisposable
                                 catch {}
                             }
 
+                            if (!string.IsNullOrEmpty(nodeId))
+                            {
+                                _lastFocusedId = nodeId;
+                            }
                             _automation.SimulateClick(_windowId, x, y, nodeId);
                         }
                         else
@@ -663,7 +667,8 @@ public sealed class OsAutomationCdpSession : IDisposable
             }
             else if (name.Equals("IsFocused", StringComparison.OrdinalIgnoreCase))
             {
-                bool isFocused = (node.Id == _lastFocusedId);
+                var focused = _automation.GetFocusedElement(_windowId);
+                bool isFocused = (focused != null && string.Equals(focused.Id, node.Id, StringComparison.OrdinalIgnoreCase)) || string.Equals(node.Id, _lastFocusedId, StringComparison.OrdinalIgnoreCase);
                 bool expected = val.Equals("true", StringComparison.OrdinalIgnoreCase);
                 if (isFocused != expected) return false;
             }
@@ -1416,7 +1421,9 @@ public sealed class OsAutomationCdpSession : IDisposable
                 props["Value"] = node.Text;
                 props["IsEnabled"] = "True";
                 props["IsVisible"] = "True";
-                props["IsFocused"] = (node.Id == _lastFocusedId ? "True" : "False");
+                var focused = _automation.GetFocusedElement(_windowId);
+                bool isFocused = (focused != null && string.Equals(focused.Id, node.Id, StringComparison.OrdinalIgnoreCase)) || string.Equals(node.Id, _lastFocusedId, StringComparison.OrdinalIgnoreCase);
+                props["IsFocused"] = (isFocused ? "True" : "False");
                 props["IsSelected"] = "False";
                 props["IsExpanded"] = "False";
                 props["IsChecked"] = isChecked;

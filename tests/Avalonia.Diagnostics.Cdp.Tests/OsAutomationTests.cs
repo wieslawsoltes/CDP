@@ -126,6 +126,54 @@ public class OsAutomationTests
         Assert.NotNull(attrCheckedResult);
         int attrCheckedId = attrCheckedResult["nodeId"]?.GetValue<int>() ?? 0;
         Assert.Equal(btnId, attrCheckedId);
+
+        // Test initial IsFocused='false' assertion
+        var attrUnfocusedResult = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe[IsFocused='false']"
+        });
+        Assert.NotNull(attrUnfocusedResult);
+        int attrUnfocusedId = attrUnfocusedResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(btnId, attrUnfocusedId);
+
+        // Test initial IsFocused='true' assertion (should return 0/null)
+        var attrFocusedResultBefore = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe[IsFocused='true']"
+        });
+        Assert.NotNull(attrFocusedResultBefore);
+        int attrFocusedIdBefore = attrFocusedResultBefore["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(0, attrFocusedIdBefore);
+
+        // Simulate click at button coordinates (150, 120) to trigger focus
+        await session.HandleCommandAsync("Input.dispatchMouseEvent", new JsonObject
+        {
+            ["type"] = "mousePressed",
+            ["x"] = 150,
+            ["y"] = 120,
+            ["button"] = "left",
+            ["clickCount"] = 1
+        });
+        await session.HandleCommandAsync("Input.dispatchMouseEvent", new JsonObject
+        {
+            ["type"] = "mouseReleased",
+            ["x"] = 150,
+            ["y"] = 120,
+            ["button"] = "left",
+            ["clickCount"] = 1
+        });
+
+        // Test IsFocused='true' assertion after click (should now match btnId)
+        var attrFocusedResultAfter = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe[IsFocused='true']"
+        });
+        Assert.NotNull(attrFocusedResultAfter);
+        int attrFocusedIdAfter = attrFocusedResultAfter["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.Equal(btnId, attrFocusedIdAfter);
     }
 
     [Fact]
