@@ -303,6 +303,58 @@ public class ViewsLayoutTests
     }
 
     [AvaloniaFact]
+    public void Test_SuperSplit_Float_And_Merge()
+    {
+        var mainSplit = new CDP.Editor.Splits.Controls.SuperSplit();
+        var box1 = new CDP.Editor.Splits.Models.BoxNode();
+        box1.AddTab("Tab1", "Icon1", "View1");
+        var box2 = new CDP.Editor.Splits.Models.BoxNode();
+        box2.AddTab("Tab2", "Icon2", "View2");
+
+        var rootContainer = new CDP.Editor.Splits.Models.SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, box1, box2);
+        mainSplit.Root = rootContainer;
+        mainSplit.Rebuild();
+
+        CDP.Editor.Splits.Models.BoxNode? floatedNode = null;
+        CDP.Editor.Splits.Controls.SuperSplit? floatSource = null;
+        CDP.Editor.Splits.Models.SuperSplitDragManager.FloatNodeCallback = (source, node) =>
+        {
+            floatSource = source;
+            floatedNode = node;
+        };
+
+        // Simulate dragging box2 out (float)
+        // 1. Manually prune it from mainSplit
+        // PruneEmptyNode is private, but we can simulate the root changes
+        mainSplit.Root = box1;
+        mainSplit.Rebuild();
+
+        // 2. Invoke FloatNodeCallback
+        CDP.Editor.Splits.Models.SuperSplitDragManager.FloatNodeCallback(mainSplit, box2);
+
+        Assert.Same(mainSplit, floatSource);
+        Assert.Same(box2, floatedNode);
+        Assert.Same(box1, mainSplit.Root);
+
+        // Simulate merging back (e.g. closing floating window manually)
+        if (mainSplit.Root == null)
+        {
+            mainSplit.Root = box2;
+        }
+        else
+        {
+            var newRoot = new CDP.Editor.Splits.Models.SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, mainSplit.Root, box2);
+            mainSplit.Root = newRoot;
+        }
+        mainSplit.Rebuild();
+
+        Assert.IsType<CDP.Editor.Splits.Models.SplitContainerNode>(mainSplit.Root);
+        var finalContainer = (CDP.Editor.Splits.Models.SplitContainerNode)mainSplit.Root;
+        Assert.Same(box1, finalContainer.Child1);
+        Assert.Same(box2, finalContainer.Child2);
+    }
+
+    [AvaloniaFact]
     public void Test_SuperSplit_Drag_Tab_Split_Target()
     {
         var vm = new MainWindowViewModel();

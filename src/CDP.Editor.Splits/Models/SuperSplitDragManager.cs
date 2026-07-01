@@ -10,6 +10,8 @@ public static class SuperSplitDragManager
     public static BoxTabNode? SourceTab { get; set; }
     public static SuperSplit? SourceSplit { get; set; }
     public static BoxNode? DraggedNode { get; set; }
+    public static bool IsOverDropTarget { get; set; }
+    public static Action<SuperSplit, BoxNode>? FloatNodeCallback { get; set; }
 
     public static void Reset()
     {
@@ -18,5 +20,6 @@ public static class SuperSplitDragManager
         SourceTab = null;
         SourceSplit = null;
         DraggedNode = null;
+        IsOverDropTarget = false;
     }
 }

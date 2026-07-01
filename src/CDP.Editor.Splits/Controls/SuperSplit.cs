@@ -502,6 +502,7 @@ public class SuperSplit : ContentControl
     }
 
     public event EventHandler<BoxMenuEventArgs>? BoxMenuClicked;
+    public event EventHandler? LayoutRebuilt;
 
     public Func<string, SuperSplitBox?, Control>? ViewResolver { get; set; }
 
@@ -801,6 +802,7 @@ public class SuperSplit : ContentControl
         finally
         {
             _isRebuilding = false;
+            LayoutRebuilt?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -1420,6 +1422,23 @@ public class SuperSplit : ContentControl
             System.Diagnostics.Debug.WriteLine($"Native drag initiation failed: {ex.Message}");
         }
 
+        if (!success && !SuperSplitDragManager.IsOverDropTarget)
+        {
+            if (draggedBox != null)
+            {
+                if (draggedBox == node)
+                {
+                    PruneEmptyNode(node);
+                }
+
+                if (SuperSplitDragManager.FloatNodeCallback != null)
+                {
+                    SuperSplitDragManager.FloatNodeCallback(this, draggedBox);
+                    success = true;
+                }
+            }
+        }
+
         CleanUpDrag(success);
     }
 
@@ -1464,6 +1483,7 @@ public class SuperSplit : ContentControl
         if (!SuperSplitDragManager.IsDragging || SuperSplitDragManager.DraggedNode == null)
         {
             e.DragEffects = DragDropEffects.None;
+            SuperSplitDragManager.IsOverDropTarget = false;
             return;
         }
 
@@ -1509,6 +1529,11 @@ public class SuperSplit : ContentControl
 
                 ShowDropHighlight(topLeft.Value, w, h, _currentDropLocation);
                 e.DragEffects = DragDropEffects.Move;
+                SuperSplitDragManager.IsOverDropTarget = true;
+            }
+            else
+            {
+                SuperSplitDragManager.IsOverDropTarget = false;
             }
         }
         else
@@ -1517,6 +1542,7 @@ public class SuperSplit : ContentControl
             _currentDropLocation = RelativeDropLocation.None;
             HideDropHighlight();
             e.DragEffects = DragDropEffects.None;
+            SuperSplitDragManager.IsOverDropTarget = false;
         }
 
         e.Handled = true;
@@ -1526,10 +1552,12 @@ public class SuperSplit : ContentControl
     {
         HideDropHighlight();
         _dragPreview.IsVisible = false;
+        SuperSplitDragManager.IsOverDropTarget = false;
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
+        SuperSplitDragManager.IsOverDropTarget = false;
         bool success = false;
         if (SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode != null &&
             _currentHoverNode != null && _currentDropLocation != RelativeDropLocation.None)

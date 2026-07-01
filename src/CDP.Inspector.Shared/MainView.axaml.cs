@@ -29,6 +29,12 @@ public partial class MainView : UserControl
         SplitControl.BoxMenuClicked += OnBoxMenuClicked;
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
 
+        CDP.Editor.Splits.Models.SuperSplitDragManager.FloatNodeCallback = (sourceSplit, nodeToFloat) =>
+        {
+            var window = new CDP.Inspector.Shared.Controls.FloatingSplitWindow(sourceSplit, nodeToFloat);
+            window.Show();
+        };
+
         // Scan targets on load
         Dispatcher.UIThread.Post(() => vm.Connection.RefreshTargetsCommand.Execute(null));
     }
