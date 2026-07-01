@@ -61,6 +61,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     private static bool IsTestEnvironment()
     {
+        if (Environment.GetEnvironmentVariable("BYPASS_TEST_ENV") == "1") return false;
         try
         {
             string proc = System.Diagnostics.Process.GetCurrentProcess().ProcessName.ToLowerInvariant();
@@ -606,6 +607,15 @@ public sealed partial class MacOsAutomation : IOsAutomation
                                 var winNode = root.Children[0];
                                 winNode.Id = "1";
                                 traversed = true;
+                                lock (_nodeIdToElement)
+                                {
+                                    var sbCache = new System.Text.StringBuilder();
+                                    foreach (var kvp in _nodeIdToElement)
+                                    {
+                                        sbCache.AppendLine($"Key='{kvp.Key}', Pointer=0x{kvp.Value.ToString("X")}");
+                                    }
+                                    System.IO.File.WriteAllText("/Users/wieslawsoltes/.gemini/antigravity/brain/6dc4a072-a770-4166-a8d5-a4a06436908f/cache_dump.txt", sbCache.ToString());
+                                }
                                 CFRelease(windowsValue);
                                 return winNode;
                             }
@@ -981,6 +991,11 @@ public sealed partial class MacOsAutomation : IOsAutomation
             double absoluteY = bounds.Top + y;
 
             int targetPid = GetWindowPid(windowId);
+            if (targetPid > 0)
+            {
+                ActivateProcess(targetPid);
+            }
+
             if (UsePeerAutomation && targetPid > 0)
             {
                 if (!string.IsNullOrEmpty(nodeId))
