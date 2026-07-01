@@ -1552,11 +1552,11 @@ public sealed partial class MacOsAutomation : IOsAutomation
                     {
                         try
                         {
-                            string role = CFTypeToString(GetAttribute(focusedRef, "AXRole")) ?? "AXUnknown";
-                            string id = CFTypeToString(GetAttribute(focusedRef, "AXIdentifier")) ?? "";
+                            string role = GetStringAttribute(focusedRef, "AXRole") ?? "AXUnknown";
+                            string id = GetStringAttribute(focusedRef, "AXIdentifier") ?? "";
                             if (string.IsNullOrEmpty(id))
                             {
-                                id = CFTypeToString(GetAttribute(focusedRef, "AXTitle")) ?? "";
+                                id = GetStringAttribute(focusedRef, "AXTitle") ?? "";
                             }
                             if (string.IsNullOrEmpty(id))
                             {
@@ -1575,7 +1575,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
                                 CFRelease(sizeRef);
                             }
 
-                            string text = CFTypeToString(GetAttribute(focusedRef, "AXValue")) ?? "";
+                            string text = GetStringAttribute(focusedRef, "AXValue") ?? "";
 
                             return new OSNode
                             {
@@ -1694,17 +1694,17 @@ public sealed partial class MacOsAutomation : IOsAutomation
                         try
                         {
                             string notifStr = CFTypeToString(notification) ?? "";
-                            string role = CFTypeToString(GetAttribute(element, "AXRole")) ?? "";
-                            string id = CFTypeToString(GetAttribute(element, "AXIdentifier")) ?? "";
+                            string role = GetStringAttribute(element, "AXRole") ?? "";
+                            string id = GetStringAttribute(element, "AXIdentifier") ?? "";
                             if (string.IsNullOrEmpty(id))
                             {
-                                id = CFTypeToString(GetAttribute(element, "AXTitle")) ?? "";
+                                id = GetStringAttribute(element, "AXTitle") ?? "";
                             }
                             if (string.IsNullOrEmpty(id))
                             {
                                 id = "focused_element";
                             }
-                            string text = CFTypeToString(GetAttribute(element, "AXValue")) ?? "";
+                            string text = GetStringAttribute(element, "AXValue") ?? "";
 
                             _logger.LogDebug("AXObserver callback: notif={Notification}, role={Role}, id={Id}, text={Text}", notifStr, role, id, text);
 

@@ -128,6 +128,7 @@ public sealed class OsAutomationCdpSession : IDisposable
 
             case "querySelector":
                 {
+                    RefreshRootNode();
                     int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
                     string selector = parameters["selector"]?.GetValue<string>() ?? "";
                     
@@ -166,6 +167,7 @@ public sealed class OsAutomationCdpSession : IDisposable
 
             case "resolveNode":
                 {
+                    RefreshRootNode();
                     int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
                     var obj = new JsonObject
                     {
@@ -177,6 +179,7 @@ public sealed class OsAutomationCdpSession : IDisposable
 
             case "getNodeForLocation":
                 {
+                    RefreshRootNode();
                     int x = parameters["x"]?.GetValue<int>() ?? 0;
                     int y = parameters["y"]?.GetValue<int>() ?? 0;
 
@@ -197,6 +200,7 @@ public sealed class OsAutomationCdpSession : IDisposable
 
             case "getBoxModel":
                 {
+                    RefreshRootNode();
                     int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
                     if (!_idToNode.TryGetValue(nodeId, out var node))
                     {
@@ -231,6 +235,7 @@ public sealed class OsAutomationCdpSession : IDisposable
 
             case "focus":
                 {
+                    RefreshRootNode();
                     int nodeId = parameters["nodeId"]?.GetValue<int>() ?? 0;
                     if (_idToNode.TryGetValue(nodeId, out var node))
                     {
@@ -527,6 +532,7 @@ public sealed class OsAutomationCdpSession : IDisposable
         }
         else if (action == "getProperties")
         {
+            RefreshRootNode();
             string objectId = parameters["objectId"]?.GetValue<string>() ?? "";
             var results = new JsonArray();
             if (objectId.StartsWith("node_"))
@@ -559,6 +565,27 @@ public sealed class OsAutomationCdpSession : IDisposable
                 }
             }
             return Task.FromResult(new JsonObject { ["result"] = results });
+        }
+        else if (action == "callFunctionOn")
+        {
+            RefreshRootNode();
+            string objectId = parameters["objectId"]?.GetValue<string>() ?? "";
+            string value = "";
+            if (objectId.StartsWith("node_"))
+            {
+                if (int.TryParse(objectId.Substring(5), out int nodeId) && _idToNode.TryGetValue(nodeId, out var node))
+                {
+                    value = node.Text ?? node.Name ?? "";
+                }
+            }
+            return Task.FromResult(new JsonObject
+            {
+                ["result"] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = value
+                }
+            });
         }
         return Task.FromResult(new JsonObject());
     }
@@ -627,6 +654,32 @@ public sealed class OsAutomationCdpSession : IDisposable
         }
 
         return cdpNode;
+    }
+
+    private void RefreshRootNode()
+    {
+        var newRoot = _automation.GetElementTree(_windowId);
+        if (newRoot == null) return;
+        
+        var newIdMap = new Dictionary<string, OSNode>(StringComparer.OrdinalIgnoreCase);
+        var list = new List<OSNode>();
+        TraverseOSNodes(newRoot, list);
+        foreach (var node in list)
+        {
+            newIdMap[node.Id] = node;
+        }
+
+        var keys = _idToNode.Keys.ToList();
+        foreach (var key in keys)
+        {
+            var oldNode = _idToNode[key];
+            if (newIdMap.TryGetValue(oldNode.Id, out var newNode))
+            {
+                _idToNode[key] = newNode;
+            }
+        }
+
+        _rootNode = newRoot;
     }
 
     private bool MatchNodeAttributes(OSNode node, List<(string Name, string Value)> predicates)
@@ -1374,6 +1427,7 @@ public sealed class OsAutomationCdpSession : IDisposable
     private object EvaluateOsDomExpression(string expression)
     {
         expression = expression.Trim();
+        RefreshRootNode();
         if (_rootNode == null)
         {
             throw new InvalidOperationException("No DOM document available to evaluate expression.");

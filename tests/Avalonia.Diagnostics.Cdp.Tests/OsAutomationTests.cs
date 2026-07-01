@@ -603,6 +603,27 @@ public class OsAutomationTests
         Assert.Equal("Click Me", parsed["Text"]?.GetValue<string>());
         Assert.Equal("True", parsed["IsEnabled"]?.GetValue<string>());
         Assert.Equal("True", parsed["IsVisible"]?.GetValue<string>());
+
+        // Test resolve and Runtime.callFunctionOn retrieval
+        var qResult = await session.HandleCommandAsync("DOM.querySelector", new JsonObject
+        {
+            ["nodeId"] = 1,
+            ["selector"] = "#btnClickMe"
+        });
+        Assert.NotNull(qResult);
+        int btnId = qResult["nodeId"]?.GetValue<int>() ?? 0;
+        Assert.True(btnId > 1);
+
+        var callFuncResult = await session.HandleCommandAsync("Runtime.callFunctionOn", new JsonObject
+        {
+            ["objectId"] = $"node_{btnId}",
+            ["functionDeclaration"] = "function() { return this.value; }"
+        });
+        Assert.NotNull(callFuncResult);
+        var callFuncResNode = callFuncResult["result"] as JsonObject;
+        Assert.NotNull(callFuncResNode);
+        Assert.Equal("string", callFuncResNode["type"]?.GetValue<string>());
+        Assert.Equal("Click Me", callFuncResNode["value"]?.GetValue<string>());
     }
 
     private void PrintNode(OSNode node, int indent, System.Text.StringBuilder sb)
