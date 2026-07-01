@@ -31,6 +31,8 @@ public sealed class OsAutomationCdpSession : IDisposable
     private bool _peerClicked;
     private bool _isInputEnabled;
     private bool _isRecordingActive;
+    private string? _lastClickedElementId;
+    private DateTime _lastClickTime;
 
     private bool _isMouseDown;
     private double _mouseDownX;
@@ -1082,6 +1084,23 @@ public sealed class OsAutomationCdpSession : IDisposable
     private void RaiseStepRecordedEvent(string type, string elementId, string? value = null, bool fromNativeHook = false)
     {
         if (!_isRecordingActive) return;
+
+        if (type == "click")
+        {
+            _lastClickedElementId = elementId;
+            _lastClickTime = DateTime.UtcNow;
+        }
+        else if (type == "change")
+        {
+            if (_lastClickedElementId != null && _lastClickedElementId != elementId)
+            {
+                if ((DateTime.UtcNow - _lastClickTime).TotalMilliseconds < 1000)
+                {
+                    Console.WriteLine($"[DEBUG OS AUTOMATION] Suppressing programmatic change step on '{elementId}' due to recent click on '{_lastClickedElementId}'.");
+                    return;
+                }
+            }
+        }
 
         var step = new JsonObject
         {
