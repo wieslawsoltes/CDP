@@ -452,4 +452,46 @@ public class OsAutomationTests
         Assert.Equal("#txtInput", selector);
         Assert.Equal("Hello OS!", value);
     }
+
+    [Fact]
+    public void DumpCalculatorTree()
+    {
+        Environment.SetEnvironmentVariable("BYPASS_TEST_ENV", "1");
+        try
+        {
+            var windows = OSAutomationService.Instance.GetWindows();
+            string? winId = null;
+            foreach (var w in windows)
+            {
+                if (w.Title.Contains("Calculator", StringComparison.OrdinalIgnoreCase))
+                {
+                    winId = w.Id;
+                    break;
+                }
+            }
+            if (winId == null) return;
+
+            var tree = OSAutomationService.Instance.GetElementTree(winId);
+            if (tree != null)
+            {
+                var sb = new System.Text.StringBuilder();
+                PrintNode(tree, 0, sb);
+                System.IO.File.WriteAllText("/Users/wieslawsoltes/.gemini/antigravity/brain/6dc4a072-a770-4166-a8d5-a4a06436908f/calculator_tree.txt", sb.ToString());
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("BYPASS_TEST_ENV", null);
+        }
+    }
+
+    private void PrintNode(OSNode node, int indent, System.Text.StringBuilder sb)
+    {
+        var ind = new string(' ', indent * 2);
+        sb.AppendLine($"{ind}- Node ID: '{node.Id}', Name: '{node.Name}', Role: '{node.Role}', Text: '{node.Text}', Bounds: {node.Bounds}");
+        foreach (var c in node.Children)
+        {
+            PrintNode(c, indent + 1, sb);
+        }
+    }
 }
