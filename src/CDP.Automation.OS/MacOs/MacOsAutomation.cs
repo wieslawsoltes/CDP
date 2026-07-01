@@ -1643,6 +1643,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
         return true;
     }
 
+    private readonly object _inputCaptureLock = new();
     private IntPtr _tapPort = IntPtr.Zero;
     private IntPtr _runLoopSource = IntPtr.Zero;
     private IntPtr _runLoop = IntPtr.Zero;
@@ -1656,160 +1657,190 @@ public sealed partial class MacOsAutomation : IOsAutomation
 
     public void StartInputCapture(string windowId, Action<double, double, string> onClick, Action<string, string, string?> onAccessibilityEvent)
     {
-        StopInputCapture();
-
-        _logger.LogInformation("StartInputCapture called for windowId: {WindowId}", windowId);
-
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
-
-        // Skip starting capture if we don't have Accessibility permissions or if it's a fallback window in unit tests
-        if (IsTestEnvironment() || !AXIsProcessTrusted() || windowId.EndsWith("_fallback"))
+        lock (_inputCaptureLock)
         {
-            _logger.LogInformation("Skipping native macOS capture setup. IsTest={IsTest}, Trusted={Trusted}, Fallback={Fallback}", IsTestEnvironment(), AXIsProcessTrusted(), windowId.EndsWith("_fallback"));
-            return;
-        }
+            StopInputCaptureInternal();
 
-        // 1. Setup global mouse event tap callback (For coordinates-based click capture)
-        _tapCallback = (tapProxy, eventType, theEvent, refcon) =>
-        {
-            _logger.LogDebug("_tapCallback triggered, eventType={EventType}", eventType);
-            if (eventType == 1) // kCGEventLeftMouseDown
+            _logger.LogInformation("StartInputCapture called for windowId: {WindowId}", windowId);
+
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
+
+            // Skip starting capture if we don't have Accessibility permissions or if it's a fallback window in unit tests
+            if (IsTestEnvironment() || !AXIsProcessTrusted() || windowId.EndsWith("_fallback"))
             {
-                CGPoint pt = CGEventGetLocation(theEvent);
-                var bounds = GetWindowBounds(windowId);
-                _logger.LogDebug("Left Mouse Down at ({X}, {Y}), Window Bounds: {Left},{Top},{Right},{Bottom}", pt.X, pt.Y, bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
-                if (bounds.Width > 0 && bounds.Height > 0)
-                {
-                    if (pt.X >= bounds.Left && pt.X <= bounds.Right &&
-                        pt.Y >= bounds.Top && pt.Y <= bounds.Bottom)
-                    {
-                        _logger.LogDebug("Click inside bounds, invoking onClick");
-                        onClick(pt.X, pt.Y, "left");
-                    }
-                    else
-                    {
-                        _logger.LogDebug("Click outside bounds");
-                    }
-                }
-            }
-            return theEvent;
-        };
-
-        // 2. Setup AXObserver if UseAccessibilityEvents is true
-        if (UseAccessibilityEvents)
-        {
-            int pid = GetWindowPid(windowId);
-            _logger.LogInformation("Setting up AXObserver for PID: {Pid}", pid);
-            if (pid > 0)
-            {
-                _appElement = AXUIElementCreateApplication(pid);
-                if (_appElement != IntPtr.Zero)
-                {
-                    _observerCallback = (observer, element, notification, refcon) =>
-                    {
-                        try
-                        {
-                            string notifStr = CFTypeToString(notification) ?? "";
-                            string role = GetStringAttribute(element, "AXRole") ?? "";
-                            string id = GetStringAttribute(element, "AXIdentifier") ?? "";
-                            if (string.IsNullOrEmpty(id))
-                            {
-                                id = GetStringAttribute(element, "AXTitle") ?? "";
-                            }
-                            if (string.IsNullOrEmpty(id))
-                            {
-                                id = "focused_element";
-                            }
-                            string text = GetStringAttribute(element, "AXValue") ?? "";
-
-                            _logger.LogDebug("AXObserver callback: notif={Notification}, role={Role}, id={Id}, text={Text}", notifStr, role, id, text);
-
-                            if (notifStr == "AXFocusedUIElementChanged")
-                            {
-                                onAccessibilityEvent("focus", id, text);
-                            }
-                            else if (notifStr == "AXValueChanged")
-                            {
-                                onAccessibilityEvent("change", id, text);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error in AXObserver callback: {Message}", ex.Message);
-                        }
-                    };
-
-                    int err = AXObserverCreate(pid, _observerCallback, out _observer);
-                    if (err == 0 && _observer != IntPtr.Zero)
-                    {
-                        _logger.LogInformation("AXObserverCreate succeeded");
-                        IntPtr focusNotif = CreateCFString("AXFocusedUIElementChanged");
-                        IntPtr valueNotif = CreateCFString("AXValueChanged");
-                        AXObserverAddNotification(_observer, _appElement, focusNotif, IntPtr.Zero);
-                        AXObserverAddNotification(_observer, _appElement, valueNotif, IntPtr.Zero);
-                        CFRelease(focusNotif);
-                        CFRelease(valueNotif);
-
-                        _observerRunLoopSource = AXObserverGetRunLoopSource(_observer);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("AXObserverCreate failed with error: {Error}", err);
-                    }
-                }
-            }
-        }
-
-        // 3. Start unified RunLoop background thread
-        _tapThread = new System.Threading.Thread(() =>
-        {
-            _runLoop = CFRunLoopGetCurrent();
-            IntPtr modeStr = CreateCFString("kCFRunLoopDefaultMode");
-
-            // Add Event Tap
-            ulong mask = (1UL << 1); // LeftMouseDown
-            _tapPort = CGEventTapCreate(1, 0, 1, mask, _tapCallback, IntPtr.Zero); // tap = 1 (kCGSessionEventTap), place = 0 (kCGHeadInsertEventTap)
-            _logger.LogInformation("CGEventTapCreate returned: {TapPort}", _tapPort);
-
-            if (_tapPort == IntPtr.Zero && _observer == IntPtr.Zero)
-            {
-                _logger.LogWarning("Event tap and AXObserver are both null. RunLoop thread exiting early.");
-                if (modeStr != IntPtr.Zero) CFRelease(modeStr);
+                _logger.LogInformation("Skipping native macOS capture setup. IsTest={IsTest}, Trusted={Trusted}, Fallback={Fallback}", IsTestEnvironment(), AXIsProcessTrusted(), windowId.EndsWith("_fallback"));
                 return;
             }
 
-            if (_tapPort != IntPtr.Zero)
+            // 1. Setup global mouse event tap callback (For coordinates-based click capture)
+            _tapCallback = (tapProxy, eventType, theEvent, refcon) =>
             {
-                _runLoopSource = CFMachPortCreateRunLoopSource(IntPtr.Zero, _tapPort, 0);
-                if (_runLoopSource != IntPtr.Zero && modeStr != IntPtr.Zero)
+                _logger.LogDebug("_tapCallback triggered, eventType={EventType}", eventType);
+                if (eventType == 1) // kCGEventLeftMouseDown
                 {
-                    CFRunLoopAddSource(_runLoop, _runLoopSource, modeStr);
+                    CGPoint pt = CGEventGetLocation(theEvent);
+                    var bounds = GetWindowBounds(windowId);
+                    _logger.LogDebug("Left Mouse Down at ({X}, {Y}), Window Bounds: {Left},{Top},{Right},{Bottom}", pt.X, pt.Y, bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
+                    if (bounds.Width > 0 && bounds.Height > 0)
+                    {
+                        if (pt.X >= bounds.Left && pt.X <= bounds.Right &&
+                            pt.Y >= bounds.Top && pt.Y <= bounds.Bottom)
+                        {
+                            _logger.LogDebug("Click inside bounds, invoking onClick");
+                            onClick(pt.X, pt.Y, "left");
+                        }
+                        else
+                        {
+                            _logger.LogDebug("Click outside bounds");
+                        }
+                    }
                 }
-                CGEventTapEnable(_tapPort, true);
-                _logger.LogInformation("Event tap enabled and run loop source added");
-            }
+                return theEvent;
+            };
 
-            // Add AXObserver if active
-            if (_observerRunLoopSource != IntPtr.Zero && modeStr != IntPtr.Zero)
+            // 2. Setup AXObserver if UseAccessibilityEvents is true
+            if (UseAccessibilityEvents)
             {
-                CFRunLoopAddSource(_runLoop, _observerRunLoopSource, modeStr);
-                _logger.LogInformation("AXObserver run loop source added");
+                int pid = GetWindowPid(windowId);
+                _logger.LogInformation("Setting up AXObserver for PID: {Pid}", pid);
+                if (pid > 0)
+                {
+                    _appElement = AXUIElementCreateApplication(pid);
+                    if (_appElement != IntPtr.Zero)
+                    {
+                        _observerCallback = (observer, element, notification, refcon) =>
+                        {
+                            try
+                            {
+                                string notifStr = CFTypeToString(notification) ?? "";
+                                string role = GetStringAttribute(element, "AXRole") ?? "";
+                                string id = GetStringAttribute(element, "AXIdentifier") ?? "";
+                                if (string.IsNullOrEmpty(id))
+                                {
+                                    id = GetStringAttribute(element, "AXTitle") ?? "";
+                                }
+                                if (string.IsNullOrEmpty(id))
+                                {
+                                    id = "focused_element";
+                                }
+                                string text = GetStringAttribute(element, "AXValue") ?? "";
+
+                                _logger.LogDebug("AXObserver callback: notif={Notification}, role={Role}, id={Id}, text={Text}", notifStr, role, id, text);
+
+                                if (notifStr == "AXFocusedUIElementChanged")
+                                {
+                                    onAccessibilityEvent("focus", id, text);
+                                }
+                                else if (notifStr == "AXValueChanged")
+                                {
+                                    onAccessibilityEvent("change", id, text);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Error in AXObserver callback: {Message}", ex.Message);
+                            }
+                        };
+
+                        int err = AXObserverCreate(pid, _observerCallback, out _observer);
+                        if (err == 0 && _observer != IntPtr.Zero)
+                        {
+                            _logger.LogInformation("AXObserverCreate succeeded");
+                            IntPtr focusNotif = CreateCFString("AXFocusedUIElementChanged");
+                            IntPtr valueNotif = CreateCFString("AXValueChanged");
+                            AXObserverAddNotification(_observer, _appElement, focusNotif, IntPtr.Zero);
+                            AXObserverAddNotification(_observer, _appElement, valueNotif, IntPtr.Zero);
+                            CFRelease(focusNotif);
+                            CFRelease(valueNotif);
+
+                            _observerRunLoopSource = AXObserverGetRunLoopSource(_observer);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("AXObserverCreate failed with error: {Error}", err);
+                        }
+                    }
+                }
             }
 
-            if (modeStr != IntPtr.Zero)
+            // 3. Start unified RunLoop background thread
+            _tapThread = new System.Threading.Thread(() =>
             {
-                CFRelease(modeStr);
-            }
+                IntPtr localRunLoop;
+                IntPtr localTapSource = IntPtr.Zero;
+                IntPtr localObserverSource = IntPtr.Zero;
+                IntPtr localTapPort = IntPtr.Zero;
+                IntPtr modeStr = IntPtr.Zero;
 
-            _logger.LogInformation("Starting CFRunLoopRun...");
-            CFRunLoopRun();
-            _logger.LogInformation("CFRunLoopRun stopped");
-        });
-        _tapThread.IsBackground = true;
-        _tapThread.Start();
+                lock (_inputCaptureLock)
+                {
+                    localRunLoop = CFRunLoopGetCurrent();
+                    _runLoop = localRunLoop;
+                    modeStr = CreateCFString("kCFRunLoopDefaultMode");
+
+                    // Add Event Tap
+                    ulong mask = (1UL << 1); // LeftMouseDown
+                    _tapPort = CGEventTapCreate(1, 0, 1, mask, _tapCallback, IntPtr.Zero); // tap = 1 (kCGSessionEventTap), place = 0 (kCGHeadInsertEventTap)
+                    localTapPort = _tapPort;
+                    _logger.LogInformation("CGEventTapCreate returned: {TapPort}", _tapPort);
+
+                    if (localTapPort == IntPtr.Zero && _observer == IntPtr.Zero)
+                    {
+                        _logger.LogWarning("Event tap and AXObserver are both null. RunLoop thread exiting early.");
+                        if (modeStr != IntPtr.Zero) CFRelease(modeStr);
+                        return;
+                    }
+
+                    if (localTapPort != IntPtr.Zero)
+                    {
+                        _runLoopSource = CFMachPortCreateRunLoopSource(IntPtr.Zero, localTapPort, 0);
+                        localTapSource = _runLoopSource;
+                        if (localTapSource != IntPtr.Zero && modeStr != IntPtr.Zero)
+                        {
+                            CFRunLoopAddSource(localRunLoop, localTapSource, modeStr);
+                        }
+                        CGEventTapEnable(localTapPort, true);
+                        _logger.LogInformation("Event tap enabled and run loop source added");
+                    }
+
+                    // Add AXObserver if active
+                    localObserverSource = _observerRunLoopSource;
+                    if (localObserverSource != IntPtr.Zero && modeStr != IntPtr.Zero)
+                    {
+                        CFRunLoopAddSource(localRunLoop, localObserverSource, modeStr);
+                        _logger.LogInformation("AXObserver run loop source added");
+                    }
+
+                    if (modeStr != IntPtr.Zero)
+                    {
+                        CFRelease(modeStr);
+                        modeStr = IntPtr.Zero;
+                    }
+                }
+
+                bool run = false;
+                lock (_inputCaptureLock)
+                {
+                    run = (_runLoop != IntPtr.Zero);
+                }
+
+                if (run)
+                {
+                    _logger.LogInformation("Starting CFRunLoopRun...");
+                    CFRunLoopRun();
+                    _logger.LogInformation("CFRunLoopRun stopped");
+                }
+                else
+                {
+                    _logger.LogInformation("RunLoop stopped before it could run.");
+                }
+            });
+            _tapThread.IsBackground = true;
+            _tapThread.Start();
+        }
     }
 
-    public void StopInputCapture()
+    private void StopInputCaptureInternal()
     {
         if (_runLoop != IntPtr.Zero)
         {
@@ -1857,6 +1888,14 @@ public sealed partial class MacOsAutomation : IOsAutomation
         _tapCallback = null;
         _observerCallback = null;
         _observerRunLoopSource = IntPtr.Zero;
+    }
+
+    public void StopInputCapture()
+    {
+        lock (_inputCaptureLock)
+        {
+            StopInputCaptureInternal();
+        }
     }
 
     private bool TryAccessibilityPress(int pid, double absoluteX, double absoluteY)
