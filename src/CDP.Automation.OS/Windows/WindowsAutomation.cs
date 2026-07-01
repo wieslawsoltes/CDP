@@ -527,7 +527,7 @@ public sealed partial class WindowsAutomation : IOsAutomation
         int myId = nextId++;
         var node = new OSNode
         {
-            Id = string.IsNullOrEmpty(automationId) ? myId.ToString() : automationId,
+            Id = string.IsNullOrEmpty(automationId) ? $"node_{myId}" : automationId,
             Name = string.IsNullOrEmpty(name) ? role : name,
             Role = role,
             Text = name ?? string.Empty,

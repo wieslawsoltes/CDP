@@ -651,7 +651,7 @@ public sealed partial class MacOsAutomation : IOsAutomation
         int myId = nextId++;
         var node = new OSNode
         {
-            Id = string.IsNullOrEmpty(idAttr) ? myId.ToString() : idAttr,
+            Id = string.IsNullOrEmpty(idAttr) ? $"node_{myId}" : idAttr,
             Name = string.IsNullOrEmpty(title) ? role : title,
             Role = role,
             Text = value ?? (string.IsNullOrEmpty(title) ? description ?? string.Empty : title),
