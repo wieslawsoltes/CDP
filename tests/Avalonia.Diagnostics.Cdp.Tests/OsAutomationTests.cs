@@ -687,4 +687,169 @@ public class OsAutomationTests
             PrintNode(c, indent + 1, sb);
         }
     }
+
+    [Fact]
+    public async Task TestOsAutomationTelemetryPerformanceDomain()
+    {
+        var session = new OsAutomationCdpSession(GetTargetWindowId());
+        
+        // Test Performance.getMetrics directly
+        var metricsResult = await session.HandleCommandAsync("Performance.getMetrics", new JsonObject());
+        Assert.NotNull(metricsResult);
+        var metrics = metricsResult["metrics"] as JsonArray;
+        Assert.NotNull(metrics);
+        Assert.NotEmpty(metrics);
+
+        // Check if CPUUsage, JSHeapUsedSize, Nodes are present
+        bool hasCpu = false;
+        bool hasHeap = false;
+        bool hasNodes = false;
+        bool hasFps = false;
+        foreach (var m in metrics)
+        {
+            string name = m?["name"]?.GetValue<string>() ?? "";
+            if (name == "CPUUsage") hasCpu = true;
+            if (name == "JSHeapUsedSize") hasHeap = true;
+            if (name == "Nodes") hasNodes = true;
+            if (name == "FPS") hasFps = true;
+        }
+        Assert.True(hasCpu, "CPUUsage metric missing");
+        Assert.True(hasHeap, "JSHeapUsedSize metric missing");
+        Assert.True(hasNodes, "Nodes metric missing");
+        Assert.True(hasFps, "FPS metric missing");
+
+        // Verify enable starts without throw
+        var enableRes = await session.HandleCommandAsync("Performance.enable", new JsonObject());
+        Assert.NotNull(enableRes);
+
+        // Verify disable works
+        var disableRes = await session.HandleCommandAsync("Performance.disable", new JsonObject());
+        Assert.NotNull(disableRes);
+    }
+
+    [Fact]
+    public async Task TestOsAutomationTelemetryMemoryDomain()
+    {
+        var session = new OsAutomationCdpSession(GetTargetWindowId());
+        
+        // Test Memory.getDOMCounters
+        var countersRes = await session.HandleCommandAsync("Memory.getDOMCounters", new JsonObject());
+        Assert.NotNull(countersRes);
+        Assert.True(countersRes.ContainsKey("nodes"));
+        Assert.True(countersRes.ContainsKey("documents"));
+
+        // Test Memory.getLiveControls
+        var liveRes = await session.HandleCommandAsync("Memory.getLiveControls", new JsonObject());
+        Assert.NotNull(liveRes);
+        var controls = liveRes["controls"] as JsonArray;
+        Assert.NotNull(controls);
+
+        // Test Memory.takeHeapSnapshot
+        var snapshotRes = await session.HandleCommandAsync("Memory.takeHeapSnapshot", new JsonObject());
+        Assert.NotNull(snapshotRes);
+        Assert.NotNull(snapshotRes["snapshot"]);
+        Assert.NotNull(snapshotRes["nodes"]);
+        Assert.NotNull(snapshotRes["edges"]);
+
+        // Test Memory.getRetainers
+        var retainersRes = await session.HandleCommandAsync("Memory.getRetainers", new JsonObject { ["hashCode"] = 1234 });
+        Assert.NotNull(retainersRes);
+        Assert.Equal("No retainer data available for OS elements", retainersRes["name"]?.GetValue<string>());
+
+        // Test Memory.collectGarbage
+        var gcRes = await session.HandleCommandAsync("Memory.collectGarbage", new JsonObject());
+        Assert.NotNull(gcRes);
+    }
+
+    [Fact]
+    public async Task TestOsAutomationTelemetryNetworkDomain()
+    {
+        var session = new OsAutomationCdpSession(GetTargetWindowId());
+        
+        int requestsSent = 0;
+        int responsesReceived = 0;
+        int loadingFinished = 0;
+        int loadingFailed = 0;
+
+        session.EventReceived += (sender, e) =>
+        {
+            if (e.Method == "Network.requestWillBeSent") requestsSent++;
+            else if (e.Method == "Network.responseReceived") responsesReceived++;
+            else if (e.Method == "Network.loadingFinished") loadingFinished++;
+            else if (e.Method == "Network.loadingFailed") loadingFailed++;
+        };
+
+        // Enable network
+        await session.HandleCommandAsync("Network.enable", new JsonObject());
+
+        // Trigger interactive mouse click to cause virtual network request
+        await session.HandleCommandAsync("Input.dispatchMouseEvent", new JsonObject
+        {
+            ["type"] = "mouseReleased",
+            ["x"] = 100.0,
+            ["y"] = 100.0,
+            ["button"] = "left"
+        });
+
+        // Let simulation run asynchronously
+        await Task.Delay(500);
+
+        Assert.True(requestsSent > 0, "Network.requestWillBeSent not fired");
+        Assert.True(responsesReceived > 0, "Network.responseReceived not fired");
+        Assert.True(loadingFinished > 0, "Network.loadingFinished not fired");
+
+        // Test blocked URL emulation
+        var windows = OSAutomationService.Instance.GetWindows();
+        var targetWin = windows.FirstOrDefault(w => w.Id == GetTargetWindowId());
+        string procName = targetWin?.ProcessName ?? "CdpSampleApp";
+
+        await session.HandleCommandAsync("Network.setBlockedURLs", new JsonObject
+        {
+            ["urls"] = new JsonArray { $"https://api.{procName.ToLowerInvariant()}.local/actions/*" }
+        });
+
+        int requestsSent2 = 0;
+        int loadingFailed2 = 0;
+        session.EventReceived += (sender, e) =>
+        {
+            if (e.Method == "Network.requestWillBeSent") requestsSent2++;
+            else if (e.Method == "Network.loadingFailed") loadingFailed2++;
+        };
+
+        // Trigger click which goes to blocked URL
+        await session.HandleCommandAsync("Input.dispatchMouseEvent", new JsonObject
+        {
+            ["type"] = "mouseReleased",
+            ["x"] = 120.0,
+            ["y"] = 120.0,
+            ["button"] = "left"
+        });
+
+        await Task.Delay(100);
+        Assert.True(requestsSent2 > 0);
+        Assert.True(loadingFailed2 > 0);
+
+        // Disable network
+        await session.HandleCommandAsync("Network.disable", new JsonObject());
+    }
+
+    [Fact]
+    public async Task TestOsAutomationBrowserAndPageFocusDomain()
+    {
+        var session = new OsAutomationCdpSession(GetTargetWindowId());
+
+        // Test Page.bringToFront
+        var focusRes = await session.HandleCommandAsync("Page.bringToFront", new JsonObject());
+        Assert.NotNull(focusRes);
+
+        // Test Browser.getVersion
+        var versionRes = await session.HandleCommandAsync("Browser.getVersion", new JsonObject());
+        Assert.NotNull(versionRes);
+        Assert.True(versionRes.ContainsKey("protocolVersion"));
+        Assert.True(versionRes.ContainsKey("product"));
+
+        // Test Browser.close handles without throw
+        var closeRes = await session.HandleCommandAsync("Browser.close", new JsonObject());
+        Assert.NotNull(closeRes);
+    }
 }
