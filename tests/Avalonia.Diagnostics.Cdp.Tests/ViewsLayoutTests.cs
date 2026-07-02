@@ -357,6 +357,20 @@ public class ViewsLayoutTests
     }
 
     [AvaloniaFact]
+    public void Test_FloatingSplitWindow_Instantiation_And_Close()
+    {
+        var mainSplit = new CDP.Editor.Splits.Controls.SuperSplit();
+        var box1 = new CDP.Editor.Splits.Models.BoxNode();
+        box1.AddTab("Tab1", "Icon1", "View1");
+        mainSplit.Root = box1;
+        mainSplit.Rebuild();
+
+        var window = new CDP.Inspector.Shared.Controls.FloatingSplitWindow(mainSplit, box1);
+        Assert.NotNull(window);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void Test_SuperSplit_Drag_Tab_Split_Target()
     {
         var vm = new MainWindowViewModel();

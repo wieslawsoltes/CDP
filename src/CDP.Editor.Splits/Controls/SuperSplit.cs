@@ -478,17 +478,18 @@ public class FlatSplitPanel : Panel
     }
 }
 
+public enum RelativeDropLocation
+{
+    None,
+    Left,
+    Right,
+    Top,
+    Bottom,
+    Center
+}
+
 public class SuperSplit : ContentControl
 {
-    private enum RelativeDropLocation
-    {
-        None,
-        Left,
-        Right,
-        Top,
-        Bottom,
-        Center
-    }
 
     public static readonly StyledProperty<SplitNode?> RootProperty =
         AvaloniaProperty.Register<SuperSplit, SplitNode?>(nameof(Root), null);
@@ -1611,7 +1612,7 @@ public class SuperSplit : ContentControl
         e.Handled = true;
     }
 
-    private SuperSplitBox? FindBoxAtPosition(Point p)
+    public SuperSplitBox? FindBoxAtPosition(Point p)
     {
         return FindBoxAtPositionRecursive(this, p);
     }
@@ -1640,7 +1641,7 @@ public class SuperSplit : ContentControl
         return null;
     }
 
-    private void ShowDropHighlight(Point topLeft, double w, double h, RelativeDropLocation loc)
+    public void ShowDropHighlight(Point topLeft, double w, double h, RelativeDropLocation loc)
     {
         double overlayX = topLeft.X;
         double overlayY = topLeft.Y;
@@ -1738,7 +1739,7 @@ public class SuperSplit : ContentControl
         }
     }
 
-    private void HideDropHighlight()
+    public void HideDropHighlight()
     {
         if (_hideHighlightTimer != null) return;
         if (!_dropHighlightOverlay.IsVisible) return;
@@ -1786,7 +1787,7 @@ public class SuperSplit : ContentControl
         MoveNodeCrossWindow(source, target, loc, this);
     }
 
-    private void MoveNodeCrossWindow(BoxNode source, BoxNode target, RelativeDropLocation loc, SuperSplit? sourceSplit)
+    public void MoveNodeCrossWindow(BoxNode source, BoxNode target, RelativeDropLocation loc, SuperSplit? sourceSplit)
     {
         sourceSplit ??= this;
 
