@@ -926,4 +926,56 @@ public class ViewsLayoutTests
         }
         return null;
     }
+
+    [AvaloniaFact]
+    public void Test_SuperSplitBox_Hides_Header_When_Single_Tab()
+    {
+        var boxNode = new CDP.Editor.Splits.Models.BoxNode();
+        boxNode.AddTab("Tab1", "GlobeIcon", "Network");
+
+        var boxControl = new CDP.Editor.Splits.Controls.SuperSplitBox
+        {
+            DataContext = boxNode
+        };
+
+        var window = new Window { Content = boxControl };
+
+        var field = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_headerPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(field);
+        var headerPanel = field.GetValue(boxControl) as Border;
+        Assert.NotNull(headerPanel);
+
+        // Force layout pass
+        window.Show();
+
+        // Single tab should hide the header
+        Assert.False(headerPanel.IsVisible);
+
+        // Adding a second tab should show the header
+        boxNode.AddTab("Tab2", "GlobeIcon", "Console");
+        Assert.True(headerPanel.IsVisible);
+
+        // Removing a tab should hide it again
+        boxNode.Tabs.RemoveAt(1);
+        Assert.False(headerPanel.IsVisible);
+
+        window.Close();
+    }
+
+    [Fact]
+    public void Test_SuperSplitBox_Tab_Reordering()
+    {
+        var boxNode = new CDP.Editor.Splits.Models.BoxNode();
+        var tab1 = boxNode.AddTab("Tab1", "Icon1", "View1");
+        var tab2 = boxNode.AddTab("Tab2", "Icon2", "View2");
+
+        Assert.Equal(0, boxNode.Tabs.IndexOf(tab1));
+        Assert.Equal(1, boxNode.Tabs.IndexOf(tab2));
+
+        // Move tab1 to index 1
+        boxNode.Tabs.Move(0, 1);
+
+        Assert.Equal(1, boxNode.Tabs.IndexOf(tab1));
+        Assert.Equal(0, boxNode.Tabs.IndexOf(tab2));
+    }
 }

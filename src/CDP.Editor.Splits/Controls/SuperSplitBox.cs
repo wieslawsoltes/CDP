@@ -88,6 +88,9 @@ public class SuperSplitBox : ContentControl
     private readonly Button _btnScrollLeft;
     private readonly Button _btnScrollRight;
     private readonly Button _btnZoom;
+    private bool _isTabDragging;
+    private BoxTabNode? _draggingTab;
+    private PointerPressedEventArgs? _tabPressedEventArgs;
 
     public SuperSplitBox()
     {
@@ -255,6 +258,20 @@ public class SuperSplitBox : ContentControl
         Grid.SetRow(_headerPanel, 0);
         grid.Children.Add(_headerPanel);
 
+        _headerPanel.PointerPressed += (sender, e) =>
+        {
+            if (e.GetCurrentPoint(_headerPanel).Properties.IsLeftButtonPressed)
+            {
+                if (e.Source == _headerPanel || e.Source == _tabsScrollViewer || e.Source == _tabsPanel)
+                {
+                    if (DataContext is BoxNode boxNode)
+                    {
+                        HeaderPressed?.Invoke(this, e);
+                    }
+                }
+            }
+        };
+
         // Content Area
         var contentPresenter = new ContentPresenter
         {
@@ -330,6 +347,9 @@ public class SuperSplitBox : ContentControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        _isTabDragging = false;
+        _draggingTab = null;
+        _tabPressedEventArgs = null;
         if (_currentBoxNode != null)
         {
             _currentBoxNode.Tabs.CollectionChanged -= OnTabsCollectionChanged;
@@ -360,7 +380,46 @@ public class SuperSplitBox : ContentControl
 
     private void OnTabsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        if (e.Action == NotifyCollectionChangedAction.Move)
+        {
+            int oldIndex = e.OldStartingIndex;
+            int newIndex = e.NewStartingIndex;
+            if (oldIndex >= 0 && oldIndex < _tabsPanel.Children.Count &&
+                newIndex >= 0 && newIndex < _tabsPanel.Children.Count)
+            {
+                var control = _tabsPanel.Children[oldIndex];
+                _tabsPanel.Children.RemoveAt(oldIndex);
+                _tabsPanel.Children.Insert(newIndex, control);
+                UpdateTabCornerRadii();
+                return;
+            }
+        }
         RebuildHeaderTabs();
+    }
+
+    private void UpdateTabCornerRadii()
+    {
+        int count = _tabsPanel.Children.Count;
+        for (int i = 0; i < count; i++)
+        {
+            if (_tabsPanel.Children[i] is Border tabBorder)
+            {
+                var cornerRadius = new CornerRadius(0);
+                if (i == 0 && i == count - 1)
+                {
+                    cornerRadius = new CornerRadius(8, 8, 0, 0);
+                }
+                else if (i == 0)
+                {
+                    cornerRadius = new CornerRadius(8, 0, 0, 0);
+                }
+                else if (i == count - 1)
+                {
+                    cornerRadius = new CornerRadius(0, 8, 0, 0);
+                }
+                tabBorder.CornerRadius = cornerRadius;
+            }
+        }
     }
 
     private void OnBoxNodePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -378,6 +437,12 @@ public class SuperSplitBox : ContentControl
         if (DataContext is BoxNode boxNode)
         {
             int count = boxNode.Tabs.Count;
+            _headerPanel.IsVisible = count > 1;
+            if (count <= 1)
+            {
+                return;
+            }
+
             for (int i = 0; i < count; i++)
             {
                 var tab = boxNode.Tabs[i];
@@ -512,19 +577,93 @@ public class SuperSplitBox : ContentControl
                 // Tab selection and drag press handling
                 tabBorder.PointerPressed += (sender, args) =>
                 {
-                    boxNode.ActiveTab = tab;
-                    BoxSelected?.Invoke(this, EventArgs.Empty);
-
                     var pointerProperties = args.GetCurrentPoint(tabBorder).Properties;
                     if (pointerProperties.IsRightButtonPressed)
                     {
+                        boxNode.ActiveTab = tab;
+                        BoxSelected?.Invoke(this, EventArgs.Empty);
                         MenuClicked?.Invoke(this, EventArgs.Empty);
+                        args.Handled = true;
                     }
-                    else
+                    else if (pointerProperties.IsLeftButtonPressed)
                     {
-                        HeaderPressed?.Invoke(this, args);
+                        boxNode.ActiveTab = tab;
+                        BoxSelected?.Invoke(this, EventArgs.Empty);
+                        _isTabDragging = true;
+                        _draggingTab = tab;
+                        _tabPressedEventArgs = args;
+                        args.Pointer.Capture(tabBorder);
+                        args.Handled = true;
                     }
-                    args.Handled = true;
+                };
+
+                tabBorder.PointerReleased += (sender, args) =>
+                {
+                    if (_isTabDragging && _draggingTab == tab)
+                    {
+                        args.Pointer.Capture(null);
+                        _isTabDragging = false;
+                        _draggingTab = null;
+                        args.Handled = true;
+                    }
+                };
+
+                tabBorder.PointerCaptureLost += (sender, args) =>
+                {
+                    if (_isTabDragging && _draggingTab == tab)
+                    {
+                        _isTabDragging = false;
+                        _draggingTab = null;
+                    }
+                };
+
+                tabBorder.PointerMoved += (sender, args) =>
+                {
+                    if (_isTabDragging && _draggingTab == tab)
+                    {
+                        var posInHeader = args.GetPosition(_headerPanel);
+                        bool isOutside = posInHeader.Y < -15 || posInHeader.Y > _headerPanel.Bounds.Height + 15 ||
+                                         posInHeader.X < -50 || posInHeader.X > _headerPanel.Bounds.Width + 50;
+
+                        if (isOutside)
+                        {
+                            args.Pointer.Capture(null);
+                            _isTabDragging = false;
+                            _draggingTab = null;
+                            if (_tabPressedEventArgs != null)
+                            {
+                                HeaderPressed?.Invoke(this, _tabPressedEventArgs);
+                            }
+                        }
+                        else
+                        {
+                            int fromIndex = boxNode.Tabs.IndexOf(tab);
+                            Point posInTabs = args.GetPosition(_tabsPanel);
+                            int targetIndex = -1;
+                            double x = posInTabs.X;
+                            for (int idx = 0; idx < _tabsPanel.Children.Count; idx++)
+                            {
+                                var child = _tabsPanel.Children[idx] as Control;
+                                if (child == null) continue;
+                                double midX = child.Bounds.X + child.Bounds.Width / 2.0;
+                                if (x < midX)
+                                {
+                                    targetIndex = idx;
+                                    break;
+                                }
+                            }
+                            if (targetIndex == -1)
+                            {
+                                targetIndex = _tabsPanel.Children.Count - 1;
+                            }
+
+                            if (fromIndex >= 0 && targetIndex >= 0 && fromIndex != targetIndex)
+                            {
+                                boxNode.Tabs.Move(fromIndex, targetIndex);
+                            }
+                        }
+                        args.Handled = true;
+                    }
                 };
 
                 _tabsPanel.Children.Add(tabBorder);
