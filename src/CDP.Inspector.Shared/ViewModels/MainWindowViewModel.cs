@@ -67,6 +67,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public ICommand SplitDownCommand { get; }
     public ICommand ClosePaneCommand { get; }
     public ICommand ResetLayoutCommand { get; }
+    public ICommand FloatPaneCommand { get; }
 
 
 
@@ -170,6 +171,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         SplitDownCommand = new RelayCommand(() => SplitSelected(Avalonia.Layout.Orientation.Vertical, false));
         ClosePaneCommand = new RelayCommand(CloseSelected);
         ResetLayoutCommand = new RelayCommand(ResetLayout);
+        FloatPaneCommand = new RelayCommand(FloatSelected);
 
         // Set up the default split layout
         ResetLayout();
@@ -313,6 +315,40 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
                 if (sibling is BoxNode boxSibling) SelectedPane = boxSibling;
             }
         }
+    }
+
+    private void FloatSelected()
+    {
+        var selected = SelectedPane;
+        if (selected == null) return;
+
+        if (selected == LayoutRoot)
+        {
+            LayoutRoot = null;
+            SelectedPane = null;
+        }
+        else if (selected.Parent is SplitContainerNode parent)
+        {
+            var sibling = parent.Child1 == selected ? parent.Child2 : parent.Child1;
+            var grandparent = parent.Parent;
+
+            if (parent == LayoutRoot)
+            {
+                sibling.Parent = null;
+                LayoutRoot = sibling;
+            }
+            else if (grandparent is SplitContainerNode gp)
+            {
+                sibling.Parent = gp;
+                if (gp.Child1 == parent) gp.Child1 = sibling;
+                else gp.Child2 = sibling;
+            }
+
+            if (sibling is BoxNode boxSibling) SelectedPane = boxSibling;
+            else if (sibling is SplitContainerNode sc) SelectedPane = FindFirstBoxNode(sc);
+        }
+
+        CDP.Editor.Splits.Models.SuperSplitDragManager.FloatNodeCallback?.Invoke(null, selected);
     }
 
     private void ResetLayout()
