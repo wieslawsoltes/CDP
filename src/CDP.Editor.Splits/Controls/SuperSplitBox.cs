@@ -92,6 +92,7 @@ public class SuperSplitBox : ContentControl
     private bool _isTabDragging;
     private BoxTabNode? _draggingTab;
     private PointerPressedEventArgs? _tabPressedEventArgs;
+    private bool _isMovingTab;
     private readonly StackPanel _singleTabHeaderPanel;
     private readonly PathIcon _singleTabIcon;
     private readonly TextBlock _singleTabTitle;
@@ -672,6 +673,8 @@ public class SuperSplitBox : ContentControl
 
                 tabBorder.PointerCaptureLost += (sender, args) =>
                 {
+                    if (_isMovingTab) return;
+
                     if (_isTabDragging && _draggingTab == tab)
                     {
                         _isTabDragging = false;
@@ -728,7 +731,16 @@ public class SuperSplitBox : ContentControl
                                 }
                                 if (fromIndex != adjustedTarget)
                                 {
-                                    boxNode.Tabs.Move(fromIndex, adjustedTarget);
+                                    _isMovingTab = true;
+                                    try
+                                    {
+                                        boxNode.Tabs.Move(fromIndex, adjustedTarget);
+                                        args.Pointer.Capture(tabBorder);
+                                    }
+                                    finally
+                                    {
+                                        _isMovingTab = false;
+                                    }
                                 }
                             }
                         }

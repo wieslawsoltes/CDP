@@ -1072,4 +1072,61 @@ public class ViewsLayoutTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public void Test_SuperSplitBox_Tab_Reordering_Preserves_Capture()
+    {
+        var boxNode = new CDP.Editor.Splits.Models.BoxNode();
+        var tab1 = boxNode.AddTab("Tab1", "Icon1", "View1");
+        var tab2 = boxNode.AddTab("Tab2", "Icon2", "View2");
+
+        var boxControl = new CDP.Editor.Splits.Controls.SuperSplitBox
+        {
+            DataContext = boxNode
+        };
+
+        var window = new Window { Content = boxControl };
+        window.Show();
+
+        // Simulate the drag state via reflection
+        var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        isTabDraggingField.SetValue(boxControl, true);
+        draggingTabField.SetValue(boxControl, tab1);
+
+        // Retrieve tabBorder of the first tab to raise PointerMoved
+        var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldPanel);
+        var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
+        Assert.NotNull(tabsPanel);
+        var tabBorder = tabsPanel.Children[0] as Border;
+        Assert.NotNull(tabBorder);
+
+        // Capture pointer to tabBorder
+        var pointer = new Pointer(0, PointerType.Mouse, true);
+        pointer.Capture(tabBorder);
+        Assert.Equal(tabBorder, pointer.Captured);
+
+        // Raise a PointerMoved event inside bounds but to the right of tab2 (e.g. X = 200, Y = 0)
+        var dummyMoved = new PointerEventArgs(
+            InputElement.PointerMovedEvent,
+            tabBorder,
+            pointer,
+            tabBorder,
+            new Point(200, 0),
+            0UL,
+            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+            KeyModifiers.None
+        );
+
+        tabBorder.RaiseEvent(dummyMoved);
+
+        // Dragging state should still be true (capture should be preserved)
+        Assert.True((bool)isTabDraggingField.GetValue(boxControl));
+        Assert.Equal(tab1, draggingTabField.GetValue(boxControl));
+
+        window.Close();
+    }
 }
