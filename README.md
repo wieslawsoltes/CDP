@@ -19,7 +19,8 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 | **Chrome.DevTools.Editor.Nodes.Msagl** | MSAGL Layout Provider | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Nodes.Msagl.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes.Msagl/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Nodes.Msagl.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes.Msagl/) |
 | **Chrome.DevTools.Editor.Splits** | Dynamic Splits Layout Container | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Splits.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Splits/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Splits.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Splits/) |
 | **Chrome.DevTools.DiagnosticTools** | In-Process Diagnostics | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.DiagnosticTools.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.DiagnosticTools/) |
-| **Chrome.DevTools.Inspector** | .NET Global Tool | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) |
+| **Chrome.DevTools.Inspector** | .NET Global Tool (GUI) | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector/) |
+| **Chrome.DevTools.Cli** | .NET Global Tool (CLI) | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Cli.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Cli/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Cli.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Cli/) |
 
 ---
 
@@ -435,6 +436,91 @@ Due to security restrictions in modern web browsers:
 3. Copy either the **Target ID** (e.g., `35c3b043-4939-4848-80e3-c31b25f0b1c2`) or the **entire WebSocket Debugger URL** (`webSocketDebuggerUrl`).
 4. Paste it directly into the **Host** textbox of the browser inspector (running at `http://127.0.0.1:8080`). The inspector will automatically configure and select the **Direct Connection** target.
 5. Click **Connect**. Since the target app uses a custom C# WebSocket server without browser origin restrictions, the browser will connect successfully!
+
+### 3. Testing with CdpCliTool (cdp-cli)
+The `Chrome.DevTools.Cli` package installs the `cdp-cli` global tool, enabling developers, test agents, and CI/CD pipelines to list targets, execute test suites, dump tree hierarchies, run C# script evaluations, stream logs, and dispatch standalone actions without launching a GUI application.
+
+#### A. Install as a .NET Tool
+You can install the CLI tool globally on your system:
+```bash
+dotnet tool install -g Chrome.DevTools.Cli
+```
+Once installed, run it via the terminal command:
+```bash
+cdp-cli --help
+```
+
+#### B. Command Reference
+
+##### 1. List Connection Targets
+Scan active target processes running on a CDP host:
+```bash
+cdp-cli list-targets --host http://127.0.0.1:9222
+```
+
+##### 2. Run Test Flows and Suites
+Execute a single YAML flow file or a directory containing a suite of YAML files:
+```bash
+# Run a single YAML flow and generate HTML/PDF test reports and screencast video frames
+cdp-cli run scratch/test_flow.yaml --report --video --output-dir TestReports
+
+# Run an entire folder of YAML files (Sequential Suite Runner)
+cdp-cli run test-suite/ --report --output-dir TestReports
+
+# Auto-launch target application, execute flow, and shut down
+cdp-cli run scratch/test_flow.yaml --auto-launch "dotnet run --project samples/CdpSampleApp" --timeout 45000
+```
+**Options**:
+* `-h, --host <url>`: Host address (default: `http://127.0.0.1:9222`).
+* `-t, --target <id>`: Match a specific page target ID.
+* `-n, --target-name <name>`: Match target by window title substring.
+* `-o, --output-dir <path>`: Directory to write HTML/PDF reports and video frames (default: `TestReports`).
+* `-v, --video`: Enable capturing screencast frames during test execution.
+* `-r, --report`: Enable generating step-by-step PDF & HTML reports.
+* `-e, --env <KEY=VAL>`: Specify environment variables for YAML parameter interpolation. Can be defined multiple times.
+* `--auto-launch <path>`: Path to executable to automatically launch before connection.
+* `--auto-launch-args <args>`: Arguments to pass to the auto-launched process.
+* `--timeout <ms>`: Flow execution timeout in milliseconds (default: `30000`).
+
+##### 3. Print Visual/Accessibility Hierarchy
+Print the target application's tree hierarchy:
+```bash
+# Dump the Accessibility (AX) Tree in clear text format
+cdp-cli hierarchy --type accessibility --format text
+
+# Dump the DOM Visual Tree as JSON
+cdp-cli hierarchy --type visual --format json
+```
+
+##### 4. Evaluate C# Script
+Run a C# script or property evaluator against the target app:
+```bash
+cdp-cli eval "Window.Title"
+cdp-cli eval "document.querySelector('#lblClickCount').text"
+```
+
+##### 5. Run Single Actions
+Simulate a single user interaction action on a target control:
+```bash
+# Tap (click) a button
+cdp-cli action tap "#btnClickMe"
+
+# Type text into a textbox
+cdp-cli action input "#txtSearch" "search query"
+
+# Clear text in an input field
+cdp-cli action clear "#txtSearch"
+
+# Scroll a scroll-viewer
+cdp-cli action scroll "#scrollViewer" down
+```
+
+##### 6. Stream Live Logs
+Stream target Console log messages, Network requests, and system Events directly to stdout in real-time:
+```bash
+cdp-cli logs --type all
+cdp-cli logs --type console
+```
 
 ---
 

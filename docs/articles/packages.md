@@ -6,16 +6,17 @@ title: Package Guide
 
 Welcome to the **Chrome DevTools Protocol (CDP) Avalonia Package Guide**. The CDP Avalonia ecosystem is designed with a modular architecture, separating the core protocol engine, OS accessibility drivers, client services, reusable UI views, specialized editor components, and ready-to-run inspector tooling. 
 
-This guide details all **10 NuGet packages** that make up this ecosystem.
+This guide details all **11 NuGet packages** that make up this ecosystem.
 
 ---
 
 ## Ecosystem Overview & Dependency Diagram
 
-The packages coordinate to form a comprehensive desktop inspection and automation suite. The flow begins with low-level accessibility APIs at the bottom and builds up to the global CLI inspector at the top:
+The packages coordinate to form a comprehensive desktop inspection and automation suite. The flow begins with low-level accessibility APIs at the bottom and builds up to the global CLI inspector and automation runner at the top:
 
 ```
-Chrome.DevTools.Inspector (.NET Global Tool)
+Chrome.DevTools.Inspector (.NET Global Tool - GUI)
+Chrome.DevTools.Cli (.NET Global Tool - CLI)
 └─ Chrome.DevTools.Inspector.Shared
    ├─ Chrome.DevTools.Avalonia
    │  └─ Chrome.DevTools.Protocol
@@ -44,7 +45,8 @@ Below is a summary table mapping each package:
 | **Chrome.DevTools.Editor.Nodes** | Panning, zooming, and drag-and-drop node graph canvas | Preview / Centralized |
 | **Chrome.DevTools.Editor.Nodes.Msagl** | Automated hierarchical graph layout provider (MSAGL) | Preview / Centralized |
 | **Chrome.DevTools.Editor.Splits** | Resizable binary split panel container control | Preview / Centralized |
-| **Chrome.DevTools.Inspector** | Standalone .NET global tool command-line runner | Preview / Centralized |
+| **Chrome.DevTools.Inspector** | Standalone .NET global tool (GUI inspector) | Preview / Centralized |
+| **Chrome.DevTools.Cli** | Standalone .NET global tool (CLI automation runner) | Preview / Centralized |
 
 ---
 
@@ -377,3 +379,31 @@ dotnet tool install -g Chrome.DevTools.Inspector
 # Start the inspector app from the command line
 cdp-inspector
 ```
+
+---
+
+### 11. Chrome.DevTools.Cli (.NET global tool)
+
+The standalone CLI test runner and interaction tool packaged as a global .NET CLI tool. When run, it connects to a remote or auto-launched CDP-enabled target, executes YAML test flows/suites headlessly, dumps tree hierarchies, evaluates C# scripts, streams logs in real-time, and dispatches individual pointer/keyboard/scrolling actions.
+
+| Property | Description |
+| :--- | :--- |
+| **Package ID** | `Chrome.DevTools.Cli` |
+| **Install Command** | `dotnet tool install -g Chrome.DevTools.Cli` |
+| **When to Use** | Install on test agents, headless environments, or local developer terminals to automate and assert Avalonia app visual state from bash/zsh scripts. |
+| **Project References** | `CDP.Inspector.Shared.csproj`, `CDP.Inspector.CLI.csproj` |
+| **NuGet Dependencies** | `Avalonia`, `Avalonia.Headless`, `Avalonia.Themes.Fluent`, `Avalonia.Fonts.Inter`, `Microsoft.Extensions.Logging`, `Microsoft.Extensions.Logging.Console`, `System.CommandLine` |
+
+#### Key Types
+* `Program.cs`: Setup the headless Avalonia framework loop, parse commands via `System.CommandLine`, and delegate work to `CdpService` / `TestStudioViewModel`.
+* `CliApp`: Minimal headless `Application` container loading themes and styling to support the view model bindings.
+
+#### Usage Example
+```bash
+# Install the CLI tool
+dotnet tool install -g Chrome.DevTools.Cli
+
+# Execute a test script headlessly with report generation and video frame capture enabled
+cdp-cli run scratch/test_flow.yaml --report --video --output-dir TestReports
+```
+
