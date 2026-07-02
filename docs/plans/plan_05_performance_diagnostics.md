@@ -78,19 +78,19 @@ Based on an audit of the codebase, there is a substantial gap between the existi
 ### 3.1 Already Implemented
 
 1. **Performance Domain**:
-   - [PerformanceDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/PerformanceDomain.cs) exposes the standard `Performance.getMetrics` method.
+   - `PerformanceDomain.cs` exposes the standard `Performance.getMetrics` method.
    - It returns a subset of metrics: `Timestamp` (epoch seconds), `Nodes` (recursive count of visual children in the active session window), `JSHeapUsedSize` (using `Process.GetCurrentProcess().WorkingSet64`), and `JSHeapTotalSize` (using `GC.GetTotalMemory(false)`).
    - Stubs for `enable`, `disable`, and `setTimeDomain` are defined but execute as no-ops.
 2. **Memory Domain**:
-   - [MemoryDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/MemoryDomain.cs) implements `Memory.getDOMCounters` (returning the count of active targets as `documents`, visual nodes count as `nodes`, and `jsEventListeners` as a stub).
+   - `MemoryDomain.cs` implements `Memory.getDOMCounters` (returning the count of active targets as `documents`, visual nodes count as `nodes`, and `jsEventListeners` as a stub).
    - `Memory.getLiveControls` recursively crawls all active windows to count instantiated control types (returned as a dictionary).
    - `Memory.collectGarbage` and `Memory.forciblyPurgeJavaScriptMemory` trigger full Garbage Collection cycles (`GC.Collect()` followed by finalizer waiting).
 3. **SystemInfo Domain**:
-   - [SystemInfoDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/SystemInfoDomain.cs) implements `SystemInfo.getProcessInfo` (returning process ID, thread count, private Working Set size, and total cumulative CPU seconds).
+   - `SystemInfoDomain.cs` implements `SystemInfo.getProcessInfo` (returning process ID, thread count, private Working Set size, and total cumulative CPU seconds).
 4. **Client UI & ViewModels**:
-   - [PerformanceViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/PerformanceViewModel.cs) connects to the server and retrieves these metrics via periodic polling (`RefreshMetricsAsync`).
-   - The values are bound to text elements in [PerformanceView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/PerformanceView.axaml).
-   - A sliding list of the last 30 memory measurements (`MemoryHistory`) is plotted on the screen using a custom-drawn [ChromeTimelineChart.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Controls/ChromeTimelineChart.cs) control.
+   - `PerformanceViewModel.cs` connects to the server and retrieves these metrics via periodic polling (`RefreshMetricsAsync`).
+   - The values are bound to text elements in `PerformanceView.axaml`.
+   - A sliding list of the last 30 memory measurements (`MemoryHistory`) is plotted on the screen using a custom-drawn `ChromeTimelineChart.cs` control.
 
 ### 3.2 Missing or Needs Enhancement
 

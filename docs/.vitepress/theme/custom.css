@@ -1,0 +1,185 @@
+:root {
+  --vp-c-brand-1: #7c3aed;
+  --vp-c-brand-2: #8b5cf6;
+  --vp-c-brand-3: #6d28d9;
+  --vp-c-brand-soft: rgba(124, 58, 237, 0.16);
+  --vp-c-bg-alt: #f8f6ff;
+  --vp-c-default-soft: rgba(15, 23, 42, 0.05);
+  --vp-sidebar-width: 334px;
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #7c3aed 10%, #00b4d8 55%, #06b6d4 100%);
+  --vp-home-hero-image-background-image:
+    radial-gradient(circle at center, rgba(124, 58, 237, 0.32), rgba(0, 180, 216, 0.14) 46%, rgba(15, 23, 42, 0.02) 72%);
+  --vp-home-hero-image-filter: blur(70px);
+  --vp-custom-block-tip-border: rgba(124, 58, 237, 0.26);
+  --vp-custom-block-tip-bg: rgba(124, 58, 237, 0.08);
+}
+
+.VPHomeHero .name {
+  max-width: 18ch;
+}
+
+.VPHomeHero .image-bg {
+  opacity: 0.94;
+}
+
+.VPHomeHero .image-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 320px;
+  height: 320px;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 40px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(243, 237, 255, 0.9));
+  border: 1.5px solid rgba(124, 58, 237, 0.16);
+  box-shadow: 
+    0 30px 90px rgba(124, 58, 237, 0.12),
+    0 15px 35px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  margin: 0 auto;
+}
+
+.VPHomeHero .image-container img,
+.VPHomeHero .image-container .image-src {
+  position: static !important;
+  transform: none !important;
+  display: block !important;
+  width: 180px !important;
+  height: 180px !important;
+  margin: 0 auto;
+}
+
+@media (max-width: 960px) {
+  .VPHomeHero .image-container {
+    width: 240px;
+    height: 240px;
+    border-radius: 30px;
+  }
+  .VPHomeHero .image-container img,
+  .VPHomeHero .image-container .image-src {
+    width: 130px !important;
+    height: 130px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .VPHomeHero .image-container {
+    width: 180px;
+    height: 180px;
+    border-radius: 24px;
+  }
+  .VPHomeHero .image-container img,
+  .VPHomeHero .image-container .image-src {
+    width: 100px !important;
+    height: 100px !important;
+  }
+}
+
+.VPFeature {
+  border: 1px solid rgba(124, 58, 237, 0.08);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.05);
+}
+
+.vp-doc a {
+  font-weight: 600;
+}
+
+.vp-doc table {
+  display: table;
+  width: 100%;
+}
+
+.vp-doc tr:nth-child(2n) {
+  background: rgba(124, 58, 237, 0.02);
+}
+
+.vp-doc h2 {
+  border-top-color: rgba(124, 58, 237, 0.12);
+}
+
+.vp-doc .home-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.vp-doc .home-docs-group {
+  border: 1px solid rgba(124, 58, 237, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(248, 246, 255, 0.72)),
+    var(--vp-c-bg);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+  padding: 20px;
+}
+
+.vp-doc .home-docs-group-primary {
+  grid-column: 1 / -1;
+}
+
+.vp-doc .home-docs-eyebrow {
+  margin: 0 0 8px;
+  color: var(--vp-c-brand-1);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.vp-doc .home-docs-group h3 {
+  margin: 0;
+  color: var(--vp-c-text-1);
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.vp-doc .home-docs-group p {
+  margin: 10px 0 16px;
+  color: var(--vp-c-text-2);
+  line-height: 1.55;
+}
+
+.vp-doc .home-docs-group ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vp-doc .home-docs-group li + li {
+  margin-top: 0;
+}
+
+.vp-doc .home-docs-group a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  font-size: 15px;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.vp-doc .home-docs-group a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .vp-doc .home-docs-grid,
+  .vp-doc .home-docs-group ul {
+    grid-template-columns: 1fr;
+  }
+}
+
+.VPSidebarItem .item .text,
+.VPSidebarItem .items .text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}

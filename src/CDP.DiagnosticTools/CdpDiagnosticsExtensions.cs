@@ -11,17 +11,17 @@ public static class CdpDiagnosticsExtensions
 {
     private static CdpInspectorWindow? _activeInspector;
 
-    public static void AttachCdpInspector(this Window window, int port = 9222)
+    public static void AttachCdpInspector(this Window window, int port = 9222, Key triggerKey = Key.F12)
     {
         if (window == null) throw new ArgumentNullException(nameof(window));
 
         // Start the server if not already running
         CdpServer.Start(port);
 
-        // Register F12 key handler
+        // Register key handler
         window.KeyDown += (sender, e) =>
         {
-            if (e.Key == Key.F12)
+            if (e.Key == triggerKey)
             {
                 ToggleInspector(window, CdpServer.Port);
                 e.Handled = true;

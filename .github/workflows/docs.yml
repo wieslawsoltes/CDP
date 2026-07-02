@@ -1,0 +1,90 @@
+name: Docs
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "src/**"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "Avalonia.Diagnostics.Cdp.slnx"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "src/**"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "Avalonia.Diagnostics.Cdp.slnx"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NUGET_SIGNATURE_VERIFICATION: false
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Pages
+        if: github.event_name != 'pull_request' && vars.DOCS_DEPLOY_ENABLED == 'true'
+        uses: actions/configure-pages@v6
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with VitePress
+        run: npm run docs:build
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request' && vars.DOCS_DEPLOY_ENABLED == 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && vars.DOCS_DEPLOY_ENABLED == 'true'
+    name: Deploy Docs
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

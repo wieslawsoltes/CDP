@@ -1,0 +1,17 @@
+{
+  "name": "cdp-docs",
+  "private": true,
+  "scripts": {
+    "docs:api": "node docs/scripts/generate-api-docs.mjs",
+    "docs:dev": "npm run docs:api && vitepress dev docs",
+    "docs:build": "npm run docs:api && vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  },
+  "overrides": {
+    "esbuild": "0.28.1",
+    "vite": "7.3.5"
+  }
+}

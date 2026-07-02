@@ -251,7 +251,7 @@ The output structure contains a V8 metadata header, flat integer lists represent
 
 ## 5. Inspector-Side UI/UX Design
 
-We will upgrade [MemoryView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/MemoryView.axaml) to provide a workspace split into tabbed views.
+We will upgrade `MemoryView.axaml` to provide a workspace split into tabbed views.
 
 ### UI Layout Structure
 ```
@@ -304,7 +304,7 @@ We will upgrade [MemoryView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CD
 
 ## 7. Verification & E2E Testing Strategy
 
-To verify this implementation end-to-end, we will construct a custom testing scenario inside [Program.cs](file:///Users/wieslawsoltes/GitHub/CDP/scratch/ControlApp/Program.cs).
+To verify this implementation end-to-end, we will construct a custom testing scenario inside `Program.cs`.
 
 ### Programmatic Verification Walkthrough
 
