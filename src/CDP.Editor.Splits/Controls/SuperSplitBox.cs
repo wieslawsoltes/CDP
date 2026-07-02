@@ -703,43 +703,58 @@ public class SuperSplitBox : ContentControl
                         else
                         {
                             int fromIndex = boxNode.Tabs.IndexOf(tab);
-                            Point posInTabs = args.GetPosition(_tabsPanel);
-                            int targetIndex = -1;
-                            double x = posInTabs.X;
-                            for (int idx = 0; idx < _tabsPanel.Children.Count; idx++)
+                            if (fromIndex >= 0 && fromIndex < _tabsPanel.Children.Count)
                             {
-                                var child = _tabsPanel.Children[idx] as Control;
-                                if (child == null) continue;
-                                double midX = child.Bounds.X + child.Bounds.Width / 2.0;
-                                if (x < midX)
-                                {
-                                    targetIndex = idx;
-                                    break;
-                                }
-                            }
-                            if (targetIndex == -1)
-                            {
-                                targetIndex = _tabsPanel.Children.Count;
-                            }
+                                Point posInTabs = args.GetPosition(_tabsPanel);
+                                double x = posInTabs.X;
 
-                            if (fromIndex >= 0 && targetIndex >= 0 && fromIndex != targetIndex)
-                            {
-                                int adjustedTarget = targetIndex;
-                                if (fromIndex < targetIndex)
+                                // Check left neighbor swap
+                                if (fromIndex > 0)
                                 {
-                                    adjustedTarget--;
-                                }
-                                if (fromIndex != adjustedTarget)
-                                {
-                                    _isMovingTab = true;
-                                    try
+                                    var prevChild = _tabsPanel.Children[fromIndex - 1] as Control;
+                                    if (prevChild != null)
                                     {
-                                        boxNode.Tabs.Move(fromIndex, adjustedTarget);
-                                        args.Pointer.Capture(tabBorder);
+                                        double prevMidX = prevChild.Bounds.X + prevChild.Bounds.Width / 2.0;
+                                        if (x < prevMidX)
+                                        {
+                                            _isMovingTab = true;
+                                            try
+                                            {
+                                                boxNode.Tabs.Move(fromIndex, fromIndex - 1);
+                                                args.Pointer.Capture(tabBorder);
+                                            }
+                                            finally
+                                            {
+                                                _isMovingTab = false;
+                                            }
+                                            args.Handled = true;
+                                            return;
+                                        }
                                     }
-                                    finally
+                                }
+
+                                // Check right neighbor swap
+                                if (fromIndex < _tabsPanel.Children.Count - 1)
+                                {
+                                    var nextChild = _tabsPanel.Children[fromIndex + 1] as Control;
+                                    if (nextChild != null)
                                     {
-                                        _isMovingTab = false;
+                                        double nextMidX = nextChild.Bounds.X + nextChild.Bounds.Width / 2.0;
+                                        if (x > nextMidX)
+                                        {
+                                            _isMovingTab = true;
+                                            try
+                                            {
+                                                boxNode.Tabs.Move(fromIndex, fromIndex + 1);
+                                                args.Pointer.Capture(tabBorder);
+                                            }
+                                            finally
+                                            {
+                                                _isMovingTab = false;
+                                            }
+                                            args.Handled = true;
+                                            return;
+                                        }
                                     }
                                 }
                             }
