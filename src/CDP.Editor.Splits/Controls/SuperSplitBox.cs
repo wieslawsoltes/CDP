@@ -77,6 +77,7 @@ public class SuperSplitBox : ContentControl
     public event EventHandler? MenuClicked;
     public event EventHandler? BoxSelected;
     public event EventHandler<PointerPressedEventArgs>? HeaderPressed;
+    public event EventHandler<TabDragEventArgs>? TabDragStarted;
 
     public bool IsEntranceAnimationRequested { get; set; } = false;
 
@@ -88,6 +89,13 @@ public class SuperSplitBox : ContentControl
     private readonly Button _btnScrollLeft;
     private readonly Button _btnScrollRight;
     private readonly Button _btnZoom;
+    private bool _isTabDragging;
+    private BoxTabNode? _draggingTab;
+    private PointerPressedEventArgs? _tabPressedEventArgs;
+    private bool _isMovingTab;
+    private readonly StackPanel _singleTabHeaderPanel;
+    private readonly PathIcon _singleTabIcon;
+    private readonly TextBlock _singleTabTitle;
 
     public SuperSplitBox()
     {
@@ -234,6 +242,33 @@ public class SuperSplitBox : ContentControl
             }
         };
 
+        _singleTabHeaderPanel = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Margin = new Thickness(12, 0),
+            IsVisible = false
+        };
+
+        _singleTabIcon = new PathIcon
+        {
+            Width = 12,
+            Height = 12,
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+
+        _singleTabTitle = new TextBlock
+        {
+            FontSize = 11,
+            FontWeight = FontWeight.Normal,
+            Foreground = Brush.Parse("#e8eaed"),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+
+        _singleTabHeaderPanel.Children.Add(_singleTabIcon);
+        _singleTabHeaderPanel.Children.Add(_singleTabTitle);
+
         var headerLayoutGrid = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("Auto, *, Auto, Auto"),
@@ -244,16 +279,33 @@ public class SuperSplitBox : ContentControl
         Grid.SetColumn(_tabsScrollViewer, 1);
         Grid.SetColumn(_btnScrollRight, 2);
         Grid.SetColumn(_btnZoom, 3);
+        Grid.SetColumn(_singleTabHeaderPanel, 1);
 
         headerLayoutGrid.Children.Add(_btnScrollLeft);
         headerLayoutGrid.Children.Add(_tabsScrollViewer);
         headerLayoutGrid.Children.Add(_btnScrollRight);
         headerLayoutGrid.Children.Add(_btnZoom);
+        headerLayoutGrid.Children.Add(_singleTabHeaderPanel);
 
         _headerPanel.Child = headerLayoutGrid;
 
         Grid.SetRow(_headerPanel, 0);
         grid.Children.Add(_headerPanel);
+
+        _headerPanel.PointerPressed += (sender, e) =>
+        {
+            if (e.GetCurrentPoint(_headerPanel).Properties.IsLeftButtonPressed)
+            {
+                // Drag the panel if the click source is not one of the control buttons
+                if (e.Source != _btnZoom && e.Source != _btnScrollLeft && e.Source != _btnScrollRight)
+                {
+                    if (DataContext is BoxNode boxNode)
+                    {
+                        HeaderPressed?.Invoke(this, e);
+                    }
+                }
+            }
+        };
 
         // Content Area
         var contentPresenter = new ContentPresenter
@@ -330,6 +382,9 @@ public class SuperSplitBox : ContentControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        _isTabDragging = false;
+        _draggingTab = null;
+        _tabPressedEventArgs = null;
         if (_currentBoxNode != null)
         {
             _currentBoxNode.Tabs.CollectionChanged -= OnTabsCollectionChanged;
@@ -360,7 +415,46 @@ public class SuperSplitBox : ContentControl
 
     private void OnTabsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        if (e.Action == NotifyCollectionChangedAction.Move)
+        {
+            int oldIndex = e.OldStartingIndex;
+            int newIndex = e.NewStartingIndex;
+            if (oldIndex >= 0 && oldIndex < _tabsPanel.Children.Count &&
+                newIndex >= 0 && newIndex < _tabsPanel.Children.Count)
+            {
+                var control = _tabsPanel.Children[oldIndex];
+                _tabsPanel.Children.RemoveAt(oldIndex);
+                _tabsPanel.Children.Insert(newIndex, control);
+                UpdateTabCornerRadii();
+                return;
+            }
+        }
         RebuildHeaderTabs();
+    }
+
+    private void UpdateTabCornerRadii()
+    {
+        int count = _tabsPanel.Children.Count;
+        for (int i = 0; i < count; i++)
+        {
+            if (_tabsPanel.Children[i] is Border tabBorder)
+            {
+                var cornerRadius = new CornerRadius(0);
+                if (i == 0 && i == count - 1)
+                {
+                    cornerRadius = new CornerRadius(8, 8, 0, 0);
+                }
+                else if (i == 0)
+                {
+                    cornerRadius = new CornerRadius(8, 0, 0, 0);
+                }
+                else if (i == count - 1)
+                {
+                    cornerRadius = new CornerRadius(0, 8, 0, 0);
+                }
+                tabBorder.CornerRadius = cornerRadius;
+            }
+        }
     }
 
     private void OnBoxNodePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -378,6 +472,40 @@ public class SuperSplitBox : ContentControl
         if (DataContext is BoxNode boxNode)
         {
             int count = boxNode.Tabs.Count;
+            _headerPanel.IsVisible = count > 0;
+            if (count == 0)
+            {
+                _tabsScrollViewer.IsVisible = false;
+                _btnScrollLeft.IsVisible = false;
+                _btnScrollRight.IsVisible = false;
+                _singleTabHeaderPanel.IsVisible = false;
+                return;
+            }
+
+            if (count == 1)
+            {
+                _tabsScrollViewer.IsVisible = false;
+                _btnScrollLeft.IsVisible = false;
+                _btnScrollRight.IsVisible = false;
+                _singleTabHeaderPanel.IsVisible = true;
+
+                var tab = boxNode.Tabs[0];
+                _singleTabTitle.Text = tab.Title;
+
+                if (Application.Current != null && Application.Current.TryFindResource(tab.IconKey, out var resource) && resource is Geometry geom)
+                {
+                    _singleTabIcon.Data = geom;
+                }
+                else if (Application.Current != null && Application.Current.TryFindResource("DocumentIcon", out var fallback) && fallback is Geometry fallbackGeom)
+                {
+                    _singleTabIcon.Data = fallbackGeom;
+                }
+                return;
+            }
+
+            _tabsScrollViewer.IsVisible = true;
+            _singleTabHeaderPanel.IsVisible = false;
+
             for (int i = 0; i < count; i++)
             {
                 var tab = boxNode.Tabs[i];
@@ -512,19 +640,127 @@ public class SuperSplitBox : ContentControl
                 // Tab selection and drag press handling
                 tabBorder.PointerPressed += (sender, args) =>
                 {
-                    boxNode.ActiveTab = tab;
-                    BoxSelected?.Invoke(this, EventArgs.Empty);
-
                     var pointerProperties = args.GetCurrentPoint(tabBorder).Properties;
                     if (pointerProperties.IsRightButtonPressed)
                     {
+                        boxNode.ActiveTab = tab;
+                        BoxSelected?.Invoke(this, EventArgs.Empty);
                         MenuClicked?.Invoke(this, EventArgs.Empty);
+                        args.Handled = true;
                     }
-                    else
+                    else if (pointerProperties.IsLeftButtonPressed)
                     {
-                        HeaderPressed?.Invoke(this, args);
+                        boxNode.ActiveTab = tab;
+                        BoxSelected?.Invoke(this, EventArgs.Empty);
+                        _isTabDragging = true;
+                        _draggingTab = tab;
+                        _tabPressedEventArgs = args;
+                        args.Pointer.Capture(tabBorder);
+                        args.Handled = true;
                     }
-                    args.Handled = true;
+                };
+
+                tabBorder.PointerReleased += (sender, args) =>
+                {
+                    if (_isTabDragging && _draggingTab == tab)
+                    {
+                        args.Pointer.Capture(null);
+                        _isTabDragging = false;
+                        _draggingTab = null;
+                        args.Handled = true;
+                    }
+                };
+
+                tabBorder.PointerCaptureLost += (sender, args) =>
+                {
+                    if (_isMovingTab) return;
+
+                    if (_isTabDragging && _draggingTab == tab)
+                    {
+                        _isTabDragging = false;
+                        _draggingTab = null;
+                    }
+                };
+
+                tabBorder.PointerMoved += (sender, args) =>
+                {
+                    if (_isTabDragging && _draggingTab == tab)
+                    {
+                        var posInHeader = args.GetPosition(_headerPanel);
+                        bool isOutside = posInHeader.Y < -15 || posInHeader.Y > _headerPanel.Bounds.Height + 15 ||
+                                         posInHeader.X < -50 || posInHeader.X > _headerPanel.Bounds.Width + 50;
+
+                        if (isOutside)
+                        {
+                            args.Pointer.Capture(null);
+                            _isTabDragging = false;
+                            _draggingTab = null;
+                            if (_tabPressedEventArgs != null)
+                            {
+                                TabDragStarted?.Invoke(this, new TabDragEventArgs(tab, _tabPressedEventArgs, args));
+                            }
+                        }
+                        else
+                        {
+                            int fromIndex = boxNode.Tabs.IndexOf(tab);
+                            if (fromIndex >= 0 && fromIndex < _tabsPanel.Children.Count)
+                            {
+                                Point posInTabs = args.GetPosition(_tabsPanel);
+                                double x = posInTabs.X;
+
+                                // Check left neighbor swap
+                                if (fromIndex > 0)
+                                {
+                                    var prevChild = _tabsPanel.Children[fromIndex - 1] as Control;
+                                    if (prevChild != null)
+                                    {
+                                        double prevMidX = prevChild.Bounds.X + prevChild.Bounds.Width / 2.0;
+                                        if (x < prevMidX)
+                                        {
+                                            _isMovingTab = true;
+                                            try
+                                            {
+                                                boxNode.Tabs.Move(fromIndex, fromIndex - 1);
+                                                args.Pointer.Capture(tabBorder);
+                                            }
+                                            finally
+                                            {
+                                                _isMovingTab = false;
+                                            }
+                                            args.Handled = true;
+                                            return;
+                                        }
+                                    }
+                                }
+
+                                // Check right neighbor swap
+                                if (fromIndex < _tabsPanel.Children.Count - 1)
+                                {
+                                    var nextChild = _tabsPanel.Children[fromIndex + 1] as Control;
+                                    if (nextChild != null)
+                                    {
+                                        double nextMidX = nextChild.Bounds.X + nextChild.Bounds.Width / 2.0;
+                                        if (x > nextMidX)
+                                        {
+                                            _isMovingTab = true;
+                                            try
+                                            {
+                                                boxNode.Tabs.Move(fromIndex, fromIndex + 1);
+                                                args.Pointer.Capture(tabBorder);
+                                            }
+                                            finally
+                                            {
+                                                _isMovingTab = false;
+                                            }
+                                            args.Handled = true;
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        args.Handled = true;
+                    }
                 };
 
                 _tabsPanel.Children.Add(tabBorder);
@@ -765,5 +1001,19 @@ public class SuperSplitBox : ContentControl
     protected override AutomationPeer OnCreateAutomationPeer()
     {
         return new ControlAutomationPeer(this);
+    }
+}
+
+public class TabDragEventArgs : EventArgs
+{
+    public BoxTabNode Tab { get; }
+    public PointerPressedEventArgs PressedArgs { get; }
+    public PointerEventArgs MovedArgs { get; }
+
+    public TabDragEventArgs(BoxTabNode tab, PointerPressedEventArgs pressedArgs, PointerEventArgs movedArgs)
+    {
+        Tab = tab;
+        PressedArgs = pressedArgs;
+        MovedArgs = movedArgs;
     }
 }

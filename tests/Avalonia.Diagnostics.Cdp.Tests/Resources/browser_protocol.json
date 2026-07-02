@@ -10672,6 +10672,49 @@
             ]
         },
         {
+            "domain": "DigitalCredentials",
+            "description": "This domain allows interacting with the Digital Credentials API for automation.",
+            "experimental": true,
+            "types": [
+                {
+                    "id": "VirtualWalletBehavior",
+                    "description": "The type of virtual wallet action.",
+                    "type": "string",
+                    "enum": [
+                        "respond",
+                        "decline",
+                        "wait",
+                        "clear"
+                    ]
+                }
+            ],
+            "commands": [
+                {
+                    "name": "setVirtualWalletBehavior",
+                    "description": "Sets the behavior of the virtual wallet for digital credential requests\nissued from this frame.",
+                    "parameters": [
+                        {
+                            "name": "behavior",
+                            "description": "The behavior of the virtual wallet.",
+                            "$ref": "VirtualWalletBehavior"
+                        },
+                        {
+                            "name": "protocol",
+                            "description": "The protocol identifier (e.g. \"openid4vp\"). Required when |behavior| is\n\"respond\", forbidden otherwise.",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "response",
+                            "description": "The response data object returned by the wallet.\nRequired when |behavior| is \"respond\", forbidden otherwise.",
+                            "optional": true,
+                            "type": "object"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "domain": "Emulation",
             "description": "This domain emulates different environments for the page.",
             "dependencies": [
@@ -18028,12 +18071,13 @@
                 },
                 {
                     "id": "DeviceBoundSessionFetchResult",
-                    "description": "A fetch result for a device bound session creation or refresh.",
+                    "description": "A fetch result for a device bound session creation or refresh.\nLINT.IfChange(DeviceBoundSessionFetchResult)",
                     "experimental": true,
                     "type": "string",
                     "enum": [
                         "Success",
-                        "KeyError",
+                        "SigningKeyGenerationError",
+                        "AttestationKeyGenerationError",
                         "SigningError",
                         "TransientSigningError",
                         "ServerRequestedTermination",

@@ -6,6 +6,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.VisualTree;
 using System;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using CDP.Editor.Splits.Models;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -355,6 +357,20 @@ public class ViewsLayoutTests
     }
 
     [AvaloniaFact]
+    public void Test_FloatingSplitWindow_Instantiation_And_Close()
+    {
+        var mainSplit = new CDP.Editor.Splits.Controls.SuperSplit();
+        var box1 = new CDP.Editor.Splits.Models.BoxNode();
+        box1.AddTab("Tab1", "Icon1", "View1");
+        mainSplit.Root = box1;
+        mainSplit.Rebuild();
+
+        var window = new CDP.Inspector.Shared.Controls.FloatingSplitWindow(mainSplit, box1);
+        Assert.NotNull(window);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void Test_SuperSplit_Drag_Tab_Split_Target()
     {
         var vm = new MainWindowViewModel();
@@ -616,10 +632,7 @@ public class ViewsLayoutTests
         int initialTabs2 = targetNode.Tabs.Count;
 
         // Perform cross-window move node drop to Center
-        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNodeCrossWindow", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(method);
-
-        method.Invoke(superSplit2, new object[] { sourceNode, targetNode, 5, superSplit1 });
+        superSplit2.MoveNodeCrossWindow(sourceNode, targetNode, CDP.Editor.Splits.Controls.RelativeDropLocation.Center, superSplit1);
 
         // Verify tabs moved
         Assert.Empty(sourceNode.Tabs);
@@ -647,11 +660,7 @@ public class ViewsLayoutTests
         superSplit.Rebuild();
 
         // Drag paneA (sibling of paneB) and drop it to split paneB (on its Left / insertBefore=true)
-        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNodeCrossWindow", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(method);
-
-        // RelativeDropLocation.Left is represented as 1
-        method.Invoke(superSplit, new object[] { paneA, paneB, 1, superSplit });
+        superSplit.MoveNodeCrossWindow(paneA, paneB, CDP.Editor.Splits.Controls.RelativeDropLocation.Left, superSplit);
 
         // Verify Rebuild succeeds without duplicate key crashes, and layout maintains all 3 panels
         superSplit.Rebuild();
@@ -925,5 +934,206 @@ public class ViewsLayoutTests
             if (result != null) return result;
         }
         return null;
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplitBox_Shows_Header_But_Hides_Tab_List_When_Single_Tab()
+    {
+        var boxNode = new CDP.Editor.Splits.Models.BoxNode();
+        boxNode.AddTab("Tab1", "GlobeIcon", "Network");
+
+        var boxControl = new CDP.Editor.Splits.Controls.SuperSplitBox
+        {
+            DataContext = boxNode
+        };
+
+        var window = new Window { Content = boxControl };
+
+        var fieldHeader = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_headerPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldHeader);
+        var headerPanel = fieldHeader.GetValue(boxControl) as Border;
+        Assert.NotNull(headerPanel);
+
+        var fieldScroll = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsScrollViewer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldScroll);
+        var tabsScrollViewer = fieldScroll.GetValue(boxControl) as ScrollViewer;
+        Assert.NotNull(tabsScrollViewer);
+
+        var fieldSingleHeader = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_singleTabHeaderPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldSingleHeader);
+        var singleHeader = fieldSingleHeader.GetValue(boxControl) as StackPanel;
+        Assert.NotNull(singleHeader);
+
+        // Force layout pass
+        window.Show();
+
+        // Single tab should show header but hide tab list and show single tab panel
+        Assert.True(headerPanel.IsVisible);
+        Assert.False(tabsScrollViewer.IsVisible);
+        Assert.True(singleHeader.IsVisible);
+
+        // Adding a second tab should show tab list and hide single tab panel
+        boxNode.AddTab("Tab2", "GlobeIcon", "Console");
+        Assert.True(headerPanel.IsVisible);
+        Assert.True(tabsScrollViewer.IsVisible);
+        Assert.False(singleHeader.IsVisible);
+
+        // Removing a tab should restore single tab layout
+        boxNode.Tabs.RemoveAt(1);
+        Assert.True(headerPanel.IsVisible);
+        Assert.False(tabsScrollViewer.IsVisible);
+        Assert.True(singleHeader.IsVisible);
+
+        window.Close();
+    }
+
+    [Fact]
+    public void Test_SuperSplitBox_Tab_Reordering()
+    {
+        var boxNode = new CDP.Editor.Splits.Models.BoxNode();
+        var tab1 = boxNode.AddTab("Tab1", "Icon1", "View1");
+        var tab2 = boxNode.AddTab("Tab2", "Icon2", "View2");
+
+        Assert.Equal(0, boxNode.Tabs.IndexOf(tab1));
+        Assert.Equal(1, boxNode.Tabs.IndexOf(tab2));
+
+        // Move tab1 to index 1
+        boxNode.Tabs.Move(0, 1);
+
+        Assert.Equal(1, boxNode.Tabs.IndexOf(tab1));
+        Assert.Equal(0, boxNode.Tabs.IndexOf(tab2));
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside()
+    {
+        var boxNode = new CDP.Editor.Splits.Models.BoxNode();
+        var tab1 = boxNode.AddTab("Tab1", "Icon1", "View1");
+        var tab2 = boxNode.AddTab("Tab2", "Icon2", "View2");
+
+        var boxControl = new CDP.Editor.Splits.Controls.SuperSplitBox
+        {
+            DataContext = boxNode
+        };
+
+        var window = new Window { Content = boxControl };
+        window.Show();
+
+        bool eventFired = false;
+        BoxTabNode? eventTab = null;
+
+        boxControl.TabDragStarted += (sender, args) =>
+        {
+            eventFired = true;
+            eventTab = args.Tab;
+        };
+
+        // Simulate the drag state via reflection or internal helper
+        var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        Assert.NotNull(isTabDraggingField);
+        Assert.NotNull(draggingTabField);
+        Assert.NotNull(pressedArgsField);
+
+        isTabDraggingField.SetValue(boxControl, true);
+        draggingTabField.SetValue(boxControl, tab1);
+        
+        var dummyPressed = new PointerPressedEventArgs(
+            boxControl,
+            new Pointer(0, PointerType.Mouse, true),
+            boxControl,
+            new Point(0, 0),
+            0,
+            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonPressed),
+            KeyModifiers.None
+        );
+        pressedArgsField.SetValue(boxControl, dummyPressed);
+
+        // Retrieve tabBorder of the first tab to raise PointerMoved
+        var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldPanel);
+        var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
+        Assert.NotNull(tabsPanel);
+        Assert.NotEmpty(tabsPanel.Children);
+        var tabBorder = tabsPanel.Children[0] as Border;
+        Assert.NotNull(tabBorder);
+
+        // Raise a PointerMoved event at position outside the header (e.g. Y = -100)
+        var dummyMoved = new PointerEventArgs(
+            InputElement.PointerMovedEvent,
+            tabBorder,
+            new Pointer(0, PointerType.Mouse, true),
+            tabBorder,
+            new Point(0, -100),
+            0UL,
+            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+            KeyModifiers.None
+        );
+        
+        tabBorder.RaiseEvent(dummyMoved);
+
+        Assert.True(eventFired);
+        Assert.Equal(tab1, eventTab);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplitBox_Tab_Reordering_Preserves_Capture()
+    {
+        var boxNode = new CDP.Editor.Splits.Models.BoxNode();
+        var tab1 = boxNode.AddTab("Tab1", "Icon1", "View1");
+        var tab2 = boxNode.AddTab("Tab2", "Icon2", "View2");
+
+        var boxControl = new CDP.Editor.Splits.Controls.SuperSplitBox
+        {
+            DataContext = boxNode
+        };
+
+        var window = new Window { Content = boxControl };
+        window.Show();
+
+        // Simulate the drag state via reflection
+        var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        isTabDraggingField.SetValue(boxControl, true);
+        draggingTabField.SetValue(boxControl, tab1);
+
+        // Retrieve tabBorder of the first tab to raise PointerMoved
+        var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldPanel);
+        var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
+        Assert.NotNull(tabsPanel);
+        var tabBorder = tabsPanel.Children[0] as Border;
+        Assert.NotNull(tabBorder);
+
+        // Capture pointer to tabBorder
+        var pointer = new Pointer(0, PointerType.Mouse, true);
+        pointer.Capture(tabBorder);
+        Assert.Equal(tabBorder, pointer.Captured);
+
+        // Raise a PointerMoved event inside bounds but to the right of tab2 (e.g. X = 200, Y = 0)
+        var dummyMoved = new PointerEventArgs(
+            InputElement.PointerMovedEvent,
+            tabBorder,
+            pointer,
+            tabBorder,
+            new Point(200, 0),
+            0UL,
+            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+            KeyModifiers.None
+        );
+
+        tabBorder.RaiseEvent(dummyMoved);
+
+        // Dragging state should still be true (capture should be preserved)
+        Assert.True((bool)isTabDraggingField.GetValue(boxControl));
+        Assert.Equal(tab1, draggingTabField.GetValue(boxControl));
+
+        window.Close();
     }
 }

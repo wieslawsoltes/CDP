@@ -69,6 +69,9 @@
                 <Button Command="{Binding ResetLayoutCommand}" ToolTip.Tip="Reset Split Layout" Padding="6" Width="28" Height="28" Foreground="#4caf50">
                     <PathIcon Data="{StaticResource ArrowUndoIcon}" Width="12" Height="12"/>
                 </Button>
+                <Button Command="{Binding FloatPaneCommand}" ToolTip.Tip="Float Selected Tab" Padding="6" Width="28" Height="28" Foreground="#2196f3">
+                    <PathIcon Data="{StaticResource WindowMultipleIcon}" Width="12" Height="12"/>
+                </Button>
             </StackPanel>
         </WrapPanel>
     </Border>

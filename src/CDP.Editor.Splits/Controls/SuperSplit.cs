@@ -478,17 +478,18 @@ public class FlatSplitPanel : Panel
     }
 }
 
+public enum RelativeDropLocation
+{
+    None,
+    Left,
+    Right,
+    Top,
+    Bottom,
+    Center
+}
+
 public class SuperSplit : ContentControl
 {
-    private enum RelativeDropLocation
-    {
-        None,
-        Left,
-        Right,
-        Top,
-        Bottom,
-        Center
-    }
 
     public static readonly StyledProperty<SplitNode?> RootProperty =
         AvaloniaProperty.Register<SuperSplit, SplitNode?>(nameof(Root), null);
@@ -1039,6 +1040,7 @@ public class SuperSplit : ContentControl
                 newBoxControl.BoxSelected += (s, e) => { SelectedNode = box; };
                 newBoxControl.HeaderPressed += (s, ev) => { StartDrag(box, ev); };
                 newBoxControl.MenuClicked += (s, e) => { BoxMenuClicked?.Invoke(this, new BoxMenuEventArgs(box, newBoxControl)); };
+                newBoxControl.TabDragStarted += (s, ev) => { StartTabDragImmediately(box, ev.Tab, ev.PressedArgs, ev.MovedArgs); };
 
                 newChildren.Add(newBoxControl);
 
@@ -1331,6 +1333,19 @@ public class SuperSplit : ContentControl
         }
     }
 
+    private void StartTabDragImmediately(BoxNode node, BoxTabNode tab, PointerPressedEventArgs pressedArgs, PointerEventArgs movedArgs)
+    {
+        _isDragPending = false;
+        _pendingDragNode = node;
+        _dragStartPoint = pressedArgs.GetPosition(this);
+        _pointerPressedEventArgs = pressedArgs;
+
+        // Ensure the active tab of the node matches the tab being dragged
+        node.ActiveTab = tab;
+
+        InitiateNativeDrag(movedArgs);
+    }
+
     private void SetupDragPreview(BoxNode node)
     {
         var previewGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto, *") };
@@ -1597,7 +1612,7 @@ public class SuperSplit : ContentControl
         e.Handled = true;
     }
 
-    private SuperSplitBox? FindBoxAtPosition(Point p)
+    public SuperSplitBox? FindBoxAtPosition(Point p)
     {
         return FindBoxAtPositionRecursive(this, p);
     }
@@ -1626,7 +1641,7 @@ public class SuperSplit : ContentControl
         return null;
     }
 
-    private void ShowDropHighlight(Point topLeft, double w, double h, RelativeDropLocation loc)
+    public void ShowDropHighlight(Point topLeft, double w, double h, RelativeDropLocation loc)
     {
         double overlayX = topLeft.X;
         double overlayY = topLeft.Y;
@@ -1724,7 +1739,7 @@ public class SuperSplit : ContentControl
         }
     }
 
-    private void HideDropHighlight()
+    public void HideDropHighlight()
     {
         if (_hideHighlightTimer != null) return;
         if (!_dropHighlightOverlay.IsVisible) return;
@@ -1772,7 +1787,7 @@ public class SuperSplit : ContentControl
         MoveNodeCrossWindow(source, target, loc, this);
     }
 
-    private void MoveNodeCrossWindow(BoxNode source, BoxNode target, RelativeDropLocation loc, SuperSplit? sourceSplit)
+    public void MoveNodeCrossWindow(BoxNode source, BoxNode target, RelativeDropLocation loc, SuperSplit? sourceSplit)
     {
         sourceSplit ??= this;
 
