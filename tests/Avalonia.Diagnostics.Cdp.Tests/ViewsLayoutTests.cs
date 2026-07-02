@@ -6,6 +6,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.VisualTree;
 using System;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using CDP.Editor.Splits.Models;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -993,5 +995,81 @@ public class ViewsLayoutTests
 
         Assert.Equal(1, boxNode.Tabs.IndexOf(tab1));
         Assert.Equal(0, boxNode.Tabs.IndexOf(tab2));
+    }
+
+    [AvaloniaFact]
+    public void Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside()
+    {
+        var boxNode = new CDP.Editor.Splits.Models.BoxNode();
+        var tab1 = boxNode.AddTab("Tab1", "Icon1", "View1");
+        var tab2 = boxNode.AddTab("Tab2", "Icon2", "View2");
+
+        var boxControl = new CDP.Editor.Splits.Controls.SuperSplitBox
+        {
+            DataContext = boxNode
+        };
+
+        var window = new Window { Content = boxControl };
+        window.Show();
+
+        bool eventFired = false;
+        BoxTabNode? eventTab = null;
+
+        boxControl.TabDragStarted += (sender, args) =>
+        {
+            eventFired = true;
+            eventTab = args.Tab;
+        };
+
+        // Simulate the drag state via reflection or internal helper
+        var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        Assert.NotNull(isTabDraggingField);
+        Assert.NotNull(draggingTabField);
+        Assert.NotNull(pressedArgsField);
+
+        isTabDraggingField.SetValue(boxControl, true);
+        draggingTabField.SetValue(boxControl, tab1);
+        
+        var dummyPressed = new PointerPressedEventArgs(
+            boxControl,
+            new Pointer(0, PointerType.Mouse, true),
+            boxControl,
+            new Point(0, 0),
+            0,
+            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonPressed),
+            KeyModifiers.None
+        );
+        pressedArgsField.SetValue(boxControl, dummyPressed);
+
+        // Retrieve tabBorder of the first tab to raise PointerMoved
+        var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldPanel);
+        var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
+        Assert.NotNull(tabsPanel);
+        Assert.NotEmpty(tabsPanel.Children);
+        var tabBorder = tabsPanel.Children[0] as Border;
+        Assert.NotNull(tabBorder);
+
+        // Raise a PointerMoved event at position outside the header (e.g. Y = -100)
+        var dummyMoved = new PointerEventArgs(
+            InputElement.PointerMovedEvent,
+            tabBorder,
+            new Pointer(0, PointerType.Mouse, true),
+            tabBorder,
+            new Point(0, -100),
+            0UL,
+            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+            KeyModifiers.None
+        );
+        
+        tabBorder.RaiseEvent(dummyMoved);
+
+        Assert.True(eventFired);
+        Assert.Equal(tab1, eventTab);
+
+        window.Close();
     }
 }

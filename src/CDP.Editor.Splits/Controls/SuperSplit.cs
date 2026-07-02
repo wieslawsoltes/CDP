@@ -1039,6 +1039,7 @@ public class SuperSplit : ContentControl
                 newBoxControl.BoxSelected += (s, e) => { SelectedNode = box; };
                 newBoxControl.HeaderPressed += (s, ev) => { StartDrag(box, ev); };
                 newBoxControl.MenuClicked += (s, e) => { BoxMenuClicked?.Invoke(this, new BoxMenuEventArgs(box, newBoxControl)); };
+                newBoxControl.TabDragStarted += (s, ev) => { StartTabDragImmediately(box, ev.Tab, ev.PressedArgs, ev.MovedArgs); };
 
                 newChildren.Add(newBoxControl);
 
@@ -1329,6 +1330,19 @@ public class SuperSplit : ContentControl
             e.Pointer.Capture(this);
             e.Handled = true;
         }
+    }
+
+    private void StartTabDragImmediately(BoxNode node, BoxTabNode tab, PointerPressedEventArgs pressedArgs, PointerEventArgs movedArgs)
+    {
+        _isDragPending = false;
+        _pendingDragNode = node;
+        _dragStartPoint = pressedArgs.GetPosition(this);
+        _pointerPressedEventArgs = pressedArgs;
+
+        // Ensure the active tab of the node matches the tab being dragged
+        node.ActiveTab = tab;
+
+        InitiateNativeDrag(movedArgs);
     }
 
     private void SetupDragPreview(BoxNode node)

@@ -77,6 +77,7 @@ public class SuperSplitBox : ContentControl
     public event EventHandler? MenuClicked;
     public event EventHandler? BoxSelected;
     public event EventHandler<PointerPressedEventArgs>? HeaderPressed;
+    public event EventHandler<TabDragEventArgs>? TabDragStarted;
 
     public bool IsEntranceAnimationRequested { get; set; } = false;
 
@@ -693,7 +694,7 @@ public class SuperSplitBox : ContentControl
                             _draggingTab = null;
                             if (_tabPressedEventArgs != null)
                             {
-                                HeaderPressed?.Invoke(this, _tabPressedEventArgs);
+                                TabDragStarted?.Invoke(this, new TabDragEventArgs(tab, _tabPressedEventArgs, args));
                             }
                         }
                         else
@@ -973,5 +974,19 @@ public class SuperSplitBox : ContentControl
     protected override AutomationPeer OnCreateAutomationPeer()
     {
         return new ControlAutomationPeer(this);
+    }
+}
+
+public class TabDragEventArgs : EventArgs
+{
+    public BoxTabNode Tab { get; }
+    public PointerPressedEventArgs PressedArgs { get; }
+    public PointerEventArgs MovedArgs { get; }
+
+    public TabDragEventArgs(BoxTabNode tab, PointerPressedEventArgs pressedArgs, PointerEventArgs movedArgs)
+    {
+        Tab = tab;
+        PressedArgs = pressedArgs;
+        MovedArgs = movedArgs;
     }
 }
