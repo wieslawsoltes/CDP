@@ -18,13 +18,10 @@ public class FloatingSplitWindow : Window
     private readonly SuperSplit _mainSplit;
     private Button? _btnMaximize;
     private bool _isTitleDragPending;
+    private bool _isTitleDragging;
     private Point _titleDragStartPoint;
     private PixelPoint _windowStartPos;
     private SuperSplit? _currentActiveDragTargetSplit;
-    private PointerPressedEventArgs? _pointerPressedEventArgs;
-    private bool _isDraggingWindowByTitle;
-    private bool _isPositionUpdatePending;
-    private PixelPoint _pendingTargetPosition;
 
     public FloatingSplitWindow(SuperSplit mainSplit, BoxNode rootNode)
     {
@@ -160,10 +157,6 @@ public class FloatingSplitWindow : Window
         Grid.SetColumn(buttonsPanel, 1);
         titleBarGrid.Children.Add(buttonsPanel);
 
-        DragDrop.SetAllowDrop(this, true);
-        AddHandler(DragDrop.DragOverEvent, OnDragOver);
-        AddHandler(DragDrop.DropEvent, OnDrop);
-
         // Window drag and double click to maximize handling
         titleBarGrid.PointerPressed += (s, e) =>
         {
@@ -178,7 +171,6 @@ public class FloatingSplitWindow : Window
                     _isTitleDragPending = true;
                     _titleDragStartPoint = e.GetPosition(this);
                     _windowStartPos = Position;
-                    _pointerPressedEventArgs = e;
                     e.Pointer.Capture(titleBarGrid);
                 }
                 e.Handled = true;
@@ -187,7 +179,14 @@ public class FloatingSplitWindow : Window
 
         titleBarGrid.PointerReleased += (s, e) =>
         {
-            if (_isTitleDragPending)
+            if (_isTitleDragging)
+            {
+                e.Pointer.Capture(null);
+                _isTitleDragging = false;
+                EndTitleDrag(e);
+                e.Handled = true;
+            }
+            else if (_isTitleDragPending)
             {
                 e.Pointer.Capture(null);
                 _isTitleDragPending = false;
@@ -197,20 +196,30 @@ public class FloatingSplitWindow : Window
 
         titleBarGrid.PointerCaptureLost += (s, e) =>
         {
+            if (_isTitleDragging)
+            {
+                _isTitleDragging = false;
+                CancelTitleDrag();
+            }
             _isTitleDragPending = false;
         };
 
-        titleBarGrid.PointerMoved += async (s, e) =>
+        titleBarGrid.PointerMoved += (s, e) =>
         {
-            if (_isTitleDragPending)
+            if (_isTitleDragging)
+            {
+                UpdateTitleDrag(e);
+                e.Handled = true;
+            }
+            else if (_isTitleDragPending)
             {
                 var diff = e.GetPosition(this) - _titleDragStartPoint;
                 var dist = Math.Sqrt(diff.X * diff.X + diff.Y * diff.Y);
                 if (dist > 6)
                 {
-                    e.Pointer.Capture(null);
                     _isTitleDragPending = false;
-                    await InitiateWindowDragAsync(e);
+                    _isTitleDragging = true;
+                    StartTitleDrag(e);
                 }
                 e.Handled = true;
             }
@@ -300,41 +309,199 @@ public class FloatingSplitWindow : Window
         }
     }
 
-    private async System.Threading.Tasks.Task InitiateWindowDragAsync(PointerEventArgs e)
+    private void StartTitleDrag(PointerEventArgs e)
     {
         if (_superSplit.Root is not BoxNode draggedBox) return;
 
-        _isDraggingWindowByTitle = true;
         SuperSplitDragManager.IsDragging = true;
         SuperSplitDragManager.SourceNode = draggedBox;
         SuperSplitDragManager.SourceTab = null;
         SuperSplitDragManager.SourceSplit = _superSplit;
         SuperSplitDragManager.DraggedNode = draggedBox;
 
-        var dataObject = new DataTransfer();
-        dataObject.Add(DataTransferItem.CreateText("SuperSplitDraggedNode"));
-
-        double oldOpacity = Opacity;
         Opacity = 0.5;
-
         _currentActiveDragTargetSplit = null;
         SuperSplitDragManager.IsOverDropTarget = false;
+    }
 
-        bool success = false;
-        try
+    private void UpdateTitleDrag(PointerEventArgs e)
+    {
+        var currentPos = e.GetPosition(this);
+        var screenPos = this.PointToScreen(currentPos);
+
+        Position = new PixelPoint(screenPos.X - (int)_titleDragStartPoint.X, screenPos.Y - (int)_titleDragStartPoint.Y);
+
+        SuperSplit? targetSplit = null;
+        SuperSplitBox? targetBox = null;
+        Point targetRelativePos = default;
+
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            if (_pointerPressedEventArgs != null)
+            foreach (var w in desktop.Windows)
             {
-                var result = await DragDrop.DoDragDropAsync(_pointerPressedEventArgs, dataObject, DragDropEffects.Move);
-                success = (result == DragDropEffects.Move);
+                if (w == this || !w.IsVisible) continue;
+
+                var wPos = w.Position;
+                var wSize = w.ClientSize;
+                var wRect = new Rect(wPos.X, wPos.Y, wSize.Width, wSize.Height);
+
+                if (wRect.Contains(new Point(screenPos.X, screenPos.Y)))
+                {
+                    var ss = FindSuperSplitInVisual(w);
+                    if (ss != null)
+                    {
+                        var wClientPos = w.PointToClient(screenPos);
+                        var topLeft = ss.TranslatePoint(new Point(0, 0), w);
+                        if (topLeft.HasValue)
+                        {
+                            var ssRelativePos = wClientPos - topLeft.Value;
+                            var box = ss.FindBoxAtPosition(ssRelativePos);
+                            if (box != null && box.DataContext is BoxNode targetNode && targetNode != SuperSplitDragManager.DraggedNode)
+                            {
+                                targetSplit = ss;
+                                targetBox = box;
+                                targetRelativePos = ssRelativePos;
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
-        catch (Exception ex)
+
+        if (targetSplit != null && targetBox != null)
         {
-            System.Diagnostics.Debug.WriteLine($"Window drag initiation failed: {ex.Message}");
+            if (_currentActiveDragTargetSplit != null && _currentActiveDragTargetSplit != targetSplit)
+            {
+                _currentActiveDragTargetSplit.HideDropHighlight();
+            }
+
+            _currentActiveDragTargetSplit = targetSplit;
+
+            var boxBounds = targetBox.Bounds;
+            var boxTopLeft = targetBox.TranslatePoint(new Point(0, 0), targetSplit);
+            if (boxTopLeft.HasValue)
+            {
+                double x = targetRelativePos.X - boxTopLeft.Value.X;
+                double y = targetRelativePos.Y - boxTopLeft.Value.Y;
+                double w = boxBounds.Width;
+                double h = boxBounds.Height;
+
+                double normX = x / w;
+                double normY = y / h;
+
+                RelativeDropLocation loc;
+                if (normX >= 0.25 && normX <= 0.75 && normY >= 0.25 && normY <= 0.75)
+                {
+                    loc = RelativeDropLocation.Center;
+                }
+                else if (normX < normY)
+                {
+                    if (normX < 1.0 - normY)
+                        loc = RelativeDropLocation.Left;
+                    else
+                        loc = RelativeDropLocation.Bottom;
+                }
+                else
+                {
+                    if (normX < 1.0 - normY)
+                        loc = RelativeDropLocation.Top;
+                    else
+                        loc = RelativeDropLocation.Right;
+                }
+
+                targetSplit.ShowDropHighlight(boxTopLeft.Value, w, h, loc);
+                SuperSplitDragManager.IsOverDropTarget = true;
+            }
+        }
+        else
+        {
+            if (_currentActiveDragTargetSplit != null)
+            {
+                _currentActiveDragTargetSplit.HideDropHighlight();
+                _currentActiveDragTargetSplit = null;
+            }
+            SuperSplitDragManager.IsOverDropTarget = false;
+        }
+    }
+
+    private void EndTitleDrag(PointerEventArgs e)
+    {
+        Opacity = 1.0;
+
+        if (_currentActiveDragTargetSplit != null)
+        {
+            _currentActiveDragTargetSplit.HideDropHighlight();
         }
 
-        Opacity = oldOpacity;
+        if (SuperSplitDragManager.IsOverDropTarget && _currentActiveDragTargetSplit != null)
+        {
+            var currentPos = e.GetPosition(this);
+            var screenPos = this.PointToScreen(currentPos);
+            var targetWindow = TopLevel.GetTopLevel(_currentActiveDragTargetSplit);
+            if (targetWindow != null)
+            {
+                var wClientPos = targetWindow.PointToClient(screenPos);
+                var topLeft = _currentActiveDragTargetSplit.TranslatePoint(new Point(0, 0), targetWindow);
+                if (topLeft.HasValue)
+                {
+                    var ssRelativePos = wClientPos - topLeft.Value;
+                    var box = _currentActiveDragTargetSplit.FindBoxAtPosition(ssRelativePos);
+
+                    if (box != null && box.DataContext is BoxNode targetNode)
+                    {
+                        var boxBounds = box.Bounds;
+                        var boxTopLeft = box.TranslatePoint(new Point(0, 0), _currentActiveDragTargetSplit);
+                        if (boxTopLeft.HasValue)
+                        {
+                            double x = ssRelativePos.X - boxTopLeft.Value.X;
+                            double y = ssRelativePos.Y - boxTopLeft.Value.Y;
+                            double w = boxBounds.Width;
+                            double h = boxBounds.Height;
+
+                            double normX = x / w;
+                            double normY = y / h;
+
+                            RelativeDropLocation loc;
+                            if (normX >= 0.25 && normX <= 0.75 && normY >= 0.25 && normY <= 0.75)
+                            {
+                                loc = RelativeDropLocation.Center;
+                            }
+                            else if (normX < normY)
+                            {
+                                if (normX < 1.0 - normY)
+                                    loc = RelativeDropLocation.Left;
+                                else
+                                    loc = RelativeDropLocation.Bottom;
+                            }
+                            else
+                            {
+                                if (normX < 1.0 - normY)
+                                    loc = RelativeDropLocation.Top;
+                                else
+                                    loc = RelativeDropLocation.Right;
+                            }
+
+                            var sourceNode = SuperSplitDragManager.DraggedNode;
+                            if (sourceNode != null)
+                            {
+                                var targetSplit = _currentActiveDragTargetSplit;
+                                var sourceSplit = _superSplit;
+                                targetSplit.MoveNodeCrossWindow(sourceNode, targetNode, loc, sourceSplit);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        _currentActiveDragTargetSplit = null;
+        SuperSplitDragManager.Reset();
+    }
+
+    private void CancelTitleDrag()
+    {
+        Opacity = 1.0;
 
         if (_currentActiveDragTargetSplit != null)
         {
@@ -342,214 +509,7 @@ public class FloatingSplitWindow : Window
             _currentActiveDragTargetSplit = null;
         }
 
-        _isDraggingWindowByTitle = false;
-        if (success)
-        {
-            // Handled by OnLayoutRebuilt which closes this window
-        }
-        else
-        {
-            SuperSplitDragManager.Reset();
-        }
-    }
-
-    private void OnDragOver(object? sender, DragEventArgs e)
-    {
-        if (_isDraggingWindowByTitle && SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode == _superSplit.Root)
-        {
-            var currentPos = e.GetPosition(this);
-            var screenPos = this.PointToScreen(currentPos);
-
-            // Move the window physically so it follows the mouse pointer (coalesced to render pass to prevent event floods)
-            var targetPos = new PixelPoint(screenPos.X - (int)_titleDragStartPoint.X, screenPos.Y - (int)_titleDragStartPoint.Y);
-            if (targetPos != Position)
-            {
-                _pendingTargetPosition = targetPos;
-                if (!_isPositionUpdatePending)
-                {
-                    _isPositionUpdatePending = true;
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        Position = _pendingTargetPosition;
-                        _isPositionUpdatePending = false;
-                    }, DispatcherPriority.Render);
-                }
-            }
-
-            // Hit test other windows to find if we are over another SuperSplit's box
-            SuperSplit? targetSplit = null;
-            SuperSplitBox? targetBox = null;
-            Point targetRelativePos = default;
-
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                foreach (var w in desktop.Windows)
-                {
-                    if (w == this || !w.IsVisible) continue;
-
-                    var wPos = w.Position;
-                    var wSize = w.ClientSize;
-                    var wRect = new Rect(wPos.X, wPos.Y, wSize.Width, wSize.Height);
-
-                    if (wRect.Contains(new Point(screenPos.X, screenPos.Y)))
-                    {
-                        var ss = FindSuperSplitInVisual(w);
-                        if (ss != null)
-                        {
-                            var wClientPos = w.PointToClient(screenPos);
-                            var topLeft = ss.TranslatePoint(new Point(0, 0), w);
-                            if (topLeft.HasValue)
-                            {
-                                var ssRelativePos = wClientPos - topLeft.Value;
-                                var box = ss.FindBoxAtPosition(ssRelativePos);
-                                if (box != null && box.DataContext is BoxNode targetNode && targetNode != SuperSplitDragManager.DraggedNode)
-                                {
-                                    targetSplit = ss;
-                                    targetBox = box;
-                                    targetRelativePos = ssRelativePos;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (targetSplit != null && targetBox != null)
-            {
-                if (_currentActiveDragTargetSplit != null && _currentActiveDragTargetSplit != targetSplit)
-                {
-                    _currentActiveDragTargetSplit.HideDropHighlight();
-                }
-
-                _currentActiveDragTargetSplit = targetSplit;
-
-                var boxBounds = targetBox.Bounds;
-                var boxTopLeft = targetBox.TranslatePoint(new Point(0, 0), targetSplit);
-                if (boxTopLeft.HasValue)
-                {
-                    double x = targetRelativePos.X - boxTopLeft.Value.X;
-                    double y = targetRelativePos.Y - boxTopLeft.Value.Y;
-                    double w = boxBounds.Width;
-                    double h = boxBounds.Height;
-
-                    double normX = x / w;
-                    double normY = y / h;
-
-                    RelativeDropLocation loc;
-                    if (normX >= 0.25 && normX <= 0.75 && normY >= 0.25 && normY <= 0.75)
-                    {
-                        loc = RelativeDropLocation.Center;
-                    }
-                    else if (normX < normY)
-                    {
-                        if (normX < 1.0 - normY)
-                            loc = RelativeDropLocation.Left;
-                        else
-                            loc = RelativeDropLocation.Bottom;
-                    }
-                    else
-                    {
-                        if (normX < 1.0 - normY)
-                            loc = RelativeDropLocation.Top;
-                        else
-                            loc = RelativeDropLocation.Right;
-                    }
-
-                    targetSplit.ShowDropHighlight(boxTopLeft.Value, w, h, loc);
-                    SuperSplitDragManager.IsOverDropTarget = true;
-                    e.DragEffects = DragDropEffects.Move;
-                }
-            }
-            else
-            {
-                if (_currentActiveDragTargetSplit != null)
-                {
-                    _currentActiveDragTargetSplit.HideDropHighlight();
-                    _currentActiveDragTargetSplit = null;
-                }
-                SuperSplitDragManager.IsOverDropTarget = false;
-                e.DragEffects = DragDropEffects.None;
-            }
-
-            e.Handled = true;
-        }
-    }
-
-    private void OnDrop(object? sender, DragEventArgs e)
-    {
-        if (_isDraggingWindowByTitle && SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode == _superSplit.Root)
-        {
-            if (SuperSplitDragManager.IsOverDropTarget && _currentActiveDragTargetSplit != null)
-            {
-                var screenPos = this.PointToScreen(e.GetPosition(this));
-                var targetWindow = TopLevel.GetTopLevel(_currentActiveDragTargetSplit);
-                if (targetWindow != null)
-                {
-                    var wClientPos = targetWindow.PointToClient(screenPos);
-                    var topLeft = _currentActiveDragTargetSplit.TranslatePoint(new Point(0, 0), targetWindow);
-                    if (topLeft.HasValue)
-                    {
-                        var ssRelativePos = wClientPos - topLeft.Value;
-                        var box = _currentActiveDragTargetSplit.FindBoxAtPosition(ssRelativePos);
-
-                        if (box != null && box.DataContext is BoxNode targetNode)
-                        {
-                            var boxBounds = box.Bounds;
-                            var boxTopLeft = box.TranslatePoint(new Point(0, 0), _currentActiveDragTargetSplit);
-                            if (boxTopLeft.HasValue)
-                            {
-                                double x = ssRelativePos.X - boxTopLeft.Value.X;
-                                double y = ssRelativePos.Y - boxTopLeft.Value.Y;
-                                double w = boxBounds.Width;
-                                double h = boxBounds.Height;
-
-                                double normX = x / w;
-                                double normY = y / h;
-
-                                RelativeDropLocation loc;
-                                if (normX >= 0.25 && normX <= 0.75 && normY >= 0.25 && normY <= 0.75)
-                                {
-                                    loc = RelativeDropLocation.Center;
-                                }
-                                else if (normX < normY)
-                                {
-                                    if (normX < 1.0 - normY)
-                                        loc = RelativeDropLocation.Left;
-                                    else
-                                        loc = RelativeDropLocation.Bottom;
-                                }
-                                else
-                                {
-                                    if (normX < 1.0 - normY)
-                                        loc = RelativeDropLocation.Top;
-                                    else
-                                        loc = RelativeDropLocation.Right;
-                                }
-
-                                var sourceNode = SuperSplitDragManager.DraggedNode;
-                                if (sourceNode != null)
-                                {
-                                    var targetSplit = _currentActiveDragTargetSplit;
-                                    var sourceSplit = _superSplit;
-                                    Dispatcher.UIThread.Post(() =>
-                                    {
-                                        targetSplit.MoveNodeCrossWindow(sourceNode, targetNode, loc, sourceSplit);
-                                    });
-                                }
-
-                                e.DragEffects = DragDropEffects.Move;
-                                e.Handled = true;
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-
-            e.DragEffects = DragDropEffects.None;
-            e.Handled = true;
-        }
+        SuperSplitDragManager.Reset();
     }
 
     private SuperSplit? FindSuperSplitInVisual(Visual visual)
