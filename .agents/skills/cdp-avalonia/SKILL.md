@@ -287,6 +287,58 @@ Partial tree for a DOM node:
 
 Verify roles and properties for controls such as `Button`, `CheckBox`, `Slider`, `ProgressBar`, `TextBox`, and `TabItem`. For selection synchronization work, verify both DOM selection and AX selection.
 
+## CLI Automation Runner (cdp-cli)
+
+Agents can drive headless inspections, action dispatches, and YAML test flow replay using the `cdp-cli` tool (`Chrome.DevTools.Cli`).
+
+### Connection Setup & Scanning
+Discover target UUIDs or verify active servers:
+```bash
+cdp-cli list-targets --host http://127.0.0.1:9222
+```
+
+### Visual & Accessibility Diagnostics
+Retrieve DOM hierarchies:
+```bash
+# Get AX tree representation
+cdp-cli hierarchy --type accessibility --format text
+
+# Get DOM visual tree representation in JSON
+cdp-cli hierarchy --type visual --format json
+```
+
+### Headless C# Script Execution
+Evaluate C# script strings:
+```bash
+cdp-cli eval "Window.Title"
+cdp-cli eval "document.querySelector('#btnClickMe').isVisible"
+```
+
+### Standalone UI Interactions
+Interact with controls individually:
+```bash
+cdp-cli action tap "#btnClickMe"
+cdp-cli action input "#txtInput" "Value text"
+cdp-cli action clear "#txtInput"
+cdp-cli action assert-visible "#lblSuccess"
+cdp-cli action scroll "#scroller" down
+```
+
+### Test Studio YAML Runner & Reporting
+Execute test flow script sequences and collect validation artifacts:
+```bash
+# Execute and generate HTML, PDF reports & screencast images
+cdp-cli run scratch/test_flow.yaml --report --video --output-dir TestReports
+```
+
+When validating execution:
+1. Verify that `cdp-cli` exits with code `0`.
+2. Inspect `TestReports/` for:
+   - `index.html` (Interactive report page)
+   - `report.pdf` (Printable test report document)
+   - `images/step_*_screenshot.png` (One screenshot per step)
+   - `images/frame_*.jpg` (If video capture was enabled)
+
 ## Coding Guidelines For CDP Work
 
 For `Avalonia.Diagnostics.Cdp`:
