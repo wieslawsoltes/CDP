@@ -1,0 +1,6 @@
+appId: "CdpSampleApp"
+description: "CLI Tap Test Flow"
+---
+- tapOn: "#btnClickMe"
+- delay: 500
+- tapOn: "#btnClickMe"
