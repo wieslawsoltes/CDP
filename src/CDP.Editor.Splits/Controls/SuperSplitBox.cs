@@ -91,6 +91,9 @@ public class SuperSplitBox : ContentControl
     private bool _isTabDragging;
     private BoxTabNode? _draggingTab;
     private PointerPressedEventArgs? _tabPressedEventArgs;
+    private readonly StackPanel _singleTabHeaderPanel;
+    private readonly PathIcon _singleTabIcon;
+    private readonly TextBlock _singleTabTitle;
 
     public SuperSplitBox()
     {
@@ -237,6 +240,33 @@ public class SuperSplitBox : ContentControl
             }
         };
 
+        _singleTabHeaderPanel = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Margin = new Thickness(12, 0),
+            IsVisible = false
+        };
+
+        _singleTabIcon = new PathIcon
+        {
+            Width = 12,
+            Height = 12,
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+
+        _singleTabTitle = new TextBlock
+        {
+            FontSize = 11,
+            FontWeight = FontWeight.Normal,
+            Foreground = Brush.Parse("#e8eaed"),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+
+        _singleTabHeaderPanel.Children.Add(_singleTabIcon);
+        _singleTabHeaderPanel.Children.Add(_singleTabTitle);
+
         var headerLayoutGrid = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("Auto, *, Auto, Auto"),
@@ -247,11 +277,13 @@ public class SuperSplitBox : ContentControl
         Grid.SetColumn(_tabsScrollViewer, 1);
         Grid.SetColumn(_btnScrollRight, 2);
         Grid.SetColumn(_btnZoom, 3);
+        Grid.SetColumn(_singleTabHeaderPanel, 1);
 
         headerLayoutGrid.Children.Add(_btnScrollLeft);
         headerLayoutGrid.Children.Add(_tabsScrollViewer);
         headerLayoutGrid.Children.Add(_btnScrollRight);
         headerLayoutGrid.Children.Add(_btnZoom);
+        headerLayoutGrid.Children.Add(_singleTabHeaderPanel);
 
         _headerPanel.Child = headerLayoutGrid;
 
@@ -262,7 +294,8 @@ public class SuperSplitBox : ContentControl
         {
             if (e.GetCurrentPoint(_headerPanel).Properties.IsLeftButtonPressed)
             {
-                if (e.Source == _headerPanel || e.Source == _tabsScrollViewer || e.Source == _tabsPanel)
+                // Drag the panel if the click source is not one of the control buttons
+                if (e.Source != _btnZoom && e.Source != _btnScrollLeft && e.Source != _btnScrollRight)
                 {
                     if (DataContext is BoxNode boxNode)
                     {
@@ -437,11 +470,39 @@ public class SuperSplitBox : ContentControl
         if (DataContext is BoxNode boxNode)
         {
             int count = boxNode.Tabs.Count;
-            _headerPanel.IsVisible = count > 1;
-            if (count <= 1)
+            _headerPanel.IsVisible = count > 0;
+            if (count == 0)
             {
+                _tabsScrollViewer.IsVisible = false;
+                _btnScrollLeft.IsVisible = false;
+                _btnScrollRight.IsVisible = false;
+                _singleTabHeaderPanel.IsVisible = false;
                 return;
             }
+
+            if (count == 1)
+            {
+                _tabsScrollViewer.IsVisible = false;
+                _btnScrollLeft.IsVisible = false;
+                _btnScrollRight.IsVisible = false;
+                _singleTabHeaderPanel.IsVisible = true;
+
+                var tab = boxNode.Tabs[0];
+                _singleTabTitle.Text = tab.Title;
+
+                if (Application.Current != null && Application.Current.TryFindResource(tab.IconKey, out var resource) && resource is Geometry geom)
+                {
+                    _singleTabIcon.Data = geom;
+                }
+                else if (Application.Current != null && Application.Current.TryFindResource("DocumentIcon", out var fallback) && fallback is Geometry fallbackGeom)
+                {
+                    _singleTabIcon.Data = fallbackGeom;
+                }
+                return;
+            }
+
+            _tabsScrollViewer.IsVisible = true;
+            _singleTabHeaderPanel.IsVisible = false;
 
             for (int i = 0; i < count; i++)
             {

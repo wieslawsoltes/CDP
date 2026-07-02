@@ -928,7 +928,7 @@ public class ViewsLayoutTests
     }
 
     [AvaloniaFact]
-    public void Test_SuperSplitBox_Hides_Header_When_Single_Tab()
+    public void Test_SuperSplitBox_Shows_Header_But_Hides_Tab_List_When_Single_Tab()
     {
         var boxNode = new CDP.Editor.Splits.Models.BoxNode();
         boxNode.AddTab("Tab1", "GlobeIcon", "Network");
@@ -940,24 +940,40 @@ public class ViewsLayoutTests
 
         var window = new Window { Content = boxControl };
 
-        var field = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_headerPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(field);
-        var headerPanel = field.GetValue(boxControl) as Border;
+        var fieldHeader = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_headerPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldHeader);
+        var headerPanel = fieldHeader.GetValue(boxControl) as Border;
         Assert.NotNull(headerPanel);
+
+        var fieldScroll = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsScrollViewer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldScroll);
+        var tabsScrollViewer = fieldScroll.GetValue(boxControl) as ScrollViewer;
+        Assert.NotNull(tabsScrollViewer);
+
+        var fieldSingleHeader = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_singleTabHeaderPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(fieldSingleHeader);
+        var singleHeader = fieldSingleHeader.GetValue(boxControl) as StackPanel;
+        Assert.NotNull(singleHeader);
 
         // Force layout pass
         window.Show();
 
-        // Single tab should hide the header
-        Assert.False(headerPanel.IsVisible);
+        // Single tab should show header but hide tab list and show single tab panel
+        Assert.True(headerPanel.IsVisible);
+        Assert.False(tabsScrollViewer.IsVisible);
+        Assert.True(singleHeader.IsVisible);
 
-        // Adding a second tab should show the header
+        // Adding a second tab should show tab list and hide single tab panel
         boxNode.AddTab("Tab2", "GlobeIcon", "Console");
         Assert.True(headerPanel.IsVisible);
+        Assert.True(tabsScrollViewer.IsVisible);
+        Assert.False(singleHeader.IsVisible);
 
-        // Removing a tab should hide it again
+        // Removing a tab should restore single tab layout
         boxNode.Tabs.RemoveAt(1);
-        Assert.False(headerPanel.IsVisible);
+        Assert.True(headerPanel.IsVisible);
+        Assert.False(tabsScrollViewer.IsVisible);
+        Assert.True(singleHeader.IsVisible);
 
         window.Close();
     }
