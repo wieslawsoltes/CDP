@@ -120,7 +120,7 @@ public class Program
 
             foreach (var kv in parsedEnv)
             {
-                testStudio.FlowEnv[kv.Key] = kv.Value;
+                testStudio.CliEnv[kv.Key] = kv.Value;
             }
 
             // Real-time logging of Test Studio steps
@@ -182,19 +182,20 @@ public class Program
                     testStudio.WorkspaceRootPath = Path.GetDirectoryName(Path.GetFullPath(testPath));
                     testStudio.LoadFlowFile(testPath);
                     
-                    await testStudio.PlayAsync();
+                    var playTask = testStudio.PlayAsync();
+                    var delayTask = Task.Delay(timeout);
+                    var completedTask = await Task.WhenAny(playTask, delayTask);
 
-                    // Wait for execution to finish
-                    int elapsed = 0;
-                    while (testStudio.IsExecuting && elapsed < timeout)
+                    if (completedTask == delayTask)
                     {
-                        await Task.Delay(100);
-                        elapsed += 100;
+                        testStudio.Stop();
+                        var cleanupDelay = Task.Delay(5000);
+                        await Task.WhenAny(playTask, cleanupDelay);
+                        throw new TimeoutException($"Test flow timed out after {timeout / 1000.0:F1} seconds.");
                     }
-
-                    if (testStudio.IsExecuting)
+                    else
                     {
-                        throw new TimeoutException($"Test flow timed out after {timeout / 1000} seconds.");
+                        await playTask;
                     }
 
                     Console.WriteLine($"--- Flow Execution Summary ---");

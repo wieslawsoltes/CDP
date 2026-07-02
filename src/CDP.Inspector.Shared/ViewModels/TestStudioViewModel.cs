@@ -88,6 +88,8 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         set => RaiseAndSetIfChanged(ref _flowEnv, value);
     }
 
+    public Dictionary<string, string> CliEnv { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public string? WorkspaceRootPath
     {
         get => _workspaceRootPath;
@@ -5662,6 +5664,13 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             _description = desc;
             FlowTags = tags;
             FlowEnv = env;
+            if (CliEnv.Count > 0)
+            {
+                foreach (var kv in CliEnv)
+                {
+                    FlowEnv[kv.Key] = kv.Value;
+                }
+            }
 
             ApplyYaml();
             Log($"Successfully loaded flow file: {path}");
