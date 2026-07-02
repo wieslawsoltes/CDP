@@ -84,7 +84,7 @@ sequenceDiagram
 ```
 
 ### Event Interception Hooks
-To record events before they are consumed by individual controls, the `SessionRecorderState` inside [RecorderDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/RecorderDomain.cs) attaches listeners using the **Tunneling** strategy (`RoutingStrategies.Tunnel`) with `handledEventsToo: true`:
+To record events before they are consumed by individual controls, the `SessionRecorderState` inside `RecorderDomain.cs` attaches listeners using the **Tunneling** strategy (`RoutingStrategies.Tunnel`) with `handledEventsToo: true`:
 - `InputElement.PointerPressedEvent`
 - `InputElement.PointerMovedEvent`
 - `InputElement.PointerReleasedEvent`
@@ -105,11 +105,11 @@ public void Attach()
 ```
 
 ### Selector Generators
-When a tunneling handler intercepts an input target, it passes the control to `SelectorEngine.GetSelector(control, useAutomation)` defined in [SelectorEngine.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/SelectorEngine.cs):
-1. **DOM Selector Generator** ([DomSelectorGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/DomSelectorGenerator.cs)):
-   - Walks up the visual or logical tree looking for a unique control name (e.g., `#btnSave` where `Name` is set and does not start with `PART_`).
-   - If no unique name is discovered, it walks up to the root to build a structural CSS path (e.g., `Window > Grid > StackPanel > Button.primary`).
-2. **Automation Selector Generator** ([AutomationSelectorGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/AutomationSelectorGenerator.cs)):
+When a tunneling handler intercepts an input target, it passes the control to `SelectorEngine.GetSelector(control, useAutomation)` defined in `SelectorEngine.cs`:
+
+1. **DOM Selector Generator** (`DomSelectorGenerator.cs`):
+   - Computes CSS selectors based on the element type, XAML style classes, and standard indexes within parent visual children.
+2. **Automation Selector Generator** (`AutomationSelectorGenerator.cs`):
    - Checks if the control has `AutomationProperties.AutomationIdProperty` configured.
    - If configured, it inserts `[AccessibilityId="idValue"]`.
    - If not, it falls back to structural visual tree names, eventually using `DomSelectorGenerator` as a fallback.
@@ -118,28 +118,24 @@ When a tunneling handler intercepts an input target, it passes the control to `S
 
 ## 5. Inspector-Side UI/UX Design
 
-The recorder client in `CdpInspectorApp` implements a dual-panel MVVM-based layout defined in [RecorderView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/RecorderView.axaml) and [TestStudioView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/TestStudioView.axaml).
+The recorder client in `CdpInspectorApp` implements a dual-panel MVVM-based layout defined in `RecorderView.axaml` and `TestStudioView.axaml`.
 
 ### Core Components & ViewModels
-- **Recorder ViewModel** ([RecorderViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/RecorderViewModel.cs)):
-  - Implements the main state management (`IsRecording`, `IsReplayEnabled`).
-  - Stores captured steps in an `ObservableCollection<RecordedStepModel>`.
-  - Exposes `ToggleRecordCommand` (dispatches `Recorder.start`/`stop` commands).
-  - Exposes `ReplayCommand` (executes the async replayer loop).
-  - Exposes `ClearCommand` (clears steps).
-  - Handles the `Recorder.stepAdded` event from the CdpService, adding a new model and updating the generated code.
-- **Test Studio ViewModel** ([TestStudioViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/TestStudioViewModel.cs)):
+- **Recorder ViewModel** (`RecorderViewModel.cs`):
+  - Handles the recording lifecycle (`StartRecordingCommand` / `StopRecordingCommand`) by communicating with `Recorder.start` and `Recorder.stop` over the WebSocket session.
+  - Receives live step events from `Recorder.onStepRecorded` and translates them into local step models.
+- **Test Studio ViewModel** (`TestStudioViewModel.cs`):
   - Manages Flow-style test flows.
   - Supports detailed step status tracking (`Pending`, `Running`, `Passed`, `Failed`).
   - Features pause/resume via cancellation tokens and line-by-line stepping (`StepOver`).
   - Offers custom test actions (like copy-text-to-clipboard, back button, scroll viewport, assert element visibility, etc.).
 - **Code Generator Service Suite**:
   - Generates code templates on change:
-    - [PuppeteerGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Services/PuppeteerGenerator.cs)
-    - [PlaywrightGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Services/PlaywrightGenerator.cs)
-    - [SeleniumCSharpGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Services/SeleniumCSharpGenerator.cs)
-    - [AppiumCSharpGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Services/AppiumCSharpGenerator.cs)
-    - [AvaloniaHeadlessXUnitGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Services/AvaloniaHeadlessXUnitGenerator.cs)
+    - `PuppeteerGenerator.cs`
+    - `PlaywrightGenerator.cs`
+    - `SeleniumCSharpGenerator.cs`
+    - `AppiumCSharpGenerator.cs`
+    - `AvaloniaHeadlessXUnitGenerator.cs`
 
 ---
 
@@ -150,15 +146,17 @@ The recorder client in `CdpInspectorApp` implements a dual-panel MVVM-based layo
 The following features are fully implemented, verified by unit/E2E tests, and integrated within the codebase:
 
 1. **Custom `Recorder` Domain & Protocol Mapping**:
-   - `Recorder.start` and `Recorder.stop` are handled in [RecorderDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/RecorderDomain.cs) and dispatched via [CdpDispatcher.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/CdpDispatcher.cs).
+   - `Recorder.start` and `Recorder.stop` are handled in `RecorderDomain.cs` and dispatched via `CdpDispatcher.cs`.
    - WebSocket events (`Recorder.stepAdded`) broadcast recorded actions from the server to the client.
 2. **Event Tunneling & Interception Hooks**:
    - The tunneling strategy (`RoutingStrategies.Tunnel`) captures pointer presses, pointer releases, text alterations, GotFocus/LostFocus, and special navigation keys before target controls consume them.
    - Pointer dragging calculations detect drag-and-drop actions when pointer movement exceeds a $10.0$ px distance threshold.
 3. **Selector Generators**:
-   - [SelectorEngine.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/SelectorEngine.cs) parses and matches standard CSS classes, element names, custom identifiers, and `:contains("...")` pseudo-selectors.
-   - [DomSelectorGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/DomSelectorGenerator.cs) automatically resolves unique elements or structures visual tree names.
-   - [AutomationSelectorGenerator.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/AutomationSelectorGenerator.cs) targets C# `AutomationProperties.AutomationIdProperty` to output `[AccessibilityId="..."]`.
+   - `Recorder.start` and `Recorder.stop` are handled in `RecorderDomain.cs` and dispatched via `CdpDispatcher.cs`.
+   - Injected tunneling pointer and keyboard event listeners intercept raw interactive events and generate logical step messages broadcasted via `Recorder.onStepRecorded` event envelopes.
+   - `SelectorEngine.cs` parses and matches standard CSS classes, element names, custom identifiers, and `:contains("...")` pseudo-selectors.
+   - `DomSelectorGenerator.cs` automatically resolves unique elements or structures visual tree names.
+   - `AutomationSelectorGenerator.cs` targets C# `AutomationProperties.AutomationIdProperty` to output `[AccessibilityId="..."]`.
    - Client-side mirrors are defined in `ClientSelectorRegistry.cs` to resolve selectors immediately from the local DOM node trees.
 4. **Code Exporters**:
    - Full code export generation templates exist for Puppeteer, Playwright Test, Selenium C#, Appium C#, and Avalonia Headless xUnit tests, handling escaping and modifier parsing.
@@ -211,7 +209,7 @@ The following areas are missing or require enhancement to improve recording fide
 
 ## 8. Verification & E2E Testing Strategy
 
-The correctness of the entire Recorder/Playback stack is verified programmatically via a task-specific headless test suite inside [Program.cs](file:///Users/wieslawsoltes/GitHub/CDP/scratch/ControlApp/Program.cs).
+The correctness of the entire Recorder/Playback stack is verified programmatically via a task-specific headless test suite inside `Program.cs`.
 
 ### Headless Orchestration Flow
 ```

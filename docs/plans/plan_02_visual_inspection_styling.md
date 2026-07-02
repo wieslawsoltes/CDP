@@ -50,14 +50,14 @@ To support visual inspection, tree browsing, live overlays, and styling modifica
 ### A. What is Already Implemented
 
 #### 1. Server-Side Protocol Handling (`Avalonia.Diagnostics.Cdp`)
-- **Visual & Logical Tree Serialization**: Implemented in [DomDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/DomDomain.cs). Traversal is performed using `visual.GetVisualChildren()` or `logical.GetLogicalChildren()`. It honors the `pierce` parameter to switch between visual and logical trees. Attributes are serialized to include Type, Name, Id, Classes, Text, Bounds, IsEnabled, IsVisible, and Accessibility properties.
-- **Computed Style Queries**: Implemented in [CssDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/CssDomain.cs). It returns standard properties like `width`, `height`, `display`, `opacity`, `margin`, `background-color`, `padding`, `font-size`, and `font-family`.
-- **Forced Pseudo-States via Reflection**: Implemented in [CssDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/CssDomain.cs#L134). Evaluates the non-public `PseudoClasses` property of a `Control` using reflection and dynamically calls `Add("hover")`, `Remove("hover")`, etc., to manipulate the control's interactive pseudo-states (e.g., hover, pointerover, active, pressed, focus, focus-within, focus-visible, and disabled).
-- **Basic Highlight Overlays**: Implemented in [OverlayDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/OverlayDomain.cs), [HighlightOverlayManager.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/HighlightOverlayManager.cs), and [HighlightAdorner.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/HighlightAdorner.cs). It hooks into the window's `AdornerLayer`, instantiates `HighlightAdorner`, and draws a semi-transparent blue rectangle matching the control's bounds along with a type/accessibility tooltip. It recalculates the layout coordinates dynamically when the window raises the `LayoutUpdated` event.
-- **Box Model Calculations**: Implemented in [DomDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/DomDomain.cs#L614). Resolves coordinates of Margin, Border, Padding, and Content boxes, outputting them as standard CDP 8-coordinate quads.
+- **Visual & Logical Tree Serialization**: Implemented in `DomDomain.cs`. Traversal is performed using `visual.GetVisualChildren()` or `logical.GetLogicalChildren()`. It honors the `pierce` parameter to switch between visual and logical trees. Attributes are serialized to include Type, Name, Id, Classes, Text, Bounds, IsEnabled, IsVisible, and Accessibility properties.
+- **Computed Style Queries**: Implemented in `CssDomain.cs`. It returns standard properties like `width`, `height`, `display`, `opacity`, `margin`, `background-color`, `padding`, `font-size`, and `font-family`.
+- **Forced Pseudo-States via Reflection**: Implemented in `CssDomain.cs` (Line 134). Evaluates the non-public `PseudoClasses` property of a `Control` using reflection and dynamically calls `Add("hover")`, `Remove("hover")`, etc., to manipulate the control's interactive pseudo-states (e.g., hover, pointerover, active, pressed, focus, focus-within, focus-visible, and disabled).
+- **Basic Highlight Overlays**: Implemented in `OverlayDomain.cs`, `HighlightOverlayManager.cs`, and `HighlightAdorner.cs`. It hooks into the window's `AdornerLayer`, instantiates `HighlightAdorner`, and draws a semi-transparent blue rectangle matching the control's bounds along with a type/accessibility tooltip. It recalculates the layout coordinates dynamically when the window raises the `LayoutUpdated` event.
+- **Box Model Calculations**: Implemented in `DomDomain.cs` (Line 614). Resolves coordinates of Margin, Border, Padding, and Content boxes, outputting them as standard CDP 8-coordinate quads.
 
 #### 2. Client-Side Inspector App (`CdpInspectorApp`)
-- **Tree Visualizers & Selection**: Implemented in [ElementsViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/ElementsViewModel.cs) and [ElementsView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/ElementsView.axaml). DOM and Accessibility trees are rendered as interactive Hierarchical TreeViews. Selecting a node triggers details loading.
+- **Tree Visualizers & Selection**: Implemented in `ElementsViewModel.cs` and `ElementsView.axaml`. DOM and Accessibility trees are rendered as interactive Hierarchical TreeViews. Selecting a node triggers details loading.
 - **Forced Pseudo-Class Toggles**: Interactive check boxes (hover, active, focus, focus-within, focus-visible, disabled) inside a sliding panel bind to VM properties, programmatically calling `CSS.forcePseudoState` via the CDP connection.
 - **Layout Display**: Shows Margin, Padding, BorderThickness, Width, Height, and Bounds in a static visual representation in the Layout subtab, binding values parsed from generic element properties.
 - **Simple Inline CSS Modifiers**: Provides a single text-input field where raw rules can be typed (e.g. `background: red; width: 100px;`) and applied to the remote control via `CSS.setStyleTexts`.
@@ -97,7 +97,7 @@ To support visual inspection, tree browsing, live overlays, and styling modifica
 
 ## 4. Avalonia-Side Architectural Design
 
-The server-side implementation is located in the core library [src/Avalonia.Diagnostics.Cdp](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp). The architectural hooks for visual tree navigation, overlays, and style mutation are designed as follows:
+The server-side implementation is located in the core library `src/Avalonia.Diagnostics.Cdp`. The architectural hooks for visual tree navigation, overlays, and style mutation are designed as follows:
 
 ```mermaid
 flowchart TD
@@ -131,14 +131,14 @@ flowchart TD
 ```
 
 ### A. Visual & Logical Tree Navigation
-- **Dynamic Browsing**: Traversal is performed using `visual.GetVisualChildren()` or `logical.GetLogicalChildren()` in [DomDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/DomDomain.cs).
+- **Dynamic Browsing**: Traversal is performed using `visual.GetVisualChildren()` or `logical.GetLogicalChildren()` in `DomDomain.cs`.
 - **Pierce vs. Logical Tree**: `session.UseLogicalTree` is configured via `DOM.getDocument` params. If `pierce = true`, the server traverses the visual tree; otherwise, it navigates the logical tree.
 - **Tree Mutation Subscriptions**: The server registers listeners to tree attachment events (`OnAttachedToVisualTree` / `OnDetachedFromVisualTree` or window-level child events) to track layout mutations. When the tree changes, the server raises `DOM.childNodeCountUpdated`, `DOM.childNodeInserted`, and `DOM.childNodeRemoved` events.
 
 ### B. Highlighting Overlay Subsystem
-- **Overlay Adorner**: A dedicated custom control [HighlightAdorner.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/HighlightAdorner.cs) is instantiated. It overrides `Render(DrawingContext)` to draw colored translucent layers overlaying the content box, padding box, border box, and margin box.
+- **Overlay Adorner**: A dedicated custom control `HighlightAdorner.cs` is instantiated. It overrides `Render(DrawingContext)` to draw colored translucent layers overlaying the content box, padding box, border box, and margin box.
 - **Dynamic Updates**: Inside `HighlightAdorner`, the `LayoutUpdated` event of the host window is observed. When a layout change occurs, `InvalidateVisual()` is called to recalculate bounding boxes and re-render.
-- **Overlay Manager**: The static class [HighlightOverlayManager.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/HighlightOverlayManager.cs) retrieves the Window's `AdornerLayer` via `AdornerLayer.GetAdornerLayer(visual)` and appends the `HighlightAdorner` instance.
+- **Overlay Manager**: The static class `HighlightOverlayManager.cs` retrieves the Window's `AdornerLayer` via `AdornerLayer.GetAdornerLayer(visual)` and appends the `HighlightAdorner` instance.
 - **Overlay Customization**: `DOM.highlightNode` maps custom highlight configs (RGBA fill colors, borders, labels) directly to the adorner's drawing properties.
 
 ### C. Style and Layout Mutators
@@ -148,7 +148,7 @@ flowchart TD
   - **Border Box**: Corresponds to control bounds: $Rect(x, y, w, h)$
   - **Margin Box**: Outset by margin: $Rect(x - M_{left}, y - M_{top}, w + M_{horiz}, h + M_{vert})$
   - Coordinates are returned as an array of 8 doubles per box representing the quad corners: `[x1, y1, x2, y2, x3, y3, x4, y4]`.
-- **Property Mutations**: Done in [CssDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/CssDomain.cs#L778). Value updates (e.g., `width`, `margin`, `background`) undergo conversion matching the target `AvaloniaProperty` type:
+- **Property Mutations**: Done in `CssDomain.cs` (Line 778). Value updates (e.g., `width`, `margin`, `background`) undergo conversion matching the target `AvaloniaProperty` type:
   - Sizes with unit suffix `px` are stripped and parsed as `double`.
   - Margin/Padding shorthand representations (e.g., `10 20`) are parsed into `Thickness`.
   - Color declarations (e.g., `#FF5733`) are parsed into `SolidColorBrush`.
@@ -161,13 +161,13 @@ flowchart TD
   control.Classes.Replace(newClasses);
   ```
   This immediately triggers Avalonia's built-in style evaluation.
-- **Pseudo-States Management**: Evaluated in [CssDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/CssDomain.cs#L134). The non-public `PseudoClasses` property of `Control` (implementing `IPseudoClasses`) is accessed via reflection. Methods `Add(name)` and `Remove(name)` are invoked to apply pseudo-classes (e.g., `hover`, `pressed`, `focus`, `disabled`).
+- **Pseudo-States Management**: Evaluated in `CssDomain.cs` (Line 134). The non-public `PseudoClasses` property of `Control` (implementing `IPseudoClasses`) is accessed via reflection. Methods `Add(name)` and `Remove(name)` are invoked to apply pseudo-classes (e.g., `hover`, `pressed`, `focus`, `disabled`).
 
 ---
 
 ## 5. Inspector-Side UI/UX Design
 
-The inspector GUI is located in [src/CDP.Inspector.Shared](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared). To support live styling and layout editing, we design a dedicated styling panel structure integrated with the element inspector.
+The inspector GUI is located in `src/CDP.Inspector.Shared`. To support live styling and layout editing, we design a dedicated styling panel structure integrated with the element inspector.
 
 ### MVVM Classes & Relations
 - **`CssPropertyModel`**: Mapped from the protocol, representing a name-value styling pair.
@@ -319,18 +319,18 @@ The inspector GUI is located in [src/CDP.Inspector.Shared](file:///Users/wieslaw
 ```
 
 ### Phase 1: Server-Side Enhancements (`DOM`, `CSS`, `Overlay` domains)
-1. **Layout Coordinate Calculations**: Complete `DOM.getBoxModel` inside [DomDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/DomDomain.cs) to resolve relative sizes to the Window using `TranslatePoint()` and populate coordinates for margin, border, padding, and content bounding rectangles.
-2. **Overlay Drawing Upgrades**: Refactor [HighlightAdorner.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/HighlightAdorner.cs) to accept a `HighlightConfig` object containing fill/border colors for margin, border, padding, and content boxes. Implement nested rectangle bounds drawing using local offsets and brush parsers.
+1. **Layout Coordinate Calculations**: Complete `DOM.getBoxModel` inside `DomDomain.cs` to resolve relative sizes to the Window using `TranslatePoint()` and populate coordinates for margin, border, padding, and content bounding rectangles.
+2. **Overlay Drawing Upgrades**: Refactor `HighlightAdorner.cs` to accept a `HighlightConfig` object containing fill/border colors for margin, border, padding, and content boxes. Implement nested rectangle bounds drawing using local offsets and brush parsers.
 3. **Style Classes Parsing**: Extend `DOM.setAttributeValue` for class modifications to parse and map values directly to the control's `Classes` property.
 4. **Pseudo-State Support**: Ensure robust reflection bindings for `PseudoClasses` in `CSS.forcePseudoState` supporting `:hover`, `:active`, `:focus`, `:focus-visible`, and `:disabled`.
 
 ### Phase 2: Client ViewModel & Services Implementation
-1. **CDP Client Extensions**: Update [ICdpService.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Services/ICdpService.cs) and [CdpService.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Services/CdpService.cs) to expose layout, class, and overlay configuration commands.
+1. **CDP Client Extensions**: Update `ICdpService.cs` and `CdpService.cs` to expose layout, class, and overlay configuration commands.
 2. **Add `StylingViewModel`**: Implement the ViewModel with properties for class names, computed styles, inline styles, and the bound box model coordinates.
 3. **Event Notification Hook**: Bind `StylingViewModel` properties to trigger reload logic when `SelectedNode` in `ElementsViewModel` changes.
 
 ### Phase 3: GUI and Interactions
-1. **Integrate Tab Views**: Embed the newly created `StylesView.axaml` and layout panel components inside the right-side split view of [ElementsView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/ElementsView.axaml).
+1. **Integrate Tab Views**: Embed the newly created `StylesView.axaml` and layout panel components inside the right-side split view of `ElementsView.axaml`.
 2. **Dynamic Box Model Visualizer**: Build the nested border representation grid in the layout subtab, binding values to the margins, paddings, and bounds of the styling viewmodel.
 3. **Class Tag Editor**: Provide visual controls to dynamically add/remove styling classes.
 
@@ -338,7 +338,7 @@ The inspector GUI is located in [src/CDP.Inspector.Shared](file:///Users/wieslaw
 
 ## 7. Verification & E2E Testing Strategy
 
-To verify this implementation end-to-end headlessly, we will write a dedicated E2E verification test scenario in [scratch/ControlApp/Program.cs](file:///Users/wieslawsoltes/GitHub/CDP/scratch/ControlApp/Program.cs).
+To verify this implementation end-to-end headlessly, we will write a dedicated E2E verification test scenario in `scratch/ControlApp/Program.cs`.
 
 ### Scenario Flow & Assertions
 1. **Initialize connections**: Connect the `ControlApp` to `CdpSampleApp` (port `9222`) and `CdpInspectorApp` (port `9223`).

@@ -28,16 +28,16 @@ To successfully implement the Interactive C# Console & Scripting REPL, we must f
 ### 2.1 What is Already Implemented
 
 1. **CDP Protocol & Domain Infrastructure**:
-   - **Log Domain** ([LogDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/LogDomain.cs)): Handlers for `Log.enable` and `Log.disable` are implemented to manage the registration of active CDP sessions. The server broadcasts application traces to all active sessions via the `Log.entryAdded` event. An Avalonia diagnostics log sink `CdpLogSink` translates `ILogSink` messages into `Log.entryAdded` events.
-   - **Console Domain** ([ConsoleDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/ConsoleDomain.cs)): Stub handlers exist for `Console.enable`, `Console.disable`, and `Console.clearMessages`.
-   - **Runtime Domain** ([RuntimeDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs)):
+   - **Log Domain** (`LogDomain.cs`): Handlers for `Log.enable` and `Log.disable` are implemented to manage the registration of active CDP sessions. The server broadcasts application traces to all active sessions via the `Log.entryAdded` event. An Avalonia diagnostics log sink `CdpLogSink` translates `ILogSink` messages into `Log.entryAdded` events.
+   - **Console Domain** (`ConsoleDomain.cs`): Stub handlers exist for `Console.enable`, `Console.disable`, and `Console.clearMessages`.
+   - **Runtime Domain** (`RuntimeDomain.cs`):
      - Standard methods: `Runtime.enable`, `Runtime.disable`, `Runtime.getIsolateId`, `Runtime.releaseObject`, and `Runtime.releaseObjectGroup` are operational.
      - `Runtime.getHeapUsage` returns memory statistics by querying the garbage collector (`GC.GetTotalMemory`) and process diagnostics (`Process.GetCurrentProcess().WorkingSet64`).
      - `Runtime.getProperties` inspects properties of a registered `RemoteObject` via standard reflection, returning their names, writeability, and remote object descriptors.
      - `Runtime.callFunctionOn` invokes a method on a registered target object using reflection.
-   - **Console Redirection** ([CdpServer.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/CdpServer.cs)): A thread-safe, reentrancy-guarded `ConsoleRedirector` intercepts `Console.Out` and `Console.Error` streams and routes them to `LogDomain.BroadcastLog`.
+   - **Console Redirection** (`CdpServer.cs`): A thread-safe, reentrancy-guarded `ConsoleRedirector` intercepts `Console.Out` and `Console.Error` streams and routes them to `LogDomain.BroadcastLog`.
 
-2. **Reflection-Based Expression Evaluator** ([RuntimeDomain.cs:EvaluateExpression](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs#L227-L485)):
+2. **Reflection-Based Expression Evaluator** (`RuntimeDomain.cs:EvaluateExpression`):
    - A manual reflection-based parser parses and evaluates expressions in the context of the current session window (or inspected node).
    - Supports basic literals (booleans, strings, integers, doubles) and basic logical OR (`||`) chains.
    - Evaluates equality/inequality comparison expressions (`==`, `!=`, `===`, `!==`).
@@ -46,8 +46,8 @@ To successfully implement the Interactive C# Console & Scripting REPL, we must f
    - Resolves the selected node shortcut `$0` by fetching the target visual from `session.NodeMap.GetVisual(session.InspectedNodeId)`.
 
 3. **Client-Side Views & ViewModels**:
-   - **ConsoleViewModel** ([ConsoleViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/ConsoleViewModel.cs)): Manages logs filtering (All, Error, Warning, Info, Verbose), filters logs by query strings, and handles `Log.entryAdded` events. Maintains a list of previously executed evaluations (`ConsoleHistory`). The `EvaluateAsync` method calls `Runtime.evaluate` over WebSocket.
-   - **ConsoleView** ([ConsoleView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/ConsoleView.axaml)): Renders logs in a filterable list, lists evaluation history entries (expressions and return values), and contains a simple `TextBox` for inputting commands.
+   - **ConsoleViewModel** (`ConsoleViewModel.cs`): Manages logs filtering (All, Error, Warning, Info, Verbose), filters logs by query strings, and handles `Log.entryAdded` events. Maintains a list of previously executed evaluations (`ConsoleHistory`). The `EvaluateAsync` method calls `Runtime.evaluate` over WebSocket.
+   - **ConsoleView** (`ConsoleView.axaml`): Renders logs in a filterable list, lists evaluation history entries (expressions and return values), and contains a simple `TextBox` for inputting commands.
 
 ---
 

@@ -1,6 +1,6 @@
 # Implementation Plan: End-to-End UI Automation and Testing (Playwright/Puppeteer Style)
 
-This document provides a highly detailed technical implementation plan and status specification for enabling **Playwright/Puppeteer-style End-to-End (E2E) UI Automation and Testing** in our Chrome DevTools Protocol (CDP) server for Avalonia ([Avalonia.Diagnostics.Cdp](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp)) and the companion inspector client ([CdpInspectorApp](file:///Users/wieslawsoltes/GitHub/CDP/samples/CdpInspectorApp)).
+This document provides a highly detailed technical implementation plan and status specification for enabling **Playwright/Puppeteer-style End-to-End (E2E) UI Automation and Testing** in our Chrome DevTools Protocol (CDP) server for Avalonia (`Avalonia.Diagnostics.Cdp`) and the companion inspector client (`CdpInspectorApp`).
 
 ---
 
@@ -47,7 +47,7 @@ We have implemented standard Chrome DevTools Protocol domains to bridge the web-
    └─────────────────────────┘
 ```
 
-#### 1. DOM Domain (Implemented in [DomDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/DomDomain.cs))
+#### 1. DOM Domain (Implemented in `DomDomain.cs`)
 - `DOM.enable` / `DOM.disable`: Subscribes/unsubscribes to visual tree mutation events.
 - `DOM.getDocument`: Retrieves the document root representing the active top-level window. Maps `pierce` parameters to visual or logical tree modes (`session.UseLogicalTree = !pierce`).
 - `DOM.getAttributes`: Returns serialized flat arrays of attribute name-value pairs for a registered `nodeId`.
@@ -68,14 +68,14 @@ We have implemented standard Chrome DevTools Protocol domains to bridge the web-
 - `DOM.scrollIntoViewIfNeeded`: Invokes `BringIntoView()` on ScrollViewers / controls.
 - `DOM.setNodeValue` / `DOM.setNodeName`: Directly sets text contents of TextBoxes/TextBlocks, or control names.
 
-#### 2. Input Domain (Implemented in [InputDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/InputDomain.cs))
+#### 2. Input Domain (Implemented in `InputDomain.cs`)
 - `Input.dispatchMouseEvent`: Handles simulated clicks, mouse moves, drag sequences, and wheel scrolls.
 - `Input.dispatchKeyEvent`: Dispatches physical keyboard events (key downs, key ups, text input characters).
 - `Input.insertText`: Focus-aware typing simulation. Fallbacks to direct Caret-based string insertion if the native focus system is uninitialized.
 - `Input.emulateTouchFromMouseEvent`: Translates mouse mouse clicks/moves to raw touch point sequences.
 - `Input.synthesizeTapGesture` / `Input.synthesizeScrollGesture` / `Input.synthesizePinchGesture`: Simulates gesture sequences (zooms, scrolls, taps) by interpolating coordinates over time.
 
-#### 3. Target Domain (Implemented in [TargetDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/TargetDomain.cs))
+#### 3. Target Domain (Implemented in `TargetDomain.cs`)
 - `Target.getTargets`: Returns active window targets.
 - `Target.getTargetInfo`: Retrives metadata for specific targets.
 - `Target.setDiscoverTargets`: Discovers new TopLevels as they are registered or removed.
@@ -224,7 +224,7 @@ Programmatic verification of the E2E automation is executed by the task-specific
 - Spawns target control structures (`TextBox`, `Button`, `ScrollViewer`) and starts `CdpServer` on a test port (`9236`).
 - Spawns client-side `CdpService` and `MainWindowViewModel` to connect to the test port, verifying self-inspection.
 
-### Programmatic Assertions (Implemented in [Program.cs](file:///Users/wieslawsoltes/GitHub/CDP/scratch/ControlApp/Program.cs))
+### Programmatic Assertions (Implemented in `Program.cs`)
 The verification suite runs the following E2E scenarios:
 1. **Interactive Step Construction**: Verifies that adding step commands (Launch, Tap, Input, Assertions) dynamically builds the script list and updates the generated YAML representation.
 2. **YAML Parsing**: Asserts that loading and applying flow YAML scripts back correctly parses and populates step parameters.

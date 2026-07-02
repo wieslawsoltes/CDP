@@ -23,7 +23,7 @@ A partial implementation of network diagnostics exists in the repository. The fo
 ### Server-Side (`Avalonia.Diagnostics.Cdp`):
 1. **Passive HTTP Monitoring**:
    - A `DiagnosticListener` subscription is registered under the `"HttpHandlerDiagnosticListener"` source.
-   - It intercepts events `"System.Net.Http.HttpRequestOut.Start"` and `"System.Net.Http.HttpRequestOut.Stop"` via `HttpKeyValueObserver` in [NetworkDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Avalonia.Diagnostics.Cdp/Domains/NetworkDomain.cs#L586).
+   - It intercepts events `"System.Net.Http.HttpRequestOut.Start"` and `"System.Net.Http.HttpRequestOut.Stop"` via `HttpKeyValueObserver` in `NetworkDomain.cs`.
    - Sequentially assigns request IDs (`req-1`, `req-2`, etc.) and maps HTTP request/response headers to JSON objects.
    - Intercepts and buffers text-based response bodies up to 5 MB using a custom `InterceptingHttpContent` and `TrackingStream`. Stream-based content types (like `text/event-stream` or `application/octet-stream`) are automatically excluded from buffering.
    - Caches response bodies in memory (`_responseBodies`) to serve `Network.getResponseBody` requests.
@@ -39,8 +39,8 @@ A partial implementation of network diagnostics exists in the repository. The fo
 
 ### Client-Side (`CdpInspectorApp`):
 1. **Network Grids & Detail Panel**:
-   - [NetworkViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/NetworkViewModel.cs) enables the `Network` domain and listens to incoming `Network.requestWillBeSent`, `Network.responseReceived`, and `Network.loadingFinished` events to populate a request grid.
-   - A two-pane layout in [NetworkView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/NetworkView.axaml) shows a list of requests (URL, Method, Status, Type, Time) alongside a details panel containing raw textboxes for Request Headers, Response Headers, and Response Body.
+   - `NetworkViewModel.cs` enables the `Network` domain and listens to incoming `Network.requestWillBeSent`, `Network.responseReceived`, and `Network.loadingFinished` events to populate a request grid.
+   - A two-pane layout in `NetworkView.axaml` shows a list of requests (URL, Method, Status, Type, Time) alongside a details panel containing raw textboxes for Request Headers, Response Headers, and Response Body.
 2. **Throttling Selection**:
    - A dropdown menu lists predefined throttling profiles: No Throttling, Fast 3G, Slow 3G, and Offline.
    - Selecting a profile dispatches the `Network.emulateNetworkConditions` command.
