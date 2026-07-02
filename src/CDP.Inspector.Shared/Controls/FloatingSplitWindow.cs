@@ -21,6 +21,7 @@ public class FloatingSplitWindow : Window
     private PixelPoint _windowStartPos;
     private SuperSplit? _currentActiveDragTargetSplit;
     private PointerPressedEventArgs? _pointerPressedEventArgs;
+    private bool _isDraggingWindowByTitle;
 
     public FloatingSplitWindow(SuperSplit mainSplit, BoxNode rootNode)
     {
@@ -300,6 +301,7 @@ public class FloatingSplitWindow : Window
     {
         if (_superSplit.Root is not BoxNode draggedBox) return;
 
+        _isDraggingWindowByTitle = true;
         SuperSplitDragManager.IsDragging = true;
         SuperSplitDragManager.SourceNode = draggedBox;
         SuperSplitDragManager.SourceTab = null;
@@ -337,6 +339,7 @@ public class FloatingSplitWindow : Window
             _currentActiveDragTargetSplit = null;
         }
 
+        _isDraggingWindowByTitle = false;
         if (success)
         {
             // Handled by OnLayoutRebuilt which closes this window
@@ -349,7 +352,7 @@ public class FloatingSplitWindow : Window
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode == _superSplit.Root)
+        if (_isDraggingWindowByTitle && SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode == _superSplit.Root)
         {
             var currentPos = e.GetPosition(this);
             var screenPos = this.PointToScreen(currentPos);
@@ -459,7 +462,7 @@ public class FloatingSplitWindow : Window
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
-        if (SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode == _superSplit.Root)
+        if (_isDraggingWindowByTitle && SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode == _superSplit.Root)
         {
             if (SuperSplitDragManager.IsOverDropTarget && _currentActiveDragTargetSplit != null)
             {
@@ -509,7 +512,10 @@ public class FloatingSplitWindow : Window
                                 }
 
                                 var sourceNode = SuperSplitDragManager.DraggedNode;
-                                _currentActiveDragTargetSplit.MoveNodeCrossWindow(sourceNode, targetNode, loc, _superSplit);
+                                if (sourceNode != null)
+                                {
+                                    _currentActiveDragTargetSplit.MoveNodeCrossWindow(sourceNode, targetNode, loc, _superSplit);
+                                }
 
                                 e.DragEffects = DragDropEffects.Move;
                                 e.Handled = true;
