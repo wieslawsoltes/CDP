@@ -632,10 +632,7 @@ public class ViewsLayoutTests
         int initialTabs2 = targetNode.Tabs.Count;
 
         // Perform cross-window move node drop to Center
-        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNodeCrossWindow", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(method);
-
-        method.Invoke(superSplit2, new object[] { sourceNode, targetNode, 5, superSplit1 });
+        superSplit2.MoveNodeCrossWindow(sourceNode, targetNode, CDP.Editor.Splits.Controls.RelativeDropLocation.Center, superSplit1);
 
         // Verify tabs moved
         Assert.Empty(sourceNode.Tabs);
@@ -663,11 +660,7 @@ public class ViewsLayoutTests
         superSplit.Rebuild();
 
         // Drag paneA (sibling of paneB) and drop it to split paneB (on its Left / insertBefore=true)
-        var method = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("MoveNodeCrossWindow", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(method);
-
-        // RelativeDropLocation.Left is represented as 1
-        method.Invoke(superSplit, new object[] { paneA, paneB, 1, superSplit });
+        superSplit.MoveNodeCrossWindow(paneA, paneB, CDP.Editor.Splits.Controls.RelativeDropLocation.Left, superSplit);
 
         // Verify Rebuild succeeds without duplicate key crashes, and layout maintains all 3 panels
         superSplit.Rebuild();
