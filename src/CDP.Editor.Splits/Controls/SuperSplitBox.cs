@@ -654,12 +654,20 @@ public class SuperSplitBox : ContentControl
                             }
                             if (targetIndex == -1)
                             {
-                                targetIndex = _tabsPanel.Children.Count - 1;
+                                targetIndex = _tabsPanel.Children.Count;
                             }
 
                             if (fromIndex >= 0 && targetIndex >= 0 && fromIndex != targetIndex)
                             {
-                                boxNode.Tabs.Move(fromIndex, targetIndex);
+                                int adjustedTarget = targetIndex;
+                                if (fromIndex < targetIndex)
+                                {
+                                    adjustedTarget--;
+                                }
+                                if (fromIndex != adjustedTarget)
+                                {
+                                    boxNode.Tabs.Move(fromIndex, adjustedTarget);
+                                }
                             }
                         }
                         args.Handled = true;
