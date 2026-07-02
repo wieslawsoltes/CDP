@@ -322,33 +322,56 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         var selected = SelectedPane;
         if (selected == null) return;
 
-        if (selected == LayoutRoot)
-        {
-            LayoutRoot = null;
-            SelectedPane = null;
-        }
-        else if (selected.Parent is SplitContainerNode parent)
-        {
-            var sibling = parent.Child1 == selected ? parent.Child2 : parent.Child1;
-            var grandparent = parent.Parent;
+        BoxNode nodeToFloat;
 
-            if (parent == LayoutRoot)
+        if (selected.Tabs.Count > 1 && selected.ActiveTab != null)
+        {
+            var activeTab = selected.ActiveTab;
+            selected.Tabs.Remove(activeTab);
+            if (selected.Tabs.Count > 0)
             {
-                sibling.Parent = null;
-                LayoutRoot = sibling;
-            }
-            else if (grandparent is SplitContainerNode gp)
-            {
-                sibling.Parent = gp;
-                if (gp.Child1 == parent) gp.Child1 = sibling;
-                else gp.Child2 = sibling;
+                selected.ActiveTab = selected.Tabs[0];
             }
 
-            if (sibling is BoxNode boxSibling) SelectedPane = boxSibling;
-            else if (sibling is SplitContainerNode sc) SelectedPane = FindFirstBoxNode(sc);
+            nodeToFloat = new BoxNode
+            {
+                BackgroundTint = "#292a2d"
+            };
+            nodeToFloat.Tabs.Add(activeTab);
+            nodeToFloat.ActiveTab = activeTab;
+        }
+        else
+        {
+            nodeToFloat = selected;
+
+            if (selected == LayoutRoot)
+            {
+                LayoutRoot = null;
+                SelectedPane = null;
+            }
+            else if (selected.Parent is SplitContainerNode parent)
+            {
+                var sibling = parent.Child1 == selected ? parent.Child2 : parent.Child1;
+                var grandparent = parent.Parent;
+
+                if (parent == LayoutRoot)
+                {
+                    sibling.Parent = null;
+                    LayoutRoot = sibling;
+                }
+                else if (grandparent is SplitContainerNode gp)
+                {
+                    sibling.Parent = gp;
+                    if (gp.Child1 == parent) gp.Child1 = sibling;
+                    else gp.Child2 = sibling;
+                }
+
+                if (sibling is BoxNode boxSibling) SelectedPane = boxSibling;
+                else if (sibling is SplitContainerNode sc) SelectedPane = FindFirstBoxNode(sc);
+            }
         }
 
-        CDP.Editor.Splits.Models.SuperSplitDragManager.FloatNodeCallback?.Invoke(null, selected);
+        CDP.Editor.Splits.Models.SuperSplitDragManager.FloatNodeCallback?.Invoke(null, nodeToFloat);
     }
 
     private void ResetLayout()
