@@ -341,6 +341,32 @@ public class Program
                     ["returnByValue"] = true
                 });
                 var result = response["result"]?.AsObject();
+                var exceptionDetails = response["exceptionDetails"]?.AsObject();
+
+                if (exceptionDetails != null)
+                {
+                    var text = exceptionDetails["text"]?.ToString() ?? "Exception occurred during evaluation";
+                    var exceptionVal = exceptionDetails["exception"]?.AsObject();
+                    var desc = exceptionVal != null && exceptionVal.ContainsKey("description")
+                        ? exceptionVal["description"]?.ToString()
+                        : null;
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Error.WriteLine(desc ?? text);
+                    Console.ResetColor();
+                    Environment.ExitCode = 1;
+                    return;
+                }
+
+                if (result != null && result["subtype"]?.ToString() == "error")
+                {
+                    var desc = result["description"]?.ToString() ?? result.ToString();
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Error.WriteLine(desc);
+                    Console.ResetColor();
+                    Environment.ExitCode = 1;
+                    return;
+                }
+
                 if (result != null)
                 {
                     if (result.ContainsKey("value"))
