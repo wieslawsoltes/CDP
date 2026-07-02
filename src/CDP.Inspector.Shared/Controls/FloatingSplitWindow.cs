@@ -5,6 +5,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CDP.Editor.Splits.Controls;
 using CDP.Editor.Splits.Models;
@@ -22,6 +23,8 @@ public class FloatingSplitWindow : Window
     private SuperSplit? _currentActiveDragTargetSplit;
     private PointerPressedEventArgs? _pointerPressedEventArgs;
     private bool _isDraggingWindowByTitle;
+    private bool _isPositionUpdatePending;
+    private PixelPoint _pendingTargetPosition;
 
     public FloatingSplitWindow(SuperSplit mainSplit, BoxNode rootNode)
     {
@@ -357,8 +360,21 @@ public class FloatingSplitWindow : Window
             var currentPos = e.GetPosition(this);
             var screenPos = this.PointToScreen(currentPos);
 
-            // Move the window physically so it follows the mouse pointer
-            Position = new PixelPoint(screenPos.X - (int)_titleDragStartPoint.X, screenPos.Y - (int)_titleDragStartPoint.Y);
+            // Move the window physically so it follows the mouse pointer (coalesced to render pass to prevent event floods)
+            var targetPos = new PixelPoint(screenPos.X - (int)_titleDragStartPoint.X, screenPos.Y - (int)_titleDragStartPoint.Y);
+            if (targetPos != Position)
+            {
+                _pendingTargetPosition = targetPos;
+                if (!_isPositionUpdatePending)
+                {
+                    _isPositionUpdatePending = true;
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        Position = _pendingTargetPosition;
+                        _isPositionUpdatePending = false;
+                    }, DispatcherPriority.Render);
+                }
+            }
 
             // Hit test other windows to find if we are over another SuperSplit's box
             SuperSplit? targetSplit = null;
@@ -514,7 +530,12 @@ public class FloatingSplitWindow : Window
                                 var sourceNode = SuperSplitDragManager.DraggedNode;
                                 if (sourceNode != null)
                                 {
-                                    _currentActiveDragTargetSplit.MoveNodeCrossWindow(sourceNode, targetNode, loc, _superSplit);
+                                    var targetSplit = _currentActiveDragTargetSplit;
+                                    var sourceSplit = _superSplit;
+                                    Dispatcher.UIThread.Post(() =>
+                                    {
+                                        targetSplit.MoveNodeCrossWindow(sourceNode, targetNode, loc, sourceSplit);
+                                    });
                                 }
 
                                 e.DragEffects = DragDropEffects.Move;
