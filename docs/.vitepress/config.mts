@@ -65,6 +65,7 @@ const guideSidebarItems = [
       { text: "Recording User Actions", link: "/articles/recording-user-actions" },
       { text: "Test Studio", link: "/articles/test-studio" },
       { text: "YAML Test Format", link: "/articles/yaml-test-format" },
+      { text: "CLI Automation Tool", link: "/articles/cli-tool" },
       { text: "Code Generation", link: "/articles/code-generation" },
       { text: "Headless Test Adapter", link: "/articles/headless-test-adapter" },
       { text: "Test Reports", link: "/articles/test-reports" },
