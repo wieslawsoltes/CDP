@@ -189,10 +189,10 @@ public class FloatingSplitWindow : Window
         Content = windowBorder;
     }
 
-    private PathIcon CreateMinimizeIcon() => new() { Width = 10, Height = 10, Foreground = Brush.Parse("#9aa0a6"), Data = Geometry.Parse("M 1 5 H 9") };
-    private PathIcon CreateMaximizeIcon() => new() { Width = 10, Height = 10, Foreground = Brush.Parse("#9aa0a6"), Data = Geometry.Parse("M 1 1 H 9 V 9 H 1 Z") };
-    private PathIcon CreateRestoreIcon() => new() { Width = 10, Height = 10, Foreground = Brush.Parse("#9aa0a6"), Data = Geometry.Parse("M 3 1 H 9 V 7 H 3 Z M 1 3 H 7 V 9 H 1 Z") };
-    private PathIcon CreateCloseIcon() => new() { Width = 8, Height = 8, Foreground = Brush.Parse("#9aa0a6"), Data = Geometry.Parse("M 1 1 L 9 9 M 9 1 L 1 9") };
+    private PathIcon CreateMinimizeIcon() => new() { Width = 10, Height = 10, Foreground = Brush.Parse("#9aa0a6"), Data = Geometry.Parse("M 1 4.5 H 9 V 5.5 H 1 Z") };
+    private PathIcon CreateMaximizeIcon() => new() { Width = 10, Height = 10, Foreground = Brush.Parse("#9aa0a6"), Data = Geometry.Parse("M 1 1 H 9 V 9 H 1 Z M 2 2 H 8 V 8 H 2 Z") };
+    private PathIcon CreateRestoreIcon() => new() { Width = 10, Height = 10, Foreground = Brush.Parse("#9aa0a6"), Data = Geometry.Parse("M 3 1 H 9 V 7 H 3 Z M 4 2 H 8 V 6 H 4 Z M 1 3 H 7 V 9 H 1 Z M 2 4 H 6 V 8 H 2 Z") };
+    private PathIcon CreateCloseIcon() => new() { Width = 8, Height = 8, Foreground = Brush.Parse("#9aa0a6"), Data = Geometry.Parse("M 1.5 2 L 2 1.5 L 4 3.5 L 6 1.5 L 6.5 2 L 4.5 4 L 6.5 6 L 6 6.5 L 4 4.5 L 2 6.5 L 1.5 6 L 3.5 4 Z") };
 
     private void ToggleMaximize()
     {
