@@ -118,6 +118,7 @@ NuGet packages are output to `bin/Release/`:
 - `Chrome.DevTools.Editor.Nodes.{version}.nupkg`
 - `Chrome.DevTools.Editor.Nodes.Msagl.{version}.nupkg`
 - `Chrome.DevTools.Editor.Splits.{version}.nupkg`
+- `Chrome.DevTools.Cli.{version}.nupkg`
 
 ### Push to NuGet
 
@@ -127,20 +128,29 @@ dotnet nuget push bin/Release/*.nupkg \
   --api-key YOUR_API_KEY
 ```
 
-## Publishing the Inspector Global Tool
+## Publishing the Global Tools (GUI & CLI)
 
-The Inspector is published as a .NET global tool:
+The GUI inspector and the CLI automation runner are published as .NET global tools:
 
 ```bash
+# Pack and publish GUI inspector
 dotnet pack src/Chrome.DevTools.Inspector/ -c Release
 dotnet nuget push bin/Release/Chrome.DevTools.Inspector.*.nupkg \
   --source https://api.nuget.org/v3/index.json \
   --api-key YOUR_API_KEY
+
+# Pack and publish CLI automation runner
+dotnet pack src/CDP.Inspector.CLI/ -c Release
+dotnet nuget push bin/Release/Chrome.DevTools.Cli.*.nupkg \
+  --source https://api.nuget.org/v3/index.json \
+  --api-key YOUR_API_KEY
 ```
 
-Users install with:
+Users install either tool with:
 ```bash
 dotnet tool install -g Chrome.DevTools.Inspector
+# or
+dotnet tool install -g Chrome.DevTools.Cli
 ```
 
 ## Documentation Site
