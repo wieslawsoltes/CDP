@@ -93,7 +93,43 @@ test.describe('Avalonia CDP E2E Automation', () => {
 
 ---
 
-## 3. Underlying Integration Features
+## 3. Spawning the Application via WebServer (Custom Commands & Executables)
+
+To automate the launch and teardown of your target application during E2E test runs, you can utilize Playwright's native `webServer` configuration block. This allows you to define custom launch commands, set up health checks, redirect console logs, and run executable binaries automatically before starting the tests.
+
+### Configuration Example (`playwright.config.js`)
+Here is how the web server block is defined:
+
+```javascript
+const { defineConfig } = require('@playwright/test');
+
+module.exports = defineConfig({
+  testDir: './tests/playwright',
+  timeout: 30000,
+  webServer: {
+    // Spawns the CdpSampleApp using a custom dotnet command
+    command: 'dotnet run --project samples/CdpSampleApp/CdpSampleApp.csproj > playwright-webserver.log 2>&1',
+    // The healthcheck URL that Playwright polls to determine if the server is ready (looks at CDP info endpoint)
+    url: 'http://127.0.0.1:9222/json',
+    // Reuses an already running local app instance to speed up local iterative development
+    reuseExistingServer: !process.env.CI,
+    stdout: 'ignore',
+    stderr: 'pipe',
+  },
+});
+```
+
+### Key Directives Explained:
+*   **`command`**: The shell command or executable pathway to launch.
+    *   **Development**: Standard build/run commands like `dotnet run --project <path>`.
+    *   **Production/CI**: Path to compiled binaries (e.g., `./bin/Release/net10.0/CdpSampleApp` on macOS/Linux or `CdpSampleApp.exe` on Windows).
+    *   **Log Redirection**: Appending `> playwright-webserver.log 2>&1` redirects stdout/stderr to a dedicated log file. This is crucial for capturing application traces, console outputs, and server-side CDP event logs.
+*   **`url`**: Playwright polls this endpoint before executing any tests. The endpoint must return a status `200` to `299`. Targeting the CDP target list endpoint (`http://127.0.0.1:9222/json`) ensures Playwright only starts testing after the app's CDP server is fully initialized and listening.
+*   **`reuseExistingServer`**: If set to `true`, Playwright checks if the `url` is already responsive. If it is, it skips running the startup `command` and uses the existing instance. This is perfect for local debugging where the app window is already kept open.
+
+---
+
+## 4. Underlying Integration Features
 
 To ensure that standard, unmodified Playwright clients can drive desktop windows, the CDP server handles several advanced capabilities behind the scenes:
 
@@ -108,7 +144,7 @@ Browser automation tools often inject complex JavaScript snippets. The `Runtime`
 
 ---
 
-## 4. Useful Links & Reference Material
+## 5. Useful Links & Reference Material
 
 *   [Chrome DevTools Protocol Specification](https://chromedevtools.github.io/devtools-protocol/)
 *   [Playwright ConnectOverCDP API Docs](https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp)
