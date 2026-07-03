@@ -2327,7 +2327,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     var tgtContent = tgtModel?["content"] as JsonArray;
                     var tgtBorder = tgtModel?["border"] as JsonArray ?? tgtContent;
 
-                    if (srcContent == null || srcContent.Count < 8 || tgtContent == null || tgtContent.Count < 8)
+                    if (srcContent == null || srcContent.Count < 8 || tgtContent == null || tgtContent.Count < 8 || srcBorder == null || tgtBorder == null)
                     {
                         throw new Exception("Failed to retrieve box model content for source or target element.");
                     }
