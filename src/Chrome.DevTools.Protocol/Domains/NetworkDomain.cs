@@ -287,7 +287,11 @@ public static class NetworkDomain
 
     public static void OnRequestStart(HttpRequestMessage request)
     {
-        if (_enabledSessions.IsEmpty) return;
+        Console.WriteLine($"[CDP TRACE] OnRequestStart entered for URL: {request?.RequestUri}");
+        if (_enabledSessions.IsEmpty) {
+            Console.WriteLine("[CDP TRACE] OnRequestStart: _enabledSessions is empty, returning.");
+            return;
+        }
 
         if (_offline)
         {
@@ -332,8 +336,15 @@ public static class NetworkDomain
 
     public static void OnRequestStop(HttpRequestMessage request, HttpResponseMessage? response)
     {
-        if (!_requestIds.TryRemove(request, out string? requestId)) return;
-        if (_enabledSessions.IsEmpty) return;
+        Console.WriteLine($"[CDP TRACE] OnRequestStop entered for URL: {request?.RequestUri}, response status: {response?.StatusCode}");
+        if (!_requestIds.TryRemove(request, out string? requestId)) {
+            Console.WriteLine("[CDP TRACE] OnRequestStop: request ID not found in _requestIds.");
+            return;
+        }
+        if (_enabledSessions.IsEmpty) {
+            Console.WriteLine("[CDP TRACE] OnRequestStop: _enabledSessions is empty, returning.");
+            return;
+        }
 
         var timestamp = (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
 
@@ -396,8 +407,10 @@ public static class NetworkDomain
 
     private static void BroadcastEvent(string method, JsonObject @params)
     {
+        Console.WriteLine($"[CDP TRACE] BroadcastEvent entered: {method}, params count: {@params.Count}");
         foreach (var session in _enabledSessions.Keys)
         {
+            Console.WriteLine($"[CDP TRACE] BroadcastEvent: sending event {method} to session.");
             _ = session.SendEventAsync(method, @params);
         }
     }
@@ -761,7 +774,7 @@ public class HttpKeyValueObserver : IObserver<KeyValuePair<string, object?>>
     {
         try
         {
-            if (value.Key == "System.Net.Http.HttpRequestOut.Start")
+            if (value.Key == "System.Net.Http.HttpRequestOut.Start" || value.Key == "System.Net.Http.Request")
             {
                 var request = GetProperty<HttpRequestMessage>(value.Value, "Request");
                 if (request != null)
@@ -769,7 +782,7 @@ public class HttpKeyValueObserver : IObserver<KeyValuePair<string, object?>>
                     NetworkDomain.OnRequestStart(request);
                 }
             }
-            else if (value.Key == "System.Net.Http.HttpRequestOut.Stop")
+            else if (value.Key == "System.Net.Http.HttpRequestOut.Stop" || value.Key == "System.Net.Http.Response")
             {
                 var request = GetProperty<HttpRequestMessage>(value.Value, "Request");
                 var response = GetProperty<HttpResponseMessage>(value.Value, "Response");

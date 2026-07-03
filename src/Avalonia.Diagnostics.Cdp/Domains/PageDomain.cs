@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
@@ -13,26 +14,67 @@ namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class PageDomain
 {
+    private class PageState
+    {
+        public bool IsEnabled { get; set; }
+    }
+
+    private static readonly ConditionalWeakTable<CdpSession, PageState> _sessionStates = new();
+
     public static async Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
     {
+        var frameId = session.Target?.Id ?? "main-frame-id";
         switch (action)
         {
             case "enable":
+                {
+                    var state = _sessionStates.GetOrCreateValue(session);
+                    Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Page.enable called, IsEnabled={state.IsEnabled}, sessionHash={session.GetHashCode()}");
+                    if (!state.IsEnabled)
+                    {
+                        state.IsEnabled = true;
+                        var port = CdpServer.Port;
+                        var host = $"localhost:{port}";
+                        var frame = new JsonObject
+                        {
+                            ["id"] = frameId,
+                            ["loaderId"] = "main-loader-id",
+                            ["url"] = $"http://{host}/",
+                            ["domainAndRegistry"] = "localhost",
+                            ["securityOrigin"] = $"http://{host}",
+                            ["mimeType"] = "text/html"
+                        };
+                        var frameNavigatedParams = new JsonObject { ["frame"] = frame };
+                        var timestamp = (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+                        _ = session.SendEventAsync("Page.frameNavigated", frameNavigatedParams);
+                        _ = session.SendEventAsync("Page.domContentEventFired", new JsonObject { ["timestamp"] = timestamp });
+                        _ = session.SendEventAsync("Page.loadEventFired", new JsonObject { ["timestamp"] = timestamp });
+                        _ = session.SendEventAsync("Page.frameStoppedLoading", new JsonObject { ["frameId"] = frameId });
+                    }
+                    return new JsonObject();
+                }
+
             case "disable":
-                return new JsonObject();
+                {
+                    if (_sessionStates.TryGetValue(session, out var state))
+                    {
+                        state.IsEnabled = false;
+                    }
+                    return new JsonObject();
+                }
 
             case "getResourceTree":
                 {
                     var port = CdpServer.Port;
                     var workspaceRoot = FindWorkspaceRoot();
-                    var host = $"127.0.0.1:{port}";
+                    var host = $"localhost:{port}";
                     
                     var frame = new JsonObject
                     {
-                        ["id"] = "main-frame-id",
+                        ["id"] = frameId,
                         ["loaderId"] = "main-loader-id",
                         ["url"] = $"http://{host}/",
-                        ["domainAndRegistry"] = "127.0.0.1",
+                        ["domainAndRegistry"] = "localhost",
                         ["securityOrigin"] = $"http://{host}",
                         ["mimeType"] = "text/html"
                     };
@@ -51,6 +93,7 @@ public static class PageDomain
                     var frameTree = new JsonObject
                     {
                         ["frame"] = frame,
+                        ["childFrames"] = new JsonArray(),
                         ["resources"] = resourcesArray
                     };
 
@@ -181,15 +224,14 @@ public static class PageDomain
                     session.NavigationHistory.Add(historyEntry);
                     session.NavigationHistoryIndex = session.NavigationHistory.Count - 1;
 
-                    _ = Task.Run(async () =>
-                    {
-                        await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnNewDocument.Values);
-                        await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnLoad.Values);
-                    });
+                     _ = Task.Run(async () =>
+                     {
+                         await EmitNavigationEventsAsync(session, url, frameId);
+                     });
 
                     return new JsonObject
                     {
-                        ["frameId"] = "main-frame-id",
+                        ["frameId"] = frameId,
                         ["loaderId"] = "main-loader-id"
                     };
                 }
@@ -218,6 +260,31 @@ public static class PageDomain
 
                     return new JsonObject
                     {
+                        ["layoutViewport"] = new JsonObject
+                        {
+                            ["pageX"] = 0,
+                            ["pageY"] = 0,
+                            ["clientWidth"] = (int)w,
+                            ["clientHeight"] = (int)h
+                        },
+                        ["visualViewport"] = new JsonObject
+                        {
+                            ["pageX"] = 0,
+                            ["pageY"] = 0,
+                            ["offsetX"] = 0,
+                            ["offsetY"] = 0,
+                            ["clientWidth"] = w,
+                            ["clientHeight"] = h,
+                            ["scale"] = 1.0,
+                            ["zoom"] = 1.0
+                        },
+                        ["contentSize"] = new JsonObject
+                        {
+                            ["x"] = 0,
+                            ["y"] = 0,
+                            ["width"] = w,
+                            ["height"] = h
+                        },
                         ["cssLayoutViewport"] = new JsonObject
                         {
                             ["x"] = 0,
@@ -245,19 +312,20 @@ public static class PageDomain
             case "getFrameTree":
                 {
                     var port = CdpServer.Port;
-                    var host = $"127.0.0.1:{port}";
+                    var host = $"localhost:{port}";
                     var frame = new JsonObject
                     {
-                        ["id"] = "main-frame-id",
+                        ["id"] = frameId,
                         ["loaderId"] = "main-loader-id",
                         ["url"] = $"http://{host}/",
-                        ["domainAndRegistry"] = "127.0.0.1",
+                        ["domainAndRegistry"] = "localhost",
                         ["securityOrigin"] = $"http://{host}",
                         ["mimeType"] = "text/html"
                     };
                     var frameTree = new JsonObject
                     {
-                        ["frame"] = frame
+                        ["frame"] = frame,
+                        ["childFrames"] = new JsonArray()
                     };
                     return new JsonObject { ["frameTree"] = frameTree };
                 }
@@ -267,7 +335,7 @@ public static class PageDomain
                     var port = CdpServer.Port;
                     return new JsonObject
                     {
-                        ["url"] = $"http://127.0.0.1:{port}/manifest.json",
+                        ["url"] = $"http://localhost:{port}/manifest.json",
                         ["errors"] = new JsonArray(),
                         ["data"] = "{\"name\": \"CdpSampleApp\", \"short_name\": \"CdpSampleApp\", \"start_url\": \"/\", \"display\": \"standalone\"}"
                     };
@@ -290,8 +358,29 @@ public static class PageDomain
             case "addScriptToEvaluateOnNewDocument":
                 {
                     string source = @params["source"]?.GetValue<string>() ?? "";
+                    string worldName = @params["worldName"]?.GetValue<string>() ?? "";
                     string identifier = Guid.NewGuid().ToString();
                     session.ScriptsToEvaluateOnNewDocument[identifier] = source;
+                    if (!string.IsNullOrEmpty(worldName))
+                    {
+                        session.ScriptsToEvaluateOnNewDocumentWorlds[identifier] = worldName;
+                        var context = new JsonObject
+                        {
+                            ["id"] = 2,
+                            ["origin"] = $"http://localhost:{CdpServer.Port}",
+                            ["name"] = worldName,
+                            ["uniqueId"] = "2",
+                            ["auxData"] = new JsonObject
+                            {
+                                ["isDefault"] = false,
+                                ["type"] = "isolated",
+                                ["name"] = worldName,
+                                ["frameId"] = frameId
+                            }
+                        };
+                        var contextParams = new JsonObject { ["context"] = context };
+                        _ = session.SendEventAsync("Runtime.executionContextCreated", contextParams);
+                    }
                     return new JsonObject { ["identifier"] = identifier };
                 }
 
@@ -299,6 +388,7 @@ public static class PageDomain
                 {
                     string identifier = @params["identifier"]?.GetValue<string>() ?? "";
                     session.ScriptsToEvaluateOnNewDocument.TryRemove(identifier, out _);
+                    session.ScriptsToEvaluateOnNewDocumentWorlds.TryRemove(identifier, out _);
                     return new JsonObject();
                 }
 
@@ -338,7 +428,24 @@ public static class PageDomain
 
             case "createIsolatedWorld":
                 {
-                    return new JsonObject { ["executionContextId"] = 1 };
+                    var worldName = @params["worldName"]?.GetValue<string>() ?? "playwright-utility-world";
+                    var context = new JsonObject
+                    {
+                        ["id"] = 2,
+                        ["origin"] = $"http://127.0.0.1:{CdpServer.Port}/",
+                        ["name"] = worldName,
+                        ["uniqueId"] = "2",
+                        ["auxData"] = new JsonObject
+                        {
+                            ["isDefault"] = false,
+                            ["type"] = "isolated",
+                            ["name"] = worldName,
+                            ["frameId"] = frameId
+                        }
+                    };
+                    var contextParams = new JsonObject { ["context"] = context };
+                    _ = session.SendEventAsync("Runtime.executionContextCreated", contextParams);
+                    return new JsonObject { ["executionContextId"] = 2 };
                 }
 
             case "getAdScriptAncestry":
@@ -377,7 +484,7 @@ public static class PageDomain
             case "getManifestIcons":
                 return new JsonObject
                 {
-                    ["primaryIcon"] = "http://127.0.0.1:" + CdpServer.Port + "/favicon.ico"
+                    ["primaryIcon"] = "http://localhost:" + CdpServer.Port + "/favicon.ico"
                 };
 
             case "getOriginTrials":
@@ -608,6 +715,25 @@ public static class PageDomain
             case "setLifecycleEventsEnabled":
                 {
                     session.LifecycleEventsEnabled = @params["enabled"]?.GetValue<bool>() ?? false;
+                    if (session.LifecycleEventsEnabled)
+                    {
+                        var timestamp = (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+                        var names = new[] { "init", "DOMContentLoaded", "load", "networkAlmostIdle", "networkIdle" };
+                        foreach (var name in names)
+                        {
+                            var evtParams = new JsonObject
+                            {
+                                ["frameId"] = frameId,
+                                ["loaderId"] = "main-loader-id",
+                                ["name"] = name,
+                                ["timestamp"] = timestamp
+                            };
+                            _ = session.SendEventAsync("Page.lifecycleEvent", evtParams);
+                        }
+                        _ = session.SendEventAsync("Page.domContentEventFired", new JsonObject { ["timestamp"] = timestamp });
+                        _ = session.SendEventAsync("Page.loadEventFired", new JsonObject { ["timestamp"] = timestamp });
+                        _ = session.SendEventAsync("Page.frameStoppedLoading", new JsonObject { ["frameId"] = frameId });
+                    }
                     return new JsonObject();
                 }
 
@@ -678,7 +804,7 @@ public static class PageDomain
                 {
                     session.NavigationHistory.Clear();
                     var port = CdpServer.Port;
-                    var rootUrl = $"http://127.0.0.1:{port}/";
+                    var rootUrl = $"http://localhost:{port}/";
                     session.NavigationHistory.Add(new JsonObject
                     {
                         ["id"] = 1,
@@ -712,8 +838,7 @@ public static class PageDomain
                         
                         _ = Task.Run(async () =>
                         {
-                            await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnNewDocument.Values);
-                            await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnLoad.Values);
+                            await EmitNavigationEventsAsync(session, url, frameId);
                         });
                     }
                     return new JsonObject();
@@ -937,6 +1062,10 @@ public static class PageDomain
     {
         foreach (var script in scripts)
         {
+            if (script.Length > 5000 || script.Contains("injectedScript") || script.Contains("injected2.expect") || script.Contains("__commonJS"))
+            {
+                continue;
+            }
             try
             {
                 await RuntimeDomain.HandleAsync(session, "evaluate", new JsonObject
@@ -949,6 +1078,70 @@ public static class PageDomain
                 Console.WriteLine($"Error executing page evaluate script: {ex.Message}");
             }
         }
+    }
+
+    private static async Task EmitNavigationEventsAsync(CdpSession session, string url, string frameId)
+    {
+        await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnNewDocument.Values);
+        await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnLoad.Values);
+
+        var host = $"localhost:{CdpServer.Port}";
+        var frame = new JsonObject
+        {
+            ["id"] = frameId,
+            ["loaderId"] = "main-loader-id",
+            ["url"] = url,
+            ["domainAndRegistry"] = "localhost",
+            ["securityOrigin"] = $"http://{host}",
+            ["mimeType"] = "text/html"
+        };
+        var frameNavigatedParams = new JsonObject { ["frame"] = frame };
+        var timestamp = (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+        
+        await session.SendEventAsync("Page.frameNavigated", frameNavigatedParams);
+        await session.SendEventAsync("Page.domContentEventFired", new JsonObject { ["timestamp"] = timestamp });
+        await session.SendEventAsync("Page.loadEventFired", new JsonObject { ["timestamp"] = timestamp });
+
+        if (session.LifecycleEventsEnabled)
+        {
+            await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
+            {
+                ["frameId"] = frameId,
+                ["loaderId"] = "main-loader-id",
+                ["name"] = "init",
+                ["timestamp"] = timestamp
+            });
+            await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
+            {
+                ["frameId"] = frameId,
+                ["loaderId"] = "main-loader-id",
+                ["name"] = "DOMContentLoaded",
+                ["timestamp"] = timestamp
+            });
+            await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
+            {
+                ["frameId"] = frameId,
+                ["loaderId"] = "main-loader-id",
+                ["name"] = "load",
+                ["timestamp"] = timestamp
+            });
+            await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
+            {
+                ["frameId"] = frameId,
+                ["loaderId"] = "main-loader-id",
+                ["name"] = "networkAlmostIdle",
+                ["timestamp"] = timestamp
+            });
+            await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
+            {
+                ["frameId"] = frameId,
+                ["loaderId"] = "main-loader-id",
+                ["name"] = "networkIdle",
+                ["timestamp"] = timestamp
+            });
+        }
+
+        await session.SendEventAsync("Page.frameStoppedLoading", new JsonObject { ["frameId"] = frameId });
     }
 
     private static async Task<string> PrintToPdfAsync(CdpSession session)

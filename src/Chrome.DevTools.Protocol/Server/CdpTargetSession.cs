@@ -14,6 +14,7 @@ public class CdpTargetSession : IDisposable
     public ConcurrentDictionary<string, object> RemoteObjects { get; } = new();
     public int InspectedNodeId { get; set; } = 0;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument { get; } = new();
+    public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocumentWorlds { get; } = new();
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnLoad { get; } = new();
     public System.Collections.Generic.List<JsonObject> Cookies { get; } = new();
 
@@ -61,6 +62,7 @@ public class CdpTargetSession : IDisposable
     {
         RemoteObjects.Clear();
         ScriptsToEvaluateOnNewDocument.Clear();
+        ScriptsToEvaluateOnNewDocumentWorlds.Clear();
         ScriptsToEvaluateOnLoad.Clear();
         Cookies.Clear();
         CompilationCache.Clear();

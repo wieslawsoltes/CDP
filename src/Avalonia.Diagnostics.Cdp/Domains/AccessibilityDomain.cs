@@ -64,10 +64,7 @@ public static class AccessibilityDomain
                     else if (!string.IsNullOrEmpty(objectId))
                     {
                         var obj = session.GetObject(objectId);
-                        if (obj is Visual v)
-                        {
-                            targetVisual = v;
-                        }
+                        targetVisual = CdpSession.GetVisualFromObject(obj);
                     }
 
                     var nodes = new JsonArray();
@@ -152,10 +149,7 @@ public static class AccessibilityDomain
                     else if (!string.IsNullOrEmpty(objectId))
                     {
                         var obj = session.GetObject(objectId);
-                        if (obj is Visual v)
-                        {
-                            targetVisual = v;
-                        }
+                        targetVisual = CdpSession.GetVisualFromObject(obj);
                     }
 
                     var nodes = new JsonArray();
@@ -265,7 +259,8 @@ public static class AccessibilityDomain
                     else if (backendNodeId.HasValue) rootVisual = session.NodeMap.GetVisual(backendNodeId.Value);
                     else if (!string.IsNullOrEmpty(objectId))
                     {
-                        if (session.GetObject(objectId) is Visual v) rootVisual = v;
+                        var obj = session.GetObject(objectId);
+                        rootVisual = CdpSession.GetVisualFromObject(obj);
                     }
 
                     if (rootVisual == null) rootVisual = session.Window;

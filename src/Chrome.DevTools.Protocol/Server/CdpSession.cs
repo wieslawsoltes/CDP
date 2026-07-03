@@ -42,8 +42,10 @@ public class CdpSession
         set { if (CurrentTargetSession != null) CurrentTargetSession.InspectedNodeId = value; }
     }
     public bool DiscoverTargetsEnabled { get; set; }
+    public bool AutoAttachEnabled { get; set; }
     public bool IsDomEnabled => CurrentTargetSession?.IsDomEnabled ?? false;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument => CurrentTargetSession?.ScriptsToEvaluateOnNewDocument ?? _dummyScripts;
+    public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocumentWorlds => CurrentTargetSession?.ScriptsToEvaluateOnNewDocumentWorlds ?? _dummyScripts;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnLoad => CurrentTargetSession?.ScriptsToEvaluateOnLoad ?? _dummyScripts;
     public System.Collections.Generic.List<JsonObject> Cookies => CurrentTargetSession?.Cookies ?? _dummyCookies;
 
@@ -181,6 +183,34 @@ public class CdpSession
         _attachedTargets[sessionId] = targetSession;
     }
 
+    public void AutoAttachTarget(ICdpTarget target)
+    {
+        if (_attachedTargets.Values.Any(x => x.TargetId == target.Id))
+        {
+            return;
+        }
+
+        var sessionId = Guid.NewGuid().ToString();
+        var targetSession = CdpServer.TargetSessionFactory?.Invoke(this, sessionId, target.Id, target)
+                            ?? new CdpTargetSession(this, sessionId, target.Id, target);
+        AttachTarget(sessionId, targetSession);
+
+        _ = SendEventAsync("Target.attachedToTarget", new JsonObject
+        {
+            ["sessionId"] = sessionId,
+            ["targetInfo"] = new JsonObject
+            {
+                ["targetId"] = target.Id,
+                ["type"] = target.Type,
+                ["title"] = target.Title,
+                ["url"] = target.Url,
+                ["attached"] = true,
+                ["browserContextId"] = "1"
+            },
+            ["waitingForDebugger"] = false
+        });
+    }
+
     public void DetachTarget(string sessionId)
     {
         if (_attachedTargets.TryRemove(sessionId, out var targetSession))
@@ -290,6 +320,7 @@ public class CdpSession
             
             var method = obj["method"]?.GetValue<string>() ?? "";
             var paramsNode = obj["params"] as JsonObject ?? new JsonObject();
+            CdpServer.OriginalOut.WriteLine($"[CDP SERVER INCOMING] method: {method}, id: {id}, params: {paramsNode.ToJsonString()}");
 
             string? sessionId = null;
             if (obj.ContainsKey("sessionId"))
@@ -387,10 +418,14 @@ public class CdpSession
             ["method"] = method,
             ["params"] = @params
         };
-        var activeTarget = targetSession ?? CurrentTargetSession;
-        if (activeTarget != null && !string.IsNullOrEmpty(activeTarget.SessionId))
+        if (!method.StartsWith("Target.", StringComparison.OrdinalIgnoreCase) && 
+            !method.StartsWith("Browser.", StringComparison.OrdinalIgnoreCase))
         {
-            evt["sessionId"] = activeTarget.SessionId;
+            var activeTarget = targetSession ?? CurrentTargetSession;
+            if (activeTarget != null && !string.IsNullOrEmpty(activeTarget.SessionId))
+            {
+                evt["sessionId"] = activeTarget.SessionId;
+            }
         }
         await SendJsonAsync(evt);
     }
@@ -403,8 +438,13 @@ public class CdpSession
     private async Task SendJsonAsync(JsonObject node)
     {
         EventSentForTesting?.Invoke(node);
+        string jsonStr = node.ToJsonString();
+        if (!jsonStr.Contains("screencastFrame") && !jsonStr.Contains("data:image"))
+        {
+            CdpServer.OriginalOut.WriteLine($"[CDP SERVER OUTGOING] {jsonStr}");
+        }
         if (_webSocket.State != WebSocketState.Open) return;
-        var bytes = Encoding.UTF8.GetBytes(node.ToJsonString());
+        var bytes = Encoding.UTF8.GetBytes(jsonStr);
         try
         {
             await _sendSemaphore.WaitAsync();

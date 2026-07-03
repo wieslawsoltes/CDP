@@ -31,6 +31,13 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     public NodeMap NodeMap => CurrentTargetSession?.NodeMap ?? new NodeMap();
     public IInputDevice TouchDevice => CurrentTargetSession?.TouchDevice ?? _dummyTouchDevice;
 
+    public static Visual? GetVisualFromObject(object? obj)
+    {
+        if (obj is Visual v) return v;
+        if (obj is Domains.CdpRuntimeElement rt) return rt.visual as Visual;
+        return null;
+    }
+
     public static System.Collections.Generic.IEnumerable<Visual> GetLogicalVisualChildren(ILogical logical)
     {
         foreach (var child in logical.LogicalChildren)

@@ -19,6 +19,24 @@ public static class TargetDomain
 
             case "setAutoAttach":
                 {
+                    bool autoAttach = @params["autoAttach"]?.GetValue<bool>() ?? false;
+                    bool flatten = @params["flatten"]?.GetValue<bool>() ?? false;
+
+                    session.AutoAttachEnabled = autoAttach;
+
+                    if (autoAttach)
+                    {
+                        if (!flatten)
+                        {
+                            throw new Exception("Only flattened target attachments are supported. Please set flatten=true.");
+                        }
+
+                        // Attach all current targets
+                        foreach (var target in CdpServer.GetTargets())
+                        {
+                            session.AutoAttachTarget(target);
+                        }
+                    }
                     return new JsonObject();
                 }
 
