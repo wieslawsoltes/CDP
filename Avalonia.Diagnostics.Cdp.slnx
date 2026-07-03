@@ -3,6 +3,7 @@
     <Project Path="samples/CdpSampleApp/CdpSampleApp.csproj" />
     <Project Path="samples/CdpInspectorApp/CdpInspectorApp.csproj" />
     <Project Path="samples/CdpInspectorApp.Browser/CdpInspectorApp.Browser.csproj" />
+    <Project Path="samples/CDP.HeadlessRunner/CDP.HeadlessRunner.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
