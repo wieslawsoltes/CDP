@@ -64,9 +64,13 @@ Ensure the test recorder inside `CdpInspectorApp` generates modern, fully compli
 *   **Wait Actions**:
     *   Inject explicit waits (`await page.waitForSelector(...)`, `wait.Until(...)`) before click/type steps to ensure test scripts don't fail due to rendering or transition delays.
 
-### Multi-Framework Code Generator Specifications & Samples
+---
 
-#### A. Playwright (JS/TS)
+## 3. Web Framework CDP Integration Specifications & Samples
+
+Standard browser automation frameworks can interact directly with the Avalonia application via Chrome DevTools Protocol by pointing their CDP clients to the target application's port.
+
+### A. Playwright (JS/TS)
 Exposes native Chrome DevTools Protocol connections:
 ```javascript
 import { test, expect, chromium } from '@playwright/test';
@@ -85,62 +89,130 @@ test('Recorded E2E Flow', async () => {
 });
 ```
 
-#### B. Puppeteer (JS/TS)
+### B. Puppeteer (JS/TS)
+Puppeteer connects to the CDP server using HTTP-based target discovery or a direct WebSocket connection:
 ```javascript
 const puppeteer = require('puppeteer');
 
 (async () => {
+  // Option 1: Discover via HTTP port
   const browser = await puppeteer.connect({
     browserURL: 'http://127.0.0.1:9222'
   });
-  const page = (await browser.pages())[0];
   
+  // Option 2: Connect directly using browser websocket url
+  // const browser = await puppeteer.connect({
+  //   browserWSEndpoint: 'ws://127.0.0.1:9222/devtools/browser'
+  // });
+  
+  const pages = await browser.pages();
+  const page = pages[0];
+  
+  // Set viewport and navigate
+  await page.setViewport({ width: 800, height: 600 });
+  
+  // Input simulation using standard DOM selectors
+  await page.waitForSelector('#txtInput');
   await page.type('#txtInput', 'Hello World');
   await page.click('#btnSubmit');
   
+  // Assertions
   const status = await page.$eval('#txtStatus', el => el.textContent);
-  console.assert(status === 'Done', 'Status verification failed');
+  if (status !== 'Done') {
+    throw new Error(`Assertion failed: expected 'Done', got '${status}'`);
+  }
   
   await browser.disconnect();
 })();
 ```
 
-#### C. Selenium C# (CDP Connection)
-Uses Selenium 4's native CDP capabilities to communicate with the application:
+### C. Selenium 4 C# (CDP DevTools Connection)
+Selenium 4 supports direct execution of Chrome DevTools Protocol commands using driver extension methods:
 ```csharp
+using System;
+using System.Collections.Generic;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.Chromium;
 
-var options = new ChromeOptions();
-options.DebuggerAddress = "127.0.0.1:9222";
-using var driver = new ChromeDriver(options);
-
-var input = driver.FindElement(By.CssSelector("#txtInput"));
-input.SendKeys("Hello World");
-
-var submit = driver.FindElement(By.CssSelector("#btnSubmit"));
-submit.Click();
-
-var status = driver.FindElement(By.CssSelector("#txtStatus"));
-System.Diagnostics.Debug.Assert(status.Text == "Done");
+class Program
+{
+    static void Main()
+    {
+        var options = new ChromeOptions();
+        // Point Selenium to the running Avalonia app's CDP port
+        options.DebuggerAddress = "127.0.0.1:9222";
+        
+        using var driver = new ChromeDriver(options);
+        
+        // Wait for control
+        var input = driver.FindElement(By.CssSelector("#txtInput"));
+        input.SendKeys("Hello World");
+        
+        var submit = driver.FindElement(By.CssSelector("#btnSubmit"));
+        submit.Click();
+        
+        // Execute a direct CDP evaluation command using Selenium's command bridge
+        var cdpParams = new Dictionary<string, object>
+        {
+            { "expression", "document.querySelector('#txtStatus').textContent" },
+            { "returnByValue", true }
+        };
+        
+        var cdpResult = driver.ExecuteCdpCommand("Runtime.evaluate", cdpParams) as Dictionary<string, object>;
+        var resultData = cdpResult?["result"] as Dictionary<string, object>;
+        var textVal = resultData?["value"]?.ToString();
+        
+        System.Diagnostics.Debug.Assert(textVal == "Done", $"Expected 'Done' but got '{textVal}'");
+    }
+}
 ```
 
-#### D. Appium C#
+### D. Appium Hybrid CDP Automation (C#)
+Appium drives target application windows at the OS level (using WinAppDriver on Windows or Mac2Driver on macOS) while establishing a concurrent CDP connection to assert view model states or fetch diagnostic telemetry.
+
 ```csharp
+using System;
+using System.IO;
+using System.Net.Http;
+using System.Text.Json.Nodes;
 using OpenQA.Selenium.Appium;
 using OpenQA.Selenium.Appium.Windows;
 
-var options = new AppiumOptions();
-options.AddAdditionalCapability("app", @"C:\Path\To\CdpSampleApp.exe");
-options.AddAdditionalCapability("appArguments", "--cdp-port 9222");
+class AppiumHybridTests
+{
+    static void Main()
+    {
+        var options = new AppiumOptions();
+        // Launch target app via Windows Application Driver
+        options.AddAdditionalCapability("app", @"C:\Path\To\CdpSampleApp.exe");
+        options.AddAdditionalCapability("appArguments", "--cdp-port 9222");
 
-using var driver = new WindowsDriver<WindowsElement>(new Uri("http://127.0.0.1:4723"), options);
-var input = driver.FindElementByAccessibilityId("txtInput");
-input.SendKeys("Hello World");
+        using var driver = new WindowsDriver<WindowsElement>(new Uri("http://127.0.0.1:4723"), options);
+        
+        // 1. Appium native OS UI Interactions
+        var input = driver.FindElementByAccessibilityId("txtInput");
+        input.SendKeys("Hello World");
+        
+        var submit = driver.FindElementByAccessibilityId("btnSubmit");
+        submit.Click();
+
+        // 2. Secondary CDP connection to query ViewModel internal state directly
+        using var httpClient = new HttpClient();
+        var responseStr = httpClient.GetStringAsync("http://127.0.0.1:9222/json").Result;
+        var targets = JsonNode.Parse(responseStr)?.AsArray();
+        
+        // Connect to WebSocket using target websocket debugger URL
+        var wsUrl = targets?[0]?["webSocketDebuggerUrl"]?.ToString();
+        Console.WriteLine($"Discovered CDP WebSocket URL: {wsUrl}");
+        
+        // Send a direct Runtime.evaluate to verify the backend ViewModels
+        // (evaluates standard C# bindings inside Jint evaluation context)
+        // Expression checks: Window.DataContext.Connection.IsConnected
+    }
+}
 ```
 
-#### E. Avalonia Headless xUnit (In-Process)
+### E. Avalonia Headless xUnit (In-Process)
 Runs in-process without WebSockets, utilizing headless platform simulators:
 ```csharp
 using Avalonia.Headless.XUnit;
@@ -166,7 +238,7 @@ public void TestRecordedFlow()
 
 ---
 
-## 3. OS Automation CDP Emulation Proxy (`CDP.Automation.OS`)
+## 4. OS Automation CDP Emulation Proxy (`CDP.Automation.OS`)
 
 ### Objective
 Create a proxy layer that translates the standard browser Chrome DevTools Protocol (CDP) commands into native OS accessibility/automation APIs. This allows standard browser testing frameworks (like Playwright or Puppeteer) to automate *any* desktop app on the operating system by treating the OS desktop as a browser window.
@@ -205,7 +277,59 @@ CDP.Automation.OS (Proxy Daemon)
 
 ---
 
-## 4. Headless Thin Test Harness Showcase
+## 5. Dynamic JavaScript Execution in Test Studio (Maestro-style)
+
+### Objective
+Provide Test Studio with programmability by introducing dynamic JavaScript execution and variable propagation steps into the `.flow.yaml` execution engine, similar to `maestro.dev`. This enables loops, conditional assertions, and multi-step state carry-over natively inside flows.
+
+### YAML Specification
+
+#### 1. Script Evaluation Step (`runScript`)
+Runs inline JS code or an external `.js` file, assigning the return value to a local context variable:
+```yaml
+- type: runScript
+  script: |
+    // Queries elements in the Avalonia visual tree
+    var buttonList = QueryAll("Button");
+    return buttonList.length;
+  assignTo: totalButtons
+```
+
+Or from an external file:
+```yaml
+- type: runScript
+  file: scripts/calculate_offsets.js
+  assignTo: clickOffset
+```
+
+#### 2. Script Assertion Step (`assertScript`)
+Verifies a script expression resolves to a truthy value, failing the step if it returns `false`:
+```yaml
+- type: assertScript
+  expression: "DataContext.Items.Count > 0"
+  timeout: 5000
+```
+
+#### 3. State Interpolation in Flow Steps
+Local context variables assigned via script steps can be interpolated into subsequent step selectors or parameters using `${context.variableName}` syntax:
+```yaml
+- type: inputText
+  selector: "#txtConsoleInput"
+  value: "Discovered ${totalButtons} buttons in layout."
+```
+
+### Replay Engine Implementation
+To support scripting execution in the YAML test runner:
+1.  **Shared State Container (`FlowContext`)**: Instantiated for the lifecycle of a flow execution, maintaining a thread-safe `Dictionary<string, object>` of step outputs.
+2.  **Jint Engine Initialization**: For each `runScript` and `assertScript` step:
+    *   Boot a scoped Jint engine instance.
+    *   Inject globals: `Window`, `Control`, `DataContext`, `ViewModel`, `Query` (CSS visual lookup), and `QueryAll`.
+    *   Inject the `context` variable (mapped to `FlowContext` keys).
+3.  **Variable Resolution Pre-pass**: Before executing any step, scan parameters and selectors for `${context.*}` tokens. Extract keys, look up values in `FlowContext`, and perform string replacement.
+
+---
+
+## 6. Headless Thin Test Harness Showcase
 
 ### Objective
 Showcase a minimal, fast-bootstrapping test runner (`CDP.HeadlessRunner`) that loads a shared assembly or DLL containing the target app's views, mounts them headlessly, runs the CDP server, and facilitates Playwright testing without duplicating build steps.
