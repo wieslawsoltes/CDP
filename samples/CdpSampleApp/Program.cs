@@ -1,7 +1,13 @@
 ﻿using Avalonia;
 using System;
+using Avalonia.Headless;
 
 namespace CdpSampleApp;
+
+public class AvaloniaHeadlessPlatformOptions : Avalonia.Headless.AvaloniaHeadlessPlatformOptions
+{
+    public bool UseDotNetSystemFont { get; set; }
+}
 
 class Program
 {
@@ -14,8 +20,20 @@ class Program
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
+    {
+        var builder = AppBuilder.Configure<App>()
             .WithInterFont()
             .LogToTrace();
+
+        if (Array.Exists(Environment.GetCommandLineArgs(), arg => arg.Equals("--headless", StringComparison.OrdinalIgnoreCase)))
+        {
+            builder.UseHeadless(new AvaloniaHeadlessPlatformOptions { UseDotNetSystemFont = true });
+        }
+        else
+        {
+            builder.UsePlatformDetect();
+        }
+
+        return builder;
+    }
 }

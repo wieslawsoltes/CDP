@@ -9,6 +9,11 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public class OsAutomationTests
 {
+    public OsAutomationTests()
+    {
+        OsAutomationProvider.Instance = OSAutomationService.Instance;
+    }
+
     private string GetTargetWindowId()
     {
         if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))

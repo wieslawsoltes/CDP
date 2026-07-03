@@ -772,12 +772,12 @@ public class CdpChromeFeatureTests
 
         string generated = vm.GeneratedCode;
 
-        Assert.Contains(@"await test.step('Type text in element :contains(""Save"")', async () => {", generated);
-        Assert.Contains(@"page.locator(':contains(""Save"")')", generated);
+        Assert.Contains(@"await test.step('Type text in element :has-text(""Save"")', async () => {", generated);
+        Assert.Contains(@"page.locator(':has-text(""Save"")')", generated);
         Assert.Contains(@"fill('don\'t')", generated);
 
-        Assert.Contains(@"await test.step('Type text in element :contains(\'Cancel\')', async () => {", generated);
-        Assert.Contains(@"page.locator(':contains(\'Cancel\')')", generated);
+        Assert.Contains(@"await test.step('Type text in element :has-text(\'Cancel\')', async () => {", generated);
+        Assert.Contains(@"page.locator(':has-text(\'Cancel\')')", generated);
         Assert.Contains(@"fill('I said ""yes"" and backslash \\ test')", generated);
     }
 

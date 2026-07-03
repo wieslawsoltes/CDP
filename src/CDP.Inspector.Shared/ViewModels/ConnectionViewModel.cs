@@ -488,7 +488,7 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
             {
                 TestStudio.Log($"OS Automation: Successfully connected to '{SelectedTarget.Title}'!");
 
-                if (!CDP.Automation.OS.OSAutomationService.Instance.HasScreenCapturePermission())
+                if ((OsAutomationProvider.Instance == null || !OsAutomationProvider.Instance.HasScreenCapturePermission()))
                 {
                     TestStudio.Log("⚠️ WARNING: macOS Screen Recording permission is NOT granted!");
                     TestStudio.Log("Simulation Preview and screenshots will display blank grey boxes, other windows, or desktop wallpaper.");
@@ -497,7 +497,7 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
                 }
 
                 if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX) &&
-                    !CDP.Automation.OS.OSAutomationService.Instance.HasAccessibilityPermission())
+                    (OsAutomationProvider.Instance == null || !OsAutomationProvider.Instance.HasAccessibilityPermission()))
                 {
                     TestStudio.Log("⚠️ WARNING: macOS Accessibility permission is NOT granted!");
                     TestStudio.Log("Direct clicks and typing on actual application windows will NOT be recorded.");

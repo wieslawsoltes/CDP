@@ -72,15 +72,15 @@ public class PlaywrightGenerator : ICodeGenerator
                 }
                 string optStr = options.Count > 0 ? $"{{ {string.Join(", ", options)} }}" : "";
 
-                sb.AppendLine($"    await test.step('Click on element {EscapeJsString(step.Selector)}', async () => {{");
-                sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(step.Selector)}');");
+                sb.AppendLine($"    await test.step('Click on element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
+                sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
                 sb.AppendLine($"      await element_{i}.click({optStr});");
                 sb.AppendLine("    });");
             }
             else if (step.Type == "change")
             {
-                sb.AppendLine($"    await test.step('Type text in element {EscapeJsString(step.Selector)}', async () => {{");
-                sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(step.Selector)}');");
+                sb.AppendLine($"    await test.step('Type text in element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
+                sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
                 sb.AppendLine($"      await element_{i}.fill('{EscapeJsString(step.Value)}');");
                 sb.AppendLine("    });");
             }
@@ -112,9 +112,9 @@ public class PlaywrightGenerator : ICodeGenerator
             }
             else if (step.Type == "dragAndDrop")
             {
-                sb.AppendLine($"    await test.step('Drag element {EscapeJsString(step.Selector)} to {EscapeJsString(step.TargetSelector)}', async () => {{");
-                sb.AppendLine($"      const source_{i} = page.locator('{EscapeJsString(step.Selector)}');");
-                sb.AppendLine($"      const target_{i} = page.locator('{EscapeJsString(step.TargetSelector)}');");
+                sb.AppendLine($"    await test.step('Drag element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))} to {EscapeJsString(TranslatePlaywrightSelector(step.TargetSelector))}', async () => {{");
+                sb.AppendLine($"      const source_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
+                sb.AppendLine($"      const target_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.TargetSelector))}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.down('{mod}');");
@@ -131,7 +131,7 @@ public class PlaywrightGenerator : ICodeGenerator
                 sb.AppendLine($"    await test.step('Scroll element or page', async () => {{");
                 if (!string.IsNullOrEmpty(step.Selector))
                 {
-                    sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(step.Selector)}');");
+                    sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
                     sb.AppendLine($"      await element_{i}.evaluate(el => {{");
                     sb.AppendLine($"        let parent = el;");
                     sb.AppendLine($"        while (parent) {{");
@@ -152,14 +152,14 @@ public class PlaywrightGenerator : ICodeGenerator
             }
             else if (step.Type == "assertVisible")
             {
-                sb.AppendLine($"    await test.step('Assert element {EscapeJsString(step.Selector)} is visible', async () => {{");
-                sb.AppendLine($"      await expect(page.locator('{EscapeJsString(step.Selector)}')).toBeVisible();");
+                sb.AppendLine($"    await test.step('Assert element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))} is visible', async () => {{");
+                sb.AppendLine($"      await expect(page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}')).toBeVisible();");
                 sb.AppendLine("    });");
             }
             else if (step.Type == "assertNotVisible")
             {
-                sb.AppendLine($"    await test.step('Assert element {EscapeJsString(step.Selector)} is hidden', async () => {{");
-                sb.AppendLine($"      await expect(page.locator('{EscapeJsString(step.Selector)}')).toBeHidden();");
+                sb.AppendLine($"    await test.step('Assert element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))} is hidden', async () => {{");
+                sb.AppendLine($"      await expect(page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}')).toBeHidden();");
                 sb.AppendLine("    });");
             }
             else if (step.Type == "assertTrue")
@@ -194,6 +194,12 @@ public class PlaywrightGenerator : ICodeGenerator
         if ((modifiers & 4) != 0) list.Add("Meta");
         if ((modifiers & 8) != 0) list.Add("Shift");
         return list;
+    }
+
+        private static string TranslatePlaywrightSelector(string selector)
+    {
+        if (string.IsNullOrEmpty(selector)) return "";
+        return selector.Replace(":contains(", ":has-text(");
     }
 
     private static string EscapeJsString(string? value)

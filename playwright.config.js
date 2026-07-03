@@ -12,7 +12,7 @@ module.exports = defineConfig({
     // but we specify launch options here just in case.
   },
   webServer: {
-    command: 'dotnet run --project samples/CdpSampleApp/CdpSampleApp.csproj > playwright-webserver.log 2>&1',
+    command: 'dotnet run --project samples/CdpSampleApp/CdpSampleApp.csproj -- --headless > playwright-webserver.log 2>&1',
     url: 'http://127.0.0.1:9222/json',
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',

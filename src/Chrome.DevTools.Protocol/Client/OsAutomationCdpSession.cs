@@ -78,7 +78,7 @@ public sealed class OsAutomationCdpSession : IDisposable
     public OsAutomationCdpSession(string windowId)
     {
         _windowId = windowId;
-        _automation = OSAutomationService.Instance;
+        _automation = OsAutomationProvider.Instance ?? throw new Exception("OsAutomationProvider.Instance is not registered.");
     }
 
     public async Task<JsonObject> HandleCommandAsync(string method, JsonObject? parameters)
