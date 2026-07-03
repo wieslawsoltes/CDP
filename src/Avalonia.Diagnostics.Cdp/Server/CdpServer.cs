@@ -98,10 +98,12 @@ public static class CdpServer
 
         Window.WindowOpenedEvent.AddClassHandler<Window>((w, e) =>
         {
+            Console.WriteLine($"[CDP SERVER DEBUG] WindowOpenedEvent for window: {w.GetType().FullName}, Title: '{w.Title}'");
             Register(w, w.Title ?? w.GetType().Name);
         });
         Window.WindowClosedEvent.AddClassHandler<Window>((w, e) =>
         {
+            Console.WriteLine($"[CDP SERVER DEBUG] WindowClosedEvent for window: {w.GetType().FullName}");
             Unregister(w);
         });
     }
@@ -200,6 +202,18 @@ public static class CdpServer
 
     private static async Task<ICdpTarget> CreateAvaloniaTarget(string url, string? title)
     {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            var w = new Window
+            {
+                Title = title ?? "Dynamic CDP Window",
+                Width = 400,
+                Height = 300
+            };
+            w.Show();
+            var target = GetOrCreateTarget(w);
+            return (ICdpTarget)target;
+        }
         return await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var w = new Window

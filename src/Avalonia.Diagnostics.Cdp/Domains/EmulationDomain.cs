@@ -19,6 +19,18 @@ public static class EmulationDomain
 
     private static readonly ConditionalWeakTable<CdpSession, WindowSizeState> _sessionStates = new();
 
+    private static async Task InvokeAsync(Action action)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            await Dispatcher.UIThread.InvokeAsync(action);
+        }
+    }
+
     public static async Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
     {
         switch (action)
@@ -28,7 +40,7 @@ public static class EmulationDomain
                     double width = @params["width"]?.GetValue<int>() ?? 0;
                     double height = @params["height"]?.GetValue<int>() ?? 0;
 
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (!_sessionStates.TryGetValue(session, out _))
                         {
@@ -49,7 +61,7 @@ public static class EmulationDomain
 
             case "clearDeviceMetricsOverride":
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (_sessionStates.TryGetValue(session, out var state))
                         {
@@ -64,7 +76,7 @@ public static class EmulationDomain
             case "setEmulatedColorSchemeOverride":
                 {
                     string colorScheme = @params["colorScheme"]?.GetValue<string>() ?? "";
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (Application.Current != null)
                         {
@@ -96,7 +108,7 @@ public static class EmulationDomain
                             var val = featureNode?["value"]?.GetValue<string>();
                             if (name != null && name.Equals("prefers-color-scheme", StringComparison.OrdinalIgnoreCase))
                             {
-                                await Dispatcher.UIThread.InvokeAsync(() =>
+                                await InvokeAsync(() =>
                                 {
                                     if (Application.Current != null)
                                     {
@@ -123,7 +135,7 @@ public static class EmulationDomain
             case "setLocaleOverride":
                 {
                     string locale = @params["locale"]?.GetValue<string>() ?? "";
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         var culture = !string.IsNullOrEmpty(locale)
                             ? new System.Globalization.CultureInfo(locale)

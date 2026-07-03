@@ -90,6 +90,7 @@ public static class CdpServer
 
     public static string Register(ICdpTarget target)
     {
+        Console.WriteLine($"[CDP SERVER DEBUG] CdpServer.Register target: Id={target.Id}, Title='{target.Title}', Type={target.Type}");
         foreach (var pair in _targets)
         {
             if (pair.Value == target) return pair.Key;
@@ -98,6 +99,17 @@ public static class CdpServer
         var id = target.Id;
         _targets[id] = target;
         NotifyTargetCreated(id, target.Title, target.Type);
+
+        foreach (var session in _sessions.Keys)
+        {
+            Console.WriteLine($"[CDP SERVER DEBUG] Checking session: AutoAttachEnabled={session.AutoAttachEnabled}");
+            if (session.AutoAttachEnabled)
+            {
+                Console.WriteLine($"[CDP SERVER DEBUG] Auto-attaching target {target.Id} to session");
+                session.AutoAttachTarget(target);
+            }
+        }
+
         return id;
     }
 
@@ -173,6 +185,14 @@ public static class CdpServer
                     _targets[target.Id] = target;
                     active[target.Id] = target;
                     NotifyTargetCreated(target.Id, target.Title, target.Type);
+
+                    foreach (var session in _sessions.Keys)
+                    {
+                        if (session.AutoAttachEnabled)
+                        {
+                            session.AutoAttachTarget(target);
+                        }
+                    }
                 }
             }
         }
@@ -353,7 +373,7 @@ public static class CdpServer
                 host = $"localhost:{_port}";
             }
 
-            if (urlPath == "/json/version")
+            if (urlPath == "/json/version" || urlPath == "/json/version/")
             {
                 var versionJson = new JsonObject
                 {
@@ -364,7 +384,7 @@ public static class CdpServer
                 };
                 SendJsonResponse(response, versionJson);
             }
-            else if (urlPath == "/json" || urlPath == "/json/list")
+            else if (urlPath == "/json" || urlPath == "/json/" || urlPath == "/json/list" || urlPath == "/json/list/")
             {
                 var list = new JsonArray();
                 foreach (var target in GetTargets())
