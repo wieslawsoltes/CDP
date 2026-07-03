@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
@@ -16,45 +15,45 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        Console.WriteLine("=== Appium Hybrid CDP Validation ===");
-
-        // 1. Spawning the target application (CdpSampleApp) headlessly in the background
-        Console.WriteLine("Spawning CdpSampleApp headlessly on port 9222...");
-        var targetProc = Process.Start(new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = "run --project samples/CdpSampleApp/CdpSampleApp.csproj -- --headless",
-            UseShellExecute = false,
-            CreateNoWindow = true
-        });
-
-        if (targetProc == null)
-        {
-            Console.WriteLine("Failed to start CdpSampleApp process.");
-            return;
-        }
-
-        // Wait a few seconds to let the CDP server spin up
-        await Task.Delay(4000);
+        Console.WriteLine("=== Appium Hybrid Interactive non-headless E2E Validation ===");
 
         try
         {
-            // 2. Establishing Appium Mac2Driver session targeting Finder as the base app context
+            // 1. Initializing Appium session targeting CdpSampleApp binary directly
             Console.WriteLine("Connecting to Appium Server on http://127.0.0.1:4723/...");
             var options = new AppiumOptions();
             options.PlatformName = "Mac";
             options.AutomationName = "Mac2";
-            options.AddAdditionalAppiumOption("bundleId", "com.apple.finder");
+            
+            // Pass the absolute path to the compiled CdpSampleApp macOS executable binary
+            options.App = "/Users/wieslawsoltes/GitHub/CDP/scratch/CdpSampleApp.app";
 
             using var driver = new MacDriver(new Uri("http://127.0.0.1:4723"), options);
-            Console.WriteLine("Successfully created Appium session.");
+            Console.WriteLine("Successfully created Appium session and launched CdpSampleApp visual window.");
 
-            // Find all active Mac UI elements/windows to validate Appium native automation works
-            var windows = driver.FindElements(By.XPath("//XCUIElementTypeWindow"));
-            Console.WriteLine($"Appium discovered {windows.Count} active window elements on macOS desktop.");
+            // Wait a few seconds to let the window draw and the CDP port open
+            await Task.Delay(4000);
+            // Print page source to debug element hierarchy
+            Console.WriteLine("--- Appium Page Source XML ---");
+            Console.WriteLine(driver.PageSource);
+            Console.WriteLine("------------------------------");
+            // 2. Locating and Clicking the 'Click Me' Button natively via Appium Mac2Driver
+            Console.WriteLine("Locating 'Click Me' Button natively...");
+            // We search directly in the driver context since the session is attached to CdpSampleApp process
+            var clickBtn = driver.FindElement(By.XPath("//XCUIElementTypeButton[contains(@title, 'Click Me') or contains(@value, 'Click Me') or contains(@name, 'Click Me') or contains(@label, 'Click Me') or @id='btnClickMe']"));
+            Console.WriteLine("Clicking button natively...");
+            clickBtn.Click();
+            await Task.Delay(1000);
 
-            // 3. Launching Secondary CDP connection to CdpSampleApp to verify hybrid state
-            Console.WriteLine("Connecting to secondary CDP WebSocket at http://127.0.0.1:9222/json...");
+            // 3. Locating and Typing into the TextBox natively via Appium Mac2Driver
+            Console.WriteLine("Locating TextBox element natively...");
+            var textBox = driver.FindElement(By.XPath("//XCUIElementTypeTextField"));
+            Console.WriteLine("Typing text natively...");
+            textBox.SendKeys("Appium Interactive!");
+            await Task.Delay(1000);
+
+            // 4. Connect to CDP to assert that native interactions updated Jint backend states
+            Console.WriteLine("Connecting to concurrent CDP WebSocket to verify bindings...");
             using var httpClient = new HttpClient();
             var responseStr = await httpClient.GetStringAsync("http://127.0.0.1:9222/json");
             var targets = JsonNode.Parse(responseStr)?.AsArray();
@@ -72,56 +71,59 @@ class Program
                 await ws.ConnectAsync(new Uri(wsUrl), CancellationToken.None);
                 Console.WriteLine("Connected to CDP WebSocket.");
 
-                // Send Runtime.evaluate payload to verify target Jint state
-                var evalJson = new JsonObject
+                // Assert click count state updated to "Clicked 1 times!"
+                var clickEval = new JsonObject
                 {
-                    ["id"] = 42,
+                    ["id"] = 101,
                     ["method"] = "Runtime.evaluate",
                     ["params"] = new JsonObject
                     {
-                        ["expression"] = "Window.Title",
+                        ["expression"] = "document.querySelector('#txtStatus').textContent",
                         ["returnByValue"] = true
                     }
                 };
 
-                var payloadBytes = Encoding.UTF8.GetBytes(evalJson.ToString());
-                await ws.SendAsync(new ArraySegment<byte>(payloadBytes), WebSocketMessageType.Text, true, CancellationToken.None);
-
+                await ws.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(clickEval.ToString())), WebSocketMessageType.Text, true, CancellationToken.None);
                 var buffer = new byte[8192];
-                var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                var responseText = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                Console.WriteLine($"CDP Response: {responseText}");
+                var clickRes = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                var clickResText = Encoding.UTF8.GetString(buffer, 0, clickRes.Count);
+                Console.WriteLine($"Click Status CDP: {clickResText}");
 
-                var resultNode = JsonNode.Parse(responseText);
-                var evalResultValue = resultNode?["result"]?["result"]?["value"]?.ToString();
-                Console.WriteLine($"Target Window Title resolved over Jint: '{evalResultValue}'");
-                
-                if (evalResultValue == "Avalonia CDP Inspector Sample")
+                // Assert text binding value matches typed text
+                var textEval = new JsonObject
                 {
-                    Console.WriteLine("Hybrid verification SUCCESSFUL!");
+                    ["id"] = 102,
+                    ["method"] = "Runtime.evaluate",
+                    ["params"] = new JsonObject
+                    {
+                        ["expression"] = "document.querySelector('#txtInput').value",
+                        ["returnByValue"] = true
+                    }
+                };
+
+                await ws.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(textEval.ToString())), WebSocketMessageType.Text, true, CancellationToken.None);
+                var textRes = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                var textResText = Encoding.UTF8.GetString(buffer, 0, textRes.Count);
+                Console.WriteLine($"TextBox Value CDP: {textResText}");
+
+                var clickVal = JsonNode.Parse(clickResText)?["result"]?["result"]?["value"]?.ToString();
+                var textVal = JsonNode.Parse(textResText)?["result"]?["result"]?["value"]?.ToString();
+
+                if (clickVal == "Clicked 1 times!" && textVal == "Appium Interactive!")
+                {
+                    Console.WriteLine("=== INTERACTIVE HYBRID VERIFICATION SUCCESSFUL! ===");
                 }
                 else
                 {
-                    Console.WriteLine("Hybrid verification FAILED: Unexpected evaluation result.");
+                    Console.WriteLine("=== INTERACTIVE HYBRID VERIFICATION FAILED ===");
+                    Console.WriteLine($"Expected status 'Clicked 1 times!', got '{clickVal}'");
+                    Console.WriteLine($"Expected input 'Appium Interactive!', got '{textVal}'");
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Validation error: {ex.Message}");
-            Console.WriteLine("Ensure that the Appium server is running locally on port 4723: 'appium'");
-        }
-        finally
-        {
-            // Terminate target app process
-            try
-            {
-                if (!targetProc.HasExited)
-                {
-                    targetProc.Kill();
-                }
-            }
-            catch { }
+            Console.WriteLine($"Verification failed with error: {ex.Message}");
         }
     }
 }
