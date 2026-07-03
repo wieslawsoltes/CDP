@@ -1461,14 +1461,13 @@ public class NewDomainTests
         var setBpResultTrue = await DebuggerDomain.HandleAsync(session, "setBreakpointByUrl", setBpParamsTrue);
         var breakpointIdTrue = setBpResultTrue["breakpointId"]?.GetValue<string>();
 
-        // Run breakpoint checking on a background thread so it doesn't block the test
         var checkTask = Task.Run(() => DebuggerDomain.CheckBreakpoint(session, "TestFile.cs", 10));
-
         // Wait a short time for thread to pause
         for (int i = 0; i < 100; i++)
         {
             if (DebuggerDomain.IsPaused) break;
-            await Task.Delay(20);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            System.Threading.Thread.Sleep(20);
         }
 
         Assert.True(DebuggerDomain.IsPaused);
@@ -1693,6 +1692,7 @@ public class NewDomainTests
         var disableResult = await Chrome.DevTools.Protocol.Domains.IndexedDBDomain.HandleAsync(session, "disable", new JsonObject());
         Assert.NotNull(disableResult);
     }
+
 
 
     public class TestDataContext

@@ -743,6 +743,134 @@ public class CdpIntegrationTests
         }
     }
 
+    [AvaloniaFact]
+    public void TestTargetAutoAttachAndRouting()
+    {
+        var window = new Window { Title = "Target Auto Attach Main" };
+        window.Show();
+        var mainTargetId = CdpServer.Register(window, "Main Page Target");
+        int port = GetFreePort();
+
+        try
+        {
+            CdpServer.Start(port);
+
+            var clientTask = Task.Run(async () =>
+            {
+                using var ws = CreateClientWebSocket();
+                var uri = new Uri($"ws://127.0.0.1:{port}/devtools/browser");
+                await ConnectWithTimeoutAsync(ws, uri);
+
+                // 1. Send Target.setAutoAttach
+                var setAutoAttachRequest = new JsonObject
+                {
+                    ["id"] = 1,
+                    ["method"] = "Target.setAutoAttach",
+                    ["params"] = new JsonObject
+                    {
+                        ["autoAttach"] = true,
+                        ["waitForDebuggerOnStart"] = false,
+                        ["flatten"] = true
+                    }
+                };
+                await SendJsonAsync(ws, setAutoAttachRequest);
+
+                // Receive setAutoAttach response and attachedToTarget events
+                JsonObject? setAutoAttachResponse = null;
+                JsonObject? mainTargetAttachedEvent = null;
+
+                for (int i = 0; i < 5; i++)
+                {
+                    var msg = await ReceiveJsonAsync(ws);
+                    if (msg.ContainsKey("id") && msg["id"]?.GetValue<int>() == 1)
+                    {
+                        setAutoAttachResponse = msg;
+                    }
+                    else if (msg.ContainsKey("method") && msg["method"]?.GetValue<string>() == "Target.attachedToTarget")
+                    {
+                        var targetInfo = msg["params"]?["targetInfo"] as JsonObject;
+                        if (targetInfo?["targetId"]?.GetValue<string>() == mainTargetId)
+                        {
+                            mainTargetAttachedEvent = msg;
+                        }
+                    }
+
+                    if (setAutoAttachResponse != null && mainTargetAttachedEvent != null)
+                    {
+                        break;
+                    }
+                }
+
+                Assert.NotNull(setAutoAttachResponse);
+                Assert.NotNull(mainTargetAttachedEvent);
+
+                var sessionId = mainTargetAttachedEvent["params"]?["sessionId"]?.GetValue<string>();
+                Assert.False(string.IsNullOrEmpty(sessionId));
+
+                // 2. Query DOM.getDocument through the session ID
+                var docRequest = new JsonObject
+                {
+                    ["id"] = 2,
+                    ["sessionId"] = sessionId,
+                    ["method"] = "DOM.getDocument",
+                    ["params"] = new JsonObject { ["pierce"] = true }
+                };
+                await SendJsonAsync(ws, docRequest);
+
+                var docResponse = await ReceiveJsonAsync(ws);
+                Assert.NotNull(docResponse);
+                Assert.Equal(2, docResponse["id"]?.GetValue<int>());
+                Assert.Equal(sessionId, docResponse["sessionId"]?.GetValue<string>());
+                Assert.NotNull(docResponse["result"]?["root"]);
+
+                // 3. Register a new target and verify it gets auto-attached
+                var secondWindow = await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    var w = new Window { Title = "Target Auto Attach Second" };
+                    w.Show();
+                    return w;
+                });
+
+                string? secondTargetId = null;
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    secondTargetId = CdpServer.Register(secondWindow, "Second Page Target");
+                });
+
+                JsonObject? secondTargetAttachedEvent = null;
+                for (int i = 0; i < 5; i++)
+                {
+                    var msg = await ReceiveJsonAsync(ws);
+                    if (msg.ContainsKey("method") && msg["method"]?.GetValue<string>() == "Target.attachedToTarget")
+                    {
+                        var targetInfo = msg["params"]?["targetInfo"] as JsonObject;
+                        if (targetInfo?["targetId"]?.GetValue<string>() == secondTargetId)
+                        {
+                            secondTargetAttachedEvent = msg;
+                            break;
+                        }
+                    }
+                }
+
+                Assert.NotNull(secondTargetAttachedEvent);
+                var secondSessionId = secondTargetAttachedEvent["params"]?["sessionId"]?.GetValue<string>();
+                Assert.False(string.IsNullOrEmpty(secondSessionId));
+                Assert.NotEqual(sessionId, secondSessionId);
+
+                await Dispatcher.UIThread.InvokeAsync(() => secondWindow.Close());
+
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
+            });
+
+            PumpDispatcher(clientTask);
+        }
+        finally
+        {
+            CdpServer.Stop();
+            window.Close();
+        }
+    }
+
     private static async Task ConnectWithTimeoutAsync(ClientWebSocket ws, Uri uri, int timeoutMs = 5000)
     {
         using var cts = new CancellationTokenSource(timeoutMs);

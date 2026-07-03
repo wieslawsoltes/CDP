@@ -174,4 +174,34 @@ public class DomTreeTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public void TestCheckboxAndRadioIsChecked()
+    {
+        var window = new Window { Title = "Checkbox Test" };
+        var chk = new CheckBox { Name = "chkToggle", IsChecked = true };
+        var rb = new RadioButton { Name = "rbOption", IsChecked = false };
+        var panel = new StackPanel();
+        panel.Children.Add(chk);
+        panel.Children.Add(rb);
+        window.Content = panel;
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        var chkElement = new CdpRuntimeElement(session, chk);
+        var rbElement = new CdpRuntimeElement(session, rb);
+
+        Assert.Equal("true", chkElement.getAttribute("IsChecked"));
+        Assert.Equal("false", rbElement.getAttribute("IsChecked"));
+
+        Assert.True(chkElement.isChecked);
+        Assert.True(chkElement.@checked);
+        Assert.False(rbElement.isChecked);
+        Assert.False(rbElement.@checked);
+
+        window.Close();
+    }
 }
+
