@@ -868,21 +868,69 @@ namespace HeadlessRecordedTests
 
 ---
 
-## AI Coding Agents Integration
+## AI Coding Agents, Model Context Protocol (MCP) & Playwright
 
-This library provides ideal entry points for AI agents (e.g. Playwright-based web agents) to navigate, inspect, and interact with the desktop application:
+This library is designed to allow modern AI coding agents and browser automation tools to inspect, automate, and debug desktop Avalonia applications exactly like web pages.
 
-1. **Selector Engine**: Supports querying elements using a custom visual selector engine:
-   - Control types (e.g. `Button`, `TextBox`, `Grid`)
-   - Names (e.g. `#btnClickMe` maps to `Name="btnClickMe"`)
-   - Classes (e.g. `.primary`)
-   - Descendant selectors (e.g. `Grid Border Button`)
-   - Child selectors (e.g. `Grid > Border > Button`)
-   - Compound selectors (e.g. `Button#btnClickMe.primary`)
-2. **Inspected Node `$0`**: Binds the active inspected control node (set via `DOM.setInspectedNode`) to the `$0` variable in the evaluation context, letting agents evaluate C# expressions on the active element.
-3. **Text Simulation**: Allows typing raw strings directly into focused input elements using the `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` methods.
-4. **Screenshot Verification**: Agents can capture and inspect screenshots of the window or individual bounding boxes to perform visual verification.
-5. **Interactive Highlighting**: Supports the standard Chrome DevTools visual highlighter, showing padding, margin, content boxes, and element names in real-time.
+### 1. Model Context Protocol (MCP) Integration
+
+You can integrate your Avalonia desktop application with Google's official **Chrome DevTools MCP Server** ([ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)). This exposes your desktop app directly to LLMs (like Claude, Gemini, GPT) in editors such as Cursor, Claude Desktop, or VS Code.
+
+To configure the Chrome DevTools MCP server, add this to your MCP configuration settings (e.g. `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-chrome-devtools",
+        "--port",
+        "9222"
+      ]
+    }
+  }
+}
+```
+
+Once connected, your AI assistant can use tools like `inspect_dom`, `evaluate_js`, and `capture_screenshot` to interact with your running Avalonia application.
+
+For detailed instructions and setups, see [Model Context Protocol & Playwright Integration Guide](docs/articles/mcp-and-playwright.md).
+
+### 2. Playwright Integration
+
+Playwright can attach directly to your running Avalonia application using the `connectOverCDP` API:
+
+```javascript
+const { chromium } = require('playwright');
+
+(async () => {
+  // Connect Playwright to the Avalonia CDP server
+  const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+  const context = browser.contexts()[0];
+  const page = context.pages()[0];
+
+  // Interact with Avalonia controls via standard CSS selectors
+  await page.waitForSelector('#txtInput');
+  await page.fill('#txtInput', 'Hello from Playwright!');
+  await page.click('#btnClickMe');
+
+  // Capture high-fidelity screenshots of the app canvas
+  await page.screenshot({ path: 'app-screenshot.png' });
+
+  await browser.close();
+})();
+```
+
+For more detailed examples, see [Model Context Protocol & Playwright Integration Guide](docs/articles/mcp-and-playwright.md).
+
+### 3. Agent Integration Features
+
+1. **Selector Engine**: Supports querying elements using a custom visual selector engine (`Button`, `TextBox`, `#name`, `.class`, etc.).
+2. **Inspected Node `$0`**: Binds the active inspected control node to the `$0` variable in the evaluation context, letting agents evaluate C# expressions on the active element.
+3. **Target Auto-Attach**: Implements `Target.setAutoAttach` so Playwright/MCP automatically handles multi-window applications and targets.
+4. **Layout Metrics**: Implements legacy viewport dimensions in `Page.getLayoutMetrics` to prevent Playwright screenshot coordinate errors.
 
 ---
 

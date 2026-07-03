@@ -97,6 +97,8 @@ const guideSidebarItems = [
     items: [
       { text: "AI Agent Integration", link: "/articles/ai-agent-integration" },
       { text: "Chrome DevTools Connection", link: "/articles/chrome-devtools-connection" },
+      { text: "Google Model Context Protocol (MCP)", link: "/articles/mcp" },
+      { text: "Playwright Integration", link: "/articles/playwright" },
       { text: "Self-Inspection", link: "/articles/self-inspection" }
     ]
   },

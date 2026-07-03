@@ -66,6 +66,8 @@ Chrome DevTools Protocol (CDP) diagnostics server support for Avalonia UI.
 | `OverlayDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/OverlayDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/OverlayDomain.cs) |
 | `PageDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/PageDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/PageDomain.cs) |
 | `PerformanceDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/PerformanceDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/PerformanceDomain.cs) |
+| `PlaywrightInjectedFunctionMock` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs) |
+| `PlaywrightUtilityScriptMock` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs) |
 | `RecorderDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/RecorderDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/RecorderDomain.cs) |
 | `ReferenceCrawler` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/MemoryDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/MemoryDomain.cs) |
 | `ReferenceEdge` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/MemoryDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/MemoryDomain.cs) |
