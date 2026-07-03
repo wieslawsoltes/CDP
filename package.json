@@ -5,13 +5,18 @@
     "docs:api": "node docs/scripts/generate-api-docs.mjs",
     "docs:dev": "npm run docs:api && vitepress dev docs",
     "docs:build": "npm run docs:api && vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "test:playwright": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "vitepress": "1.6.4"
   },
   "overrides": {
     "esbuild": "0.28.1",
     "vite": "7.3.5"
+  },
+  "dependencies": {
+    "playwright": "^1.61.1"
   }
 }
