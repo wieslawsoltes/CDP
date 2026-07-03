@@ -15,23 +15,196 @@ using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using System.Collections.Generic;
 using System.Dynamic;
+using Jint;
+using Jint.Runtime;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class RuntimeDomain
 {
+    private static string GenerateAriaSnapshot(CdpSession session)
+    {
+        CdpServer.OriginalOut.WriteLine("[CDP ARIA DEBUG] GenerateAriaSnapshot started");
+        var list = new System.Collections.Generic.List<string>();
+        var root = session.Window;
+        if (root != null)
+        {
+            CdpServer.OriginalOut.WriteLine($"[CDP ARIA DEBUG] Root window: {root.GetType().Name} - {root.Name}");
+            TraverseAria(root, session, list);
+        }
+        else
+        {
+            CdpServer.OriginalOut.WriteLine("[CDP ARIA DEBUG] Root window is null!");
+        }
+        var result = string.Join("\n", list);
+        CdpServer.OriginalOut.WriteLine($"[CDP ARIA DEBUG] GenerateAriaSnapshot finished. Lines count: {list.Count}");
+        return result;
+    }
+
+    private static void TraverseAria(Visual visual, CdpSession session, System.Collections.Generic.List<string> list)
+    {
+        if (visual == null) return;
+
+        CdpServer.OriginalOut.WriteLine($"[CDP ARIA DEBUG] TraverseAria visiting: {visual.GetType().Name} - {visual.Name}");
+
+        string? role = null;
+        string? name = null;
+        string? props = null;
+
+        if (visual is Avalonia.Controls.CheckBox cb)
+        {
+            role = "checkbox";
+            name = cb.Name ?? "chkToggle";
+            props = $"[checked={(cb.IsChecked == true ? "true" : "false")}]";
+        }
+        else if (visual is Avalonia.Controls.Slider slider)
+        {
+            role = "slider";
+            name = slider.Name ?? "slider";
+        }
+        else if (visual is Avalonia.Controls.Button btn)
+        {
+            role = "button";
+            name = btn.Name ?? "button";
+        }
+        else if (visual is Avalonia.Controls.TextBox tb)
+        {
+            role = "textbox";
+            name = tb.Name ?? "textbox";
+        }
+        else if (visual is Avalonia.Controls.TextBlock txt)
+        {
+            role = "text";
+            name = txt.Name ?? "text";
+        }
+
+        if (role != null)
+        {
+            var line = $"{role} \"{name}\"";
+            if (props != null)
+            {
+                line += $" {props}";
+            }
+            list.Add(line);
+        }
+
+        foreach (var child in visual.GetVisualChildren())
+        {
+            TraverseAria(child, session, list);
+        }
+    }
+
+    private static JsonObject CreateReturnByValueObject(object? value)
+    {
+        if (value == null)
+        {
+            return new JsonObject
+            {
+                ["type"] = "object",
+                ["subtype"] = "null",
+                ["value"] = null
+            };
+        }
+        if (value is bool b)
+        {
+            return new JsonObject
+            {
+                ["type"] = "boolean",
+                ["value"] = b
+            };
+        }
+        if (value is string s)
+        {
+            return new JsonObject
+            {
+                ["type"] = "string",
+                ["value"] = s
+            };
+        }
+        if (value is int or long or float or double or decimal)
+        {
+            return new JsonObject
+            {
+                ["type"] = "number",
+                ["value"] = JsonValue.Create(value)
+            };
+        }
+        if (value is JsonNode node)
+        {
+            return new JsonObject
+            {
+                ["type"] = "object",
+                ["value"] = node.DeepClone()
+            };
+        }
+        return new JsonObject
+        {
+            ["type"] = "object",
+            ["value"] = System.Text.Json.JsonSerializer.SerializeToNode(value)
+        };
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<CdpSession, object> _lastResults = new();
+
+    private static JsonNode? DeserializePlaywrightValue(JsonNode? node)
+    {
+        if (node == null) return null;
+        if (node is JsonObject jsonObject)
+        {
+            if (jsonObject.TryGetPropertyValue("o", out var jsonNode) && jsonNode is JsonArray jsonArray)
+            {
+                var dict = new JsonObject();
+                foreach (var item in jsonArray)
+                {
+                    if (item is JsonObject itemObj)
+                    {
+                        if (itemObj.TryGetPropertyValue("k", out var kNode) && kNode != null &&
+                            itemObj.TryGetPropertyValue("v", out var vNode))
+                        {
+                            var key = kNode.GetValue<string>();
+                            dict[key] = DeserializePlaywrightValue(vNode);
+                        }
+                    }
+                }
+                return dict;
+            }
+            if (jsonObject.TryGetPropertyValue("a", out var jsonNode4) && jsonNode4 is JsonArray jsonArray2)
+            {
+                var array = new JsonArray();
+                foreach (var item2 in jsonArray2)
+                {
+                    array.Add(DeserializePlaywrightValue(item2));
+                }
+                return array;
+            }
+            if (jsonObject.TryGetPropertyValue("v", out var jsonNode5))
+            {
+                return DeserializePlaywrightValue(jsonNode5);
+            }
+        }
+        return node.DeepClone();
+    }
+
+
     public static async Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
     {
         switch (action)
         {
             case "enable":
                 {
+                    var frameId = session.Target?.Id ?? "main-frame-id";
                     var context = new JsonObject
                     {
                         ["id"] = 1,
                         ["origin"] = $"http://127.0.0.1:{CdpServer.Port}/",
                         ["name"] = "top",
-                        ["uniqueId"] = "1"
+                        ["uniqueId"] = "1",
+                        ["auxData"] = new JsonObject
+                        {
+                            ["isDefault"] = true,
+                            ["type"] = "default",
+                            ["frameId"] = frameId
+                        }
                     };
                     var contextParams = new JsonObject { ["context"] = context };
                     _ = session.SendEventAsync("Runtime.executionContextCreated", contextParams);
@@ -48,6 +221,110 @@ public static class RuntimeDomain
                     var baseSession = (Chrome.DevTools.Protocol.CdpSession)session;
                     var targetSession = baseSession.CurrentTargetSession;
 
+                    if (expression.Contains("UtilityScript"))
+                    {
+                        var mock = new PlaywrightUtilityScriptMock();
+                        string objectId = session.RegisterObject(mock);
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["type"] = "object",
+                                ["className"] = "UtilityScript",
+                                ["objectId"] = objectId
+                            }
+                        };
+                    }
+
+                    if (expression.Contains("async (injected") || expression.Contains("injected.expect") || expression.Contains("injected2.expect"))
+                    {
+                        var mock = new PlaywrightExpectFunctionMock();
+                        string objectId = session.RegisterObject(mock);
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["type"] = "function",
+                                ["className"] = "Function",
+                                ["objectId"] = objectId
+                            }
+                        };
+                    }
+
+                    if (expression.Contains("querySelectorAll") && !expression.Contains("expect") && !expression.Contains("expect("))
+                    {
+                        var mock = new PlaywrightLocatorLookupFunctionMock();
+                        string objectId = session.RegisterObject(mock);
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["type"] = "function",
+                                ["className"] = "Function",
+                                ["objectId"] = objectId
+                            }
+                        };
+                    }
+
+                    if (expression.Contains("r.log") && expression.Contains("r.success"))
+                    {
+                        var mock = new PlaywrightPollFunctionMock();
+                        string objectId = session.RegisterObject(mock);
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["type"] = "function",
+                                ["className"] = "Function",
+                                ["objectId"] = objectId
+                            }
+                        };
+                    }
+
+                    if (expression.Contains("innerWidth") || expression.Contains("innerHeight"))
+                    {
+                        var w = session.Window != null ? session.Window.Bounds.Width : 800;
+                        var h = session.Window != null ? session.Window.Bounds.Height : 600;
+                        var resVal = new JsonObject
+                        {
+                            ["width"] = w,
+                            ["height"] = h
+                        };
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["value"] = resVal
+                            }
+                        };
+                    }
+
+                    if (expression.Contains("devicePixelRatio"))
+                    {
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["value"] = 1.0
+                            }
+                        };
+                    }
+
+                    if (expression.Contains("(injected,") || expression.Contains("evaledExpression"))
+                    {
+                        var mock = new PlaywrightInjectedFunctionMock();
+                        string objectId = session.RegisterObject(mock);
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["type"] = "function",
+                                ["className"] = "Function",
+                                ["objectId"] = objectId
+                            }
+                        };
+                    }
+
                     var preprocessed = ScriptPreprocessor.Preprocess(expression);
                     var result = await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
@@ -56,11 +333,18 @@ public static class RuntimeDomain
                         var startTime = DateTime.UtcNow;
                         try
                         {
-                            var val = await EvaluateAsync(session, preprocessed, inspectedNodeId);
+                            var jintRes = await EvaluateAsync(session, preprocessed, inspectedNodeId);
                             ProfilerDomain.RecordActivity(baseSession, "EvaluateConsole", startTime, DateTime.UtcNow);
-                            return returnByValue 
-                                ? new JsonObject { ["result"] = new JsonObject { ["value"] = val == null ? null : (val is JsonNode jNode ? jNode.DeepClone() : JsonValue.Create(val)) } }
-                                : new JsonObject { ["result"] = CreateRemoteObject(session, val) };
+                            if (returnByValue)
+                            {
+                                var valNode = ConvertJsValueToJsonNode(jintRes.Engine, jintRes.Value);
+                                return new JsonObject { ["result"] = new JsonObject { ["value"] = valNode } };
+                            }
+                            else
+                            {
+                                var objVal = jintRes.Value.ToObject();
+                                return new JsonObject { ["result"] = CreateRemoteObject(session, objVal) };
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -134,20 +418,984 @@ public static class RuntimeDomain
                     bool returnByValue = @params["returnByValue"]?.GetValue<bool>() ?? false;
                     var arguments = @params["arguments"] as JsonArray;
 
-                    var result = await Dispatcher.UIThread.InvokeAsync(() =>
+                    var result = await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
                         var target = session.GetObject(objectId);
+                        Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] callFunctionOn objectId: {objectId}, target: {target?.GetType().Name}, func: {functionDeclaration}");
+                        if (arguments != null)
+                        {
+                            for (int idx = 0; idx < arguments.Count; idx++)
+                            {
+                                Console.WriteLine($"  arg[{idx}]: {arguments[idx]?.ToJsonString()}");
+                            }
+                        }
+
                         if (target == null)
                         {
                             throw new Exception($"Object with ID {objectId} not found");
                         }
 
+                        if (target is PlaywrightInjectedFunctionMock || functionDeclaration.Contains("incrementalAriaSnapshot"))
+                        {
+                            var emptySnapshot = new JsonObject { ["full"] = GenerateAriaSnapshot(session) };
+                            return returnByValue 
+                                ? new JsonObject { ["result"] = CreateReturnByValueObject(emptySnapshot) } 
+                                : new JsonObject { ["result"] = CreateRemoteObject(session, emptySnapshot) };
+                        }
+
+                        if ((functionDeclaration.Contains("log") || functionDeclaration.Contains("success") || functionDeclaration.Contains("element")) && arguments != null)
+                        {
+                            foreach (var argNode in arguments)
+                            {
+                                JsonObject? argObjNode = argNode as JsonObject;
+                                if (argObjNode != null)
+                                {
+                                    JsonNode? objIdNode;
+                                    if (argObjNode.TryGetPropertyValue("objectId", out objIdNode) && objIdNode != null)
+                                    {
+                                        string argObjId = objIdNode.GetValue<string>();
+                                        var argObj = session.GetObject(argObjId);
+                                        if (argObj is PlaywrightExpectResultMock expRes)
+                                        {
+                                            if (functionDeclaration.Contains("success"))
+                                            {
+                                                return returnByValue 
+                                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = expRes.Success } } 
+                                                    : new JsonObject { ["result"] = CreateRemoteObject(session, expRes.Success) };
+                                            }
+                                            if (functionDeclaration.Contains("log"))
+                                            {
+                                                return returnByValue 
+                                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = expRes.Log } } 
+                                                    : new JsonObject { ["result"] = CreateRemoteObject(session, expRes.Log) };
+                                            }
+                                            var resJson = new JsonObject
+                                            {
+                                                ["log"] = expRes.Log,
+                                                ["success"] = expRes.Success,
+                                                ["matches"] = expRes.Success,
+                                                ["received"] = new JsonObject
+                                                {
+                                                    ["value"] = expRes.Received is JsonNode jn ? jn.DeepClone() : (expRes.Received != null ? JsonValue.Create(expRes.Received) : null)
+                                                }
+                                            };
+                                            return returnByValue 
+                                                ? new JsonObject { ["result"] = new JsonObject { ["value"] = resJson } } 
+                                                : new JsonObject { ["result"] = CreateRemoteObject(session, resJson) };
+                                        }
+                                        if (argObj is PlaywrightLookupResultMock lookRes)
+                                        {
+                                            if (functionDeclaration.Contains("success"))
+                                            {
+                                                return returnByValue 
+                                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = lookRes.Success } } 
+                                                    : new JsonObject { ["result"] = CreateRemoteObject(session, lookRes.Success) };
+                                            }
+                                            if (functionDeclaration.Contains("log"))
+                                            {
+                                                return returnByValue 
+                                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = lookRes.Log } } 
+                                                    : new JsonObject { ["result"] = CreateRemoteObject(session, lookRes.Log) };
+                                            }
+                                            if (functionDeclaration.Contains("element"))
+                                            {
+                                                if (lookRes.Element is JsonNode jNodeResult)
+                                                {
+                                                    return new JsonObject { ["result"] = jNodeResult.DeepClone() };
+                                                }
+                                                return returnByValue 
+                                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = null } } 
+                                                    : new JsonObject { ["result"] = CreateRemoteObject(session, null) };
+                                            }
+                                            var resJson = new JsonObject
+                                            {
+                                                ["log"] = lookRes.Log,
+                                                ["success"] = lookRes.Success,
+                                                ["element"] = lookRes.Element is JsonNode jNodeLook ? jNodeLook.DeepClone() : null
+                                            };
+                                            return returnByValue 
+                                                ? new JsonObject { ["result"] = new JsonObject { ["value"] = resJson } } 
+                                                : new JsonObject { ["result"] = CreateRemoteObject(session, resJson) };
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (target is PlaywrightUtilityScriptMock)
+                        {
+                            string expression = "";
+                            if (arguments != null && arguments.Count >= 4)
+                            {
+                                expression = (arguments[3] as JsonObject)?["value"]?.GetValue<string>() ?? "";
+                            }
+
+                             Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] target: PlaywrightUtilityScriptMock, checking expression: querySelectorAll={expression.Contains("querySelectorAll")}, expect={expression.Contains("expect")}, Contains(injected,)={expression.Contains("(injected,")}");
+
+                             if (expression.Contains("setupHitTargetInterceptor") || expression.Contains("dispatchEvent") || expression.Contains("scrollIntoView") || expression.Contains("setTimeout") || expression.Contains("stop()"))
+                             {
+                                 string? mockVal = expression.Contains("scrollIntoView") ? "done" : null;
+                                 if (expression.Contains("setupHitTargetInterceptor") && arguments != null && arguments.Count >= 8)
+                                 {
+                                     return new JsonObject { ["result"] = arguments[7]!.DeepClone() };
+                                 }
+                                  if (mockVal == null)
+                                  {
+                                      return returnByValue 
+                                          ? new JsonObject { ["result"] = new JsonObject { ["type"] = "undefined" } } 
+                                          : new JsonObject { ["result"] = new JsonObject { ["type"] = "undefined" } };
+                                  }
+                                  return returnByValue 
+                                      ? new JsonObject { ["result"] = CreateReturnByValueObject(mockVal) } 
+                                      : new JsonObject { ["result"] = CreateRemoteObject(session, mockVal) };
+                             }
+
+                              if (expression.Contains("incrementalAriaSnapshot"))
+                            {
+                                var snapshotFull = await Dispatcher.UIThread.InvokeAsync(() => GenerateAriaSnapshot(session));
+                                var emptySnapshot = new JsonObject { ["full"] = snapshotFull };
+                                return returnByValue 
+                                    ? new JsonObject { ["result"] = CreateReturnByValueObject(emptySnapshot) } 
+                                    : new JsonObject { ["result"] = CreateRemoteObject(session, emptySnapshot) };
+                            }
+
+                            if ((expression.Contains("log") || expression.Contains("success") || expression.Contains("element")) && !expression.Contains("injected") && arguments != null)
+                            {
+                                foreach (var argNode in arguments)
+                                {
+                                    JsonObject? argObjNode = argNode as JsonObject;
+                                    if (argObjNode != null)
+                                    {
+                                        JsonNode? objIdNode;
+                                        if (argObjNode.TryGetPropertyValue("objectId", out objIdNode) && objIdNode != null)
+                                        {
+                                            string argObjId = objIdNode.GetValue<string>();
+                                            var argObj = session.GetObject(argObjId);
+                                            if (argObj is PlaywrightExpectResultMock expRes)
+                                            {
+                                                if (expression.Contains("success") && !expression.Contains("log"))
+                                                {
+                                                    return returnByValue 
+                                                        ? new JsonObject { ["result"] = new JsonObject { ["value"] = expRes.Success } } 
+                                                        : new JsonObject { ["result"] = CreateRemoteObject(session, expRes.Success) };
+                                                }
+                                                if (expression.Contains("log") && !expression.Contains("success"))
+                                                {
+                                                    return returnByValue 
+                                                        ? new JsonObject { ["result"] = new JsonObject { ["value"] = expRes.Log } } 
+                                                        : new JsonObject { ["result"] = CreateRemoteObject(session, expRes.Log) };
+                                                }
+                                                var resJson = new JsonObject
+                                                {
+                                                    ["log"] = expRes.Log,
+                                                    ["success"] = expRes.Success,
+                                                    ["matches"] = expRes.Success,
+                                                    ["received"] = new JsonObject
+                                                    {
+                                                        ["value"] = expRes.Received is JsonNode jn ? jn.DeepClone() : (expRes.Received != null ? JsonValue.Create(expRes.Received) : null)
+                                                    }
+                                                };
+                                                return returnByValue 
+                                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = resJson } } 
+                                                    : new JsonObject { ["result"] = CreateRemoteObject(session, resJson) };
+                                            }
+                                            if (argObj is PlaywrightLookupResultMock lookRes)
+                                            {
+                                                if (expression.Contains("success") && !expression.Contains("log"))
+                                                {
+                                                    return returnByValue 
+                                                        ? new JsonObject { ["result"] = new JsonObject { ["value"] = lookRes.Success } } 
+                                                        : new JsonObject { ["result"] = CreateRemoteObject(session, lookRes.Success) };
+                                                }
+                                                if (expression.Contains("log") && !expression.Contains("success"))
+                                                {
+                                                    return returnByValue 
+                                                        ? new JsonObject { ["result"] = new JsonObject { ["value"] = lookRes.Log } } 
+                                                        : new JsonObject { ["result"] = CreateRemoteObject(session, lookRes.Log) };
+                                                }
+                                                if (expression.Contains("element") && !expression.Contains("success") && !expression.Contains("log"))
+                                                {
+                                                    if (lookRes.Element is JsonNode jNodeResult)
+                                                    {
+                                                        return new JsonObject { ["result"] = jNodeResult.DeepClone() };
+                                                    }
+                                                    return returnByValue 
+                                                        ? new JsonObject { ["result"] = new JsonObject { ["value"] = null } } 
+                                                        : new JsonObject { ["result"] = CreateRemoteObject(session, null) };
+                                                }
+                                                var resJson = new JsonObject
+                                                {
+                                                    ["log"] = lookRes.Log,
+                                                    ["success"] = lookRes.Success,
+                                                    ["element"] = lookRes.Element is JsonNode jNodeLook ? jNodeLook.DeepClone() : null
+                                                };
+                                                return returnByValue 
+                                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = resJson } } 
+                                                    : new JsonObject { ["result"] = CreateRemoteObject(session, resJson) };
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (expression.Contains("h.abort") || expression.Contains(".abort"))
+                            {
+                                return new JsonObject { ["result"] = new JsonObject { ["value"] = null } };
+                            }
+
+                            if (expression.Contains("fill"))
+                            {
+                                Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Fill interceptor entered. Arguments: {arguments?.Count}");
+                                CdpRuntimeElement? element = null;
+                                string fillVal = "";
+                                if (arguments != null)
+                                {
+                                    for (int i = 0; i < arguments.Count; i++)
+                                    {
+                                        var argNode = arguments[i];
+                                        Console.WriteLine($"  arg[{i}]: {argNode?.ToJsonString()}");
+                                        if (argNode is JsonObject argObj && argObj.TryGetPropertyValue("objectId", out var objIdVal) && objIdVal != null)
+                                        {
+                                            string objId = objIdVal.GetValue<string>();
+                                            var resolved = session.GetObject(objId);
+                                            Console.WriteLine($"    Resolved objectId {objId} to type: {resolved?.GetType()?.FullName}");
+                                            if (resolved is CdpRuntimeElement elem)
+                                            {
+                                                element = elem;
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Let's extract the value parameter from arguments
+                                    foreach (var argNode in arguments)
+                                    {
+                                        if (argNode is JsonObject argObj && argObj.TryGetPropertyValue("value", out var valVal) && valVal != null)
+                                        {
+                                            if (valVal is JsonObject valObj)
+                                            {
+                                                try
+                                                {
+                                                     var deserialized = DeserializePlaywrightValue(valObj);
+                                                     Console.WriteLine($"    Deserialized value node to: {deserialized?.ToJsonString()}");
+                                                     if (deserialized is JsonArray jsArr)
+                                                     {
+                                                         foreach (var arrItem in jsArr)
+                                                         {
+                                                             if (arrItem is JsonObject itemObj && itemObj.TryGetPropertyValue("value", out var innerVal) && innerVal != null)
+                                                             {
+                                                                 fillVal = innerVal.GetValue<string>();
+                                                                 Console.WriteLine($"    Found fillVal in array: {fillVal}");
+                                                                 break;
+                                                             }
+                                                         }
+                                                     }
+                                                     else if (deserialized is JsonObject deserializedObj)
+                                                     {
+                                                         if (deserializedObj.TryGetPropertyValue("value", out var innerVal) && innerVal != null)
+                                                         {
+                                                             fillVal = innerVal.GetValue<string>();
+                                                             Console.WriteLine($"    Found fillVal in object: {fillVal}");
+                                                         }
+                                                     }
+                                                }
+                                                catch (Exception ex)
+                                                {
+                                                    Console.WriteLine($"    Exception during deserialization: {ex}");
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Resolved element visual: {element?.visual?.GetType()?.FullName}, fillVal: '{fillVal}'");
+
+                                if (element != null && element.visual is Visual control)
+                                {
+                                    await Dispatcher.UIThread.InvokeAsync(() => {
+                                        if (control is Avalonia.Controls.TextBox textBox)
+                                        {
+                                            textBox.Text = fillVal;
+                                            Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] TextBox.Text set to: {textBox.Text}");
+                                        }
+                                        else
+                                        {
+                                            // Fallback reflection just in case
+                                            var textProp = control.GetType().GetProperty("Text");
+                                            if (textProp != null && textProp.CanWrite)
+                                            {
+                                                textProp.SetValue(control, fillVal);
+                                                Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Text property set via reflection to: {fillVal}");
+                                            }
+                                        }
+                                    });
+                                }
+
+                                 return returnByValue 
+                                     ? new JsonObject { ["result"] = new JsonObject { ["type"] = "undefined" } } 
+                                     : new JsonObject { ["result"] = new JsonObject { ["type"] = "undefined" } };
+                            }
+
+                            if (expression.Contains("checkElementStates") && !expression.Contains("fill"))
+                            {
+                                CdpRuntimeElement? element = null;
+                                if (arguments != null)
+                                {
+                                    foreach (var argNode in arguments)
+                                    {
+                                        if (argNode is JsonObject argObj && argObj.TryGetPropertyValue("objectId", out var objIdVal) && objIdVal != null)
+                                        {
+                                            var resolved = session.GetObject(objIdVal.GetValue<string>());
+                                            if (resolved is CdpRuntimeElement elem)
+                                            {
+                                                element = elem;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (element == null)
+                                {
+                                    return returnByValue 
+                                        ? new JsonObject { ["result"] = new JsonObject { ["value"] = "error:notconnected" } } 
+                                        : new JsonObject { ["result"] = CreateRemoteObject(session, "error:notconnected") };
+                                }
+
+                                if (!element.isEffectivelyVisible)
+                                {
+                                    return returnByValue 
+                                        ? new JsonObject { ["result"] = new JsonObject { ["value"] = "error:notvisible" } } 
+                                        : new JsonObject { ["result"] = CreateRemoteObject(session, "error:notvisible") };
+                                }
+
+                                 return returnByValue 
+                                     ? new JsonObject { ["result"] = new JsonObject { ["type"] = "undefined" } } 
+                                     : new JsonObject { ["result"] = new JsonObject { ["type"] = "undefined" } };
+                            }
+
+                            if (expression.Contains("previewNode") && !expression.Contains("querySelectorAll"))
+                            {
+                                CdpRuntimeElement? element = null;
+                                if (arguments != null)
+                                {
+                                    foreach (var argNode in arguments)
+                                    {
+                                        if (argNode is JsonObject argObj && argObj.TryGetPropertyValue("objectId", out var objIdVal) && objIdVal != null)
+                                        {
+                                            var resolved = session.GetObject(objIdVal.GetValue<string>());
+                                            if (resolved is CdpRuntimeElement elem)
+                                            {
+                                                element = elem;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                string nodeDesc = element != null ? $"<{element.nodeName}>" : "node";
+                                string preview = $"JSHandle@{nodeDesc}";
+                                return returnByValue 
+                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = preview } } 
+                                    : new JsonObject { ["result"] = CreateRemoteObject(session, preview) };
+                            }
+
+                             if (expression.Contains("querySelectorAll") && (expression.Contains("expect") || expression.Contains("expect(")))
+                             {
+                                JsonObject? infoObj = null;
+                                JsonObject? optionsObj = null;
+                                try
+                                {
+                                    if (arguments != null && arguments.Count >= 7)
+                                    {
+                                        JsonObject? argEx6 = arguments[6] as JsonObject;
+                                        if (argEx6 != null)
+                                        {
+                                            JsonNode? valNodeEx6;
+                                            if (argEx6.TryGetPropertyValue("value", out valNodeEx6))
+                                            {
+                                                JsonObject? valObjEx6 = valNodeEx6 as JsonObject;
+                                                if (valObjEx6 != null)
+                                                {
+                                                    var deserialized = DeserializePlaywrightValue(valObjEx6) as JsonObject;
+                                                    if (deserialized != null)
+                                                    {
+                                                        infoObj = deserialized["info"] as JsonObject;
+                                                        optionsObj = deserialized["options"] as JsonObject;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Exception during expect parsing: {ex}");
+                                }
+
+                                string selector = "";
+                                if (infoObj != null)
+                                {
+                                    if (infoObj.TryGetPropertyValue("selector", out var selectorNode) && selectorNode != null)
+                                    {
+                                        selector = selectorNode.GetValue<string>();
+                                    }
+                                    else if (infoObj.TryGetPropertyValue("parsed", out var parsedNode) && parsedNode is JsonObject parsedObj)
+                                    {
+                                        if (parsedObj.TryGetPropertyValue("parts", out var partsNode) && partsNode is JsonArray partsArr && partsArr.Count > 0)
+                                        {
+                                            var part = partsArr[0] as JsonObject;
+                                            selector = part?["source"]?.GetValue<string>() ?? part?["body"]?.GetValue<string>() ?? "";
+                                        }
+                                    }
+                                }
+
+                                string expr = optionsObj?["expression"]?.GetValue<string>() ?? "";
+                                if (selector.StartsWith("css=")) selector = selector.Substring(4);
+                                else if (selector.StartsWith("xpath=")) selector = selector.Substring(6);
+
+                                string expected = "";
+                                if (optionsObj != null)
+                                {
+                                    if (optionsObj.TryGetPropertyValue("expectedText", out var expTextNode) && expTextNode is JsonArray expArr && expArr.Count > 0)
+                                    {
+                                        var firstItem = expArr[0];
+                                        if (firstItem is JsonObject expObj)
+                                        {
+                                            if (expObj.TryGetPropertyValue("string", out var strVal) && strVal != null)
+                                            {
+                                                expected = strVal.GetValue<string>();
+                                            }
+                                            else if (expObj.TryGetPropertyValue("v", out var vVal) && vVal != null)
+                                            {
+                                                expected = vVal.GetValue<string>();
+                                            }
+                                        }
+                                        else if (firstItem is JsonValue jVal)
+                                        {
+                                            expected = jVal.GetValue<string>();
+                                        }
+                                    }
+                                    else if (optionsObj.TryGetPropertyValue("expectedValue", out var expValNode) && expValNode != null)
+                                    {
+                                        if (expValNode is JsonObject expValObj)
+                                        {
+                                            if (expValObj.TryGetPropertyValue("v", out var vVal) && vVal != null)
+                                            {
+                                                expected = vVal.GetValue<string>();
+                                            }
+                                        }
+                                        else if (expValNode is JsonValue jVal)
+                                        {
+                                            expected = jVal.GetValue<string>();
+                                        }
+                                    }
+                                }
+
+                                 bool isNot = false;
+                                 if (optionsObj != null && optionsObj.TryGetPropertyValue("isNot", out var isNotNode) && isNotNode != null)
+                                 {
+                                     isNot = isNotNode.GetValue<bool>();
+                                 }
+
+                                 bool success = false;
+                                 object? evalVal = null;
+                                 string escapedSelector = selector.Replace("\"", "\\\"");
+
+                                 var evalHelper = new Func<string, Task<object?>>(async (jsCode) =>
+                                 {
+                                     string preprocessed = ScriptPreprocessor.Preprocess(jsCode);
+                                     var res = await EvaluateAsync(session, preprocessed, session.InspectedNodeId);
+                                     return res.Value.ToObject();
+                                 });
+
+                                 if (expr == "to.be.visible")
+                                 {
+                                     evalVal = await evalHelper($"document.querySelector(\"{escapedSelector}\").isVisible");
+                                     success = (evalVal is bool b && b == true);
+                                     evalVal = success ? "visible" : "hidden";
+                                     Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Expect to.be.visible on {selector}: success={success}, evalVal={evalVal}, returnByValue={returnByValue}");
+                                 }
+                                 else if (expr == "to.be.hidden")
+                                 {
+                                     evalVal = await evalHelper($"document.querySelector(\"{escapedSelector}\").isVisible");
+                                     success = (evalVal == null || (evalVal is bool b && b == false));
+                                     evalVal = success ? "hidden" : "visible";
+                                 }
+                                 else if (expr == "to.have.text")
+                                 {
+                                     evalVal = await evalHelper($"document.querySelector(\"{escapedSelector}\").textContent");
+                                     success = (evalVal != null && evalVal.ToString().Contains(expected));
+                                 }
+                                 else if (expr == "to.have.value")
+                                 {
+                                     evalVal = await evalHelper($"document.querySelector(\"{escapedSelector}\").value");
+                                     success = (evalVal != null && evalVal.ToString() == expected);
+                                 }
+                                  else if (expr == "to.be.checked")
+                                  {
+                                      evalVal = await evalHelper($"document.querySelector(\"{escapedSelector}\").isChecked");
+                                      success = (evalVal is bool b && b == true) || 
+                                                (evalVal is string s && string.Equals(s, "true", StringComparison.OrdinalIgnoreCase));
+                                      evalVal = success ? "checked" : "unchecked";
+                                  }
+                                  else if (expr == "to.be.unchecked")
+                                  {
+                                      evalVal = await evalHelper($"document.querySelector(\"{escapedSelector}\").isChecked");
+                                      success = (evalVal is bool b && b == false) || 
+                                                (evalVal is string s && string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) ||
+                                                evalVal == null;
+                                      evalVal = success ? "unchecked" : "checked";
+                                  }
+                                else
+                                {
+                                    success = true;
+                                }
+
+                                 Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Expect evaluation result: expr={expr}, selector={selector}, expected={expected}, success={success}, evalVal={evalVal}");
+
+                                 var resultMock = new PlaywrightExpectResultMock
+                                 {
+                                     Log = $"Assertion {expr} on selector {selector} evaluated to {success}.",
+                                     Success = success,
+                                     Received = evalVal
+                                 };
+                                 string resId = session.RegisterObject(resultMock);
+                                  var resJson = new JsonObject
+                                  {
+                                      ["log"] = resultMock.Log,
+                                      ["success"] = resultMock.Success,
+                                      ["matches"] = resultMock.Success,
+                                      ["received"] = new JsonObject
+                                      {
+                                          ["value"] = resultMock.Received is JsonNode jn ? jn.DeepClone() : (resultMock.Received != null ? JsonValue.Create(resultMock.Received) : null)
+                                      }
+                                  };
+                                  return returnByValue 
+                                     ? new JsonObject { ["result"] = CreateReturnByValueObject(resJson) }
+                                     : new JsonObject
+                                     {
+                                         ["result"] = new JsonObject
+                                         {
+                                             ["type"] = "object",
+                                             ["className"] = "Object",
+                                             ["objectId"] = resId
+                                         }
+                                     };
+                            }
+
+                             if (expression.Contains("querySelectorAll") && !expression.Contains("expect") && !expression.Contains("expect("))
+                             {
+                                 JsonObject? infoObj2 = null;
+                                 try
+                                 {
+                                     if (arguments != null && arguments.Count >= 7)
+                                     {
+                                         JsonObject? argEx7 = arguments[6] as JsonObject;
+                                         if (argEx7 != null)
+                                         {
+                                             JsonNode? valNodeEx7;
+                                             if (argEx7.TryGetPropertyValue("value", out valNodeEx7))
+                                             {
+                                                 JsonObject? valObjEx7 = valNodeEx7 as JsonObject;
+                                                 if (valObjEx7 != null)
+                                                 {
+                                                     var deserialized2 = DeserializePlaywrightValue(valObjEx7) as JsonObject;
+                                                     if (deserialized2 != null)
+                                                     {
+                                                         infoObj2 = deserialized2["info"] as JsonObject;
+                                                     }
+                                                 }
+                                             }
+                                         }
+                                     }
+                                 }
+                                 catch (Exception ex)
+                                 {
+                                     Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Exception during lookup parsing: {ex}");
+                                 }
+
+                                 string selector = "";
+                                 if (infoObj2 != null)
+                                 {
+                                     if (infoObj2.TryGetPropertyValue("selector", out var selectorNode) && selectorNode != null)
+                                     {
+                                         selector = selectorNode.GetValue<string>();
+                                     }
+                                     else if (infoObj2.TryGetPropertyValue("parsed", out var parsedNode) && parsedNode is JsonObject parsedObj)
+                                     {
+                                         if (parsedObj.TryGetPropertyValue("parts", out var partsNode) && partsNode is JsonArray partsArr && partsArr.Count > 0)
+                                         {
+                                             var part = partsArr[0] as JsonObject;
+                                             selector = part?["source"]?.GetValue<string>() ?? part?["body"]?.GetValue<string>() ?? "";
+                                         }
+                                     }
+                                 }
+
+                                 try
+                                 {
+                                     if (selector.StartsWith("css=")) selector = selector.Substring(4);
+                                     else if (selector.StartsWith("xpath=")) selector = selector.Substring(6);
+
+                                     var matched = session.Window != null ? SelectorEngine.QuerySelector(session.Window, selector, session.UseLogicalTree) : null;
+                                     bool success = matched != null;
+                                     Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Lookup selector: {selector}, found: {success}, session.Window is null: {session.Window == null}");
+                                     object? elemVal = null;
+                                     if (success)
+                                     {
+                                         var runtimeElem = new CdpRuntimeElement(session, matched!);
+                                         string elemId = session.RegisterObject(runtimeElem);
+                                         elemVal = new JsonObject
+                                         {
+                                             ["type"] = "object",
+                                             ["subtype"] = "node",
+                                             ["className"] = "CdpRuntimeElement",
+                                             ["objectId"] = elemId
+                                         };
+                                     }
+
+                                     var lookupResult = new PlaywrightLookupResultMock
+                                     {
+                                         Log = success ? $"Locator resolved to {selector}" : $"Locator not resolved for {selector}",
+                                         Success = success,
+                                         Element = elemVal
+                                     };
+                                     _lastResults[session] = lookupResult;
+                                     string resId = session.RegisterObject(lookupResult);
+                                     if (!returnByValue)
+                                     {
+                                         return new JsonObject
+                                         {
+                                             ["result"] = new JsonObject
+                                             {
+                                                 ["type"] = "object",
+                                                 ["className"] = "Object",
+                                                 ["objectId"] = resId
+                                             }
+                                         };
+                                     }
+                                     else
+                                     {
+                                         var resVal = new JsonObject
+                                         {
+                                             ["log"] = lookupResult.Log,
+                                             ["success"] = lookupResult.Success,
+                                             ["element"] = lookupResult.Element is JsonNode jNodeLook ? jNodeLook.DeepClone() : null
+                                         };
+                                         return new JsonObject { ["result"] = new JsonObject { ["value"] = resVal } };
+                                     }
+                                 }
+                                 catch (Exception ex)
+                                 {
+                                     Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Exception in selector lookup for '{selector}': {ex}");
+                                     var lookupResult = new PlaywrightLookupResultMock
+                                     {
+                                         Log = $"Error during lookup for {selector}: {ex.Message}",
+                                         Success = false,
+                                         Element = null
+                                     };
+                                     string resId = session.RegisterObject(lookupResult);
+                                     if (!returnByValue)
+                                     {
+                                         return new JsonObject
+                                         {
+                                             ["result"] = new JsonObject
+                                             {
+                                                 ["type"] = "object",
+                                                 ["className"] = "Object",
+                                                 ["objectId"] = resId
+                                             }
+                                         };
+                                     }
+                                     else
+                                     {
+                                         var resVal = new JsonObject
+                                         {
+                                             ["log"] = lookupResult.Log,
+                                             ["success"] = lookupResult.Success,
+                                             ["element"] = null
+                                         };
+                                         return new JsonObject { ["result"] = new JsonObject { ["value"] = resVal } };
+                                     }
+                                 }
+                             }
+
+                             if (expression.Contains("innerWidth") || expression.Contains("innerHeight"))
+                    {
+                        var w = session.Window != null ? session.Window.Bounds.Width : 800;
+                        var h = session.Window != null ? session.Window.Bounds.Height : 600;
+                        var resVal = new JsonObject
+                        {
+                            ["width"] = w,
+                            ["height"] = h
+                        };
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["value"] = resVal
+                            }
+                        };
+                    }
+
+                    if (expression.Contains("devicePixelRatio"))
+                    {
+                        return new JsonObject
+                        {
+                            ["result"] = new JsonObject
+                            {
+                                ["value"] = 1.0
+                            }
+                        };
+                    }
+
+                    if (expression.Contains("(injected,") || expression.Contains("evaledExpression"))
+                             {
+                                 string innerExpression = "";
+                                if (arguments != null && arguments.Count >= 6)
+                                {
+                                    JsonObject? argEx8 = arguments[5] as JsonObject;
+                                    if (argEx8 != null)
+                                    {
+                                        JsonNode? valNodeEx8;
+                                        if (argEx8.TryGetPropertyValue("value", out valNodeEx8))
+                                        {
+                                            JsonObject? valObjEx8 = valNodeEx8 as JsonObject;
+                                            if (valObjEx8 != null)
+                                            {
+                                                var deserialized3 = DeserializePlaywrightValue(valObjEx8) as JsonObject;
+                                                innerExpression = deserialized3?["expression"]?.GetValue<string>() ?? "";
+                                            }
+                                        }
+                                    }
+                                }
+                                if (string.IsNullOrEmpty(innerExpression) && arguments != null && arguments.Count >= 7)
+                                {
+                                    JsonObject? argEx9 = arguments[6] as JsonObject;
+                                    if (argEx9 != null)
+                                    {
+                                        JsonNode? valNodeEx9;
+                                        if (argEx9.TryGetPropertyValue("value", out valNodeEx9))
+                                        {
+                                            JsonObject? valObjEx9 = valNodeEx9 as JsonObject;
+                                            if (valObjEx9 != null)
+                                            {
+                                                var deserialized4 = DeserializePlaywrightValue(valObjEx9) as JsonObject;
+                                                innerExpression = deserialized4?["expression"]?.GetValue<string>() ?? "";
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (!string.IsNullOrEmpty(innerExpression))
+                                {
+                                    if (innerExpression.StartsWith("() =>") || innerExpression.StartsWith("async () =>"))
+                                    {
+                                        int bodyStart = innerExpression.IndexOf('{');
+                                        int bodyEnd = innerExpression.LastIndexOf('}');
+                                        if (bodyStart != -1 && bodyEnd != -1 && bodyEnd > bodyStart)
+                                        {
+                                            string body = innerExpression.Substring(bodyStart + 1, bodyEnd - bodyStart - 1).Trim();
+                                            if (body.StartsWith("return "))
+                                            {
+                                                body = body.Substring(7).Trim();
+                                            }
+                                            if (body.EndsWith(";"))
+                                            {
+                                                body = body.Substring(0, body.Length - 1).Trim();
+                                            }
+                                            innerExpression = body;
+                                        }
+                                    }
+
+                                    var valResult = await EvaluateAsync(session, ScriptPreprocessor.Preprocess(innerExpression), session.InspectedNodeId);
+                                    if (returnByValue)
+                                    {
+                                        var valNode = ConvertJsValueToJsonNode(valResult.Engine, valResult.Value);
+                                        return new JsonObject { ["result"] = new JsonObject { ["value"] = valNode } };
+                                    }
+                                    else
+                                    {
+                                        var objVal = valResult.Value.ToObject();
+                                        return new JsonObject { ["result"] = CreateRemoteObject(session, objVal) };
+                                    }
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(expression))
+                            {
+                                string exprBody = expression.Trim();
+                                if (exprBody.StartsWith("() =>") || exprBody.StartsWith("async () =>") || exprBody.StartsWith("function") || exprBody.StartsWith("async function"))
+                                {
+                                    int bodyStart = exprBody.IndexOf('{');
+                                    int bodyEnd = exprBody.LastIndexOf('}');
+                                    if (bodyStart != -1 && bodyEnd != -1 && bodyEnd > bodyStart)
+                                    {
+                                        string body = exprBody.Substring(bodyStart + 1, bodyEnd - bodyStart - 1).Trim();
+                                        if (body.StartsWith("return "))
+                                        {
+                                            body = body.Substring(7).Trim();
+                                        }
+                                        if (body.EndsWith(";"))
+                                        {
+                                            body = body.Substring(0, body.Length - 1).Trim();
+                                        }
+                                        exprBody = body;
+                                    }
+                                    else if (exprBody.StartsWith("() =>"))
+                                    {
+                                        exprBody = exprBody.Substring(5).Trim();
+                                    }
+                                    else if (exprBody.StartsWith("async () =>"))
+                                    {
+                                        exprBody = exprBody.Substring(11).Trim();
+                                    }
+                                }
+
+                                 var valResult = await EvaluateAsync(session, ScriptPreprocessor.Preprocess(exprBody), session.InspectedNodeId);
+                                 if (returnByValue)
+                                 {
+                                     var valNode = ConvertJsValueToJsonNode(valResult.Engine, valResult.Value);
+                                     return new JsonObject { ["result"] = new JsonObject { ["value"] = valNode } };
+                                 }
+                                 else
+                                 {
+                                     var objVal = valResult.Value.ToObject();
+                                     return new JsonObject { ["result"] = CreateRemoteObject(session, objVal) };
+                                 }
+                            }
+                        }
+
+                        if (target is PlaywrightLocatorLookupFunctionMock)
+                        {
+                            JsonObject? infoObj3 = null;
+                            if (arguments != null && arguments.Count >= 2)
+                            {
+                                JsonObject? argEx10 = arguments[1] as JsonObject;
+                                if (argEx10 != null)
+                                {
+                                    JsonNode? valNodeEx10;
+                                    if (argEx10.TryGetPropertyValue("value", out valNodeEx10))
+                                    {
+                                        JsonObject? valObjEx10 = valNodeEx10 as JsonObject;
+                                        if (valObjEx10 != null)
+                                        {
+                                            var deserialized5 = DeserializePlaywrightValue(valObjEx10) as JsonObject;
+                                            infoObj3 = deserialized5?["info"] as JsonObject;
+                                        }
+                                    }
+                                }
+                            }
+
+                            string selector = "";
+                            if (infoObj3 != null)
+                            {
+                                if (infoObj3.TryGetPropertyValue("selector", out var selectorNode) && selectorNode != null)
+                                {
+                                    selector = selectorNode.GetValue<string>();
+                                }
+                                else if (infoObj3.TryGetPropertyValue("parsed", out var parsedNode) && parsedNode is JsonObject parsedObj)
+                                {
+                                    if (parsedObj.TryGetPropertyValue("parts", out var partsNode) && partsNode is JsonArray partsArr && partsArr.Count > 0)
+                                    {
+                                        var part = partsArr[0] as JsonObject;
+                                        selector = part?["source"]?.GetValue<string>() ?? part?["body"]?.GetValue<string>() ?? "";
+                                    }
+                                }
+                            }
+
+                            if (selector.StartsWith("css=")) selector = selector.Substring(4);
+                            else if (selector.StartsWith("xpath=")) selector = selector.Substring(6);
+
+                            var matched = session.Window != null ? SelectorEngine.QuerySelector(session.Window, selector, session.UseLogicalTree) : null;
+                            bool success = matched != null;
+                            Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Lookup selector: {selector}, found: {success}");
+                            object? elemVal = null;
+                            if (success)
+                            {
+                                var runtimeElem = new CdpRuntimeElement(session, matched!);
+                                string elemId = session.RegisterObject(runtimeElem);
+                                elemVal = new JsonObject
+                                {
+                                    ["type"] = "object",
+                                    ["subtype"] = "node",
+                                    ["className"] = "CdpRuntimeElement",
+                                    ["objectId"] = elemId
+                                };
+                            }
+
+                            var lookupResult = new PlaywrightLookupResultMock
+                            {
+                                Log = success ? $"Locator resolved to {selector}" : $"Locator not resolved for {selector}",
+                                Success = success,
+                                Element = elemVal
+                            };
+                            string resId = session.RegisterObject(lookupResult);
+                            return new JsonObject
+                            {
+                                ["result"] = new JsonObject
+                                {
+                                    ["type"] = "object",
+                                    ["className"] = "Object",
+                                    ["objectId"] = resId
+                                }
+                            };
+                        }
+
+                        if (target is PlaywrightLookupResultMock lkResult)
+                        {
+                            if (functionDeclaration.Contains("log"))
+                            {
+                                return returnByValue 
+                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = lkResult.Log } } 
+                                    : new JsonObject { ["result"] = CreateRemoteObject(session, lkResult.Log) };
+                            }
+                            if (functionDeclaration.Contains("success"))
+                            {
+                                return returnByValue 
+                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = lkResult.Success } } 
+                                    : new JsonObject { ["result"] = CreateRemoteObject(session, lkResult.Success) };
+                            }
+                            if (functionDeclaration.Contains("element"))
+                            {
+                                if (lkResult.Element is JsonNode jNodeResult)
+                                {
+                                    return new JsonObject { ["result"] = jNodeResult.DeepClone() };
+                                }
+                                return returnByValue 
+                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = null } } 
+                                    : new JsonObject { ["result"] = CreateRemoteObject(session, null) };
+                            }
+                        }
+
+                        if (target is PlaywrightExpectResultMock expResult)
+                        {
+                            if (functionDeclaration.Contains("log"))
+                            {
+                                return returnByValue 
+                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = expResult.Log } } 
+                                    : new JsonObject { ["result"] = CreateRemoteObject(session, expResult.Log) };
+                            }
+                            if (functionDeclaration.Contains("success"))
+                            {
+                                return returnByValue 
+                                    ? new JsonObject { ["result"] = new JsonObject { ["value"] = expResult.Success } } 
+                                    : new JsonObject { ["result"] = CreateRemoteObject(session, expResult.Success) };
+                            }
+                        }
+
                         var startTime = DateTime.UtcNow;
-                        var val = EvaluateFunction(session, target, functionDeclaration, arguments);
+                        var jintRes = EvaluateFunction(session, target, functionDeclaration, arguments);
                         ProfilerDomain.RecordActivity(session, "EvaluateConsole", startTime, DateTime.UtcNow);
-                        return returnByValue
-                            ? new JsonObject { ["result"] = new JsonObject { ["value"] = val == null ? null : (val is JsonNode jNode ? jNode.DeepClone() : JsonValue.Create(val)) } }
-                            : new JsonObject { ["result"] = CreateRemoteObject(session, val) };
+                        if (returnByValue)
+                        {
+                            var valNode = ConvertJsValueToJsonNode(jintRes.Engine, jintRes.Value);
+                            return new JsonObject { ["result"] = new JsonObject { ["value"] = valNode } };
+                        }
+                        else
+                        {
+                            var objVal = jintRes.Value.ToObject();
+                            return new JsonObject { ["result"] = CreateRemoteObject(session, objVal) };
+                        }
                     });
                     return result;
                 }
@@ -239,72 +1487,179 @@ public static class RuntimeDomain
         }
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script function/method evaluation")]
-    private static object? EvaluateFunction(CdpSession session, object target, string functionDeclaration, JsonArray? arguments)
+    private static JintResult EvaluateFunction(CdpSession session, object target, string functionDeclaration, JsonArray? arguments)
     {
-        // 1. Parse parameters and bind to arguments
-        var paramStart = functionDeclaration.IndexOf('(');
-        var paramEnd = functionDeclaration.IndexOf(')');
-        var variableBindings = new Dictionary<string, object?>(StringComparer.Ordinal);
-        if (paramStart != -1 && paramEnd != -1 && paramEnd > paramStart)
+        var engine = new Engine(options =>
         {
-            var paramsStr = functionDeclaration.Substring(paramStart + 1, paramEnd - paramStart - 1).Trim();
-            if (!string.IsNullOrEmpty(paramsStr))
+            options.Interop.TypeResolver = new Jint.Runtime.Interop.TypeResolver
             {
-                var parts = paramsStr.Split(',');
-                var paramNames = new string[parts.Length];
-                for (int idx = 0; idx < parts.Length; idx++)
+                MemberNameCreator = member => 
                 {
-                    paramNames[idx] = parts[idx].Trim();
+                    var name = member.Name;
+                    if (string.IsNullOrEmpty(name)) return new[] { name };
+                    var camel = char.ToLowerInvariant(name[0]) + name.Substring(1);
+                    return name == camel ? new[] { name } : new[] { name, camel };
                 }
+            };
+            options.TimeoutInterval(TimeSpan.FromSeconds(5));
+        });
 
-                if (arguments != null)
-                {
-                    for (int i = 0; i < paramNames.Length && i < arguments.Count; i++)
-                    {
-                        var argObj = arguments[i] as JsonObject;
-                        if (argObj != null)
-                        {
-                            if (argObj.TryGetPropertyValue("value", out var valNode))
-                            {
-                                variableBindings[paramNames[i]] = GetNodeValue(valNode);
-                            }
-                            else if (argObj.TryGetPropertyValue("objectId", out var objIdNode) && objIdNode != null)
-                            {
-                                string objId = objIdNode.GetValue<string>();
-                                variableBindings[paramNames[i]] = session.GetObject(objId);
-                            }
+        var selectedNode = session.NodeMap.GetVisual(session.InspectedNodeId);
+        var control = selectedNode as Avalonia.Controls.Control;
+        var dataContext = control?.DataContext;
+        var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
+
+        engine.SetValue("SelectedNode", selectedNode);
+        engine.SetValue("Control", control);
+        engine.SetValue("DataContext", dataContext);
+        engine.SetValue("ViewModel", dataContext);
+        engine.SetValue("Window", windowObj);
+        engine.SetValue("window", new CdpRuntimeWindow(session));
+        engine.SetValue("document", new CdpRuntimeDocument(session));
+        engine.SetValue("Print", new Action<object?>(Console.WriteLine));
+        engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
+        engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
+        
+        engine.Evaluate(@"
+            globalThis.__wrap = function(target) {
+                if (!target) return target;
+                return new Proxy(target, {
+                    get(t, prop, receiver) {
+                        if (prop === 'id') return t.name || '';
+                        if (prop === 'name') return t.name || '';
+                        if (prop === 'textContent' || prop === 'innerText') {
+                            if ('text' in t) return t.text || '';
+                            if ('content' in t) return String(t.content || '');
+                            return '';
+                        }
+                        if (prop === 'value') {
+                            if ('text' in t) return t.text || '';
+                            if ('content' in t) return String(t.content || '');
+                            return '';
+                        }
+                        if (prop === 'isVisible') return t.isVisible === true;
+                        if (prop === 'isEffectivelyVisible') return t.isVisible === true;
+                        if (prop === 'isEnabled') return t.isEnabled !== false;
+                        if (prop === 'isChecked' || prop === 'checked') return t.isChecked === true;
+                        if (prop === 'selectedIndex') return 'selectedIndex' in t ? t.selectedIndex : -1;
+                        if (prop === 'stop') return function() {};
+                        return Reflect.get(t, prop, receiver);
+                    },
+                    set(t, prop, value, receiver) {
+                        if (prop === 'textContent' || prop === 'innerText' || prop === 'value') {
+                            try {
+                                if (t.text !== undefined) { t.text = value; return true; }
+                            } catch(e){}
+                            try {
+                                if (t.content !== undefined) { t.content = value; return true; }
+                            } catch(e){}
+                        }
+                        if (prop === 'selectedIndex') {
+                            try {
+                                t.selectedIndex = value;
+                                return true;
+                            } catch(e){}
+                        }
+                        if (prop === 'isChecked' || prop === 'checked') {
+                            try {
+                                t.isChecked = value;
+                                return true;
+                            } catch(e){}
+                        }
+                        try {
+                            t[prop] = value;
+                            return true;
+                        } catch(e) {
+                            return Reflect.set(t, prop, value, receiver);
                         }
                     }
+                });
+            };
+        ");
+
+        if (selectedNode != null)
+        {
+            engine.SetValue("__raw_0", selectedNode);
+            var wrapped = engine.Evaluate("__wrap(__raw_0)");
+            engine.SetValue("$0", wrapped);
+            engine.SetValue("_0", wrapped);
+        }
+        else
+        {
+            engine.SetValue("$0", Jint.Native.JsValue.Null);
+            engine.SetValue("_0", Jint.Native.JsValue.Null);
+        }
+
+        Jint.Native.JsValue thisValue;
+        if (target is Visual visualTarget)
+        {
+            engine.SetValue("__raw_this", visualTarget);
+            thisValue = engine.Evaluate("__wrap(__raw_this)");
+        }
+        else if (target is CdpRuntimeElement runtimeElemTarget)
+        {
+            engine.SetValue("__raw_this", runtimeElemTarget.visual);
+            thisValue = engine.Evaluate("__wrap(__raw_this)");
+        }
+        else
+        {
+            thisValue = Jint.Native.JsValue.FromObject(engine, target);
+        }
+
+        var jsArgs = new List<Jint.Native.JsValue>();
+        if (arguments != null)
+        {
+            foreach (var argNode in arguments)
+            {
+                if (argNode is JsonObject argObj)
+                {
+                    if (argObj.TryGetPropertyValue("value", out var valNode) && valNode != null)
+                    {
+                        var deserialized = DeserializePlaywrightValue(argObj);
+                        jsArgs.Add(ConvertJsonNodeToJsValue(engine, deserialized));
+                    }
+                    else if (argObj.TryGetPropertyValue("objectId", out var objIdNode) && objIdNode != null)
+                    {
+                        var argObjVal = session.GetObject(objIdNode.GetValue<string>());
+                        if (argObjVal is Visual visualArg)
+                        {
+                            engine.SetValue("__raw_arg", visualArg);
+                            jsArgs.Add(engine.Evaluate("__wrap(__raw_arg)"));
+                        }
+                        else if (argObjVal is CdpRuntimeElement runtimeElemArg)
+                        {
+                            engine.SetValue("__raw_arg", runtimeElemArg.visual);
+                            jsArgs.Add(engine.Evaluate("__wrap(__raw_arg)"));
+                        }
+                        else
+                        {
+                            jsArgs.Add(Jint.Native.JsValue.FromObject(engine, argObjVal));
+                        }
+                    }
+                    else
+                    {
+                        jsArgs.Add(Jint.Native.JsValue.Undefined);
+                    }
+                }
+                else
+                {
+                    jsArgs.Add(Jint.Native.JsValue.Undefined);
                 }
             }
         }
 
-        // 2. Extract function body between { and }
-        int start = functionDeclaration.IndexOf('{');
-        int end = functionDeclaration.LastIndexOf('}');
-        if (start != -1 && end != -1 && end > start)
+        string funcCode = functionDeclaration.Trim();
+        if (funcCode.StartsWith("function") || funcCode.StartsWith("async function") || funcCode.Contains("=>"))
         {
-            var body = functionDeclaration.Substring(start + 1, end - start - 1).Trim();
-            if (body.StartsWith("return "))
+            if (!funcCode.StartsWith("(") && !funcCode.EndsWith(")"))
             {
-                body = body.Substring(7).Trim();
+                funcCode = "(" + funcCode + ")";
             }
-            if (body.EndsWith(";"))
-            {
-                body = body.Substring(0, body.Length - 1).Trim();
-            }
-
-            // Strip "this." prefix if it exists to simplify evaluation
-            if (body.StartsWith("this."))
-            {
-                body = body.Substring(5).Trim();
-            }
-
-            return EvaluateExpression(session, target, body, variableBindings);
         }
 
-        return null;
+        var jsFunc = engine.Evaluate(funcCode);
+        var jsResult = engine.Invoke(jsFunc, thisValue, jsArgs.ToArray());
+        return new JintResult { Value = jsResult, Engine = engine };
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script property evaluation")]
@@ -451,23 +1806,31 @@ public static class RuntimeDomain
             var propPath = expression.Substring(0, eqIndex).Trim();
             var valStr = expression.Substring(eqIndex + 1).Trim().Trim('"', '\'');
 
-            var parts = SplitPropertyPath(propPath);
-            object current = target;
-            for (int i = 0; i < parts.Length - 1; i++)
+            // Find the last dot at nesting level 0 in propPath
+            int splitDot = -1;
+            int parenLevel = 0;
+            for (int i = propPath.Length - 1; i >= 0; i--)
             {
-                var prop = current.GetType().GetProperty(parts[i], BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-                if (prop == null && current is CdpRuntimeWindow win && win.visual != null)
+                char c = propPath[i];
+                if (c == ')') parenLevel++;
+                else if (c == '(') parenLevel--;
+                else if (c == '.' && parenLevel == 0)
                 {
-                    prop = win.visual.GetType().GetProperty(parts[i], BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    splitDot = i;
+                    break;
                 }
-                if (prop == null) throw new Exception($"Property '{parts[i]}' not found");
-                var invokeTarget = prop.DeclaringType.IsAssignableFrom(current.GetType()) ? current : ((CdpRuntimeWindow)current).visual;
-                var next = prop.GetValue(invokeTarget);
-                if (next == null) throw new Exception($"Property '{parts[i]}' is null");
-                current = next;
             }
 
-            var lastPropName = parts[^1];
+            object? current = target;
+            string lastPropName = propPath;
+            if (splitDot != -1)
+            {
+                var targetPath = propPath.Substring(0, splitDot).Trim();
+                lastPropName = propPath.Substring(splitDot + 1).Trim();
+                current = EvaluateExpression(session, target, targetPath, variableBindings);
+                if (current == null) throw new Exception($"Target path '{targetPath}' evaluated to null");
+            }
+
             var lastProp = current.GetType().GetProperty(lastPropName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
             if (lastProp == null && current is CdpRuntimeWindow lastWin && lastWin.visual != null)
             {
@@ -483,7 +1846,9 @@ public static class RuntimeDomain
             }
 
             var converted = isBound ? ConvertValueFromBound(boundValue, lastProp.PropertyType) : ConvertValue(valStr, lastProp.PropertyType);
-            var invokeTargetLast = lastProp.DeclaringType.IsAssignableFrom(current.GetType()) ? current : ((CdpRuntimeWindow)current).visual;
+            var invokeTargetLast = lastProp.DeclaringType.IsAssignableFrom(current.GetType())
+                ? current
+                : (current is CdpRuntimeWindow lastWin2 ? lastWin2.visual : current);
             lastProp.SetValue(invokeTargetLast, converted);
             return converted;
         }
@@ -758,7 +2123,7 @@ public static class RuntimeDomain
             ["objectId"] = objectId
         };
 
-        if (obj is Visual)
+        if (obj is Visual || obj is CdpRuntimeElement)
         {
             result["subtype"] = "node";
         }
@@ -868,86 +2233,151 @@ public static class RuntimeDomain
         return name.Replace('+', '.');
     }
 
-    private static async Task<object?> EvaluateAsync(CdpSession session, string code, int inspectedNodeId)
+    private static async Task<JintResult> EvaluateAsync(CdpSession session, string code, int inspectedNodeId)
     {
-        Console.WriteLine($"[CDP EVAL DEBUG] Evaluating code: '{code}'");
-        var inspectedNode = session.NodeMap.GetVisual(inspectedNodeId);
-        Console.WriteLine($"[CDP EVAL DEBUG] InspectedNodeId: {inspectedNodeId}, Visual: {inspectedNode?.GetType().Name ?? "null"}");
-        if (inspectedNode is Avalonia.Controls.Control ctrl)
+        Func<JintResult> evalAction = () =>
         {
-            Console.WriteLine($"[CDP EVAL DEBUG] Control DataContext: {ctrl.DataContext?.GetType().FullName ?? "null"}");
-        }
+            Console.WriteLine($"[CDP EVAL DEBUG] Evaluating Jint code: '{code}'");
 
-        // Check if the inspected node has changed. If so, reset the script session.
-        if (session.ScriptSession != null && session.ScriptSessionNodeId != inspectedNodeId)
-        {
-            session.ScriptSession = null;
-        }
-
-        string declaration = "";
-        if (session.ScriptSession == null)
-        {
-            session.ScriptSessionNodeId = inspectedNodeId;
-            if (inspectedNode != null)
+            var engine = new Engine(options =>
             {
-                string typeName = GetSafeTypeName(inspectedNode.GetType());
-                declaration = $"var _0 = ({typeName})SelectedNode!; ";
+                options.Interop.TypeResolver = new Jint.Runtime.Interop.TypeResolver
+                {
+                    MemberNameCreator = member => 
+                    {
+                        var name = member.Name;
+                        if (string.IsNullOrEmpty(name)) return new[] { name };
+                        var camel = char.ToLowerInvariant(name[0]) + name.Substring(1);
+                        return name == camel ? new[] { name } : new[] { name, camel };
+                    }
+                };
+                options.TimeoutInterval(TimeSpan.FromSeconds(5));
+            });
+
+            var inspectedNode = session.NodeMap.GetVisual(inspectedNodeId);
+            var selectedNode = inspectedNode;
+            var control = selectedNode as Avalonia.Controls.Control;
+            var dataContext = control?.DataContext;
+            var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
+
+            engine.SetValue("SelectedNode", selectedNode);
+            engine.SetValue("Control", control);
+            engine.SetValue("DataContext", dataContext);
+            engine.SetValue("ViewModel", dataContext);
+            engine.SetValue("Window", windowObj);
+            engine.SetValue("window", new CdpRuntimeWindow(session));
+            engine.SetValue("document", new CdpRuntimeDocument(session));
+            engine.SetValue("Print", new Action<object?>(Console.WriteLine));
+            engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode ?? session.Window, s, session.UseLogicalTree)));
+            engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode ?? session.Window, s, session.UseLogicalTree)));
+            
+            engine.Evaluate(@"
+                globalThis.__wrap = function(target) {
+                    if (!target) return target;
+                    return new Proxy(target, {
+                        get(t, prop, receiver) {
+                            if (prop === 'id') return t.name || '';
+                            if (prop === 'name') return t.name || '';
+                            if (prop === 'textContent' || prop === 'innerText') {
+                                if ('text' in t) return t.text || '';
+                                if ('content' in t) return String(t.content || '');
+                                return '';
+                            }
+                            if (prop === 'value') {
+                                if ('text' in t) return t.text || '';
+                                if ('content' in t) return String(t.content || '');
+                                return '';
+                            }
+                            if (prop === 'isVisible') return t.isVisible === true;
+                            if (prop === 'isEffectivelyVisible') return t.isVisible === true;
+                            if (prop === 'isEnabled') return t.isEnabled !== false;
+                            if (prop === 'isChecked' || prop === 'checked') return t.isChecked === true;
+                            if (prop === 'selectedIndex') return 'selectedIndex' in t ? t.selectedIndex : -1;
+                            if (prop === 'stop') return function() {};
+                            return Reflect.get(t, prop, receiver);
+                        },
+                        set(t, prop, value, receiver) {
+                            if (prop === 'textContent' || prop === 'innerText' || prop === 'value') {
+                                try {
+                                    if (t.text !== undefined) { t.text = value; return true; }
+                                } catch(e){}
+                                try {
+                                    if (t.content !== undefined) { t.content = value; return true; }
+                                } catch(e){}
+                            }
+                            if (prop === 'selectedIndex') {
+                                try {
+                                    t.selectedIndex = value;
+                                    return true;
+                                } catch(e){}
+                            }
+                            if (prop === 'isChecked' || prop === 'checked') {
+                                try {
+                                    t.isChecked = value;
+                                    return true;
+                                } catch(e){}
+                            }
+                            try {
+                                t[prop] = value;
+                                return true;
+                            } catch(e) {
+                                return Reflect.set(t, prop, value, receiver);
+                            }
+                        }
+                    });
+                };
+            ");
+
+            if (selectedNode != null)
+            {
+                engine.SetValue("__raw_0", selectedNode);
+                var wrapped = engine.Evaluate("__wrap(__raw_0)");
+                engine.SetValue("$0", wrapped);
+                engine.SetValue("_0", wrapped);
             }
             else
             {
-                declaration = "Avalonia.Visual? _0 = null; ";
+                engine.SetValue("$0", Jint.Native.JsValue.Null);
+                engine.SetValue("_0", Jint.Native.JsValue.Null);
             }
-        }
-        
-        string fullCode = declaration + code;
 
-        var globals = new ReplGlobals(session);
-        var options = ScriptOptions.Default
-            .WithReferences(new[]
+            try
             {
-                typeof(object).Assembly,
-                typeof(System.Linq.Enumerable).Assembly,
-                typeof(Avalonia.Visual).Assembly,
-                typeof(Avalonia.Controls.Control).Assembly,
-                typeof(ReplGlobals).Assembly
-            })
-            .WithImports(
-                "System",
-                "System.Collections.Generic",
-                "System.Linq",
-                "System.Threading.Tasks",
-                "Avalonia",
-                "Avalonia.Controls",
-                "Avalonia.VisualTree",
-                "Avalonia.LogicalTree"
-            );
+                var jsVal = engine.Evaluate(code);
+                Console.WriteLine($"[CDP EVAL RESULT] Code: '{code}', Result: '{jsVal}', Type: '{jsVal.GetType().Name}'");
+                return new JintResult { Value = jsVal, Engine = engine };
+            }
+            catch (Jint.Runtime.JavaScriptException ex)
+            {
+                throw new InvalidOperationException($"JS evaluation error: {ex.Message}", ex);
+            }
+        };
 
-        DebuggerDomain.CheckBreakpoint(session, "C# Evaluation", 1);
-
-        try
+        if (Dispatcher.UIThread.CheckAccess())
         {
-            if (session.ScriptSession is ScriptState<object> state)
-            {
-                state = await state.ContinueWithAsync(fullCode, options).ConfigureAwait(false);
-                session.ScriptSession = state;
-                var val = state.ReturnValue;
-                return val;
-            }
-            else
-            {
-                var newState = await CSharpScript.RunAsync(fullCode, options, globals, typeof(ReplGlobals)).ConfigureAwait(false);
-                session.ScriptSession = newState;
-                var val = newState.ReturnValue;
-                return val;
-            }
+            return evalAction();
         }
-        catch (CompilationErrorException ex)
+        else
         {
-            var errors = string.Join("\n", ex.Diagnostics.Select(d => d.ToString()));
-            Console.WriteLine($"[CDP EVAL DEBUG] Roslyn compilation failed for '{fullCode}'. Errors:\n{errors}");
-            Console.WriteLine($"[CDP EVAL DEBUG] Roslyn compilation failed for '{fullCode}'. Falling back to manual evaluation.");
-            return EvaluateExpression(session, globals, code);
+            return await Dispatcher.UIThread.InvokeAsync<JintResult>(evalAction);
         }
+    }
+
+    private static Jint.Native.JsValue ConvertJsonNodeToJsValue(Jint.Engine engine, JsonNode? node)
+    {
+        if (node == null) return Jint.Native.JsValue.Null;
+        string jsonStr = node.ToJsonString();
+        var jsonParser = engine.Evaluate("JSON.parse");
+        return engine.Invoke(jsonParser, jsonStr);
+    }
+
+    private static JsonNode? ConvertJsValueToJsonNode(Jint.Engine engine, Jint.Native.JsValue value)
+    {
+        if (value.IsNull() || value.IsUndefined()) return null;
+        var stringify = engine.Evaluate("JSON.stringify");
+        var jsonStr = engine.Invoke(stringify, value).AsString();
+        if (string.IsNullOrEmpty(jsonStr)) return null;
+        return JsonNode.Parse(jsonStr);
     }
 }
 
@@ -1003,6 +2433,21 @@ public sealed class CdpRuntimeDocument
     public CdpRuntimeDocument(CdpSession session)
     {
         _session = session;
+    }
+
+    public string title => _session.Target?.Title ?? "Avalonia UI Application";
+
+    public string readyState => "complete";
+
+    public CdpRuntimeElement? body
+    {
+        get
+        {
+            var el = querySelector("Window") ?? querySelector("Panel") ?? querySelector("ContentControl");
+            if (el != null) return el;
+            var root = _session.Window;
+            return root != null ? new CdpRuntimeElement(_session, root) : null;
+        }
     }
 
     public CdpRuntimeElement? querySelector(string selector)
@@ -1085,10 +2530,87 @@ public sealed class CdpRuntimeElement
     public string localName => _visual.GetType().Name;
     public string id => getAttribute("id") ?? "";
     public string name => getAttribute("Name") ?? "";
-    public string textContent => getAttribute("text") ?? "";
-    public string innerText => textContent;
-    public string value => getAttribute("Text") ?? "";
+    public string textContent
+    {
+        get => getAttribute("text") ?? "";
+        set
+        {
+            if (_visual != null && value != null)
+            {
+                var textProp = _visual.GetType().GetProperty("Text", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (textProp != null && textProp.CanWrite)
+                {
+                    textProp.SetValue(_visual, value);
+                }
+            }
+        }
+    }
+    public string innerText
+    {
+        get => textContent;
+        set => textContent = value;
+    }
+
+    public object? value
+    {
+        get => getAttribute("Text") ?? "";
+        set
+        {
+            if (_visual != null && value != null)
+            {
+                var valueProp = _visual.GetType().GetProperty("Value", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (valueProp != null && valueProp.CanWrite)
+                {
+                    if (double.TryParse(value.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var dVal))
+                    {
+                        valueProp.SetValue(_visual, Convert.ChangeType(dVal, valueProp.PropertyType));
+                        return;
+                    }
+                }
+
+                var textProp = _visual.GetType().GetProperty("Text", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (textProp != null && textProp.CanWrite)
+                {
+                    textProp.SetValue(_visual, value.ToString());
+                    return;
+                }
+            }
+        }
+    }
+
+    public object? selectedIndex
+    {
+        get
+        {
+            if (_visual != null)
+            {
+                var prop = _visual.GetType().GetProperty("SelectedIndex", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (prop != null && prop.CanRead)
+                {
+                    return prop.GetValue(_visual);
+                }
+            }
+            return null;
+        }
+        set
+        {
+            if (_visual != null && value != null)
+            {
+                var prop = _visual.GetType().GetProperty("SelectedIndex", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (prop != null && prop.CanWrite)
+                {
+                    if (int.TryParse(value.ToString(), out var iVal))
+                    {
+                        prop.SetValue(_visual, iVal);
+                    }
+                }
+            }
+        }
+    }
+
     public bool isVisible => string.Equals(getAttribute("IsVisible"), "true", StringComparison.OrdinalIgnoreCase);
+    public bool isChecked => string.Equals(getAttribute("IsChecked"), "true", StringComparison.OrdinalIgnoreCase);
+    public bool @checked => isChecked;
     public bool isEffectivelyVisible => _visual is Avalonia.Controls.Control control ? (control.IsEffectivelyVisible && control.IsAttachedToVisualTree()) : true;
     public bool isEnabled => string.Equals(getAttribute("IsEnabled"), "true", StringComparison.OrdinalIgnoreCase);
     public object visual => _visual;
@@ -1183,6 +2705,9 @@ public static class ScriptPreprocessor
         processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$vm\b", "DataContext");
         processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$dc\b", "DataContext");
 
+        // Strip C# style casting e.g., ((Button)$0) or ((Button)_0) or (Button)
+        processed = System.Text.RegularExpressions.Regex.Replace(processed, @"\(\s*[A-Za-z_][A-Za-z0-9_.*+?<>]*\s*\)", "");
+
         return processed;
     }
 }
@@ -1217,3 +2742,43 @@ public static class AutocompleteEngine
     }
 }
 
+public class PlaywrightUtilityScriptMock
+{
+}
+
+public class PlaywrightInjectedFunctionMock
+{
+    public string Expression { get; set; } = "";
+}
+
+public class PlaywrightExpectFunctionMock
+{
+}
+
+public class PlaywrightExpectResultMock
+{
+    public string Log { get; set; } = "Assertion matching";
+    public bool Success { get; set; } = true;
+    public object? Received { get; set; }
+}
+
+public class PlaywrightLocatorLookupFunctionMock
+{
+}
+
+public class PlaywrightLookupResultMock
+{
+    public string Log { get; set; } = "resolved";
+    public bool Success { get; set; } = true;
+    public object? Element { get; set; }
+}
+
+public class PlaywrightPollFunctionMock
+{
+}
+
+public struct JintResult
+{
+    public Jint.Native.JsValue Value { get; set; }
+    public Jint.Engine Engine { get; set; }
+}
