@@ -59,10 +59,26 @@ Playwright is a modern framework for end-to-end web testing. Because the Avaloni
 We provide an example E2E test suite using Playwright test runner under `tests/playwright/cdp-sample.spec.js`.
 
 ### Running Tests
-To execute the Playwright tests on the running sample app:
+
+By default, the Playwright configuration is set up to automatically spawn the application in **Headless mode** for CI/CD environments. However, you can easily run tests in both **Headless** and **GUI (Non-Headless)** modes.
+
+#### 1. Headless Mode (Default for CI/CD)
+In this mode, the target application runs in a virtual display buffer in memory without opening a physical window on your desktop. This is handled by the `--headless` argument in the configured startup command:
 ```bash
 npx playwright test
 ```
+
+#### 2. GUI / Non-Headless Mode (Ideal for Interactive Debugging)
+To see the application window open on your screen and watch Playwright automate the desktop UI controls in real-time:
+1. In one terminal, run the target application manually in GUI mode (omit the `--headless` flag):
+   ```bash
+   dotnet run --project samples/CdpSampleApp/CdpSampleApp.csproj
+   ```
+2. In another terminal, run the Playwright test command:
+   ```bash
+   npx playwright test
+   ```
+   Because `reuseExistingServer: !process.env.CI` is enabled in `playwright.config.js`, Playwright will automatically connect to your running desktop GUI instance on port `9222` and automate it.
 
 ### Example Test File Structure (`cdp-sample.spec.js`)
 ```javascript

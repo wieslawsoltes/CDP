@@ -988,12 +988,32 @@ For full architectural details, sequence diagrams, and agent recipes, see the [A
 ## Development and Testing
 
 ### Running Tests
+
+#### 1. Unit and Layout Tests
 The project uses `Avalonia.Headless.XUnit` to execute headless tests. All tests run on the UI thread and avoid deadlocking by pumping jobs synchronously during async WebSocket handshakes.
 
-To run the full test suite:
+To run the unit test suite:
 ```bash
 dotnet test
 ```
+
+#### 2. Playwright E2E Tests
+An end-to-end automation test suite using standard Playwright is located at `tests/playwright/cdp-sample.spec.js`. You can run these tests in both **Headless** and **GUI (Non-Headless)** modes.
+
+* **Headless Mode (Default / CI/CD)**: Runs the application in-process inside a virtual layout buffer without opening any physical window.
+  ```bash
+  npx playwright test
+  ```
+* **GUI / Non-Headless Mode (Debugging)**: Opens the desktop application window, allowing you to watch the Playwright tests automate the UI interactively.
+  1. Launch the target app manually in GUI mode:
+     ```bash
+     dotnet run --project samples/CdpSampleApp/CdpSampleApp.csproj
+     ```
+  2. Run the Playwright test runner in a separate terminal window:
+     ```bash
+     npx playwright test
+     ```
+     *(Playwright will automatically reuse and attach to the running GUI application instance on port `9222`).*
 
 ### CI Pipeline
 A GitHub Actions workflow is set up at `.github/workflows/dotnet.yml` to automatically verify builds and run tests on every push and pull request.

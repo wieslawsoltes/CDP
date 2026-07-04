@@ -92,7 +92,22 @@ module.exports = defineConfig({
 
 ---
 
-## 4. Headless Execution in CI/CD (GitHub Actions)
+## 4. Running Tests in Non-Headless (GUI) Mode Locally
+
+For local development and interactive debugging, you can run tests against the visible desktop window:
+1. In one terminal, launch the application manually in GUI mode (omitting the `--headless` flag):
+   ```bash
+   dotnet run --project samples/CdpSampleApp/CdpSampleApp.csproj
+   ```
+2. In another terminal, run the Playwright test command:
+   ```bash
+   npx playwright test
+   ```
+   Since `reuseExistingServer: !process.env.CI` is enabled, Playwright detects that the application is already running and listening on port `9222`, and directly automates the visible GUI window instead of spawning a headless instance.
+
+---
+
+## 5. Headless Execution in CI/CD (GitHub Actions)
 
 When running inside a GitHub Actions pipeline, no physical display is available. By running your app with the `--headless` flag, you can execute standard Playwright tests directly on standard Ubuntu/Windows runners without needing complex frame-buffer wrappers (like `xvfb-run`).
 
@@ -137,7 +152,7 @@ jobs:
 
 ---
 
-## 5. Troubleshooting & Limitations
+## 6. Troubleshooting & Limitations
 
 ### Captured Screenshots
 In headless mode, because there is no physical GPU window or monitor drawing surface, call captures (such as `page.screenshot()`) rely on custom bitmap rendering contexts inside the Avalonia headless frame manager. Render layouts match exactly, but hardware-accelerated shaders or web-canvas overlays may render differently.
