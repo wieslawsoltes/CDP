@@ -69,8 +69,11 @@ public static class CdpServer
         };
         Chrome.DevTools.Protocol.CdpServer.TargetSessionFactory = (session, sessionId, targetId, target) =>
         {
-            var avTarget = target as AvaloniaCdpTarget;
-            return new CdpTargetSession((CdpSession)session, sessionId, targetId, avTarget?.Window);
+            if (target is AvaloniaCdpTarget avTarget)
+            {
+                return new CdpTargetSession((CdpSession)session, sessionId, targetId, avTarget.Window);
+            }
+            return new Chrome.DevTools.Protocol.CdpTargetSession((CdpSession)session, sessionId, targetId, target);
         };
 
         // Subscribe to server start/stop to handle logging/sinks

@@ -9,6 +9,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Jint;
 
 namespace Chrome.DevTools.Protocol;
 
@@ -21,6 +22,7 @@ public class CdpSession
     public event Action<JsonObject>? EventSentForTesting;
 
     private readonly ConcurrentDictionary<string, CdpTargetSession> _attachedTargets = new();
+    public bool IsTargetAttached(string targetId) => _attachedTargets.Values.Any(x => x.TargetId == targetId);
     private readonly CdpTargetSession? _defaultTargetSession;
     private readonly AsyncLocal<CdpTargetSession?> _currentTargetSession = new();
 
@@ -183,7 +185,12 @@ public class CdpSession
         _attachedTargets[sessionId] = targetSession;
     }
 
-    public void AutoAttachTarget(ICdpTarget target)
+    public CdpTargetSession? GetAttachedSessionForTarget(string targetId)
+    {
+        return _attachedTargets.Values.FirstOrDefault(x => x.TargetId == targetId);
+    }
+
+    public void AutoAttachTarget(ICdpTarget target, CdpTargetSession? parentSession = null)
     {
         if (_attachedTargets.Values.Any(x => x.TargetId == target.Id))
         {
@@ -195,7 +202,7 @@ public class CdpSession
                             ?? new CdpTargetSession(this, sessionId, target.Id, target);
         AttachTarget(sessionId, targetSession);
 
-        _ = SendEventAsync("Target.attachedToTarget", new JsonObject
+        var @params = new JsonObject
         {
             ["sessionId"] = sessionId,
             ["targetInfo"] = new JsonObject
@@ -208,7 +215,17 @@ public class CdpSession
                 ["browserContextId"] = "1"
             },
             ["waitingForDebugger"] = false
-        });
+        };
+
+        var activeTarget = parentSession ?? CurrentTargetSession;
+        if (activeTarget != null && activeTarget.Target.Type == "tab")
+        {
+            _ = SendEventAsync("Target.attachedToTarget", @params, activeTarget);
+        }
+        else
+        {
+            _ = SendEventAsync("Target.attachedToTarget", @params);
+        }
     }
 
     public void DetachTarget(string sessionId)
@@ -249,7 +266,33 @@ public class CdpSession
 
     public object? GetObject(string id)
     {
-        return RemoteObjects.TryGetValue(id, out var obj) ? obj : null;
+        if (RemoteObjects.TryGetValue(id, out var obj) && obj != null)
+        {
+            if (obj is Jint.Native.JsValue jsVal)
+            {
+                if (jsVal.IsObject())
+                {
+                    try
+                    {
+                        var unwrapped = jsVal.ToObject();
+                        if (unwrapped != null)
+                        {
+                            var typeName = unwrapped.GetType().FullName ?? "";
+                            if (typeName.StartsWith("Avalonia.") || typeName.Contains("CdpRuntime") || typeName.Contains("Mock"))
+                            {
+                                return unwrapped;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore
+                    }
+                }
+            }
+            return obj;
+        }
+        return null;
     }
 
     public void Close()
@@ -418,11 +461,16 @@ public class CdpSession
             ["method"] = method,
             ["params"] = @params
         };
-        if (!method.StartsWith("Target.", StringComparison.OrdinalIgnoreCase) && 
-            !method.StartsWith("Browser.", StringComparison.OrdinalIgnoreCase))
+        var activeTarget = targetSession ?? CurrentTargetSession;
+        if (activeTarget != null && !string.IsNullOrEmpty(activeTarget.SessionId))
         {
-            var activeTarget = targetSession ?? CurrentTargetSession;
-            if (activeTarget != null && !string.IsNullOrEmpty(activeTarget.SessionId))
+            bool isBrowserLevelTargetEvent = 
+                method == "Target.targetCreated" || 
+                method == "Target.targetDestroyed" || 
+                method == "Target.targetInfoChanged";
+
+            if ((!method.StartsWith("Target.", StringComparison.OrdinalIgnoreCase) || !isBrowserLevelTargetEvent) && 
+                !method.StartsWith("Browser.", StringComparison.OrdinalIgnoreCase))
             {
                 evt["sessionId"] = activeTarget.SessionId;
             }
@@ -438,7 +486,7 @@ public class CdpSession
     private async Task SendJsonAsync(JsonObject node)
     {
         EventSentForTesting?.Invoke(node);
-        string jsonStr = node.ToJsonString();
+        string jsonStr = node.ToJsonString(new JsonSerializerOptions { NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() });
         if (!jsonStr.Contains("screencastFrame") && !jsonStr.Contains("data:image"))
         {
             CdpServer.OriginalOut.WriteLine($"[CDP SERVER OUTGOING] {jsonStr}");

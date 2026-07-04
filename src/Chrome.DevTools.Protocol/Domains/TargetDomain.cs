@@ -32,9 +32,17 @@ public static class TargetDomain
                         }
 
                         // Attach all current targets
+                        var activeTabSession = session.CurrentTargetSession;
                         foreach (var target in CdpServer.GetTargets())
                         {
-                            session.AutoAttachTarget(target);
+                            if (target.Type == "page" && activeTabSession != null && activeTabSession.Target.Type == "tab")
+                            {
+                                session.AutoAttachTarget(target, activeTabSession);
+                            }
+                            else
+                            {
+                                session.AutoAttachTarget(target);
+                            }
                         }
                     }
                     return new JsonObject();
@@ -211,6 +219,11 @@ public static class TargetDomain
                         return new JsonObject { ["targetId"] = target.Id };
                     }
                     throw new Exception("TargetFactory is not registered on CdpServer.");
+                }
+
+            case "getBrowserContexts":
+                {
+                    return new JsonObject { ["browserContextIds"] = new JsonArray() };
                 }
 
             default:

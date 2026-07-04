@@ -19,20 +19,35 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
 {
     private static readonly IInputDevice _dummyTouchDevice = (IInputDevice)Activator.CreateInstance(typeof(TouchDevice), nonPublic: true)!;
 
+    private readonly TopLevel? _window;
+    private readonly NodeMap _nodeMap = new();
+
     public CdpSession(WebSocket webSocket, TopLevel? window) 
         : base(webSocket, window != null ? CdpServer.GetOrCreateTarget(window) : null)
     {
+        _window = window;
         CdpServer.EnsureInitialized();
     }
 
     public new CdpTargetSession? CurrentTargetSession => base.CurrentTargetSession as CdpTargetSession;
 
-    public TopLevel? Window => CurrentTargetSession?.Window;
-    public NodeMap NodeMap => CurrentTargetSession?.NodeMap ?? new NodeMap();
+    public TopLevel? Window => CurrentTargetSession?.Window ?? _window;
+    public NodeMap NodeMap => CurrentTargetSession?.NodeMap ?? _nodeMap;
     public IInputDevice TouchDevice => CurrentTargetSession?.TouchDevice ?? _dummyTouchDevice;
 
     public static Visual? GetVisualFromObject(object? obj)
     {
+        if (obj is Jint.Native.JsValue jsVal)
+        {
+            try
+            {
+                obj = jsVal.ToObject();
+            }
+            catch
+            {
+                // Ignore
+            }
+        }
         if (obj is Visual v) return v;
         if (obj is Domains.CdpRuntimeElement rt) return rt.visual as Visual;
         return null;

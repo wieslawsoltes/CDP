@@ -52,6 +52,11 @@ public static class CdpServer
         _sessions.TryRemove(session, out _);
     }
 
+    public static bool IsTargetAttached(string targetId)
+    {
+        return _sessions.Keys.Any(session => session.IsTargetAttached(targetId));
+    }
+
     private static void NotifyTargetCreated(string targetId, string title, string type = "page")
     {
         foreach (var session in _sessions.Keys)
@@ -66,7 +71,7 @@ public static class CdpServer
                         ["type"] = type,
                         ["title"] = title,
                         ["url"] = $"http://localhost:{_port}/",
-                        ["attached"] = true,
+                        ["attached"] = IsTargetAttached(targetId),
                         ["browserContextId"] = "1"
                     }
                 });
@@ -100,6 +105,13 @@ public static class CdpServer
         _targets[id] = target;
         NotifyTargetCreated(id, target.Title, target.Type);
 
+        if (target.Type == "page")
+        {
+            var tabTarget = new CdpTabTarget(target);
+            _targets[tabTarget.Id] = tabTarget;
+            NotifyTargetCreated(tabTarget.Id, tabTarget.Title, tabTarget.Type);
+        }
+
         foreach (var session in _sessions.Keys)
         {
             Console.WriteLine($"[CDP SERVER DEBUG] Checking session: AutoAttachEnabled={session.AutoAttachEnabled}");
@@ -107,6 +119,14 @@ public static class CdpServer
             {
                 Console.WriteLine($"[CDP SERVER DEBUG] Auto-attaching target {target.Id} to session");
                 session.AutoAttachTarget(target);
+                if (target.Type == "page")
+                {
+                    string tabId = $"tab-{target.Id}";
+                    if (_targets.TryGetValue(tabId, out var tabTarget))
+                    {
+                        session.AutoAttachTarget(tabTarget);
+                    }
+                }
             }
         }
 
@@ -127,7 +147,7 @@ public static class CdpServer
                         ["type"] = type,
                         ["title"] = title,
                         ["url"] = $"http://localhost:{_port}/",
-                        ["attached"] = true,
+                        ["attached"] = IsTargetAttached(targetId),
                         ["browserContextId"] = "1"
                     }
                 });
@@ -164,6 +184,16 @@ public static class CdpServer
                 session.DetachTargetById(key);
             }
             NotifyTargetDestroyed(key);
+
+            string tabKey = $"tab-{key}";
+            if (_targets.TryRemove(tabKey, out _))
+            {
+                foreach (var session in _sessions.Keys)
+                {
+                    session.DetachTargetById(tabKey);
+                }
+                NotifyTargetDestroyed(tabKey);
+            }
         }
     }
 
@@ -211,7 +241,7 @@ public static class CdpServer
                 ["type"] = target.Type,
                 ["title"] = target.Title,
                 ["url"] = target.Url,
-                ["attached"] = true,
+                ["attached"] = IsTargetAttached(target.Id),
                 ["browserContextId"] = "1"
             });
         }
@@ -377,9 +407,11 @@ public static class CdpServer
             {
                 var versionJson = new JsonObject
                 {
-                    ["Browser"] = "Chrome/DevTools/Protocol",
+                    ["Browser"] = "Chrome/150.0.6723.116",
                     ["Protocol-Version"] = "1.3",
                     ["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                    ["V8-Version"] = "13.0.245.18",
+                    ["WebKit-Version"] = "537.36 (@e092147318721c5f3e58c0e2714246fa4bb6034e)",
                     ["webSocketDebuggerUrl"] = $"ws://{host}/devtools/browser"
                 };
                 SendJsonResponse(response, versionJson);
@@ -389,6 +421,7 @@ public static class CdpServer
                 var list = new JsonArray();
                 foreach (var target in GetTargets())
                 {
+                    if (target.Type == "tab") continue;
                     list.Add(new JsonObject
                     {
                         ["description"] = "",
@@ -418,7 +451,7 @@ public static class CdpServer
 
     private static void SendJsonResponse(HttpListenerResponse response, JsonNode json)
     {
-        var bytes = Encoding.UTF8.GetBytes(json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        var bytes = Encoding.UTF8.GetBytes(json.ToJsonString(new JsonSerializerOptions { WriteIndented = true, NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() }));
         response.Headers.Add("Access-Control-Allow-Origin", "*");
         response.ContentType = "application/json; charset=utf-8";
         response.ContentLength64 = bytes.Length;
@@ -508,4 +541,23 @@ public class ConsoleRedirector : System.IO.TextWriter
     {
         Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog("Console", _level, line);
     }
+}
+
+public class CdpTabTarget : ICdpTarget
+{
+    private readonly ICdpTarget _pageTarget;
+
+    public CdpTabTarget(ICdpTarget pageTarget)
+    {
+        _pageTarget = pageTarget;
+        Id = $"tab-{pageTarget.Id}";
+    }
+
+    public string Id { get; }
+    public string Title => _pageTarget.Title;
+    public string Type => "tab";
+    public string Url => _pageTarget.Url;
+
+    public void Activate() => _pageTarget.Activate();
+    public void Close() => _pageTarget.Close();
 }
