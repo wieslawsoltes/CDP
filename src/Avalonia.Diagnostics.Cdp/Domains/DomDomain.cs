@@ -702,27 +702,40 @@ public static class DomDomain
     public static double[] GetVisualBounds(CdpSession session, Visual visual)
     {
         double x = 0, y = 0, w = 0, h = 0;
-        if (visual == session.Window)
+        var window = session.Window;
+        if (window == null)
         {
-            w = session.Window.Bounds.Width;
-            h = session.Window.Bounds.Height;
+            if (visual != null)
+            {
+                x = visual.Bounds.X;
+                y = visual.Bounds.Y;
+                w = visual.Bounds.Width;
+                h = visual.Bounds.Height;
+            }
+            return new[] { x, y, w, h };
+        }
+
+        if (visual == window)
+        {
+            w = window.Bounds.Width;
+            h = window.Bounds.Height;
         }
         else
         {
             var origin = new Point(0, 0);
-            var translated = visual.TranslatePoint(origin, session.Window);
+            var translated = visual?.TranslatePoint(origin, window);
             if (translated.HasValue)
             {
                 x = translated.Value.X;
                 y = translated.Value.Y;
             }
-            else
+            else if (visual != null)
             {
                 x = visual.Bounds.X;
                 y = visual.Bounds.Y;
             }
-            w = visual.Bounds.Width;
-            h = visual.Bounds.Height;
+            w = visual?.Bounds.Width ?? 0;
+            h = visual?.Bounds.Height ?? 0;
         }
         return new[] { x, y, w, h };
     }
