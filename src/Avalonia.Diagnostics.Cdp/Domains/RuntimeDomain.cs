@@ -2270,6 +2270,7 @@ public static class RuntimeDomain
                     }
                 }
                 
+                globalThis.__proxyCache = globalThis.__proxyCache || new Map();
                 globalThis.__wrap = function(target) {
                     if (!target) return target;
                     if (typeof target !== 'object' && typeof target !== 'function') return target;
@@ -2281,7 +2282,11 @@ public static class RuntimeDomain
                     }
                     if (!raw || (typeof raw !== 'object' && typeof raw !== 'function')) return raw;
                     
-                    return new Proxy(raw, {
+                    if (globalThis.__proxyCache.has(raw)) {
+                        return globalThis.__proxyCache.get(raw);
+                    }
+                    
+                    var p = new Proxy(raw, {
                         get(t, prop, receiver) {
                             if (prop === '__isProxy') return true;
                             if (prop === '__raw_node') return t;
@@ -2600,6 +2605,8 @@ public static class RuntimeDomain
                             return false;
                         }
                     });
+                    globalThis.__proxyCache.set(raw, p);
+                    return p;
                 };
             ");
         }
