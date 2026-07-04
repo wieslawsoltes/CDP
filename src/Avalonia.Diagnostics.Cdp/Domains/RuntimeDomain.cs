@@ -1746,6 +1746,7 @@ public static class RuntimeDomain
         engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("__getBounds", new Func<Visual, double[]>(visual => DomDomain.GetVisualBounds(session, visual)));
+        engine.SetValue("__getNodeId", new Func<Visual, int>(visual => session.NodeMap.GetOrAdd(visual)));
         engine.SetValue("__focus", new Action<Visual>(visual => {
             Dispatcher.UIThread.Invoke(() => {
                 if (visual is Avalonia.Input.IInputElement inputElement) {
@@ -2267,8 +2268,23 @@ public static class RuntimeDomain
                         get(t, prop, receiver) {
                             if (prop === '__isProxy') return true;
                             if (prop === '__raw_node') return t;
+                            if (prop === 'nodeId') {
+                                return globalThis.__getNodeId(t);
+                            }
                             if (prop === 'id' || prop === 'name') {
                                 return globalThis.__getProperty(t, 'Name') || '';
+                            }
+                            if (prop === 'setSelectionRange') {
+                                return function(start, end) {
+                                    t._selectionStart = start;
+                                    t._selectionEnd = end;
+                                };
+                            }
+                            if (prop === 'selectionStart') {
+                                return typeof t._selectionStart === 'number' ? t._selectionStart : 0;
+                            }
+                            if (prop === 'selectionEnd') {
+                                return typeof t._selectionEnd === 'number' ? t._selectionEnd : 0;
                             }
                             if (prop === 'textContent' || prop === 'innerText') {
                                 var txt = globalThis.__getProperty(t, 'Text');
