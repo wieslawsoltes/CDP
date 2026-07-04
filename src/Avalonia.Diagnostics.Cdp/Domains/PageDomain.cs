@@ -1082,6 +1082,47 @@ public static class PageDomain
 
     private static async Task EmitNavigationEventsAsync(CdpSession session, string url, string frameId)
     {
+        RuntimeDomain.ClearSessionEngines(session);
+
+        await session.SendEventAsync("Runtime.executionContextDestroyed", new JsonObject { ["executionContextId"] = 1 });
+        await session.SendEventAsync("Runtime.executionContextDestroyed", new JsonObject { ["executionContextId"] = 2 });
+
+        var context1 = new JsonObject
+        {
+            ["id"] = 1,
+            ["origin"] = $"http://127.0.0.1:{CdpServer.Port}/",
+            ["name"] = "top",
+            ["uniqueId"] = "1",
+            ["auxData"] = new JsonObject
+            {
+                ["isDefault"] = true,
+                ["type"] = "default",
+                ["frameId"] = frameId
+            }
+        };
+        await session.SendEventAsync("Runtime.executionContextCreated", new JsonObject { ["context"] = context1 });
+
+        string? worldName = session.ScriptsToEvaluateOnNewDocumentWorlds.Values.FirstOrDefault();
+        if (string.IsNullOrEmpty(worldName))
+        {
+            worldName = "playwright-utility-world";
+        }
+        var context2 = new JsonObject
+        {
+            ["id"] = 2,
+            ["origin"] = $"http://127.0.0.1:{CdpServer.Port}/",
+            ["name"] = worldName,
+            ["uniqueId"] = "2",
+            ["auxData"] = new JsonObject
+            {
+                ["isDefault"] = false,
+                ["type"] = "isolated",
+                ["name"] = worldName,
+                ["frameId"] = frameId
+            }
+        };
+        await session.SendEventAsync("Runtime.executionContextCreated", new JsonObject { ["context"] = context2 });
+
         await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnNewDocument.Values);
         await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnLoad.Values);
 
