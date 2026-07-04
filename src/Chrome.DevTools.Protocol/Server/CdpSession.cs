@@ -467,7 +467,9 @@ public class CdpSession
             bool isBrowserLevelTargetEvent = 
                 method == "Target.targetCreated" || 
                 method == "Target.targetDestroyed" || 
-                method == "Target.targetInfoChanged";
+                method == "Target.targetInfoChanged" ||
+                method == "Target.attachedToTarget" ||
+                method == "Target.detachedFromTarget";
 
             if ((!method.StartsWith("Target.", StringComparison.OrdinalIgnoreCase) || !isBrowserLevelTargetEvent) && 
                 !method.StartsWith("Browser.", StringComparison.OrdinalIgnoreCase))
