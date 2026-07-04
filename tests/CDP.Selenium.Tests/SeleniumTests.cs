@@ -86,6 +86,9 @@ public class SeleniumFixture : IAsyncLifetime
                 if (IsPortOpen("127.0.0.1", 9222)) break;
                 await Task.Delay(100);
             }
+            
+            // Allow headless layout and arrange pass to settle
+            await Task.Delay(1500);
         }
 
         // Configure ChromeOptions

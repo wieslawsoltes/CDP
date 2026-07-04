@@ -157,8 +157,9 @@ public static class DomDomain
                         ["type"] = "object",
                         ["subtype"] = "node",
                         ["className"] = visual.GetType().FullName,
-                        ["description"] = $"{visual.GetType().Name} (ID={nodeId})",
-                        ["objectId"] = objectId
+                        ["description"] = $"{visual.GetType().Name} (ID={resolvedNodeId})",
+                        ["objectId"] = objectId,
+                        ["backendNodeId"] = resolvedNodeId
                     };
                     return new JsonObject { ["object"] = remoteObj };
                 }
