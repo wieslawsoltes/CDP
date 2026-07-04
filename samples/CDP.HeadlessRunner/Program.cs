@@ -14,7 +14,7 @@ class Program
         Console.WriteLine("Headless test harness starting on http://127.0.0.1:9222");
         
         AppBuilder.Configure<CdpSampleApp.App>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseDotNetSystemFont = true })
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions())
             .StartWithClassicDesktopLifetime(args);
     }
 }

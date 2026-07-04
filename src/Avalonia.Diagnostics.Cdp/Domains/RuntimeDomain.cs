@@ -1770,7 +1770,15 @@ public static class RuntimeDomain
         }));
         engine.SetValue("__getParent", new Func<object, Visual?>(target => 
         {
-            var visual = (target is CdpRuntimeElement elem ? elem.visual : target) as Visual;
+            Visual? visual = null;
+            if (target is CdpRuntimeElement elem)
+            {
+                visual = elem.visual as Visual;
+            }
+            else
+            {
+                visual = target as Visual;
+            }
             if (visual == null || visual == session.Window) return null;
             return session.UseLogicalTree
                 ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(visual)
@@ -1779,7 +1787,15 @@ public static class RuntimeDomain
 
         engine.SetValue("__getChildren", new Func<object, IEnumerable<Visual>>(target => 
         {
-            var visual = (target is CdpRuntimeElement elem ? elem.visual : target) as Visual;
+            Visual? visual = null;
+            if (target is CdpRuntimeElement elem)
+            {
+                visual = elem.visual as Visual;
+            }
+            else
+            {
+                visual = target as Visual;
+            }
             if (visual == null) return Array.Empty<Visual>();
             var list = new List<Visual>();
             var childrenList = session.UseLogicalTree
@@ -1794,7 +1810,15 @@ public static class RuntimeDomain
 
         engine.SetValue("__getSiblings", new Func<object, IEnumerable<Visual>>(target => 
         {
-            var visual = (target is CdpRuntimeElement elem ? elem.visual : target) as Visual;
+            Visual? visual = null;
+            if (target is CdpRuntimeElement elem)
+            {
+                visual = elem.visual as Visual;
+            }
+            else
+            {
+                visual = target as Visual;
+            }
             if (visual == null) return Array.Empty<Visual>();
             var parent = session.UseLogicalTree
                 ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(visual)
@@ -1807,14 +1831,38 @@ public static class RuntimeDomain
 
         engine.SetValue("__querySelector", new Func<object, string, Visual?>((target, sel) => 
         {
-            var visual = target is CdpRuntimeDocument ? session.Window : ((target is CdpRuntimeElement elem ? elem.visual : target) as Visual);
+            Visual? visual = null;
+            if (target is CdpRuntimeDocument)
+            {
+                visual = session.Window;
+            }
+            else if (target is CdpRuntimeElement elem)
+            {
+                visual = elem.visual as Visual;
+            }
+            else
+            {
+                visual = target as Visual;
+            }
             if (visual == null) return null;
             return Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(visual, sel, session.UseLogicalTree);
         }));
 
         engine.SetValue("__querySelectorAll", new Func<object, string, IEnumerable<Visual>>((target, sel) => 
         {
-            var visual = target is CdpRuntimeDocument ? session.Window : ((target is CdpRuntimeElement elem ? elem.visual : target) as Visual);
+            Visual? visual = null;
+            if (target is CdpRuntimeDocument)
+            {
+                visual = session.Window;
+            }
+            else if (target is CdpRuntimeElement elem)
+            {
+                visual = elem.visual as Visual;
+            }
+            else
+            {
+                visual = target as Visual;
+            }
             if (visual == null) return Array.Empty<Visual>();
             return Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(visual, sel, session.UseLogicalTree);
         }));
