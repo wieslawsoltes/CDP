@@ -84,6 +84,10 @@ public class SeleniumFixture : IAsyncLifetime
             for (int i = 0; i < 100; i++)
             {
                 if (IsPortOpen("127.0.0.1", 9222)) break;
+                if (_sampleAppProcess != null && _sampleAppProcess.HasExited)
+                {
+                    throw new Exception($"Sample app process exited prematurely with exit code {_sampleAppProcess.ExitCode}. Port 9222 never opened.");
+                }
                 await Task.Delay(100);
             }
             

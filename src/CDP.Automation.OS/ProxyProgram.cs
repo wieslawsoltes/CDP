@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Chrome.DevTools.Protocol;
@@ -40,7 +41,7 @@ public class OsWindowCdpTarget : ICdpTarget
 
 public static class ProxyProgram
 {
-    private static readonly ConditionalWeakTable<CdpSession, OsAutomationCdpSession> _sessionMap = new();
+    private static readonly ConcurrentDictionary<string, OsAutomationCdpSession> _sessionMap = new();
 
     public static async Task Main(string[] args)
     {
@@ -67,7 +68,7 @@ public static class ProxyProgram
         // Register domain handlers by routing them to OsAutomationCdpSession
         string[] domains = new[]
         {
-            "DOM", "Input", "Page", "SystemInfo", "Runtime", "Target", 
+            "DOM", "Input", "Page", "SystemInfo", "Runtime", 
             "Accessibility", "CSS", "Overlay", "Recorder", "Performance", 
             "Memory", "Network", "Browser"
         };
@@ -97,12 +98,16 @@ public static class ProxyProgram
 
     private static OsAutomationCdpSession GetOrCreateOsSession(CdpSession session)
     {
-        return _sessionMap.GetValue(session, s =>
+        var targetSession = session.CurrentTargetSession;
+        string targetId = targetSession != null ? targetSession.TargetId : (session.Target?.Id ?? "");
+        string key = $"{session.GetHashCode()}_{targetId}";
+
+        return _sessionMap.GetOrAdd(key, _ =>
         {
-            var target = s.Target as OsWindowCdpTarget;
+            var target = (targetSession?.Target ?? session.Target) as OsWindowCdpTarget;
             if (target == null)
             {
-                throw new Exception("Session target is not OsWindowCdpTarget");
+                throw new Exception($"Session target is not OsWindowCdpTarget. TargetId: {targetId}");
             }
             return new OsAutomationCdpSession(target.Id);
         });

@@ -254,7 +254,7 @@ public static class RuntimeDomain
                         };
                     }
 
-                    if (expression.Contains("querySelectorAll") && !expression.Contains("expect") && !expression.Contains("expect("))
+                    if (expression.Contains("querySelectorAll") && !expression.Contains("expect") && !expression.Contains("expect(") && (expression.Contains("injected") || expression.Contains("utilityScript")))
                     {
                         var mock = new PlaywrightLocatorLookupFunctionMock();
                         string objectId = session.RegisterObject(mock);
@@ -1012,7 +1012,7 @@ public static class RuntimeDomain
                                      };
                             }
 
-                             if (expression.Contains("querySelectorAll") && !expression.Contains("expect") && !expression.Contains("expect("))
+                              if (expression.Contains("querySelectorAll") && !expression.Contains("expect") && !expression.Contains("expect(") && (expression.Contains("injected") || expression.Contains("utilityScript")))
                              {
                                  JsonObject? infoObj2 = null;
                                  try
@@ -1658,7 +1658,9 @@ public static class RuntimeDomain
     [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script property evaluation")]
     private static Engine EnsureEngineInitialized(CdpSession session, int contextId, Visual? selectedNode)
     {
-        string key = $"{session.GetHashCode()}_{contextId}";
+        var targetSession = session.CurrentTargetSession;
+        string targetId = targetSession != null ? targetSession.TargetId : (session.Target?.Id ?? "");
+        string key = $"{session.GetHashCode()}_{targetId}_{contextId}";
         bool isNew = false;
         var engine = _engines.GetOrAdd(key, _ =>
         {
