@@ -19,6 +19,8 @@ class Program
 
         builder.SetupWithoutStarting();
 
+        CdpServer.EnsureInitialized();
+
         var window = new CdpSampleApp.MainWindow();
         window.Show();
 

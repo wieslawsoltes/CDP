@@ -28,6 +28,8 @@ class Program
 
             builder.SetupWithoutStarting();
 
+            Avalonia.Diagnostics.Cdp.CdpServer.EnsureInitialized();
+
             var window = new MainWindow();
             window.Show();
 
