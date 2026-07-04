@@ -303,16 +303,7 @@ public static class RuntimeDomain
                         };
                     }
 
-                    if (expression.Trim() == "window.devicePixelRatio" || expression.Trim() == "devicePixelRatio")
-                    {
-                        return new JsonObject
-                        {
-                            ["result"] = new JsonObject
-                            {
-                                ["value"] = 1.0
-                            }
-                        };
-                    }
+
 
                     if (expression.Contains("(injected,") || expression.Contains("evaledExpression"))
                     {
@@ -1167,16 +1158,7 @@ public static class RuntimeDomain
                         };
                     }
 
-                    if (expression.Contains("devicePixelRatio"))
-                    {
-                        return new JsonObject
-                        {
-                            ["result"] = new JsonObject
-                            {
-                                ["value"] = 1.0
-                            }
-                        };
-                    }
+
 
                     if (expression.Contains("(injected,") || expression.Contains("evaledExpression"))
                              {
@@ -1597,7 +1579,7 @@ public static class RuntimeDomain
                 {
                     if (argObj.TryGetPropertyValue("value", out var valNode) && valNode != null)
                     {
-                        var deserialized = DeserializePlaywrightValue(argObj);
+                        var deserialized = DeserializePlaywrightValue(valNode);
                         jsArgs.Add(ConvertJsonNodeToJsValue(engine, deserialized));
                     }
                     else if (argObj.TryGetPropertyValue("objectId", out var objIdNode) && objIdNode != null)
@@ -1953,10 +1935,17 @@ public static class RuntimeDomain
                                     return null;
                                 };
                             }
-                            if (prop === 'querySelector' || prop === 'getElementById') {
+                            if (prop === 'getElementById') {
+                                return function(id) {
+                                    var escaped = id.replace(/\\/g, '\\\\').replace(/""/g, '\\""');
+                                    var res = globalThis.__querySelector(target, '[id=""' + escaped + '""]');
+                                    return res ? globalThis.__wrap(res) : null;
+                                };
+                            }
+                            if (prop === 'querySelector') {
                                 return function(sel) {
                                     var res = globalThis.__querySelector(target, sel);
-                                    return globalThis.__wrap(res);
+                                    return res ? globalThis.__wrap(res) : null;
                                 };
                             }
                             if (prop === 'querySelectorAll' || prop === 'getElementsByTagName' || prop === 'getElementsByClassName') {
@@ -2008,6 +1997,7 @@ public static class RuntimeDomain
                     });
                 }
                 globalThis.window = globalThis;
+                globalThis.devicePixelRatio = 1.0;
                 if (typeof globalThis.visualViewport === 'undefined') {
                     globalThis.visualViewport = {
                         width: 800,
@@ -2534,6 +2524,7 @@ public static class RuntimeDomain
                                           wrapped.push(textNode);
                                       }
                                   }
+                                  wrapped.item = function(idx) { return this[idx]; };
                                   return wrapped;
                               }
                               if (prop === 'firstChild') {
@@ -2601,6 +2592,7 @@ public static class RuntimeDomain
                                              wrapped.push(globalThis.__wrap(item));
                                          }
                                      }
+                                     wrapped.item = function(idx) { return this[idx]; };
                                      return wrapped;
                                  };
                              }

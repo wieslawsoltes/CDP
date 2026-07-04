@@ -8,7 +8,8 @@ public class CdpTargetSession : IDisposable
 {
     protected readonly CdpSession _session;
 
-    public string SessionId { get; }
+       public string SessionId { get; }
+    public string? ParentSessionId { get; set; }
     public string TargetId { get; }
     public ICdpTarget Target { get; }
     public ConcurrentDictionary<string, object> RemoteObjects { get; } = new();

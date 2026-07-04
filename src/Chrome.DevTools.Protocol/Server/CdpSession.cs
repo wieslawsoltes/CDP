@@ -200,6 +200,10 @@ public class CdpSession
         var sessionId = Guid.NewGuid().ToString();
         var targetSession = CdpServer.TargetSessionFactory?.Invoke(this, sessionId, target.Id, target)
                             ?? new CdpTargetSession(this, sessionId, target.Id, target);
+        if (parentSession != null)
+        {
+            targetSession.ParentSessionId = parentSession.SessionId;
+        }
         AttachTarget(sessionId, targetSession);
 
         var @params = new JsonObject
@@ -217,8 +221,8 @@ public class CdpSession
             ["waitingForDebugger"] = false
         };
 
-        var activeTarget = parentSession ?? CurrentTargetSession;
-        if (activeTarget != null && activeTarget.Target.Type == "tab")
+        var activeTarget = parentSession ?? (CurrentTargetSession?.Target.Type == "tab" ? CurrentTargetSession : null);
+        if (activeTarget != null)
         {
             _ = SendEventAsync("Target.attachedToTarget", @params, activeTarget);
         }
@@ -234,12 +238,20 @@ public class CdpSession
         {
             targetSession.Dispose();
 
-            // Broadcast detached event
-            _ = SendEventAsync("Target.detachedFromTarget", new JsonObject
+            var @params = new JsonObject
             {
                 ["sessionId"] = sessionId,
                 ["targetId"] = targetSession.TargetId
-            });
+            };
+
+            if (!string.IsNullOrEmpty(targetSession.ParentSessionId) && _attachedTargets.TryGetValue(targetSession.ParentSessionId, out var parentSession))
+            {
+                _ = SendEventAsync("Target.detachedFromTarget", @params, parentSession);
+            }
+            else
+            {
+                _ = SendEventAsync("Target.detachedFromTarget", @params);
+            }
         }
     }
 

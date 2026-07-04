@@ -795,7 +795,8 @@ public class CdpChromeFeatureTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnRight", Button = "right" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnMiddle", Button = "middle" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnDouble", ClickCount = 2 },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnTriple", ClickCount = 3 }
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnTriple", ClickCount = 3 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#tabHome > Button:contains(\"Save\")" }
         };
 
         var generator = new SeleniumCSharpGenerator();
@@ -816,6 +817,7 @@ public class CdpChromeFeatureTests
         Assert.Contains("_actions.DoubleClick(_driver.FindElement(By.CssSelector(\"#btnDouble\"))).Perform();", generated);
         Assert.Contains("var element_9 = _driver.FindElement(By.CssSelector(\"#btnTriple\"));", generated);
         Assert.Contains("for (int c_9 = 0; c_9 < 3; c_9++)", generated);
+        Assert.Contains("_driver.FindElement(By.XPath(\"//*[@id='tabHome']/Button[contains(., 'Save')]\")).Click();", generated);
     }
 
     [Fact]

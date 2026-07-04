@@ -24,6 +24,7 @@ public static class CdpServer
     public static System.IO.TextWriter OriginalError => _originalError ?? Console.Error;
 
     private static readonly ConcurrentDictionary<string, ICdpTarget> _targets = new();
+    private static readonly HashSet<string> _providerTargetIds = new();
     private static readonly ConcurrentDictionary<CdpSession, byte> _sessions = new();
     public static IEnumerable<CdpSession> Sessions => _sessions.Keys;
 
@@ -199,21 +200,46 @@ public static class CdpServer
 
     public static IEnumerable<ICdpTarget> GetTargets()
     {
-        var active = new Dictionary<string, ICdpTarget>();
-
-        foreach (var pair in _targets)
-        {
-            active[pair.Key] = pair.Value;
-        }
-
         if (TargetProvider != null)
         {
-            foreach (var target in TargetProvider())
+            var providerTargets = TargetProvider().ToList();
+            var newProviderTargetIds = providerTargets.Select(t => t.Id).ToHashSet();
+
+            List<string> disappearedIds;
+            lock (_providerTargetIds)
             {
-                if (!active.ContainsKey(target.Id))
+                disappearedIds = _providerTargetIds.Where(id => !newProviderTargetIds.Contains(id)).ToList();
+                foreach (var id in disappearedIds)
+                {
+                    _providerTargetIds.Remove(id);
+                }
+            }
+
+            foreach (var id in disappearedIds)
+            {
+                _targets.TryRemove(id, out _);
+                NotifyTargetDestroyed(id);
+
+                foreach (var session in _sessions.Keys)
+                {
+                    var sessId = session.GetSessionIdForTarget(id);
+                    if (sessId != null)
+                    {
+                        session.DetachTarget(sessId);
+                    }
+                }
+            }
+
+            foreach (var target in providerTargets)
+            {
+                lock (_providerTargetIds)
+                {
+                    _providerTargetIds.Add(target.Id);
+                }
+
+                if (!_targets.ContainsKey(target.Id))
                 {
                     _targets[target.Id] = target;
-                    active[target.Id] = target;
                     NotifyTargetCreated(target.Id, target.Title, target.Type);
 
                     foreach (var session in _sessions.Keys)
@@ -227,7 +253,7 @@ public static class CdpServer
             }
         }
 
-        return active.Values;
+        return _targets.Values;
     }
 
     public static JsonArray GetActiveTargets()
