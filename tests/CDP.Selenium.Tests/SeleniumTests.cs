@@ -47,8 +47,8 @@ public class SeleniumFixture : IAsyncLifetime
             dllPath = Path.Combine(Directory.GetCurrentDirectory(), "samples", "CdpSampleApp", "CdpSampleApp.csproj");
             var fallbackStartInfo = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "dotnet",
-                Arguments = $"run --project \"{dllPath}\" -- --headless",
+                FileName = "bash",
+                Arguments = $"-c \"dotnet run --project \\\"{dllPath}\\\" -- --headless > cdp-sample-app.log 2>&1\"",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -59,12 +59,10 @@ public class SeleniumFixture : IAsyncLifetime
 
         var startInfo = new System.Diagnostics.ProcessStartInfo
         {
-            FileName = "dotnet",
-            Arguments = $"\"{dllPath}\" --headless",
+            FileName = "bash",
+            Arguments = $"-c \"dotnet \\\"{dllPath}\\\" --headless > cdp-sample-app.log 2>&1\"",
             UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = false,
-            RedirectStandardError = false
+            CreateNoWindow = true
         };
 
         _sampleAppProcess = new System.Diagnostics.Process { StartInfo = startInfo };
