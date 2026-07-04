@@ -42,31 +42,58 @@ public class SeleniumFixture : IAsyncLifetime
             dllPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "samples", "CdpSampleApp", "bin", config, "net10.0", "CdpSampleApp.dll"));
         }
 
+        System.Diagnostics.ProcessStartInfo startInfo;
         if (!File.Exists(dllPath))
         {
             dllPath = Path.Combine(Directory.GetCurrentDirectory(), "samples", "CdpSampleApp", "CdpSampleApp.csproj");
-            var fallbackStartInfo = new System.Diagnostics.ProcessStartInfo
+            startInfo = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "bash",
-                Arguments = $"-c \"dotnet run --project \\\"{dllPath}\\\" -- --headless > cdp-sample-app.log 2>&1\"",
+                FileName = "dotnet",
+                Arguments = $"run --project \"{dllPath}\" -- --headless",
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
-            _sampleAppProcess = new System.Diagnostics.Process { StartInfo = fallbackStartInfo };
-            _sampleAppProcess.Start();
-            return;
         }
-
-        var startInfo = new System.Diagnostics.ProcessStartInfo
+        else
         {
-            FileName = "bash",
-            Arguments = $"-c \"dotnet \\\"{dllPath}\\\" --headless > cdp-sample-app.log 2>&1\"",
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+            startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "dotnet",
+                Arguments = $"\"{dllPath}\" --headless",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+        }
 
         _sampleAppProcess = new System.Diagnostics.Process { StartInfo = startInfo };
         _sampleAppProcess.Start();
+
+        // Asynchronously consume stdout and write to log file to avoid process hang/buffer overflow
+        Task.Run(async () =>
+        {
+            try
+            {
+                using var writer = new StreamWriter(new FileStream("cdp-sample-app.log", FileMode.Create, FileAccess.Write, FileShare.ReadWrite));
+                while (!_sampleAppProcess.HasExited)
+                {
+                    var line = await _sampleAppProcess.StandardOutput.ReadLineAsync();
+                    if (line != null)
+                    {
+                        await writer.WriteLineAsync(line);
+                        await writer.FlushAsync();
+                    }
+                    else
+                    {
+                        await Task.Delay(50);
+                    }
+                }
+            }
+            catch {}
+        });
     }
 
     public async ValueTask InitializeAsync()

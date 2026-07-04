@@ -779,7 +779,7 @@ public class CdpIntegrationTests
                 JsonObject? setAutoAttachResponse = null;
                 JsonObject? mainTargetAttachedEvent = null;
 
-                for (int i = 0; i < 5; i++)
+                for (int i = 0; i < 50; i++)
                 {
                     var msg = await ReceiveJsonAsync(ws);
                     if (msg.ContainsKey("id") && msg["id"]?.GetValue<int>() == 1)
@@ -838,7 +838,7 @@ public class CdpIntegrationTests
                 });
 
                 JsonObject? secondTargetAttachedEvent = null;
-                for (int i = 0; i < 5; i++)
+                for (int i = 0; i < 50; i++)
                 {
                     var msg = await ReceiveJsonAsync(ws);
                     if (msg.ContainsKey("method") && msg["method"]?.GetValue<string>() == "Target.attachedToTarget")

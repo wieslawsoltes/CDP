@@ -303,7 +303,7 @@ public static class RuntimeDomain
                         };
                     }
 
-                    if (expression.Contains("devicePixelRatio"))
+                    if (expression.Trim() == "window.devicePixelRatio" || expression.Trim() == "devicePixelRatio")
                     {
                         return new JsonObject
                         {
@@ -1963,8 +1963,10 @@ public static class RuntimeDomain
                                 return function(arg) {
                                     var arr = globalThis.__querySelectorAll(target, arg);
                                     var wrappedList = [];
-                                    for (var i = 0; i < arr.length; i++) {
-                                        wrappedList.push(globalThis.__wrap(arr[i]));
+                                    if (arr) {
+                                        for (var item of arr) {
+                                            wrappedList.push(globalThis.__wrap(item));
+                                        }
                                     }
                                     wrappedList.item = function(idx) { return this[idx]; };
                                     return wrappedList;
@@ -2373,7 +2375,12 @@ public static class RuntimeDomain
                             if (prop === 'hasChildNodes') {
                                 return function() {
                                     var arr = globalThis.__getChildren(t);
-                                    return !!(arr && arr.length > 0);
+                                    if (arr) {
+                                        for (var item of arr) {
+                                            return true;
+                                        }
+                                    }
+                                    return !!receiver.textContent;
                                 };
                             }
                             if (prop === 'nodeType') return typeof t.nodeType === 'number' ? t.nodeType : 1;
@@ -2501,50 +2508,84 @@ public static class RuntimeDomain
                                  var p = globalThis.__getParent(t);
                                  return p ? globalThis.__wrap(p) : null;
                              }
-                             if (prop === 'children' || prop === 'childNodes') {
-                                 var arr = globalThis.__getChildren(t);
-                                 var wrapped = [];
-                                 if (arr) {
-                                     for (var i = 0; i < arr.length; i++) {
-                                         wrapped.push(globalThis.__wrap(arr[i]));
-                                     }
-                                 }
-                                 return wrapped;
-                             }
-                             if (prop === 'firstChild') {
-                                 var arr = globalThis.__getChildren(t);
-                                 return (arr && arr.length > 0) ? globalThis.__wrap(arr[0]) : null;
-                             }
-                             if (prop === 'lastChild') {
-                                 var arr = globalThis.__getChildren(t);
-                                 return (arr && arr.length > 0) ? globalThis.__wrap(arr[arr.length - 1]) : null;
-                             }
-                             if (prop === 'nextSibling') {
-                                 var arr = globalThis.__getSiblings(t);
-                                 if (arr) {
-                                     var idx = -1;
-                                     for (var i = 0; i < arr.length; i++) {
-                                         if (arr[i] === t) { idx = i; break; }
-                                     }
-                                     if (idx >= 0 && idx < arr.length - 1) {
-                                         return globalThis.__wrap(arr[idx + 1]);
-                                     }
-                                 }
-                                 return null;
-                             }
-                             if (prop === 'previousSibling') {
-                                 var arr = globalThis.__getSiblings(t);
-                                 if (arr) {
-                                     var idx = -1;
-                                     for (var i = 0; i < arr.length; i++) {
-                                         if (arr[i] === t) { idx = i; break; }
-                                     }
-                                     if (idx > 0) {
-                                         return globalThis.__wrap(arr[idx - 1]);
-                                     }
-                                 }
-                                 return null;
-                             }
+                              if (prop === 'children' || prop === 'childNodes') {
+                                  var rawArr = globalThis.__getChildren(t);
+                                  var wrapped = [];
+                                  if (rawArr) {
+                                      for (var item of rawArr) {
+                                          wrapped.push(globalThis.__wrap(item));
+                                      }
+                                  }
+                                  if (prop === 'childNodes' && wrapped.length === 0) {
+                                      var text = receiver.textContent;
+                                      if (text) {
+                                          var textNode = {
+                                              nodeType: 3,
+                                              nodeName: '#text',
+                                              nodeValue: text,
+                                              data: text,
+                                              textContent: text,
+                                              innerText: text,
+                                              parentNode: receiver,
+                                              childNodes: [],
+                                              children: [],
+                                              hasChildNodes: function() { return false; }
+                                          };
+                                          wrapped.push(textNode);
+                                      }
+                                  }
+                                  return wrapped;
+                              }
+                              if (prop === 'firstChild') {
+                                  var rawArr = globalThis.__getChildren(t);
+                                  if (rawArr) {
+                                      for (var item of rawArr) {
+                                          return globalThis.__wrap(item);
+                                      }
+                                  }
+                                  var childrenNodes = receiver.childNodes;
+                                  return childrenNodes.length > 0 ? childrenNodes[0] : null;
+                              }
+                              if (prop === 'lastChild') {
+                                  var rawArr = globalThis.__getChildren(t);
+                                  if (rawArr) {
+                                      var last = null;
+                                      for (var item of rawArr) {
+                                          last = item;
+                                      }
+                                      if (last) return globalThis.__wrap(last);
+                                  }
+                                  var childrenNodes = receiver.childNodes;
+                                  return childrenNodes.length > 0 ? childrenNodes[childrenNodes.length - 1] : null;
+                              }
+                              if (prop === 'nextSibling') {
+                                  var rawArr = globalThis.__getSiblings(t);
+                                  if (rawArr) {
+                                      var arr = Array.from(rawArr);
+                                      var idx = -1;
+                                      for (var i = 0; i < arr.length; i++) {
+                                          if (arr[i] === t) { idx = i; break; }
+                                      }
+                                      if (idx >= 0 && idx < arr.length - 1) {
+                                          return globalThis.__wrap(arr[idx + 1]);
+                                      }
+                                  }
+                                  return null;
+                              }
+                              if (prop === 'previousSibling') {
+                                  var rawArr = globalThis.__getSiblings(t);
+                                  if (rawArr) {
+                                      var arr = Array.from(rawArr);
+                                      var idx = -1;
+                                      for (var i = 0; i < arr.length; i++) {
+                                          if (arr[i] === t) { idx = i; break; }
+                                      }
+                                      if (idx > 0) {
+                                          return globalThis.__wrap(arr[idx - 1]);
+                                      }
+                                  }
+                                  return null;
+                              }
                              if (prop === 'querySelector') {
                                  return function(sel) {
                                      var res = globalThis.__querySelector(t, sel);
@@ -2556,8 +2597,8 @@ public static class RuntimeDomain
                                      var arr = globalThis.__querySelectorAll(t, arg);
                                      var wrapped = [];
                                      if (arr) {
-                                         for (var i = 0; i < arr.length; i++) {
-                                             wrapped.push(globalThis.__wrap(arr[i]));
+                                         for (var item of arr) {
+                                             wrapped.push(globalThis.__wrap(item));
                                          }
                                      }
                                      return wrapped;
