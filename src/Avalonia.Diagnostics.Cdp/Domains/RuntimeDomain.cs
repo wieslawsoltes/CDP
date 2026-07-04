@@ -1224,15 +1224,15 @@ public static class RuntimeDomain
                                         if (bodyStart != -1 && bodyEnd != -1 && bodyEnd > bodyStart)
                                         {
                                             string body = innerExpression.Substring(bodyStart + 1, bodyEnd - bodyStart - 1).Trim();
-                                            if (body.StartsWith("return "))
-                                            {
-                                                body = body.Substring(7).Trim();
-                                            }
-                                            if (body.EndsWith(";"))
-                                            {
-                                                body = body.Substring(0, body.Length - 1).Trim();
-                                            }
-                                            innerExpression = body;
+                                            innerExpression = $"(function(){{{body}}})()";
+                                        }
+                                        else if (innerExpression.StartsWith("() =>"))
+                                        {
+                                            innerExpression = innerExpression.Substring(5).Trim();
+                                        }
+                                        else if (innerExpression.StartsWith("async () =>"))
+                                        {
+                                            innerExpression = innerExpression.Substring(11).Trim();
                                         }
                                     }
 
@@ -1255,29 +1255,21 @@ public static class RuntimeDomain
                                 string exprBody = expression.Trim();
                                 if (exprBody.StartsWith("() =>") || exprBody.StartsWith("async () =>") || exprBody.StartsWith("function") || exprBody.StartsWith("async function"))
                                 {
-                                    int bodyStart = exprBody.IndexOf('{');
-                                    int bodyEnd = exprBody.LastIndexOf('}');
-                                    if (bodyStart != -1 && bodyEnd != -1 && bodyEnd > bodyStart)
-                                    {
-                                        string body = exprBody.Substring(bodyStart + 1, bodyEnd - bodyStart - 1).Trim();
-                                        if (body.StartsWith("return "))
-                                        {
-                                            body = body.Substring(7).Trim();
-                                        }
-                                        if (body.EndsWith(";"))
-                                        {
-                                            body = body.Substring(0, body.Length - 1).Trim();
-                                        }
-                                        exprBody = body;
-                                    }
-                                    else if (exprBody.StartsWith("() =>"))
-                                    {
-                                        exprBody = exprBody.Substring(5).Trim();
-                                    }
-                                    else if (exprBody.StartsWith("async () =>"))
-                                    {
-                                        exprBody = exprBody.Substring(11).Trim();
-                                    }
+                                     int bodyStart = exprBody.IndexOf('{');
+                                     int bodyEnd = exprBody.LastIndexOf('}');
+                                     if (bodyStart != -1 && bodyEnd != -1 && bodyEnd > bodyStart)
+                                     {
+                                         string body = exprBody.Substring(bodyStart + 1, bodyEnd - bodyStart - 1).Trim();
+                                         exprBody = $"(function(){{{body}}})()";
+                                     }
+                                     else if (exprBody.StartsWith("() =>"))
+                                     {
+                                         exprBody = exprBody.Substring(5).Trim();
+                                     }
+                                     else if (exprBody.StartsWith("async () =>"))
+                                     {
+                                         exprBody = exprBody.Substring(11).Trim();
+                                     }
                                 }
 
                                  var valResult = await EvaluateAsync(session, ScriptPreprocessor.Preprocess(exprBody), session.InspectedNodeId);
@@ -1695,7 +1687,7 @@ public static class RuntimeDomain
         engine.SetValue("Control", control);
         engine.SetValue("DataContext", dataContext);
         engine.SetValue("ViewModel", dataContext);
-        engine.SetValue("Window", windowObj);
+        engine.SetValue("__raw_window", windowObj);
         engine.SetValue("__log", new Action<string>(msg => Console.WriteLine("[JS LOG] " + msg)));
         engine.SetValue("getJintCaller", new Func<Jint.Native.JsValue>(() => {
             var callStackField = typeof(Engine).GetField("CallStack", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -1752,21 +1744,89 @@ public static class RuntimeDomain
         engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("__getBounds", new Func<Visual, double[]>(visual => DomDomain.GetVisualBounds(session, visual)));
+        engine.SetValue("__focus", new Action<Visual>(visual => {
+            Dispatcher.UIThread.Invoke(() => {
+                if (visual is Avalonia.Input.IInputElement inputElement) {
+                    inputElement.Focus();
+                }
+            });
+        }));
+        engine.SetValue("__blur", new Action(() => {
+            Dispatcher.UIThread.Invoke(() => {
+                session.Window?.FocusManager?.Focus(null);
+            });
+        }));
         engine.SetValue("__getTypeName", new Func<Visual, string>(visual => visual.GetType().Name));
         engine.SetValue("__getProperty", new Func<Visual, string, object?>((visual, propName) => {
-            var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
-            return prop != null && prop.CanRead ? prop.GetValue(visual) : null;
+            return Dispatcher.UIThread.Invoke(() => {
+                // Try finding AvaloniaProperty first
+                AvaloniaProperty? avaloniaProp = null;
+                var fields = visual.GetType().GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
+                foreach (var field in fields)
+                {
+                    if (field.Name.Equals(propName + "Property", StringComparison.OrdinalIgnoreCase) && typeof(AvaloniaProperty).IsAssignableFrom(field.FieldType))
+                    {
+                        avaloniaProp = field.GetValue(null) as AvaloniaProperty;
+                        break;
+                    }
+                }
+
+                if (avaloniaProp != null)
+                {
+                    return visual.GetValue(avaloniaProp);
+                }
+
+                // Fallback to CLR property reflection
+                var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+                return prop != null && prop.CanRead ? prop.GetValue(visual) : null;
+            });
         }));
         engine.SetValue("__setProperty", new Action<Visual, string, object?>((visual, propName, val) => {
-            var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
-            if (prop != null && prop.CanWrite) {
-                try {
-                    var converted = Convert.ChangeType(val, prop.PropertyType);
-                    prop.SetValue(visual, converted);
-                } catch {
-                    prop.SetValue(visual, val);
+            Dispatcher.UIThread.Invoke(() => {
+                // Try finding AvaloniaProperty first
+                AvaloniaProperty? avaloniaProp = null;
+                var fields = visual.GetType().GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
+                foreach (var field in fields)
+                {
+                    if (field.Name.Equals(propName + "Property", StringComparison.OrdinalIgnoreCase) && typeof(AvaloniaProperty).IsAssignableFrom(field.FieldType))
+                    {
+                        avaloniaProp = field.GetValue(null) as AvaloniaProperty;
+                        break;
+                    }
                 }
-            }
+
+                if (avaloniaProp != null)
+                {
+                    try
+                    {
+                        var converted = Convert.ChangeType(val, avaloniaProp.PropertyType);
+                        visual.SetValue(avaloniaProp, converted);
+                        return;
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            visual.SetValue(avaloniaProp, val);
+                            return;
+                        }
+                        catch { }
+                    }
+                }
+
+                // Fallback to CLR property reflection
+                var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+                if (prop != null && prop.CanWrite) {
+                    try {
+                        var converted = Convert.ChangeType(val, prop.PropertyType);
+                        prop.SetValue(visual, converted);
+                    } catch {
+                        try {
+                            prop.SetValue(visual, val);
+                        } catch { }
+                    }
+                }
+            });
         }));
         engine.SetValue("__getParent", new Func<object, Visual?>(target => 
         {
@@ -1879,6 +1939,26 @@ public static class RuntimeDomain
                             if (prop === 'ownerDocument') return null;
                             if (prop === 'parentNode') return null;
                             if (prop === 'parentElement') return null;
+                            if (prop === 'hasFocus') {
+                                return function() { return true; };
+                            }
+                            if (prop === 'querySelector' || prop === 'getElementById') {
+                                return function(sel) {
+                                    var res = globalThis.__querySelector(target, sel);
+                                    return globalThis.__wrap(res);
+                                };
+                            }
+                            if (prop === 'querySelectorAll' || prop === 'getElementsByTagName' || prop === 'getElementsByClassName') {
+                                return function(arg) {
+                                    var arr = globalThis.__querySelectorAll(target, arg);
+                                    var wrappedList = [];
+                                    for (var i = 0; i < arr.length; i++) {
+                                        wrappedList.push(globalThis.__wrap(arr[i]));
+                                    }
+                                    wrappedList.item = function(idx) { return this[idx]; };
+                                    return wrappedList;
+                                };
+                            }
                             var val = target[prop];
                             if (typeof val === 'function') {
                                 return val.bind(target);
@@ -1887,10 +1967,53 @@ public static class RuntimeDomain
                         }
                     });
                 }
+                if (typeof globalThis.Window === 'undefined' || typeof globalThis.Window.prototype === 'undefined') {
+                    class WindowClass {
+                        static [Symbol.hasInstance](instance) {
+                            var inst = globalThis.__raw_window;
+                            return instance === inst || (instance && (instance.nodeType === 9 || instance.nodeName === 'WINDOW' || instance.nodeName === 'CdpRuntimeDocument'));
+                        }
+                    }
+                    globalThis.Window = new Proxy(WindowClass, {
+                        get(target, prop, receiver) {
+                            if (prop === Symbol.hasInstance) {
+                                return target[Symbol.hasInstance];
+                            }
+                            if (prop === 'prototype') {
+                                return target.prototype;
+                            }
+                            var WindowInstance = globalThis.__raw_window;
+                            if (WindowInstance) {
+                                var val = WindowInstance[prop];
+                                if (typeof val === 'function') {
+                                     return val.bind(WindowInstance);
+                                }
+                                return val;
+                            }
+                            return undefined;
+                        }
+                    });
+                }
                 globalThis.window = globalThis;
             ");
 
             engine.Evaluate(@"
+                if (typeof globalThis.DOMRect === 'undefined') {
+                    globalThis.DOMRect = class {
+                        constructor(x, y, width, height) {
+                            this.x = x || 0;
+                            this.y = y || 0;
+                            this.width = width || 0;
+                            this.height = height || 0;
+                            this.left = this.x;
+                            this.top = this.y;
+                            this.right = this.x + this.width;
+                            this.bottom = this.y + this.height;
+                        }
+                    };
+                    globalThis.ClientRect = globalThis.DOMRect;
+                }
+
                 if (typeof globalThis.__polyfilled === 'undefined') {
                     globalThis.__polyfilled = true;
 
@@ -2073,20 +2196,6 @@ public static class RuntimeDomain
                             return instance && instance.nodeType === 1;
                         }
                     };
-
-                    globalThis.DOMRect = class {
-                        constructor(x, y, width, height) {
-                            this.x = x || 0;
-                            this.y = y || 0;
-                            this.width = width || 0;
-                            this.height = height || 0;
-                            this.left = this.x;
-                            this.top = this.y;
-                            this.right = this.x + this.width;
-                            this.bottom = this.y + this.height;
-                        }
-                    };
-                    globalThis.ClientRect = globalThis.DOMRect;
 
                     globalThis.Document = class {
                         static [Symbol.hasInstance](instance) {
@@ -2285,7 +2394,20 @@ public static class RuntimeDomain
                              if (prop === 'getBoundingClientRect') {
                                  return function() {
                                      var bounds = globalThis.__getBounds(t);
-                                     return new globalThis.DOMRect(bounds[0], bounds[1], bounds[2], bounds[3]);
+                                     var rect = {
+                                         x: bounds[0],
+                                         y: bounds[1],
+                                         width: bounds[2],
+                                         height: bounds[3],
+                                         left: bounds[0],
+                                         top: bounds[1],
+                                         right: bounds[0] + bounds[2],
+                                         bottom: bounds[1] + bounds[3]
+                                     };
+                                     if (globalThis.DOMRect) {
+                                         Object.setPrototypeOf(rect, globalThis.DOMRect.prototype);
+                                     }
+                                     return rect;
                                  };
                              }
                              if (prop === 'getClientRects') {
@@ -2300,6 +2422,17 @@ public static class RuntimeDomain
                                  };
                              }
                              if (prop === 'stop') return function() {};
+                             if (prop === 'shadowRoot') return null;
+                             if (prop === 'focus') {
+                                 return function() {
+                                     globalThis.__focus(t);
+                                 };
+                             }
+                             if (prop === 'blur') {
+                                 return function() {
+                                     globalThis.__blur();
+                                 };
+                             }
                              if (prop === 'ownerDocument') return globalThis.document;
                              if (prop === 'parentNode') {
                                  var p = globalThis.__getParent(t);
@@ -2893,6 +3026,12 @@ public static class RuntimeDomain
             result["backendNodeId"] = session.NodeMap.GetOrAdd((Visual)runtimeElem.visual);
             result["loaderId"] = "main-loader-id";
         }
+        else if (obj is CdpRuntimeDocument)
+        {
+            result["subtype"] = "node";
+            result["backendNodeId"] = 1;
+            result["loaderId"] = "main-loader-id";
+        }
 
         return result;
     }
@@ -2936,36 +3075,44 @@ public static class RuntimeDomain
             return result;
         }
 
-        if (val.IsObject())
+        var clrObj = UnwrapJsValue(val);
+        if (clrObj != null)
         {
-            var objVal = val.AsObject();
-            if (objVal is Jint.Runtime.Interop.ObjectWrapper wrapper)
+            if (clrObj is Visual visualObj)
             {
-                var target = wrapper.Target;
-                if (target is Visual visualObj)
+                result["type"] = "node";
+                result["value"] = new JsonObject
                 {
-                    result["type"] = "node";
-                    result["value"] = new JsonObject
-                    {
-                        ["nodeType"] = 1,
-                        ["nodeName"] = visualObj.GetType().Name.ToUpperInvariant(),
-                        ["backendNodeId"] = session.NodeMap.GetOrAdd(visualObj),
-                        ["loaderId"] = "main-loader-id"
-                    };
-                    return result;
-                }
-                else if (target is CdpRuntimeElement runtimeElemObj)
+                    ["nodeType"] = 1,
+                    ["nodeName"] = visualObj.GetType().Name.ToUpperInvariant(),
+                    ["backendNodeId"] = session.NodeMap.GetOrAdd(visualObj),
+                    ["loaderId"] = "main-loader-id"
+                };
+                return result;
+            }
+            else if (clrObj is CdpRuntimeElement runtimeElemObj)
+            {
+                result["type"] = "node";
+                result["value"] = new JsonObject
                 {
-                    result["type"] = "node";
-                    result["value"] = new JsonObject
-                    {
-                        ["nodeType"] = 1,
-                        ["nodeName"] = runtimeElemObj.tagName,
-                        ["backendNodeId"] = session.NodeMap.GetOrAdd((Visual)runtimeElemObj.visual),
-                        ["loaderId"] = "main-loader-id"
-                    };
-                    return result;
-                }
+                    ["nodeType"] = 1,
+                    ["nodeName"] = runtimeElemObj.tagName,
+                    ["backendNodeId"] = session.NodeMap.GetOrAdd((Visual)runtimeElemObj.visual),
+                    ["loaderId"] = "main-loader-id"
+                };
+                return result;
+            }
+            else if (clrObj is CdpRuntimeDocument)
+            {
+                result["type"] = "node";
+                result["value"] = new JsonObject
+                {
+                    ["nodeType"] = 9,
+                    ["nodeName"] = "#document",
+                    ["backendNodeId"] = 1,
+                    ["loaderId"] = "main-loader-id"
+                };
+                return result;
             }
         }
 
@@ -3014,6 +3161,30 @@ public static class RuntimeDomain
         }
         visited.Remove(val);
         return result;
+    }
+
+    private static object? UnwrapJsValue(Jint.Native.JsValue val)
+    {
+        if (val == null) return null;
+
+        var valType = val.GetType();
+        if (valType.Name == "JsProxy" || valType.FullName == "Jint.Native.JsProxy")
+        {
+            var targetField = valType.GetField("_target", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (targetField != null)
+            {
+                var targetVal = targetField.GetValue(val) as Jint.Native.JsValue;
+                if (targetVal != null)
+                {
+                    return UnwrapJsValue(targetVal);
+                }
+            }
+        }
+        if (val is Jint.Runtime.Interop.ObjectWrapper wrapper)
+        {
+            return wrapper.Target;
+        }
+        return null;
     }
 
     private static string ToCamelCase(string s)
@@ -3305,6 +3476,15 @@ public sealed class CdpRuntimeDocument
         {
             var root = _session.Window;
             return root != null ? new CdpRuntimeElement(_session, root) : null;
+        }
+    }
+    public CdpRuntimeElement? activeElement
+    {
+        get
+        {
+            var focused = _session.Window?.FocusManager?.GetFocusedElement() as Visual;
+            if (focused != null) return new CdpRuntimeElement(_session, focused);
+            return body;
         }
     }
     public CdpRuntimeElement? head => null;
