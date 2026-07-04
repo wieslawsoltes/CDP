@@ -2427,7 +2427,7 @@ public static class RuntimeDomain
                                          bottom: bounds[1] + bounds[3]
                                      };
                                      if (globalThis.DOMRect) {
-                                         Object.setPrototypeOf(rect, globalThis.DOMRect.prototype);
+                                         return new globalThis.DOMRect(rect.x, rect.y, rect.width, rect.height);
                                      }
                                      return rect;
                                  };
