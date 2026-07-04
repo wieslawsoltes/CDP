@@ -471,7 +471,7 @@ public class CdpSession
                 method == "Target.attachedToTarget" ||
                 method == "Target.detachedFromTarget";
 
-            if ((!method.StartsWith("Target.", StringComparison.OrdinalIgnoreCase) || !isBrowserLevelTargetEvent) && 
+            if ((!method.StartsWith("Target.", StringComparison.OrdinalIgnoreCase) || !isBrowserLevelTargetEvent || targetSession != null) && 
                 !method.StartsWith("Browser.", StringComparison.OrdinalIgnoreCase))
             {
                 evt["sessionId"] = activeTarget.SessionId;
