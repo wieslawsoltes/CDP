@@ -192,13 +192,28 @@ public class SeleniumTests : IClassFixture<SeleniumFixture>
         _driver.ExecuteScript("if (typeof Window !== 'undefined' && Window) Window.clickCount = 0;");
 
         var statusText = _driver.FindElement(By.Id("txtStatus"));
+        for (int i = 0; i < 50; i++)
+        {
+            if (statusText.Text == "Not Clicked") break;
+            System.Threading.Thread.Sleep(100);
+        }
         Assert.Equal("Not Clicked", statusText.Text);
 
         var clickBtn = _driver.FindElement(By.Id("btnClickMe"));
         clickBtn.Click();
+        for (int i = 0; i < 50; i++)
+        {
+            if (statusText.Text == "Clicked 1 times!") break;
+            System.Threading.Thread.Sleep(100);
+        }
         Assert.Equal("Clicked 1 times!", statusText.Text);
 
         clickBtn.Click();
+        for (int i = 0; i < 50; i++)
+        {
+            if (statusText.Text == "Clicked 2 times!") break;
+            System.Threading.Thread.Sleep(100);
+        }
         Assert.Equal("Clicked 2 times!", statusText.Text);
     }
 
@@ -209,6 +224,11 @@ public class SeleniumTests : IClassFixture<SeleniumFixture>
         var txtInput = _driver.FindElement(By.Id("txtInput"));
         txtInput.Clear();
         txtInput.SendKeys("CDP Selenium E2E!");
+        for (int i = 0; i < 50; i++)
+        {
+            if (txtInput.GetAttribute("value") == "CDP Selenium E2E!") break;
+            System.Threading.Thread.Sleep(100);
+        }
         Assert.Equal("CDP Selenium E2E!", txtInput.GetAttribute("value"));
     }
 
@@ -223,15 +243,30 @@ public class SeleniumTests : IClassFixture<SeleniumFixture>
         {
             chkToggle.Click();
         }
+        for (int i = 0; i < 50; i++)
+        {
+            if (!chkToggle.Selected) break;
+            System.Threading.Thread.Sleep(100);
+        }
         Assert.False(chkToggle.Selected);
         
         chkToggle.Click();
+        for (int i = 0; i < 50; i++)
+        {
+            if (chkToggle.Selected) break;
+            System.Threading.Thread.Sleep(100);
+        }
         Assert.True(chkToggle.Selected);
 
         // Update Slider value via Javascript evaluation
         _driver.ExecuteScript("document.querySelector('#sliderValue').value = 75;");
         
         var sliderText = _driver.FindElement(By.Id("txtSliderVal"));
+        for (int i = 0; i < 50; i++)
+        {
+            if (sliderText.Text == "Slider Value: 75") break;
+            System.Threading.Thread.Sleep(100);
+        }
         Assert.Equal("Slider Value: 75", sliderText.Text);
     }
 
