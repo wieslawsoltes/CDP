@@ -161,7 +161,7 @@ public class PuppeteerGenerator : ICodeGenerator
             sb.AppendLine();
         }
 
-        sb.AppendLine("  await browser.close();");
+        sb.AppendLine("  await browser.disconnect();");
         sb.AppendLine("})();");
 
         return sb.ToString();
