@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Microsoft.CodeAnalysis;
@@ -1747,6 +1748,14 @@ public static class RuntimeDomain
         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("__getBounds", new Func<Visual, double[]>(visual => DomDomain.GetVisualBounds(session, visual)));
         engine.SetValue("__getNodeId", new Func<Visual, int>(visual => session.NodeMap.GetOrAdd(visual)));
+        engine.SetValue("__elementFromPoint", new Func<double, double, Visual?>((x, y) => {
+            return Dispatcher.UIThread.Invoke(() => {
+                var window = session.Window;
+                if (window == null) return null;
+                var point = new Point(x, y);
+                return window.InputHitTest(point) as Visual;
+            });
+        }));
         engine.SetValue("__focus", new Action<Visual>(visual => {
             Dispatcher.UIThread.Invoke(() => {
                 if (visual is Avalonia.Input.IInputElement inputElement) {
@@ -1946,6 +1955,13 @@ public static class RuntimeDomain
                             if (prop === 'parentElement') return null;
                             if (prop === 'hasFocus') {
                                 return function() { return true; };
+                            }
+                            if (prop === 'elementFromPoint') {
+                                return function(x, y) {
+                                    var visual = globalThis.__elementFromPoint(x, y);
+                                    if (visual) return globalThis.__wrap(visual);
+                                    return null;
+                                };
                             }
                             if (prop === 'querySelector' || prop === 'getElementById') {
                                 return function(sel) {
