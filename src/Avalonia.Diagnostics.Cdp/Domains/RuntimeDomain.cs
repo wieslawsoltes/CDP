@@ -1773,21 +1773,11 @@ public static class RuntimeDomain
         engine.SetValue("__getTypeName", new Func<Visual, string>(visual => visual.GetType().Name));
         engine.SetValue("__getProperty", new Func<Visual, string, object?>((visual, propName) => {
             return Dispatcher.UIThread.Invoke(() => {
-                // Try finding AvaloniaProperty first
-                AvaloniaProperty? avaloniaProp = null;
-                var fields = visual.GetType().GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
-                foreach (var field in fields)
+                var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(visual)
+                    .FirstOrDefault(p => p.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
+                if (avProperty != null)
                 {
-                    if (field.Name.Equals(propName + "Property", StringComparison.OrdinalIgnoreCase) && typeof(AvaloniaProperty).IsAssignableFrom(field.FieldType))
-                    {
-                        avaloniaProp = field.GetValue(null) as AvaloniaProperty;
-                        break;
-                    }
-                }
-
-                if (avaloniaProp != null)
-                {
-                    return visual.GetValue(avaloniaProp);
+                    return visual.GetValue(avProperty);
                 }
 
                 // Fallback to CLR property reflection
@@ -1797,44 +1787,31 @@ public static class RuntimeDomain
         }));
         engine.SetValue("__hasProperty", new Func<Visual, string, bool>((visual, propName) => {
             return Dispatcher.UIThread.Invoke(() => {
-                var type = visual.GetType();
-                var fields = type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
-                foreach (var field in fields)
-                {
-                    if (field.Name.Equals(propName + "Property", StringComparison.OrdinalIgnoreCase) && typeof(AvaloniaProperty).IsAssignableFrom(field.FieldType))
-                        return true;
-                }
-                var prop = type.GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+                var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(visual)
+                    .FirstOrDefault(p => p.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
+                if (avProperty != null) return true;
+
+                var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
                 return prop != null;
             });
         }));
         engine.SetValue("__setProperty", new Action<Visual, string, object?>((visual, propName, val) => {
             Dispatcher.UIThread.Invoke(() => {
-                // Try finding AvaloniaProperty first
-                AvaloniaProperty? avaloniaProp = null;
-                var fields = visual.GetType().GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
-                foreach (var field in fields)
-                {
-                    if (field.Name.Equals(propName + "Property", StringComparison.OrdinalIgnoreCase) && typeof(AvaloniaProperty).IsAssignableFrom(field.FieldType))
-                    {
-                        avaloniaProp = field.GetValue(null) as AvaloniaProperty;
-                        break;
-                    }
-                }
-
-                if (avaloniaProp != null)
+                var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(visual)
+                    .FirstOrDefault(p => p.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
+                if (avProperty != null)
                 {
                     try
                     {
-                        var converted = Convert.ChangeType(val, avaloniaProp.PropertyType);
-                        visual.SetValue(avaloniaProp, converted);
+                        var converted = Convert.ChangeType(val, avProperty.PropertyType);
+                        visual.SetValue(avProperty, converted);
                         return;
                     }
                     catch
                     {
                         try
                         {
-                            visual.SetValue(avaloniaProp, val);
+                            visual.SetValue(avProperty, val);
                             return;
                         }
                         catch { }
