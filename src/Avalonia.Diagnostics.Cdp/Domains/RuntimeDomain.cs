@@ -2357,6 +2357,20 @@ public static class RuntimeDomain
                                 attrs.item = function(i) { return attrs[i]; };
                                 return attrs;
                             }
+                            if (prop === 'outerHTML') {
+                                var tn = receiver.tagName || 'DIV';
+                                var idStr = receiver.id ? ' id=\'' + receiver.id + '\'' : '';
+                                return '<' + tn + idStr + '></' + tn + '>';
+                            }
+                            if (prop === 'innerHTML') {
+                                return '';
+                            }
+                            if (prop === 'hasChildNodes') {
+                                return function() {
+                                    var arr = globalThis.__getChildren(t);
+                                    return !!(arr && arr.length > 0);
+                                };
+                            }
                             if (prop === 'nodeType') return typeof t.nodeType === 'number' ? t.nodeType : 1;
                             if (prop === 'nodeName' || prop === 'tagName') {
                                 var typeName = globalThis.__getTypeName(t);
