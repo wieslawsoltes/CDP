@@ -216,6 +216,23 @@ public static class DebuggerDomain
                                     static [Symbol.hasInstance](instance) { return true; }
                                 };
                             }
+                            if (typeof globalThis.DOMRect === 'undefined') {
+                                globalThis.DOMRect = class {
+                                    constructor(x, y, width, height) {
+                                        this.x = x || 0;
+                                        this.y = y || 0;
+                                        this.width = width || 0;
+                                        this.height = height || 0;
+                                        this.left = this.x;
+                                        this.top = this.y;
+                                        this.right = this.x + this.width;
+                                        this.bottom = this.y + this.height;
+                                    }
+                                };
+                            }
+                            if (typeof globalThis.ClientRect === 'undefined') {
+                                globalThis.ClientRect = globalThis.DOMRect;
+                            }
                             globalThis.__wrap = function(target) {
                                 if (!target) return target;
                                 return new Proxy(target, {

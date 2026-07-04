@@ -1976,6 +1976,20 @@ public static class RuntimeDomain
                         }
                     };
 
+                    globalThis.DOMRect = class {
+                        constructor(x, y, width, height) {
+                            this.x = x || 0;
+                            this.y = y || 0;
+                            this.width = width || 0;
+                            this.height = height || 0;
+                            this.left = this.x;
+                            this.top = this.y;
+                            this.right = this.x + this.width;
+                            this.bottom = this.y + this.height;
+                        }
+                    };
+                    globalThis.ClientRect = globalThis.DOMRect;
+
                     globalThis.Document = class {
                         static [Symbol.hasInstance](instance) {
                             return instance && instance.nodeType === 9;
@@ -2146,59 +2160,113 @@ public static class RuntimeDomain
                                     return null;
                                 };
                             }
-                            if (prop === 'hasAttribute') {
-                                return function(name) {
-                                    return receiver.getAttribute(name) !== null;
-                                };
-                            }
-                            if (prop === 'getBoundingClientRect') {
-                                return function() {
-                                    var bounds = globalThis.__getBounds(t);
-                                    return {
-                                        left: bounds[0],
-                                        top: bounds[1],
-                                        width: bounds[2],
-                                        height: bounds[3],
-                                        right: bounds[0] + bounds[2],
-                                        bottom: bounds[1] + bounds[3],
-                                        x: bounds[0],
-                                        y: bounds[1]
-                                    };
-                                };
-                            }
-                            if (prop === 'getClientRects') {
-                                return function() {
-                                    return [receiver.getBoundingClientRect()];
-                                };
-                            }
-                            if (prop === 'getAttributeNode') {
-                                return function(name) {
-                                    var val = receiver.getAttribute(name);
-                                    return val !== null ? { value: val } : null;
-                                };
-                            }
-                            if (prop === 'stop') return function() {};
-                            if (prop === 'ownerDocument') return globalThis.document;
-                            if (prop === 'parentNode') {
-                                var p = t.__raw_parentNode;
-                                if (p) return globalThis.__wrap(p);
-                                return globalThis.document;
-                            }
-                            if (prop === 'parentElement') {
-                                var p = t.__raw_parentNode;
-                                return p ? globalThis.__wrap(p) : null;
-                            }
-                            if (prop === 'contains') {
-                                return Object.prototype.contains;
-                            }
-                            if (prop === 'compareDocumentPosition') {
-                                return Object.prototype.compareDocumentPosition;
-                            }
-                            var val = t[prop];
-                            if (typeof val === 'function') {
-                                return val.bind(t);
-                            }
-                            return globalThis.__wrap(val);
+                            if (prop === 'attributes') {
+                                 var attrs = [];
+                                 var idVal = receiver.id;
+                                 if (idVal) attrs.push({ name: 'id', value: idVal, nodeName: 'id', nodeValue: idVal, nodeType: 2 });
+                                 var classVal = receiver.className;
+                                 if (classVal) attrs.push({ name: 'class', value: classVal, nodeName: 'class', nodeValue: classVal, nodeType: 2 });
+                                 var typeVal = receiver.type;
+                                 if (typeVal) attrs.push({ name: 'type', value: typeVal, nodeName: 'type', nodeValue: typeVal, nodeType: 2 });
+                                 var valueVal = receiver.value;
+                                 if (valueVal) attrs.push({ name: 'value', value: valueVal, nodeName: 'value', nodeValue: valueVal, nodeType: 2 });
+                                 attrs.item = function(i) { return attrs[i]; };
+                                 attrs.getNamedItem = function(name) {
+                                     for (var i = 0; i < attrs.length; i++) {
+                                         if (attrs[i].name === name) return attrs[i];
+                                     }
+                                     return null;
+                                 };
+                                 return attrs;
+                             }
+                             if (prop === 'hasAttribute') {
+                                 return function(name) {
+                                     return receiver.getAttribute(name) !== null;
+                                 };
+                             }
+                             if (prop === 'getBoundingClientRect') {
+                                 return function() {
+                                     var bounds = globalThis.__getBounds(t);
+                                     return new globalThis.DOMRect(bounds[0], bounds[1], bounds[2], bounds[3]);
+                                 };
+                             }
+                             if (prop === 'getClientRects') {
+                                 return function() {
+                                     return [receiver.getBoundingClientRect()];
+                                 };
+                             }
+                             if (prop === 'getAttributeNode') {
+                                 return function(name) {
+                                     var val = receiver.getAttribute(name);
+                                     return val !== null ? { name: name, value: val, nodeName: name, nodeValue: val, nodeType: 2 } : null;
+                                 };
+                             }
+                             if (prop === 'stop') return function() {};
+                             if (prop === 'ownerDocument') return globalThis.document;
+                             if (prop === 'parentNode') {
+                                 var p = t.__raw_parentNode;
+                                 if (p) return globalThis.__wrap(p);
+                                 return globalThis.document;
+                             }
+                             if (prop === 'parentElement') {
+                                 var p = t.__raw_parentNode;
+                                 return p ? globalThis.__wrap(p) : null;
+                             }
+                             if (prop === 'children' || prop === 'childNodes') {
+                                 var arr = t.children;
+                                 var wrapped = [];
+                                 if (arr) {
+                                     for (var i = 0; i < arr.length; i++) {
+                                         wrapped.push(globalThis.__wrap(arr[i]));
+                                     }
+                                 }
+                                 return wrapped;
+                             }
+                             if (prop === 'firstChild') {
+                                 var arr = t.children;
+                                 return (arr && arr.length > 0) ? globalThis.__wrap(arr[0]) : null;
+                             }
+                             if (prop === 'lastChild') {
+                                 var arr = t.children;
+                                 return (arr && arr.length > 0) ? globalThis.__wrap(arr[arr.length - 1]) : null;
+                             }
+                             if (prop === 'nextSibling') {
+                                 var ns = t.nextSibling;
+                                 return ns ? globalThis.__wrap(ns) : null;
+                             }
+                             if (prop === 'previousSibling') {
+                                 var ps = t.previousSibling;
+                                 return ps ? globalThis.__wrap(ps) : null;
+                             }
+                             if (prop === 'querySelector') {
+                                 return function(sel) {
+                                     var res = t.querySelector(sel);
+                                     return res ? globalThis.__wrap(res) : null;
+                                 };
+                             }
+                             if (prop === 'querySelectorAll' || prop === 'getElementsByTagName' || prop === 'getElementsByClassName') {
+                                 return function(arg) {
+                                     var arr = t[prop](arg);
+                                     var wrapped = [];
+                                     if (arr) {
+                                         for (var i = 0; i < arr.length; i++) {
+                                             wrapped.push(globalThis.__wrap(arr[i]));
+                                         }
+                                     }
+                                     return wrapped;
+                                 };
+                             }
+                             if (prop === 'contains') {
+                                 return Object.prototype.contains;
+                             }
+                             if (prop === 'compareDocumentPosition') {
+                                 return Object.prototype.compareDocumentPosition;
+                             }
+                             var val = t[prop];
+                             if (typeof val === 'function') {
+                                 return val.bind(t);
+                             }
+                             return globalThis.__wrap(val);
                         },
                         set(t, prop, value, receiver) {
                             if (prop === 'textContent' || prop === 'innerText' || prop === 'value') {
