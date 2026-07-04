@@ -1795,6 +1795,19 @@ public static class RuntimeDomain
                 return prop != null && prop.CanRead ? prop.GetValue(visual) : null;
             });
         }));
+        engine.SetValue("__hasProperty", new Func<Visual, string, bool>((visual, propName) => {
+            return Dispatcher.UIThread.Invoke(() => {
+                var type = visual.GetType();
+                var fields = type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
+                foreach (var field in fields)
+                {
+                    if (field.Name.Equals(propName + "Property", StringComparison.OrdinalIgnoreCase) && typeof(AvaloniaProperty).IsAssignableFrom(field.FieldType))
+                        return true;
+                }
+                var prop = type.GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+                return prop != null;
+            });
+        }));
         engine.SetValue("__setProperty", new Action<Visual, string, object?>((visual, propName, val) => {
             Dispatcher.UIThread.Invoke(() => {
                 // Try finding AvaloniaProperty first
@@ -2568,11 +2581,11 @@ public static class RuntimeDomain
                         },
                         set(t, prop, value, receiver) {
                             if (prop === 'textContent' || prop === 'innerText' || prop === 'value') {
-                                if (globalThis.__getProperty(t, 'Text') !== null) {
+                                if (globalThis.__hasProperty(t, 'Text')) {
                                     globalThis.__setProperty(t, 'Text', value);
                                     return true;
                                 }
-                                if (globalThis.__getProperty(t, 'Content') !== null) {
+                                if (globalThis.__hasProperty(t, 'Content')) {
                                     globalThis.__setProperty(t, 'Content', value);
                                     return true;
                                 }
