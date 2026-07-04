@@ -2000,6 +2000,17 @@ public static class RuntimeDomain
                     });
                 }
                 globalThis.window = globalThis;
+                if (typeof globalThis.visualViewport === 'undefined') {
+                    globalThis.visualViewport = {
+                        width: 800,
+                        height: 600,
+                        scale: 1,
+                        offsetTop: 0,
+                        offsetLeft: 0,
+                        pageTop: 0,
+                        pageLeft: 0
+                    };
+                }
             ");
 
             engine.Evaluate(@"
