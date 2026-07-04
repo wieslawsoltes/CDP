@@ -162,7 +162,7 @@ public class DomTreeTests
         Assert.Same(button, buttonElement!.visual);
         Assert.Same(button, runtimeWindow.document.getElementById("btnClickMe")!.visual);
         Assert.Equal(1, buttonElement.nodeType);
-        Assert.Equal("Button", buttonElement.tagName);
+        Assert.Equal("BUTTON", buttonElement.tagName);
         Assert.Equal("btnAutomation", buttonElement.getAttribute("AutomationProperties.AutomationId"));
         Assert.True(buttonElement.matches("[AutomationProperties.AutomationId=\"btnAutomation\"]"));
 
