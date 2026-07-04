@@ -1752,11 +1752,13 @@ public static class RuntimeDomain
                     inputElement.Focus();
                 }
             });
+            rawDoc._activeElement = new CdpRuntimeElement(session, visual);
         }));
         engine.SetValue("__blur", new Action(() => {
             Dispatcher.UIThread.Invoke(() => {
                 session.Window?.FocusManager?.Focus(null);
             });
+            rawDoc._activeElement = null;
         }));
         engine.SetValue("__getTypeName", new Func<Visual, string>(visual => visual.GetType().Name));
         engine.SetValue("__getProperty", new Func<Visual, string, object?>((visual, propName) => {
@@ -3480,10 +3482,13 @@ public sealed class CdpRuntimeDocument
             return root != null ? new CdpRuntimeElement(_session, root) : null;
         }
     }
+    internal CdpRuntimeElement? _activeElement;
+
     public CdpRuntimeElement? activeElement
     {
         get
         {
+            if (_activeElement != null) return _activeElement;
             var focused = _session.Window?.FocusManager?.GetFocusedElement() as Visual;
             if (focused != null) return new CdpRuntimeElement(_session, focused);
             return body;
@@ -3688,11 +3693,13 @@ public sealed class CdpRuntimeElement
         {
             if (_visual != null && value != null)
             {
-                var textProp = _visual.GetType().GetProperty("Text", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                if (textProp != null && textProp.CanWrite)
-                {
-                    textProp.SetValue(_visual, value);
-                }
+                Dispatcher.UIThread.Invoke(() => {
+                    var textProp = _visual.GetType().GetProperty("Text", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (textProp != null && textProp.CanWrite)
+                    {
+                        textProp.SetValue(_visual, value);
+                    }
+                });
             }
         }
     }
@@ -3709,22 +3716,23 @@ public sealed class CdpRuntimeElement
         {
             if (_visual != null && value != null)
             {
-                var valueProp = _visual.GetType().GetProperty("Value", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                if (valueProp != null && valueProp.CanWrite)
-                {
-                    if (double.TryParse(value.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var dVal))
+                Dispatcher.UIThread.Invoke(() => {
+                    var valueProp = _visual.GetType().GetProperty("Value", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (valueProp != null && valueProp.CanWrite)
                     {
-                        valueProp.SetValue(_visual, Convert.ChangeType(dVal, valueProp.PropertyType));
-                        return;
+                        if (double.TryParse(value.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var dVal))
+                        {
+                            valueProp.SetValue(_visual, Convert.ChangeType(dVal, valueProp.PropertyType));
+                            return;
+                        }
                     }
-                }
 
-                var textProp = _visual.GetType().GetProperty("Text", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                if (textProp != null && textProp.CanWrite)
-                {
-                    textProp.SetValue(_visual, value.ToString());
-                    return;
-                }
+                    var textProp = _visual.GetType().GetProperty("Text", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (textProp != null && textProp.CanWrite)
+                    {
+                        textProp.SetValue(_visual, value.ToString());
+                    }
+                });
             }
         }
     }
@@ -3747,14 +3755,16 @@ public sealed class CdpRuntimeElement
         {
             if (_visual != null && value != null)
             {
-                var prop = _visual.GetType().GetProperty("SelectedIndex", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                if (prop != null && prop.CanWrite)
-                {
-                    if (int.TryParse(value.ToString(), out var iVal))
+                Dispatcher.UIThread.Invoke(() => {
+                    var prop = _visual.GetType().GetProperty("SelectedIndex", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (prop != null && prop.CanWrite)
                     {
-                        prop.SetValue(_visual, iVal);
+                        if (int.TryParse(value.ToString(), out var iVal))
+                        {
+                            prop.SetValue(_visual, iVal);
+                        }
                     }
-                }
+                });
             }
         }
     }
