@@ -1768,6 +1768,56 @@ public static class RuntimeDomain
                 }
             }
         }));
+        engine.SetValue("__getParent", new Func<object, Visual?>(target => 
+        {
+            var visual = (target is CdpRuntimeElement elem ? elem.visual : target) as Visual;
+            if (visual == null || visual == session.Window) return null;
+            return session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(visual)
+                : visual.GetVisualParent();
+        }));
+
+        engine.SetValue("__getChildren", new Func<object, IEnumerable<Visual>>(target => 
+        {
+            var visual = (target is CdpRuntimeElement elem ? elem.visual : target) as Visual;
+            if (visual == null) return Array.Empty<Visual>();
+            var list = new List<Visual>();
+            var childrenList = session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalChildren(visual)
+                : visual.GetVisualChildren();
+            foreach (var child in childrenList)
+            {
+                list.Add(child);
+            }
+            return list;
+        }));
+
+        engine.SetValue("__getSiblings", new Func<object, IEnumerable<Visual>>(target => 
+        {
+            var visual = (target is CdpRuntimeElement elem ? elem.visual : target) as Visual;
+            if (visual == null) return Array.Empty<Visual>();
+            var parent = session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(visual)
+                : visual.GetVisualParent();
+            if (parent == null) return new[] { visual };
+            return session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalChildren(parent)
+                : parent.GetVisualChildren();
+        }));
+
+        engine.SetValue("__querySelector", new Func<object, string, Visual?>((target, sel) => 
+        {
+            var visual = target is CdpRuntimeDocument ? session.Window : ((target is CdpRuntimeElement elem ? elem.visual : target) as Visual);
+            if (visual == null) return null;
+            return Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(visual, sel, session.UseLogicalTree);
+        }));
+
+        engine.SetValue("__querySelectorAll", new Func<object, string, IEnumerable<Visual>>((target, sel) => 
+        {
+            var visual = target is CdpRuntimeDocument ? session.Window : ((target is CdpRuntimeElement elem ? elem.visual : target) as Visual);
+            if (visual == null) return Array.Empty<Visual>();
+            return Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(visual, sel, session.UseLogicalTree);
+        }));
 
         if (isNew)
         {
@@ -2204,16 +2254,16 @@ public static class RuntimeDomain
                              if (prop === 'stop') return function() {};
                              if (prop === 'ownerDocument') return globalThis.document;
                              if (prop === 'parentNode') {
-                                 var p = t.__raw_parentNode;
+                                 var p = globalThis.__getParent(t);
                                  if (p) return globalThis.__wrap(p);
                                  return globalThis.document;
                              }
                              if (prop === 'parentElement') {
-                                 var p = t.__raw_parentNode;
+                                 var p = globalThis.__getParent(t);
                                  return p ? globalThis.__wrap(p) : null;
                              }
                              if (prop === 'children' || prop === 'childNodes') {
-                                 var arr = t.children;
+                                 var arr = globalThis.__getChildren(t);
                                  var wrapped = [];
                                  if (arr) {
                                      for (var i = 0; i < arr.length; i++) {
@@ -2223,30 +2273,48 @@ public static class RuntimeDomain
                                  return wrapped;
                              }
                              if (prop === 'firstChild') {
-                                 var arr = t.children;
+                                 var arr = globalThis.__getChildren(t);
                                  return (arr && arr.length > 0) ? globalThis.__wrap(arr[0]) : null;
                              }
                              if (prop === 'lastChild') {
-                                 var arr = t.children;
+                                 var arr = globalThis.__getChildren(t);
                                  return (arr && arr.length > 0) ? globalThis.__wrap(arr[arr.length - 1]) : null;
                              }
                              if (prop === 'nextSibling') {
-                                 var ns = t.nextSibling;
-                                 return ns ? globalThis.__wrap(ns) : null;
+                                 var arr = globalThis.__getSiblings(t);
+                                 if (arr) {
+                                     var idx = -1;
+                                     for (var i = 0; i < arr.length; i++) {
+                                         if (arr[i] === t) { idx = i; break; }
+                                     }
+                                     if (idx >= 0 && idx < arr.length - 1) {
+                                         return globalThis.__wrap(arr[idx + 1]);
+                                     }
+                                 }
+                                 return null;
                              }
                              if (prop === 'previousSibling') {
-                                 var ps = t.previousSibling;
-                                 return ps ? globalThis.__wrap(ps) : null;
+                                 var arr = globalThis.__getSiblings(t);
+                                 if (arr) {
+                                     var idx = -1;
+                                     for (var i = 0; i < arr.length; i++) {
+                                         if (arr[i] === t) { idx = i; break; }
+                                     }
+                                     if (idx > 0) {
+                                         return globalThis.__wrap(arr[idx - 1]);
+                                     }
+                                 }
+                                 return null;
                              }
                              if (prop === 'querySelector') {
                                  return function(sel) {
-                                     var res = t.querySelector(sel);
+                                     var res = globalThis.__querySelector(t, sel);
                                      return res ? globalThis.__wrap(res) : null;
                                  };
                              }
                              if (prop === 'querySelectorAll' || prop === 'getElementsByTagName' || prop === 'getElementsByClassName') {
                                  return function(arg) {
-                                     var arr = t[prop](arg);
+                                     var arr = globalThis.__querySelectorAll(t, arg);
                                      var wrapped = [];
                                      if (arr) {
                                          for (var i = 0; i < arr.length; i++) {
