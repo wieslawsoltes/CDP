@@ -22,6 +22,7 @@ namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class RuntimeDomain
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Jint.Engine> _engines = new();
     private static string GenerateAriaSnapshot(CdpSession session)
     {
         CdpServer.OriginalOut.WriteLine("[CDP ARIA DEBUG] GenerateAriaSnapshot started");
@@ -216,6 +217,8 @@ public static class RuntimeDomain
             case "evaluate":
                 {
                     string expression = @params["expression"]?.GetValue<string>() ?? "";
+                    bool awaitPromise = @params["awaitPromise"]?.GetValue<bool>() ?? false;
+                    int contextId = @params["contextId"]?.GetValue<int>() ?? 1;
                     bool returnByValue = @params["returnByValue"]?.GetValue<bool>() ?? false;
                     int inspectedNodeId = session.InspectedNodeId;
                     var baseSession = (Chrome.DevTools.Protocol.CdpSession)session;
@@ -333,16 +336,38 @@ public static class RuntimeDomain
                         var startTime = DateTime.UtcNow;
                         try
                         {
-                            var jintRes = await EvaluateAsync(session, preprocessed, inspectedNodeId);
+                            var jintRes = await EvaluateAsync(session, preprocessed, inspectedNodeId, contextId);
                             ProfilerDomain.RecordActivity(baseSession, "EvaluateConsole", startTime, DateTime.UtcNow);
+                            var val = awaitPromise ? await AwaitPromiseIfNeededAsync(jintRes.Engine, jintRes.Value) : jintRes.Value;
+                            bool deepSerialization = false;
+                            int maxDepth = 2;
+                            if (@params.TryGetPropertyValue("serializationOptions", out var serOptNode) && serOptNode is JsonObject serOptObj)
+                            {
+                                if (serOptObj.TryGetPropertyValue("serialization", out var serValNode) && serValNode?.GetValue<string>() == "deep")
+                                {
+                                    deepSerialization = true;
+                                    if (serOptObj.TryGetPropertyValue("maxDepth", out var maxDepthNode))
+                                    {
+                                        maxDepth = maxDepthNode?.GetValue<int>() ?? 2;
+                                    }
+                                }
+                            }
+
+                            if (deepSerialization)
+                            {
+                                var remoteObj = CreateRemoteObject(session, val.ToObject());
+                                remoteObj["deepSerializedValue"] = CreateDeepSerializedValue(session, jintRes.Engine, val, 0, maxDepth);
+                                return new JsonObject { ["result"] = remoteObj };
+                            }
+
                             if (returnByValue)
                             {
-                                var valNode = ConvertJsValueToJsonNode(jintRes.Engine, jintRes.Value);
+                                var valNode = ConvertJsValueToJsonNode(jintRes.Engine, val);
                                 return new JsonObject { ["result"] = new JsonObject { ["value"] = valNode } };
                             }
                             else
                             {
-                                var objVal = jintRes.Value.ToObject();
+                                var objVal = val.ToObject();
                                 return new JsonObject { ["result"] = CreateRemoteObject(session, objVal) };
                             }
                         }
@@ -380,6 +405,8 @@ public static class RuntimeDomain
             case "getCompletions":
                 {
                     string expression = @params["expression"]?.GetValue<string>() ?? "";
+                    bool awaitPromise = @params["awaitPromise"]?.GetValue<bool>() ?? false;
+                    int contextId = @params["contextId"]?.GetValue<int>() ?? 1;
                     int cursorPosition = @params["cursorPosition"]?.GetValue<int>() ?? expression.Length;
 
                     var preprocessed = ScriptPreprocessor.Preprocess(expression);
@@ -414,6 +441,8 @@ public static class RuntimeDomain
             case "callFunctionOn":
                 {
                     string objectId = @params["objectId"]?.GetValue<string>() ?? "";
+                    bool awaitPromise = @params["awaitPromise"]?.GetValue<bool>() ?? false;
+                    int contextId = @params["executionContextId"]?.GetValue<int>() ?? 1;
                     string functionDeclaration = @params["functionDeclaration"]?.GetValue<string>() ?? "";
                     bool returnByValue = @params["returnByValue"]?.GetValue<bool>() ?? false;
                     var arguments = @params["arguments"] as JsonArray;
@@ -430,7 +459,7 @@ public static class RuntimeDomain
                             }
                         }
 
-                        if (target == null)
+                        if (target == null && !string.IsNullOrEmpty(objectId))
                         {
                             throw new Exception($"Object with ID {objectId} not found");
                         }
@@ -1384,16 +1413,45 @@ public static class RuntimeDomain
                         }
 
                         var startTime = DateTime.UtcNow;
-                        var jintRes = EvaluateFunction(session, target, functionDeclaration, arguments);
+                        var jintRes = EvaluateFunction(session, target, functionDeclaration, arguments, contextId);
                         ProfilerDomain.RecordActivity(session, "EvaluateConsole", startTime, DateTime.UtcNow);
+                        var val = awaitPromise ? await AwaitPromiseIfNeededAsync(jintRes.Engine, jintRes.Value) : jintRes.Value;
+                        bool deepSerialization = false;
+                        int maxDepth = 2;
+                        Console.WriteLine($"[CDP DEEP DEBUG] @params: {@params.ToJsonString()}");
+                        if (@params.TryGetPropertyValue("serializationOptions", out var serOptNode) && serOptNode is JsonObject serOptObj)
+                        {
+                            Console.WriteLine($"[CDP DEEP DEBUG] found serializationOptions: {serOptObj.ToJsonString()}");
+                            if (serOptObj.TryGetPropertyValue("serialization", out var serValNode))
+                            {
+                                Console.WriteLine($"[CDP DEEP DEBUG] found serialization: {serValNode?.ToJsonString()}, val: {serValNode?.GetValue<string>()}");
+                                if (serValNode?.GetValue<string>() == "deep")
+                                {
+                                    deepSerialization = true;
+                                    if (serOptObj.TryGetPropertyValue("maxDepth", out var maxDepthNode))
+                                    {
+                                        maxDepth = maxDepthNode?.GetValue<int>() ?? 2;
+                                    }
+                                }
+                            }
+                        }
+                        Console.WriteLine($"[CDP DEEP DEBUG] deepSerialization flag: {deepSerialization}, maxDepth: {maxDepth}");
+
+                        if (deepSerialization)
+                        {
+                            var remoteObj = CreateRemoteObject(session, val.ToObject());
+                            remoteObj["deepSerializedValue"] = CreateDeepSerializedValue(session, jintRes.Engine, val, 0, maxDepth);
+                            return new JsonObject { ["result"] = remoteObj };
+                        }
+
                         if (returnByValue)
                         {
-                            var valNode = ConvertJsValueToJsonNode(jintRes.Engine, jintRes.Value);
+                            var valNode = ConvertJsValueToJsonNode(jintRes.Engine, val);
                             return new JsonObject { ["result"] = new JsonObject { ["value"] = valNode } };
                         }
                         else
                         {
-                            var objVal = jintRes.Value.ToObject();
+                            var objVal = val.ToObject();
                             return new JsonObject { ["result"] = CreateRemoteObject(session, objVal) };
                         }
                     });
@@ -1403,6 +1461,8 @@ public static class RuntimeDomain
             case "getProperties":
                 {
                     string objectId = @params["objectId"]?.GetValue<string>() ?? "";
+                    bool awaitPromise = @params["awaitPromise"]?.GetValue<bool>() ?? false;
+                    int contextId = @params["executionContextId"]?.GetValue<int>() ?? 1;
                     var target = session.GetObject(objectId);
                     if (target == null)
                     {
@@ -1446,6 +1506,8 @@ public static class RuntimeDomain
             case "releaseObject":
                 {
                     string objectId = @params["objectId"]?.GetValue<string>() ?? "";
+                    bool awaitPromise = @params["awaitPromise"]?.GetValue<bool>() ?? false;
+                    int contextId = @params["executionContextId"]?.GetValue<int>() ?? 1;
                     session.RemoteObjects.TryRemove(objectId, out _);
                     return new JsonObject();
                 }
@@ -1487,95 +1549,22 @@ public static class RuntimeDomain
         }
     }
 
-    private static JintResult EvaluateFunction(CdpSession session, object target, string functionDeclaration, JsonArray? arguments)
+    private static JintResult EvaluateFunction(CdpSession session, object? target, string functionDeclaration, JsonArray? arguments, int contextId = 1)
     {
-        var engine = new Engine(options =>
+        if (functionDeclaration.Contains("function isNodeReachable(node) {"))
         {
-            options.Interop.TypeResolver = new Jint.Runtime.Interop.TypeResolver
-            {
-                MemberNameCreator = member => 
-                {
-                    var name = member.Name;
-                    if (string.IsNullOrEmpty(name)) return new[] { name };
-                    var camel = char.ToLowerInvariant(name[0]) + name.Substring(1);
-                    return name == camel ? new[] { name } : new[] { name, camel };
-                }
-            };
-            options.TimeoutInterval(TimeSpan.FromSeconds(5));
-        });
+            functionDeclaration = functionDeclaration.Replace(
+                "function isNodeReachable(node) {",
+                "function isNodeReachable(node) { console.log('[CDP REACHABLE DEBUG] nodeName:', node ? node.nodeName : null, 'nodeRootName:', getNodeRootThroughAnyShadows(node) ? getNodeRootThroughAnyShadows(node).nodeName : null, 'docParentName:', (document.documentElement && document.documentElement.parentNode) ? document.documentElement.parentNode.nodeName : null, 'isMatch:', getNodeRootThroughAnyShadows(node) === (document.documentElement ? document.documentElement.parentNode : null));"
+            );
+        }
+        if (functionDeclaration.Contains("arguments.callee.caller"))
+        {
+            functionDeclaration = functionDeclaration.Replace("arguments.callee.caller", "(arguments.callee.caller || globalThis.getJintCaller())");
+        }
 
         var selectedNode = session.NodeMap.GetVisual(session.InspectedNodeId);
-        var control = selectedNode as Avalonia.Controls.Control;
-        var dataContext = control?.DataContext;
-        var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
-
-        engine.SetValue("SelectedNode", selectedNode);
-        engine.SetValue("Control", control);
-        engine.SetValue("DataContext", dataContext);
-        engine.SetValue("ViewModel", dataContext);
-        engine.SetValue("Window", windowObj);
-        engine.SetValue("window", new CdpRuntimeWindow(session));
-        engine.SetValue("document", new CdpRuntimeDocument(session));
-        engine.SetValue("Print", new Action<object?>(Console.WriteLine));
-        engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
-        engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
-        
-        engine.Evaluate(@"
-            globalThis.__wrap = function(target) {
-                if (!target) return target;
-                return new Proxy(target, {
-                    get(t, prop, receiver) {
-                        if (prop === 'id') return t.name || '';
-                        if (prop === 'name') return t.name || '';
-                        if (prop === 'textContent' || prop === 'innerText') {
-                            if ('text' in t) return t.text || '';
-                            if ('content' in t) return String(t.content || '');
-                            return '';
-                        }
-                        if (prop === 'value') {
-                            if ('text' in t) return t.text || '';
-                            if ('content' in t) return String(t.content || '');
-                            return '';
-                        }
-                        if (prop === 'isVisible') return t.isVisible === true;
-                        if (prop === 'isEffectivelyVisible') return t.isVisible === true;
-                        if (prop === 'isEnabled') return t.isEnabled !== false;
-                        if (prop === 'isChecked' || prop === 'checked') return t.isChecked === true;
-                        if (prop === 'selectedIndex') return 'selectedIndex' in t ? t.selectedIndex : -1;
-                        if (prop === 'stop') return function() {};
-                        return Reflect.get(t, prop, receiver);
-                    },
-                    set(t, prop, value, receiver) {
-                        if (prop === 'textContent' || prop === 'innerText' || prop === 'value') {
-                            try {
-                                if (t.text !== undefined) { t.text = value; return true; }
-                            } catch(e){}
-                            try {
-                                if (t.content !== undefined) { t.content = value; return true; }
-                            } catch(e){}
-                        }
-                        if (prop === 'selectedIndex') {
-                            try {
-                                t.selectedIndex = value;
-                                return true;
-                            } catch(e){}
-                        }
-                        if (prop === 'isChecked' || prop === 'checked') {
-                            try {
-                                t.isChecked = value;
-                                return true;
-                            } catch(e){}
-                        }
-                        try {
-                            t[prop] = value;
-                            return true;
-                        } catch(e) {
-                            return Reflect.set(t, prop, value, receiver);
-                        }
-                    }
-                });
-            };
-        ");
+        var engine = EnsureEngineInitialized(session, contextId, selectedNode);
 
         if (selectedNode != null)
         {
@@ -1603,7 +1592,7 @@ public static class RuntimeDomain
         }
         else
         {
-            thisValue = Jint.Native.JsValue.FromObject(engine, target);
+            thisValue = target != null ? Jint.Native.JsValue.FromObject(engine, target) : Jint.Native.JsValue.Null;
         }
 
         var jsArgs = new List<Jint.Native.JsValue>();
@@ -1649,6 +1638,10 @@ public static class RuntimeDomain
         }
 
         string funcCode = functionDeclaration.Trim();
+        if (funcCode.Contains("function buildError(error) {"))
+        {
+            funcCode = funcCode.Replace("function buildError(error) {", "function buildError(error) { console.log('[ATOM ERROR STACK]:', error.stack || error.message || error);");
+        }
         if (funcCode.StartsWith("function") || funcCode.StartsWith("async function") || funcCode.Contains("=>"))
         {
             if (!funcCode.StartsWith("(") && !funcCode.EndsWith(")"))
@@ -1657,12 +1650,593 @@ public static class RuntimeDomain
             }
         }
 
-        var jsFunc = engine.Evaluate(funcCode);
-        var jsResult = engine.Invoke(jsFunc, thisValue, jsArgs.ToArray());
-        return new JintResult { Value = jsResult, Engine = engine };
+        try
+        {
+            var jsFunc = engine.Evaluate(funcCode);
+            var jsResult = engine.Invoke(jsFunc, thisValue, jsArgs.ToArray());
+            return new JintResult { Value = jsResult, Engine = engine };
+        }
+        catch (JavaScriptException ex)
+        {
+            Console.WriteLine($"[CDP JINT ERROR] JavaScriptException in EvaluateFunction: {ex.Message}\nJS Stack:\n{ex.JavaScriptStackTrace}");
+            throw;
+        }
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script property evaluation")]
+    private static Engine EnsureEngineInitialized(CdpSession session, int contextId, Visual? selectedNode)
+    {
+        string key = $"{session.GetHashCode()}_{contextId}";
+        bool isNew = false;
+        var engine = _engines.GetOrAdd(key, _ =>
+        {
+            isNew = true;
+            return new Engine(options =>
+            {
+                options.Interop.TypeResolver = new Jint.Runtime.Interop.TypeResolver
+                {
+                    MemberNameCreator = member => 
+                    {
+                        var name = member.Name;
+                        if (string.IsNullOrEmpty(name)) return new[] { name };
+                        var camel = char.ToLowerInvariant(name[0]) + name.Substring(1);
+                        return name == camel ? new[] { name } : new[] { name, camel };
+                    }
+                };
+                options.TimeoutInterval(TimeSpan.FromSeconds(5));
+            });
+        });
+
+        var control = selectedNode as Avalonia.Controls.Control;
+        var dataContext = control?.DataContext;
+        var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
+
+        engine.SetValue("SelectedNode", selectedNode);
+        engine.SetValue("Control", control);
+        engine.SetValue("DataContext", dataContext);
+        engine.SetValue("ViewModel", dataContext);
+        engine.SetValue("Window", windowObj);
+        engine.SetValue("__log", new Action<string>(msg => Console.WriteLine("[JS LOG] " + msg)));
+        engine.SetValue("getJintCaller", new Func<Jint.Native.JsValue>(() => {
+            var callStackField = typeof(Engine).GetField("CallStack", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (callStackField != null)
+            {
+                var callStackVal = callStackField.GetValue(engine);
+                if (callStackVal != null)
+                {
+                    var stackField = callStackVal.GetType().GetField("_stack", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (stackField != null)
+                    {
+                        var stackVal = stackField.GetValue(callStackVal);
+                        if (stackVal is System.Collections.IEnumerable enumerable)
+                        {
+                            int index = 0;
+                            foreach (var item in enumerable)
+                            {
+                                var funcField = item.GetType().GetField("Function", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                if (funcField != null)
+                                {
+                                    var funcVal = funcField.GetValue(item);
+                                    Console.WriteLine($"[CDP STACK] Frame {index}: {funcVal?.ToString() ?? "null"}");
+                                }
+                                index++;
+                            }
+                            index = 0;
+                            foreach (var item in enumerable)
+                            {
+                                if (index == 2)
+                                {
+                                    var funcField = item.GetType().GetField("Function", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                    if (funcField != null)
+                                    {
+                                        var funcVal = funcField.GetValue(item);
+                                        if (funcVal is Jint.Native.JsValue jsVal)
+                                        {
+                                            return jsVal;
+                                        }
+                                    }
+                                }
+                                index++;
+                            }
+                        }
+                    }
+                }
+            }
+            return Jint.Native.JsValue.Undefined;
+        }));
+        
+        var rawDoc = new CdpRuntimeDocument(session);
+        engine.SetValue("__raw_document", rawDoc);
+        
+        engine.SetValue("Print", new Action<object?>(Console.WriteLine));
+        engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
+        engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
+        engine.SetValue("__getBounds", new Func<Visual, double[]>(visual => DomDomain.GetVisualBounds(session, visual)));
+        engine.SetValue("__getTypeName", new Func<Visual, string>(visual => visual.GetType().Name));
+        engine.SetValue("__getProperty", new Func<Visual, string, object?>((visual, propName) => {
+            var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+            return prop != null && prop.CanRead ? prop.GetValue(visual) : null;
+        }));
+        engine.SetValue("__setProperty", new Action<Visual, string, object?>((visual, propName, val) => {
+            var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+            if (prop != null && prop.CanWrite) {
+                try {
+                    var converted = Convert.ChangeType(val, prop.PropertyType);
+                    prop.SetValue(visual, converted);
+                } catch {
+                    prop.SetValue(visual, val);
+                }
+            }
+        }));
+
+        if (isNew)
+        {
+            engine.Evaluate(@"
+                if (typeof globalThis.document === 'undefined' || globalThis.document === null || !globalThis.document.__isProxy) {
+                    var raw = globalThis.__raw_document;
+                    globalThis.document = new Proxy(raw, {
+                        get(target, prop, receiver) {
+                            if (prop === '__isProxy') return true;
+                            if (prop === 'defaultView') return globalThis.window;
+                            if (prop === 'ownerDocument') return null;
+                            if (prop === 'parentNode') return null;
+                            if (prop === 'parentElement') return null;
+                            var val = target[prop];
+                            if (typeof val === 'function') {
+                                return val.bind(target);
+                            }
+                            return globalThis.__wrap(val);
+                        }
+                    });
+                }
+                globalThis.window = globalThis;
+            ");
+
+            engine.Evaluate(@"
+                if (typeof globalThis.__polyfilled === 'undefined') {
+                    globalThis.__polyfilled = true;
+
+                    globalThis.console = {
+                        log: function() {
+                            var args = Array.prototype.slice.call(arguments);
+                            globalThis.__log(args.map(function(x) {
+                                try {
+                                    if (x === null) return 'null';
+                                    if (x === undefined) return 'undefined';
+                                    if (x && typeof x === 'object') {
+                                        if (x.nodeName) return x.nodeName;
+                                        return JSON.stringify(x);
+                                    }
+                                    return String(x);
+                                } catch(e) { return String(x); }
+                            }).join(' '));
+                        }
+                    };
+
+                    globalThis.getComputedStyle = function(element) {
+                        var style = {
+                            display: 'block',
+                            visibility: 'visible',
+                            opacity: '1',
+                            position: 'static',
+                            overflow: 'visible',
+                            overflowX: 'visible',
+                            overflowY: 'visible',
+                            'overflow-x': 'visible',
+                            'overflow-y': 'visible',
+                            getPropertyValue: function(prop) {
+                                return this[prop] || '';
+                            }
+                        };
+                        return new Proxy(style, {
+                            get(target, prop) {
+                                if (prop in target) return target[prop];
+                                return '';
+                            }
+                        });
+                    };
+
+                    Object.defineProperty(Object.prototype, 'ownerDocument', {
+                        get: function() {
+                            if (this && this.nodeType === 1) {
+                                return globalThis.document;
+                            }
+                            if (this && this.nodeType === 9) {
+                                return null;
+                            }
+                            return undefined;
+                        },
+                        configurable: true
+                    });
+
+                    Object.defineProperty(Object.prototype, 'parentNode', {
+                        get: function() {
+                            if (this && this.nodeType === 1) {
+                                var p = this.__raw_parentNode;
+                                if (p) return globalThis.__wrap(p);
+                                return globalThis.document;
+                            }
+                            return null;
+                        },
+                        configurable: true
+                    });
+
+                    Object.defineProperty(Object.prototype, 'defaultView', {
+                        get: function() {
+                            if (this && this.nodeType === 9) {
+                                return globalThis.window;
+                            }
+                            return undefined;
+                        },
+                        configurable: true
+                    });
+
+                    Object.defineProperty(Object.prototype, 'isConnected', {
+                        get: function() {
+                            if (this && (this.nodeType === 1 || this.nodeType === 9)) {
+                                return true;
+                            }
+                            return undefined;
+                        },
+                        configurable: true
+                    });
+
+                    Object.prototype.contains = function(other) {
+                        if (!other) return false;
+                        var current = other;
+                        while (current) {
+                            if (current === this) return true;
+                            current = current.parentNode;
+                        }
+                        return false;
+                    };
+
+                    Object.prototype.compareDocumentPosition = function(other) {
+                        if (!other) return 1;
+                        if (other === this) return 0;
+                        if (this.contains(other)) return 20;
+                        if (other.contains(this)) return 10;
+                        return 1;
+                    };
+                    
+                    var timers = new Map();
+                    var nextTimerId = 1;
+                    globalThis.setInterval = function(callback, delay) {
+                        var id = nextTimerId++;
+                        timers.set(id, { callback, isInterval: true });
+                        return id;
+                    };
+                    globalThis.setTimeout = function(callback, delay) {
+                        var id = nextTimerId++;
+                        timers.set(id, { callback, isInterval: false });
+                        return id;
+                    };
+                    globalThis.clearInterval = function(id) {
+                        timers.delete(id);
+                    };
+                    globalThis.clearTimeout = function(id) {
+                        timers.delete(id);
+                    };
+                    globalThis.requestAnimationFrame = function(callback) {
+                        return globalThis.setTimeout(callback, 16);
+                    };
+                    globalThis.cancelAnimationFrame = function(id) {
+                        globalThis.clearTimeout(id);
+                    };
+                    globalThis.__runTimers = function() {
+                        for (var timerEntry of timers.entries()) {
+                            var id = timerEntry[0];
+                            var timer = timerEntry[1];
+                            try {
+                                timer.callback();
+                            } catch(e) {}
+                            if (!timer.isInterval) {
+                                timers.delete(id);
+                            }
+                        }
+                    };
+
+                    globalThis.MutationObserver = class {
+                        constructor(callback) {
+                            this.callback = callback;
+                            this.intervalId = null;
+                        }
+                        observe(target, options) {
+                            this.intervalId = globalThis.setInterval(() => {
+                                try {
+                                    this.callback([], this);
+                                } catch(e) {}
+                            }, 30);
+                        }
+                        disconnect() {
+                            if (this.intervalId) {
+                                globalThis.clearInterval(this.intervalId);
+                                this.intervalId = null;
+                            }
+                        }
+                    };
+
+                    globalThis.Node = class {
+                        static [Symbol.hasInstance](instance) {
+                            return instance && (instance.nodeType === 1 || instance.nodeType === 9 || instance.nodeType === 11);
+                        }
+                    };
+                    globalThis.Node.ELEMENT_NODE = 1;
+                    globalThis.Node.DOCUMENT_NODE = 9;
+
+                    globalThis.Element = class {
+                        static [Symbol.hasInstance](instance) {
+                            return instance && instance.nodeType === 1;
+                        }
+                    };
+
+                    globalThis.HTMLElement = class extends globalThis.Element {
+                        static [Symbol.hasInstance](instance) {
+                            return instance && instance.nodeType === 1;
+                        }
+                    };
+
+                    globalThis.Document = class {
+                        static [Symbol.hasInstance](instance) {
+                            return instance && instance.nodeType === 9;
+                        }
+                    };
+
+                    globalThis.HTMLDocument = class extends globalThis.Document {
+                        static [Symbol.hasInstance](instance) {
+                            return instance && instance.nodeType === 9;
+                        }
+                    };
+
+                    globalThis.ShadowRoot = class {
+                        static [Symbol.hasInstance](instance) {
+                            return instance && instance.nodeType === 11;
+                        }
+                    };
+
+                    globalThis.Window = class {
+                        static [Symbol.hasInstance](instance) {
+                            return instance && (instance === globalThis || instance.window === instance);
+                        }
+                    };
+
+                    globalThis.Location = class {
+                        static [Symbol.hasInstance](instance) { return false; }
+                    };
+
+                    globalThis.location = {
+                        href: 'http://127.0.0.1/',
+                        protocol: 'http:',
+                        host: '127.0.0.1',
+                        hostname: '127.0.0.1',
+                        port: '',
+                        pathname: '/',
+                        search: '',
+                        hash: ''
+                    };
+
+                    var elementSubclasses = ['HTMLAnchorElement', 'HTMLInputElement', 'HTMLSelectElement', 'HTMLTextAreaElement', 'HTMLButtonElement', 'HTMLOptionElement', 'HTMLFormElement', 'HTMLImageElement', 'HTMLCanvasElement', 'HTMLVideoElement', 'HTMLAudioElement', 'HTMLFrameElement', 'HTMLIFrameElement'];
+                    for (var name of elementSubclasses) {
+                        globalThis[name] = class extends globalThis.HTMLElement {
+                            static [Symbol.hasInstance](instance) {
+                                return instance && instance.nodeType === 1;
+                            }
+                        };
+                    }
+                }
+                
+                globalThis.__wrap = function(target) {
+                    if (!target) return target;
+                    if (typeof target !== 'object' && typeof target !== 'function') return target;
+                    if (target.__isProxy) return target;
+                    
+                    var raw = target;
+                    if (target.visual) {
+                        raw = target.visual;
+                    }
+                    if (!raw || (typeof raw !== 'object' && typeof raw !== 'function')) return raw;
+                    
+                    return new Proxy(raw, {
+                        get(t, prop, receiver) {
+                            if (prop === '__isProxy') return true;
+                            if (prop === '__raw_node') return t;
+                            if (prop === 'id' || prop === 'name') {
+                                return globalThis.__getProperty(t, 'Name') || '';
+                            }
+                            if (prop === 'textContent' || prop === 'innerText') {
+                                var txt = globalThis.__getProperty(t, 'Text');
+                                if (txt !== null) return String(txt);
+                                var content = globalThis.__getProperty(t, 'Content');
+                                if (content !== null) return String(content);
+                                var header = globalThis.__getProperty(t, 'Header');
+                                if (header !== null) return String(header);
+                                return '';
+                            }
+                            if (prop === 'value') {
+                                var txt = globalThis.__getProperty(t, 'Text');
+                                if (txt !== null) return String(txt);
+                                var val = globalThis.__getProperty(t, 'Value');
+                                if (val !== null) return String(val);
+                                return '';
+                            }
+                            if (prop === 'isVisible') {
+                                return globalThis.__getProperty(t, 'IsEffectivelyVisible') !== false && globalThis.__getProperty(t, 'IsVisible') !== false;
+                            }
+                            if (prop === 'isEffectivelyVisible') {
+                                return globalThis.__getProperty(t, 'IsEffectivelyVisible') !== false && globalThis.__getProperty(t, 'IsVisible') !== false;
+                            }
+                            if (prop === 'isEnabled') {
+                                return globalThis.__getProperty(t, 'IsEnabled') !== false;
+                            }
+                            if (prop === 'isChecked' || prop === 'checked') {
+                                return globalThis.__getProperty(t, 'IsChecked') === true;
+                            }
+                            if (prop === 'selectedIndex') {
+                                var idx = globalThis.__getProperty(t, 'SelectedIndex');
+                                return typeof idx === 'number' ? idx : -1;
+                            }
+                            if (prop === 'isConnected') return true;
+                            if (prop === 'type') {
+                                var typeName = globalThis.__getTypeName(t);
+                                if (typeName.indexOf('CheckBox') >= 0) return 'checkbox';
+                                if (typeName.indexOf('RadioButton') >= 0) return 'radio';
+                                if (typeName.indexOf('TextBox') >= 0) return 'text';
+                                if (typeName.indexOf('Button') >= 0) return 'button';
+                                return '';
+                            }
+                            if (prop === 'attributes') {
+                                var attrs = [];
+                                var idVal = receiver.id;
+                                if (idVal) attrs.push({ name: 'id', value: idVal, nodeName: 'id', nodeValue: idVal, nodeType: 2 });
+                                var classVal = receiver.className;
+                                if (classVal) attrs.push({ name: 'class', value: classVal, nodeName: 'class', nodeValue: classVal, nodeType: 2 });
+                                var typeVal = receiver.type;
+                                if (typeVal) attrs.push({ name: 'type', value: typeVal, nodeName: 'type', nodeValue: typeVal, nodeType: 2 });
+                                var valueVal = receiver.value;
+                                if (valueVal) attrs.push({ name: 'value', value: valueVal, nodeName: 'value', nodeValue: valueVal, nodeType: 2 });
+                                attrs.item = function(i) { return attrs[i]; };
+                                return attrs;
+                            }
+                            if (prop === 'nodeType') return typeof t.nodeType === 'number' ? t.nodeType : 1;
+                            if (prop === 'nodeName' || prop === 'tagName') {
+                                var typeName = globalThis.__getTypeName(t);
+                                if (typeName.indexOf('TextBox') >= 0) return 'INPUT';
+                                if (typeName.indexOf('CheckBox') >= 0) return 'INPUT';
+                                if (typeName.indexOf('RadioButton') >= 0) return 'INPUT';
+                                if (typeName.indexOf('Button') >= 0) return 'BUTTON';
+                                return typeName.toUpperCase();
+                            }
+                            if (prop === 'style') {
+                                return new Proxy({}, {
+                                    get(target, p) {
+                                        return '';
+                                    }
+                                });
+                            }
+                            if (prop === 'clientLeft' || prop === 'clientTop') return 0;
+                            if (prop === 'clientWidth' || prop === 'offsetWidth' || prop === 'scrollWidth') {
+                                return globalThis.__getBounds(t)[2];
+                            }
+                            if (prop === 'clientHeight' || prop === 'offsetHeight' || prop === 'scrollHeight') {
+                                return globalThis.__getBounds(t)[3];
+                            }
+                            if (prop === 'offsetLeft' || prop === 'offsetTop') return 0;
+                            if (prop === 'getAttribute') {
+                                return function(name) {
+                                    var lowerName = String(name).toLowerCase();
+                                    var typeName = globalThis.__getTypeName(t);
+                                    if (lowerName === 'type') {
+                                        if (typeName.indexOf('CheckBox') >= 0) return 'checkbox';
+                                        if (typeName.indexOf('RadioButton') >= 0) return 'radio';
+                                        if (typeName.indexOf('TextBox') >= 0) return 'text';
+                                        return '';
+                                    }
+                                    if (lowerName === 'checked') {
+                                        if (typeName.indexOf('CheckBox') >= 0 || typeName.indexOf('RadioButton') >= 0) {
+                                            return globalThis.__getProperty(t, 'IsChecked') ? 'true' : null;
+                                        }
+                                        return null;
+                                    }
+                                    if (lowerName === 'selected') {
+                                        return globalThis.__getProperty(t, 'IsSelected') ? 'true' : null;
+                                    }
+                                    if (lowerName === 'id') return globalThis.__getProperty(t, 'Name') || null;
+                                    if (lowerName === 'name') return globalThis.__getProperty(t, 'Name') || null;
+                                    if (lowerName === 'value') return receiver.value || null;
+                                    return null;
+                                };
+                            }
+                            if (prop === 'hasAttribute') {
+                                return function(name) {
+                                    return receiver.getAttribute(name) !== null;
+                                };
+                            }
+                            if (prop === 'getBoundingClientRect') {
+                                return function() {
+                                    var bounds = globalThis.__getBounds(t);
+                                    return {
+                                        left: bounds[0],
+                                        top: bounds[1],
+                                        width: bounds[2],
+                                        height: bounds[3],
+                                        right: bounds[0] + bounds[2],
+                                        bottom: bounds[1] + bounds[3],
+                                        x: bounds[0],
+                                        y: bounds[1]
+                                    };
+                                };
+                            }
+                            if (prop === 'getClientRects') {
+                                return function() {
+                                    return [receiver.getBoundingClientRect()];
+                                };
+                            }
+                            if (prop === 'getAttributeNode') {
+                                return function(name) {
+                                    var val = receiver.getAttribute(name);
+                                    return val !== null ? { value: val } : null;
+                                };
+                            }
+                            if (prop === 'stop') return function() {};
+                            if (prop === 'ownerDocument') return globalThis.document;
+                            if (prop === 'parentNode') {
+                                var p = t.__raw_parentNode;
+                                if (p) return globalThis.__wrap(p);
+                                return globalThis.document;
+                            }
+                            if (prop === 'parentElement') {
+                                var p = t.__raw_parentNode;
+                                return p ? globalThis.__wrap(p) : null;
+                            }
+                            if (prop === 'contains') {
+                                return Object.prototype.contains;
+                            }
+                            if (prop === 'compareDocumentPosition') {
+                                return Object.prototype.compareDocumentPosition;
+                            }
+                            var val = t[prop];
+                            if (typeof val === 'function') {
+                                return val.bind(t);
+                            }
+                            return globalThis.__wrap(val);
+                        },
+                        set(t, prop, value, receiver) {
+                            if (prop === 'textContent' || prop === 'innerText' || prop === 'value') {
+                                if (globalThis.__getProperty(t, 'Text') !== null) {
+                                    globalThis.__setProperty(t, 'Text', value);
+                                    return true;
+                                }
+                                if (globalThis.__getProperty(t, 'Content') !== null) {
+                                    globalThis.__setProperty(t, 'Content', value);
+                                    return true;
+                                }
+                            }
+                            if (prop === 'selectedIndex') {
+                                globalThis.__setProperty(t, 'SelectedIndex', value);
+                                return true;
+                            }
+                            if (prop === 'isChecked' || prop === 'checked') {
+                                globalThis.__setProperty(t, 'IsChecked', value);
+                                return true;
+                            }
+                            try {
+                                globalThis.__setProperty(t, prop, value);
+                                return true;
+                            } catch(e) {}
+                            try {
+                                t[prop] = value;
+                                return true;
+                            } catch(e) {}
+                            return false;
+                        }
+                    });
+                };
+            ");
+        }
+
+        return engine;
+    }
+
     private static object? EvaluateExpression(CdpSession session, object target, string expression, Dictionary<string, object?>? variableBindings = null)
     {
         if (string.IsNullOrWhiteSpace(expression)) return null;
@@ -2123,11 +2697,138 @@ public static class RuntimeDomain
             ["objectId"] = objectId
         };
 
-        if (obj is Visual || obj is CdpRuntimeElement)
+        if (obj is Visual visual)
         {
             result["subtype"] = "node";
+            result["backendNodeId"] = session.NodeMap.GetOrAdd(visual);
+            result["loaderId"] = "main-loader-id";
+        }
+        else if (obj is CdpRuntimeElement runtimeElem)
+        {
+            result["subtype"] = "node";
+            result["backendNodeId"] = session.NodeMap.GetOrAdd((Visual)runtimeElem.visual);
+            result["loaderId"] = "main-loader-id";
         }
 
+        return result;
+    }
+
+    private static JsonObject CreateDeepSerializedValue(CdpSession session, Jint.Engine engine, Jint.Native.JsValue val, int depth = 0, int maxDepth = 3, System.Collections.Generic.HashSet<Jint.Native.JsValue>? visited = null)
+    {
+        var result = new JsonObject();
+        if (val.IsString())
+        {
+            result["type"] = "string";
+            result["value"] = val.AsString();
+            return result;
+        }
+        if (val.IsNumber())
+        {
+            result["type"] = "number";
+            result["value"] = val.AsNumber();
+            return result;
+        }
+        if (val.IsBoolean())
+        {
+            result["type"] = "boolean";
+            result["value"] = val.AsBoolean();
+            return result;
+        }
+        if (val.IsNull())
+        {
+            result["type"] = "null";
+            return result;
+        }
+        if (val.IsUndefined())
+        {
+            result["type"] = "undefined";
+            return result;
+        }
+
+        if (depth > maxDepth)
+        {
+            result["type"] = "object";
+            result["description"] = val.ToString();
+            return result;
+        }
+
+        if (val.IsObject())
+        {
+            var objVal = val.AsObject();
+            if (objVal is Jint.Runtime.Interop.ObjectWrapper wrapper)
+            {
+                var target = wrapper.Target;
+                if (target is Visual visualObj)
+                {
+                    result["type"] = "node";
+                    result["value"] = new JsonObject
+                    {
+                        ["nodeType"] = 1,
+                        ["nodeName"] = visualObj.GetType().Name.ToUpperInvariant(),
+                        ["backendNodeId"] = session.NodeMap.GetOrAdd(visualObj),
+                        ["loaderId"] = "main-loader-id"
+                    };
+                    return result;
+                }
+                else if (target is CdpRuntimeElement runtimeElemObj)
+                {
+                    result["type"] = "node";
+                    result["value"] = new JsonObject
+                    {
+                        ["nodeType"] = 1,
+                        ["nodeName"] = runtimeElemObj.tagName,
+                        ["backendNodeId"] = session.NodeMap.GetOrAdd((Visual)runtimeElemObj.visual),
+                        ["loaderId"] = "main-loader-id"
+                    };
+                    return result;
+                }
+            }
+        }
+
+        visited ??= new System.Collections.Generic.HashSet<Jint.Native.JsValue>();
+        if (visited.Contains(val))
+        {
+            result["type"] = "object";
+            result["description"] = "[Circular]";
+            return result;
+        }
+        visited.Add(val);
+
+        if (val.IsArray())
+        {
+            result["type"] = "array";
+            var arr = val.AsArray();
+            var list = new JsonArray();
+            var len = (int)arr.Length;
+            for (int i = 0; i < len; i++)
+            {
+                var itemVal = arr.Get(i.ToString());
+                list.Add(CreateDeepSerializedValue(session, engine, itemVal, depth + 1, maxDepth, visited));
+            }
+            result["value"] = list;
+        }
+        else if (val.IsObject())
+        {
+            result["type"] = "object";
+            var obj = val.AsObject();
+            var list = new JsonArray();
+            foreach (var key in obj.GetOwnProperties())
+            {
+                var itemVal = obj.Get(key.Key);
+                var entry = new JsonObject
+                {
+                    ["name"] = key.Key.ToString(),
+                    ["value"] = CreateDeepSerializedValue(session, engine, itemVal, depth + 1, maxDepth, visited)
+                };
+                list.Add(entry);
+            }
+            result["value"] = list;
+        }
+        else
+        {
+            result["type"] = "undefined";
+        }
+        visited.Remove(val);
         return result;
     }
 
@@ -2233,104 +2934,18 @@ public static class RuntimeDomain
         return name.Replace('+', '.');
     }
 
-    private static async Task<JintResult> EvaluateAsync(CdpSession session, string code, int inspectedNodeId)
+    private static async Task<JintResult> EvaluateAsync(CdpSession session, string code, int inspectedNodeId, int contextId = 1)
     {
         Func<JintResult> evalAction = () =>
         {
             Console.WriteLine($"[CDP EVAL DEBUG] Evaluating Jint code: '{code}'");
 
-            var engine = new Engine(options =>
-            {
-                options.Interop.TypeResolver = new Jint.Runtime.Interop.TypeResolver
-                {
-                    MemberNameCreator = member => 
-                    {
-                        var name = member.Name;
-                        if (string.IsNullOrEmpty(name)) return new[] { name };
-                        var camel = char.ToLowerInvariant(name[0]) + name.Substring(1);
-                        return name == camel ? new[] { name } : new[] { name, camel };
-                    }
-                };
-                options.TimeoutInterval(TimeSpan.FromSeconds(5));
-            });
-
             var inspectedNode = session.NodeMap.GetVisual(inspectedNodeId);
-            var selectedNode = inspectedNode;
-            var control = selectedNode as Avalonia.Controls.Control;
-            var dataContext = control?.DataContext;
-            var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
+            var engine = EnsureEngineInitialized(session, contextId, inspectedNode);
 
-            engine.SetValue("SelectedNode", selectedNode);
-            engine.SetValue("Control", control);
-            engine.SetValue("DataContext", dataContext);
-            engine.SetValue("ViewModel", dataContext);
-            engine.SetValue("Window", windowObj);
-            engine.SetValue("window", new CdpRuntimeWindow(session));
-            engine.SetValue("document", new CdpRuntimeDocument(session));
-            engine.SetValue("Print", new Action<object?>(Console.WriteLine));
-            engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode ?? session.Window, s, session.UseLogicalTree)));
-            engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode ?? session.Window, s, session.UseLogicalTree)));
-            
-            engine.Evaluate(@"
-                globalThis.__wrap = function(target) {
-                    if (!target) return target;
-                    return new Proxy(target, {
-                        get(t, prop, receiver) {
-                            if (prop === 'id') return t.name || '';
-                            if (prop === 'name') return t.name || '';
-                            if (prop === 'textContent' || prop === 'innerText') {
-                                if ('text' in t) return t.text || '';
-                                if ('content' in t) return String(t.content || '');
-                                return '';
-                            }
-                            if (prop === 'value') {
-                                if ('text' in t) return t.text || '';
-                                if ('content' in t) return String(t.content || '');
-                                return '';
-                            }
-                            if (prop === 'isVisible') return t.isVisible === true;
-                            if (prop === 'isEffectivelyVisible') return t.isVisible === true;
-                            if (prop === 'isEnabled') return t.isEnabled !== false;
-                            if (prop === 'isChecked' || prop === 'checked') return t.isChecked === true;
-                            if (prop === 'selectedIndex') return 'selectedIndex' in t ? t.selectedIndex : -1;
-                            if (prop === 'stop') return function() {};
-                            return Reflect.get(t, prop, receiver);
-                        },
-                        set(t, prop, value, receiver) {
-                            if (prop === 'textContent' || prop === 'innerText' || prop === 'value') {
-                                try {
-                                    if (t.text !== undefined) { t.text = value; return true; }
-                                } catch(e){}
-                                try {
-                                    if (t.content !== undefined) { t.content = value; return true; }
-                                } catch(e){}
-                            }
-                            if (prop === 'selectedIndex') {
-                                try {
-                                    t.selectedIndex = value;
-                                    return true;
-                                } catch(e){}
-                            }
-                            if (prop === 'isChecked' || prop === 'checked') {
-                                try {
-                                    t.isChecked = value;
-                                    return true;
-                                } catch(e){}
-                            }
-                            try {
-                                t[prop] = value;
-                                return true;
-                            } catch(e) {
-                                return Reflect.set(t, prop, value, receiver);
-                            }
-                        }
-                    });
-                };
-            ");
-
-            if (selectedNode != null)
+            if (inspectedNode != null)
             {
-                engine.SetValue("__raw_0", selectedNode);
+                engine.SetValue("__raw_0", inspectedNode);
                 var wrapped = engine.Evaluate("__wrap(__raw_0)");
                 engine.SetValue("$0", wrapped);
                 engine.SetValue("_0", wrapped);
@@ -2349,6 +2964,7 @@ public static class RuntimeDomain
             }
             catch (Jint.Runtime.JavaScriptException ex)
             {
+                Console.WriteLine($"[CDP JINT ERROR] JavaScriptException in EvaluateAsync: {ex.Message}\nJS Stack:\n{ex.JavaScriptStackTrace}");
                 throw new InvalidOperationException($"JS evaluation error: {ex.Message}", ex);
             }
         };
@@ -2363,6 +2979,67 @@ public static class RuntimeDomain
         }
     }
 
+    public static void ClearSessionEngines(CdpSession session)
+    {
+        string prefix = $"{session.GetHashCode()}_";
+        var keys = _engines.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList();
+        foreach (var key in keys)
+        {
+            _engines.TryRemove(key, out _);
+        }
+    }
+ 
+    private static async Task<Jint.Native.JsValue> AwaitPromiseIfNeededAsync(Jint.Engine engine, Jint.Native.JsValue value)
+    {
+        if (value != null && value.GetType().Name == "JsPromise")
+        {
+            var flags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var stateProp = value.GetType().GetProperty("State", flags);
+            var valueProp = value.GetType().GetProperty("Value", flags);
+            var runMethod = engine.GetType().GetMethod("RunAvailableContinuations", flags);
+ 
+            if (stateProp != null && valueProp != null && runMethod != null)
+            {
+                var startTime = DateTime.UtcNow;
+                var timeout = TimeSpan.FromSeconds(30);
+ 
+                while (true)
+                {
+                    try
+                    {
+                        var runTimers = engine.Evaluate("globalThis.__runTimers");
+                        if (runTimers != null && !runTimers.IsUndefined() && !runTimers.IsNull())
+                        {
+                            engine.Invoke(runTimers);
+                        }
+                    }
+                    catch (Exception) { }
+ 
+                    runMethod.Invoke(engine, null);
+ 
+                    var state = stateProp.GetValue(value)?.ToString();
+                    if (state == "Fulfilled")
+                    {
+                        return (Jint.Native.JsValue?)valueProp.GetValue(value) ?? Jint.Native.JsValue.Undefined;
+                    }
+                    if (state == "Rejected")
+                    {
+                        var errorVal = (Jint.Native.JsValue?)valueProp.GetValue(value) ?? Jint.Native.JsValue.Undefined;
+                        throw new Exception(errorVal.ToString());
+                    }
+ 
+                    if (DateTime.UtcNow - startTime > timeout)
+                    {
+                        throw new TimeoutException("Timeout waiting for promise to resolve");
+                    }
+ 
+                    await Task.Delay(10);
+                }
+            }
+        }
+        return value;
+    }
+ 
     private static Jint.Native.JsValue ConvertJsonNodeToJsValue(Jint.Engine engine, JsonNode? node)
     {
         if (node == null) return Jint.Native.JsValue.Null;
@@ -2436,6 +3113,30 @@ public sealed class CdpRuntimeDocument
     }
 
     public string title => _session.Target?.Title ?? "Avalonia UI Application";
+    public int nodeType => 9;
+    public string nodeName => "#document";
+    public CdpRuntimeElement? documentElement
+    {
+        get
+        {
+            var root = _session.Window;
+            return root != null ? new CdpRuntimeElement(_session, root) : null;
+        }
+    }
+    public CdpRuntimeElement? head => null;
+    public CdpRuntimeDocument? ownerDocument => null;
+    public object? defaultView => null;
+    public string visibilityState => "visible";
+    public bool hidden => false;
+ 
+    public CdpRuntimeElement[] getElementsByTagName(string tagName)
+    {
+        return querySelectorAll(tagName);
+    }
+    public CdpRuntimeElement[] getElementsByClassName(string className)
+    {
+        return querySelectorAll("." + className);
+    }
 
     public string readyState => "complete";
 
@@ -2524,10 +3225,94 @@ public sealed class CdpRuntimeElement
     }
 
     public int nodeId => _session.NodeMap.GetOrAdd(_visual);
+    public CdpRuntimeElement? __raw_parentNode
+    {
+        get
+        {
+            if (_visual == _session.Window)
+            {
+                return null;
+            }
+            var parent = _session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(_visual)
+                : _visual.GetVisualParent();
+            return parent != null ? new CdpRuntimeElement(_session, parent) : null;
+        }
+    }
+    public CdpRuntimeElement? parentElement => __raw_parentNode;
+    public CdpRuntimeDocument ownerDocument => new CdpRuntimeDocument(_session);
+ 
+    public CdpRuntimeElement[] children
+    {
+        get
+        {
+            var list = new List<CdpRuntimeElement>();
+            foreach (var child in GetSearchChildren())
+            {
+                list.Add(new CdpRuntimeElement(_session, child));
+            }
+            return list.ToArray();
+        }
+    }
+    public CdpRuntimeElement[] childNodes => children;
+    public CdpRuntimeElement? firstChild => children.Length > 0 ? children[0] : null;
+    public CdpRuntimeElement? lastChild => children.Length > 0 ? children[children.Length - 1] : null;
+    public CdpRuntimeElement? nextSibling
+    {
+        get
+        {
+            var parent = _visual.GetVisualParent();
+            if (parent == null) return null;
+            var childrenList = parent.GetVisualChildren().ToList();
+            int idx = childrenList.IndexOf(_visual);
+            if (idx >= 0 && idx < childrenList.Count - 1)
+            {
+                return new CdpRuntimeElement(_session, childrenList[idx + 1]);
+            }
+            return null;
+        }
+    }
+    public CdpRuntimeElement? previousSibling
+    {
+        get
+        {
+            var parent = _visual.GetVisualParent();
+            if (parent == null) return null;
+            var childrenList = parent.GetVisualChildren().ToList();
+            int idx = childrenList.IndexOf(_visual);
+            if (idx > 0)
+            {
+                return new CdpRuntimeElement(_session, childrenList[idx - 1]);
+            }
+            return null;
+        }
+    }
+    public string className => getAttribute("class") ?? "";
+    public bool hasAttribute(string name) => getAttribute(name) != null;
+ 
+    public CdpRuntimeElement[] getElementsByTagName(string tagName)
+    {
+        return querySelectorAll(tagName);
+    }
+    public CdpRuntimeElement[] getElementsByClassName(string className)
+    {
+        return querySelectorAll("." + className);
+    }
     public int nodeType => 1;
-    public string nodeName => _visual.GetType().Name;
+    public string nodeName
+    {
+        get
+        {
+            var typeName = _visual.GetType().Name;
+            if (typeName.Contains("TextBox")) return "INPUT";
+            if (typeName.Contains("CheckBox")) return "INPUT";
+            if (typeName.Contains("RadioButton")) return "INPUT";
+            if (typeName.Contains("Button")) return "BUTTON";
+            return typeName.ToUpperInvariant();
+        }
+    }
     public string tagName => nodeName;
-    public string localName => _visual.GetType().Name;
+    public string localName => nodeName.ToLowerInvariant();
     public string id => getAttribute("id") ?? "";
     public string name => getAttribute("Name") ?? "";
     public string textContent

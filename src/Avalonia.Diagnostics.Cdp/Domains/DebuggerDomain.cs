@@ -148,6 +148,74 @@ public static class DebuggerDomain
                         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
                         
                         engine.Evaluate(@"
+                            if (typeof globalThis.setInterval === 'undefined') {
+                                const timers = new Map();
+                                let nextTimerId = 1;
+                                globalThis.setInterval = function(callback, delay) {
+                                    const id = nextTimerId++;
+                                    timers.set(id, { callback, isInterval: true });
+                                    return id;
+                                };
+                                globalThis.setTimeout = function(callback, delay) {
+                                    const id = nextTimerId++;
+                                    timers.set(id, { callback, isInterval: false });
+                                    return id;
+                                };
+                                globalThis.clearInterval = function(id) {
+                                    timers.delete(id);
+                                };
+                                globalThis.clearTimeout = function(id) {
+                                    timers.delete(id);
+                                };
+                                globalThis.requestAnimationFrame = function(callback) {
+                                    return globalThis.setTimeout(callback, 16);
+                                };
+                                globalThis.cancelAnimationFrame = function(id) {
+                                    globalThis.clearTimeout(id);
+                                };
+                                globalThis.__runTimers = function() {
+                                    for (const [id, timer] of timers.entries()) {
+                                        try {
+                                            timer.callback();
+                                        } catch(e) {}
+                                        if (!timer.isInterval) {
+                                            timers.delete(id);
+                                        }
+                                    }
+                                };
+                            }
+                            if (typeof globalThis.MutationObserver === 'undefined') {
+                                globalThis.MutationObserver = class {
+                                    constructor(callback) {
+                                        this.callback = callback;
+                                        this.intervalId = null;
+                                    }
+                                    observe(target, options) {
+                                        this.intervalId = globalThis.setInterval(() => {
+                                            try {
+                                                this.callback([], this);
+                                            } catch(e) {}
+                                        }, 30);
+                                    }
+                                    disconnect() {
+                                        if (this.intervalId) {
+                                            globalThis.clearInterval(this.intervalId);
+                                            this.intervalId = null;
+                                        }
+                                    }
+                                };
+                            }
+                            if (typeof globalThis.Node === 'undefined') {
+                                globalThis.Node = class {
+                                    static [Symbol.hasInstance](instance) { return true; }
+                                };
+                                globalThis.Node.ELEMENT_NODE = 1;
+                            }
+                            if (typeof globalThis.HTMLElement === 'undefined') {
+                                globalThis.HTMLElement = class {
+                                    static [Symbol.hasInstance](instance) { return true; }
+                                };
+                            }
                             globalThis.__wrap = function(target) {
                                 if (!target) return target;
                                 return new Proxy(target, {
