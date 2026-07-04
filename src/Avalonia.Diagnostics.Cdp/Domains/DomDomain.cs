@@ -712,6 +712,8 @@ public static class DomDomain
                 w = visual.Bounds.Width;
                 h = visual.Bounds.Height;
             }
+            if (w <= 0) w = 100;
+            if (h <= 0) h = 20;
             return new[] { x, y, w, h };
         }
 
@@ -736,6 +738,9 @@ public static class DomDomain
             }
             w = visual?.Bounds.Width ?? 0;
             h = visual?.Bounds.Height ?? 0;
+            
+            if (w <= 0) w = 100;
+            if (h <= 0) h = 20;
         }
         return new[] { x, y, w, h };
     }
