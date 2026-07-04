@@ -2108,9 +2108,11 @@ public static class RuntimeDomain
 
                     Object.prototype.contains = function(other) {
                         if (!other) return false;
+                        var targetId = this.nodeId;
+                        if (typeof targetId === 'undefined') return false;
                         var current = other;
                         while (current) {
-                            if (current === this) return true;
+                            if (current.nodeId === targetId) return true;
                             current = current.parentNode;
                         }
                         return false;
@@ -2118,7 +2120,7 @@ public static class RuntimeDomain
 
                     Object.prototype.compareDocumentPosition = function(other) {
                         if (!other) return 1;
-                        if (other === this) return 0;
+                        if (other.nodeId === this.nodeId) return 0;
                         if (this.contains(other)) return 20;
                         if (other.contains(this)) return 10;
                         return 1;
