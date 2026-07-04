@@ -163,13 +163,31 @@ public class SeleniumTests : IClassFixture<SeleniumFixture>
         _driver = fixture.Driver ?? throw new InvalidOperationException("Driver was not initialized in fixture.");
     }
 
+    private void SelectTab(int index)
+    {
+        _driver.ExecuteScript($"document.querySelector('#tabContainer').selectedIndex = {index};");
+        string checkScript = index switch
+        {
+            1 => "const el = document.querySelector('#scrollContainer'); return !!(el && el.offsetWidth > 0);",
+            2 => "const el = document.querySelector('#btnGoBack'); return !!(el && el.offsetWidth > 0);",
+            _ => "const el = document.querySelector('#txtInput'); return !!(el && el.offsetWidth > 0);"
+        };
+
+        for (int i = 0; i < 30; i++)
+        {
+            var isSettled = _driver.ExecuteScript(checkScript) as bool? ?? false;
+            if (isSettled) return;
+            System.Threading.Thread.Sleep(100);
+        }
+    }
+
     [Fact]
     public void VerifyHomePageElementsAndInteraction()
     {
         Assert.Equal("Avalonia CDP Inspector Sample", _driver.Title);
 
         // Reset Home Tab select index
-        _driver.ExecuteScript("document.querySelector('#tabContainer').selectedIndex = 0;");
+        SelectTab(0);
         _driver.ExecuteScript("const status = document.querySelector('#txtStatus'); if (status) status.textContent = 'Not Clicked';");
         _driver.ExecuteScript("if (typeof Window !== 'undefined' && Window) Window.clickCount = 0;");
 
@@ -187,6 +205,7 @@ public class SeleniumTests : IClassFixture<SeleniumFixture>
     [Fact]
     public void VerifyTextBoxInputAndBinding()
     {
+        SelectTab(0);
         var txtInput = _driver.FindElement(By.Id("txtInput"));
         txtInput.Clear();
         txtInput.SendKeys("CDP Selenium E2E!");
@@ -196,6 +215,7 @@ public class SeleniumTests : IClassFixture<SeleniumFixture>
     [Fact]
     public void VerifySliderAndCheckBoxControls()
     {
+        SelectTab(0);
         var chkToggle = _driver.FindElement(By.Id("chkToggle"));
         
         // Check standard toggling
@@ -219,11 +239,11 @@ public class SeleniumTests : IClassFixture<SeleniumFixture>
     public void VerifyNavigationBetweenTabs()
     {
         // Navigate using Javascript selectContainer trigger index
-        _driver.ExecuteScript("document.querySelector('#tabContainer').selectedIndex = 1;");
+        SelectTab(1);
         var scrollContainer = _driver.FindElement(By.Id("scrollContainer"));
         Assert.True(scrollContainer.Displayed);
 
-        _driver.ExecuteScript("document.querySelector('#tabContainer').selectedIndex = 2;");
+        SelectTab(2);
         var aboutTitle = _driver.FindElement(By.Id("tabAbout"));
         Assert.True(aboutTitle.Displayed);
     }
