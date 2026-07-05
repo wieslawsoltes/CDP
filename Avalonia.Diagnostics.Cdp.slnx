@@ -15,11 +15,14 @@
     <Project Path="src/CDP.Inspector.Shared/CDP.Inspector.Shared.csproj" />
     <Project Path="src/CDP.DiagnosticTools/CDP.DiagnosticTools.csproj" />
     <Project Path="src/CDP.Automation.OS/CDP.Automation.OS.csproj" />
+    <Project Path="src/CDP.Automation.Appium/CDP.Automation.Appium.csproj" />
+    <Project Path="src/CDP.Automation.Selenium/CDP.Automation.Selenium.csproj" />
     <Project Path="src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj" />
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Benchmarks/Avalonia.Diagnostics.Cdp.Benchmarks.csproj" />
     <Project Path="tests/CDP.Selenium.Tests/CDP.Selenium.Tests.csproj" />
+    <Project Path="tests/CDP.Appium.Tests/CDP.Appium.Tests.csproj" />
   </Folder>
 </Solution>
