@@ -868,14 +868,16 @@ public class CdpChromeFeatureTests
 
         Assert.Contains("using OpenQA.Selenium;", generated);
         Assert.Contains("using OpenQA.Selenium.Chrome;", generated);
-        Assert.Contains("options.DebuggerAddress = \"localhost:9222\";", generated);
+        Assert.Contains("using CDP.Automation.Selenium;", generated);
+        Assert.Contains("using Xunit;", generated);
+        Assert.Contains("public class RecordedTests : IClassFixture<CdpSeleniumFixture>", generated);
         Assert.Contains("_driver.Manage().Window.Size = new Size(1024, 768);", generated);
         Assert.Contains("_driver.Navigate().GoToUrl(\"http://localhost:9222/foo\");", generated);
         Assert.Contains("_driver.FindElement(By.CssSelector(\"#btnClick\")).Click();", generated);
         Assert.Contains("var element_3 = _driver.FindElement(By.CssSelector(\"#txtInput\"));", generated);
         Assert.Contains("element_3.SendKeys(\"hello \\\"world\\\" \\\\ test\");", generated);
-        Assert.Contains("Assert.IsTrue(_driver.FindElement(By.CssSelector(\"#btnClick\")).Displayed);", generated);
-        Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
+        Assert.Contains("Assert.True(_driver.FindElement(By.CssSelector(\"#btnClick\")).Displayed);", generated);
+        Assert.Contains("Assert.False(isVisible_5);", generated);
         Assert.Contains("_actions.ContextClick(_driver.FindElement(By.CssSelector(\"#btnRight\"))).Perform();", generated);
         Assert.Contains("((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent(\\'click\\', {button: 1}));\", _driver.FindElement(By.CssSelector(\"#btnMiddle\")));", generated);
         Assert.Contains("_actions.DoubleClick(_driver.FindElement(By.CssSelector(\"#btnDouble\"))).Perform();", generated);
@@ -914,19 +916,21 @@ public class CdpChromeFeatureTests
         string generated = generator.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
 
         Assert.Contains("using OpenQA.Selenium.Appium;", generated);
-        Assert.Contains("using OpenQA.Selenium.Appium.Windows;", generated);
-        Assert.Contains("options.AddAdditionalCapability(\"platformName\", \"Windows\");", generated);
+        Assert.Contains("using OpenQA.Selenium.Appium.Android;", generated);
+        Assert.Contains("using CDP.Automation.Appium;", generated);
+        Assert.Contains("using Xunit;", generated);
+        Assert.Contains("public class RecordedTests : IClassFixture<CdpAppiumFixture>", generated);
         Assert.Contains("_driver.Manage().Window.Size = new Size(1024, 768);", generated);
         Assert.Contains("_driver.Navigate().GoToUrl(\"http://localhost:9222/foo\");", generated);
-        Assert.Contains("_driver.FindElementByAccessibilityId(\"btnClick\").Click();", generated);
-        Assert.Contains("var element_3 = _driver.FindElementByAccessibilityId(\"txtInput\");", generated);
+        Assert.Contains("_driver.FindElement(By.Id(\"btnClick\")).Click();", generated);
+        Assert.Contains("var element_3 = _driver.FindElement(By.Id(\"txtInput\"));", generated);
         Assert.Contains("element_3.SendKeys(\"hello \\\"world\\\" \\\\ test\");", generated);
-        Assert.Contains("Assert.IsTrue(_driver.FindElementByAccessibilityId(\"btnClick\").Displayed);", generated);
-        Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
-        Assert.Contains("new Actions(_driver).ContextClick(_driver.FindElementByAccessibilityId(\"btnRight\")).Perform();", generated);
-        Assert.Contains("new Actions(_driver).Click(_driver.FindElementByAccessibilityId(\"btnMiddle\")).Perform();", generated);
-        Assert.Contains("new Actions(_driver).DoubleClick(_driver.FindElementByAccessibilityId(\"btnDouble\")).Perform();", generated);
-        Assert.Contains("var element_9 = _driver.FindElementByAccessibilityId(\"btnTriple\");", generated);
+        Assert.Contains("Assert.True(_driver.FindElement(By.Id(\"btnClick\")).Displayed);", generated);
+        Assert.Contains("Assert.False(isVisible_5);", generated);
+        Assert.Contains("new Actions(_driver).ContextClick(_driver.FindElement(By.Id(\"btnRight\"))).Perform();", generated);
+        Assert.Contains("new Actions(_driver).Click(_driver.FindElement(By.Id(\"btnMiddle\"))).Perform();", generated);
+        Assert.Contains("new Actions(_driver).DoubleClick(_driver.FindElement(By.Id(\"btnDouble\"))).Perform();", generated);
+        Assert.Contains("var element_9 = _driver.FindElement(By.Id(\"btnTriple\"));", generated);
         Assert.Contains("for (int c_9 = 0; c_9 < 3; c_9++)", generated);
     }
 

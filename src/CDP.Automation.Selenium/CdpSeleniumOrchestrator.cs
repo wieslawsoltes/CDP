@@ -87,6 +87,15 @@ public class CdpSeleniumOrchestrator : IAsyncDisposable
             }
         }
 
+        if (!File.Exists(dllPath))
+        {
+            dllPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "samples", "CdpSampleApp", "CdpSampleApp.csproj"));
+            if (!File.Exists(dllPath))
+            {
+                dllPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "samples", "CdpSampleApp", "CdpSampleApp.csproj"));
+            }
+        }
+
         ProcessStartInfo startInfo;
         if (dllPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
         {

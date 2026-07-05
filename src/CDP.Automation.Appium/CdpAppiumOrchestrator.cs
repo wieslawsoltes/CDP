@@ -93,6 +93,15 @@ public class CdpAppiumOrchestrator : IAsyncDisposable
             }
         }
 
+        if (!File.Exists(dllPath))
+        {
+            dllPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "samples", "CdpSampleApp", "CdpSampleApp.csproj"));
+            if (!File.Exists(dllPath))
+            {
+                dllPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "samples", "CdpSampleApp", "CdpSampleApp.csproj"));
+            }
+        }
+
         ProcessStartInfo startInfo;
         if (dllPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
         {
@@ -170,7 +179,7 @@ public class CdpAppiumOrchestrator : IAsyncDisposable
         var startInfo = new ProcessStartInfo
         {
             FileName = "node",
-            Arguments = $"\"{scriptPath}\"",
+            Arguments = $"\"{scriptPath}\" --port {_options.AppiumPort} --cdp-host http://127.0.0.1:{_options.AppCdpPort}",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,

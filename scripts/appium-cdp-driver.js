@@ -1,8 +1,17 @@
 const http = require('node:http');
 const fs = require('node:fs');
 
-const PORT = 4723;
-const CDP_HOST = 'http://127.0.0.1:9222';
+let PORT = 4723;
+let CDP_HOST = 'http://127.0.0.1:9222';
+
+// Parse command line arguments: --port <port> --cdp-host <host>
+for (let i = 2; i < process.argv.length; i++) {
+  if (process.argv[i] === '--port' && i + 1 < process.argv.length) {
+    PORT = parseInt(process.argv[++i], 10);
+  } else if (process.argv[i] === '--cdp-host' && i + 1 < process.argv.length) {
+    CDP_HOST = process.argv[++i];
+  }
+}
 const LOG_FILE = 'appium.log';
 
 function log(msg) {
