@@ -9,6 +9,13 @@ public static class LogDomain
 {
     private static readonly ConcurrentDictionary<CdpSession, bool> _enabledSessions = new();
 
+    /// <summary>
+    /// True only while at least one client has Log.enable active. Log sinks must gate on this
+    /// BEFORE formatting: an unconditional sink turns Avalonia's Verbose logging on globally
+    /// (per property change / measure / arrange), which cripples the host app.
+    /// </summary>
+    public static bool HasEnabledSessions => !_enabledSessions.IsEmpty;
+
     public static Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
     {
         switch (action)

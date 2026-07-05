@@ -5,24 +5,57 @@ namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public class CdpLogSink : ILogSink
 {
-    public bool IsEnabled(LogEventLevel level, string area) => true;
+    // Gate on an enabled Log.enable session, not `true`: IsEnabled feeds Avalonia's
+    // Logger.TryGet, so an always-true sink switches the whole framework to Verbose
+    // logging (every property change / measure / arrange) even with no client attached.
+    public bool IsEnabled(LogEventLevel level, string area) =>
+        Chrome.DevTools.Protocol.Domains.LogDomain.HasEnabledSessions;
 
     public void Log(LogEventLevel level, string area, object? source, string messageTemplate)
     {
+        if (!Chrome.DevTools.Protocol.Domains.LogDomain.HasEnabledSessions)
+            return;
+
         Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog(area, level.ToString(), messageTemplate);
     }
 
     public void Log(LogEventLevel level, string area, object? source, string messageTemplate, params object?[] propertyValues)
     {
-        try
+        if (!Chrome.DevTools.Protocol.Domains.LogDomain.HasEnabledSessions)
+            return;
+
+        Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog(
+            area, level.ToString(), FormatTemplate(messageTemplate, propertyValues));
+    }
+
+    // Avalonia templates use named placeholders ({DesiredSize}), which string.Format
+    // rejects — formatting them used to throw+catch a FormatException per log event.
+    // Substitute placeholders positionally instead, like Avalonia's own sinks do.
+    private static string FormatTemplate(string messageTemplate, object?[] propertyValues)
+    {
+        if (propertyValues.Length == 0 || messageTemplate.IndexOf('{') < 0)
+            return messageTemplate;
+
+        var result = new System.Text.StringBuilder(messageTemplate.Length + 32);
+        var valueIndex = 0;
+        for (var i = 0; i < messageTemplate.Length; i++)
         {
-            string formatted = string.Format(messageTemplate, propertyValues);
-            Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog(area, level.ToString(), formatted);
+            var c = messageTemplate[i];
+            if (c == '{')
+            {
+                var close = messageTemplate.IndexOf('}', i + 1);
+                if (close > i && valueIndex < propertyValues.Length)
+                {
+                    result.Append(propertyValues[valueIndex++]);
+                    i = close;
+                    continue;
+                }
+            }
+
+            result.Append(c);
         }
-        catch
-        {
-            Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog(area, level.ToString(), messageTemplate);
-        }
+
+        return result.ToString();
     }
 }
 
