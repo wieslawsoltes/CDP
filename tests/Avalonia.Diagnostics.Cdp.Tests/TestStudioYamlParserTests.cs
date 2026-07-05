@@ -461,4 +461,90 @@ description: ""Verify additional commands and nesting""
         Assert.True(roundTrip[0].Parameters.ContainsKey("below"));
         Assert.True(roundTrip[2].Parameters.ContainsKey("element"));
     }
+
+    [Fact]
+    public void TestConvertYamlToCodeGeneratorFormats()
+    {
+        string yaml = @"appId: ""CdpSampleApp""
+description: ""E2E Flow""
+---
+- tapOn: ""Button#btnLogin""
+- doubleTapOn: ""Button#btnDouble""
+- longPressOn: ""Button#btnLong""
+- back
+- clearText: ""TextBox#txtInput""
+- delay: 1500
+- inputText:
+    selector: ""TextBox#txtUsername""
+    text: ""admin""
+- pressKey:
+    key: ""Enter""
+    modifiers: 2
+";
+
+        var recordedSteps = TestStudioStepConverter.ConvertYamlToRecordedSteps(yaml);
+        Assert.Equal(8, recordedSteps.Count);
+
+        // 1. Verify mapping correctness
+        Assert.Equal("tap", recordedSteps[0].Type);
+        Assert.Equal("Button#btnLogin", recordedSteps[0].Selector);
+
+        Assert.Equal("doubleTap", recordedSteps[1].Type);
+        Assert.Equal("Button#btnDouble", recordedSteps[1].Selector);
+
+        Assert.Equal("longPress", recordedSteps[2].Type);
+        Assert.Equal("Button#btnLong", recordedSteps[2].Selector);
+
+        Assert.Equal("back", recordedSteps[3].Type);
+
+        Assert.Equal("clear", recordedSteps[4].Type);
+        Assert.Equal("TextBox#txtInput", recordedSteps[4].Selector);
+
+        Assert.Equal("delay", recordedSteps[5].Type);
+        Assert.Equal("1500", recordedSteps[5].Value);
+
+        Assert.Equal("inputText", recordedSteps[6].Type);
+        Assert.Equal("TextBox#txtUsername", recordedSteps[6].Selector);
+        Assert.Equal("admin", recordedSteps[6].Value);
+
+        Assert.Equal("pressKey", recordedSteps[7].Type);
+        Assert.Equal("Enter", recordedSteps[7].Key);
+        Assert.Equal(2, recordedSteps[7].Modifiers);
+
+        // 2. Playwright code generation verification
+        var playwrightGen = new PlaywrightGenerator();
+        string pwCode = playwrightGen.Generate(recordedSteps, "localhost:9222");
+        Assert.Contains("await element_0.tap();", pwCode);
+        Assert.Contains("await element_1.dblclick();", pwCode);
+        Assert.Contains("await element_2.click({ delay: 1000 });", pwCode);
+        Assert.Contains("await page.goBack();", pwCode);
+        Assert.Contains("await element_4.clear();", pwCode);
+        Assert.Contains("await page.waitForTimeout(1500);", pwCode);
+        Assert.Contains("await element_6.fill('admin');", pwCode);
+        Assert.Contains("await page.keyboard.press('Enter');", pwCode);
+
+        // 3. Puppeteer code generation verification
+        var puppeteerGen = new PuppeteerGenerator();
+        string pptrCode = puppeteerGen.Generate(recordedSteps, "localhost:9222");
+        Assert.Contains("await element_0.tap();", pptrCode);
+        Assert.Contains("await element_1.click({ clickCount: 2 });", pptrCode);
+        Assert.Contains("await element_2.click({ delay: 1000 });", pptrCode);
+        Assert.Contains("await page.goBack();", pptrCode);
+        Assert.Contains("await page.$eval('TextBox#txtInput', el => el.value = '');", pptrCode);
+        Assert.Contains("await new Promise(resolve => setTimeout(resolve, 1500));", pptrCode);
+        Assert.Contains("await element_6.type('admin');", pptrCode);
+        Assert.Contains("await page.keyboard.press('Enter');", pptrCode);
+
+        // 4. Selenium C# code generation verification
+        var seleniumGen = new SeleniumCSharpGenerator();
+        string selCode = seleniumGen.Generate(recordedSteps, "localhost:9222");
+        Assert.Contains("_driver.FindElement(By.CssSelector(\"Button#btnLogin\")).Click();", selCode);
+        Assert.Contains("_actions.DoubleClick(element_1).Perform();", selCode);
+        Assert.Contains("_actions.ClickAndHold(element_2).Pause(TimeSpan.FromMilliseconds(1000)).Release().Perform();", selCode);
+        Assert.Contains("_driver.Navigate().Back();", selCode);
+        Assert.Contains("_driver.FindElement(By.CssSelector(\"TextBox#txtInput\")).Clear();", selCode);
+        Assert.Contains("Thread.Sleep(1500);", selCode);
+        Assert.Contains("element_6.SendKeys(\"admin\");", selCode);
+        Assert.Contains("action_7 = action_7.KeyDown(Keys.Control);", selCode);
+    }
 }
