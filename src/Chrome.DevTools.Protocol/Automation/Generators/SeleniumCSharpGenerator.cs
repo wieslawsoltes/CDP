@@ -89,14 +89,13 @@ public class SeleniumCSharpGenerator : ICodeGenerator
             }
             else if (step.Type == "click")
             {
-                
                 if (step.Button == "right")
                 {
                     sb.AppendLine($"            _actions.ContextClick(_driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"))).Perform();");
                 }
                 else if (step.Button == "middle")
                 {
-                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent('click', {{button: 1}}));\", _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")));");
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent(\\'click\\', {{button: 1}}));\", _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")));");
                 }
                 else if (step.ClickCount == 2)
                 {
@@ -131,17 +130,55 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                     sb.AppendLine($"            _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Click();");
                 }
             }
-            else if (step.Type == "change")
+            else if (step.Type == "tap" || step.Type == "tapOn")
             {
-                
-                string valueEscaped = EscapeCSharpString(step.Value);
-                sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
-                sb.AppendLine($"            element_{i}.Clear();");
-                sb.AppendLine($"            element_{i}.SendKeys(\"{valueEscaped}\");");
+                sb.AppendLine($"            _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Click();");
             }
-            else if (step.Type == "keydown")
+            else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")
             {
-                var keyRep = GetSeleniumKeyRepresentation(step.Key, out bool isSpecialKey);
+                sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
+                sb.AppendLine($"            _actions.DoubleClick(element_{i}).Perform();");
+            }
+            else if (step.Type == "longPress" || step.Type == "longPressOn")
+            {
+                sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
+                sb.AppendLine($"            _actions.ClickAndHold(element_{i}).Pause(TimeSpan.FromMilliseconds(1000)).Release().Perform();");
+            }
+            else if (step.Type == "back")
+            {
+                sb.AppendLine("            _driver.Navigate().Back();");
+            }
+            else if (step.Type == "clear" || step.Type == "clearText")
+            {
+                sb.AppendLine($"            _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Clear();");
+            }
+            else if (step.Type == "delay")
+            {
+                int delayMs = 1000;
+                if (int.TryParse(step.Value, out int val))
+                {
+                    delayMs = val;
+                }
+                sb.AppendLine($"            Thread.Sleep({delayMs});");
+            }
+            else if (step.Type == "change" || step.Type == "inputText" || step.Type == "input")
+            {
+                string valueEscaped = EscapeCSharpString(step.Value);
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"            _actions.SendKeys(\"{valueEscaped}\").Perform();");
+                }
+                else
+                {
+                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
+                    sb.AppendLine($"            element_{i}.Clear();");
+                    sb.AppendLine($"            element_{i}.SendKeys(\"{valueEscaped}\");");
+                }
+            }
+            else if (step.Type == "keydown" || step.Type == "pressKey")
+            {
+                string keyToPress = string.IsNullOrEmpty(step.Key) ? step.Value : step.Key;
+                var keyRep = GetSeleniumKeyRepresentation(keyToPress, out bool isSpecialKey);
                 if (step.Modifiers > 0)
                 {
                     var mods = GetSeleniumModifiersList(step.Modifiers);

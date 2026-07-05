@@ -72,11 +72,58 @@ public class PuppeteerGenerator : ICodeGenerator
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
                 }
             }
-            else if (step.Type == "change")
+            else if (step.Type == "tap" || step.Type == "tapOn")
             {
-                sb.AppendLine($"  // Type text in element");
+                sb.AppendLine($"  // Tap on element");
                 sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
-                sb.AppendLine($"  await element_{i}.type('{EscapeJsString(step.Value)}');");
+                sb.AppendLine($"  await element_{i}.tap();");
+            }
+            else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")
+            {
+                sb.AppendLine($"  // Double tap on element");
+                sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
+                sb.AppendLine($"  await element_{i}.click({{ clickCount: 2 }});");
+            }
+            else if (step.Type == "longPress" || step.Type == "longPressOn")
+            {
+                sb.AppendLine($"  // Long press on element");
+                sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
+                sb.AppendLine($"  await element_{i}.click({{ delay: 1000 }});");
+            }
+            else if (step.Type == "back")
+            {
+                sb.AppendLine("  // Navigate back");
+                sb.AppendLine("  await page.goBack();");
+            }
+            else if (step.Type == "clear" || step.Type == "clearText")
+            {
+                sb.AppendLine($"  // Clear text in element");
+                sb.AppendLine($"  await page.$eval('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}', el => el.value = '');");
+            }
+            else if (step.Type == "delay")
+            {
+                int delayMs = 1000;
+                if (int.TryParse(step.Value, out int val))
+                {
+                    delayMs = val;
+                }
+                sb.AppendLine($"  // Delay");
+                sb.AppendLine($"  await new Promise(resolve => setTimeout(resolve, {delayMs}));");
+            }
+            else if (step.Type == "change" || step.Type == "inputText" || step.Type == "input")
+            {
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"  // Type text into focused element");
+                    sb.AppendLine($"  await page.keyboard.type('{EscapeJsString(step.Value)}');");
+                }
+                else
+                {
+                    sb.AppendLine($"  // Type text in element");
+                    sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
+                    sb.AppendLine($"  await page.$eval('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}', el => el.value = '');");
+                    sb.AppendLine($"  await element_{i}.type('{EscapeJsString(step.Value)}');");
+                }
             }
             else if (step.Type == "setViewport")
             {
@@ -86,13 +133,14 @@ public class PuppeteerGenerator : ICodeGenerator
             {
                 sb.AppendLine($"  await page.goto('{EscapeJsString(step.Url)}');");
             }
-            else if (step.Type == "keydown")
+            else if (step.Type == "keydown" || step.Type == "pressKey")
             {
+                string keyToPress = string.IsNullOrEmpty(step.Key) ? step.Value : step.Key;
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
                 }
-                sb.AppendLine($"  await page.keyboard.press('{EscapeJsString(step.Key)}');");
+                sb.AppendLine($"  await page.keyboard.press('{EscapeJsString(keyToPress)}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");

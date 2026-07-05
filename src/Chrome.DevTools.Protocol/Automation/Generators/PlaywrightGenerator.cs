@@ -77,12 +77,66 @@ public class PlaywrightGenerator : ICodeGenerator
                 sb.AppendLine($"      await element_{i}.click({optStr});");
                 sb.AppendLine("    });");
             }
-            else if (step.Type == "change")
+            else if (step.Type == "tap" || step.Type == "tapOn")
             {
-                sb.AppendLine($"    await test.step('Type text in element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
+                sb.AppendLine($"    await test.step('Tap on element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
                 sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
-                sb.AppendLine($"      await element_{i}.fill('{EscapeJsString(step.Value)}');");
+                sb.AppendLine($"      await element_{i}.tap();");
                 sb.AppendLine("    });");
+            }
+            else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")
+            {
+                sb.AppendLine($"    await test.step('Double tap on element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
+                sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
+                sb.AppendLine($"      await element_{i}.dblclick();");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "longPress" || step.Type == "longPressOn")
+            {
+                sb.AppendLine($"    await test.step('Long press on element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
+                sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
+                sb.AppendLine($"      await element_{i}.click({{ delay: 1000 }});");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "back")
+            {
+                sb.AppendLine($"    await test.step('Navigate back', async () => {{");
+                sb.AppendLine($"      await page.goBack();");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "clear" || step.Type == "clearText")
+            {
+                sb.AppendLine($"    await test.step('Clear text in element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
+                sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
+                sb.AppendLine($"      await element_{i}.clear();");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "delay")
+            {
+                int delayMs = 1000;
+                if (int.TryParse(step.Value, out int val))
+                {
+                    delayMs = val;
+                }
+                sb.AppendLine($"    await test.step('Delay {delayMs}ms', async () => {{");
+                sb.AppendLine($"      await page.waitForTimeout({delayMs});");
+                sb.AppendLine("    });");
+            }
+            else if (step.Type == "change" || step.Type == "inputText" || step.Type == "input")
+            {
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"    await test.step('Type text into focused element', async () => {{");
+                    sb.AppendLine($"      await page.keyboard.type('{EscapeJsString(step.Value)}');");
+                    sb.AppendLine("    });");
+                }
+                else
+                {
+                    sb.AppendLine($"    await test.step('Type text in element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
+                    sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
+                    sb.AppendLine($"      await element_{i}.fill('{EscapeJsString(step.Value)}');");
+                    sb.AppendLine("    });");
+                }
             }
             else if (step.Type == "setViewport")
             {
@@ -96,14 +150,15 @@ public class PlaywrightGenerator : ICodeGenerator
                 sb.AppendLine($"      await page.goto('{EscapeJsString(step.Url)}');");
                 sb.AppendLine("    });");
             }
-            else if (step.Type == "keydown")
+            else if (step.Type == "keydown" || step.Type == "pressKey")
             {
-                sb.AppendLine($"    await test.step('Press key {EscapeJsString(step.Key)}', async () => {{");
+                string keyToPress = string.IsNullOrEmpty(step.Key) ? step.Value : step.Key;
+                sb.AppendLine($"    await test.step('Press key {EscapeJsString(keyToPress)}', async () => {{");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.down('{mod}');");
                 }
-                sb.AppendLine($"      await page.keyboard.press('{EscapeJsString(step.Key)}');");
+                sb.AppendLine($"      await page.keyboard.press('{EscapeJsString(keyToPress)}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"      await page.keyboard.up('{mod}');");
