@@ -35,14 +35,16 @@ public class Program
         var hostOption = new Option<string>(new[] { "--host", "-h" }, () => "http://127.0.0.1:9222", "CDP server host address");
         var targetIdOption = new Option<string>(new[] { "--target", "-t" }, "Target WebSocket page ID");
         var targetNameOption = new Option<string>(new[] { "--target-name", "-n" }, "Match target window name/title");
+        var portOption = new Option<int?>(new[] { "--port", "-p" }, "Target application CDP port");
 
         var rootCommand = new RootCommand("CDP Inspector CLI runner and automation tool");
+        rootCommand.AddGlobalOption(portOption);
 
         // 1. list-targets command
         var listTargetsCommand = new Command("list-targets", "List active CDP targets on the host") { hostOption };
         listTargetsCommand.SetHandler(async (context) =>
         {
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var cdp = new CdpService();
             try
             {
@@ -84,7 +86,7 @@ public class Program
         runCommand.SetHandler(async (context) =>
         {
             var testPath = context.ParseResult.GetValueForArgument(testPathArg);
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var targetId = context.ParseResult.GetValueForOption(targetIdOption);
             var targetName = context.ParseResult.GetValueForOption(targetNameOption);
             var outputDir = context.ParseResult.GetValueForOption(outputDirOption) ?? "TestReports";
@@ -250,7 +252,7 @@ public class Program
         };
         hierarchyCommand.SetHandler(async (context) =>
         {
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var targetId = context.ParseResult.GetValueForOption(targetIdOption);
             var targetName = context.ParseResult.GetValueForOption(targetNameOption);
             var type = context.ParseResult.GetValueForOption(typeOption) ?? "accessibility";
@@ -327,7 +329,7 @@ public class Program
         evalCommand.SetHandler(async (context) =>
         {
             var expression = context.ParseResult.GetValueForArgument(expressionArg);
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var targetId = context.ParseResult.GetValueForOption(targetIdOption);
             var targetName = context.ParseResult.GetValueForOption(targetNameOption);
 
@@ -407,7 +409,7 @@ public class Program
         tapSub.SetHandler(async (context) =>
         {
             var selector = context.ParseResult.GetValueForArgument(tapSelectorArg);
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var tId = context.ParseResult.GetValueForOption(targetIdOption);
             var tName = context.ParseResult.GetValueForOption(targetNameOption);
             await ExecuteActionAsync("tapOn", selector, null, host, tId, tName);
@@ -420,7 +422,7 @@ public class Program
         {
             var selector = context.ParseResult.GetValueForArgument(inputSelectorArg);
             var text = context.ParseResult.GetValueForArgument(inputTextArg);
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var tId = context.ParseResult.GetValueForOption(targetIdOption);
             var tName = context.ParseResult.GetValueForOption(targetNameOption);
             await ExecuteActionAsync("inputText", selector, text, host, tId, tName);
@@ -431,7 +433,7 @@ public class Program
         clearSub.SetHandler(async (context) =>
         {
             var selector = context.ParseResult.GetValueForArgument(clearSelectorArg);
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var tId = context.ParseResult.GetValueForOption(targetIdOption);
             var tName = context.ParseResult.GetValueForOption(targetNameOption);
             await ExecuteActionAsync("clearText", selector, null, host, tId, tName);
@@ -442,7 +444,7 @@ public class Program
         assertSub.SetHandler(async (context) =>
         {
             var selector = context.ParseResult.GetValueForArgument(assertSelectorArg);
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var tId = context.ParseResult.GetValueForOption(targetIdOption);
             var tName = context.ParseResult.GetValueForOption(targetNameOption);
             await ExecuteActionAsync("assertVisible", selector, null, host, tId, tName);
@@ -455,7 +457,7 @@ public class Program
         {
             var selector = context.ParseResult.GetValueForArgument(scrollSelectorArg);
             var direction = context.ParseResult.GetValueForArgument(scrollDirectionArg);
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var tId = context.ParseResult.GetValueForOption(targetIdOption);
             var tName = context.ParseResult.GetValueForOption(targetNameOption);
             await ExecuteActionAsync("scroll", selector, $"direction={direction}", host, tId, tName);
@@ -476,7 +478,7 @@ public class Program
         };
         logsCommand.SetHandler(async (context) =>
         {
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var targetId = context.ParseResult.GetValueForOption(targetIdOption);
             var targetName = context.ParseResult.GetValueForOption(targetNameOption);
             var logType = context.ParseResult.GetValueForOption(logTypeOption) ?? "all";
@@ -547,7 +549,7 @@ public class Program
         };
         mcpCommand.SetHandler(async (context) =>
         {
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var targetId = context.ParseResult.GetValueForOption(targetIdOption);
             var targetName = context.ParseResult.GetValueForOption(targetNameOption);
 
@@ -621,7 +623,7 @@ public class Program
         {
             var query = context.ParseResult.GetValueForArgument(queryArg);
             var dbPath = context.ParseResult.GetValueForOption(dbPathOption);
-            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var host = ResolveHost(context.ParseResult, hostOption, portOption);
             var targetId = context.ParseResult.GetValueForOption(targetIdOption);
             var targetName = context.ParseResult.GetValueForOption(targetNameOption);
 
@@ -1393,6 +1395,31 @@ public class Program
             Console.WriteLine();
         }
         PrintDivider();
+    }
+
+    public static string ResolveHost(System.CommandLine.Parsing.ParseResult parseResult, Option<string> hostOpt, Option<int?> portOpt)
+    {
+        var host = parseResult.GetValueForOption(hostOpt);
+        var port = parseResult.GetValueForOption(portOpt);
+        
+        if (port.HasValue)
+        {
+            if (host != null && host != "http://127.0.0.1:9222")
+            {
+                try
+                {
+                    var uri = new UriBuilder(host) { Port = port.Value };
+                    return uri.ToString().TrimEnd('/');
+                }
+                catch
+                {
+                    return $"http://127.0.0.1:{port.Value}";
+                }
+            }
+            return $"http://127.0.0.1:{port.Value}";
+        }
+        
+        return host ?? "http://127.0.0.1:9222";
     }
 }
 

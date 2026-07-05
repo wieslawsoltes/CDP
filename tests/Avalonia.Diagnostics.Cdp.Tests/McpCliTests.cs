@@ -7,6 +7,7 @@ using Xunit;
 using CDP.Inspector.CLI;
 using CdpInspectorApp.Services;
 using Chrome.DevTools.Protocol;
+using System.CommandLine;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -116,5 +117,33 @@ public class McpCliTests
         {
             Console.SetOut(originalOut);
         }
+    }
+
+    [Fact]
+    public void TestResolveHostOptions()
+    {
+        var hostOption = new Option<string>(new[] { "--host", "-h" }, () => "http://127.0.0.1:9222");
+        var portOption = new Option<int?>(new[] { "--port", "-p" });
+        var cmd = new RootCommand { hostOption, portOption };
+
+        // Test case 1: Default values (neither option supplied)
+        var result1 = cmd.Parse("");
+        var host1 = Program.ResolveHost(result1, hostOption, portOption);
+        Assert.Equal("http://127.0.0.1:9222", host1);
+
+        // Test case 2: Only port option supplied
+        var result2 = cmd.Parse("-p 8080");
+        var host2 = Program.ResolveHost(result2, hostOption, portOption);
+        Assert.Equal("http://127.0.0.1:8080", host2);
+
+        // Test case 3: Only host option supplied
+        var result3 = cmd.Parse("--host http://localhost");
+        var host3 = Program.ResolveHost(result3, hostOption, portOption);
+        Assert.Equal("http://localhost", host3);
+
+        // Test case 4: Both host and port option supplied
+        var result4 = cmd.Parse("--host http://myremotehost --port 3000");
+        var host4 = Program.ResolveHost(result4, hostOption, portOption);
+        Assert.Equal("http://myremotehost:3000", host4);
     }
 }
