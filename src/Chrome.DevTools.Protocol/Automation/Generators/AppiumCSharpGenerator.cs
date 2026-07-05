@@ -18,38 +18,28 @@ public class AppiumCSharpGenerator : ICodeGenerator
         var sb = new StringBuilder();
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Drawing;");
-        sb.AppendLine("using System.Threading;");
-        sb.AppendLine("using NUnit.Framework;");
+        sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using OpenQA.Selenium;");
         sb.AppendLine("using OpenQA.Selenium.Appium;");
-        sb.AppendLine("using OpenQA.Selenium.Appium.Windows;");
+        sb.AppendLine("using OpenQA.Selenium.Appium.Android;");
         sb.AppendLine("using OpenQA.Selenium.Interactions;");
+        sb.AppendLine("using Xunit;");
+        sb.AppendLine("using CDP.Automation.Appium;");
         sb.AppendLine();
         sb.AppendLine("namespace AppiumTests");
         sb.AppendLine("{");
-        sb.AppendLine("    [TestFixture]");
-        sb.AppendLine("    public class RecordedTests");
+        sb.AppendLine("    public class RecordedTests : IClassFixture<CdpAppiumFixture>");
         sb.AppendLine("    {");
-        sb.AppendLine("        private WindowsDriver<WindowsElement> _driver;");
+        sb.AppendLine("        private readonly CdpAppiumFixture _fixture;");
+        sb.AppendLine("        private readonly AndroidDriver _driver;");
         sb.AppendLine();
-        sb.AppendLine("        [SetUp]");
-        sb.AppendLine("        public void SetUp()");
+        sb.AppendLine("        public RecordedTests(CdpAppiumFixture fixture)");
         sb.AppendLine("        {");
-        sb.AppendLine("            var options = new AppiumOptions();");
-        sb.AppendLine("            options.AddAdditionalCapability(\"platformName\", \"Windows\");");
-        sb.AppendLine("            options.AddAdditionalCapability(\"automationName\", \"Windows\");");
-        sb.AppendLine("            options.AddAdditionalCapability(\"app\", \"Root\");");
-        sb.AppendLine();
-        sb.AppendLine("            _driver = new WindowsDriver<WindowsElement>(new Uri(\"http://127.0.0.1:4723/\"), options);");
+        sb.AppendLine("            _fixture = fixture;");
+        sb.AppendLine("            _driver = fixture.Driver ?? throw new InvalidOperationException(\"Driver was not initialized.\");");
         sb.AppendLine("        }");
         sb.AppendLine();
-        sb.AppendLine("        [TearDown]");
-        sb.AppendLine("        public void TearDown()");
-        sb.AppendLine("        {");
-        sb.AppendLine("            _driver?.Quit();");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine("        [Test]");
+        sb.AppendLine("        [Fact]");
         sb.AppendLine("        public void TestRecordedSteps()");
         sb.AppendLine("        {");
 
@@ -166,7 +156,7 @@ public class AppiumCSharpGenerator : ICodeGenerator
             else if (step.Type == "assertVisible")
             {
                 string elementExpr = GetAppiumElementExpression(step.Selector);
-                sb.AppendLine($"            Assert.IsTrue({elementExpr}.Displayed);");
+                sb.AppendLine($"            Assert.True({elementExpr}.Displayed);");
             }
             else if (step.Type == "assertNotVisible")
             {
@@ -180,7 +170,7 @@ public class AppiumCSharpGenerator : ICodeGenerator
                 sb.AppendLine("            {");
                 sb.AppendLine($"                isVisible_{i} = false;");
                 sb.AppendLine("            }");
-                sb.AppendLine($"            Assert.IsFalse(isVisible_{i});");
+                sb.AppendLine($"            Assert.False(isVisible_{i});");
             }
             else if (step.Type == "assertTrue" || step.Type == "assertFalse")
             {
@@ -189,11 +179,11 @@ public class AppiumCSharpGenerator : ICodeGenerator
                 sb.AppendLine($"            var result_{i} = ((IJavaScriptExecutor)_driver).ExecuteScript(\"return {expr};\");");
                 if (expectedBool)
                 {
-                    sb.AppendLine($"            Assert.IsTrue(Convert.ToBoolean(result_{i}));");
+                    sb.AppendLine($"            Assert.True(Convert.ToBoolean(result_{i}));");
                 }
                 else
                 {
-                    sb.AppendLine($"            Assert.IsFalse(Convert.ToBoolean(result_{i}));");
+                    sb.AppendLine($"            Assert.False(Convert.ToBoolean(result_{i}));");
                 }
             }
             sb.AppendLine();
@@ -211,7 +201,7 @@ public class AppiumCSharpGenerator : ICodeGenerator
         if (selector.StartsWith("[AccessibilityId=\"") && selector.EndsWith("\"]"))
         {
             var value = selector.Substring("[AccessibilityId=\"".Length, selector.Length - "[AccessibilityId=\"".Length - "\"]".Length);
-            return $"_driver.FindElementByAccessibilityId(\"{EscapeCSharpString(value)}\")";
+            return $"_driver.FindElement(MobileBy.AccessibilityId(\"{EscapeCSharpString(value)}\"))";
         }
         else if (selector.Contains("[AccessibilityId=\""))
         {
@@ -220,22 +210,22 @@ public class AppiumCSharpGenerator : ICodeGenerator
             if (end > start)
             {
                 var value = selector.Substring(start, end - start);
-                return $"_driver.FindElementByAccessibilityId(\"{EscapeCSharpString(value)}\")";
+                return $"_driver.FindElement(MobileBy.AccessibilityId(\"{EscapeCSharpString(value)}\"))";
             }
         }
 
         string escaped = EscapeCSharpString(selector);
         if (selector.StartsWith("#"))
         {
-            return $"_driver.FindElementByAccessibilityId(\"{EscapeCSharpString(selector.Substring(1))}\")";
+            return $"_driver.FindElement(By.Id(\"{EscapeCSharpString(selector.Substring(1))}\"))";
         }
         else if (selector.StartsWith("/") || selector.StartsWith("//"))
         {
-            return $"_driver.FindElementByXPath(\"{escaped}\")";
+            return $"_driver.FindElement(By.XPath(\"{escaped}\"))";
         }
         else
         {
-            return $"_driver.FindElementByName(\"{escaped}\")";
+            return $"_driver.FindElement(By.Name(\"{escaped}\"))";
         }
     }
 
