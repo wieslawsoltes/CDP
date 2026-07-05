@@ -1,0 +1,155 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Appium;
+using OpenQA.Selenium.Appium.Android;
+using Xunit;
+using CDP.Automation.Appium;
+
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+
+namespace CDP.Appium.Tests;
+
+public class AppiumTests : IClassFixture<CdpAppiumFixture>
+{
+    private readonly CdpAppiumFixture _fixture;
+    private readonly AndroidDriver _driver;
+
+    public AppiumTests(CdpAppiumFixture fixture)
+    {
+        _fixture = fixture;
+        _driver = fixture.Driver ?? throw new InvalidOperationException("Driver was not initialized in fixture.");
+    }
+
+    private void SelectTab(int index)
+    {
+        _driver.ExecuteScript($"document.querySelector('#tabContainer').selectedIndex = {index};");
+        string checkScript = index switch
+        {
+            1 => "const el = document.querySelector('#scrollContainer'); return !!(el && el.offsetWidth > 0);",
+            2 => "const el = document.querySelector('#btnGoBack'); return !!(el && el.offsetWidth > 0);",
+            _ => "const el = document.querySelector('#txtInput'); return !!(el && el.offsetWidth > 0);"
+        };
+
+        for (int i = 0; i < 30; i++)
+        {
+            var isSettled = _driver.ExecuteScript(checkScript) as bool? ?? false;
+            if (isSettled) return;
+            System.Threading.Thread.Sleep(100);
+        }
+    }
+
+    [Fact]
+    public void VerifyHomePageElementsAndInteraction()
+    {
+        Assert.Equal("Avalonia CDP Inspector Sample", _driver.Title);
+
+        SelectTab(0);
+        _driver.ExecuteScript("const status = document.querySelector('#txtStatus'); if (status) status.textContent = 'Not Clicked';");
+        _driver.ExecuteScript("if (typeof Window !== 'undefined' && Window) Window.clickCount = 0;");
+
+        var statusText = _driver.FindElement(By.Id("txtStatus"));
+        for (int i = 0; i < 50; i++)
+        {
+            if (statusText.Text == "Not Clicked") break;
+            System.Threading.Thread.Sleep(100);
+        }
+        Assert.Equal("Not Clicked", statusText.Text);
+
+        var clickBtn = _driver.FindElement(By.Id("btnClickMe"));
+        clickBtn.Click();
+        for (int i = 0; i < 50; i++)
+        {
+            if (statusText.Text == "Clicked 1 times!") break;
+            System.Threading.Thread.Sleep(100);
+        }
+        Assert.Equal("Clicked 1 times!", statusText.Text);
+
+        clickBtn.Click();
+        for (int i = 0; i < 50; i++)
+        {
+            if (statusText.Text == "Clicked 2 times!") break;
+            System.Threading.Thread.Sleep(100);
+        }
+        Assert.Equal("Clicked 2 times!", statusText.Text);
+    }
+
+    [Fact]
+    public void VerifyTextBoxInputAndBinding()
+    {
+        SelectTab(0);
+        var txtInput = _driver.FindElement(By.Id("txtInput"));
+        txtInput.Clear();
+        txtInput.SendKeys("CDP Appium E2E!");
+        for (int i = 0; i < 50; i++)
+        {
+            if (txtInput.GetAttribute("value") == "CDP Appium E2E!") break;
+            System.Threading.Thread.Sleep(100);
+        }
+        Assert.Equal("CDP Appium E2E!", txtInput.GetAttribute("value"));
+    }
+
+    [Fact]
+    public void VerifySliderAndCheckBoxControls()
+    {
+        SelectTab(0);
+        var chkToggle = _driver.FindElement(By.Id("chkToggle"));
+        
+        if (chkToggle.Selected)
+        {
+            chkToggle.Click();
+        }
+        for (int i = 0; i < 50; i++)
+        {
+            if (!chkToggle.Selected) break;
+            System.Threading.Thread.Sleep(100);
+        }
+        Assert.False(chkToggle.Selected);
+        
+        chkToggle.Click();
+        for (int i = 0; i < 50; i++)
+        {
+            if (chkToggle.Selected) break;
+            System.Threading.Thread.Sleep(100);
+        }
+        Assert.True(chkToggle.Selected);
+
+        _driver.ExecuteScript("document.querySelector('#sliderValue').value = 75;");
+        
+        var sliderText = _driver.FindElement(By.Id("txtSliderVal"));
+        for (int i = 0; i < 50; i++)
+        {
+            if (sliderText.Text == "Slider Value: 75") break;
+            System.Threading.Thread.Sleep(100);
+        }
+        Assert.Equal("Slider Value: 75", sliderText.Text);
+    }
+
+    [Fact]
+    public void VerifyNavigationBetweenTabs()
+    {
+        SelectTab(1);
+        var scrollContainer = _driver.FindElement(By.Id("scrollContainer"));
+        Assert.True(scrollContainer.Displayed);
+
+        SelectTab(2);
+        var aboutTitle = _driver.FindElement(By.Id("tabAbout"));
+        Assert.True(aboutTitle.Displayed);
+    }
+
+    [Fact]
+    public void VerifyUrlBasedPageNavigationAndBackInteraction()
+    {
+        _driver.Navigate().GoToUrl("http://127.0.0.1:9222/about");
+        
+        var tabAbout = _driver.FindElement(By.Id("tabAbout"));
+        Assert.True(tabAbout.Displayed);
+
+        var btnGoBack = _driver.FindElement(By.Id("btnGoBack"));
+        btnGoBack.Click();
+
+        var tabHome = _driver.FindElement(By.Id("tabHome"));
+        Assert.True(tabHome.Displayed);
+    }
+}
