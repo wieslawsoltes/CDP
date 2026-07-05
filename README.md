@@ -13,6 +13,8 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 | **Chrome.DevTools.Protocol** | Core Protocol & Client Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) |
 | **Chrome.DevTools.Avalonia** | Avalonia Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) |
 | **Chrome.DevTools.Automation.OS** | OS Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.OS.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.OS/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.OS.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.OS/) |
+| **Chrome.DevTools.Automation.Appium** | Appium E2E Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.Appium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Appium/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.Appium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Appium/) |
+| **Chrome.DevTools.Automation.Selenium** | Selenium E2E Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.Selenium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Selenium/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.Selenium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Selenium/) |
 | **Chrome.DevTools.Inspector.Shared** | Shared UI Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) |
 | **Chrome.DevTools.Editor.Minimap** | Standalone Minimap & Inline Editor | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Minimap.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Minimap/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Minimap.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Minimap/) |
 | **Chrome.DevTools.Editor.Nodes** | Standalone Graph Node Editor | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Nodes.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Nodes.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes/) |
@@ -575,8 +577,8 @@ The table below outlines each target format, the testing framework it targets, h
 | :--- | :--- | :--- | :--- |
 | **Puppeteer** | Node.js (JavaScript) | Controls the application over standard CDP. | Great for lightweight scripting and browser-driven orchestration. |
 | **Playwright Test** | Playwright (JS/TS Runner) | Connects to the active application via `chromium.connectOverCDP(host)`. | Standard modern E2E testing framework for complex workflows. |
-| **Selenium C#** | Selenium WebDriver (NUnit) | Attaches to the active application session via `ChromeOptions.DebuggerAddress`. | Seamless integration into C# .NET NUnit test pipelines. |
-| **Appium C#** | Appium Windows Driver (NUnit) | Connects via Appium Server (`http://127.0.0.1:4723/`) using `WindowsDriver`. | Controls Windows desktop controls utilizing dynamic selector translation. |
+| **Selenium C#** | Selenium WebDriver (xUnit) | Attaches to the active application session via `CdpSeleniumFixture` and `ChromeOptions.DebuggerAddress`. | Seamless integration into C# .NET xUnit test pipelines. |
+| **Appium C#** | Appium (xUnit) | Connects via Appium Server using `CdpAppiumFixture` and `AndroidDriver` over custom CDP proxy. | Standard Appium automation on Avalonia controls with custom proxy translation. |
 | **Avalonia Headless** | `Avalonia.Headless.XUnit` | Runs directly in-process. Simulates inputs using window mouse/keyboard extensions. | High-performance headless tests running inside the xUnit test runner. |
 
 ### Code Generation Examples
@@ -659,44 +661,34 @@ test.describe('CDP Recorded Tests', () => {
 </details>
 
 <details>
-<summary>3. Selenium C# (NUnit)</summary>
+<summary>3. Selenium C# (xUnit)</summary>
 
 ```csharp
 using System;
 using System.Drawing;
-using System.Threading;
-using NUnit.Framework;
+using System.Threading.Tasks;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.Interactions;
+using Xunit;
+using CDP.Automation.Selenium;
 
 namespace SeleniumTests
 {
-    [TestFixture]
-    public class RecordedTests
+    public class RecordedTests : IClassFixture<CdpSeleniumFixture>
     {
-        private IWebDriver _driver;
-        private Actions _actions;
+        private readonly CdpSeleniumFixture _fixture;
+        private readonly ChromeDriver _driver;
 
-        [SetUp]
-        public void SetUp()
+        public RecordedTests(CdpSeleniumFixture fixture)
         {
-            var options = new ChromeOptions();
-            options.DebuggerAddress = "localhost:9222";
-            _driver = new ChromeDriver(options);
-            _actions = new Actions(_driver);
+            _fixture = fixture;
+            _driver = fixture.Driver ?? throw new InvalidOperationException("Driver was not initialized.");
         }
 
-        [TearDown]
-        public void TearDown()
-        {
-            _driver?.Quit();
-        }
-
-        [Test]
+        [Fact]
         public void TestRecordedSteps()
         {
-            // Step 1: setViewport
+            // Set viewport size
             _driver.Manage().Window.Size = new Size(1024, 768);
 
             // Step 2: navigate
@@ -711,7 +703,7 @@ namespace SeleniumTests
             element_3.SendKeys("hello \"world\" \\ test");
 
             // Step 5: assertVisible
-            Assert.IsTrue(_driver.FindElement(By.CssSelector("#btnClick")).Displayed);
+            Assert.True(_driver.FindElement(By.CssSelector("#btnClick")).Displayed);
 
             // Step 6: assertNotVisible
             bool isVisible_5 = false;
@@ -723,7 +715,7 @@ namespace SeleniumTests
             {
                 isVisible_5 = false;
             }
-            Assert.IsFalse(isVisible_5);
+            Assert.False(isVisible_5);
         }
     }
 }
@@ -731,73 +723,62 @@ namespace SeleniumTests
 </details>
 
 <details>
-<summary>4. Appium C# (NUnit)</summary>
+<summary>4. Appium C# (xUnit)</summary>
 
 ```csharp
 using System;
 using System.Drawing;
-using System.Threading;
-using NUnit.Framework;
+using System.Threading.Tasks;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Appium;
-using OpenQA.Selenium.Appium.Windows;
-using OpenQA.Selenium.Interactions;
+using OpenQA.Selenium.Appium.Android;
+using Xunit;
+using CDP.Automation.Appium;
 
 namespace AppiumTests
 {
-    [TestFixture]
-    public class RecordedTests
+    public class RecordedTests : IClassFixture<CdpAppiumFixture>
     {
-        private WindowsDriver<WindowsElement> _driver;
+        private readonly CdpAppiumFixture _fixture;
+        private readonly AndroidDriver _driver;
 
-        [SetUp]
-        public void SetUp()
+        public RecordedTests(CdpAppiumFixture fixture)
         {
-            var options = new AppiumOptions();
-            options.AddAdditionalCapability("platformName", "Windows");
-            options.AddAdditionalCapability("automationName", "Windows");
-            options.AddAdditionalCapability("app", "Root");
-
-            _driver = new WindowsDriver<WindowsElement>(new Uri("http://127.0.0.1:4723/"), options);
+            _fixture = fixture;
+            _driver = fixture.Driver ?? throw new InvalidOperationException("Driver was not initialized.");
         }
 
-        [TearDown]
-        public void TearDown()
-        {
-            _driver?.Quit();
-        }
-
-        [Test]
+        [Fact]
         public void TestRecordedSteps()
         {
-            // Step 1: setViewport
+            // Set viewport size
             _driver.Manage().Window.Size = new Size(1024, 768);
 
             // Step 2: navigate
             _driver.Navigate().GoToUrl("http://localhost:9222/foo");
 
             // Step 3: click
-            _driver.FindElementByAccessibilityId("btnClick").Click();
+            _driver.FindElement(By.Id("btnClick")).Click();
 
             // Step 4: change
-            var element_3 = _driver.FindElementByAccessibilityId("txtInput");
+            var element_3 = _driver.FindElement(By.Id("txtInput"));
             element_3.Clear();
             element_3.SendKeys("hello \"world\" \\ test");
 
             // Step 5: assertVisible
-            Assert.IsTrue(_driver.FindElementByAccessibilityId("btnClick").Displayed);
+            Assert.True(_driver.FindElement(By.Id("btnClick")).Displayed);
 
             // Step 6: assertNotVisible
             bool isVisible_5 = false;
             try
             {
-                isVisible_5 = _driver.FindElementByAccessibilityId("hidden").Displayed;
+                isVisible_5 = _driver.FindElement(By.Id("hidden")).Displayed;
             }
             catch (Exception)
             {
                 isVisible_5 = false;
             }
-            Assert.IsFalse(isVisible_5);
+            Assert.False(isVisible_5);
         }
     }
 }
