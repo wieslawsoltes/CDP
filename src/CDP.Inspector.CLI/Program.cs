@@ -540,6 +540,178 @@ public class Program
         });
         rootCommand.AddCommand(logsCommand);
 
+        // 7. mcp command
+        var mcpCommand = new Command("mcp", "Start native MCP stdio server")
+        {
+            hostOption, targetIdOption, targetNameOption
+        };
+        mcpCommand.SetHandler(async (context) =>
+        {
+            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var targetId = context.ParseResult.GetValueForOption(targetIdOption);
+            var targetName = context.ParseResult.GetValueForOption(targetNameOption);
+
+            var cdp = new CdpService();
+            try
+            {
+                Console.Error.WriteLine($"[MCP] Connecting to target on host: {host}...");
+                var target = await ResolveTargetAsync(cdp, host, targetId, targetName);
+                Console.Error.WriteLine($"[MCP] Resolved target: {target.Title} (ID: {target.Id})");
+                await cdp.ConnectAsync(host, target);
+                Console.Error.WriteLine($"[MCP] Connected to CDP. Starting stdio MCP server loop...");
+
+                while (true)
+                {
+                    var line = await Console.In.ReadLineAsync();
+                    if (line == null)
+                    {
+                        Console.Error.WriteLine("[MCP] Stdin closed (EOF). Exiting...");
+                        break;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    try
+                    {
+                        var json = JsonNode.Parse(line) as JsonObject;
+                        if (json == null)
+                        {
+                            Console.Error.WriteLine($"[MCP] Invalid JSON received: {line}");
+                            continue;
+                        }
+
+                        var id = json["id"];
+                        var method = json["method"]?.GetValue<string>();
+                        var @params = json["params"] as JsonObject;
+
+                        if (method != null)
+                        {
+                            await HandleMcpMethodAsync(cdp, host, target, id, method, @params);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[MCP] Error handling message: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[MCP Fatal] Connection or runtime failure: {ex.Message}\n{ex.StackTrace}");
+                Environment.ExitCode = 1;
+            }
+            finally
+            {
+                if (cdp.IsConnected)
+                {
+                    await cdp.DisconnectAsync();
+                }
+            }
+        });
+        rootCommand.AddCommand(mcpCommand);
+
+        // 8. db command
+        var dbPathOption = new Option<string>(new[] { "--database", "-d" }, "Path to the target SQLite database");
+        var queryArg = new Argument<string>("query", "SQL query to execute");
+        var dbCommand = new Command("db", "Execute SQLite SQL query on the target application")
+        {
+            queryArg, dbPathOption, hostOption, targetIdOption, targetNameOption
+        };
+        dbCommand.SetHandler(async (context) =>
+        {
+            var query = context.ParseResult.GetValueForArgument(queryArg);
+            var dbPath = context.ParseResult.GetValueForOption(dbPathOption);
+            var host = context.ParseResult.GetValueForOption(hostOption) ?? "http://127.0.0.1:9222";
+            var targetId = context.ParseResult.GetValueForOption(targetIdOption);
+            var targetName = context.ParseResult.GetValueForOption(targetNameOption);
+
+            var cdp = new CdpService();
+            try
+            {
+                var target = await ResolveTargetAsync(cdp, host, targetId, targetName);
+                await cdp.ConnectAsync(host, target);
+
+                if (string.IsNullOrEmpty(dbPath))
+                {
+                    var dbsResponse = await cdp.SendCommandAsync("Application.getDatabases");
+                    var databases = dbsResponse["databases"]?.AsArray();
+                    if (databases == null || databases.Count == 0)
+                    {
+                        throw new Exception("No SQLite databases found on the target application. Please specify one using -d/--database.");
+                    }
+
+                    if (databases.Count == 1)
+                    {
+                        dbPath = databases[0]?.GetValue<string>();
+                        Console.WriteLine($"Auto-detected database: {dbPath}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Multiple SQLite databases found on the target:");
+                        for (int i = 0; i < databases.Count; i++)
+                        {
+                            Console.WriteLine($"{i + 1}. {databases[i]?.GetValue<string>()}");
+                        }
+                        throw new Exception("Please specify which database to use via the --database or -d option.");
+                    }
+                }
+
+                if (string.IsNullOrEmpty(dbPath))
+                {
+                    throw new Exception("Database path is required.");
+                }
+
+                var sqlResult = await cdp.SendCommandAsync("Application.executeSQL", new JsonObject
+                {
+                    ["databasePath"] = dbPath,
+                    ["query"] = query
+                });
+
+                var columns = new List<string>();
+                var colsNode = sqlResult["columns"]?.AsArray();
+                if (colsNode != null)
+                {
+                    foreach (var col in colsNode)
+                    {
+                        columns.Add(col?.ToString() ?? "");
+                    }
+                }
+
+                var rows = new List<List<string>>();
+                var rowsNode = sqlResult["rows"]?.AsArray();
+                if (rowsNode != null)
+                {
+                    foreach (var rowVal in rowsNode)
+                    {
+                        var rowArr = rowVal?.AsArray();
+                        var rowList = new List<string>();
+                        if (rowArr != null)
+                        {
+                            foreach (var val in rowArr)
+                            {
+                                rowList.Add(val?.ToString() ?? "NULL");
+                            }
+                        }
+                        rows.Add(rowList);
+                    }
+                }
+
+                PrintDataGrid(columns, rows);
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Error.WriteLine($"Database query failed: {ex.Message}");
+                Console.ResetColor();
+                Environment.ExitCode = 1;
+            }
+            finally
+            {
+                await cdp.DisconnectAsync();
+            }
+        });
+        rootCommand.AddCommand(dbCommand);
+
         Environment.ExitCode = 0;
         var exitCode = await rootCommand.InvokeAsync(args);
         return exitCode != 0 ? exitCode : Environment.ExitCode;
@@ -669,6 +841,558 @@ public class Program
                 }
             }
         }
+    }
+
+    public static async Task HandleMcpMethodAsync(ICdpService cdp, string host, TargetItem target, JsonNode? id, string method, JsonObject? @params)
+    {
+        if (method == "initialize")
+        {
+            var result = new JsonObject
+            {
+                ["protocolVersion"] = "2024-11-05",
+                ["capabilities"] = new JsonObject
+                {
+                    ["tools"] = new JsonObject()
+                },
+                ["serverInfo"] = new JsonObject
+                {
+                    ["name"] = "cdp-mcp-server",
+                    ["version"] = "1.0.0"
+                }
+            };
+            SendMcpResponse(id, result);
+            return;
+        }
+
+        if (method == "tools/list")
+        {
+            var tools = GetMcpToolsList();
+            SendMcpResponse(id, new JsonObject { ["tools"] = tools });
+            return;
+        }
+
+        if (method == "tools/call")
+        {
+            if (@params == null)
+            {
+                SendMcpError(id, -32602, "Missing params for tools/call");
+                return;
+            }
+
+            var toolName = @params["name"]?.GetValue<string>();
+            var toolArgs = @params["arguments"] as JsonObject ?? new JsonObject();
+
+            if (string.IsNullOrEmpty(toolName))
+            {
+                SendMcpError(id, -32602, "Tool name is required");
+                return;
+            }
+
+            try
+            {
+                var response = await ExecuteMcpToolAsync(cdp, host, target, toolName, toolArgs);
+                SendMcpResponse(id, response);
+            }
+            catch (Exception ex)
+            {
+                SendMcpResponse(id, new JsonObject
+                {
+                    ["content"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["type"] = "text",
+                            ["text"] = $"Error executing tool {toolName}: {ex.Message}"
+                        }
+                    },
+                    ["isError"] = true
+                });
+            }
+            return;
+        }
+
+        SendMcpError(id, -32601, $"Method not found: {method}");
+    }
+
+    public static async Task<JsonObject> ExecuteMcpToolAsync(ICdpService cdp, string host, TargetItem target, string toolName, JsonObject args)
+    {
+        switch (toolName)
+        {
+            case "dom_query":
+                {
+                    var selector = args["selector"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(selector))
+                    {
+                        throw new Exception("selector argument is required.");
+                    }
+
+                    var doc = await cdp.SendCommandAsync("DOM.getDocument", new JsonObject { ["depth"] = -1, ["pierce"] = true });
+                    var rootNodeId = doc["root"]?["nodeId"]?.GetValue<int>() ?? 1;
+
+                    var queryResult = await cdp.SendCommandAsync("DOM.querySelector", new JsonObject
+                    {
+                        ["nodeId"] = rootNodeId,
+                        ["selector"] = selector
+                    });
+
+                    var nodeId = queryResult["nodeId"]?.GetValue<int>() ?? 0;
+                    if (nodeId == 0)
+                    {
+                        return new JsonObject
+                        {
+                            ["content"] = new JsonArray
+                            {
+                                new JsonObject
+                                {
+                                    ["type"] = "text",
+                                    ["text"] = $"Element '{selector}' not found."
+                                }
+                            }
+                        };
+                    }
+
+                    var descResult = await cdp.SendCommandAsync("DOM.describeNode", new JsonObject
+                    {
+                        ["nodeId"] = nodeId
+                    });
+                    var nodeInfo = descResult["node"]?.AsObject();
+
+                    var attrsResult = await cdp.SendCommandAsync("DOM.getAttributes", new JsonObject
+                    {
+                        ["nodeId"] = nodeId
+                    });
+                    var attributes = attrsResult["attributes"]?.AsArray();
+
+                    var formattedAttributes = new JsonObject();
+                    if (attributes != null)
+                    {
+                        for (int i = 0; i < attributes.Count; i += 2)
+                        {
+                            if (i + 1 < attributes.Count)
+                            {
+                                formattedAttributes[attributes[i]!.ToString()] = attributes[i + 1]?.DeepClone();
+                            }
+                        }
+                    }
+
+                    JsonObject? boxModel = null;
+                    try
+                    {
+                        var boxResult = await cdp.SendCommandAsync("DOM.getBoxModel", new JsonObject
+                        {
+                            ["nodeId"] = nodeId
+                        });
+                        boxModel = boxResult["model"]?.AsObject();
+                    }
+                    catch { }
+
+                    var detailObj = new JsonObject
+                    {
+                        ["nodeId"] = nodeId,
+                        ["nodeName"] = nodeInfo?["nodeName"]?.DeepClone(),
+                        ["localName"] = nodeInfo?["localName"]?.DeepClone(),
+                        ["attributes"] = formattedAttributes
+                    };
+                    if (boxModel != null)
+                    {
+                        detailObj["boxModel"] = boxModel.DeepClone();
+                    }
+
+                    return new JsonObject
+                    {
+                        ["content"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["type"] = "text",
+                                ["text"] = detailObj.ToJsonString()
+                            }
+                        }
+                    };
+                }
+
+            case "evaluate":
+                {
+                    var expression = args["expression"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(expression))
+                    {
+                        throw new Exception("expression argument is required.");
+                    }
+
+                    var response = await cdp.SendCommandAsync("Runtime.evaluate", new JsonObject
+                    {
+                        ["expression"] = expression,
+                        ["returnByValue"] = true
+                    });
+
+                    var result = response["result"]?.AsObject();
+                    var exceptionDetails = response["exceptionDetails"]?.AsObject();
+
+                    if (exceptionDetails != null)
+                    {
+                        var text = exceptionDetails["text"]?.ToString() ?? "Exception occurred during evaluation";
+                        var exceptionVal = exceptionDetails["exception"]?.AsObject();
+                        var desc = exceptionVal != null && exceptionVal.ContainsKey("description")
+                            ? exceptionVal["description"]?.ToString()
+                            : null;
+                        return new JsonObject
+                        {
+                            ["content"] = new JsonArray
+                            {
+                                new JsonObject
+                                {
+                                    ["type"] = "text",
+                                    ["text"] = $"Evaluation failed: {desc ?? text}"
+                                }
+                            },
+                            ["isError"] = true
+                        };
+                    }
+
+                    string resultText = "";
+                    if (result != null)
+                    {
+                        if (result.ContainsKey("value"))
+                        {
+                            resultText = result["value"]?.ToString() ?? "null";
+                        }
+                        else
+                        {
+                            resultText = result.ToString();
+                        }
+                    }
+                    else
+                    {
+                        resultText = response.ToString();
+                    }
+
+                    return new JsonObject
+                    {
+                        ["content"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["type"] = "text",
+                                ["text"] = resultText
+                            }
+                        }
+                    };
+                }
+
+            case "screenshot":
+                {
+                    var response = await cdp.SendCommandAsync("Page.captureScreenshot", new JsonObject());
+                    var base64Data = response["data"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(base64Data))
+                    {
+                        throw new Exception("Failed to capture screenshot - data was null or empty.");
+                    }
+
+                    return new JsonObject
+                    {
+                        ["content"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["type"] = "image",
+                                ["data"] = base64Data,
+                                ["mimeType"] = "image/png"
+                            }
+                        }
+                    };
+                }
+
+            case "tap":
+            case "input_text":
+            case "clear_text":
+            case "scroll":
+                {
+                    var selector = args["selector"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(selector))
+                    {
+                        throw new Exception("selector argument is required.");
+                    }
+
+                    var connection = new ConnectionViewModel(cdp) { HostAddress = host };
+                    var testStudio = new TestStudioViewModel(cdp) { Connection = connection };
+                    connection.SelectedTarget = target;
+                    await connection.ConnectAsync();
+
+                    string actionName = "";
+                    string? value = null;
+
+                    if (toolName == "tap")
+                    {
+                        actionName = "tapOn";
+                    }
+                    else if (toolName == "input_text")
+                    {
+                        actionName = "inputText";
+                        value = args["text"]?.GetValue<string>();
+                        if (value == null)
+                        {
+                            throw new Exception("text argument is required for input_text tool.");
+                        }
+                    }
+                    else if (toolName == "clear_text")
+                    {
+                        actionName = "clearText";
+                    }
+                    else if (toolName == "scroll")
+                    {
+                        actionName = "scroll";
+                        var dir = args["direction"]?.GetValue<string>();
+                        if (string.IsNullOrEmpty(dir))
+                        {
+                            throw new Exception("direction argument is required for scroll tool.");
+                        }
+                        value = $"direction={dir}";
+                    }
+
+                    var step = new TestStudioStepModel
+                    {
+                        Action = actionName,
+                        Selector = selector,
+                        Value = value
+                    };
+
+                    await testStudio.ExecuteSingleStepAsync(step, CancellationToken.None);
+
+                    return new JsonObject
+                    {
+                        ["content"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["type"] = "text",
+                                ["text"] = $"Successfully executed action '{actionName}' on selector '{selector}'."
+                            }
+                        }
+                    };
+                }
+
+            default:
+                throw new Exception($"Tool '{toolName}' is not implemented.");
+        }
+    }
+
+    public static JsonArray GetMcpToolsList()
+    {
+        return new JsonArray
+        {
+            new JsonObject
+            {
+                ["name"] = "dom_query",
+                ["description"] = "Query elements in the target application using a selector and returns their details",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["selector"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The CSS-like selector (e.g., '#btnClickMe', '[Name=\\\"textBox1\\\"]')"
+                        }
+                    },
+                    ["required"] = new JsonArray { "selector" }
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "evaluate",
+                ["description"] = "Evaluates a C# expression on the target application",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["expression"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "C# expression to evaluate (e.g., 'Window.Title')"
+                        }
+                    },
+                    ["required"] = new JsonArray { "expression" }
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "screenshot",
+                ["description"] = "Captures a screenshot of the target application window",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject()
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "tap",
+                ["description"] = "Simulates a click/tap on the element matching the selector",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["selector"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Selector of the control to tap"
+                        }
+                    },
+                    ["required"] = new JsonArray { "selector" }
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "input_text",
+                ["description"] = "Types text into the element matching the selector",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["selector"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Selector of the control to type into"
+                        },
+                        ["text"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The text to insert"
+                        }
+                    },
+                    ["required"] = new JsonArray { "selector", "text" }
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "clear_text",
+                ["description"] = "Clears text of the element matching the selector",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["selector"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Selector of the control to clear"
+                        }
+                    },
+                    ["required"] = new JsonArray { "selector" }
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "scroll",
+                ["description"] = "Scrolls the element matching the selector in a given direction",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["selector"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Selector of the control to scroll"
+                        },
+                        ["direction"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Direction (up, down, left, right)"
+                        }
+                    },
+                    ["required"] = new JsonArray { "selector", "direction" }
+                }
+            }
+        };
+    }
+
+    private static void SendMcpResponse(JsonNode? id, JsonObject result)
+    {
+        var response = new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = id?.DeepClone(),
+            ["result"] = result
+        };
+        Console.WriteLine(response.ToJsonString());
+    }
+
+    private static void SendMcpError(JsonNode? id, int code, string message)
+    {
+        var response = new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = id?.DeepClone(),
+            ["error"] = new JsonObject
+            {
+                ["code"] = code,
+                ["message"] = message
+            }
+        };
+        Console.WriteLine(response.ToJsonString());
+    }
+
+    private static void PrintDataGrid(List<string> columns, List<List<string>> rows)
+    {
+        if (columns == null || columns.Count == 0)
+        {
+            Console.WriteLine("No columns found.");
+            return;
+        }
+
+        int[] widths = new int[columns.Count];
+        for (int i = 0; i < columns.Count; i++)
+        {
+            widths[i] = columns[i].Length;
+        }
+
+        foreach (var row in rows)
+        {
+            for (int i = 0; i < columns.Count; i++)
+            {
+                if (i < row.Count && row[i] != null)
+                {
+                    widths[i] = Math.Max(widths[i], row[i].Length);
+                }
+            }
+        }
+
+        void PrintDivider()
+        {
+            Console.Write("+");
+            for (int i = 0; i < columns.Count; i++)
+            {
+                Console.Write(new string('-', widths[i] + 2));
+                Console.Write("+");
+            }
+            Console.WriteLine();
+        }
+
+        PrintDivider();
+        Console.Write("|");
+        for (int i = 0; i < columns.Count; i++)
+        {
+            Console.Write($" {columns[i].PadRight(widths[i])} |");
+        }
+        Console.WriteLine();
+        PrintDivider();
+
+        foreach (var row in rows)
+        {
+            Console.Write("|");
+            for (int i = 0; i < columns.Count; i++)
+            {
+                string val = (i < row.Count && row[i] != null) ? row[i] : "";
+                Console.Write($" {val.PadRight(widths[i])} |");
+            }
+            Console.WriteLine();
+        }
+        PrintDivider();
     }
 }
 
