@@ -895,10 +895,31 @@ This library is designed to allow modern AI coding agents and browser automation
 
 ### 1. Model Context Protocol (MCP) Integration
 
-You can integrate your Avalonia desktop application with Google's official **Chrome DevTools MCP Server** ([ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)). This exposes your desktop app directly to LLMs (like Claude, Gemini, GPT) in editors such as Cursor, Claude Desktop, or VS Code.
+You can integrate your Avalonia desktop application with LLMs (like Claude, Gemini, GPT) in editors such as Cursor, Claude Desktop, or VS Code using two methods:
 
-To configure the Chrome DevTools MCP server, add this to your MCP configuration settings (e.g. `claude_desktop_config.json`):
+#### Method A: Native C# MCP Stdio Server (Recommended)
+You can start a native MCP stdio server directly using the `cdp-cli mcp` tool. This does not require Node.js, `npx`, or any external web proxies.
 
+Add the following to your MCP configuration settings (e.g. `claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "cdp-native-mcp": {
+      "command": "cdp-cli",
+      "args": [
+        "mcp",
+        "--port",
+        "9222"
+      ]
+    }
+  }
+}
+```
+
+Once connected, the AI agent gets access to 7 high-fidelity tools: `dom_query` (with Slim Mode visual tree pruning), `evaluate`, `screenshot`, `tap`, `input_text`, `clear_text`, and `scroll`.
+
+#### Method B: Chrome DevTools MCP Server (Node.js)
+Alternatively, you can point Google's official **Chrome DevTools MCP Server** ([ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)) at your target port:
 ```json
 {
   "mcpServers": {
@@ -915,9 +936,14 @@ To configure the Chrome DevTools MCP server, add this to your MCP configuration 
 }
 ```
 
-Once connected, your AI assistant can use tools like `inspect_dom`, `evaluate_js`, and `capture_screenshot` to interact with your running Avalonia application.
+For detailed instructions and setups, see [Native C# Model Context Protocol (MCP) Server](docs/articles/native-mcp-server.md) and the [Vitepress guide](docs/articles/mcp.md).
 
-For detailed instructions and setups, see [Model Context Protocol & Playwright Integration Guide](docs/articles/mcp-and-playwright.md).
+### 2. Direct SQLite Database Inspections (`cdp-cli db`)
+If the target application leverages SQLite database caches, you can run queries directly from the terminal console using the `db` subcommand, which prints results as an aligned text data grid:
+```bash
+cdp-cli db "SELECT name FROM sqlite_master WHERE type='table'" --port 9222
+```
+
 
 ### 2. Playwright Integration
 
@@ -961,7 +987,7 @@ The following methods are supported across the core CDP domains:
 
 | Domain | Method | Description |
 | :--- | :--- | :--- |
-| **DOM** | `getDocument` | Returns the root DOM tree mapping the window visual tree. |
+| **DOM** | `getDocument` | Returns the root DOM tree mapping the window visual tree (supports Slim Mode tree-pruning). |
 | | `requestChildNodes` | Requests kids of a specific node (used for lazy-loading). |
 | | `querySelector` | Query the tree using a CSS selector, returning the node ID. |
 | | `querySelectorAll` | Query the tree using a CSS selector, returning all matching node IDs. |
@@ -993,6 +1019,9 @@ The following methods are supported across the core CDP domains:
 | **Memory** | `getLiveControls` | Computes live control allocations by class type. |
 | | `collectGarbage` | Triggers a full garbage collection in the CLR. |
 | **Recorder** | `start` / `stop` | Starts/stops intercepting user events for automation script recording. |
+| **WebMCP** | `enable` / `disable` | Enables/disables custom agentic tool registrations. |
+| | `invokeTool` | Invokes a registered custom tool by name with parameter payloads. |
+
 
 ---
 
