@@ -4,93 +4,117 @@ title: Selenium E2E Testing Integration
 
 # Selenium E2E Testing Integration
 
-Selenium WebDriver is one of the most widely used open-source tools for browser automation. Because the Avalonia CDP server exposes standard Chrome DevTools Protocol endpoints, you can configure the C# Selenium client to attach to a running Avalonia application using the Chrome debugger protocol and drive UI tests natively.
+Selenium WebDriver is the industry-standard browser automation framework. By leveraging Chrome DevTools Protocol (CDP) capabilities, you can write Selenium C# E2E tests that connect directly to your Avalonia application's built-in DevTools server.
 
 ---
 
-## 1. Selenium Setup
+## 1. How Selenium Integration Works
 
-1.  **Start your Avalonia Application** with the CDP server listening (by default, it starts on `http://127.0.0.1:9222`):
-    ```csharp
-    CdpServer.Start(port: 9222);
-    ```
-2.  **Add Selenium package to your test project**:
-    ```bash
-    dotnet add package OpenQA.Selenium.Chrome
-    ```
-3.  **Write the Selenium WebDriver Script**:
-    Create a script or test fixture to connect and interact using `ChromeOptions`:
-    ```csharp
-    using OpenQA.Selenium;
-    using OpenQA.Selenium.Chrome;
+Selenium interacts with the Avalonia application over the Chrome DevTools Protocol by communicating directly with the CDP server embedded inside the application process:
 
-    // Configure ChromeOptions to connect to the running application port
-    var options = new ChromeOptions();
-    options.DebuggerAddress = "127.0.0.1:9222";
-
-    using var driver = new ChromeDriver(options);
-    Console.WriteLine($"Attached successfully to window title: {driver.Title}");
-
-    // Interact with controls using selectors
-    var inputElement = driver.FindElement(By.CssSelector("#txtInput"));
-    inputElement.SendKeys("Hello from Selenium!");
-
-    var clickButton = driver.FindElement(By.CssSelector("#btnClickMe"));
-    clickButton.Click();
-
-    // Assert states
-    var statusText = driver.FindElement(By.CssSelector("#txtStatus")).Text;
-    Console.WriteLine($"Result: {statusText}");
-    ```
-
----
-
-## 2. Example E2E Testing Suite
-
-We provide a complete, integrated XUnit Selenium test suite under [SeleniumTests.cs](file:///Users/wieslawsoltes/GitHub/CDP/tests/CDP.Selenium.Tests/SeleniumTests.cs).
-
-### Running Tests
-
-By default, the Selenium E2E test runner automatically launches the target application in **Headless mode** for clean execution inside CI/CD virtual frames. However, you can toggle both modes easily:
-
-#### 1. Headless Mode (Default)
-Executes the application in a virtual offscreen render buffer:
-```bash
-dotnet test tests/CDP.Selenium.Tests/
 ```
-
-#### 2. GUI / Non-Headless Mode (Interactive Debugging)
-To see the desktop GUI window spawn on your desktop and watch Selenium drive the inputs:
-```bash
-HEADLESS=false dotnet test tests/CDP.Selenium.Tests/
+[ Selenium C# Client ]
+          │ (W3C WebDriver over HTTP / DevTools CDP commands)
+          ▼
+[ ChromeDriver (Port 9515) ]
+          │ (CDP JSON-RPC over WebSocket)
+          ▼
+[ Avalonia CDP Server (Port 9222) ]
 ```
 
 ---
 
-## 3. The Test Fixture & Process Lifecycle
+## 2. Using the C# NuGet Package
 
-To manage the execution lifespans cleanly, the Selenium test suite implements a `SeleniumFixture` class implementing `IAsyncLifetime`.
+We provide the shippable NuGet package **`Chrome.DevTools.Automation.Selenium`** to automatically orchestrate target application execution and connect the `ChromeDriver` client instance.
 
-This fixture is responsible for:
-1. **Pinging the Port**: Probing port `9222` first. If it is already listening (for instance, if you left a target GUI app instance running), it attaches ChromeDriver directly without restarting the app.
-2. **Process Spawning**: If the port is closed, it launches the sample project process (`samples/CdpSampleApp/CdpSampleApp.csproj`) with the `--headless` flag (unless `HEADLESS=false` is set).
-3. **Diagnostics Logging**: Standard output from the running application is redirected to a local `cdp-sample-app.log` file for startup and protocol call tracing.
-4. **ChromeDriver Handshake**: Instantiates `ChromeDriver` using `options.DebuggerAddress = "127.0.0.1:9222"`.
+### 1. Installation
+Add the package to your test project:
+```bash
+dotnet add package Chrome.DevTools.Automation.Selenium --prerelease
+```
+
+### 2. Write the Test Suite
+Inherit from `CdpSeleniumFixture` to automate setup and teardown lifetimes:
+
+```csharp
+using System;
+using System.Drawing;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Chrome;
+using OpenQA.Selenium.Interactions;
+using Xunit;
+using CDP.Automation.Selenium;
+
+public class MySuite : IClassFixture<CdpSeleniumFixture>
+{
+    private readonly CdpSeleniumFixture _fixture;
+    private readonly ChromeDriver _driver;
+    private readonly Actions _actions;
+
+    public MySuite(CdpSeleniumFixture fixture)
+    {
+        _fixture = fixture;
+        _driver = fixture.Driver ?? throw new InvalidOperationException("Selenium driver not initialized.");
+        _actions = new Actions(_driver);
+    }
+
+    [Fact]
+    public void TestButtonClickAndInput()
+    {
+        // 1. Set window size
+        _driver.Manage().Window.Size = new Size(1024, 768);
+
+        // 2. Navigate page
+        _driver.Navigate().GoToUrl("http://localhost:9222/home");
+
+        // 3. Find and click elements
+        var button = _driver.FindElement(By.Id("btnClickMe"));
+        button.Click();
+
+        // 4. Input text and assert state
+        var txtInput = _driver.FindElement(By.Id("txtInput"));
+        txtInput.Clear();
+        txtInput.SendKeys("Hello from Selenium!");
+
+        var status = _driver.FindElement(By.Id("txtStatus"));
+        Assert.Equal("Clicked 1 times!", status.Text);
+    }
+}
+```
+
+### 3. Customize Options
+You can customize the target DLL execution path, argument configurations, ports, and headless execution flags by overriding the `GetOptions()` method:
+
+```csharp
+public class CustomSeleniumFixture : CdpSeleniumFixture
+{
+    protected override CdpSeleniumOptions GetOptions()
+    {
+        return new CdpSeleniumOptions
+        {
+            AppPath = "/path/to/my/app.dll",
+            Headless = true,
+            AppCdpPort = 9222,
+            EnableVerboseLogging = true
+        };
+    }
+}
+```
 
 ---
 
-## 4. Strict ChromeDriver / CDP Conformance Features
+## 3. Conformance Details
 
-Selenium connects to DevTools via ChromeDriver, which enforces strict protocol schema checks. The Avalonia CDP server incorporates specialized support for these demands:
-* **Context Unique ID Lifecycle**: During navigations, `Runtime.executionContextDestroyed` is sent with both the numeric context ID and its `executionContextUniqueId` string key to prevent ChromeDriver navigation crashes.
-* **Document Location Evaluation**: Handles evaluations of `document.URL` and `documentURI` on the document object, mapping to active entries in the session's navigation history.
-* **Describe Document Node**: Responds to `DOM.describeNode` calls targeting the `CdpRuntimeDocument` object ID, correctly generating a `#document` node type descriptor (nodeType 9) rather than returning standard elements.
+- **DebuggerAddress Binding**: The driver is attached to the target process using `ChromeOptions.DebuggerAddress`, meaning Chrome DevTools Protocol commands are proxied transparently.
+- **Selector Conversions**: Standard CSS selector strings are parsed and mapped to Avalonia visual tree controls by resolving element IDs or class names.
+- **Javascript Execution**: Supports standard `/execute/sync` scripts which run sandboxed using `Jint` inside the DevTools domain.
 
 ---
 
-## 5. Useful Links & Reference Material
+## 4. Useful Links
 
-* [Selenium C# WebDriver Documentation](https://www.selenium.dev/documentation/webdriver/getting_started/first_script/)
-* [ChromeDriver Log Config Reference](https://www.selenium.dev/documentation/webdriver/troubleshooting/logging/)
-* [Vitepress Guide - Playwright Integration](/articles/playwright)
-* [Vitepress Guide - Headless CDP Testing](/articles/headless-cdp-testing)
+- [Selenium C# Documentation](https://www.selenium.dev/documentation/webdriver/languages/csharp/)
+- [Chrome DevTools Protocol (CDP) Documentation](https://chromedevtools.github.io/devtools-protocol/)
+- [Vitepress Guide - Appium Integration](/articles/appium)
+- [Vitepress Guide - Headless CDP Testing](/articles/headless-cdp-testing)
