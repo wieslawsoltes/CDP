@@ -67,7 +67,13 @@ public static class DomDomain
                     else if (!string.IsNullOrEmpty(objectId))
                     {
                         var obj = session.GetObject(objectId);
-                        if (obj is CdpRuntimeDocument || obj is CdpRuntimeWindow)
+                        if (obj is CdpRuntimeDocument)
+                        {
+                            var depthVal = @params["depth"]?.GetValue<int>() ?? 0;
+                            var documentNode = BuildDocumentNode(session, depthVal);
+                            return new JsonObject { ["node"] = documentNode };
+                        }
+                        else if (obj is CdpRuntimeWindow)
                         {
                             targetVisual = session.Window;
                         }

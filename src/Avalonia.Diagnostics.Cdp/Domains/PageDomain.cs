@@ -1086,8 +1086,8 @@ public static class PageDomain
     {
         RuntimeDomain.ClearSessionEngines(session);
 
-        await session.SendEventAsync("Runtime.executionContextDestroyed", new JsonObject { ["executionContextId"] = 1 });
-        await session.SendEventAsync("Runtime.executionContextDestroyed", new JsonObject { ["executionContextId"] = 2 });
+        await session.SendEventAsync("Runtime.executionContextDestroyed", new JsonObject { ["executionContextId"] = 1, ["executionContextUniqueId"] = "1" });
+        await session.SendEventAsync("Runtime.executionContextDestroyed", new JsonObject { ["executionContextId"] = 2, ["executionContextUniqueId"] = "2" });
 
         var context1 = new JsonObject
         {

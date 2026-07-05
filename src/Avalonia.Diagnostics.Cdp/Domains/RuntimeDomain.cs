@@ -3804,6 +3804,24 @@ public sealed class CdpRuntimeDocument
     }
 
     public string title => _session.Target?.Title ?? "Avalonia UI Application";
+    public string URL
+    {
+        get
+        {
+            var history = _session.NavigationHistory;
+            var index = _session.NavigationHistoryIndex;
+            if (index >= 0 && index < history.Count)
+            {
+                var entry = history[index];
+                if (entry.TryGetPropertyValue("url", out var urlNode) && urlNode != null)
+                {
+                    return urlNode.GetValue<string>();
+                }
+            }
+            return $"http://127.0.0.1:{CdpServer.Port}/";
+        }
+    }
+    public string documentURI => URL;
     public int nodeType => 9;
     public string nodeName => "#document";
     public CdpRuntimeElement? documentElement

@@ -42,6 +42,8 @@ public class SeleniumFixture : IAsyncLifetime
             dllPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "samples", "CdpSampleApp", "bin", config, "net10.0", "CdpSampleApp.dll"));
         }
 
+        bool headless = Environment.GetEnvironmentVariable("HEADLESS") != "false";
+
         System.Diagnostics.ProcessStartInfo startInfo;
         if (!File.Exists(dllPath))
         {
@@ -49,7 +51,7 @@ public class SeleniumFixture : IAsyncLifetime
             startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"run --project \"{dllPath}\" -- --headless",
+                Arguments = $"run --project \"{dllPath}\"{(headless ? " -- --headless" : "")}",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -61,7 +63,7 @@ public class SeleniumFixture : IAsyncLifetime
             startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"\"{dllPath}\" --headless",
+                Arguments = $"\"{dllPath}\"{(headless ? " --headless" : "")}",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -124,7 +126,11 @@ public class SeleniumFixture : IAsyncLifetime
         var options = new ChromeOptions();
         options.DebuggerAddress = "127.0.0.1:9222";
         
-        options.AddArgument("--headless");
+        bool headless = Environment.GetEnvironmentVariable("HEADLESS") != "false";
+        if (headless)
+        {
+            options.AddArgument("--headless");
+        }
         options.AddArgument("--disable-gpu");
         options.AddArgument("--disable-features=DevToolsTabTarget");
 
@@ -308,5 +314,24 @@ public class SeleniumTests : IClassFixture<SeleniumFixture>
         SelectTab(2);
         var aboutTitle = _driver.FindElement(By.Id("tabAbout"));
         Assert.True(aboutTitle.Displayed);
+    }
+
+    [Fact]
+    public void VerifyUrlBasedPageNavigationAndBackInteraction()
+    {
+        // Navigate to about page via URL
+        _driver.Navigate().GoToUrl("http://127.0.0.1:9222/about");
+        
+        // Wait for about tab to be visible
+        var tabAbout = _driver.FindElement(By.Id("tabAbout"));
+        Assert.True(tabAbout.Displayed);
+
+        // Click Go Back button
+        var btnGoBack = _driver.FindElement(By.Id("btnGoBack"));
+        btnGoBack.Click();
+
+        // Wait for home page to be visible again
+        var tabHome = _driver.FindElement(By.Id("tabHome"));
+        Assert.True(tabHome.Displayed);
     }
 }
