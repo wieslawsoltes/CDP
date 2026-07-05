@@ -1,7 +1,15 @@
-﻿using Avalonia;
+using Avalonia;
 using System;
+using Avalonia.Headless;
+using Avalonia.Threading;
+using System.Threading;
 
 namespace CdpSampleApp;
+
+public class AvaloniaHeadlessPlatformOptions : Avalonia.Headless.AvaloniaHeadlessPlatformOptions
+{
+    public bool UseDotNetSystemFont { get; set; }
+}
 
 class Program
 {
@@ -9,13 +17,55 @@ class Program
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
     [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    public static void Main(string[] args)
+    {
+        if (Array.Exists(args, arg => arg.Equals("--headless", StringComparison.OrdinalIgnoreCase)))
+        {
+            var builder = AppBuilder.Configure<App>()
+                .WithInterFont()
+                .LogToTrace()
+                .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseDotNetSystemFont = true });
+
+            builder.SetupWithoutStarting();
+
+            Avalonia.Diagnostics.Cdp.CdpServer.EnsureInitialized();
+
+            var window = new MainWindow();
+            window.Show();
+
+            window.AttachCdpInspector(9222);
+
+            Console.WriteLine("Headless app listening on http://127.0.0.1:9222");
+
+            while (true)
+            {
+                Dispatcher.UIThread.RunJobs();
+                Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Thread.Sleep(16);
+            }
+        }
+        else
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+    }
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
-            .UsePlatformDetect()
+    {
+        var builder = AppBuilder.Configure<App>()
             .WithInterFont()
             .LogToTrace();
+
+        if (Array.Exists(Environment.GetCommandLineArgs(), arg => arg.Equals("--headless", StringComparison.OrdinalIgnoreCase)))
+        {
+            builder.UseHeadless(new AvaloniaHeadlessPlatformOptions { UseDotNetSystemFont = true });
+        }
+        else
+        {
+            builder.UsePlatformDetect();
+        }
+
+        return builder;
+    }
 }

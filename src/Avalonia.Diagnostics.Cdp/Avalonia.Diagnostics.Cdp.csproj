@@ -15,6 +15,7 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" />
     <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Jint" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />

@@ -9,13 +9,37 @@ namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class WindowChromeDomain
 {
+    private static async Task InvokeAsync(Action action)
+    {
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action);
+        }
+    }
+
+    private static async Task<T> InvokeAsync<T>(Func<T> action)
+    {
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            return action();
+        }
+        else
+        {
+            return await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action);
+        }
+    }
+
     public static async Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
     {
         bool hasWindowId = @params.ContainsKey("windowId") && @params["windowId"] != null;
         int windowId = @params["windowId"]?.GetValue<int>() ?? 0;
         TopLevel? targetWindow = null;
 
-        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        await InvokeAsync(() =>
         {
             if (hasWindowId && windowId != 0)
             {
@@ -38,7 +62,7 @@ public static class WindowChromeDomain
             case "setTopmost":
                 {
                     bool topmost = @params["topmost"]?.GetValue<bool>() ?? false;
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -51,7 +75,7 @@ public static class WindowChromeDomain
             case "setOpacity":
                 {
                     double opacity = @params["opacity"]?.GetValue<double>() ?? 1.0;
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -64,7 +88,7 @@ public static class WindowChromeDomain
             case "setTitle":
                 {
                     string title = @params["title"]?.GetValue<string>() ?? "";
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -79,7 +103,7 @@ public static class WindowChromeDomain
                 {
                     int deltaX = @params["deltaX"]?.GetValue<int>() ?? 0;
                     int deltaY = @params["deltaY"]?.GetValue<int>() ?? 0;
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -92,7 +116,7 @@ public static class WindowChromeDomain
 
             case "minimize":
                 {
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -104,7 +128,7 @@ public static class WindowChromeDomain
 
             case "maximize":
                 {
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -116,7 +140,7 @@ public static class WindowChromeDomain
 
             case "restore":
                 {
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -128,7 +152,7 @@ public static class WindowChromeDomain
 
             case "close":
                 {
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -140,7 +164,7 @@ public static class WindowChromeDomain
 
             case "activate":
                 {
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {
@@ -156,7 +180,7 @@ public static class WindowChromeDomain
                     double opacity = 1.0;
                     string title = "";
                     string windowState = "normal";
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    await InvokeAsync(() =>
                     {
                         if (targetWindow is Window win)
                         {

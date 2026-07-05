@@ -65,6 +65,7 @@ const guideSidebarItems = [
       { text: "Recording User Actions", link: "/articles/recording-user-actions" },
       { text: "Test Studio", link: "/articles/test-studio" },
       { text: "YAML Test Format", link: "/articles/yaml-test-format" },
+      { text: "Test Studio Scripting", link: "/articles/test-studio-scripting" },
       { text: "CLI Automation Tool", link: "/articles/cli-tool" },
       { text: "Code Generation", link: "/articles/code-generation" },
       { text: "Headless Test Adapter", link: "/articles/headless-test-adapter" },
@@ -79,7 +80,8 @@ const guideSidebarItems = [
       { text: "OS Automation Overview", link: "/articles/os-automation" },
       { text: "macOS Automation", link: "/articles/macos-automation" },
       { text: "Windows Automation", link: "/articles/windows-automation" },
-      { text: "Permissions and Setup", link: "/articles/permissions-setup" }
+      { text: "Permissions and Setup", link: "/articles/permissions-setup" },
+      { text: "OS Automation CDP Proxy", link: "/articles/os-automation-cdp-proxy" }
     ]
   },
   {
@@ -97,6 +99,13 @@ const guideSidebarItems = [
     items: [
       { text: "AI Agent Integration", link: "/articles/ai-agent-integration" },
       { text: "Chrome DevTools Connection", link: "/articles/chrome-devtools-connection" },
+      { text: "Google Model Context Protocol (MCP)", link: "/articles/mcp" },
+      { text: "Playwright Integration", link: "/articles/playwright" },
+      { text: "Puppeteer Integration", link: "/articles/puppeteer" },
+      { text: "Selenium Integration", link: "/articles/selenium" },
+      { text: "YAML Conversion", link: "/articles/yaml-conversion" },
+      { text: "Headless CDP Testing", link: "/articles/headless-cdp-testing" },
+      { text: "Multi-Framework CDP Integration", link: "/articles/multi-framework-cdp" },
       { text: "Self-Inspection", link: "/articles/self-inspection" }
     ]
   },

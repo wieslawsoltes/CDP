@@ -83,6 +83,10 @@ public static class SelectorEngine
     private static string NormalizeSelector(string selector)
     {
         EnsureInitializedTypes();
+        if (selector.Contains(":has-text(", StringComparison.OrdinalIgnoreCase))
+        {
+            selector = selector.Replace(":has-text(", ":contains(", StringComparison.OrdinalIgnoreCase);
+        }
         return CssSelectorParser.NormalizeSelector(selector, part => s_knownVisualTypes.Contains(part));
     }
 

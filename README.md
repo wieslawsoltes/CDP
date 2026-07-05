@@ -868,21 +868,69 @@ namespace HeadlessRecordedTests
 
 ---
 
-## AI Coding Agents Integration
+## AI Coding Agents, Model Context Protocol (MCP) & Playwright
 
-This library provides ideal entry points for AI agents (e.g. Playwright-based web agents) to navigate, inspect, and interact with the desktop application:
+This library is designed to allow modern AI coding agents and browser automation tools to inspect, automate, and debug desktop Avalonia applications exactly like web pages.
 
-1. **Selector Engine**: Supports querying elements using a custom visual selector engine:
-   - Control types (e.g. `Button`, `TextBox`, `Grid`)
-   - Names (e.g. `#btnClickMe` maps to `Name="btnClickMe"`)
-   - Classes (e.g. `.primary`)
-   - Descendant selectors (e.g. `Grid Border Button`)
-   - Child selectors (e.g. `Grid > Border > Button`)
-   - Compound selectors (e.g. `Button#btnClickMe.primary`)
-2. **Inspected Node `$0`**: Binds the active inspected control node (set via `DOM.setInspectedNode`) to the `$0` variable in the evaluation context, letting agents evaluate C# expressions on the active element.
-3. **Text Simulation**: Allows typing raw strings directly into focused input elements using the `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` methods.
-4. **Screenshot Verification**: Agents can capture and inspect screenshots of the window or individual bounding boxes to perform visual verification.
-5. **Interactive Highlighting**: Supports the standard Chrome DevTools visual highlighter, showing padding, margin, content boxes, and element names in real-time.
+### 1. Model Context Protocol (MCP) Integration
+
+You can integrate your Avalonia desktop application with Google's official **Chrome DevTools MCP Server** ([ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)). This exposes your desktop app directly to LLMs (like Claude, Gemini, GPT) in editors such as Cursor, Claude Desktop, or VS Code.
+
+To configure the Chrome DevTools MCP server, add this to your MCP configuration settings (e.g. `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-chrome-devtools",
+        "--port",
+        "9222"
+      ]
+    }
+  }
+}
+```
+
+Once connected, your AI assistant can use tools like `inspect_dom`, `evaluate_js`, and `capture_screenshot` to interact with your running Avalonia application.
+
+For detailed instructions and setups, see [Model Context Protocol & Playwright Integration Guide](docs/articles/mcp-and-playwright.md).
+
+### 2. Playwright Integration
+
+Playwright can attach directly to your running Avalonia application using the `connectOverCDP` API:
+
+```javascript
+const { chromium } = require('playwright');
+
+(async () => {
+  // Connect Playwright to the Avalonia CDP server
+  const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+  const context = browser.contexts()[0];
+  const page = context.pages()[0];
+
+  // Interact with Avalonia controls via standard CSS selectors
+  await page.waitForSelector('#txtInput');
+  await page.fill('#txtInput', 'Hello from Playwright!');
+  await page.click('#btnClickMe');
+
+  // Capture high-fidelity screenshots of the app canvas
+  await page.screenshot({ path: 'app-screenshot.png' });
+
+  await browser.close();
+})();
+```
+
+For more detailed examples, see [Model Context Protocol & Playwright Integration Guide](docs/articles/mcp-and-playwright.md).
+
+### 3. Agent Integration Features
+
+1. **Selector Engine**: Supports querying elements using a custom visual selector engine (`Button`, `TextBox`, `#name`, `.class`, etc.).
+2. **Inspected Node `$0`**: Binds the active inspected control node to the `$0` variable in the evaluation context, letting agents evaluate C# expressions on the active element.
+3. **Target Auto-Attach**: Implements `Target.setAutoAttach` so Playwright/MCP automatically handles multi-window applications and targets.
+4. **Layout Metrics**: Implements legacy viewport dimensions in `Page.getLayoutMetrics` to prevent Playwright screenshot coordinate errors.
 
 ---
 
@@ -940,12 +988,32 @@ For full architectural details, sequence diagrams, and agent recipes, see the [A
 ## Development and Testing
 
 ### Running Tests
+
+#### 1. Unit and Layout Tests
 The project uses `Avalonia.Headless.XUnit` to execute headless tests. All tests run on the UI thread and avoid deadlocking by pumping jobs synchronously during async WebSocket handshakes.
 
-To run the full test suite:
+To run the unit test suite:
 ```bash
 dotnet test
 ```
+
+#### 2. Playwright E2E Tests
+An end-to-end automation test suite using standard Playwright is located at `tests/playwright/cdp-sample.spec.js`. You can run these tests in both **Headless** and **GUI (Non-Headless)** modes.
+
+* **Headless Mode (Default / CI/CD)**: Runs the application in-process inside a virtual layout buffer without opening any physical window.
+  ```bash
+  npx playwright test
+  ```
+* **GUI / Non-Headless Mode (Debugging)**: Opens the desktop application window, allowing you to watch the Playwright tests automate the UI interactively.
+  1. Launch the target app manually in GUI mode:
+     ```bash
+     dotnet run --project samples/CdpSampleApp/CdpSampleApp.csproj
+     ```
+  2. Run the Playwright test runner in a separate terminal window:
+     ```bash
+     npx playwright test
+     ```
+     *(Playwright will automatically reuse and attach to the running GUI application instance on port `9222`).*
 
 ### CI Pipeline
 A GitHub Actions workflow is set up at `.github/workflows/dotnet.yml` to automatically verify builds and run tests on every push and pull request.

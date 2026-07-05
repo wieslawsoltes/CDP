@@ -500,7 +500,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             {
                 try
                 {
-                    CDP.Automation.OS.OSAutomationService.Instance.MovePhysicalCursor = value;
+                    if (OsAutomationProvider.Instance != null) OsAutomationProvider.Instance.MovePhysicalCursor = value;
                 }
                 catch {}
             }
@@ -518,7 +518,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             {
                 try
                 {
-                    CDP.Automation.OS.OSAutomationService.Instance.UsePeerAutomation = value;
+                    if (OsAutomationProvider.Instance != null) OsAutomationProvider.Instance.UsePeerAutomation = value;
                 }
                 catch {}
             }
@@ -536,7 +536,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             {
                 try
                 {
-                    CDP.Automation.OS.OSAutomationService.Instance.UseAccessibilityEvents = value;
+                    if (OsAutomationProvider.Instance != null) OsAutomationProvider.Instance.UseAccessibilityEvents = value;
                 }
                 catch {}
             }
@@ -2234,6 +2234,17 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     {
                         await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(clipboard, text);
                     }
+
+                    var assignTo = GetParameterString(step, "assignTo");
+                    if (string.IsNullOrEmpty(assignTo))
+                    {
+                        assignTo = GetParameterString(step, "outputVariable");
+                    }
+                    if (!string.IsNullOrEmpty(assignTo))
+                    {
+                        env[assignTo] = text;
+                        Log($"Stored copied text in variable '{assignTo}': '{text}'");
+                    }
                     break;
                 }
             case "back":
@@ -2316,7 +2327,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     var tgtContent = tgtModel?["content"] as JsonArray;
                     var tgtBorder = tgtModel?["border"] as JsonArray ?? tgtContent;
 
-                    if (srcContent == null || srcContent.Count < 8 || tgtContent == null || tgtContent.Count < 8)
+                    if (srcContent == null || srcContent.Count < 8 || tgtContent == null || tgtContent.Count < 8 || srcBorder == null || tgtBorder == null)
                     {
                         throw new Exception("Failed to retrieve box model content for source or target element.");
                     }
@@ -2830,6 +2841,18 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject { ["expression"] = script });
                     var resultNode = evalRes["result"] as JsonObject;
                     Log($"Script execution result: {resultNode?["value"]?.ToString() ?? "void"}");
+
+                    var assignTo = GetParameterString(step, "assignTo");
+                    if (string.IsNullOrEmpty(assignTo))
+                    {
+                        assignTo = GetParameterString(step, "outputVariable");
+                    }
+                    if (!string.IsNullOrEmpty(assignTo))
+                    {
+                        var valStr = resultNode?["value"]?.ToString() ?? "";
+                        env[assignTo] = valStr;
+                        Log($"Stored script result in variable '{assignTo}': {valStr}");
+                    }
                     break;
                 }
             case "repeat":

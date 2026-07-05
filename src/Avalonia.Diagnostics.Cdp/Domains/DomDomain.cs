@@ -67,9 +67,19 @@ public static class DomDomain
                     else if (!string.IsNullOrEmpty(objectId))
                     {
                         var obj = session.GetObject(objectId);
-                        if (obj is Visual v)
+                        if (obj is CdpRuntimeDocument)
                         {
-                            targetVisual = v;
+                            var depthVal = @params["depth"]?.GetValue<int>() ?? 0;
+                            var documentNode = BuildDocumentNode(session, depthVal);
+                            return new JsonObject { ["node"] = documentNode };
+                        }
+                        else if (obj is CdpRuntimeWindow)
+                        {
+                            targetVisual = session.Window;
+                        }
+                        else
+                        {
+                            targetVisual = CdpSession.GetVisualFromObject(obj);
                         }
                     }
 
@@ -138,11 +148,14 @@ public static class DomDomain
 
             case "resolveNode":
                 {
-                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
-                    var visual = session.NodeMap.GetVisual(nodeId);
+                    int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    int? backendNodeId = @params["backendNodeId"]?.GetValue<int>();
+                    
+                    int resolvedNodeId = nodeId ?? backendNodeId ?? 0;
+                    var visual = session.NodeMap.GetVisual(resolvedNodeId);
                     if (visual == null)
                     {
-                        throw new Exception($"Node with ID {nodeId} not found");
+                        throw new Exception($"Node with ID {resolvedNodeId} not found");
                     }
                     var objectId = session.RegisterObject(visual);
                     var remoteObj = new JsonObject
@@ -150,8 +163,9 @@ public static class DomDomain
                         ["type"] = "object",
                         ["subtype"] = "node",
                         ["className"] = visual.GetType().FullName,
-                        ["description"] = $"{visual.GetType().Name} (ID={nodeId})",
-                        ["objectId"] = objectId
+                        ["description"] = $"{visual.GetType().Name} (ID={resolvedNodeId})",
+                        ["objectId"] = objectId,
+                        ["backendNodeId"] = resolvedNodeId
                     };
                     return new JsonObject { ["object"] = remoteObj };
                 }
@@ -166,6 +180,32 @@ public static class DomDomain
                     }
                     var model = GetBoxModel(session, visual);
                     return new JsonObject { ["model"] = model };
+                }
+
+            case "getContentQuads":
+                {
+                    int? nodeId = @params["nodeId"]?.GetValue<int>();
+                    int? backendNodeId = @params["backendNodeId"]?.GetValue<int>();
+                    string? objectId = @params["objectId"]?.GetValue<string>();
+
+                    Visual? targetVisual = null;
+                    if (nodeId.HasValue) targetVisual = session.NodeMap.GetVisual(nodeId.Value);
+                    else if (backendNodeId.HasValue) targetVisual = session.NodeMap.GetVisual(backendNodeId.Value);
+                    else if (!string.IsNullOrEmpty(objectId))
+                    {
+                        var o = session.GetObject(objectId);
+                        targetVisual = CdpSession.GetVisualFromObject(o);
+                    }
+
+                    if (targetVisual == null)
+                    {
+                        throw new Exception("Node not found");
+                    }
+
+                    var model = GetBoxModel(session, targetVisual);
+                    var contentQuad = model["content"] as JsonArray;
+                    var quads = new JsonArray { contentQuad != null ? contentQuad.DeepClone() : null };
+                    return new JsonObject { ["quads"] = quads };
                 }
 
             case "getNodeForLocation":
@@ -369,7 +409,8 @@ public static class DomDomain
                 {
                     string objectId = @params["objectId"]?.GetValue<string>() ?? "";
                     var obj = session.GetObject(objectId);
-                    if (obj is Visual visual)
+                    var visual = CdpSession.GetVisualFromObject(obj);
+                    if (visual != null)
                     {
                         int nodeId = session.NodeMap.GetOrAdd(visual);
                         return new JsonObject { ["nodeId"] = nodeId };
@@ -388,7 +429,8 @@ public static class DomDomain
                     else if (backendNodeId.HasValue) targetVisual = session.NodeMap.GetVisual(backendNodeId.Value);
                     else if (!string.IsNullOrEmpty(objectId))
                     {
-                        if (session.GetObject(objectId) is Visual v) targetVisual = v;
+                        var o = session.GetObject(objectId);
+                        targetVisual = CdpSession.GetVisualFromObject(o);
                     }
 
                     if (targetVisual is Control control)
@@ -451,8 +493,8 @@ public static class DomDomain
             ["parentId"] = parent != null ? session.NodeMap.GetOrAdd(parent) : 1,
             ["backendNodeId"] = nodeId,
             ["nodeType"] = 1,
-            ["nodeName"] = visual.GetType().Name,
-            ["localName"] = visual.GetType().Name,
+            ["nodeName"] = GetMappedTagName(visual),
+            ["localName"] = GetLocalName(visual),
             ["nodeValue"] = "",
             ["childNodeCount"] = children.Count,
             ["attributes"] = attributes
@@ -491,8 +533,29 @@ public static class DomDomain
             ["childNodeCount"] = 1,
             ["children"] = children,
             ["documentURL"] = $"http://localhost:{CdpServer.Port}/",
-            ["baseURL"] = $"http://localhost:{CdpServer.Port}/"
+            ["baseURL"] = $"http://localhost:{CdpServer.Port}/",
+            ["frameId"] = session.Target?.Id ?? "main-frame-id"
         };
+    }
+
+    public static string GetMappedTagName(Visual visual)
+    {
+        var typeName = visual.GetType().Name;
+        if (typeName.Contains("TextBox")) return "INPUT";
+        if (typeName.Contains("CheckBox")) return "INPUT";
+        if (typeName.Contains("RadioButton")) return "INPUT";
+        if (typeName.Contains("Button")) return "BUTTON";
+        return typeName;
+    }
+
+    public static string GetLocalName(Visual visual)
+    {
+        var mapped = GetMappedTagName(visual);
+        if (mapped == "INPUT" || mapped == "BUTTON")
+        {
+            return mapped.ToLowerInvariant();
+        }
+        return mapped;
     }
 
     public static JsonObject BuildDomNode(Visual visual, CdpSession session, int currentDepth, int maxDepth)
@@ -517,11 +580,12 @@ public static class DomDomain
             ["nodeId"] = nodeId,
             ["backendNodeId"] = nodeId,
             ["nodeType"] = 1, // Element Node
-            ["nodeName"] = visual.GetType().Name,
-            ["localName"] = visual.GetType().Name,
+            ["nodeName"] = GetMappedTagName(visual),
+            ["localName"] = GetLocalName(visual),
             ["nodeValue"] = "",
             ["childNodeCount"] = children.Count,
-            ["attributes"] = attributes
+            ["attributes"] = attributes,
+            ["frameId"] = session.Target?.Id ?? "main-frame-id"
         };
 
         if (childrenJson.Count > 0)
@@ -595,8 +659,12 @@ public static class DomDomain
 
     internal static string? GetControlTextOrContent(Control control)
     {
-        if (control is TextBlock textBlock) return textBlock.Text;
-        if (control is TextBox textBox) return textBox.Text;
+        if (control is TextBlock textBlock) {
+            return textBlock.Text;
+        }
+        if (control is TextBox textBox) {
+            return textBox.Text;
+        }
         
         if (control is HeaderedContentControl headeredControl)
         {
@@ -635,6 +703,52 @@ public static class DomDomain
             }
         }
         return default;
+    }
+
+    public static double[] GetVisualBounds(CdpSession session, Visual visual)
+    {
+        double x = 0, y = 0, w = 0, h = 0;
+        var window = session.Window;
+        if (window == null)
+        {
+            if (visual != null)
+            {
+                x = visual.Bounds.X;
+                y = visual.Bounds.Y;
+                w = visual.Bounds.Width;
+                h = visual.Bounds.Height;
+            }
+            if (w <= 0) w = 100;
+            if (h <= 0) h = 20;
+            return new[] { x, y, w, h };
+        }
+
+        if (visual == window)
+        {
+            w = window.Bounds.Width;
+            h = window.Bounds.Height;
+        }
+        else
+        {
+            var origin = new Point(0, 0);
+            var translated = visual?.TranslatePoint(origin, window);
+            if (translated.HasValue)
+            {
+                x = translated.Value.X;
+                y = translated.Value.Y;
+            }
+            else if (visual != null)
+            {
+                x = visual.Bounds.X;
+                y = visual.Bounds.Y;
+            }
+            w = visual?.Bounds.Width ?? 0;
+            h = visual?.Bounds.Height ?? 0;
+            
+            if (w <= 0) w = 100;
+            if (h <= 0) h = 20;
+        }
+        return new[] { x, y, w, h };
     }
 
     private static JsonObject GetBoxModel(CdpSession session, Visual visual)

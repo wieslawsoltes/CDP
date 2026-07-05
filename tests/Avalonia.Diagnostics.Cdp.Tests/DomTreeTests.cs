@@ -162,7 +162,7 @@ public class DomTreeTests
         Assert.Same(button, buttonElement!.visual);
         Assert.Same(button, runtimeWindow.document.getElementById("btnClickMe")!.visual);
         Assert.Equal(1, buttonElement.nodeType);
-        Assert.Equal("Button", buttonElement.tagName);
+        Assert.Equal("BUTTON", buttonElement.tagName);
         Assert.Equal("btnAutomation", buttonElement.getAttribute("AutomationProperties.AutomationId"));
         Assert.True(buttonElement.matches("[AutomationProperties.AutomationId=\"btnAutomation\"]"));
 
@@ -174,4 +174,34 @@ public class DomTreeTests
 
         window.Close();
     }
+
+    [AvaloniaFact]
+    public void TestCheckboxAndRadioIsChecked()
+    {
+        var window = new Window { Title = "Checkbox Test" };
+        var chk = new CheckBox { Name = "chkToggle", IsChecked = true };
+        var rb = new RadioButton { Name = "rbOption", IsChecked = false };
+        var panel = new StackPanel();
+        panel.Children.Add(chk);
+        panel.Children.Add(rb);
+        window.Content = panel;
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        var chkElement = new CdpRuntimeElement(session, chk);
+        var rbElement = new CdpRuntimeElement(session, rb);
+
+        Assert.Equal("true", chkElement.getAttribute("IsChecked"));
+        Assert.Equal("false", rbElement.getAttribute("IsChecked"));
+
+        Assert.True(chkElement.isChecked);
+        Assert.True(chkElement.@checked);
+        Assert.False(rbElement.isChecked);
+        Assert.False(rbElement.@checked);
+
+        window.Close();
+    }
 }
+

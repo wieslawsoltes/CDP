@@ -148,91 +148,91 @@ public static class InputDomain
                     return new JsonObject();
                 }
 
-            case "dispatchMouseEvent":
-                {
-                    string type = @params["type"]?.GetValue<string>() ?? "";
-                    double x = GetDoubleOrDefault(@params["x"], 0);
-                    double y = GetDoubleOrDefault(@params["y"], 0);
-                    string button = @params["button"]?.GetValue<string>() ?? "none";
-                    double deltaX = GetDoubleOrDefault(@params["deltaX"], 0);
-                    double deltaY = GetDoubleOrDefault(@params["deltaY"], 0);
-                    int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
-                    int buttons = @params["buttons"]?.GetValue<int>() ?? 0;
-
-                    await DispatchMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, buttons);
-                    return new JsonObject();
-                }
-
-            case "dispatchKeyEvent":
-                {
-                    string type = @params["type"]?.GetValue<string>() ?? "";
-                    string keyStr = @params["key"]?.GetValue<string>() ?? "";
-                    string codeStr = @params["code"]?.GetValue<string>() ?? "";
-                    string text = @params["text"]?.GetValue<string>() ?? "";
-                    int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
-
-                    await DispatchKeyEventAsync(session, type, keyStr, codeStr, text, modifiersRaw);
-                    return new JsonObject();
-                }
-
-            case "insertText":
-                {
-                    string text = @params["text"]?.GetValue<string>() ?? "";
-                    await DispatchTextInputAsync(session, text);
-                    return new JsonObject();
-                }
-
-            case "emulateTouchFromMouseEvent":
-                {
-                    string type = @params["type"]?.GetValue<string>() ?? "";
-                    double x = GetDoubleOrDefault(@params["x"], 0);
-                    double y = GetDoubleOrDefault(@params["y"], 0);
-                    string button = @params["button"]?.GetValue<string>() ?? "none";
-                    double deltaX = GetDoubleOrDefault(@params["deltaX"], 0);
-                    double deltaY = GetDoubleOrDefault(@params["deltaY"], 0);
-                    int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
-                    int clickCount = @params["clickCount"]?.GetValue<int>() ?? 0;
-
-                    await EmulateTouchFromMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, clickCount);
-                    return new JsonObject();
-                }
-
-            case "synthesizeTapGesture":
-                {
-                    double x = GetDoubleOrDefault(@params["x"], 0);
-                    double y = GetDoubleOrDefault(@params["y"], 0);
-                    int tapCount = @params["tapCount"]?.GetValue<int>() ?? 1;
-                    int duration = @params["duration"]?.GetValue<int>() ?? 50;
-                    string gestureSourceType = @params["gestureSourceType"]?.GetValue<string>() ?? "default";
-
-                    await SynthesizeTapGestureAsync(session, x, y, tapCount, duration, gestureSourceType);
-                    return new JsonObject();
-                }
-
-            case "synthesizeScrollGesture":
-                {
-                    double x = GetDoubleOrDefault(@params["x"], 0);
-                    double y = GetDoubleOrDefault(@params["y"], 0);
-                    double xDistance = GetDoubleOrDefault(@params["xDistance"], 0);
-                    double yDistance = GetDoubleOrDefault(@params["yDistance"], 0);
-                    double speed = GetDoubleOrDefault(@params["speed"], 800);
-                    string gestureSourceType = @params["gestureSourceType"]?.GetValue<string>() ?? "default";
-
-                    await SynthesizeScrollGestureAsync(session, x, y, xDistance, yDistance, speed, gestureSourceType);
-                    return new JsonObject();
-                }
-
-            case "synthesizePinchGesture":
-                {
-                    double x = GetDoubleOrDefault(@params["x"], 0);
-                    double y = GetDoubleOrDefault(@params["y"], 0);
-                    double scaleFactor = GetDoubleOrDefault(@params["scaleFactor"], 1.0);
-                    double speed = GetDoubleOrDefault(@params["relativeSpeed"], 800);
-                    string gestureSourceType = @params["gestureSourceType"]?.GetValue<string>() ?? "default";
-
-                    await SynthesizePinchGestureAsync(session, x, y, scaleFactor, speed, gestureSourceType);
-                    return new JsonObject();
-                }
+             case "dispatchMouseEvent":
+                 {
+                     string type = @params["type"]?.GetValue<string>() ?? "";
+                     double x = GetDoubleOrDefault(@params["x"], 0);
+                     double y = GetDoubleOrDefault(@params["y"], 0);
+                     string button = @params["button"]?.GetValue<string>() ?? "none";
+                     double deltaX = GetDoubleOrDefault(@params["deltaX"], 0);
+                     double deltaY = GetDoubleOrDefault(@params["deltaY"], 0);
+                     int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
+                     int buttons = @params["buttons"]?.GetValue<int>() ?? 0;
+ 
+                     await DispatchMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, buttons);
+                     return new JsonObject();
+                 }
+ 
+             case "dispatchKeyEvent":
+                 {
+                     string type = @params["type"]?.GetValue<string>() ?? "";
+                     string keyStr = @params["key"]?.GetValue<string>() ?? "";
+                     string codeStr = @params["code"]?.GetValue<string>() ?? "";
+                     string text = @params["text"]?.GetValue<string>() ?? "";
+                     int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
+ 
+                     await DispatchKeyEventAsync(session, type, keyStr, codeStr, text, modifiersRaw);
+                     return new JsonObject();
+                 }
+ 
+             case "insertText":
+                 {
+                     string text = @params["text"]?.GetValue<string>() ?? "";
+                     await DispatchTextInputAsync(session, text);
+                     return new JsonObject();
+                 }
+ 
+             case "emulateTouchFromMouseEvent":
+                 {
+                     string type = @params["type"]?.GetValue<string>() ?? "";
+                     double x = GetDoubleOrDefault(@params["x"], 0);
+                     double y = GetDoubleOrDefault(@params["y"], 0);
+                     string button = @params["button"]?.GetValue<string>() ?? "none";
+                     double deltaX = GetDoubleOrDefault(@params["deltaX"], 0);
+                     double deltaY = GetDoubleOrDefault(@params["deltaY"], 0);
+                     int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
+                     int clickCount = @params["clickCount"]?.GetValue<int>() ?? 0;
+ 
+                     await EmulateTouchFromMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, clickCount);
+                     return new JsonObject();
+                 }
+ 
+             case "synthesizeTapGesture":
+                 {
+                     double x = GetDoubleOrDefault(@params["x"], 0);
+                     double y = GetDoubleOrDefault(@params["y"], 0);
+                     int tapCount = @params["tapCount"]?.GetValue<int>() ?? 1;
+                     int duration = @params["duration"]?.GetValue<int>() ?? 50;
+                     string gestureSourceType = @params["gestureSourceType"]?.GetValue<string>() ?? "default";
+ 
+                     await SynthesizeTapGestureAsync(session, x, y, tapCount, duration, gestureSourceType);
+                     return new JsonObject();
+                 }
+ 
+             case "synthesizeScrollGesture":
+                 {
+                     double x = GetDoubleOrDefault(@params["x"], 0);
+                     double y = GetDoubleOrDefault(@params["y"], 0);
+                     double xDistance = GetDoubleOrDefault(@params["xDistance"], 0);
+                     double yDistance = GetDoubleOrDefault(@params["yDistance"], 0);
+                     double speed = GetDoubleOrDefault(@params["speed"], 800);
+                     string gestureSourceType = @params["gestureSourceType"]?.GetValue<string>() ?? "default";
+ 
+                     await SynthesizeScrollGestureAsync(session, x, y, xDistance, yDistance, speed, gestureSourceType);
+                     return new JsonObject();
+                 }
+ 
+             case "synthesizePinchGesture":
+                 {
+                     double x = GetDoubleOrDefault(@params["x"], 0);
+                     double y = GetDoubleOrDefault(@params["y"], 0);
+                     double scaleFactor = GetDoubleOrDefault(@params["scaleFactor"], 1.0);
+                     double speed = GetDoubleOrDefault(@params["relativeSpeed"], 800);
+                     string gestureSourceType = @params["gestureSourceType"]?.GetValue<string>() ?? "default";
+ 
+                     await SynthesizePinchGestureAsync(session, x, y, scaleFactor, speed, gestureSourceType);
+                     return new JsonObject();
+                 }
 
             case "setIgnoreInputEvents":
                 {

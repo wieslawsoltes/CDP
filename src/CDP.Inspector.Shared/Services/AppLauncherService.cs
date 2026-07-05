@@ -199,7 +199,7 @@ public class AppLauncherService : IAppLauncherService
         {
             try
             {
-                var windows = CDP.Automation.OS.OSAutomationService.Instance.GetWindows();
+                var windows = OsAutomationProvider.Instance?.GetWindows() ?? System.Array.Empty<CDP.Automation.OS.OSWindow>();
                 foreach (var w in windows)
                 {
                     existingWindowIds.Add(w.Id);
@@ -264,7 +264,7 @@ public class AppLauncherService : IAppLauncherService
                 if (isOs)
                 {
                     logAction($"Auto Launch: Scanning for launched application window '{appName}' (attempt {i + 1}/{maxRetries})...");
-                    var windows = CDP.Automation.OS.OSAutomationService.Instance.GetWindows();
+                    var windows = OsAutomationProvider.Instance?.GetWindows() ?? System.Array.Empty<CDP.Automation.OS.OSWindow>();
                     CDP.Automation.OS.OSWindow? targetWindow = null;
 
                     // 1. Look for a newly opened window matching appName

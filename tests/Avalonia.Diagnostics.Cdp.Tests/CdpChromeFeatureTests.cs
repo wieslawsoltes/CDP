@@ -772,13 +772,69 @@ public class CdpChromeFeatureTests
 
         string generated = vm.GeneratedCode;
 
-        Assert.Contains(@"await test.step('Type text in element :contains(""Save"")', async () => {", generated);
-        Assert.Contains(@"page.locator(':contains(""Save"")')", generated);
+        Assert.Contains(@"await test.step('Type text in element :has-text(""Save"")', async () => {", generated);
+        Assert.Contains(@"page.locator(':has-text(""Save"")')", generated);
         Assert.Contains(@"fill('don\'t')", generated);
 
-        Assert.Contains(@"await test.step('Type text in element :contains(\'Cancel\')', async () => {", generated);
-        Assert.Contains(@"page.locator(':contains(\'Cancel\')')", generated);
+        Assert.Contains(@"await test.step('Type text in element :has-text(\'Cancel\')', async () => {", generated);
+        Assert.Contains(@"page.locator(':has-text(\'Cancel\')')", generated);
         Assert.Contains(@"fill('I said ""yes"" and backslash \\ test')", generated);
+    }
+
+    [Fact]
+    public void TestPlaywrightCodeGeneration()
+    {
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "tap", Selector = "#btnTap" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "doubleTap", Selector = "#btnDouble" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "longPress", Selector = "#btnLong" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "back" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "clear", Selector = "#txtInput" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "delay", Value = "1500" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "inputText", Value = "direct-input" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "pressKey", Key = "Enter", Modifiers = 2 } // Control=2
+        };
+
+        var generator = new PlaywrightGenerator();
+        string generated = generator.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
+
+        Assert.Contains("await element_0.tap();", generated);
+        Assert.Contains("await element_1.dblclick();", generated);
+        Assert.Contains("await element_2.click({ delay: 1000 });", generated);
+        Assert.Contains("await page.goBack();", generated);
+        Assert.Contains("await element_4.clear();", generated);
+        Assert.Contains("await page.waitForTimeout(1500);", generated);
+        Assert.Contains("await page.keyboard.type('direct-input');", generated);
+        Assert.Contains("await page.keyboard.press('Enter');", generated);
+    }
+
+    [Fact]
+    public void TestPuppeteerCodeGeneration()
+    {
+        var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
+        {
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "tap", Selector = "#btnTap" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "doubleTap", Selector = "#btnDouble" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "longPress", Selector = "#btnLong" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "back" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "clear", Selector = "#txtInput" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "delay", Value = "1500" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "inputText", Value = "direct-input" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "pressKey", Key = "Enter", Modifiers = 2 } // Control=2
+        };
+
+        var generator = new PuppeteerGenerator();
+        string generated = generator.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
+
+        Assert.Contains("await element_0.tap();", generated);
+        Assert.Contains("await element_1.click({ clickCount: 2 });", generated);
+        Assert.Contains("await element_2.click({ delay: 1000 });", generated);
+        Assert.Contains("await page.goBack();", generated);
+        Assert.Contains("await page.$eval('#txtInput', el => el.value = '');", generated);
+        Assert.Contains("await new Promise(resolve => setTimeout(resolve, 1500));", generated);
+        Assert.Contains("await page.keyboard.type('direct-input');", generated);
+        Assert.Contains("await page.keyboard.press('Enter');", generated);
     }
 
     [Fact]
@@ -795,7 +851,16 @@ public class CdpChromeFeatureTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnRight", Button = "right" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnMiddle", Button = "middle" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnDouble", ClickCount = 2 },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnTriple", ClickCount = 3 }
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnTriple", ClickCount = 3 },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#tabHome > Button:contains(\"Save\")" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "tap", Selector = "#btnTap" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "doubleTap", Selector = "#btnDouble2" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "longPress", Selector = "#btnLong" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "back" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "clear", Selector = "#txtInput" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "delay", Value = "1500" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "inputText", Value = "direct-input" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "pressKey", Key = "Enter", Modifiers = 2 } // Control=2
         };
 
         var generator = new SeleniumCSharpGenerator();
@@ -812,10 +877,20 @@ public class CdpChromeFeatureTests
         Assert.Contains("Assert.IsTrue(_driver.FindElement(By.CssSelector(\"#btnClick\")).Displayed);", generated);
         Assert.Contains("Assert.IsFalse(isVisible_5);", generated);
         Assert.Contains("_actions.ContextClick(_driver.FindElement(By.CssSelector(\"#btnRight\"))).Perform();", generated);
-        Assert.Contains("((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent('click', {button: 1}));\", _driver.FindElement(By.CssSelector(\"#btnMiddle\")));", generated);
+        Assert.Contains("((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent(\\'click\\', {button: 1}));\", _driver.FindElement(By.CssSelector(\"#btnMiddle\")));", generated);
         Assert.Contains("_actions.DoubleClick(_driver.FindElement(By.CssSelector(\"#btnDouble\"))).Perform();", generated);
         Assert.Contains("var element_9 = _driver.FindElement(By.CssSelector(\"#btnTriple\"));", generated);
         Assert.Contains("for (int c_9 = 0; c_9 < 3; c_9++)", generated);
+        Assert.Contains("_driver.FindElement(By.XPath(\"//*[@id='tabHome']/Button[contains(., 'Save')]\")).Click();", generated);
+
+        Assert.Contains("_driver.FindElement(By.CssSelector(\"#btnTap\")).Click();", generated);
+        Assert.Contains("_actions.DoubleClick(element_12).Perform();", generated);
+        Assert.Contains("_actions.ClickAndHold(element_13).Pause(TimeSpan.FromMilliseconds(1000)).Release().Perform();", generated);
+        Assert.Contains("_driver.Navigate().Back();", generated);
+        Assert.Contains("_driver.FindElement(By.CssSelector(\"#txtInput\")).Clear();", generated);
+        Assert.Contains("Thread.Sleep(1500);", generated);
+        Assert.Contains("_actions.SendKeys(\"direct-input\").Perform();", generated);
+        Assert.Contains("action_18 = action_18.KeyDown(Keys.Control);", generated);
     }
 
     [Fact]

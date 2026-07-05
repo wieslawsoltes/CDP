@@ -71,6 +71,14 @@ public class SeleniumCSharpGenerator : ICodeGenerator
             var step = stepsList[i];
             sb.AppendLine($"            // Step {i + 1}: {step.Type}");
 
+            var selInfo = GetSeleniumSelectorAndMethod(step.Selector);
+            string selectorEscaped = EscapeCSharpString(selInfo.Selector);
+            string byMethod = selInfo.Method;
+
+            var targetSelInfo = GetSeleniumSelectorAndMethod(step.TargetSelector);
+            string targetSelectorEscaped = EscapeCSharpString(targetSelInfo.Selector);
+            string targetByMethod = targetSelInfo.Method;
+
             if (step.Type == "setViewport")
             {
                 sb.AppendLine($"            _driver.Manage().Window.Size = new Size({(int)step.Width}, {(int)step.Height});");
@@ -81,22 +89,21 @@ public class SeleniumCSharpGenerator : ICodeGenerator
             }
             else if (step.Type == "click")
             {
-                string selectorEscaped = EscapeCSharpString(step.Selector);
                 if (step.Button == "right")
                 {
-                    sb.AppendLine($"            _actions.ContextClick(_driver.FindElement(By.CssSelector(\"{selectorEscaped}\"))).Perform();");
+                    sb.AppendLine($"            _actions.ContextClick(_driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"))).Perform();");
                 }
                 else if (step.Button == "middle")
                 {
-                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent('click', {{button: 1}}));\", _driver.FindElement(By.CssSelector(\"{selectorEscaped}\")));");
+                    sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].dispatchEvent(new MouseEvent(\\'click\\', {{button: 1}}));\", _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")));");
                 }
                 else if (step.ClickCount == 2)
                 {
-                    sb.AppendLine($"            _actions.DoubleClick(_driver.FindElement(By.CssSelector(\"{selectorEscaped}\"))).Perform();");
+                    sb.AppendLine($"            _actions.DoubleClick(_driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"))).Perform();");
                 }
                 else if (step.ClickCount > 2)
                 {
-                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.CssSelector(\"{selectorEscaped}\"));");
+                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
                     sb.AppendLine($"            for (int c_{i} = 0; c_{i} < {step.ClickCount}; c_{i}++)");
                     sb.AppendLine($"            {{");
                     sb.AppendLine($"                element_{i}.Click();");
@@ -105,7 +112,7 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                 else if (step.Modifiers > 0)
                 {
                     var mods = GetSeleniumModifiersList(step.Modifiers);
-                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.CssSelector(\"{selectorEscaped}\"));");
+                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
                     sb.AppendLine($"            var action_{i} = new Actions(_driver).MoveToElement(element_{i});");
                     foreach (var mod in mods)
                     {
@@ -120,20 +127,58 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                 }
                 else
                 {
-                    sb.AppendLine($"            _driver.FindElement(By.CssSelector(\"{selectorEscaped}\")).Click();");
+                    sb.AppendLine($"            _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Click();");
                 }
             }
-            else if (step.Type == "change")
+            else if (step.Type == "tap" || step.Type == "tapOn")
             {
-                string selectorEscaped = EscapeCSharpString(step.Selector);
-                string valueEscaped = EscapeCSharpString(step.Value);
-                sb.AppendLine($"            var element_{i} = _driver.FindElement(By.CssSelector(\"{selectorEscaped}\"));");
-                sb.AppendLine($"            element_{i}.Clear();");
-                sb.AppendLine($"            element_{i}.SendKeys(\"{valueEscaped}\");");
+                sb.AppendLine($"            _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Click();");
             }
-            else if (step.Type == "keydown")
+            else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")
             {
-                var keyRep = GetSeleniumKeyRepresentation(step.Key, out bool isSpecialKey);
+                sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
+                sb.AppendLine($"            _actions.DoubleClick(element_{i}).Perform();");
+            }
+            else if (step.Type == "longPress" || step.Type == "longPressOn")
+            {
+                sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
+                sb.AppendLine($"            _actions.ClickAndHold(element_{i}).Pause(TimeSpan.FromMilliseconds(1000)).Release().Perform();");
+            }
+            else if (step.Type == "back")
+            {
+                sb.AppendLine("            _driver.Navigate().Back();");
+            }
+            else if (step.Type == "clear" || step.Type == "clearText")
+            {
+                sb.AppendLine($"            _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Clear();");
+            }
+            else if (step.Type == "delay")
+            {
+                int delayMs = 1000;
+                if (int.TryParse(step.Value, out int val))
+                {
+                    delayMs = val;
+                }
+                sb.AppendLine($"            Thread.Sleep({delayMs});");
+            }
+            else if (step.Type == "change" || step.Type == "inputText" || step.Type == "input")
+            {
+                string valueEscaped = EscapeCSharpString(step.Value);
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"            _actions.SendKeys(\"{valueEscaped}\").Perform();");
+                }
+                else
+                {
+                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
+                    sb.AppendLine($"            element_{i}.Clear();");
+                    sb.AppendLine($"            element_{i}.SendKeys(\"{valueEscaped}\");");
+                }
+            }
+            else if (step.Type == "keydown" || step.Type == "pressKey")
+            {
+                string keyToPress = string.IsNullOrEmpty(step.Key) ? step.Value : step.Key;
+                var keyRep = GetSeleniumKeyRepresentation(keyToPress, out bool isSpecialKey);
                 if (step.Modifiers > 0)
                 {
                     var mods = GetSeleniumModifiersList(step.Modifiers);
@@ -156,10 +201,10 @@ public class SeleniumCSharpGenerator : ICodeGenerator
             }
             else if (step.Type == "dragAndDrop")
             {
-                string selectorEscaped = EscapeCSharpString(step.Selector);
-                string targetSelectorEscaped = EscapeCSharpString(step.TargetSelector);
-                sb.AppendLine($"            var source_{i} = _driver.FindElement(By.CssSelector(\"{selectorEscaped}\"));");
-                sb.AppendLine($"            var target_{i} = _driver.FindElement(By.CssSelector(\"{targetSelectorEscaped}\"));");
+                
+                
+                sb.AppendLine($"            var source_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
+                sb.AppendLine($"            var target_{i} = _driver.FindElement(By.{targetByMethod}(\"{targetSelectorEscaped}\"));");
                 sb.AppendLine($"            _actions.DragAndDrop(source_{i}, target_{i}).Perform();");
             }
             else if (step.Type == "scroll")
@@ -167,7 +212,7 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                 sb.AppendLine($"            // Scroll element or page");
                 if (!string.IsNullOrEmpty(step.Selector))
                 {
-                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.CssSelector(\"{EscapeCSharpString(step.Selector)}\"));");
+                    sb.AppendLine($"            var element_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\"));");
                     sb.AppendLine($"            ((IJavaScriptExecutor)_driver).ExecuteScript(\"var el = arguments[0]; while (el) {{ if (el.scrollHeight > el.clientHeight && window.getComputedStyle(el).overflowY !== 'visible') {{ el.scrollBy({-step.OffsetX}, {-step.OffsetY}); return; }} el = el.parentElement; }} window.scrollBy({-step.OffsetX}, {-step.OffsetY});\", element_{i});");
                 }
                 else
@@ -177,16 +222,16 @@ public class SeleniumCSharpGenerator : ICodeGenerator
             }
             else if (step.Type == "assertVisible")
             {
-                string selectorEscaped = EscapeCSharpString(step.Selector);
-                sb.AppendLine($"            Assert.IsTrue(_driver.FindElement(By.CssSelector(\"{selectorEscaped}\")).Displayed);");
+                
+                sb.AppendLine($"            Assert.IsTrue(_driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Displayed);");
             }
             else if (step.Type == "assertNotVisible")
             {
-                string selectorEscaped = EscapeCSharpString(step.Selector);
+                
                 sb.AppendLine($"            bool isVisible_{i} = false;");
                 sb.AppendLine("            try");
                 sb.AppendLine("            {");
-                sb.AppendLine($"                isVisible_{i} = _driver.FindElement(By.CssSelector(\"{selectorEscaped}\")).Displayed;");
+                sb.AppendLine($"                isVisible_{i} = _driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Displayed;");
                 sb.AppendLine("            }");
                 sb.AppendLine("            catch (NoSuchElementException)");
                 sb.AppendLine("            {");
@@ -247,6 +292,177 @@ public class SeleniumCSharpGenerator : ICodeGenerator
             case "End": isSpecialKey = true; return "Keys.End";
             default: isSpecialKey = false; return $"\"{EscapeCSharpString(key)}\"";
         }
+    }
+
+        private static (string Selector, string Method) GetSeleniumSelectorAndMethod(string selector)
+    {
+        if (string.IsNullOrEmpty(selector)) return ("", "CssSelector");
+
+        if (selector.Contains(":contains("))
+        {
+            int containsIndex = selector.IndexOf(":contains(");
+            string cssPrefix = selector.Substring(0, containsIndex).Trim();
+            string xpathPrefix = ConvertCssToXpath(cssPrefix);
+            if (string.IsNullOrEmpty(xpathPrefix)) xpathPrefix = "//*";
+
+            int startQuote = selector.IndexOf('"', containsIndex);
+            if (startQuote == -1) startQuote = selector.IndexOf('\'', containsIndex);
+            if (startQuote != -1)
+            {
+                int endQuote = selector.IndexOf(selector[startQuote], startQuote + 1);
+                if (endQuote != -1)
+                {
+                    string text = selector.Substring(startQuote + 1, endQuote - startQuote - 1);
+                    return ($"{xpathPrefix}[contains(., '{text}')]", "XPath");
+                }
+            }
+            return ($"//*[contains(., '{selector}')]", "XPath");
+        }
+        return (selector, "CssSelector");
+    }
+
+    private static string ConvertCssToXpath(string css)
+    {
+        if (string.IsNullOrEmpty(css)) return "";
+
+        var segments = new List<(string Segment, string Combinator)>();
+        int i = 0;
+        string currentSegment = "";
+        string lastCombinator = "//"; // default start
+
+        while (i < css.Length)
+        {
+            char c = css[i];
+            if (c == '>')
+            {
+                if (!string.IsNullOrWhiteSpace(currentSegment))
+                {
+                    segments.Add((currentSegment.Trim(), lastCombinator));
+                    currentSegment = "";
+                }
+                lastCombinator = "/";
+                i++;
+            }
+            else if (c == ' ')
+            {
+                if (!string.IsNullOrWhiteSpace(currentSegment))
+                {
+                    int j = i + 1;
+                    while (j < css.Length && char.IsWhiteSpace(css[j])) j++;
+                    if (j < css.Length && css[j] == '>')
+                    {
+                        segments.Add((currentSegment.Trim(), lastCombinator));
+                        currentSegment = "";
+                        lastCombinator = "/";
+                        i = j + 1;
+                    }
+                    else
+                    {
+                        segments.Add((currentSegment.Trim(), lastCombinator));
+                        currentSegment = "";
+                        lastCombinator = "//";
+                        i++;
+                    }
+                }
+                else
+                {
+                    i++;
+                }
+            }
+            else
+            {
+                currentSegment += c;
+                i++;
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(currentSegment))
+        {
+            segments.Add((currentSegment.Trim(), lastCombinator));
+        }
+
+        var xpathBuilder = new System.Text.StringBuilder();
+        foreach (var pair in segments)
+        {
+            xpathBuilder.Append(pair.Combinator);
+            xpathBuilder.Append(ConvertCssSegmentToXpath(pair.Segment));
+        }
+
+        return xpathBuilder.ToString();
+    }
+
+    private static string ConvertCssSegmentToXpath(string segment)
+    {
+        if (string.IsNullOrEmpty(segment)) return "*";
+
+        string tagName = "*";
+        int tagEnd = 0;
+        while (tagEnd < segment.Length && char.IsLetterOrDigit(segment[tagEnd]))
+        {
+            tagEnd++;
+        }
+        if (tagEnd > 0)
+        {
+            tagName = segment.Substring(0, tagEnd);
+        }
+
+        var predicates = new List<string>();
+        int i = tagEnd;
+        while (i < segment.Length)
+        {
+            if (segment[i] == '#')
+            {
+                int start = ++i;
+                while (i < segment.Length && (char.IsLetterOrDigit(segment[i]) || segment[i] == '_' || segment[i] == '-'))
+                {
+                    i++;
+                }
+                string id = segment.Substring(start, i - start);
+                predicates.Add($"@id='{id}'");
+            }
+            else if (segment[i] == '.')
+            {
+                int start = ++i;
+                while (i < segment.Length && (char.IsLetterOrDigit(segment[i]) || segment[i] == '_' || segment[i] == '-'))
+                {
+                    i++;
+                }
+                string cls = segment.Substring(start, i - start);
+                predicates.Add($"contains(concat(' ', normalize-space(@class), ' '), ' {cls} ')");
+            }
+            else if (segment[i] == '[')
+            {
+                int start = ++i;
+                int depth = 1;
+                while (i < segment.Length && depth > 0)
+                {
+                    if (segment[i] == '[') depth++;
+                    else if (segment[i] == ']') depth--;
+                    i++;
+                }
+                string attr = segment.Substring(start, i - start - 1);
+                if (attr.Contains("="))
+                {
+                    var parts = attr.Split('=', 2);
+                    var attrName = parts[0].Trim();
+                    var attrVal = parts[1].Trim().Trim('\'', '"');
+                    predicates.Add($"@{attrName}='{attrVal}'");
+                }
+                else
+                {
+                    predicates.Add($"@{attr.Trim()}");
+                }
+            }
+            else
+            {
+                i++;
+            }
+        }
+
+        if (predicates.Count > 0)
+        {
+            return $"{tagName}[{string.Join(" and ", predicates)}]";
+        }
+        return tagName;
     }
 
     private static string EscapeCSharpString(string? value)

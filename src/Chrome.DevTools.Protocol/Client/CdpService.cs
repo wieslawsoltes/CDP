@@ -93,7 +93,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             var list = new List<TargetItem>();
             try
             {
-                var windows = CDP.Automation.OS.OSAutomationService.Instance.GetWindows();
+                var windows = OsAutomationProvider.Instance?.GetWindows() ?? System.Array.Empty<CDP.Automation.OS.OSWindow>();
                 foreach (var win in windows)
                 {
                     list.Add(new TargetItem(win.Title, $"os://{win.Id}", win.Id));
@@ -184,8 +184,8 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 bool hasScreen = true;
                 try
                 {
-                    hasAccess = CDP.Automation.OS.OSAutomationService.Instance.HasAccessibilityPermission();
-                    hasScreen = CDP.Automation.OS.OSAutomationService.Instance.HasScreenCapturePermission();
+                    hasAccess = OsAutomationProvider.Instance?.HasAccessibilityPermission() ?? true;
+                    hasScreen = OsAutomationProvider.Instance?.HasScreenCapturePermission() ?? true;
                 }
                 catch {}
 

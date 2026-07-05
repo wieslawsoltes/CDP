@@ -69,8 +69,11 @@ public static class CdpServer
         };
         Chrome.DevTools.Protocol.CdpServer.TargetSessionFactory = (session, sessionId, targetId, target) =>
         {
-            var avTarget = target as AvaloniaCdpTarget;
-            return new CdpTargetSession((CdpSession)session, sessionId, targetId, avTarget?.Window);
+            if (target is AvaloniaCdpTarget avTarget)
+            {
+                return new CdpTargetSession((CdpSession)session, sessionId, targetId, avTarget.Window);
+            }
+            return new Chrome.DevTools.Protocol.CdpTargetSession((CdpSession)session, sessionId, targetId, target);
         };
 
         // Subscribe to server start/stop to handle logging/sinks
@@ -98,10 +101,12 @@ public static class CdpServer
 
         Window.WindowOpenedEvent.AddClassHandler<Window>((w, e) =>
         {
+            Console.WriteLine($"[CDP SERVER DEBUG] WindowOpenedEvent for window: {w.GetType().FullName}, Title: '{w.Title}'");
             Register(w, w.Title ?? w.GetType().Name);
         });
         Window.WindowClosedEvent.AddClassHandler<Window>((w, e) =>
         {
+            Console.WriteLine($"[CDP SERVER DEBUG] WindowClosedEvent for window: {w.GetType().FullName}");
             Unregister(w);
         });
     }
@@ -200,6 +205,18 @@ public static class CdpServer
 
     private static async Task<ICdpTarget> CreateAvaloniaTarget(string url, string? title)
     {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            var w = new Window
+            {
+                Title = title ?? "Dynamic CDP Window",
+                Width = 400,
+                Height = 300
+            };
+            w.Show();
+            var target = GetOrCreateTarget(w);
+            return (ICdpTarget)target;
+        }
         return await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var w = new Window

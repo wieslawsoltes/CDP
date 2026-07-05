@@ -20,6 +20,15 @@ Chrome DevTools Protocol (CDP) core server and session logic.
 - Detailed member pages are unavailable because the Markdown reflection generator could not load this assembly in the current environment.
 - The source index keeps the package discoverable from the docs site and links each public type back to the repository.
 
+## CDP.Automation.OS
+
+| Type | Kind | Source |
+| --- | --- | --- |
+| `IOsAutomation` | interface | [`src/Chrome.DevTools.Protocol/Client/IOsAutomation.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/IOsAutomation.cs) |
+| `OSNode` | class | [`src/Chrome.DevTools.Protocol/Client/OSNode.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/OSNode.cs) |
+| `OSProcessMetrics` | class | [`src/Chrome.DevTools.Protocol/Client/IOsAutomation.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/IOsAutomation.cs) |
+| `OSWindow` | class | [`src/Chrome.DevTools.Protocol/Client/OSWindow.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/OSWindow.cs) |
+
 ## Chrome.DevTools.Protocol
 
 | Type | Kind | Source |
@@ -32,12 +41,14 @@ Chrome DevTools Protocol (CDP) core server and session logic.
 | `CdpDispatcher` | class | [`src/Chrome.DevTools.Protocol/Server/CdpDispatcher.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpDispatcher.cs) |
 | `CdpDomainRegistry` | class | [`src/Chrome.DevTools.Protocol/Server/CdpDomainRegistry.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpDomainRegistry.cs) |
 | `CdpEventEventArgs` | class | [`src/Chrome.DevTools.Protocol/Client/ICdpService.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/ICdpService.cs) |
+| `CdpJintEvaluator` | class | [`src/Chrome.DevTools.Protocol/Jint/CdpJintEvaluator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Jint/CdpJintEvaluator.cs) |
 | `CdpLogger` | class | [`src/Chrome.DevTools.Protocol/CdpLogging.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/CdpLogging.cs) |
 | `CdpLoggerExtensions` | class | [`src/Chrome.DevTools.Protocol/CdpLoggerExtensions.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/CdpLoggerExtensions.cs) |
 | `CdpLogging` | class | [`src/Chrome.DevTools.Protocol/CdpLogging.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/CdpLogging.cs) |
 | `CdpServer` | class | [`src/Chrome.DevTools.Protocol/Server/CdpServer.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpServer.cs) |
 | `CdpService` | class | [`src/Chrome.DevTools.Protocol/Client/CdpService.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/CdpService.cs) |
 | `CdpSession` | class | [`src/Chrome.DevTools.Protocol/Server/CdpSession.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpSession.cs) |
+| `CdpTabTarget` | class | [`src/Chrome.DevTools.Protocol/Server/CdpServer.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpServer.cs) |
 | `CdpTargetSession` | class | [`src/Chrome.DevTools.Protocol/Server/CdpTargetSession.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpTargetSession.cs) |
 | `ConsoleRedirector` | class | [`src/Chrome.DevTools.Protocol/Server/CdpServer.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpServer.cs) |
 | `CssSelectorParser` | class | [`src/Chrome.DevTools.Protocol/Selector/CssSelectorParser.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Selector/CssSelectorParser.cs) |
@@ -47,14 +58,17 @@ Chrome DevTools Protocol (CDP) core server and session logic.
 | `ICdpTarget` | interface | [`src/Chrome.DevTools.Protocol/Server/ICdpTarget.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/ICdpTarget.cs) |
 | `ICodeGenerator` | interface | [`src/Chrome.DevTools.Protocol/Automation/Generators/ICodeGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/Generators/ICodeGenerator.cs) |
 | `ITelemetryProvider` | interface | [`src/Chrome.DevTools.Protocol/Automation/ITelemetryProvider.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/ITelemetryProvider.cs) |
+| `JintObjectWrapper` | class | [`src/Chrome.DevTools.Protocol/Server/CdpSession.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpSession.cs) |
 | `NetworkReportItem` | class | [`src/Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs) |
 | `NetworkTelemetryProvider` | class | [`src/Chrome.DevTools.Protocol/Automation/NetworkTelemetryProvider.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/NetworkTelemetryProvider.cs) |
 | `NodeMap` | class | [`src/Chrome.DevTools.Protocol/Selector/NodeMap.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Selector/NodeMap.cs) |
 | `OsAutomationCdpSession` | class | [`src/Chrome.DevTools.Protocol/Client/OsAutomationCdpSession.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/OsAutomationCdpSession.cs) |
+| `OsAutomationProvider` | class | [`src/Chrome.DevTools.Protocol/Client/OsAutomationProvider.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/OsAutomationProvider.cs) |
 | `ParsedStep` | class | [`src/Chrome.DevTools.Protocol/Automation/RecordingParser.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/RecordingParser.cs) |
 | `PerformanceTelemetryProvider` | class | [`src/Chrome.DevTools.Protocol/Automation/PerformanceTelemetryProvider.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/PerformanceTelemetryProvider.cs) |
 | `PlaywrightGenerator` | class | [`src/Chrome.DevTools.Protocol/Automation/Generators/PlaywrightGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/Generators/PlaywrightGenerator.cs) |
 | `PuppeteerGenerator` | class | [`src/Chrome.DevTools.Protocol/Automation/Generators/PuppeteerGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/Generators/PuppeteerGenerator.cs) |
+| `QueuedTextWriter` | class | [`src/Chrome.DevTools.Protocol/Server/CdpServer.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpServer.cs) |
 | `RecordedStep` | class | [`src/Chrome.DevTools.Protocol/Automation/RecordedStep.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/RecordedStep.cs) |
 | `RecordingFormat` | enum | [`src/Chrome.DevTools.Protocol/Automation/RecordingFormat.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/RecordingFormat.cs) |
 | `RecordingParser` | class | [`src/Chrome.DevTools.Protocol/Automation/RecordingParser.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/RecordingParser.cs) |
@@ -68,6 +82,7 @@ Chrome DevTools Protocol (CDP) core server and session logic.
 | `TestStudioReportGenerator` | class | [`src/Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs) |
 | `TestStudioReportOptions` | class | [`src/Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs) |
 | `TestStudioStep` | class | [`src/Chrome.DevTools.Protocol/Automation/TestStudioStep.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/TestStudioStep.cs) |
+| `TestStudioStepConverter` | class | [`src/Chrome.DevTools.Protocol/Automation/TestStudioStepConverter.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/TestStudioStepConverter.cs) |
 | `TestStudioYamlParser` | class | [`src/Chrome.DevTools.Protocol/Automation/TestStudioYamlParser.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/TestStudioYamlParser.cs) |
 | `TiledScreencastProducer` | class | [`src/Chrome.DevTools.Protocol/Server/TiledScreencastProducer.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/TiledScreencastProducer.cs) |
 | `VideoFrameItem` | class | [`src/Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs) |

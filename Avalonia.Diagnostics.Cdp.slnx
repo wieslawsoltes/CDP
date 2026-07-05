@@ -3,6 +3,7 @@
     <Project Path="samples/CdpSampleApp/CdpSampleApp.csproj" />
     <Project Path="samples/CdpInspectorApp/CdpInspectorApp.csproj" />
     <Project Path="samples/CdpInspectorApp.Browser/CdpInspectorApp.Browser.csproj" />
+    <Project Path="samples/CDP.HeadlessRunner/CDP.HeadlessRunner.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
@@ -19,5 +20,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj" />
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Benchmarks/Avalonia.Diagnostics.Cdp.Benchmarks.csproj" />
+    <Project Path="tests/CDP.Selenium.Tests/CDP.Selenium.Tests.csproj" />
   </Folder>
 </Solution>

@@ -25,11 +25,9 @@ Cross-platform operating system automation and accessibility provider for Chrome
 | Type | Kind | Source |
 | --- | --- | --- |
 | `EnrichedOsAutomation` | class | [`src/CDP.Automation.OS/EnrichedOsAutomation.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/EnrichedOsAutomation.cs) |
-| `IOsAutomation` | interface | [`src/CDP.Automation.OS/IOsAutomation.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/IOsAutomation.cs) |
 | `OSAutomationService` | class | [`src/CDP.Automation.OS/OSAutomationService.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/OSAutomationService.cs) |
-| `OSNode` | class | [`src/CDP.Automation.OS/OSNode.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/OSNode.cs) |
-| `OSProcessMetrics` | class | [`src/CDP.Automation.OS/IOsAutomation.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/IOsAutomation.cs) |
-| `OSWindow` | class | [`src/CDP.Automation.OS/OSWindow.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/OSWindow.cs) |
+| `OsWindowCdpTarget` | class | [`src/CDP.Automation.OS/ProxyProgram.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/ProxyProgram.cs) |
+| `ProxyProgram` | class | [`src/CDP.Automation.OS/ProxyProgram.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/ProxyProgram.cs) |
 
 ## CDP.Automation.OS.Linux
 

@@ -9,6 +9,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Jint;
 
 namespace Chrome.DevTools.Protocol;
 
@@ -21,6 +22,7 @@ public class CdpSession
     public event Action<JsonObject>? EventSentForTesting;
 
     private readonly ConcurrentDictionary<string, CdpTargetSession> _attachedTargets = new();
+    public bool IsTargetAttached(string targetId) => _attachedTargets.Values.Any(x => x.TargetId == targetId);
     private readonly CdpTargetSession? _defaultTargetSession;
     private readonly AsyncLocal<CdpTargetSession?> _currentTargetSession = new();
 
@@ -42,8 +44,10 @@ public class CdpSession
         set { if (CurrentTargetSession != null) CurrentTargetSession.InspectedNodeId = value; }
     }
     public bool DiscoverTargetsEnabled { get; set; }
+    public bool AutoAttachEnabled { get; set; }
     public bool IsDomEnabled => CurrentTargetSession?.IsDomEnabled ?? false;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument => CurrentTargetSession?.ScriptsToEvaluateOnNewDocument ?? _dummyScripts;
+    public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocumentWorlds => CurrentTargetSession?.ScriptsToEvaluateOnNewDocumentWorlds ?? _dummyScripts;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnLoad => CurrentTargetSession?.ScriptsToEvaluateOnLoad ?? _dummyScripts;
     public System.Collections.Generic.List<JsonObject> Cookies => CurrentTargetSession?.Cookies ?? _dummyCookies;
 
@@ -181,18 +185,73 @@ public class CdpSession
         _attachedTargets[sessionId] = targetSession;
     }
 
+    public CdpTargetSession? GetAttachedSessionForTarget(string targetId)
+    {
+        return _attachedTargets.Values.FirstOrDefault(x => x.TargetId == targetId);
+    }
+
+    public void AutoAttachTarget(ICdpTarget target, CdpTargetSession? parentSession = null)
+    {
+        if (_attachedTargets.Values.Any(x => x.TargetId == target.Id))
+        {
+            return;
+        }
+
+        var sessionId = Guid.NewGuid().ToString();
+        var targetSession = CdpServer.TargetSessionFactory?.Invoke(this, sessionId, target.Id, target)
+                            ?? new CdpTargetSession(this, sessionId, target.Id, target);
+        if (parentSession != null)
+        {
+            targetSession.ParentSessionId = parentSession.SessionId;
+        }
+        AttachTarget(sessionId, targetSession);
+
+        var @params = new JsonObject
+        {
+            ["sessionId"] = sessionId,
+            ["targetInfo"] = new JsonObject
+            {
+                ["targetId"] = target.Id,
+                ["type"] = target.Type,
+                ["title"] = target.Title,
+                ["url"] = target.Url,
+                ["attached"] = true,
+                ["browserContextId"] = "1"
+            },
+            ["waitingForDebugger"] = false
+        };
+
+        var activeTarget = parentSession ?? (CurrentTargetSession?.Target.Type == "tab" ? CurrentTargetSession : null);
+        if (activeTarget != null)
+        {
+            _ = SendEventAsync("Target.attachedToTarget", @params, activeTarget);
+        }
+        else
+        {
+            _ = SendEventAsync("Target.attachedToTarget", @params);
+        }
+    }
+
     public void DetachTarget(string sessionId)
     {
         if (_attachedTargets.TryRemove(sessionId, out var targetSession))
         {
             targetSession.Dispose();
 
-            // Broadcast detached event
-            _ = SendEventAsync("Target.detachedFromTarget", new JsonObject
+            var @params = new JsonObject
             {
                 ["sessionId"] = sessionId,
                 ["targetId"] = targetSession.TargetId
-            });
+            };
+
+            if (!string.IsNullOrEmpty(targetSession.ParentSessionId) && _attachedTargets.TryGetValue(targetSession.ParentSessionId, out var parentSession))
+            {
+                _ = SendEventAsync("Target.detachedFromTarget", @params, parentSession);
+            }
+            else
+            {
+                _ = SendEventAsync("Target.detachedFromTarget", @params);
+            }
         }
     }
 
@@ -217,9 +276,49 @@ public class CdpSession
         return id;
     }
 
+    public object? GetRawObject(string id)
+    {
+        if (RemoteObjects.TryGetValue(id, out var obj))
+        {
+            return obj;
+        }
+        return null;
+    }
+
     public object? GetObject(string id)
     {
-        return RemoteObjects.TryGetValue(id, out var obj) ? obj : null;
+        if (RemoteObjects.TryGetValue(id, out var obj) && obj != null)
+        {
+            if (obj is JintObjectWrapper wrapper)
+            {
+                obj = wrapper.Value;
+            }
+
+            if (obj is Jint.Native.JsValue jsVal)
+            {
+                if (jsVal.IsObject())
+                {
+                    try
+                    {
+                        var unwrapped = jsVal.ToObject();
+                        if (unwrapped != null)
+                        {
+                            var typeName = unwrapped.GetType().FullName ?? "";
+                            if (typeName.StartsWith("Avalonia.") || typeName.Contains("CdpRuntime") || typeName.Contains("Mock"))
+                            {
+                                return unwrapped;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore
+                    }
+                }
+            }
+            return obj;
+        }
+        return null;
     }
 
     public void Close()
@@ -290,6 +389,7 @@ public class CdpSession
             
             var method = obj["method"]?.GetValue<string>() ?? "";
             var paramsNode = obj["params"] as JsonObject ?? new JsonObject();
+            CdpServer.OriginalOut.WriteLine($"[CDP SERVER INCOMING] method: {method}, id: {id}, params: {paramsNode.ToJsonString()}");
 
             string? sessionId = null;
             if (obj.ContainsKey("sessionId"))
@@ -390,7 +490,18 @@ public class CdpSession
         var activeTarget = targetSession ?? CurrentTargetSession;
         if (activeTarget != null && !string.IsNullOrEmpty(activeTarget.SessionId))
         {
-            evt["sessionId"] = activeTarget.SessionId;
+            bool isBrowserLevelTargetEvent = 
+                method == "Target.targetCreated" || 
+                method == "Target.targetDestroyed" || 
+                method == "Target.targetInfoChanged" ||
+                method == "Target.attachedToTarget" ||
+                method == "Target.detachedFromTarget";
+
+            if ((!method.StartsWith("Target.", StringComparison.OrdinalIgnoreCase) || !isBrowserLevelTargetEvent || targetSession != null) && 
+                !method.StartsWith("Browser.", StringComparison.OrdinalIgnoreCase))
+            {
+                evt["sessionId"] = activeTarget.SessionId;
+            }
         }
         await SendJsonAsync(evt);
     }
@@ -403,8 +514,13 @@ public class CdpSession
     private async Task SendJsonAsync(JsonObject node)
     {
         EventSentForTesting?.Invoke(node);
+        string jsonStr = node.ToJsonString(new JsonSerializerOptions { NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() });
+        if (!jsonStr.Contains("screencastFrame") && !jsonStr.Contains("data:image"))
+        {
+            CdpServer.OriginalOut.WriteLine($"[CDP SERVER OUTGOING] {jsonStr}");
+        }
         if (_webSocket.State != WebSocketState.Open) return;
-        var bytes = Encoding.UTF8.GetBytes(node.ToJsonString());
+        var bytes = Encoding.UTF8.GetBytes(jsonStr);
         try
         {
             await _sendSemaphore.WaitAsync();
@@ -492,5 +608,16 @@ public class CdpSession
     public void StopObservingVisualTree()
     {
         CurrentTargetSession?.StopObservingVisualTree();
+    }
+}
+
+public class JintObjectWrapper
+{
+    public Jint.Native.JsValue Value { get; }
+    public Jint.Engine Engine { get; }
+    public JintObjectWrapper(Jint.Native.JsValue value, Jint.Engine engine)
+    {
+        Value = value;
+        Engine = engine;
     }
 }

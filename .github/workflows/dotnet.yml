@@ -30,3 +30,15 @@ jobs:
 
     - name: Test
       run: dotnet test --no-build --configuration Release --verbosity normal
+
+    - name: Upload Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs
+        path: |
+          **/chromedriver.log
+          **/playwright-webserver.log
+          **/*.log
+          **/*.png
+          **/*.html

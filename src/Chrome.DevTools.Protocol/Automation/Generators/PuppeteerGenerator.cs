@@ -18,9 +18,24 @@ public class PuppeteerGenerator : ICodeGenerator
         var sb = new StringBuilder();
         sb.AppendLine("const puppeteer = require('puppeteer');");
         sb.AppendLine();
+        string host = hostAddress;
+        if (string.IsNullOrEmpty(host))
+        {
+            host = "http://localhost:9222";
+        }
+        if (!host.StartsWith("http://") && !host.StartsWith("https://"))
+        {
+            host = "http://" + host;
+        }
+        if (host.EndsWith("/"))
+        {
+            host = host.Substring(0, host.Length - 1);
+        }
+
         sb.AppendLine("(async () => {");
-        sb.AppendLine("  const browser = await puppeteer.launch({ headless: false });");
-        sb.AppendLine("  const page = await browser.newPage();");
+        sb.AppendLine($"  const browser = await puppeteer.connect({{ browserURL: '{EscapeJsString(host)}' }});");
+        sb.AppendLine("  const pages = await browser.pages();");
+        sb.AppendLine("  const page = pages.length > 0 ? pages[0] : await browser.newPage();");
 
         bool hasViewportStep = stepsList.Any(s => s.Type == "setViewport");
         bool hasNavigateStep = stepsList.Any(s => s.Type == "navigate");
@@ -31,20 +46,7 @@ public class PuppeteerGenerator : ICodeGenerator
         }
         if (!hasNavigateStep)
         {
-            string host = hostAddress;
-            if (string.IsNullOrEmpty(host))
-            {
-                host = "http://localhost:9222";
-            }
-            if (!host.StartsWith("http://") && !host.StartsWith("https://"))
-            {
-                host = "http://" + host;
-            }
-            if (!host.EndsWith("/"))
-            {
-                host += "/";
-            }
-            sb.AppendLine($"  await page.goto('{host}');");
+            sb.AppendLine($"  await page.goto('{EscapeJsString(host)}/');");
         }
         sb.AppendLine();
 
@@ -63,18 +65,65 @@ public class PuppeteerGenerator : ICodeGenerator
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
                 }
-                sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
+                sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
                 sb.AppendLine($"  await element_{i}.click({optStr});");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
                 }
             }
-            else if (step.Type == "change")
+            else if (step.Type == "tap" || step.Type == "tapOn")
             {
-                sb.AppendLine($"  // Type text in element");
-                sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
-                sb.AppendLine($"  await element_{i}.type('{EscapeJsString(step.Value)}');");
+                sb.AppendLine($"  // Tap on element");
+                sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
+                sb.AppendLine($"  await element_{i}.tap();");
+            }
+            else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")
+            {
+                sb.AppendLine($"  // Double tap on element");
+                sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
+                sb.AppendLine($"  await element_{i}.click({{ clickCount: 2 }});");
+            }
+            else if (step.Type == "longPress" || step.Type == "longPressOn")
+            {
+                sb.AppendLine($"  // Long press on element");
+                sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
+                sb.AppendLine($"  await element_{i}.click({{ delay: 1000 }});");
+            }
+            else if (step.Type == "back")
+            {
+                sb.AppendLine("  // Navigate back");
+                sb.AppendLine("  await page.goBack();");
+            }
+            else if (step.Type == "clear" || step.Type == "clearText")
+            {
+                sb.AppendLine($"  // Clear text in element");
+                sb.AppendLine($"  await page.$eval('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}', el => el.value = '');");
+            }
+            else if (step.Type == "delay")
+            {
+                int delayMs = 1000;
+                if (int.TryParse(step.Value, out int val))
+                {
+                    delayMs = val;
+                }
+                sb.AppendLine($"  // Delay");
+                sb.AppendLine($"  await new Promise(resolve => setTimeout(resolve, {delayMs}));");
+            }
+            else if (step.Type == "change" || step.Type == "inputText" || step.Type == "input")
+            {
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"  // Type text into focused element");
+                    sb.AppendLine($"  await page.keyboard.type('{EscapeJsString(step.Value)}');");
+                }
+                else
+                {
+                    sb.AppendLine($"  // Type text in element");
+                    sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
+                    sb.AppendLine($"  await page.$eval('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}', el => el.value = '');");
+                    sb.AppendLine($"  await element_{i}.type('{EscapeJsString(step.Value)}');");
+                }
             }
             else if (step.Type == "setViewport")
             {
@@ -84,13 +133,14 @@ public class PuppeteerGenerator : ICodeGenerator
             {
                 sb.AppendLine($"  await page.goto('{EscapeJsString(step.Url)}');");
             }
-            else if (step.Type == "keydown")
+            else if (step.Type == "keydown" || step.Type == "pressKey")
             {
+                string keyToPress = string.IsNullOrEmpty(step.Key) ? step.Value : step.Key;
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
                 }
-                sb.AppendLine($"  await page.keyboard.press('{EscapeJsString(step.Key)}');");
+                sb.AppendLine($"  await page.keyboard.press('{EscapeJsString(keyToPress)}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.up('{mod}');");
@@ -99,8 +149,8 @@ public class PuppeteerGenerator : ICodeGenerator
             else if (step.Type == "dragAndDrop")
             {
                 sb.AppendLine($"  // Drag and drop");
-                sb.AppendLine($"  const source_{i} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
-                sb.AppendLine($"  const target_{i} = await page.waitForSelector('{EscapeJsString(step.TargetSelector)}');");
+                sb.AppendLine($"  const source_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
+                sb.AppendLine($"  const target_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.TargetSelector))}');");
                 if (step.Modifiers > 0)
                 {
                     foreach (var mod in GetModifiersList(step.Modifiers)) sb.AppendLine($"  await page.keyboard.down('{mod}');");
@@ -116,7 +166,7 @@ public class PuppeteerGenerator : ICodeGenerator
                 sb.AppendLine($"  // Scroll element or page");
                 if (!string.IsNullOrEmpty(step.Selector))
                 {
-                    sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(step.Selector)}');");
+                    sb.AppendLine($"  const element_{i} = await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}');");
                     sb.AppendLine($"  await element_{i}.evaluate(el => {{");
                     sb.AppendLine($"    let parent = el;");
                     sb.AppendLine($"    while (parent) {{");
@@ -137,12 +187,12 @@ public class PuppeteerGenerator : ICodeGenerator
             else if (step.Type == "assertVisible")
             {
                 sb.AppendLine($"  // Assert element is visible");
-                sb.AppendLine($"  await page.waitForSelector('{EscapeJsString(step.Selector)}', {{ visible: true }});");
+                sb.AppendLine($"  await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}', {{ visible: true }});");
             }
             else if (step.Type == "assertNotVisible")
             {
                 sb.AppendLine($"  // Assert element is hidden");
-                sb.AppendLine($"  await page.waitForSelector('{EscapeJsString(step.Selector)}', {{ hidden: true }});");
+                sb.AppendLine($"  await page.waitForSelector('{EscapeJsString(TranslatePuppeteerSelector(step.Selector))}', {{ hidden: true }});");
             }
             else if (step.Type == "assertTrue")
             {
@@ -159,7 +209,7 @@ public class PuppeteerGenerator : ICodeGenerator
             sb.AppendLine();
         }
 
-        sb.AppendLine("  await browser.close();");
+        sb.AppendLine("  await browser.disconnect();");
         sb.AppendLine("})();");
 
         return sb.ToString();
@@ -173,6 +223,12 @@ public class PuppeteerGenerator : ICodeGenerator
         if ((modifiers & 4) != 0) list.Add("Meta");
         if ((modifiers & 8) != 0) list.Add("Shift");
         return list;
+    }
+
+        private static string TranslatePuppeteerSelector(string selector)
+    {
+        if (string.IsNullOrEmpty(selector)) return "";
+        return selector.Replace(":contains(", " >>> ::-p-text(");
     }
 
     private static string EscapeJsString(string? value)

@@ -8,6 +8,11 @@ namespace CdpSampleApp;
 public partial class MainWindow : Window
 {
     private int _clickCount = 0;
+    public int ClickCount
+    {
+        get => _clickCount;
+        set => _clickCount = value;
+    }
     private readonly HttpClient _httpClient = new();
 
     public MainWindow()
