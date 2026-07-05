@@ -1,18 +1,35 @@
 using System;
+using System.IO;
+using System.Threading.Tasks;
 using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
-using CDP.Automation.Selenium;
+using OpenQA.Selenium.Appium;
+using OpenQA.Selenium.Appium.Android;
+using Xunit;
+using CDP.Automation.Appium;
 
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
-namespace CDP.Selenium.Tests;
+namespace CDP.Appium.Tests;
 
-public class SeleniumTests : IClassFixture<CdpSeleniumFixture>
+public class CustomAppiumFixture : CdpAppiumFixture
 {
-    private readonly CdpSeleniumFixture _fixture;
-    private readonly ChromeDriver _driver;
+    protected override CdpAppiumOptions GetOptions()
+    {
+        return new CdpAppiumOptions
+        {
+            AppCdpPort = 9224,
+            AppiumPort = 4724,
+            AppArguments = "--port 9224"
+        };
+    }
+}
 
-    public SeleniumTests(CdpSeleniumFixture fixture)
+public class AppiumTests : IClassFixture<CustomAppiumFixture>
+{
+    private readonly CustomAppiumFixture _fixture;
+    private readonly AndroidDriver _driver;
+
+    public AppiumTests(CustomAppiumFixture fixture)
     {
         _fixture = fixture;
         _driver = fixture.Driver ?? throw new InvalidOperationException("Driver was not initialized in fixture.");
@@ -41,7 +58,6 @@ public class SeleniumTests : IClassFixture<CdpSeleniumFixture>
     {
         Assert.Equal("Avalonia CDP Inspector Sample", _driver.Title);
 
-        // Reset Home Tab select index
         SelectTab(0);
         _driver.ExecuteScript("const status = document.querySelector('#txtStatus'); if (status) status.textContent = 'Not Clicked';");
         _driver.ExecuteScript("if (typeof Window !== 'undefined' && Window) Window.clickCount = 0;");
@@ -78,13 +94,13 @@ public class SeleniumTests : IClassFixture<CdpSeleniumFixture>
         SelectTab(0);
         var txtInput = _driver.FindElement(By.Id("txtInput"));
         txtInput.Clear();
-        txtInput.SendKeys("CDP Selenium E2E!");
+        txtInput.SendKeys("CDP Appium E2E!");
         for (int i = 0; i < 50; i++)
         {
-            if (txtInput.GetAttribute("value") == "CDP Selenium E2E!") break;
+            if (txtInput.GetAttribute("value") == "CDP Appium E2E!") break;
             System.Threading.Thread.Sleep(100);
         }
-        Assert.Equal("CDP Selenium E2E!", txtInput.GetAttribute("value"));
+        Assert.Equal("CDP Appium E2E!", txtInput.GetAttribute("value"));
     }
 
     [Fact]
@@ -93,7 +109,6 @@ public class SeleniumTests : IClassFixture<CdpSeleniumFixture>
         SelectTab(0);
         var chkToggle = _driver.FindElement(By.Id("chkToggle"));
         
-        // Check standard toggling
         if (chkToggle.Selected)
         {
             chkToggle.Click();
@@ -113,7 +128,6 @@ public class SeleniumTests : IClassFixture<CdpSeleniumFixture>
         }
         Assert.True(chkToggle.Selected);
 
-        // Update Slider value via Javascript evaluation
         _driver.ExecuteScript("document.querySelector('#sliderValue').value = 75;");
         
         var sliderText = _driver.FindElement(By.Id("txtSliderVal"));
@@ -128,7 +142,6 @@ public class SeleniumTests : IClassFixture<CdpSeleniumFixture>
     [Fact]
     public void VerifyNavigationBetweenTabs()
     {
-        // Navigate using Javascript selectContainer trigger index
         SelectTab(1);
         var scrollContainer = _driver.FindElement(By.Id("scrollContainer"));
         Assert.True(scrollContainer.Displayed);
@@ -141,18 +154,14 @@ public class SeleniumTests : IClassFixture<CdpSeleniumFixture>
     [Fact]
     public void VerifyUrlBasedPageNavigationAndBackInteraction()
     {
-        // Navigate to about page via URL
         _driver.Navigate().GoToUrl("http://127.0.0.1:9222/about");
         
-        // Wait for about tab to be visible
         var tabAbout = _driver.FindElement(By.Id("tabAbout"));
         Assert.True(tabAbout.Displayed);
 
-        // Click Go Back button
         var btnGoBack = _driver.FindElement(By.Id("btnGoBack"));
         btnGoBack.Click();
 
-        // Wait for home page to be visible again
         var tabHome = _driver.FindElement(By.Id("tabHome"));
         Assert.True(tabHome.Displayed);
     }

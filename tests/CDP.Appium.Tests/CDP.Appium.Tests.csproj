@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/CDP.Automation.Selenium/CDP.Automation.Selenium.csproj" />
+    <ProjectReference Include="../../src/CDP.Automation.Appium/CDP.Automation.Appium.csproj" />
   </ItemGroup>
 
   <ItemGroup>

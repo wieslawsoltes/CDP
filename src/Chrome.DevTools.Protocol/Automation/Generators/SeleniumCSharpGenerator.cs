@@ -18,51 +18,29 @@ public class SeleniumCSharpGenerator : ICodeGenerator
         var sb = new StringBuilder();
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Drawing;");
-        sb.AppendLine("using System.Threading;");
-        sb.AppendLine("using NUnit.Framework;");
+        sb.AppendLine("using System.Threading.Tasks;");
         sb.AppendLine("using OpenQA.Selenium;");
         sb.AppendLine("using OpenQA.Selenium.Chrome;");
         sb.AppendLine("using OpenQA.Selenium.Interactions;");
+        sb.AppendLine("using Xunit;");
+        sb.AppendLine("using CDP.Automation.Selenium;");
         sb.AppendLine();
         sb.AppendLine("namespace SeleniumTests");
         sb.AppendLine("{");
-        sb.AppendLine("    [TestFixture]");
-        sb.AppendLine("    public class RecordedTests");
+        sb.AppendLine("    public class RecordedTests : IClassFixture<CdpSeleniumFixture>");
         sb.AppendLine("    {");
-        sb.AppendLine("        private IWebDriver _driver;");
-        sb.AppendLine("        private Actions _actions;");
+        sb.AppendLine("        private readonly CdpSeleniumFixture _fixture;");
+        sb.AppendLine("        private readonly ChromeDriver _driver;");
+        sb.AppendLine("        private readonly Actions _actions;");
         sb.AppendLine();
-        sb.AppendLine("        [SetUp]");
-        sb.AppendLine("        public void SetUp()");
+        sb.AppendLine("        public RecordedTests(CdpSeleniumFixture fixture)");
         sb.AppendLine("        {");
-        sb.AppendLine("            var options = new ChromeOptions();");
-        
-        var cleanHost = hostAddress ?? "localhost:9222";
-        if (cleanHost.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-        {
-            cleanHost = cleanHost.Substring(7);
-        }
-        else if (cleanHost.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            cleanHost = cleanHost.Substring(8);
-        }
-        if (cleanHost.EndsWith("/"))
-        {
-            cleanHost = cleanHost.Substring(0, cleanHost.Length - 1);
-        }
-        
-        sb.AppendLine($"            options.DebuggerAddress = \"{EscapeCSharpString(cleanHost)}\";");
-        sb.AppendLine("            _driver = new ChromeDriver(options);");
+        sb.AppendLine("            _fixture = fixture;");
+        sb.AppendLine("            _driver = fixture.Driver ?? throw new InvalidOperationException(\"Driver was not initialized.\");");
         sb.AppendLine("            _actions = new Actions(_driver);");
         sb.AppendLine("        }");
         sb.AppendLine();
-        sb.AppendLine("        [TearDown]");
-        sb.AppendLine("        public void TearDown()");
-        sb.AppendLine("        {");
-        sb.AppendLine("            _driver?.Quit();");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine("        [Test]");
+        sb.AppendLine("        [Fact]");
         sb.AppendLine("        public void TestRecordedSteps()");
         sb.AppendLine("        {");
 
@@ -223,7 +201,7 @@ public class SeleniumCSharpGenerator : ICodeGenerator
             else if (step.Type == "assertVisible")
             {
                 
-                sb.AppendLine($"            Assert.IsTrue(_driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Displayed);");
+                sb.AppendLine($"            Assert.True(_driver.FindElement(By.{byMethod}(\"{selectorEscaped}\")).Displayed);");
             }
             else if (step.Type == "assertNotVisible")
             {
@@ -237,7 +215,7 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                 sb.AppendLine("            {");
                 sb.AppendLine($"                isVisible_{i} = false;");
                 sb.AppendLine("            }");
-                sb.AppendLine($"            Assert.IsFalse(isVisible_{i});");
+                sb.AppendLine($"            Assert.False(isVisible_{i});");
             }
             else if (step.Type == "assertTrue" || step.Type == "assertFalse")
             {
@@ -246,11 +224,11 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                 sb.AppendLine($"            var result_{i} = ((IJavaScriptExecutor)_driver).ExecuteScript(\"return {expr};\");");
                 if (expectedBool)
                 {
-                    sb.AppendLine($"            Assert.IsTrue(Convert.ToBoolean(result_{i}));");
+                    sb.AppendLine($"            Assert.True(Convert.ToBoolean(result_{i}));");
                 }
                 else
                 {
-                    sb.AppendLine($"            Assert.IsFalse(Convert.ToBoolean(result_{i}));");
+                    sb.AppendLine($"            Assert.False(Convert.ToBoolean(result_{i}));");
                 }
             }
             sb.AppendLine();

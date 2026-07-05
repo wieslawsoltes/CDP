@@ -7,11 +7,13 @@
     "docs:build": "npm run docs:api && vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "test:playwright": "playwright test",
-    "test:puppeteer": "node --test tests/puppeteer/cdp-sample.test.js"
+    "test:puppeteer": "node --test tests/puppeteer/cdp-sample.test.js",
+    "test:appium": "node --test tests/appium/cdp-sample.test.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "puppeteer": "^25.3.0",
+    "webdriverio": "^9.29.1",
     "vitepress": "1.6.4"
   },
   "overrides": {

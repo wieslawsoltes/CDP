@@ -109,7 +109,7 @@ public class SelectorTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "[AccessibilityId=\"myBtnId\"]" }
         };
         string generated = appiumGen.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
-        Assert.Contains("_driver.FindElementByAccessibilityId(\"myBtnId\")", generated);
+        Assert.Contains("_driver.FindElement(MobileBy.AccessibilityId(\"myBtnId\"))", generated);
 
         // 4. Verify Client-Side Generators
         var clientBtn = new CdpInspectorApp.Models.DomNodeModel(1, "Button");
