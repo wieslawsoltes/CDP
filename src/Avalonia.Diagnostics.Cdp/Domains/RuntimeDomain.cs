@@ -221,7 +221,7 @@ public static class RuntimeDomain
                     bool awaitPromise = @params["awaitPromise"]?.GetValue<bool>() ?? false;
                     int contextId = @params["contextId"]?.GetValue<int>() ?? 1;
                     bool returnByValue = @params["returnByValue"]?.GetValue<bool>() ?? false;
-                    int inspectedNodeId = session.InspectedNodeId;
+                    int inspectedNodeId = @params["inspectedNodeId"]?.GetValue<int>() ?? session.InspectedNodeId;
                     var baseSession = (Chrome.DevTools.Protocol.CdpSession)session;
                     var targetSession = baseSession.CurrentTargetSession;
 
@@ -1775,6 +1775,7 @@ public static class RuntimeDomain
         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("__getBounds", new Func<Visual, double[]>(visual => DomDomain.GetVisualBounds(session, visual)));
         engine.SetValue("__getNodeId", new Func<Visual, int>(visual => session.NodeMap.GetOrAdd(visual)));
+        engine.SetValue("__getVisualByNodeId", new Func<int, Visual?>(nodeId => session.NodeMap.GetVisual(nodeId)));
         engine.SetValue("__elementFromPoint", new Func<double, double, Visual?>((x, y) => {
             return Dispatcher.UIThread.Invoke(() => {
                 var window = session.Window;
@@ -2330,6 +2331,10 @@ public static class RuntimeDomain
                     }
                 }
                 
+                globalThis.__resolveNode = function(nodeId) {
+                    var visual = typeof __getVisualByNodeId === 'function' ? __getVisualByNodeId(nodeId) : null;
+                    return visual ? globalThis.__wrap(visual) : null;
+                };
                 globalThis.__proxyCache = globalThis.__proxyCache || new Map();
                 globalThis.__wrap = function(target) {
                     if (!target) return target;
@@ -3932,6 +3937,34 @@ public sealed class CdpRuntimeDocument
         }
         return System.Text.Json.JsonSerializer.Serialize(dict);
     }
+
+    public bool contains(object? other)
+    {
+        if (other == null) return false;
+        Visual? otherVisual = null;
+        if (other is CdpRuntimeElement otherElem)
+        {
+            otherVisual = otherElem.visual as Visual;
+        }
+        else if (other is Visual v)
+        {
+            otherVisual = v;
+        }
+        if (otherVisual == null) return false;
+
+        var root = _session.Window;
+        if (root == null) return false;
+
+        var current = otherVisual;
+        while (current != null)
+        {
+            if (current == root) return true;
+            current = _session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(current)
+                : current.GetVisualParent();
+        }
+        return false;
+    }
 }
 
 public sealed class CdpRuntimeElement
@@ -4172,6 +4205,31 @@ public sealed class CdpRuntimeElement
         }
 
         return results.ToArray();
+    }
+
+    public bool contains(object? other)
+    {
+        if (other == null) return false;
+        Visual? otherVisual = null;
+        if (other is CdpRuntimeElement otherElem)
+        {
+            otherVisual = otherElem.visual as Visual;
+        }
+        else if (other is Visual v)
+        {
+            otherVisual = v;
+        }
+        if (otherVisual == null) return false;
+
+        var current = otherVisual;
+        while (current != null)
+        {
+            if (current == _visual) return true;
+            current = _session.UseLogicalTree
+                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(current)
+                : current.GetVisualParent();
+        }
+        return false;
     }
 
     public CdpRuntimeElement? closest(string selector)
