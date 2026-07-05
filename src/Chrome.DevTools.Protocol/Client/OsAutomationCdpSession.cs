@@ -649,13 +649,61 @@ public sealed class OsAutomationCdpSession : IDisposable
             try
             {
                 var val = EvaluateOsDomExpression(expression);
+                JsonObject result;
+                if (val == null)
+                {
+                    result = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["subtype"] = "null",
+                        ["value"] = null
+                    };
+                }
+                else if (val is bool b)
+                {
+                    result = new JsonObject
+                    {
+                        ["type"] = "boolean",
+                        ["value"] = b
+                    };
+                }
+                else if (val is int || val is double || val is float || val is long || val is short || val is decimal)
+                {
+                    result = new JsonObject
+                    {
+                        ["type"] = "number",
+                        ["value"] = JsonValue.Create(val)
+                    };
+                }
+                else if (val is CdpOsRuntimeElement elem)
+                {
+                    int cdpId = 0;
+                    if (!_osIdToCdpId.TryGetValue(elem.Node.Id, out cdpId))
+                    {
+                        cdpId = _nextNodeId++;
+                        _osIdToCdpId[elem.Node.Id] = cdpId;
+                        _idToNode[cdpId] = elem.Node;
+                    }
+                    result = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["className"] = "Object",
+                        ["description"] = "CdpOsRuntimeElement",
+                        ["objectId"] = $"node_{cdpId}"
+                    };
+                }
+                else
+                {
+                    result = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["value"] = val.ToString()
+                    };
+                }
+
                 return Task.FromResult(new JsonObject
                 {
-                    ["result"] = new JsonObject
-                    {
-                        ["type"] = val is bool ? "boolean" : "string",
-                        ["value"] = val is bool b ? b : val.ToString()
-                    }
+                    ["result"] = result
                 });
             }
             catch (Exception ex)
@@ -2498,6 +2546,7 @@ public sealed class OsAutomationCdpSession : IDisposable
             _node = node;
         }
 
+        public OSNode Node => _node;
         public string Id => _node.Id;
         public string Name => _node.Name;
         public string TextContent => _node.Text ?? _node.Name ?? "";

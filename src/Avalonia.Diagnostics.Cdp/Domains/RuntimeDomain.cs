@@ -359,8 +359,8 @@ public static class RuntimeDomain
                             }
                             else
                             {
-                                var objVal = val.ToObject();
-                                return new JsonObject { ["result"] = CreateRemoteObject(session, objVal) };
+                                var wrappedObj = (val.IsObject() || val.IsSymbol()) ? new JintObjectWrapper(val, jintRes.Engine) : (object)val;
+                                return new JsonObject { ["result"] = CreateRemoteObject(session, wrappedObj) };
                             }
                         }
                         catch (Exception ex)
@@ -1426,8 +1426,8 @@ public static class RuntimeDomain
                         }
                         else
                         {
-                            var objVal = val.ToObject();
-                            return new JsonObject { ["result"] = CreateRemoteObject(session, objVal) };
+                            var wrappedObj = (val.IsObject() || val.IsSymbol()) ? new JintObjectWrapper(val, jintRes.Engine) : (object)val;
+                            return new JsonObject { ["result"] = CreateRemoteObject(session, wrappedObj) };
                         }
                     });
                     return result;
@@ -1438,8 +1438,9 @@ public static class RuntimeDomain
                     string objectId = @params["objectId"]?.GetValue<string>() ?? "";
                     bool awaitPromise = @params["awaitPromise"]?.GetValue<bool>() ?? false;
                     int contextId = @params["executionContextId"]?.GetValue<int>() ?? 1;
+                    var rawTarget = session.GetRawObject(objectId);
                     var target = session.GetObject(objectId);
-                    if (target == null)
+                    if (target == null && rawTarget == null)
                     {
                         throw new Exception($"Object with ID {objectId} not found");
                     }
@@ -1447,30 +1448,66 @@ public static class RuntimeDomain
                     var propertiesJson = await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         var list = new JsonArray();
-                        var props = target.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                        foreach (var prop in props)
+                        if (rawTarget is JintObjectWrapper wrapper && wrapper.Value.IsObject())
                         {
                             try
                             {
-                                if (prop.GetIndexParameters().Length > 0) continue;
-
-                                object? val = null;
-                                if (prop.CanRead)
+                                var obj = wrapper.Value.AsObject();
+                                foreach (var key in obj.GetOwnProperties())
                                 {
-                                    val = prop.GetValue(target);
+                                    try
+                                    {
+                                        var propVal = obj.Get(key.Key);
+                                        object? wrappedVal = propVal;
+                                        if (propVal.IsObject() || propVal.IsSymbol())
+                                        {
+                                            wrappedVal = new JintObjectWrapper(propVal, wrapper.Engine);
+                                        }
+
+                                        var propDesc = new JsonObject
+                                        {
+                                            ["name"] = key.Key.ToString(),
+                                            ["value"] = CreateRemoteObject(session, wrappedVal),
+                                            ["writable"] = true,
+                                            ["configurable"] = true,
+                                            ["enumerable"] = true
+                                        };
+                                        list.Add(propDesc);
+                                    }
+                                    catch { }
                                 }
-
-                                var propDesc = new JsonObject
-                                {
-                                    ["name"] = prop.Name,
-                                    ["value"] = CreateRemoteObject(session, val),
-                                    ["writable"] = prop.CanWrite,
-                                    ["configurable"] = true,
-                                    ["enumerable"] = true
-                                };
-                                list.Add(propDesc);
                             }
                             catch { }
+                            return list;
+                        }
+
+                        if (target != null)
+                        {
+                            var props = target.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            foreach (var prop in props)
+                            {
+                                try
+                                {
+                                    if (prop.GetIndexParameters().Length > 0) continue;
+
+                                    object? val = null;
+                                    if (prop.CanRead)
+                                    {
+                                        val = prop.GetValue(target);
+                                    }
+
+                                    var propDesc = new JsonObject
+                                    {
+                                        ["name"] = prop.Name,
+                                        ["value"] = CreateRemoteObject(session, val),
+                                        ["writable"] = prop.CanWrite,
+                                        ["configurable"] = true,
+                                        ["enumerable"] = true
+                                    };
+                                    list.Add(propDesc);
+                                }
+                                catch { }
+                            }
                         }
                         return list;
                     });
@@ -1565,6 +1602,10 @@ public static class RuntimeDomain
             engine.SetValue("__raw_this", runtimeElemTarget.visual);
             thisValue = engine.Evaluate("__wrap(__raw_this)");
         }
+        else if (target is Jint.Native.JsValue jsValThis)
+        {
+            thisValue = jsValThis;
+        }
         else
         {
             thisValue = target != null ? Jint.Native.JsValue.FromObject(engine, target) : Jint.Native.JsValue.Null;
@@ -1595,6 +1636,10 @@ public static class RuntimeDomain
                             engine.SetValue("__raw_arg", runtimeElemArg.visual);
                             jsArgs.Add(engine.Evaluate("__wrap(__raw_arg)"));
                         }
+                        else if (argObjVal is Jint.Native.JsValue jsValArg)
+                        {
+                            jsArgs.Add(jsValArg);
+                        }
                         else
                         {
                             jsArgs.Add(Jint.Native.JsValue.FromObject(engine, argObjVal));
@@ -1621,7 +1666,7 @@ public static class RuntimeDomain
         {
             if (!funcCode.StartsWith("(") && !funcCode.EndsWith(")"))
             {
-                funcCode = "(" + funcCode + ")";
+                funcCode = "(" + funcCode + "\n)";
             }
         }
 
@@ -1920,6 +1965,7 @@ public static class RuntimeDomain
                     var raw = globalThis.__raw_document;
                     globalThis.document = new Proxy(raw, {
                         get(target, prop, receiver) {
+                            try { globalThis.__log('document.get: ' + String(prop)); } catch(e) {}
                             if (prop === '__isProxy') return true;
                             if (prop === 'defaultView') return globalThis.window;
                             if (prop === 'ownerDocument') return null;
@@ -2212,6 +2258,28 @@ public static class RuntimeDomain
                             return instance && instance.nodeType === 1;
                         }
                     };
+ 
+                    globalThis.SVGElement = class extends globalThis.Element {
+                        static [Symbol.hasInstance](instance) {
+                            return false;
+                        }
+                    };
+
+                    globalThis.IntersectionObserver = class {
+                        constructor(callback, options) {
+                            this.callback = callback;
+                        }
+                        observe(target) {
+                            if (this.callback) {
+                                try {
+                                    this.callback([{ intersectionRatio: 1, isIntersecting: true }]);
+                                } catch (e) {}
+                            }
+                        }
+                        unobserve(target) {}
+                        disconnect() {}
+                        takeRecords() { return []; }
+                    };
 
                     globalThis.Document = class {
                         static [Symbol.hasInstance](instance) {
@@ -2280,6 +2348,7 @@ public static class RuntimeDomain
                     
                     var p = new Proxy(raw, {
                         get(t, prop, receiver) {
+                            try { globalThis.__log('wrap.get: ' + String(prop) + ' on type: ' + globalThis.__getTypeName(t)); } catch(e) {}
                             if (prop === '__isProxy') return true;
                             if (prop === '__raw_node') return t;
                             if (prop === 'nodeId') {
@@ -3047,6 +3116,143 @@ public static class RuntimeDomain
 
     private static JsonObject CreateRemoteObject(CdpSession session, object? obj)
     {
+        if (obj is JintObjectWrapper wrapper)
+        {
+            obj = wrapper.Value;
+        }
+
+        if (obj is Jint.Native.JsValue jsVal)
+        {
+            if (jsVal.IsNull() || jsVal.IsUndefined())
+            {
+                return new JsonObject
+                {
+                    ["type"] = "object",
+                    ["subtype"] = "null",
+                    ["value"] = null
+                };
+            }
+            if (jsVal.IsBoolean())
+            {
+                return new JsonObject
+                {
+                    ["type"] = "boolean",
+                    ["value"] = jsVal.AsBoolean()
+                };
+            }
+            if (jsVal.IsString())
+            {
+                return new JsonObject
+                {
+                    ["type"] = "string",
+                    ["value"] = jsVal.AsString()
+                };
+            }
+            if (jsVal.IsNumber())
+            {
+                double jsNumVal = jsVal.AsNumber();
+                if (double.IsPositiveInfinity(jsNumVal))
+                {
+                    return new JsonObject { ["type"] = "number", ["unserializableValue"] = "Infinity" };
+                }
+                if (double.IsNegativeInfinity(jsNumVal))
+                {
+                    return new JsonObject { ["type"] = "number", ["unserializableValue"] = "-Infinity" };
+                }
+                if (double.IsNaN(jsNumVal))
+                {
+                    return new JsonObject { ["type"] = "number", ["unserializableValue"] = "NaN" };
+                }
+                return new JsonObject
+                {
+                    ["type"] = "number",
+                    ["value"] = jsNumVal
+                };
+            }
+            if (jsVal.IsObject())
+            {
+                object? unwrappedClr = null;
+                try
+                {
+                    var clrVal = jsVal.Get("__raw_node");
+                    if (!clrVal.IsUndefined() && !clrVal.IsNull())
+                    {
+                        unwrappedClr = clrVal.ToObject();
+                    }
+                    else
+                    {
+                        unwrappedClr = jsVal.ToObject();
+                    }
+                }
+                catch {}
+
+                if (unwrappedClr is Visual unwrappedVisual)
+                {
+                    var jsObjectId = session.RegisterObject(unwrappedVisual);
+                    return new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["subtype"] = "node",
+                        ["className"] = unwrappedVisual.GetType().FullName,
+                        ["description"] = $"{unwrappedVisual.GetType().Name} ({unwrappedVisual})",
+                        ["objectId"] = jsObjectId,
+                        ["backendNodeId"] = session.NodeMap.GetOrAdd(unwrappedVisual),
+                        ["loaderId"] = "main-loader-id"
+                    };
+                }
+                if (unwrappedClr is CdpRuntimeElement unwrappedRuntimeElem)
+                {
+                    var jsObjectId = session.RegisterObject(unwrappedRuntimeElem);
+                    return new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["subtype"] = "node",
+                        ["className"] = unwrappedRuntimeElem.GetType().FullName,
+                        ["description"] = $"{unwrappedRuntimeElem.GetType().Name} ({unwrappedRuntimeElem})",
+                        ["objectId"] = jsObjectId,
+                        ["backendNodeId"] = session.NodeMap.GetOrAdd((Visual)unwrappedRuntimeElem.visual),
+                        ["loaderId"] = "main-loader-id"
+                    };
+                }
+                if (unwrappedClr is CdpRuntimeDocument unwrappedDoc)
+                {
+                    var jsObjectId = session.RegisterObject(unwrappedDoc);
+                    return new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["subtype"] = "node",
+                        ["className"] = unwrappedDoc.GetType().FullName,
+                        ["description"] = $"{unwrappedDoc.GetType().Name} ({unwrappedDoc})",
+                        ["objectId"] = jsObjectId,
+                        ["backendNodeId"] = 1,
+                        ["loaderId"] = "main-loader-id"
+                    };
+                }
+
+                var jsObj = jsVal.AsObject();
+                var jsObjectId2 = session.RegisterObject(jsVal);
+                var typeName = jsObj.GetType().Name;
+                string className = typeName.EndsWith("Instance")
+                    ? typeName.Substring(0, typeName.Length - "Instance".Length)
+                    : "Object";
+                if (jsVal.IsArray()) className = "Array";
+
+                var jsObjResult = new JsonObject
+                {
+                    ["type"] = jsVal.IsSymbol() ? "symbol" : className == "Function" ? "function" : "object",
+                    ["className"] = className,
+                    ["description"] = className == "Array" ? $"Array({jsObj.Get("length")})" : className,
+                    ["objectId"] = jsObjectId2
+                };
+                if (className == "Array")
+                {
+                    jsObjResult["subtype"] = "array";
+                }
+                return jsObjResult;
+            }
+            obj = jsVal.ToObject();
+        }
+
         if (obj == null)
         {
             return new JsonObject
@@ -3439,8 +3645,45 @@ public static class RuntimeDomain
  
     private static async Task<Jint.Native.JsValue> AwaitPromiseIfNeededAsync(Jint.Engine engine, Jint.Native.JsValue value)
     {
-        if (value != null && value.GetType().Name == "JsPromise")
+        if (value != null && (value.GetType().Name == "PromiseInstance" || value.GetType().Name == "JsPromise" || value.GetType().FullName?.Contains("Promise") == true))
         {
+            var awaitMethod = engine.GetType().GetMethod("AwaitPromiseSettlementAsync", 
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (awaitMethod != null)
+            {
+                try
+                {
+                    var task = (Task<Jint.Native.JsValue>)awaitMethod.Invoke(engine, new object[] { value, CancellationToken.None })!;
+                    var bindingFlags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                    var runContinuationsMethod = engine.GetType().GetMethod("RunAvailableContinuations", bindingFlags);
+
+                    while (!task.IsCompleted)
+                    {
+                        try
+                        {
+                            var runTimers = engine.Evaluate("globalThis.__runTimers");
+                            if (runTimers != null && !runTimers.IsUndefined() && !runTimers.IsNull())
+                            {
+                                engine.Invoke(runTimers);
+                            }
+                        }
+                        catch (Exception) { }
+
+                        runContinuationsMethod?.Invoke(engine, null);
+
+                        if (task.IsCompleted) break;
+
+                        await Task.Delay(10);
+                    }
+
+                    return await task;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[CDP JINT ERROR] Exception awaiting promise via AwaitPromiseSettlementAsync: {ex}");
+                }
+            }
+
             var flags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var stateProp = value.GetType().GetProperty("State", flags);
             var valueProp = value.GetType().GetProperty("Value", flags);
@@ -3955,8 +4198,11 @@ public static class ScriptPreprocessor
         processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$vm\b", "DataContext");
         processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$dc\b", "DataContext");
 
-        // Strip C# style casting e.g., ((Button)$0) or ((Button)_0) or (Button)
-        processed = System.Text.RegularExpressions.Regex.Replace(processed, @"\(\s*[A-Za-z_][A-Za-z0-9_.*+?<>]*\s*\)", "");
+        if (expression.Length < 1000)
+        {
+            // Strip C# style casting e.g., ((Button)$0) or ((Button)_0) or (Button)
+            processed = System.Text.RegularExpressions.Regex.Replace(processed, @"\(\s*[A-Z][A-Za-z0-9_.*+?<>]*\s*\)", "");
+        }
 
         return processed;
     }

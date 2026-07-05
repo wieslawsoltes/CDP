@@ -197,6 +197,7 @@ public static class PageDomain
             case "navigate":
                 {
                     string url = @params["url"]?.GetValue<string>() ?? "";
+                    string loaderId = $"loader-{Guid.NewGuid()}";
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         var windowType = session.Window.GetType();
@@ -226,13 +227,13 @@ public static class PageDomain
 
                      _ = Task.Run(async () =>
                      {
-                         await EmitNavigationEventsAsync(session, url, frameId);
+                         await EmitNavigationEventsAsync(session, url, frameId, loaderId);
                      });
 
                     return new JsonObject
                     {
                         ["frameId"] = frameId,
-                        ["loaderId"] = "main-loader-id"
+                        ["loaderId"] = loaderId
                     };
                 }
 
@@ -824,6 +825,7 @@ public static class PageDomain
                     if (entry != null)
                     {
                         var url = entry["url"]?.GetValue<string>() ?? "";
+                        string loaderId = $"loader-{Guid.NewGuid()}";
                         session.NavigationHistoryIndex = session.NavigationHistory.IndexOf(entry);
                         
                         await Dispatcher.UIThread.InvokeAsync(() =>
@@ -838,7 +840,7 @@ public static class PageDomain
                         
                         _ = Task.Run(async () =>
                         {
-                            await EmitNavigationEventsAsync(session, url, frameId);
+                            await EmitNavigationEventsAsync(session, url, frameId, loaderId);
                         });
                     }
                     return new JsonObject();
@@ -1080,7 +1082,7 @@ public static class PageDomain
         }
     }
 
-    private static async Task EmitNavigationEventsAsync(CdpSession session, string url, string frameId)
+    private static async Task EmitNavigationEventsAsync(CdpSession session, string url, string frameId, string loaderId)
     {
         RuntimeDomain.ClearSessionEngines(session);
 
@@ -1130,7 +1132,7 @@ public static class PageDomain
         var frame = new JsonObject
         {
             ["id"] = frameId,
-            ["loaderId"] = "main-loader-id",
+            ["loaderId"] = loaderId,
             ["url"] = url,
             ["domainAndRegistry"] = "localhost",
             ["securityOrigin"] = $"http://{host}",
@@ -1148,35 +1150,35 @@ public static class PageDomain
             await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
             {
                 ["frameId"] = frameId,
-                ["loaderId"] = "main-loader-id",
+                ["loaderId"] = loaderId,
                 ["name"] = "init",
                 ["timestamp"] = timestamp
             });
             await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
             {
                 ["frameId"] = frameId,
-                ["loaderId"] = "main-loader-id",
+                ["loaderId"] = loaderId,
                 ["name"] = "DOMContentLoaded",
                 ["timestamp"] = timestamp
             });
             await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
             {
                 ["frameId"] = frameId,
-                ["loaderId"] = "main-loader-id",
+                ["loaderId"] = loaderId,
                 ["name"] = "load",
                 ["timestamp"] = timestamp
             });
             await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
             {
                 ["frameId"] = frameId,
-                ["loaderId"] = "main-loader-id",
+                ["loaderId"] = loaderId,
                 ["name"] = "networkAlmostIdle",
                 ["timestamp"] = timestamp
             });
             await session.SendEventAsync("Page.lifecycleEvent", new JsonObject
             {
                 ["frameId"] = frameId,
-                ["loaderId"] = "main-loader-id",
+                ["loaderId"] = loaderId,
                 ["name"] = "networkIdle",
                 ["timestamp"] = timestamp
             });

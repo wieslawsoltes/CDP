@@ -20,8 +20,11 @@ public static class CdpServer
     private static int _port = 9222;
     public static int Port => _port;
 
-    public static System.IO.TextWriter OriginalOut => _originalOut ?? Console.Out;
-    public static System.IO.TextWriter OriginalError => _originalError ?? Console.Error;
+    private static QueuedTextWriter? _queuedOut;
+    private static QueuedTextWriter? _queuedError;
+
+    public static System.IO.TextWriter OriginalOut => _queuedOut ?? Console.Out;
+    public static System.IO.TextWriter OriginalError => _queuedError ?? Console.Error;
 
     private static readonly ConcurrentDictionary<string, ICdpTarget> _targets = new();
     private static readonly HashSet<string> _providerTargetIds = new();
@@ -287,8 +290,10 @@ public static class CdpServer
         // Intercept Console stdout and stderr
         _originalOut = Console.Out;
         _originalError = Console.Error;
-        _redirectedOut = new ConsoleRedirector(_originalOut, "Information");
-        _redirectedError = new ConsoleRedirector(_originalError, "Error");
+        _queuedOut = new QueuedTextWriter(_originalOut);
+        _queuedError = new QueuedTextWriter(_originalError);
+        _redirectedOut = new ConsoleRedirector(_queuedOut, "Information");
+        _redirectedError = new ConsoleRedirector(_queuedError, "Error");
         Console.SetOut(_redirectedOut);
         Console.SetError(_redirectedError);
 
@@ -330,6 +335,10 @@ public static class CdpServer
             Console.SetError(_originalError);
             _originalError = null;
         }
+        _queuedOut?.Dispose();
+        _queuedOut = null;
+        _queuedError?.Dispose();
+        _queuedError = null;
         _redirectedOut = null;
         _redirectedError = null;
 
@@ -586,4 +595,92 @@ public class CdpTabTarget : ICdpTarget
 
     public void Activate() => _pageTarget.Activate();
     public void Close() => _pageTarget.Close();
+}
+
+public class QueuedTextWriter : System.IO.TextWriter
+{
+    private readonly System.IO.TextWriter _underlying;
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> _queue = new();
+    private readonly System.Threading.Tasks.Task _processTask;
+    private readonly System.Threading.CancellationTokenSource _cts = new();
+
+    public QueuedTextWriter(System.IO.TextWriter underlying)
+    {
+        _underlying = underlying;
+        _processTask = System.Threading.Tasks.Task.Run(ProcessQueueAsync);
+    }
+
+    public override System.Text.Encoding Encoding => _underlying.Encoding;
+
+    public override void Write(char value)
+    {
+        Write(value.ToString());
+    }
+
+    public override void Write(string? value)
+    {
+        if (value != null)
+        {
+            _queue.Enqueue(value);
+        }
+    }
+
+    public override void WriteLine(string? value)
+    {
+        if (value != null)
+        {
+            _queue.Enqueue(value + Environment.NewLine);
+        }
+    }
+
+    private async System.Threading.Tasks.Task ProcessQueueAsync()
+    {
+        while (!_cts.Token.IsCancellationRequested)
+        {
+            if (_queue.TryDequeue(out var item))
+            {
+                try
+                {
+                    _underlying.Write(item);
+                }
+                catch { }
+            }
+            else
+            {
+                try
+                {
+                    await System.Threading.Tasks.Task.Delay(10, _cts.Token);
+                }
+                catch (System.Threading.Tasks.TaskCanceledException)
+                {
+                    break;
+                }
+                catch
+                {
+                    // Ignore other errors
+                }
+            }
+        }
+
+        // Flush any remaining items in the queue when cancelled
+        while (_queue.TryDequeue(out var item))
+        {
+            try
+            {
+                _underlying.Write(item);
+            }
+            catch { }
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _cts.Cancel();
+            try { _processTask.Wait(150); } catch { }
+            _cts.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

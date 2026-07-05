@@ -288,6 +288,12 @@ public static class NetworkDomain
     public static void OnRequestStart(HttpRequestMessage request)
     {
         Console.WriteLine($"[CDP TRACE] OnRequestStart entered for URL: {request?.RequestUri}");
+        if (request == null) return;
+        if (_requestIds.ContainsKey(request))
+        {
+            Console.WriteLine("[CDP TRACE] OnRequestStart: request already tracked, ignoring duplicate start.");
+            return;
+        }
         if (_enabledSessions.IsEmpty) {
             Console.WriteLine("[CDP TRACE] OnRequestStart: _enabledSessions is empty, returning.");
             return;

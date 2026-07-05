@@ -276,10 +276,24 @@ public class CdpSession
         return id;
     }
 
+    public object? GetRawObject(string id)
+    {
+        if (RemoteObjects.TryGetValue(id, out var obj))
+        {
+            return obj;
+        }
+        return null;
+    }
+
     public object? GetObject(string id)
     {
         if (RemoteObjects.TryGetValue(id, out var obj) && obj != null)
         {
+            if (obj is JintObjectWrapper wrapper)
+            {
+                obj = wrapper.Value;
+            }
+
             if (obj is Jint.Native.JsValue jsVal)
             {
                 if (jsVal.IsObject())
@@ -594,5 +608,16 @@ public class CdpSession
     public void StopObservingVisualTree()
     {
         CurrentTargetSession?.StopObservingVisualTree();
+    }
+}
+
+public class JintObjectWrapper
+{
+    public Jint.Native.JsValue Value { get; }
+    public Jint.Engine Engine { get; }
+    public JintObjectWrapper(Jint.Native.JsValue value, Jint.Engine engine)
+    {
+        Value = value;
+        Engine = engine;
     }
 }

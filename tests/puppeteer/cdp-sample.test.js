@@ -1,12 +1,60 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const puppeteer = require('puppeteer');
+const { spawn } = require('node:child_process');
+
+async function checkPortReady(url, timeout = 30000) {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeout) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        return true;
+      }
+    } catch (e) {
+      // Fetch failed, retry
+    }
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  throw new Error(`Timeout waiting for server at ${url}`);
+}
 
 test.describe('Avalonia CDP E2E Automation - Puppeteer', () => {
   let browser;
   let page;
+  let childProcess;
 
   test.before(async () => {
+    const serverUrl = 'http://127.0.0.1:9222/json/version';
+    
+    // Check if the server is already running (e.g. for local reuse)
+    let alreadyRunning = false;
+    try {
+      const res = await fetch(serverUrl);
+      if (res.ok) {
+        alreadyRunning = true;
+      }
+    } catch (e) {}
+
+    if (!alreadyRunning) {
+      const headless = process.env.HEADLESS !== 'false';
+      const args = [
+        'run',
+        '--project',
+        'samples/CdpSampleApp/CdpSampleApp.csproj'
+      ];
+      if (headless) {
+        args.push('--', '--headless');
+      }
+      
+      childProcess = spawn('dotnet', args, {
+        stdio: 'ignore'
+      });
+
+      // Wait for it to be ready
+      await checkPortReady(serverUrl, 30000);
+    }
+
     // Connect to the running app over CDP
     browser = await puppeteer.connect({
       browserURL: 'http://127.0.0.1:9222',
@@ -41,6 +89,17 @@ test.describe('Avalonia CDP E2E Automation - Puppeteer', () => {
   test.after(async () => {
     if (browser) {
       await browser.disconnect();
+    }
+    if (childProcess) {
+      childProcess.kill('SIGTERM');
+      await new Promise(resolve => {
+        childProcess.on('exit', resolve);
+        // Force kill if it doesn't exit in 2 seconds
+        setTimeout(() => {
+          try { childProcess.kill('SIGKILL'); } catch (e) {}
+          resolve();
+        }, 2000);
+      });
     }
   });
 

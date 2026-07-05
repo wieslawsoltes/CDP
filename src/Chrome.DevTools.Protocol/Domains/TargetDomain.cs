@@ -31,10 +31,31 @@ public static class TargetDomain
                             throw new Exception("Only flattened target attachments are supported. Please set flatten=true.");
                         }
 
+                        bool excludePages = false;
+                        var filterArray = @params["filter"] as JsonArray;
+                        if (filterArray != null)
+                        {
+                            foreach (var f in filterArray)
+                            {
+                                if (f is JsonObject fObj)
+                                {
+                                    if (fObj["type"]?.GetValue<string>() == "page" && fObj["exclude"]?.GetValue<bool>() == true)
+                                    {
+                                        excludePages = true;
+                                    }
+                                }
+                            }
+                        }
+
                         // Attach all current targets
                         var activeTabSession = session.CurrentTargetSession;
                         foreach (var target in CdpServer.GetTargets())
                         {
+                            if (target.Type == "page" && excludePages)
+                            {
+                                continue;
+                            }
+
                             if (target.Type == "page" && activeTabSession != null && activeTabSession.Target.Type == "tab")
                             {
                                 session.AutoAttachTarget(target, activeTabSession);
@@ -223,7 +244,7 @@ public static class TargetDomain
 
             case "getBrowserContexts":
                 {
-                    return new JsonObject { ["browserContextIds"] = new JsonArray() };
+                    return new JsonObject { ["browserContextIds"] = new JsonArray { "1" } };
                 }
 
             default:

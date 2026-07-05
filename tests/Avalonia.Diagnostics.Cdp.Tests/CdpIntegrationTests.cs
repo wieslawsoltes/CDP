@@ -17,6 +17,21 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public class CdpIntegrationTests
 {
+    [AvaloniaFact]
+    public void TestSelectorEngineFindsBtnClickMe()
+    {
+        var window = new Avalonia.Controls.Window();
+        var button = new Avalonia.Controls.Button { Name = "btnClickMe" };
+        var panel = new Avalonia.Controls.StackPanel();
+        panel.Children.Add(button);
+        window.Content = panel;
+        window.Show();
+
+        var foundButton = SelectorEngine.QuerySelector(window, "#btnClickMe");
+        Assert.NotNull(foundButton);
+        Assert.Same(button, foundButton);
+    }
+
     private static int GetFreePort()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
