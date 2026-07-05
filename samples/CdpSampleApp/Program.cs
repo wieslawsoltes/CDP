@@ -21,6 +21,15 @@ class Program
     {
         if (Array.Exists(args, arg => arg.Equals("--headless", StringComparison.OrdinalIgnoreCase)))
         {
+            int port = 9222;
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i].Equals("--port", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                {
+                    int.TryParse(args[i + 1], out port);
+                }
+            }
+
             var builder = AppBuilder.Configure<App>()
                 .WithInterFont()
                 .LogToTrace()
@@ -33,9 +42,9 @@ class Program
             var window = new MainWindow();
             window.Show();
 
-            window.AttachCdpInspector(9222);
+            window.AttachCdpInspector(port);
 
-            Console.WriteLine("Headless app listening on http://127.0.0.1:9222");
+            Console.WriteLine($"Headless app listening on http://127.0.0.1:{port}");
 
             while (true)
             {

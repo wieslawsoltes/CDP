@@ -12,7 +12,12 @@ public class CdpAppiumOptions
     public bool Headless { get; set; } = true;
     public bool StartApp { get; set; } = true;
     public bool StartDriver { get; set; } = true;
-    public string AppiumServerUri { get; set; } = "http://127.0.0.1:4723/";
+    private string? _appiumServerUri;
+    public string AppiumServerUri
+    {
+        get => _appiumServerUri ?? $"http://127.0.0.1:{AppiumPort}/";
+        set => _appiumServerUri = value;
+    }
     public string PlatformName { get; set; } = "Android";
     public string AutomationName { get; set; } = "CDP";
 }

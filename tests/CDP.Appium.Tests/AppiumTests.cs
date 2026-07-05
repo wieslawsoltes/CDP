@@ -11,12 +11,25 @@ using CDP.Automation.Appium;
 
 namespace CDP.Appium.Tests;
 
-public class AppiumTests : IClassFixture<CdpAppiumFixture>
+public class CustomAppiumFixture : CdpAppiumFixture
 {
-    private readonly CdpAppiumFixture _fixture;
+    protected override CdpAppiumOptions GetOptions()
+    {
+        return new CdpAppiumOptions
+        {
+            AppCdpPort = 9224,
+            AppiumPort = 4724,
+            AppArguments = "--port 9224"
+        };
+    }
+}
+
+public class AppiumTests : IClassFixture<CustomAppiumFixture>
+{
+    private readonly CustomAppiumFixture _fixture;
     private readonly AndroidDriver _driver;
 
-    public AppiumTests(CdpAppiumFixture fixture)
+    public AppiumTests(CustomAppiumFixture fixture)
     {
         _fixture = fixture;
         _driver = fixture.Driver ?? throw new InvalidOperationException("Driver was not initialized in fixture.");
