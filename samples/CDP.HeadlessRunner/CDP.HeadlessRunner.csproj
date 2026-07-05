@@ -2,15 +2,32 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <PublishTrimmed>true</PublishTrimmed>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>cdp-runner</ToolCommandName>
+    <PackageId>Chrome.DevTools.Runner</PackageId>
+    <Title>Chrome.DevTools.Runner</Title>
+    <Description>Chrome DevTools Protocol (CDP) headless runner for Avalonia UI applications.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>avalonia;cdp;chrome-devtools-protocol;runner;tool;automation;testing</PackageTags>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Headless" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CdpSampleApp\CdpSampleApp.csproj" />
     <ProjectReference Include="..\..\src\Avalonia.Diagnostics.Cdp\Avalonia.Diagnostics.Cdp.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <!-- Filter out third-party/native non-portable PDBs from the tool package to prevent NuGet publish failures -->
+  <Target Name="FilterToolPackPdbs" AfterTargets="PackTool">
+    <ItemGroup>
+      <_PdbsToRemove Include="@(TfmSpecificPackageFile)" Condition="'%(Extension)' == '.pdb' and '%(Filename)' != 'CDP.HeadlessRunner' and '%(Filename)' != 'Avalonia.Diagnostics.Cdp'" />
+      <TfmSpecificPackageFile Remove="@(_PdbsToRemove)" />
+    </ItemGroup>
+  </Target>
 </Project>
