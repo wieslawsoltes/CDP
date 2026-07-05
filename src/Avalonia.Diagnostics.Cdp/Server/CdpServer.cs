@@ -98,6 +98,7 @@ public static class CdpServer
         CdpDomainRegistry.Register("Audits", (s, a, p) => Domains.AuditsDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("Application", (s, a, p) => Domains.ApplicationDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("Debugger", (s, a, p) => Domains.DebuggerDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("WebMCP", (s, a, p) => Domains.WebMcpDomain.HandleAsync((CdpSession)s, a, p));
 
         Window.WindowOpenedEvent.AddClassHandler<Window>((w, e) =>
         {

@@ -34,6 +34,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     public TopLevel? Window => CurrentTargetSession?.Window ?? _window;
     public NodeMap NodeMap => CurrentTargetSession?.NodeMap ?? _nodeMap;
     public IInputDevice TouchDevice => CurrentTargetSession?.TouchDevice ?? _dummyTouchDevice;
+    public bool UseSlimTree { get; set; }
 
     public static Visual? GetVisualFromObject(object? obj)
     {
@@ -193,6 +194,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
         Domains.CssDomain.CleanupSession(this);
         Domains.PerformanceDomain.CleanupSession(this);
         Domains.RecorderDomain.RemoveSession(this);
+        Domains.WebMcpDomain.CleanupSession(this);
     }
 }
 

@@ -100,6 +100,8 @@ const guideSidebarItems = [
       { text: "AI Agent Integration", link: "/articles/ai-agent-integration" },
       { text: "Chrome DevTools Connection", link: "/articles/chrome-devtools-connection" },
       { text: "Google Model Context Protocol (MCP)", link: "/articles/mcp" },
+      { text: "Native C# MCP Server", link: "/articles/native-mcp-server" },
+      { text: "Slim Mode & WebMCP Tools", link: "/articles/webmcp-and-slimmode" },
       { text: "Playwright Integration", link: "/articles/playwright" },
       { text: "Puppeteer Integration", link: "/articles/puppeteer" },
       { text: "Selenium Integration", link: "/articles/selenium" },

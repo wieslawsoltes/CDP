@@ -161,6 +161,39 @@ cdp-cli logs --type console
 
 ---
 
+### 7. mcp
+Starts the native, stdio-based **Model Context Protocol (MCP)** server. Exposes tools directly to AI client runtimes (e.g. Claude Desktop or Cursor) to inspect the application DOM visual tree, click elements, insert text, and take screenshots.
+
+```bash
+# Start MCP server, connecting to local CDP port 9222 (default)
+cdp-cli mcp --port 9222
+
+# Bind directly using target matching by name
+cdp-cli mcp --target-name "CdpSampleApp"
+```
+
+For more setup details, see [Native C# Model Context Protocol (MCP) Server](/articles/native-mcp-server).
+
+---
+
+### 8. db
+Executes direct raw SQLite SQL statements against the target application's active sqlite capability, and prints the result as an aligned text data grid directly in the terminal console.
+
+```bash
+# Query sqlite tables on target app
+cdp-cli db "SELECT name FROM sqlite_master WHERE type='table'"
+
+# Select records from a specific table database path
+cdp-cli db "SELECT * FROM Users LIMIT 5" --db-path "users.db"
+```
+
+#### Options:
+* `--db-path <path>`: Optional SQLite database file path.
+* `-p, --port <number>`: Target application CDP port.
+
+---
+
+
 ## Exit Codes & Automation Integration
 
 The `cdp-cli` tool follows standard POSIX exit-code conventions, making it easy to integrate into exit-asserting bash scripts and CI/CD pipelines (e.g. GitHub Actions, GitLab CI, Azure Pipelines):

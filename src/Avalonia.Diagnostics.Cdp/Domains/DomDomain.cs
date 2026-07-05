@@ -22,9 +22,14 @@ public static class DomDomain
         switch (action)
         {
             case "enable":
-                session.StartObservingVisualTree();
-                return new JsonObject();
+                {
+                    bool slim = @params["slim"]?.GetValue<bool>() ?? false;
+                    session.UseSlimTree = slim;
+                    session.StartObservingVisualTree();
+                    return new JsonObject();
+                }
             case "disable":
+                session.UseSlimTree = false;
                 session.StopObservingVisualTree();
                 return new JsonObject();
 
@@ -89,7 +94,15 @@ public static class DomDomain
                     }
 
                     var depth = @params["depth"]?.GetValue<int>() ?? 0;
-                    var node = BuildDomNode(targetVisual, session, 0, depth);
+                    JsonObject? node;
+                    if (session.UseSlimTree)
+                    {
+                        node = BuildDomNodeSlim(targetVisual, session, 0, depth) ?? BuildDomNode(targetVisual, session, 0, depth);
+                    }
+                    else
+                    {
+                        node = BuildDomNode(targetVisual, session, 0, depth);
+                    }
 
                     return new JsonObject { ["node"] = node };
                 }
@@ -394,7 +407,14 @@ public static class DomDomain
                     };
                     flatList.Add(docNode);
 
-                    FlattenDomNode(session.Window, session, 1, depth, flatList);
+                    if (session.UseSlimTree)
+                    {
+                        FlattenDomNodeSlim(session.Window, session, 1, depth, flatList);
+                    }
+                    else
+                    {
+                        FlattenDomNode(session.Window, session, 1, depth, flatList);
+                    }
 
                     var nodesJson = new JsonArray();
                     foreach (var n in flatList)
@@ -520,7 +540,18 @@ public static class DomDomain
     private static JsonObject BuildDocumentNode(CdpSession session, int maxDepth)
     {
         var children = new JsonArray();
-        children.Add(BuildDomNode(session.Window, session, 1, maxDepth));
+        if (session.UseSlimTree)
+        {
+            var slimNode = BuildDomNodeSlim(session.Window, session, 1, maxDepth);
+            if (slimNode != null)
+            {
+                children.Add(slimNode);
+            }
+        }
+        else
+        {
+            children.Add(BuildDomNode(session.Window, session, 1, maxDepth));
+        }
 
         return new JsonObject
         {
@@ -602,9 +633,23 @@ public static class DomDomain
         if (visual == null) return;
 
         var nodesJson = new JsonArray();
-        foreach (var child in GetChildren(visual, session))
+        if (session.UseSlimTree)
         {
-            nodesJson.Add(BuildDomNode(child, session, 1, depth));
+            foreach (var child in GetChildren(visual, session))
+            {
+                var slimNode = BuildDomNodeSlim(child, session, 1, depth);
+                if (slimNode != null)
+                {
+                    nodesJson.Add(slimNode);
+                }
+            }
+        }
+        else
+        {
+            foreach (var child in GetChildren(visual, session))
+            {
+                nodesJson.Add(BuildDomNode(child, session, 1, depth));
+            }
         }
 
         var notification = new JsonObject
@@ -1099,5 +1144,167 @@ public static class DomDomain
             }
         }
         return attributes;
+    }
+
+    public static bool IsSlimTarget(Visual visual)
+    {
+        if (visual == null) return false;
+        if (visual is TopLevel) return true;
+
+        if (visual is Control control)
+        {
+            if (control.Focusable) return true;
+
+            if (control is Button ||
+                control is TextBox ||
+                control is CheckBox ||
+                control is RadioButton ||
+                control is ComboBox ||
+                control is ListBox ||
+                control is ListBoxItem ||
+                control is TabItem ||
+                control is TreeViewItem ||
+                control is MenuItem ||
+                control is Slider ||
+                control is ToggleButton ||
+                control is ScrollBar ||
+                control is ScrollViewer ||
+                control is AutoCompleteBox ||
+                control is NumericUpDown ||
+                control is TextBlock ||
+                control is Label)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasSlimDescendant(Visual visual, CdpSession session)
+    {
+        foreach (var child in GetChildren(visual, session))
+        {
+            if (IsSlimTarget(child) || HasSlimDescendant(child, session))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static JsonObject? BuildDomNodeSlim(Visual visual, CdpSession session, int currentDepth, int maxDepth)
+    {
+        if (visual == null) return null;
+
+        bool isTarget = IsSlimTarget(visual);
+        bool hasDescendant = HasSlimDescendant(visual, session);
+
+        if (!isTarget && !hasDescendant)
+        {
+            return null;
+        }
+
+        int nodeId = session.NodeMap.GetOrAdd(visual);
+        var children = GetChildren(visual, session).ToList();
+        var childrenJson = new JsonArray();
+
+        bool recursive = maxDepth == -1 || currentDepth < maxDepth;
+        int activeChildCount = 0;
+
+        foreach (var child in children)
+        {
+            if (IsSlimTarget(child) || HasSlimDescendant(child, session))
+            {
+                activeChildCount++;
+                if (recursive)
+                {
+                    var childNode = BuildDomNodeSlim(child, session, currentDepth + 1, maxDepth);
+                    if (childNode != null)
+                    {
+                        childrenJson.Add(childNode);
+                    }
+                }
+            }
+        }
+
+        var attributes = BuildAttributes(visual);
+
+        var node = new JsonObject
+        {
+            ["nodeId"] = nodeId,
+            ["backendNodeId"] = nodeId,
+            ["nodeType"] = 1,
+            ["nodeName"] = GetMappedTagName(visual),
+            ["localName"] = GetLocalName(visual),
+            ["nodeValue"] = "",
+            ["childNodeCount"] = activeChildCount,
+            ["attributes"] = attributes,
+            ["frameId"] = session.Target?.Id ?? "main-frame-id"
+        };
+
+        if (childrenJson.Count > 0)
+        {
+            node["children"] = childrenJson;
+        }
+
+        return node;
+    }
+
+    private static void FlattenDomNodeSlim(Visual visual, CdpSession session, int currentDepth, int maxDepth, List<JsonObject> flatList)
+    {
+        if (visual == null) return;
+
+        bool isTarget = IsSlimTarget(visual);
+        bool hasDescendant = HasSlimDescendant(visual, session);
+        if (!isTarget && !hasDescendant)
+        {
+            return;
+        }
+
+        int nodeId = session.NodeMap.GetOrAdd(visual);
+        var children = GetChildren(visual, session).ToList();
+        var childIds = new JsonArray();
+        foreach (var child in children)
+        {
+            if (IsSlimTarget(child) || HasSlimDescendant(child, session))
+            {
+                childIds.Add(session.NodeMap.GetOrAdd(child));
+            }
+        }
+
+        var attributes = BuildAttributes(visual);
+        var parent = GetParent(visual, session);
+        var node = new JsonObject
+        {
+            ["nodeId"] = nodeId,
+            ["parentId"] = parent != null ? session.NodeMap.GetOrAdd(parent) : 1,
+            ["backendNodeId"] = nodeId,
+            ["nodeType"] = 1,
+            ["nodeName"] = GetMappedTagName(visual),
+            ["localName"] = GetLocalName(visual),
+            ["nodeValue"] = "",
+            ["childNodeCount"] = childIds.Count,
+            ["attributes"] = attributes
+        };
+
+        if (childIds.Count > 0)
+        {
+            node["childIds"] = childIds;
+        }
+
+        flatList.Add(node);
+
+        bool recursive = maxDepth == -1 || currentDepth < maxDepth;
+        if (recursive)
+        {
+            foreach (var child in children)
+            {
+                if (IsSlimTarget(child) || HasSlimDescendant(child, session))
+                {
+                    FlattenDomNodeSlim(child, session, currentDepth + 1, maxDepth, flatList);
+                }
+            }
+        }
     }
 }
