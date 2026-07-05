@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const puppeteer = require('puppeteer');
 const { spawn } = require('node:child_process');
+const fs = require('node:fs');
 
 async function checkPortReady(url, timeout = 30000) {
   const startTime = Date.now();
@@ -47,8 +48,9 @@ test.describe('Avalonia CDP E2E Automation - Puppeteer', () => {
         args.push('--', '--headless');
       }
       
+      const logFile = fs.openSync('puppeteer-webserver.log', 'w');
       childProcess = spawn('dotnet', args, {
-        stdio: 'ignore'
+        stdio: ['ignore', logFile, logFile]
       });
 
       // Wait for it to be ready
