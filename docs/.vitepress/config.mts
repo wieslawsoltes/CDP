@@ -103,6 +103,7 @@ const guideSidebarItems = [
       { text: "Playwright Integration", link: "/articles/playwright" },
       { text: "Puppeteer Integration", link: "/articles/puppeteer" },
       { text: "Selenium Integration", link: "/articles/selenium" },
+      { text: "YAML Conversion", link: "/articles/yaml-conversion" },
       { text: "Headless CDP Testing", link: "/articles/headless-cdp-testing" },
       { text: "Multi-Framework CDP Integration", link: "/articles/multi-framework-cdp" },
       { text: "Self-Inspection", link: "/articles/self-inspection" }

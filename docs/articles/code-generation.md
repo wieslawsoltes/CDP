@@ -32,7 +32,11 @@ Each generator implements the `ICodeGenerator` interface:
 ```csharp
 public interface ICodeGenerator
 {
-    string Generate(IReadOnlyList<TestStudioStepModel> steps);
+    RecordingFormat Format { get; }
+    string TabHeader { get; }
+    string TitleText { get; }
+    string ExportButtonText { get; }
+    string Generate(IEnumerable<RecordedStep> steps, string hostAddress);
 }
 ```
 
@@ -42,6 +46,12 @@ Available generators:
 - `SeleniumCSharpGenerator`
 - `AppiumCSharpGenerator`
 - `AvaloniaHeadlessXUnitGenerator`
+
+### Generating from YAML Recordings
+
+You can also generate scripts directly from visual test recordings saved in YAML format. The conversion is performed by translating parsed flow steps into standard `RecordedStep` elements first.
+
+For code examples and mapping details, see the [YAML Test Recording Conversion Guide](/articles/yaml-conversion).
 
 ---
 
