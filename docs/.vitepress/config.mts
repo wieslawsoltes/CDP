@@ -101,6 +101,8 @@ const guideSidebarItems = [
       { text: "Chrome DevTools Connection", link: "/articles/chrome-devtools-connection" },
       { text: "Google Model Context Protocol (MCP)", link: "/articles/mcp" },
       { text: "Playwright Integration", link: "/articles/playwright" },
+      { text: "Puppeteer Integration", link: "/articles/puppeteer" },
+      { text: "Selenium Integration", link: "/articles/selenium" },
       { text: "Headless CDP Testing", link: "/articles/headless-cdp-testing" },
       { text: "Multi-Framework CDP Integration", link: "/articles/multi-framework-cdp" },
       { text: "Self-Inspection", link: "/articles/self-inspection" }
