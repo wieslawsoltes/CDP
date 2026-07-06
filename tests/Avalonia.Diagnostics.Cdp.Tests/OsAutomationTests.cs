@@ -797,7 +797,10 @@ public class OsAutomationTests
         });
 
         // Let simulation run asynchronously
-        await Task.Delay(500);
+        for (int i = 0; i < 30 && (requestsSent == 0 || responsesReceived == 0 || loadingFinished == 0); i++)
+        {
+            await Task.Delay(100);
+        }
 
         Assert.True(requestsSent > 0, "Network.requestWillBeSent not fired");
         Assert.True(responsesReceived > 0, "Network.responseReceived not fired");
@@ -830,7 +833,10 @@ public class OsAutomationTests
             ["button"] = "left"
         });
 
-        await Task.Delay(100);
+        for (int i = 0; i < 30 && (requestsSent2 == 0 || loadingFailed2 == 0); i++)
+        {
+            await Task.Delay(100);
+        }
         Assert.True(requestsSent2 > 0);
         Assert.True(loadingFailed2 > 0);
 
