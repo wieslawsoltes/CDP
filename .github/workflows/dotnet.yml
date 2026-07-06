@@ -112,6 +112,7 @@ jobs:
     - name: Build Windows MSI Installer
       shell: cmd
       run: |
+        if not exist artifacts mkdir artifacts
         candle -arch x64 -dPublishDir=publish\win-x64 -dVersion=1.0.0 samples\CdpInspectorApp\cdp-inspector.wxs -o publish\win-x64\cdp-inspector.wixobj
         light publish\win-x64\cdp-inspector.wixobj -o artifacts\cdp-inspector-win-x64.msi
 
