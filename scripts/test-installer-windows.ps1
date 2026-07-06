@@ -11,11 +11,17 @@ $MsiPath = [System.IO.Path]::GetFullPath($MsiPath)
 Write-Host "Resolved MSI absolute path: $MsiPath"
 
 Write-Host "Installing $MsiPath..."
-$installProcess = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" /qn /norestart /L*v msi-install.log" -NoNewWindow -PassThru
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = "msiexec.exe"
+$psi.Arguments = "/i `"$MsiPath`" /qn /norestart /L*v msi-install.log"
+$psi.UseShellExecute = $false
+$psi.CreateNoWindow = $true
+
+$installProcess = [System.Diagnostics.Process]::Start($psi)
 $exited = $installProcess.WaitForExit(120000)
 if (-not $exited) {
     Write-Error "msiexec install timed out after 120 seconds. Terminating process."
-    Stop-Process -Id $installProcess.Id -Force
+    $installProcess.Kill()
     if (Test-Path msi-install.log) {
         Write-Host "msiexec install log content:"
         Get-Content msi-install.log -Tail 100
@@ -23,7 +29,6 @@ if (-not $exited) {
     exit 1
 }
 
-$installProcess.Refresh()
 $exitCode = $installProcess.ExitCode
 Write-Host "msiexec install exited with code: $exitCode"
 
@@ -77,11 +82,17 @@ if (-not $success) {
 }
 
 Write-Host "Uninstalling package..."
-$uninstallProcess = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" /qn /norestart /L*v msi-uninstall.log" -NoNewWindow -PassThru
+$psiUninstall = New-Object System.Diagnostics.ProcessStartInfo
+$psiUninstall.FileName = "msiexec.exe"
+$psiUninstall.Arguments = "/x `"$MsiPath`" /qn /norestart /L*v msi-uninstall.log"
+$psiUninstall.UseShellExecute = $false
+$psiUninstall.CreateNoWindow = $true
+
+$uninstallProcess = [System.Diagnostics.Process]::Start($psiUninstall)
 $exited = $uninstallProcess.WaitForExit(120000)
 if (-not $exited) {
     Write-Error "msiexec uninstall timed out after 120 seconds. Terminating process."
-    Stop-Process -Id $uninstallProcess.Id -Force
+    $uninstallProcess.Kill()
     if (Test-Path msi-uninstall.log) {
         Write-Host "msiexec uninstall log content:"
         Get-Content msi-uninstall.log -Tail 100
@@ -89,7 +100,6 @@ if (-not $exited) {
     exit 1
 }
 
-$uninstallProcess.Refresh()
 $exitCode = $uninstallProcess.ExitCode
 Write-Host "msiexec uninstall exited with code: $exitCode"
 
