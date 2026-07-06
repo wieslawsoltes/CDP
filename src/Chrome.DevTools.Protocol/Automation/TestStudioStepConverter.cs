@@ -50,6 +50,8 @@ public static class TestStudioStepConverter
             recStep.Type = "clear";
         else if (action.Equals("pressKey", StringComparison.OrdinalIgnoreCase)) 
             recStep.Type = "pressKey";
+        else if (action.Equals("openLink", StringComparison.OrdinalIgnoreCase))
+            recStep.Type = "navigate";
         else 
             recStep.Type = action;
 
