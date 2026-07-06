@@ -202,4 +202,57 @@ public class WorkspaceCodeGenTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void Test_WorkspaceCodeGen_EnvironmentInterpolation()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+
+            // Setup active SelectedEnvironment mock variables
+            var testEnv = new TestEnvironmentModel { Name = "Staging" };
+            testEnv.Variables.Add(new EnvironmentVariableModel { Key = "baseUrl", Value = "https://staging.example.com" });
+            testEnv.Variables.Add(new EnvironmentVariableModel { Key = "userId", Value = "user_426" });
+            vm.Environments.Add(testEnv);
+            vm.SelectedEnvironment = testEnv;
+
+            // Create scenario file using local env override and placeholders
+            var yamlFile = Path.Combine(tempDir, "profile.yaml");
+            File.WriteAllText(yamlFile, 
+@"appId: ""testApp""
+description: ""desc""
+env:
+  suffix: ""_profile""
+---
+- openLink: ""${baseUrl}/dashboard""
+- inputText: ""User ID: ${userId}${suffix}""
+  selector: ""#userIdInput""
+");
+
+            // Configure code generation format
+            vm.CodeGenPuppeteerEnabled = true;
+            vm.CodeGenPuppeteerPath = "codegen/puppeteer";
+            vm.CodeGenPuppeteerRelative = true;
+
+            // Trigger generation
+            vm.GenerateAllCodeCommand.Execute(null);
+
+            var expectedFile = Path.Combine(tempDir, "codegen/puppeteer", "profile.js");
+            Assert.True(File.Exists(expectedFile));
+
+            var jsContent = File.ReadAllText(expectedFile);
+            // Assert placeholders are correctly resolved before generation
+            Assert.Contains("https://staging.example.com/dashboard", jsContent);
+            Assert.Contains("User ID: user_426_profile", jsContent);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

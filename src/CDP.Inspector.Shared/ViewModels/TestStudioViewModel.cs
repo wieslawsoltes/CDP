@@ -5509,7 +5509,8 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         try
         {
             var content = File.ReadAllText(file);
-            var steps = TestStudioStepConverter.ConvertYamlToRecordedSteps(content);
+            var activeEnv = GetCombinedEnvironment();
+            var steps = TestStudioStepConverter.ConvertYamlToRecordedSteps(content, activeEnv);
             if (steps == null || steps.Count == 0) return;
 
             string hostAddress = Connection?.GeneratorHostAddress ?? "http://localhost:9222/";
