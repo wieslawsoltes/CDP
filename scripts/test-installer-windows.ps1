@@ -11,7 +11,18 @@ $MsiPath = [System.IO.Path]::GetFullPath($MsiPath)
 Write-Host "Resolved MSI absolute path: $MsiPath"
 
 Write-Host "Installing $MsiPath..."
-$installProcess = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" /qn /norestart /L*v msi-install.log" -NoNewWindow -PassThru -Wait
+$installProcess = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" /qn /norestart /L*v msi-install.log" -NoNewWindow -PassThru
+$exited = $installProcess.WaitForExit(120000)
+if (-not $exited) {
+    Write-Error "msiexec install timed out after 120 seconds. Terminating process."
+    Stop-Process -Id $installProcess.Id -Force
+    if (Test-Path msi-install.log) {
+        Write-Host "msiexec install log content:"
+        Get-Content msi-install.log -Tail 100
+    }
+    exit 1
+}
+
 $exitCode = $installProcess.ExitCode
 Write-Host "msiexec install exited with code: $exitCode"
 
@@ -56,6 +67,8 @@ for ($i = 1; $i -le 30; $i++) {
 
 Write-Host "Terminating CdpInspectorApp process..."
 Stop-Process -Id $proc.Id -Force
+Write-Host "Waiting 5 seconds for file locks to release..."
+Start-Sleep -Seconds 5
 
 if (-not $success) {
     Write-Error "CDP server did not respond within timeout!"
@@ -63,7 +76,18 @@ if (-not $success) {
 }
 
 Write-Host "Uninstalling package..."
-$uninstallProcess = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" /qn /norestart /L*v msi-uninstall.log" -NoNewWindow -PassThru -Wait
+$uninstallProcess = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" /qn /norestart /L*v msi-uninstall.log" -NoNewWindow -PassThru
+$exited = $uninstallProcess.WaitForExit(120000)
+if (-not $exited) {
+    Write-Error "msiexec uninstall timed out after 120 seconds. Terminating process."
+    Stop-Process -Id $uninstallProcess.Id -Force
+    if (Test-Path msi-uninstall.log) {
+        Write-Host "msiexec uninstall log content:"
+        Get-Content msi-uninstall.log -Tail 100
+    }
+    exit 1
+}
+
 $exitCode = $uninstallProcess.ExitCode
 Write-Host "msiexec uninstall exited with code: $exitCode"
 
