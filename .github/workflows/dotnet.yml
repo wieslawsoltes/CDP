@@ -7,12 +7,13 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build:
-    name: Build & Test
+  build-linux:
+    name: Build & Test (Linux)
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -29,7 +30,7 @@ jobs:
       run: dotnet build --no-restore --configuration Release
 
     - name: Test
-      run: dotnet test --no-build --configuration Release --verbosity normal
+      run: dotnet test --no-restore --configuration Release --verbosity normal
 
     - name: Publish Linux Executable
       run: |
@@ -48,10 +49,112 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: test-logs
+        name: linux-test-logs
         path: |
-          **/chromedriver.log
-          **/playwright-webserver.log
           **/*.log
           **/*.png
           **/*.html
+
+  build-macos:
+    name: Build & Test (macOS)
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
+
+    - name: Publish macOS ARM64 Executable
+      run: |
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-arm64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
+
+    - name: Build macOS DMG
+      run: |
+        bash scripts/build-dmg.sh --publish-dir ./publish/osx-arm64 --version 1.0.0-pr --output ./artifacts
+
+    - name: Run macOS DMG Installer Integration Test
+      run: |
+        bash scripts/test-installer-macos.sh ./artifacts/cdp-inspector-osx.dmg
+
+    - name: Upload Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-test-logs
+        path: |
+          **/*.log
+          **/*.png
+          **/*.html
+
+  build-windows:
+    name: Build & Test (Windows)
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
+
+    - name: Publish Windows Executable
+      shell: pwsh
+      run: |
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
+
+    - name: Build Windows MSI Installer
+      shell: cmd
+      run: |
+        candle -arch x64 -dPublishDir=publish\win-x64 -dVersion=1.0.0 samples\CdpInspectorApp\cdp-inspector.wxs -o publish\win-x64\cdp-inspector.wixobj
+        light publish\win-x64\cdp-inspector.wixobj -o artifacts\cdp-inspector-win-x64.msi
+
+    - name: Run Windows MSI Installer Integration Test
+      shell: pwsh
+      run: |
+        powershell -File scripts/test-installer-windows.ps1 -MsiPath artifacts/cdp-inspector-win-x64.msi
+
+    - name: Upload Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-test-logs
+        path: |
+          **/*.log
+          **/*.png
+          **/*.html
+
+  pack-nuget:
+    name: Pack NuGet
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Install WASM Tools workload
+      run: dotnet workload install wasm-tools
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Pack NuGet Packages
+      shell: bash
+      run: |
+        bash scripts/pack-nuget.sh --configuration Release --output artifacts --version 1.0.0-pr
