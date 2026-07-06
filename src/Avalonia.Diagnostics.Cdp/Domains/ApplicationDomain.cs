@@ -66,7 +66,7 @@ public static class ApplicationDomain
                     }
 
                     var tables = new System.Collections.Generic.List<string>();
-                    using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+                    using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
                     {
                         connection.Open();
                         using (var command = connection.CreateCommand())
