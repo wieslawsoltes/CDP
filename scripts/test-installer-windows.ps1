@@ -7,6 +7,9 @@ if (-not $MsiPath) {
     exit 1
 }
 
+$MsiPath = [System.IO.Path]::GetFullPath($MsiPath)
+Write-Host "Resolved MSI absolute path: $MsiPath"
+
 Write-Host "Installing $MsiPath..."
 $timeoutSec = 120
 $installProcess = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" /qn /norestart /L*v msi-install.log" -NoNewWindow -PassThru
