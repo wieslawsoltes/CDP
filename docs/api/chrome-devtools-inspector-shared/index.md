@@ -32,7 +32,8 @@ Shared UI components and view models for the CDP Inspector client.
 | --- | --- | --- |
 | `Accordion` | class | [`src/CDP.Inspector.Shared/Controls/Accordion.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/Accordion.cs) |
 | `AccordionItem` | class | [`src/CDP.Inspector.Shared/Controls/Accordion.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/Accordion.cs) |
-| `ChromeTimelineChart` | class | [`src/CDP.Inspector.Shared/Controls/ChromeTimelineChart.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/ChromeTimelineChart.cs) |
+| `CpuPieChart` | class | [`src/CDP.Inspector.Shared/Controls/CpuPieChart.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/CpuPieChart.cs) |
+| `TimelineChart` | class | [`src/CDP.Inspector.Shared/Controls/TimelineChart.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/TimelineChart.cs) |
 | `EditableComboBox` | class | [`src/CDP.Inspector.Shared/Controls/EditableComboBox.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/EditableComboBox.cs) |
 | `PreviewHighlightOverlay` | class | [`src/CDP.Inspector.Shared/Controls/PreviewHighlightOverlay.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/PreviewHighlightOverlay.cs) |
 | `WaterfallBar` | class | [`src/CDP.Inspector.Shared/Controls/WaterfallBar.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/WaterfallBar.cs) |
