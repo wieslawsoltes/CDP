@@ -23,6 +23,7 @@ if (-not $exited) {
     exit 1
 }
 
+$installProcess.Refresh()
 $exitCode = $installProcess.ExitCode
 Write-Host "msiexec install exited with code: $exitCode"
 
@@ -88,6 +89,7 @@ if (-not $exited) {
     exit 1
 }
 
+$uninstallProcess.Refresh()
 $exitCode = $uninstallProcess.ExitCode
 Write-Host "msiexec uninstall exited with code: $exitCode"
 
