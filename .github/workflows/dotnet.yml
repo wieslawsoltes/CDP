@@ -31,6 +31,18 @@ jobs:
     - name: Test
       run: dotnet test --no-build --configuration Release --verbosity normal
 
+    - name: Publish Linux Executable
+      run: |
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r linux-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
+
+    - name: Build DEB Package
+      run: |
+        bash scripts/build-deb.sh --publish-dir ./publish/linux-x64 --version 1.0.0-pr --output ./artifacts
+
+    - name: Run DEB Installer Integration Test
+      run: |
+        bash scripts/test-installer-linux.sh ./artifacts/cdp-inspector_1.0.0-pr_amd64.deb
+
     - name: Upload Logs on Failure
       if: failure()
       uses: actions/upload-artifact@v4

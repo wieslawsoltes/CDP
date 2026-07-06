@@ -7,37 +7,41 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
-    name: Build, Test, Package & Release
+  version:
+    name: Validate version tag
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    env:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-
+    outputs:
+      VERSION: ${{ steps.version.outputs.VERSION }}
     steps:
-    - uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: 10.0.x
-
     - name: Validate release tag
       id: version
       shell: bash
       run: |
         set -euo pipefail
-        version="${GITHUB_REF_NAME#v}"
-        if [[ ! "${version}" =~ ^[0-9]+(\.[0-9]+){2}(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
-          echo "::error::Release tags must use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease, got ${GITHUB_REF_NAME}"
-          exit 1
+        if [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+ ]]; then
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "${version}" =~ ^[0-9]+(\.[0-9]+){2}(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "::error::Release tags must use vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease, got ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          echo "VERSION=${version}" >> "$GITHUB_OUTPUT"
+        else
+          echo "VERSION=1.0.0-dispatch" >> "$GITHUB_OUTPUT"
         fi
-        echo "VERSION=${version}" >> "$GITHUB_OUTPUT"
 
+  build-linux:
+    name: Build & Test (Linux)
+    runs-on: ubuntu-latest
+    needs: version
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
 
     - name: Install WASM Tools workload
       run: dotnet workload install wasm-tools
@@ -51,30 +55,51 @@ jobs:
     - name: Test
       run: dotnet test --no-restore --configuration Release --verbosity normal
 
-    # 1. Pack NuGet Packages
-    - name: Pack NuGet Packages
-      shell: bash
-      run: bash scripts/pack-nuget.sh --configuration Release --output artifacts --version "${{ steps.version.outputs.VERSION }}"
-
-
-    # 2. Publish Single-File Executables for multiple platforms
-    - name: Publish Windows x64 Executable
-      run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
-        cd ./publish/win-x64
-        zip -r ../../artifacts/cdp-inspector-win-x64.zip CdpInspectorApp.exe
-        cd ../..
-
-    - name: Publish Linux x64 Executable
+    - name: Publish Linux Executable
       run: |
         dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r linux-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
+        mkdir -p artifacts
         cd ./publish/linux-x64
         tar -czf ../../artifacts/cdp-inspector-linux-x64.tar.gz CdpInspectorApp
         cd ../..
 
+    - name: Build DEB package
+      run: |
+        bash scripts/build-deb.sh --publish-dir ./publish/linux-x64 --version "${{ needs.version.outputs.VERSION }}" --output ./artifacts
+
+    - name: Run DEB Installer Integration Test
+      run: |
+        bash scripts/test-installer-linux.sh ./artifacts/cdp-inspector_${{ needs.version.outputs.VERSION }}_amd64.deb
+
+    - name: Upload Linux Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-artifacts
+        path: |
+          artifacts/cdp-inspector-linux-x64.tar.gz
+          artifacts/cdp-inspector_${{ needs.version.outputs.VERSION }}_amd64.deb
+
+  build-macos:
+    name: Build & Test (macOS)
+    runs-on: macos-14
+    needs: version
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore
+
     - name: Publish macOS x64 Executable
       run: |
         dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-x64
+        mkdir -p artifacts
         cd ./publish/osx-x64
         tar -czf ../../artifacts/cdp-inspector-osx-x64.tar.gz CdpInspectorApp
         cd ../..
@@ -82,26 +107,152 @@ jobs:
     - name: Publish macOS ARM64 Executable
       run: |
         dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-arm64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
+        mkdir -p artifacts
         cd ./publish/osx-arm64
         tar -czf ../../artifacts/cdp-inspector-osx-arm64.tar.gz CdpInspectorApp
         cd ../..
 
-    # 3. Create GitHub Release and Upload Assets
+    - name: Build macOS DMGs
+      run: |
+        # Build x64 DMG
+        bash scripts/build-dmg.sh --publish-dir ./publish/osx-x64 --version "${{ needs.version.outputs.VERSION }}" --output ./artifacts
+        mv artifacts/cdp-inspector-osx.dmg artifacts/cdp-inspector-osx-x64.dmg
+        
+        # Build arm64 DMG
+        bash scripts/build-dmg.sh --publish-dir ./publish/osx-arm64 --version "${{ needs.version.outputs.VERSION }}" --output ./artifacts
+        mv artifacts/cdp-inspector-osx.dmg artifacts/cdp-inspector-osx-arm64.dmg
+
+    - name: Run macOS DMG Installer Integration Test
+      run: |
+        bash scripts/test-installer-macos.sh ./artifacts/cdp-inspector-osx-arm64.dmg
+
+    - name: Upload macOS Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-artifacts
+        path: |
+          artifacts/cdp-inspector-osx-x64.tar.gz
+          artifacts/cdp-inspector-osx-arm64.tar.gz
+          artifacts/cdp-inspector-osx-x64.dmg
+          artifacts/cdp-inspector-osx-arm64.dmg
+
+  build-windows:
+    name: Build & Test (Windows)
+    runs-on: windows-latest
+    needs: version
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Publish Windows Executable
+      shell: pwsh
+      run: |
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
+        New-Item -ItemType Directory -Force -Path artifacts
+        Compress-Archive -Path publish/win-x64/CdpInspectorApp.exe -DestinationPath artifacts/cdp-inspector-win-x64.zip -Force
+
+    - name: Build Windows MSI Installer
+      shell: cmd
+      run: |
+        candle -dPublishDir=publish\win-x64 samples\CdpInspectorApp\cdp-inspector.wxs -o publish\win-x64\cdp-inspector.wixobj
+        light publish\win-x64\cdp-inspector.wixobj -o artifacts\cdp-inspector-win-x64.msi
+
+    - name: Run Windows MSI Installer Integration Test
+      shell: pwsh
+      run: |
+        powershell -File scripts/test-installer-windows.ps1 -MsiPath artifacts/cdp-inspector-win-x64.msi
+
+    - name: Upload Windows Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-artifacts
+        path: |
+          artifacts/cdp-inspector-win-x64.zip
+          artifacts/cdp-inspector-win-x64.msi
+
+  pack-nuget:
+    name: Pack NuGet
+    runs-on: ubuntu-latest
+    needs: version
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Install WASM Tools workload
+      run: dotnet workload install wasm-tools
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Pack NuGet Packages
+      shell: bash
+      run: |
+        bash scripts/pack-nuget.sh --configuration Release --output artifacts --version "${{ needs.version.outputs.VERSION }}"
+
+    - name: Upload NuGet Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-artifacts
+        path: artifacts/*.nupkg
+
+  release:
+    name: Create GitHub Release & Publish
+    runs-on: ubuntu-latest
+    needs: [version, build-linux, build-macos, build-windows, pack-nuget]
+    permissions:
+      contents: write
+      packages: write
+    env:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
     - name: Create Release
-      uses: softprops/action-gh-release@v3
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           artifacts/cdp-inspector-win-x64.zip
+          artifacts/cdp-inspector-win-x64.msi
           artifacts/cdp-inspector-linux-x64.tar.gz
+          artifacts/cdp-inspector_${{ needs.version.outputs.VERSION }}_amd64.deb
           artifacts/cdp-inspector-osx-x64.tar.gz
           artifacts/cdp-inspector-osx-arm64.tar.gz
+          artifacts/cdp-inspector-osx-x64.dmg
+          artifacts/cdp-inspector-osx-arm64.dmg
           artifacts/*.nupkg
         draft: false
         prerelease: ${{ contains(github.ref_name, '-') }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # 4. Push to NuGet (if NUGET_API_KEY secret is provided)
     - name: Push to NuGet
       if: env.NUGET_API_KEY != ''
       shell: bash
