@@ -67,36 +67,75 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
                 string buttonEnum = GetMouseButton(step.Button);
                 string modifiersEnum = GetModifiersEnum(step.Modifiers);
 
-                sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
-                sb.AppendLine($"            Assert.NotNull(element_{i});");
-                if (step.ClickCount > 1)
+                if (string.IsNullOrEmpty(step.Selector))
                 {
-                    sb.AppendLine($"            for (int c_{i} = 0; c_{i} < {step.ClickCount}; c_{i}++)");
-                    sb.AppendLine($"            {{");
-                    sb.AppendLine($"                window.ClickControl(element_{i}, {buttonEnum}, {modifiersEnum});");
-                    sb.AppendLine($"            }}");
+                    var coords = ParseCoords(step.Value);
+                    if (coords != null)
+                    {
+                        sb.AppendLine($"            window.MouseDown(new Point({coords.Value.x}, {coords.Value.y}), {buttonEnum}, {modifiersEnum});");
+                        sb.AppendLine($"            window.MouseUp(new Point({coords.Value.x}, {coords.Value.y}), {buttonEnum}, {modifiersEnum});");
+                    }
                 }
                 else
                 {
-                    sb.AppendLine($"            window.ClickControl(element_{i}, {buttonEnum}, {modifiersEnum});");
+                    sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                    sb.AppendLine($"            Assert.NotNull(element_{i});");
+                    if (step.ClickCount > 1)
+                    {
+                        sb.AppendLine($"            for (int c_{i} = 0; c_{i} < {step.ClickCount}; c_{i}++)");
+                        sb.AppendLine($"            {{");
+                        sb.AppendLine($"                window.ClickControl(element_{i}, {buttonEnum}, {modifiersEnum});");
+                        sb.AppendLine($"            }}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            window.ClickControl(element_{i}, {buttonEnum}, {modifiersEnum});");
+                    }
                 }
             }
             else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")
             {
                 string selectorEscaped = EscapeCSharpString(step.Selector);
 
-                sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
-                sb.AppendLine($"            Assert.NotNull(element_{i});");
-                sb.AppendLine($"            window.ClickControl(element_{i}, MouseButton.Left, RawInputModifiers.None);");
-                sb.AppendLine($"            window.ClickControl(element_{i}, MouseButton.Left, RawInputModifiers.None);");
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    var coords = ParseCoords(step.Value);
+                    if (coords != null)
+                    {
+                        sb.AppendLine($"            window.MouseDown(new Point({coords.Value.x}, {coords.Value.y}), MouseButton.Left, RawInputModifiers.None);");
+                        sb.AppendLine($"            window.MouseUp(new Point({coords.Value.x}, {coords.Value.y}), MouseButton.Left, RawInputModifiers.None);");
+                        sb.AppendLine($"            window.MouseDown(new Point({coords.Value.x}, {coords.Value.y}), MouseButton.Left, RawInputModifiers.None);");
+                        sb.AppendLine($"            window.MouseUp(new Point({coords.Value.x}, {coords.Value.y}), MouseButton.Left, RawInputModifiers.None);");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                    sb.AppendLine($"            Assert.NotNull(element_{i});");
+                    sb.AppendLine($"            window.ClickControl(element_{i}, MouseButton.Left, RawInputModifiers.None);");
+                    sb.AppendLine($"            window.ClickControl(element_{i}, MouseButton.Left, RawInputModifiers.None);");
+                }
             }
             else if (step.Type == "longPress" || step.Type == "longPressOn")
             {
                 string selectorEscaped = EscapeCSharpString(step.Selector);
 
-                sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
-                sb.AppendLine($"            Assert.NotNull(element_{i});");
-                sb.AppendLine($"            await window.LongPressControlAsync(element_{i}, 1000);");
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    var coords = ParseCoords(step.Value);
+                    if (coords != null)
+                    {
+                        sb.AppendLine($"            window.MouseDown(new Point({coords.Value.x}, {coords.Value.y}), MouseButton.Left, RawInputModifiers.None);");
+                        sb.AppendLine($"            await Task.Delay(1000);");
+                        sb.AppendLine($"            window.MouseUp(new Point({coords.Value.x}, {coords.Value.y}), MouseButton.Left, RawInputModifiers.None);");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                    sb.AppendLine($"            Assert.NotNull(element_{i});");
+                    sb.AppendLine($"            await window.LongPressControlAsync(element_{i}, 1000);");
+                }
             }
             else if (step.Type == "back")
             {
@@ -406,6 +445,33 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
         }
 
         return "Key.None";
+    }
+
+    private static (double x, double y)? ParseCoords(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return null;
+        var parts = value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 2)
+        {
+            var xVal = ExtractNumber(parts[0]);
+            var yVal = ExtractNumber(parts[1]);
+            if (double.TryParse(xVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double x) &&
+                double.TryParse(yVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double y))
+            {
+                return (x, y);
+            }
+        }
+        return null;
+    }
+
+    private static string ExtractNumber(string input)
+    {
+        int idx = input.IndexOfAny(new[] { ':', '=' });
+        if (idx >= 0)
+        {
+            input = input.Substring(idx + 1).Trim();
+        }
+        return input.Trim(' ', '"', '\'', '{', '}');
     }
 
     private static string EscapeCSharpString(string? value)
