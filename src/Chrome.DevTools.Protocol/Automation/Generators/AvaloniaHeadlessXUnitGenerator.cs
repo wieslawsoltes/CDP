@@ -320,6 +320,10 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
                     sb.AppendLine($"            // Unsupported assertion expression: {EscapeCSharpString(expr)}");
                 }
             }
+            else
+            {
+                sb.AppendLine($"            // Warning: Unsupported step type '{step.Type}'");
+            }
             sb.AppendLine();
         }
 

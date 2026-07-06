@@ -206,6 +206,10 @@ public class PuppeteerGenerator : ICodeGenerator
                 sb.AppendLine($"  const result_{i} = await page.evaluate('{EscapeJsString(step.Value)}');");
                 sb.AppendLine($"  if (result_{i}) throw new Error('Assertion failed: {EscapeJsString(step.Value)} is not false');");
             }
+            else
+            {
+                sb.AppendLine($"  // Warning: Unsupported step type '{step.Type}'");
+            }
             sb.AppendLine();
         }
 

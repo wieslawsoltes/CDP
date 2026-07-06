@@ -231,6 +231,10 @@ public class SeleniumCSharpGenerator : ICodeGenerator
                     sb.AppendLine($"            Assert.False(Convert.ToBoolean(result_{i}));");
                 }
             }
+            else
+            {
+                sb.AppendLine($"            // Warning: Unsupported step type '{step.Type}'");
+            }
             sb.AppendLine();
         }
 

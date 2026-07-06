@@ -231,6 +231,10 @@ public class PlaywrightGenerator : ICodeGenerator
                 sb.AppendLine($"      await expect(result).toBeFalsy();");
                 sb.AppendLine("    });");
             }
+            else
+            {
+                sb.AppendLine($"    // Warning: Unsupported step type '{step.Type}'");
+            }
         }
 
         sb.AppendLine();
