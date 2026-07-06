@@ -48,6 +48,30 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     private bool _isSidebarCollapsed;
     private ObservableCollection<WorkspaceItemModel> _workspaceFiles = new();
     private WorkspaceItemModel? _selectedWorkspaceItem;
+    private FileSystemWatcher? _workspaceWatcher;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _lastChangedTimes = new();
+
+    private bool _isAutoCodeGenerationEnabled;
+    private bool _codeGenPuppeteerEnabled;
+    private string? _codeGenPuppeteerPath;
+    private bool _codeGenPuppeteerRelative = true;
+
+    private bool _codeGenPlaywrightEnabled;
+    private string? _codeGenPlaywrightPath;
+    private bool _codeGenPlaywrightRelative = true;
+
+    private bool _codeGenSeleniumEnabled;
+    private string? _codeGenSeleniumPath;
+    private bool _codeGenSeleniumRelative = true;
+
+    private bool _codeGenAppiumEnabled;
+    private string? _codeGenAppiumPath;
+    private bool _codeGenAppiumRelative = true;
+
+    private bool _codeGenHeadlessEnabled;
+    private string? _codeGenHeadlessPath;
+    private bool _codeGenHeadlessRelative = true;
+
     private int _suitePassCount;
     private int _suiteFailCount;
     private bool _isSuiteExecuting;
@@ -99,6 +123,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             {
                 LoadWorkspaceTree();
                 LoadEnvironments();
+                UpdateWorkspaceWatcher();
             }
         }
     }
@@ -379,6 +404,12 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     public ICommand CancelNamePromptCommand { get; }
     public ICommand RunSuiteCommand { get; }
     public ICommand SaveYamlCommand { get; }
+    public ICommand GenerateAllCodeCommand { get; }
+    public ICommand BrowseCodeGenPuppeteerPathCommand { get; }
+    public ICommand BrowseCodeGenPlaywrightPathCommand { get; }
+    public ICommand BrowseCodeGenSeleniumPathCommand { get; }
+    public ICommand BrowseCodeGenAppiumPathCommand { get; }
+    public ICommand BrowseCodeGenHeadlessPathCommand { get; }
 
     private bool _isRecordVideoEnabled = true;
     private bool _isGenerateReportEnabled = true;
@@ -453,6 +484,108 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     {
         get => _isAutoAssertionEnabled;
         set => RaiseAndSetIfChanged(ref _isAutoAssertionEnabled, value);
+    }
+
+    public bool IsAutoCodeGenerationEnabled
+    {
+        get => _isAutoCodeGenerationEnabled;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isAutoCodeGenerationEnabled, value))
+            {
+                UpdateWorkspaceWatcher();
+            }
+        }
+    }
+
+    public bool CodeGenPuppeteerEnabled
+    {
+        get => _codeGenPuppeteerEnabled;
+        set => RaiseAndSetIfChanged(ref _codeGenPuppeteerEnabled, value);
+    }
+
+    public string? CodeGenPuppeteerPath
+    {
+        get => _codeGenPuppeteerPath;
+        set => RaiseAndSetIfChanged(ref _codeGenPuppeteerPath, value);
+    }
+
+    public bool CodeGenPuppeteerRelative
+    {
+        get => _codeGenPuppeteerRelative;
+        set => RaiseAndSetIfChanged(ref _codeGenPuppeteerRelative, value);
+    }
+
+    public bool CodeGenPlaywrightEnabled
+    {
+        get => _codeGenPlaywrightEnabled;
+        set => RaiseAndSetIfChanged(ref _codeGenPlaywrightEnabled, value);
+    }
+
+    public string? CodeGenPlaywrightPath
+    {
+        get => _codeGenPlaywrightPath;
+        set => RaiseAndSetIfChanged(ref _codeGenPlaywrightPath, value);
+    }
+
+    public bool CodeGenPlaywrightRelative
+    {
+        get => _codeGenPlaywrightRelative;
+        set => RaiseAndSetIfChanged(ref _codeGenPlaywrightRelative, value);
+    }
+
+    public bool CodeGenSeleniumEnabled
+    {
+        get => _codeGenSeleniumEnabled;
+        set => RaiseAndSetIfChanged(ref _codeGenSeleniumEnabled, value);
+    }
+
+    public string? CodeGenSeleniumPath
+    {
+        get => _codeGenSeleniumPath;
+        set => RaiseAndSetIfChanged(ref _codeGenSeleniumPath, value);
+    }
+
+    public bool CodeGenSeleniumRelative
+    {
+        get => _codeGenSeleniumRelative;
+        set => RaiseAndSetIfChanged(ref _codeGenSeleniumRelative, value);
+    }
+
+    public bool CodeGenAppiumEnabled
+    {
+        get => _codeGenAppiumEnabled;
+        set => RaiseAndSetIfChanged(ref _codeGenAppiumEnabled, value);
+    }
+
+    public string? CodeGenAppiumPath
+    {
+        get => _codeGenAppiumPath;
+        set => RaiseAndSetIfChanged(ref _codeGenAppiumPath, value);
+    }
+
+    public bool CodeGenAppiumRelative
+    {
+        get => _codeGenAppiumRelative;
+        set => RaiseAndSetIfChanged(ref _codeGenAppiumRelative, value);
+    }
+
+    public bool CodeGenHeadlessEnabled
+    {
+        get => _codeGenHeadlessEnabled;
+        set => RaiseAndSetIfChanged(ref _codeGenHeadlessEnabled, value);
+    }
+
+    public string? CodeGenHeadlessPath
+    {
+        get => _codeGenHeadlessPath;
+        set => RaiseAndSetIfChanged(ref _codeGenHeadlessPath, value);
+    }
+
+    public bool CodeGenHeadlessRelative
+    {
+        get => _codeGenHeadlessRelative;
+        set => RaiseAndSetIfChanged(ref _codeGenHeadlessRelative, value);
     }
 
     private bool _isAutoLaunchEnabled = false;
@@ -884,6 +1017,12 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         DeleteCommand = new RelayCommand<string>(path => DeleteItem(path));
         RunSuiteCommand = new RelayCommand<string>(async path => await RunSuite(path), _ => !IsSuiteExecuting && !IsExecuting);
         SaveYamlCommand = new RelayCommand(SaveYaml, () => !string.IsNullOrEmpty(CurrentFlowFilePath));
+        GenerateAllCodeCommand = new RelayCommand(GenerateAllCode);
+        BrowseCodeGenPuppeteerPathCommand = new RelayCommand(async () => await BrowsePathAsync(p => CodeGenPuppeteerPath = p));
+        BrowseCodeGenPlaywrightPathCommand = new RelayCommand(async () => await BrowsePathAsync(p => CodeGenPlaywrightPath = p));
+        BrowseCodeGenSeleniumPathCommand = new RelayCommand(async () => await BrowsePathAsync(p => CodeGenSeleniumPath = p));
+        BrowseCodeGenAppiumPathCommand = new RelayCommand(async () => await BrowsePathAsync(p => CodeGenAppiumPath = p));
+        BrowseCodeGenHeadlessPathCommand = new RelayCommand(async () => await BrowsePathAsync(p => CodeGenHeadlessPath = p));
 
         SubmitNamePromptCommand = new RelayCommand(() =>
         {
@@ -5315,6 +5454,258 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    private async Task BrowsePathAsync(Action<string> setPathAction)
+    {
+        if (FolderPickerHandler != null)
+        {
+            var path = await FolderPickerHandler();
+            if (!string.IsNullOrEmpty(path))
+            {
+                setPathAction(path);
+            }
+        }
+    }
+
+    public void GenerateAllCode()
+    {
+        if (string.IsNullOrEmpty(WorkspaceRootPath) || !Directory.Exists(WorkspaceRootPath))
+        {
+            Log("Error: WorkspaceRootPath is empty or does not exist.");
+            return;
+        }
+
+        try
+        {
+            var yamlFiles = Directory.GetFiles(WorkspaceRootPath, "*.yaml", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(WorkspaceRootPath, "*.yml", SearchOption.AllDirectories))
+                .Distinct()
+                .ToList();
+
+            if (yamlFiles.Count == 0)
+            {
+                Log("No YAML/YML files found in workspace to generate code from.");
+                return;
+            }
+
+            int countGenerated = 0;
+
+            foreach (var file in yamlFiles)
+            {
+                GenerateCodeForFile(file);
+                countGenerated++;
+            }
+
+            Log($"Successfully completed code generation for {countGenerated} scenario(s).");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error during workspace code generation: {ex.Message}");
+        }
+    }
+
+    public void GenerateCodeForFile(string file)
+    {
+        if (!File.Exists(file)) return;
+        try
+        {
+            var content = File.ReadAllText(file);
+            var steps = TestStudioStepConverter.ConvertYamlToRecordedSteps(content);
+            if (steps == null || steps.Count == 0) return;
+
+            string hostAddress = Connection?.GeneratorHostAddress ?? "http://localhost:9222/";
+            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
+
+            // Generate Puppeteer
+            if (CodeGenPuppeteerEnabled)
+            {
+                var generator = new Chrome.DevTools.Protocol.PuppeteerGenerator();
+                var code = generator.Generate(steps, hostAddress);
+                WriteGeneratedCodeFile(fileNameWithoutExt, ".js", code, CodeGenPuppeteerPath, CodeGenPuppeteerRelative, file);
+            }
+
+            // Generate Playwright
+            if (CodeGenPlaywrightEnabled)
+            {
+                var generator = new Chrome.DevTools.Protocol.PlaywrightGenerator();
+                var code = generator.Generate(steps, hostAddress);
+                WriteGeneratedCodeFile(fileNameWithoutExt, ".spec.js", code, CodeGenPlaywrightPath, CodeGenPlaywrightRelative, file);
+            }
+
+            // Generate Selenium
+            if (CodeGenSeleniumEnabled)
+            {
+                var generator = new Chrome.DevTools.Protocol.SeleniumCSharpGenerator();
+                var code = generator.Generate(steps, hostAddress);
+                WriteGeneratedCodeFile(fileNameWithoutExt, ".Selenium.cs", code, CodeGenSeleniumPath, CodeGenSeleniumRelative, file);
+            }
+
+            // Generate Appium
+            if (CodeGenAppiumEnabled)
+            {
+                var generator = new Chrome.DevTools.Protocol.AppiumCSharpGenerator();
+                var code = generator.Generate(steps, hostAddress);
+                WriteGeneratedCodeFile(fileNameWithoutExt, ".Appium.cs", code, CodeGenAppiumPath, CodeGenAppiumRelative, file);
+            }
+
+            // Generate Headless
+            if (CodeGenHeadlessEnabled)
+            {
+                var generator = new Chrome.DevTools.Protocol.AvaloniaHeadlessXUnitGenerator();
+                var code = generator.Generate(steps, hostAddress);
+                WriteGeneratedCodeFile(fileNameWithoutExt, ".Headless.cs", code, CodeGenHeadlessPath, CodeGenHeadlessRelative, file);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Error generating code for file '{file}': {ex.Message}");
+        }
+    }
+
+    private void WriteGeneratedCodeFile(string baseName, string suffixAndExt, string code, string? pathOption, bool isRelative, string sourceYamlPath)
+    {
+        string? targetDir = null;
+
+        if (isRelative)
+        {
+            string baseDir = !string.IsNullOrEmpty(WorkspaceRootPath) ? WorkspaceRootPath : Path.GetDirectoryName(sourceYamlPath) ?? "";
+            targetDir = string.IsNullOrEmpty(pathOption) ? baseDir : Path.GetFullPath(Path.Combine(baseDir, pathOption));
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(pathOption))
+            {
+                targetDir = Path.GetDirectoryName(sourceYamlPath) ?? "";
+            }
+            else
+            {
+                targetDir = Path.GetFullPath(pathOption);
+            }
+        }
+
+        if (!Directory.Exists(targetDir))
+        {
+            Directory.CreateDirectory(targetDir);
+        }
+
+        string destPath = Path.Combine(targetDir, baseName + suffixAndExt);
+        File.WriteAllText(destPath, code);
+        Log($"Generated: {Path.GetRelativePath(WorkspaceRootPath ?? "", destPath)}");
+    }
+
+    private static bool IsFileInDirectory(string filePath, string directoryPath)
+    {
+        try
+        {
+            string fullFilePath = Path.GetFullPath(filePath);
+            string fullDirPath = Path.GetFullPath(directoryPath);
+
+            if (!fullDirPath.EndsWith(Path.DirectorySeparatorChar.ToString()) && !fullDirPath.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
+            {
+                fullDirPath += Path.DirectorySeparatorChar;
+            }
+
+            return fullFilePath.StartsWith(fullDirPath, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool IsPathInsideOutputDirectories(string fullPath)
+    {
+        var targetPaths = new List<string>();
+        string baseDir = WorkspaceRootPath ?? "";
+
+        if (CodeGenPuppeteerEnabled && !string.IsNullOrEmpty(CodeGenPuppeteerPath))
+            targetPaths.Add(CodeGenPuppeteerRelative ? Path.GetFullPath(Path.Combine(baseDir, CodeGenPuppeteerPath)) : Path.GetFullPath(CodeGenPuppeteerPath));
+        
+        if (CodeGenPlaywrightEnabled && !string.IsNullOrEmpty(CodeGenPlaywrightPath))
+            targetPaths.Add(CodeGenPlaywrightRelative ? Path.GetFullPath(Path.Combine(baseDir, CodeGenPlaywrightPath)) : Path.GetFullPath(CodeGenPlaywrightPath));
+
+        if (CodeGenSeleniumEnabled && !string.IsNullOrEmpty(CodeGenSeleniumPath))
+            targetPaths.Add(CodeGenSeleniumRelative ? Path.GetFullPath(Path.Combine(baseDir, CodeGenSeleniumPath)) : Path.GetFullPath(CodeGenSeleniumPath));
+
+        if (CodeGenAppiumEnabled && !string.IsNullOrEmpty(CodeGenAppiumPath))
+            targetPaths.Add(CodeGenAppiumRelative ? Path.GetFullPath(Path.Combine(baseDir, CodeGenAppiumPath)) : Path.GetFullPath(CodeGenAppiumPath));
+
+        if (CodeGenHeadlessEnabled && !string.IsNullOrEmpty(CodeGenHeadlessPath))
+            targetPaths.Add(CodeGenHeadlessRelative ? Path.GetFullPath(Path.Combine(baseDir, CodeGenHeadlessPath)) : Path.GetFullPath(CodeGenHeadlessPath));
+
+        foreach (var path in targetPaths)
+        {
+            if (IsFileInDirectory(fullPath, path))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void UpdateWorkspaceWatcher()
+    {
+        try
+        {
+            if (_workspaceWatcher != null)
+            {
+                _workspaceWatcher.EnableRaisingEvents = false;
+                _workspaceWatcher.Changed -= OnWorkspaceFileChanged;
+                _workspaceWatcher.Created -= OnWorkspaceFileChanged;
+                _workspaceWatcher.Renamed -= OnWorkspaceFileRenamed;
+                _workspaceWatcher.Dispose();
+                _workspaceWatcher = null;
+            }
+
+            if (IsAutoCodeGenerationEnabled && !string.IsNullOrEmpty(WorkspaceRootPath) && Directory.Exists(WorkspaceRootPath))
+            {
+                _workspaceWatcher = new FileSystemWatcher(WorkspaceRootPath)
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName
+                };
+
+                _workspaceWatcher.Changed += OnWorkspaceFileChanged;
+                _workspaceWatcher.Created += OnWorkspaceFileChanged;
+                _workspaceWatcher.Renamed += OnWorkspaceFileRenamed;
+
+                _workspaceWatcher.EnableRaisingEvents = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Error initializing workspace watcher: {ex.Message}");
+        }
+    }
+
+    private void OnWorkspaceFileChanged(object sender, FileSystemEventArgs e)
+    {
+        var ext = Path.GetExtension(e.FullPath).ToLowerInvariant();
+        if (ext != ".yaml" && ext != ".yml") return;
+
+        if (IsPathInsideOutputDirectories(e.FullPath)) return;
+
+        var now = DateTime.UtcNow;
+        if (_lastChangedTimes.TryGetValue(e.FullPath, out var lastTime) && (now - lastTime).TotalMilliseconds < 300)
+        {
+            return;
+        }
+        _lastChangedTimes[e.FullPath] = now;
+
+        Task.Run(async () =>
+        {
+            await Task.Delay(200);
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                GenerateCodeForFile(e.FullPath);
+            });
+        });
+    }
+
+    private void OnWorkspaceFileRenamed(object sender, RenamedEventArgs e)
+    {
+        OnWorkspaceFileChanged(sender, e);
+    }
+
     public void LoadWorkspaceTree()
     {
         WorkspaceFiles.Clear();
@@ -5654,6 +6045,11 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         {
             File.WriteAllText(CurrentFlowFilePath, YamlCode);
             Log($"Successfully saved YAML to {CurrentFlowFilePath}");
+
+            if (IsAutoCodeGenerationEnabled)
+            {
+                GenerateCodeForFile(CurrentFlowFilePath);
+            }
         }
         catch (Exception ex)
         {
@@ -6101,6 +6497,23 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         root["movePhysicalCursor"] = MovePhysicalCursor;
         root["usePeerAutomation"] = UsePeerAutomation;
         root["useAccessibilityEvents"] = UseAccessibilityEvents;
+
+        root["isAutoCodeGenerationEnabled"] = IsAutoCodeGenerationEnabled;
+        root["codeGenPuppeteerEnabled"] = CodeGenPuppeteerEnabled;
+        root["codeGenPuppeteerPath"] = CodeGenPuppeteerPath;
+        root["codeGenPuppeteerRelative"] = CodeGenPuppeteerRelative;
+        root["codeGenPlaywrightEnabled"] = CodeGenPlaywrightEnabled;
+        root["codeGenPlaywrightPath"] = CodeGenPlaywrightPath;
+        root["codeGenPlaywrightRelative"] = CodeGenPlaywrightRelative;
+        root["codeGenSeleniumEnabled"] = CodeGenSeleniumEnabled;
+        root["codeGenSeleniumPath"] = CodeGenSeleniumPath;
+        root["codeGenSeleniumRelative"] = CodeGenSeleniumRelative;
+        root["codeGenAppiumEnabled"] = CodeGenAppiumEnabled;
+        root["codeGenAppiumPath"] = CodeGenAppiumPath;
+        root["codeGenAppiumRelative"] = CodeGenAppiumRelative;
+        root["codeGenHeadlessEnabled"] = CodeGenHeadlessEnabled;
+        root["codeGenHeadlessPath"] = CodeGenHeadlessPath;
+        root["codeGenHeadlessRelative"] = CodeGenHeadlessRelative;
         return root;
     }
 
@@ -6163,6 +6576,75 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("useAccessibilityEvents", out var useAccNode) && useAccNode != null)
         {
             UseAccessibilityEvents = (bool?)useAccNode ?? true;
+        }
+
+        if (json.TryGetPropertyValue("isAutoCodeGenerationEnabled", out var autoCodeGenNode) && autoCodeGenNode != null)
+        {
+            IsAutoCodeGenerationEnabled = (bool?)autoCodeGenNode ?? false;
+        }
+        if (json.TryGetPropertyValue("codeGenPuppeteerEnabled", out var pubEnabledNode) && pubEnabledNode != null)
+        {
+            CodeGenPuppeteerEnabled = (bool?)pubEnabledNode ?? false;
+        }
+        if (json.TryGetPropertyValue("codeGenPuppeteerPath", out var pubPathNode) && pubPathNode != null)
+        {
+            CodeGenPuppeteerPath = (string?)pubPathNode ?? "";
+        }
+        if (json.TryGetPropertyValue("codeGenPuppeteerRelative", out var pubRelNode) && pubRelNode != null)
+        {
+            CodeGenPuppeteerRelative = (bool?)pubRelNode ?? true;
+        }
+
+        if (json.TryGetPropertyValue("codeGenPlaywrightEnabled", out var pwEnabledNode) && pwEnabledNode != null)
+        {
+            CodeGenPlaywrightEnabled = (bool?)pwEnabledNode ?? false;
+        }
+        if (json.TryGetPropertyValue("codeGenPlaywrightPath", out var pwPathNode) && pwPathNode != null)
+        {
+            CodeGenPlaywrightPath = (string?)pwPathNode ?? "";
+        }
+        if (json.TryGetPropertyValue("codeGenPlaywrightRelative", out var pwRelNode) && pwRelNode != null)
+        {
+            CodeGenPlaywrightRelative = (bool?)pwRelNode ?? true;
+        }
+
+        if (json.TryGetPropertyValue("codeGenSeleniumEnabled", out var selEnabledNode) && selEnabledNode != null)
+        {
+            CodeGenSeleniumEnabled = (bool?)selEnabledNode ?? false;
+        }
+        if (json.TryGetPropertyValue("codeGenSeleniumPath", out var selPathNode) && selPathNode != null)
+        {
+            CodeGenSeleniumPath = (string?)selPathNode ?? "";
+        }
+        if (json.TryGetPropertyValue("codeGenSeleniumRelative", out var selRelNode) && selRelNode != null)
+        {
+            CodeGenSeleniumRelative = (bool?)selRelNode ?? true;
+        }
+
+        if (json.TryGetPropertyValue("codeGenAppiumEnabled", out var appEnabledNode) && appEnabledNode != null)
+        {
+            CodeGenAppiumEnabled = (bool?)appEnabledNode ?? false;
+        }
+        if (json.TryGetPropertyValue("codeGenAppiumPath", out var appPathNode) && appPathNode != null)
+        {
+            CodeGenAppiumPath = (string?)appPathNode ?? "";
+        }
+        if (json.TryGetPropertyValue("codeGenAppiumRelative", out var appRelNode) && appRelNode != null)
+        {
+            CodeGenAppiumRelative = (bool?)appRelNode ?? true;
+        }
+
+        if (json.TryGetPropertyValue("codeGenHeadlessEnabled", out var hlEnabledNode) && hlEnabledNode != null)
+        {
+            CodeGenHeadlessEnabled = (bool?)hlEnabledNode ?? false;
+        }
+        if (json.TryGetPropertyValue("codeGenHeadlessPath", out var hlPathNode) && hlPathNode != null)
+        {
+            CodeGenHeadlessPath = (string?)hlPathNode ?? "";
+        }
+        if (json.TryGetPropertyValue("codeGenHeadlessRelative", out var hlRelNode) && hlRelNode != null)
+        {
+            CodeGenHeadlessRelative = (bool?)hlRelNode ?? true;
         }
     }
 
