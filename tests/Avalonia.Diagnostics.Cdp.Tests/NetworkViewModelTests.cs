@@ -124,4 +124,19 @@ public class NetworkViewModelTests
         Assert.Equal("500 ms", model.DownloadDurationText);
         Assert.Equal("3.00 s", model.TotalDurationText);
     }
+
+    [Fact]
+    public void Test_NetworkRequestModel_Timing_Properties_MissingResponse()
+    {
+        var model = new NetworkRequestModel();
+        model.StartTime = 10.0;
+        model.ResponseReceivedTime = 0.0; // missing response
+        model.EndTime = 13.0;
+
+        model.UpdateTimeline(10.0, 20.0);
+
+        Assert.Equal(3.0, model.TtfbDuration); // 13.0 - 10.0 (fallback to total duration)
+        Assert.Equal(0.0, model.DownloadDuration); // should be 0, not 13.0 - 0.0
+        Assert.Equal(3.0, model.Duration); // 13.0 - 10.0
+    }
 }

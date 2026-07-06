@@ -313,7 +313,7 @@ public class NetworkRequestModel : INotifyPropertyChanged
         Duration = EndTime >= StartTime ? EndTime - StartTime : 0;
 
         TtfbDuration = ResponseReceivedTime >= StartTime ? ResponseReceivedTime - StartTime : Duration;
-        DownloadDuration = EndTime >= ResponseReceivedTime ? EndTime - ResponseReceivedTime : 0;
+        DownloadDuration = ResponseReceivedTime >= StartTime && EndTime >= ResponseReceivedTime ? EndTime - ResponseReceivedTime : 0;
 
         double offsetPercent = totalDuration > 0 ? StartOffset / totalDuration : 0;
         double ttfbPercent = totalDuration > 0 ? TtfbDuration / totalDuration : 0;
