@@ -20,7 +20,9 @@ async function getJson(url) {
 }
 
 async function main() {
-  const artifactsDir = '/Users/wieslawsoltes/.gemini/antigravity/brain/32ddf4c1-722a-41d6-a34b-c408166cc350';
+  const defaultDir = '/Users/wieslawsoltes/.gemini/antigravity/brain/32ddf4c1-722a-41d6-a34b-c408166cc350';
+  const artifactsDir = process.env.ARTIFACTS_DIR || (fs.existsSync(defaultDir) ? defaultDir : path.join(__dirname, 'artifacts'));
+  
   if (!fs.existsSync(artifactsDir)) {
     fs.mkdirSync(artifactsDir, { recursive: true });
   }
