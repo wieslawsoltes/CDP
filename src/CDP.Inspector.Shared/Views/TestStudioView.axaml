@@ -263,7 +263,7 @@
                                             </Grid>
                                             
                                             <!-- Auto generate CheckBox -->
-                                            <CheckBox Name="chkAutoCodeGeneration" Content="Auto-generate on save or workspace changes" IsChecked="{Binding Recorder.TestStudio.IsAutoCodeGenerationEnabled, Mode=TwoWay}" FontSize="11" Margin="0,0,0,16"/>
+                                            <CheckBox Name="chkAutoCodeGeneration" Grid.Row="1" Content="Auto-generate on save or workspace changes" IsChecked="{Binding Recorder.TestStudio.IsAutoCodeGenerationEnabled, Mode=TwoWay}" FontSize="11" Margin="0,0,0,16"/>
                                             
                                             <!-- Format header -->
                                             <Grid Grid.Row="2" ColumnDefinitions="160, *, 70" Margin="0,0,0,6">
