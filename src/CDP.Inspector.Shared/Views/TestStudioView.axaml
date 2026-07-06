@@ -244,6 +244,79 @@
                                 Padding="8,4"
                                 VerticalAlignment="Center"/>
                     </StackPanel>
+                    
+                    <!-- Group 5: Workspace Code Gen -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="12,2,0,2">
+                        <Button Name="btnWorkspaceCodeGen" Padding="8,4" VerticalAlignment="Center" ToolTip.Tip="Workspace Code Generation Settings">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Data="{StaticResource CodeIcon}" Width="12" Height="12" Foreground="#8ab4f8"/>
+                                <TextBlock Text="Code Gen" VerticalAlignment="Center" FontSize="11"/>
+                            </StackPanel>
+                            <Button.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedRight">
+                                    <Border Width="480" Padding="16" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                                        <Grid RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto, Auto" Margin="0">
+                                            <!-- Title & Generate Now button -->
+                                            <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,12">
+                                                <TextBlock Grid.Column="0" Text="Workspace Code Generation" FontWeight="Bold" FontSize="13" Foreground="White" VerticalAlignment="Center"/>
+                                                <Button Name="btnGenerateAllCodeNow" Content="Generate Now" Command="{Binding Recorder.TestStudio.GenerateAllCodeCommand}" Classes="accent" FontSize="10" Padding="8,4" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            
+                                            <!-- Auto generate CheckBox -->
+                                            <CheckBox Name="chkAutoCodeGeneration" Content="Auto-generate on save or workspace changes" IsChecked="{Binding Recorder.TestStudio.IsAutoCodeGenerationEnabled, Mode=TwoWay}" FontSize="11" Margin="0,0,0,16"/>
+                                            
+                                            <!-- Format header -->
+                                            <Grid Grid.Row="2" ColumnDefinitions="160, *, 70" Margin="0,0,0,6">
+                                                <TextBlock Grid.Column="0" Text="Format" FontSize="10" FontWeight="SemiBold" Foreground="#9aa0a6"/>
+                                                <TextBlock Grid.Column="1" Text="Output Path" FontSize="10" FontWeight="SemiBold" Foreground="#9aa0a6" Margin="6,0,0,0"/>
+                                                <TextBlock Grid.Column="2" Text="Relative" FontSize="10" FontWeight="SemiBold" Foreground="#9aa0a6" HorizontalAlignment="Center"/>
+                                            </Grid>
+                                            
+                                            <!-- Puppeteer Row -->
+                                            <Grid Grid.Row="3" ColumnDefinitions="160, *, Auto, 70" Margin="0,0,0,8" VerticalAlignment="Center">
+                                                <CheckBox Name="chkCodeGenPuppeteerEnabled" Grid.Column="0" Content="Puppeteer (.js)" IsChecked="{Binding Recorder.TestStudio.CodeGenPuppeteerEnabled, Mode=TwoWay}" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBox Name="txtCodeGenPuppeteerPath" Grid.Column="1" Text="{Binding Recorder.TestStudio.CodeGenPuppeteerPath, Mode=TwoWay}" FontSize="10" Height="22" Padding="4,2" Margin="6,0,4,0" VerticalAlignment="Center"/>
+                                                <Button Name="btnBrowseCodeGenPuppeteerPath" Grid.Column="2" Content="..." Command="{Binding Recorder.TestStudio.BrowseCodeGenPuppeteerPathCommand}" FontSize="10" Padding="4,2" Height="22" VerticalAlignment="Center"/>
+                                                <CheckBox Name="chkCodeGenPuppeteerRelative" Grid.Column="3" IsChecked="{Binding Recorder.TestStudio.CodeGenPuppeteerRelative, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Playwright Row -->
+                                            <Grid Grid.Row="4" ColumnDefinitions="160, *, Auto, 70" Margin="0,0,0,8" VerticalAlignment="Center">
+                                                <CheckBox Name="chkCodeGenPlaywrightEnabled" Grid.Column="0" Content="Playwright (.spec.js)" IsChecked="{Binding Recorder.TestStudio.CodeGenPlaywrightEnabled, Mode=TwoWay}" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBox Name="txtCodeGenPlaywrightPath" Grid.Column="1" Text="{Binding Recorder.TestStudio.CodeGenPlaywrightPath, Mode=TwoWay}" FontSize="10" Height="22" Padding="4,2" Margin="6,0,4,0" VerticalAlignment="Center"/>
+                                                <Button Name="btnBrowseCodeGenPlaywrightPath" Grid.Column="2" Content="..." Command="{Binding Recorder.TestStudio.BrowseCodeGenPlaywrightPathCommand}" FontSize="10" Padding="4,2" Height="22" VerticalAlignment="Center"/>
+                                                <CheckBox Name="chkCodeGenPlaywrightRelative" Grid.Column="3" IsChecked="{Binding Recorder.TestStudio.CodeGenPlaywrightRelative, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Selenium Row -->
+                                            <Grid Grid.Row="5" ColumnDefinitions="160, *, Auto, 70" Margin="0,0,0,8" VerticalAlignment="Center">
+                                                <CheckBox Name="chkCodeGenSeleniumEnabled" Grid.Column="0" Content="Selenium (.Selenium.cs)" IsChecked="{Binding Recorder.TestStudio.CodeGenSeleniumEnabled, Mode=TwoWay}" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBox Name="txtCodeGenSeleniumPath" Grid.Column="1" Text="{Binding Recorder.TestStudio.CodeGenSeleniumPath, Mode=TwoWay}" FontSize="10" Height="22" Padding="4,2" Margin="6,0,4,0" VerticalAlignment="Center"/>
+                                                <Button Name="btnBrowseCodeGenSeleniumPath" Grid.Column="2" Content="..." Command="{Binding Recorder.TestStudio.BrowseCodeGenSeleniumPathCommand}" FontSize="10" Padding="4,2" Height="22" VerticalAlignment="Center"/>
+                                                <CheckBox Name="chkCodeGenSeleniumRelative" Grid.Column="3" IsChecked="{Binding Recorder.TestStudio.CodeGenSeleniumRelative, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Appium Row -->
+                                            <Grid Grid.Row="6" ColumnDefinitions="160, *, Auto, 70" Margin="0,0,0,8" VerticalAlignment="Center">
+                                                <CheckBox Name="chkCodeGenAppiumEnabled" Grid.Column="0" Content="Appium (.Appium.cs)" IsChecked="{Binding Recorder.TestStudio.CodeGenAppiumEnabled, Mode=TwoWay}" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBox Name="txtCodeGenAppiumPath" Grid.Column="1" Text="{Binding Recorder.TestStudio.CodeGenAppiumPath, Mode=TwoWay}" FontSize="10" Height="22" Padding="4,2" Margin="6,0,4,0" VerticalAlignment="Center"/>
+                                                <Button Name="btnBrowseCodeGenAppiumPath" Grid.Column="2" Content="..." Command="{Binding Recorder.TestStudio.BrowseCodeGenAppiumPathCommand}" FontSize="10" Padding="4,2" Height="22" VerticalAlignment="Center"/>
+                                                <CheckBox Name="chkCodeGenAppiumRelative" Grid.Column="3" IsChecked="{Binding Recorder.TestStudio.CodeGenAppiumRelative, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Headless Row -->
+                                            <Grid Grid.Row="7" ColumnDefinitions="160, *, Auto, 70" Margin="0" VerticalAlignment="Center">
+                                                <CheckBox Name="chkCodeGenHeadlessEnabled" Grid.Column="0" Content="Headless (.Headless.cs)" IsChecked="{Binding Recorder.TestStudio.CodeGenHeadlessEnabled, Mode=TwoWay}" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBox Name="txtCodeGenHeadlessPath" Grid.Column="1" Text="{Binding Recorder.TestStudio.CodeGenHeadlessPath, Mode=TwoWay}" FontSize="10" Height="22" Padding="4,2" Margin="6,0,4,0" VerticalAlignment="Center"/>
+                                                <Button Name="btnBrowseCodeGenHeadlessPath" Grid.Column="2" Content="..." Command="{Binding Recorder.TestStudio.BrowseCodeGenHeadlessPathCommand}" FontSize="10" Padding="4,2" Height="22" VerticalAlignment="Center"/>
+                                                <CheckBox Name="chkCodeGenHeadlessRelative" Grid.Column="3" IsChecked="{Binding Recorder.TestStudio.CodeGenHeadlessRelative, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
                 </WrapPanel>
             </Border>
 
