@@ -3,7 +3,7 @@
     <Product Id="*" Name="CdpInspectorApp" Language="1033" Version="$(var.Version)" Manufacturer="DeepMind" UpgradeCode="d6ca8e74-0f2c-473d-9d4f-d007bbf99611">
         <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
 
-        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." AllowSameVersionUpgrades="yes" />
         <MediaTemplate EmbedCab="yes" />
 
         <Feature Id="ProductFeature" Title="CdpInspectorApp" Level="1">
