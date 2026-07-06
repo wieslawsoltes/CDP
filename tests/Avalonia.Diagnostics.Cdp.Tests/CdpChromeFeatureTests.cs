@@ -943,7 +943,7 @@ public class CdpChromeFeatureTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "navigate", Url = "http://localhost:9222/foo" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "click", Selector = "#btnClick", Button = "right", ClickCount = 3, Modifiers = 10 }, // Control=2, Shift=8
             new CdpInspectorApp.Models.RecordedStepModel { Type = "change", Selector = "#txtInput", Value = "hello \"world\" \\ test" },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Enter", Modifiers = 2 }, // Control=2
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Selector = "#txtInput", Key = "Enter", Modifiers = 2 }, // Control=2
             new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "a" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "Digit1" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "KeyB" },
@@ -976,6 +976,8 @@ public class CdpChromeFeatureTests
         Assert.Contains("for (int c_2 = 0; c_2 < 3; c_2++)", generated);
         Assert.Contains("var element_3 = SelectorEngine.QuerySelector(window, \"#txtInput\") as Control;", generated);
         Assert.Contains("window.InputText(element_3, \"hello \\\"world\\\" \\\\ test\");", generated);
+        Assert.Contains("var element_4 = SelectorEngine.QuerySelector(window, \"#txtInput\") as Control;", generated);
+        Assert.Contains("element_4.Focus();", generated);
         Assert.Contains("window.KeyPress(Key.Enter, RawInputModifiers.Control);", generated);
         Assert.Contains("window.KeyRelease(Key.Enter, RawInputModifiers.Control);", generated);
         Assert.Contains("window.KeyPress(Key.A, RawInputModifiers.None);", generated);

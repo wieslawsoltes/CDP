@@ -186,9 +186,17 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
             }
             else if (step.Type == "keydown" || step.Type == "pressKey")
             {
+                string selectorEscaped = EscapeCSharpString(step.Selector);
                 string key = string.IsNullOrEmpty(step.Key) ? step.Value : step.Key;
                 string keyEnum = GetKeyEnum(key);
                 string modifiersEnum = GetModifiersEnum(step.Modifiers);
+
+                if (!string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                    sb.AppendLine($"            Assert.NotNull(element_{i});");
+                    sb.AppendLine($"            element_{i}.Focus();");
+                }
 
                 sb.AppendLine($"            window.KeyPress({keyEnum}, {modifiersEnum});");
                 sb.AppendLine($"            window.KeyRelease({keyEnum}, {modifiersEnum});");
