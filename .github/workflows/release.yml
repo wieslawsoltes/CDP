@@ -209,7 +209,7 @@ jobs:
   pack-nuget:
     name: Pack NuGet
     runs-on: ubuntu-latest
-    needs: version
+    needs: [version, build-linux, build-macos, build-windows]
     steps:
     - uses: actions/checkout@v4
       with:
