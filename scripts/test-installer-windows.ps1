@@ -8,9 +8,28 @@ if (-not $MsiPath) {
 }
 
 Write-Host "Installing $MsiPath..."
-$installProcess = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" /qn /norestart" -NoNewWindow -PassThru -Wait
+$timeoutSec = 120
+$installProcess = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" /qn /norestart /L*v msi-install.log" -NoNewWindow -PassThru
+$startTime = [DateTime]::UtcNow
+while (-not $installProcess.HasExited) {
+    if (([DateTime]::UtcNow - $startTime).TotalSeconds -gt $timeoutSec) {
+        Write-Warning "msiexec install timed out after $timeoutSec seconds. Terminating process."
+        Stop-Process -Id $installProcess.Id -Force
+        if (Test-Path msi-install.log) {
+            Write-Host "msiexec install log content:"
+            Get-Content msi-install.log -Tail 100
+        }
+        exit 1
+    }
+    Start-Sleep -Seconds 2
+}
+
 if ($installProcess.ExitCode -ne 0) {
     Write-Error "Failed to install MSI. Exit code: $($installProcess.ExitCode)"
+    if (Test-Path msi-install.log) {
+        Write-Host "msiexec install log content:"
+        Get-Content msi-install.log -Tail 100
+    }
     exit 1
 }
 
@@ -53,7 +72,29 @@ if (-not $success) {
 }
 
 Write-Host "Uninstalling package..."
-$uninstallProcess = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" /qn /norestart" -NoNewWindow -PassThru -Wait
+$uninstallProcess = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" /qn /norestart /L*v msi-uninstall.log" -NoNewWindow -PassThru
+$startTime = [DateTime]::UtcNow
+while (-not $uninstallProcess.HasExited) {
+    if (([DateTime]::UtcNow - $startTime).TotalSeconds -gt $timeoutSec) {
+        Write-Warning "msiexec uninstall timed out after $timeoutSec seconds. Terminating process."
+        Stop-Process -Id $uninstallProcess.Id -Force
+        if (Test-Path msi-uninstall.log) {
+            Write-Host "msiexec uninstall log content:"
+            Get-Content msi-uninstall.log -Tail 100
+        }
+        exit 1
+    }
+    Start-Sleep -Seconds 2
+}
+
+if ($uninstallProcess.ExitCode -ne 0) {
+    Write-Error "Failed to uninstall MSI. Exit code: $($uninstallProcess.ExitCode)"
+    if (Test-Path msi-uninstall.log) {
+        Write-Host "msiexec uninstall log content:"
+        Get-Content msi-uninstall.log -Tail 100
+    }
+    exit 1
+}
 
 Write-Host "Verifying clean removal..."
 if (Test-Path $exePath) {
