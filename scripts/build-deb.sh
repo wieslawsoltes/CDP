@@ -34,6 +34,9 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
+# Normalize SemVer version for Debian (e.g., 1.0.0-pr -> 1.0.0~pr)
+DEB_VERSION=$(echo "$VERSION" | sed 's/-/~/g')
+
 # Package directory structure
 PKG_DIR="publish/deb-pkg"
 rm -rf "$PKG_DIR"
@@ -65,7 +68,7 @@ EOT
 PKG_NAME="cdp-inspector"
 cat <<EOT > "$PKG_DIR/DEBIAN/control"
 Package: ${PKG_NAME}
-Version: ${VERSION}
+Version: ${DEB_VERSION}
 Section: devel
 Priority: optional
 Architecture: amd64
@@ -75,10 +78,10 @@ EOT
 
 # Build package
 if command -v dpkg-deb &> /dev/null; then
-  dpkg-deb --build "$PKG_DIR" "${OUTPUT_DIR}/${PKG_NAME}_${VERSION}_amd64.deb"
+  dpkg-deb --build "$PKG_DIR" "${OUTPUT_DIR}/${PKG_NAME}_${DEB_VERSION}_amd64.deb"
 else
   echo "dpkg-deb not found. Creating package archive (tar.gz) instead for simulation."
-  tar -czf "${OUTPUT_DIR}/${PKG_NAME}_${VERSION}_amd64.deb.tar.gz" -C "$PKG_DIR" .
+  tar -czf "${OUTPUT_DIR}/${PKG_NAME}_${DEB_VERSION}_amd64.deb.tar.gz" -C "$PKG_DIR" .
 fi
 
 # Clean up

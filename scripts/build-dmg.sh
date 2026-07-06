@@ -69,7 +69,15 @@ if command -v hdiutil &> /dev/null; then
   echo "Creating DMG package..."
   DMG_PATH="${OUTPUT_DIR}/cdp-inspector-osx.dmg"
   rm -f "$DMG_PATH"
-  hdiutil create -fs HFS+ -volname "CdpInspectorApp" -srcfolder "$APP_DIR" "$DMG_PATH"
+  
+  # Use a staging folder to guarantee .app is at the root
+  STAGE_DIR="publish/dmg-stage"
+  rm -rf "$STAGE_DIR"
+  mkdir -p "$STAGE_DIR"
+  cp -R "$APP_DIR" "$STAGE_DIR/"
+  
+  hdiutil create -fs HFS+ -volname "CdpInspectorApp" -srcfolder "$STAGE_DIR" "$DMG_PATH"
+  rm -rf "$STAGE_DIR"
   echo "macOS DMG created: $DMG_PATH"
 else
   echo "hdiutil not found. Zipping the .app bundle instead."

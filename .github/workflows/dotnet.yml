@@ -41,7 +41,8 @@ jobs:
 
     - name: Run DEB Installer Integration Test
       run: |
-        bash scripts/test-installer-linux.sh ./artifacts/cdp-inspector_1.0.0-pr_amd64.deb
+        DEB_FILE=$(ls artifacts/cdp-inspector_*.deb | head -n 1)
+        bash scripts/test-installer-linux.sh "$DEB_FILE"
 
     - name: Upload Logs on Failure
       if: failure()

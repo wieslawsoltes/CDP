@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-    <Product Id="*" Name="CdpInspectorApp" Language="1033" Version="1.0.0" Manufacturer="DeepMind" UpgradeCode="d6ca8e74-0f2c-473d-9d4f-d007bbf99611">
+    <Product Id="*" Name="CdpInspectorApp" Language="1033" Version="$(var.Version)" Manufacturer="DeepMind" UpgradeCode="d6ca8e74-0f2c-473d-9d4f-d007bbf99611">
         <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
 
         <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />

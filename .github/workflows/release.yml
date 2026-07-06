@@ -69,7 +69,8 @@ jobs:
 
     - name: Run DEB Installer Integration Test
       run: |
-        bash scripts/test-installer-linux.sh ./artifacts/cdp-inspector_${{ needs.version.outputs.VERSION }}_amd64.deb
+        DEB_FILE=$(ls artifacts/cdp-inspector_*.deb | head -n 1)
+        bash scripts/test-installer-linux.sh "$DEB_FILE"
 
     - name: Upload Linux Artifacts
       uses: actions/upload-artifact@v4
@@ -77,7 +78,7 @@ jobs:
         name: linux-artifacts
         path: |
           artifacts/cdp-inspector-linux-x64.tar.gz
-          artifacts/cdp-inspector_${{ needs.version.outputs.VERSION }}_amd64.deb
+          artifacts/cdp-inspector_*.deb
 
   build-macos:
     name: Build & Test (macOS)
@@ -160,10 +161,18 @@ jobs:
         New-Item -ItemType Directory -Force -Path artifacts
         Compress-Archive -Path publish/win-x64/CdpInspectorApp.exe -DestinationPath artifacts/cdp-inspector-win-x64.zip -Force
 
+    - name: Parse Numeric Version
+      id: numeric_version
+      shell: pwsh
+      run: |
+        $semver = "${{ needs.version.outputs.VERSION }}"
+        $numeric = ($semver -split '-')[0]
+        echo "numeric=$numeric" >> $env:GITHUB_OUTPUT
+
     - name: Build Windows MSI Installer
       shell: cmd
       run: |
-        candle -dPublishDir=publish\win-x64 samples\CdpInspectorApp\cdp-inspector.wxs -o publish\win-x64\cdp-inspector.wixobj
+        candle -dPublishDir=publish\win-x64 -dVersion=${{ steps.numeric_version.outputs.numeric }} samples\CdpInspectorApp\cdp-inspector.wxs -o publish\win-x64\cdp-inspector.wixobj
         light publish\win-x64\cdp-inspector.wixobj -o artifacts\cdp-inspector-win-x64.msi
 
     - name: Run Windows MSI Installer Integration Test
@@ -238,18 +247,20 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: v${{ needs.version.outputs.VERSION }}
+        target_commitish: ${{ github.ref_name }}
         files: |
           artifacts/cdp-inspector-win-x64.zip
           artifacts/cdp-inspector-win-x64.msi
           artifacts/cdp-inspector-linux-x64.tar.gz
-          artifacts/cdp-inspector_${{ needs.version.outputs.VERSION }}_amd64.deb
+          artifacts/cdp-inspector_*.deb
           artifacts/cdp-inspector-osx-x64.tar.gz
           artifacts/cdp-inspector-osx-arm64.tar.gz
           artifacts/cdp-inspector-osx-x64.dmg
           artifacts/cdp-inspector-osx-arm64.dmg
           artifacts/*.nupkg
         draft: false
-        prerelease: ${{ contains(github.ref_name, '-') }}
+        prerelease: ${{ contains(github.ref_name, '-') || contains(needs.version.outputs.VERSION, '-') }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
