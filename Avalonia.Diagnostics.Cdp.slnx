@@ -17,6 +17,7 @@
     <Project Path="src/CDP.Automation.OS/CDP.Automation.OS.csproj" />
     <Project Path="src/CDP.Automation.Appium/CDP.Automation.Appium.csproj" />
     <Project Path="src/CDP.Automation.Selenium/CDP.Automation.Selenium.csproj" />
+    <Project Path="src/CDP.Automation.Headless/CDP.Automation.Headless.csproj" />
     <Project Path="src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj" />
   </Folder>
   <Folder Name="/tests/">
