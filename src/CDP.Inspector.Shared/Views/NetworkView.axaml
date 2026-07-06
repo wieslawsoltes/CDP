@@ -177,6 +177,45 @@
                                         </StackPanel>
                                     </ScrollViewer>
                                 </TabItem>
+                                <TabItem Header="Timing" IsVisible="{Binding Network.SelectedRequest, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <ScrollViewer Margin="5">
+                                        <StackPanel x:DataType="models:NetworkRequestModel" DataContext="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedRequest}" Spacing="10">
+                                            <TextBlock Text="Timing Breakdown" FontSize="13" FontWeight="Bold" Foreground="#e8eaed" Margin="0,5,0,5"/>
+                                            <Grid ColumnDefinitions="120, *, 80" RowDefinitions="Auto, Auto, Auto, Auto">
+                                                <!-- Row 0: Headers -->
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Phase" FontSize="10" Foreground="#9aa0a6" FontWeight="SemiBold"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Bar" FontSize="10" Foreground="#9aa0a6" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Duration" FontSize="10" Foreground="#9aa0a6" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                                
+                                                <!-- Row 1: Waiting (TTFB) -->
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Waiting (TTFB)" FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center" Margin="0,4"/>
+                                                <controls:RequestTimingBar Grid.Row="1" Grid.Column="1" 
+                                                                           StartOffsetPercent="0.0" 
+                                                                           Percent="{Binding TtfbPercentOfRequest}" 
+                                                                           BarBrush="#a1c2fa" 
+                                                                           Height="10" 
+                                                                           Margin="10,0" 
+                                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding TtfbDurationText}" FontSize="11" Foreground="#e8eaed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,4"/>
+                                                
+                                                <!-- Row 2: Content Download -->
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Content Download" FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center" Margin="0,4"/>
+                                                <controls:RequestTimingBar Grid.Row="2" Grid.Column="1" 
+                                                                           StartOffsetPercent="{Binding TtfbPercentOfRequest}" 
+                                                                           Percent="{Binding DownloadPercentOfRequest}" 
+                                                                           BarBrush="#4d90fe" 
+                                                                           Height="10" 
+                                                                           Margin="10,0" 
+                                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding DownloadDurationText}" FontSize="11" Foreground="#e8eaed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,4"/>
+                                                
+                                                <!-- Row 3: Total -->
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Total Duration" FontSize="11" Foreground="#e8eaed" FontWeight="Bold" VerticalAlignment="Center" Margin="0,4"/>
+                                                <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding TotalDurationText}" FontSize="11" Foreground="#e8eaed" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,4"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
                             </TabControl>
                         </Grid>
                     </TabItem>

@@ -289,11 +289,20 @@ public class NetworkRequestModel : INotifyPropertyChanged
         }
     }
 
+    public string TtfbDurationText => FormatTime(TtfbDuration);
+    public string DownloadDurationText => FormatTime(DownloadDuration);
+    public string TotalDurationText => FormatTime(Duration);
+
+    public double TtfbPercentOfRequest => Duration > 0 ? TtfbDuration / Duration : 0.0;
+    public double DownloadPercentOfRequest => Duration > 0 ? DownloadDuration / Duration : 0.0;
+
     public string WaterfallToolTip => $"Start offset: {FormatTime(StartOffset)}\nWaiting (TTFB): {FormatTime(TtfbDuration)}\nContent Download: {FormatTime(DownloadDuration)}\nTotal: {FormatTime(Duration)}";
 
     private static string FormatTime(double seconds)
     {
-        return seconds >= 1.0 ? $"{seconds:F2} s" : $"{seconds * 1000:F0} ms";
+        return seconds >= 1.0 
+            ? seconds.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " s" 
+            : (seconds * 1000).ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + " ms";
     }
 
     public void UpdateTimeline(double sessionStartTime, double totalDuration)
@@ -349,6 +358,11 @@ public class NetworkRequestModel : INotifyPropertyChanged
         WaterfallWidth = barWidth;
 
         OnPropertyChanged(nameof(WaterfallToolTip));
+        OnPropertyChanged(nameof(TtfbDurationText));
+        OnPropertyChanged(nameof(DownloadDurationText));
+        OnPropertyChanged(nameof(TotalDurationText));
+        OnPropertyChanged(nameof(TtfbPercentOfRequest));
+        OnPropertyChanged(nameof(DownloadPercentOfRequest));
     }
 
     public bool HasPayload => QueryParameters.Count > 0 || PostParameters.Count > 0;

@@ -97,4 +97,31 @@ public class NetworkViewModelTests
         viewModel.RemoveMockRuleCommand.Execute(addedRule);
         Assert.Empty(viewModel.MockRules);
     }
+
+    [Fact]
+    public void Test_NetworkRequestModel_Timing_Properties()
+    {
+        var model = new NetworkRequestModel();
+        model.StartTime = 10.0;
+        model.ResponseReceivedTime = 12.5;
+        model.EndTime = 13.0;
+
+        // Call UpdateTimeline to process
+        // session start: 10.0, session total: 20.0
+        model.UpdateTimeline(10.0, 20.0);
+
+        Assert.Equal(2.5, model.TtfbDuration); // 12.5 - 10.0
+        Assert.Equal(0.5, model.DownloadDuration); // 13.0 - 12.5
+        Assert.Equal(3.0, model.Duration); // 13.0 - 10.0
+
+        // Ratio of TTFB to request duration: 2.5 / 3.0 = 0.8333333333333334
+        Assert.True(Math.Abs(model.TtfbPercentOfRequest - (2.5 / 3.0)) < 0.0001);
+        // Ratio of Download to request duration: 0.5 / 3.0 = 0.16666666666666666
+        Assert.True(Math.Abs(model.DownloadPercentOfRequest - (0.5 / 3.0)) < 0.0001);
+
+        // Formatted durations
+        Assert.Equal("2.50 s", model.TtfbDurationText);
+        Assert.Equal("500 ms", model.DownloadDurationText);
+        Assert.Equal("3.00 s", model.TotalDurationText);
+    }
 }
