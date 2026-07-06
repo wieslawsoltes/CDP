@@ -950,7 +950,13 @@ public class CdpChromeFeatureTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "keydown", Key = "escape" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "dragAndDrop", Selector = "#src", TargetSelector = "#dst" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "assertVisible", Selector = "#btnClick" },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" }
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "assertNotVisible", Selector = "#hidden" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "tap", Selector = "#btnTap" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "doubleTap", Selector = "#btnDblTap" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "longPress", Selector = "#btnLongPress" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "back" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "clear", Selector = "#txtClear" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "delay", Value = "500" }
         };
 
         var generator = new AvaloniaHeadlessXUnitGenerator();
@@ -958,15 +964,15 @@ public class CdpChromeFeatureTests
 
         Assert.Contains("using Avalonia.Headless.XUnit;", generated);
         Assert.Contains("using Avalonia.Diagnostics.Cdp;", generated);
+        Assert.Contains("using CDP.Automation.Headless;", generated);
         Assert.Contains("window.Width = 1024;", generated);
         Assert.Contains("window.Height = 768;", generated);
         Assert.Contains("mainWin.Navigate(\"http://localhost:9222/foo\");", generated);
         Assert.Contains("var element_2 = SelectorEngine.QuerySelector(window, \"#btnClick\") as Control;", generated);
-        Assert.Contains("ClickControl(window, element_2, MouseButton.Right, RawInputModifiers.Control | RawInputModifiers.Shift);", generated);
+        Assert.Contains("window.ClickControl(element_2, MouseButton.Right, RawInputModifiers.Control | RawInputModifiers.Shift);", generated);
         Assert.Contains("for (int c_2 = 0; c_2 < 3; c_2++)", generated);
         Assert.Contains("var element_3 = SelectorEngine.QuerySelector(window, \"#txtInput\") as Control;", generated);
-        Assert.Contains("element_3.Focus();", generated);
-        Assert.Contains("window.KeyTextInput(\"hello \\\"world\\\" \\\\ test\");", generated);
+        Assert.Contains("window.InputText(element_3, \"hello \\\"world\\\" \\\\ test\");", generated);
         Assert.Contains("window.KeyPress(Key.Enter, RawInputModifiers.Control);", generated);
         Assert.Contains("window.KeyRelease(Key.Enter, RawInputModifiers.Control);", generated);
         Assert.Contains("window.KeyPress(Key.A, RawInputModifiers.None);", generated);
@@ -975,9 +981,19 @@ public class CdpChromeFeatureTests
         Assert.Contains("window.KeyPress(Key.Escape, RawInputModifiers.None);", generated);
         Assert.Contains("var source_9 = SelectorEngine.QuerySelector(window, \"#src\") as Control;", generated);
         Assert.Contains("var target_9 = SelectorEngine.QuerySelector(window, \"#dst\") as Control;", generated);
-        Assert.Contains("DragAndDrop(window, source_9, target_9);", generated);
+        Assert.Contains("window.DragAndDrop(source_9, target_9);", generated);
         Assert.Contains("Assert.True(element_10.IsVisible);", generated);
         Assert.Contains("Assert.True(element_11 == null || !element_11.IsVisible);", generated);
+        Assert.Contains("var element_12 = SelectorEngine.QuerySelector(window, \"#btnTap\") as Control;", generated);
+        Assert.Contains("window.ClickControl(element_12, MouseButton.Left, RawInputModifiers.None);", generated);
+        Assert.Contains("var element_13 = SelectorEngine.QuerySelector(window, \"#btnDblTap\") as Control;", generated);
+        Assert.Contains("window.ClickControl(element_13, MouseButton.Left, RawInputModifiers.None);", generated);
+        Assert.Contains("var element_14 = SelectorEngine.QuerySelector(window, \"#btnLongPress\") as Control;", generated);
+        Assert.Contains("await window.LongPressControlAsync(element_14, 1000);", generated);
+        Assert.Contains("mainWin.Navigate(\"/\");", generated);
+        Assert.Contains("var element_16 = SelectorEngine.QuerySelector(window, \"#txtClear\") as Control;", generated);
+        Assert.Contains("window.ClearControl(element_16);", generated);
+        Assert.Contains("await Task.Delay(500);", generated);
     }
 
     [AvaloniaFact]
