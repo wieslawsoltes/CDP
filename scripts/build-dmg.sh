@@ -42,8 +42,11 @@ mkdir -p "$APP_DIR/Contents/Resources"
 # Copy binary to MacOS folder
 cp -R "$PUBLISH_DIR"/* "$APP_DIR/Contents/MacOS/"
 
+# Normalize version for plist (e.g., 1.2.3-rc.1 -> 1.2.3)
+PLIST_VERSION=$(echo "$VERSION" | cut -d'-' -f1)
+
 # Copy and substitute version in Info.plist
-sed "s/<string>1.0.0<\/string>/<string>${VERSION}<\/string>/g" samples/CdpInspectorApp/Info.plist > "$APP_DIR/Contents/Info.plist"
+sed "s/<string>1.0.0<\/string>/<string>${PLIST_VERSION}<\/string>/g" samples/CdpInspectorApp/Info.plist > "$APP_DIR/Contents/Info.plist"
 
 # Generate icon if we are on macOS
 if command -v sips &> /dev/null && command -v iconutil &> /dev/null && [ -f "icon.png" ]; then
