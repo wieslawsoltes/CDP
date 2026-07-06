@@ -109,9 +109,16 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
             {
                 string selectorEscaped = EscapeCSharpString(step.Selector);
 
-                sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
-                sb.AppendLine($"            Assert.NotNull(element_{i});");
-                sb.AppendLine($"            window.ClearControl(element_{i});");
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"            window.ClearControl();");
+                }
+                else
+                {
+                    sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                    sb.AppendLine($"            Assert.NotNull(element_{i});");
+                    sb.AppendLine($"            window.ClearControl(element_{i});");
+                }
             }
             else if (step.Type == "delay")
             {
@@ -140,7 +147,8 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
             }
             else if (step.Type == "keydown" || step.Type == "pressKey")
             {
-                string keyEnum = GetKeyEnum(step.Key);
+                string key = string.IsNullOrEmpty(step.Key) ? step.Value : step.Key;
+                string keyEnum = GetKeyEnum(key);
                 string modifiersEnum = GetModifiersEnum(step.Modifiers);
 
                 sb.AppendLine($"            window.KeyPress({keyEnum}, {modifiersEnum});");

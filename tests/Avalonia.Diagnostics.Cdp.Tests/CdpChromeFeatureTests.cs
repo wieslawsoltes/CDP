@@ -956,7 +956,9 @@ public class CdpChromeFeatureTests
             new CdpInspectorApp.Models.RecordedStepModel { Type = "longPress", Selector = "#btnLongPress" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "back" },
             new CdpInspectorApp.Models.RecordedStepModel { Type = "clear", Selector = "#txtClear" },
-            new CdpInspectorApp.Models.RecordedStepModel { Type = "delay", Value = "500" }
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "delay", Value = "500" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "clear" },
+            new CdpInspectorApp.Models.RecordedStepModel { Type = "pressKey", Value = "Enter" }
         };
 
         var generator = new AvaloniaHeadlessXUnitGenerator();
@@ -994,6 +996,9 @@ public class CdpChromeFeatureTests
         Assert.Contains("var element_16 = SelectorEngine.QuerySelector(window, \"#txtClear\") as Control;", generated);
         Assert.Contains("window.ClearControl(element_16);", generated);
         Assert.Contains("await Task.Delay(500);", generated);
+        Assert.Contains("window.ClearControl();", generated);
+        Assert.Contains("window.KeyPress(Key.Enter, RawInputModifiers.None);", generated);
+        Assert.Contains("window.KeyRelease(Key.Enter, RawInputModifiers.None);", generated);
     }
 
     [AvaloniaFact]

@@ -45,8 +45,13 @@ public class HeadlessHelperTests
         window.InputText(textBox, "Hello Cdp Headless!");
         Assert.Equal("Hello Cdp Headless!", textBox.Text);
 
-        // Test ClearControl
+        // Test ClearControl with control argument
         window.ClearControl(textBox);
+        Assert.Equal("", textBox.Text);
+
+        // Test selectorless ClearControl
+        window.InputText(textBox, "Hello Cdp Headless!");
+        window.ClearControl();
         Assert.Equal("", textBox.Text);
 
         window.Close();

@@ -49,6 +49,15 @@ public static class CdpHeadlessHelper
         }
     }
 
+    public static void ClearControl(this Window window)
+    {
+        var focused = window.FocusManager?.GetFocusedElement() as Control;
+        if (focused != null)
+        {
+            window.ClearControl(focused);
+        }
+    }
+
     public static async Task LongPressControlAsync(this Window window, Control control, int delayMs = 1000)
     {
         var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window) ?? new Point();
