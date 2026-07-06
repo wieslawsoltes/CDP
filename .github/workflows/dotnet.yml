@@ -24,17 +24,17 @@ jobs:
       run: dotnet workload install wasm-tools
 
     - name: Restore dependencies
-      run: dotnet restore
+      run: |
+        dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
+        dotnet restore tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj
 
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
-
-    - name: Test
-      run: dotnet test --no-restore --configuration Release --verbosity normal
+    - name: Build & Run Unit Tests
+      run: |
+        dotnet test tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj --no-restore --configuration Release --verbosity normal
 
     - name: Publish Linux Executable
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r linux-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r linux-x64 --no-restore -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
 
     - name: Build DEB Package
       run: |
@@ -69,11 +69,17 @@ jobs:
         dotnet-version: 10.0.x
 
     - name: Restore dependencies
-      run: dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
+      run: |
+        dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
+        dotnet restore tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj
+
+    - name: Build & Run Unit Tests
+      run: |
+        dotnet test tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj --no-restore --configuration Release --verbosity normal
 
     - name: Publish macOS ARM64 Executable
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-arm64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-arm64 --no-restore -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
 
     - name: Build macOS DMG
       run: |
@@ -107,12 +113,19 @@ jobs:
         dotnet-version: 10.0.x
 
     - name: Restore dependencies
-      run: dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
+      run: |
+        dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
+        dotnet restore tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj
+
+    - name: Build & Run Unit Tests
+      shell: pwsh
+      run: |
+        dotnet test tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj --no-restore --configuration Release --verbosity normal
 
     - name: Publish Windows Executable
       shell: pwsh
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 --no-restore -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
 
     - name: Build Windows MSI Installer
       shell: cmd
@@ -153,6 +166,9 @@ jobs:
 
     - name: Restore dependencies
       run: dotnet restore
+
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
 
     - name: Pack NuGet Packages
       shell: bash
