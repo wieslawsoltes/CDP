@@ -82,7 +82,7 @@ jobs:
 
   build-macos:
     name: Build & Test (macOS)
-    runs-on: macos-14
+    runs-on: macos-latest
     needs: version
     steps:
     - uses: actions/checkout@v4
@@ -95,7 +95,7 @@ jobs:
         dotnet-version: 10.0.x
 
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
 
     - name: Publish macOS x64 Executable
       run: |
@@ -152,7 +152,7 @@ jobs:
         dotnet-version: 10.0.x
 
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore samples/CdpInspectorApp/CdpInspectorApp.csproj
 
     - name: Publish Windows Executable
       shell: pwsh
