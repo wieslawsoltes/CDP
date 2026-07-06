@@ -108,6 +108,7 @@ const guideSidebarItems = [
       { text: "Appium Integration", link: "/articles/appium" },
       { text: "YAML Conversion", link: "/articles/yaml-conversion" },
       { text: "Headless CDP Testing", link: "/articles/headless-cdp-testing" },
+      { text: "Headless Test Helpers", link: "/articles/headless" },
       { text: "Multi-Framework CDP Integration", link: "/articles/multi-framework-cdp" },
       { text: "Self-Inspection", link: "/articles/self-inspection" }
     ]
