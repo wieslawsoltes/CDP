@@ -27,8 +27,11 @@ while (-not $installProcess.HasExited) {
     Start-Sleep -Seconds 2
 }
 
-if ($installProcess.ExitCode -ne 0) {
-    Write-Error "Failed to install MSI. Exit code: $($installProcess.ExitCode)"
+$installProcess.Refresh()
+$exitCode = $installProcess.ExitCode
+Write-Host "msiexec install exited with code: $exitCode"
+if ($exitCode -ne 0) {
+    Write-Error "Failed to install MSI. Exit code: $exitCode"
     if (Test-Path msi-install.log) {
         Write-Host "msiexec install log content:"
         Get-Content msi-install.log -Tail 100
@@ -90,8 +93,11 @@ while (-not $uninstallProcess.HasExited) {
     Start-Sleep -Seconds 2
 }
 
-if ($uninstallProcess.ExitCode -ne 0) {
-    Write-Error "Failed to uninstall MSI. Exit code: $($uninstallProcess.ExitCode)"
+$uninstallProcess.Refresh()
+$exitCode = $uninstallProcess.ExitCode
+Write-Host "msiexec uninstall exited with code: $exitCode"
+if ($exitCode -ne 0) {
+    Write-Error "Failed to uninstall MSI. Exit code: $exitCode"
     if (Test-Path msi-uninstall.log) {
         Write-Host "msiexec uninstall log content:"
         Get-Content msi-uninstall.log -Tail 100
