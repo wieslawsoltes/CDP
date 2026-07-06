@@ -60,7 +60,7 @@
             <StackPanel Grid.Row="1" Spacing="5" Margin="0,0,0,10">
                 <TextBlock Text="Memory Allocation Rate Timeline (MB)" Classes="panel-header" FontSize="12"/>
                 <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
-                    <controls:ChromeTimelineChart StrokeColor="#ff5252" FillColor="#ff5252" Unit="MB" Height="65" History="{Binding Memory.AllocationHistory}"/>
+                    <controls:TimelineChart StrokeColor="#ff5252" FillColor="#ff5252" Unit="MB" Height="65" History="{Binding Memory.AllocationHistory}"/>
                 </Border>
             </StackPanel>
  
@@ -120,7 +120,15 @@
                                             <DataGridTextColumn Header="Control Type / Constructor" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
                                             <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineCount}" Width="100" Foreground="#9aa0a6" FontSize="12"/>
                                             <DataGridTextColumn Header="Current" Binding="{Binding SnapshotCount}" Width="100" Foreground="#e8eaed" FontSize="12"/>
-                                            <DataGridTextColumn Header="Delta" Binding="{Binding DeltaText}" Width="100" Foreground="#f28b82" FontSize="12" FontWeight="Bold"/>
+                                            <DataGridTemplateColumn Header="Delta" Width="100" SortMemberPath="Delta">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:MemoryComparisonModel">
+                                                        <Border Background="{Binding DeltaBg}" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0">
+                                                            <TextBlock Text="{Binding DeltaText}" Foreground="{Binding DeltaFg}" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
                                         </DataGrid.Columns>
                                     </DataGrid>
                                 </Grid>

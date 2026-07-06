@@ -35,7 +35,7 @@ The left side of the Performance Panel displays the **Diagnostics Info** dashboa
 
 ## 2. Performance Monitors and Chrono-Charts
 
-The right side of the panel displays a stack of timeline charts using the custom `ChromeTimelineChart` control. These charts graph performance history over time:
+The right side of the panel displays a stack of timeline charts using the custom `TimelineChart` control. These charts graph performance history over time:
 
 ```
 +---------------------------------------------------------+

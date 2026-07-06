@@ -22,7 +22,7 @@ The left panel of the interface provides controls for capturing and exporting me
 ## 2. Memory Allocation Rate Timeline
 
 The top of the details panel features the **Memory Allocation Rate Timeline**:
-- **ChromeTimelineChart Integration**: Plots a real-time graph of memory allocation activity in MB.
+- **TimelineChart Integration**: Plots a real-time graph of memory allocation activity in MB.
 - **Leak Detection**: Continuous upward memory trends during cyclic UI operations (such as opening and closing windows) indicate memory leaks.
 
 ---

@@ -56,10 +56,10 @@
         <Setter Property="Background" Value="#202124"/>
     </Style>
     <Style Selector="TabItem">
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="Normal"/>
         <Setter Property="Foreground" Value="#9aa0a6"/>
-        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="Padding" Value="12,6"/>
     </Style>
     <Style Selector="TabItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Foreground" Value="#e8eaed"/>
@@ -71,6 +71,61 @@
     <Style Selector="TabItem:selected /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Foreground" Value="#8ab4f8"/>
     </Style>
+    <!-- Target the selected highlight pipe in Fluent Theme TabItem template -->
+    <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+        <Setter Property="Background" Value="#8ab4f8"/>
+        <Setter Property="Height" Value="2"/>
+    </Style>
+
+    <!-- ScrollBar styling matching Chrome DevTools slim scrollbars -->
+    <Style Selector="ScrollBar">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="ScrollBar:vertical">
+        <Setter Property="Width" Value="8"/>
+    </Style>
+    <Style Selector="ScrollBar:horizontal">
+        <Setter Property="Height" Value="8"/>
+    </Style>
+    <Style Selector="ScrollBar /template/ Thumb">
+        <Setter Property="Background" Value="#3c4043"/>
+        <Setter Property="CornerRadius" Value="4"/>
+    </Style>
+    <Style Selector="ScrollBar:pointerover /template/ Thumb">
+        <Setter Property="Background" Value="#5f6368"/>
+    </Style>
+    <Style Selector="ScrollBar /template/ RepeatButton">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
+    <!-- DataGrid Customizations matching Chrome DevTools grids -->
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="#3c4043"/>
+    </Style>
+    <Style Selector="DataGridRow">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="DataGridRow:nth-child(2n)">
+        <Setter Property="Background" Value="#252629"/>
+    </Style>
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="#202124"/>
+        <Setter Property="Foreground" Value="#9aa0a6"/>
+        <Setter Property="BorderBrush" Value="#3c4043"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="8,4"/>
+    </Style>
+    <Style Selector="DataGridColumnHeader:pointerover /template/ Grid">
+        <Setter Property="Background" Value="#2d2e30"/>
+    </Style>
+    <Style Selector="DataGridRow:selected">
+        <Setter Property="Background" Value="#353a45"/>
+    </Style>
+
 
     <!-- Borders and Card styles matching Chrome DevTools lines/margins -->
     <Style Selector="Border.panel-card">

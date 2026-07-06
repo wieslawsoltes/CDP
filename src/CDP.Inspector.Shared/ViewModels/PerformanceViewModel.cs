@@ -31,6 +31,18 @@ public class PerformanceViewModel : ViewModelBase
     private List<double>? _cpuHistory = new();
     private List<double>? _fpsHistory = new();
 
+    private double _latestCpuUsage = 0.0;
+    private double _latestLayoutDuration = 0.0;
+    private double _latestFrameDuration = 0.0;
+    private double _latestDispatcherQueueDelay = 0.0;
+
+    private double _cpuScripting = 0.0;
+    private double _cpuRendering = 0.0;
+    private double _cpuLayout = 0.0;
+    private double _cpuSystem = 0.0;
+    private double _cpuIdle = 100.0;
+
+
     public string PerfNodesText
     {
         get => _perfNodesText;
@@ -129,6 +141,37 @@ public class PerformanceViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _fpsHistory, value);
     }
 
+    public double CpuScripting
+    {
+        get => _cpuScripting;
+        private set => RaiseAndSetIfChanged(ref _cpuScripting, value);
+    }
+
+    public double CpuRendering
+    {
+        get => _cpuRendering;
+        private set => RaiseAndSetIfChanged(ref _cpuRendering, value);
+    }
+
+    public double CpuLayout
+    {
+        get => _cpuLayout;
+        private set => RaiseAndSetIfChanged(ref _cpuLayout, value);
+    }
+
+    public double CpuSystem
+    {
+        get => _cpuSystem;
+        private set => RaiseAndSetIfChanged(ref _cpuSystem, value);
+    }
+
+    public double CpuIdle
+    {
+        get => _cpuIdle;
+        private set => RaiseAndSetIfChanged(ref _cpuIdle, value);
+    }
+
+
     public ICommand RefreshMetricsCommand { get; }
     public ICommand CollectGarbageCommand { get; }
     public ICommand CloseTargetCommand { get; }
@@ -193,6 +236,12 @@ public class PerformanceViewModel : ViewModelBase
         var newHistory = MemoryHistory != null ? new List<double>(MemoryHistory) : new List<double>();
         var newHistoryCpu = CpuHistory != null ? new List<double>(CpuHistory) : new List<double>();
         var newHistoryFps = FpsHistory != null ? new List<double>(FpsHistory) : new List<double>();
+
+        double cpuUsage = _latestCpuUsage;
+        double layoutDuration = _latestLayoutDuration;
+        double frameDuration = _latestFrameDuration;
+        double queueDelay = _latestDispatcherQueueDelay;
+
         foreach (var m in metrics)
         {
             string name = m?["name"]?.GetValue<string>() ?? "";
@@ -213,6 +262,7 @@ public class PerformanceViewModel : ViewModelBase
             }
             else if (name == "CPUUsage")
             {
+                cpuUsage = val;
                 PerfCpuText = $"{val:F1} %";
                 newHistoryCpu.Add(val);
                 if (newHistoryCpu.Count > 30) newHistoryCpu.RemoveAt(0);
@@ -223,6 +273,7 @@ public class PerformanceViewModel : ViewModelBase
             }
             else if (name == "LayoutDuration")
             {
+                layoutDuration = val;
                 PerfLayoutDurationText = $"{val:F3} s";
             }
             else if (name == "FPS")
@@ -233,10 +284,12 @@ public class PerformanceViewModel : ViewModelBase
             }
             else if (name == "FrameDuration")
             {
+                frameDuration = val;
                 PerfFrameDurationText = $"{val:F3} s";
             }
             else if (name == "DispatcherQueueDelay")
             {
+                queueDelay = val;
                 PerfQueueDelayText = $"{val:F3} s";
             }
             else if (name == "UIThreadBlockingTime")
@@ -247,7 +300,37 @@ public class PerformanceViewModel : ViewModelBase
         MemoryHistory = newHistory;
         CpuHistory = newHistoryCpu;
         FpsHistory = newHistoryFps;
+
+        _latestCpuUsage = cpuUsage;
+        _latestLayoutDuration = layoutDuration;
+        _latestFrameDuration = frameDuration;
+        _latestDispatcherQueueDelay = queueDelay;
+
+        double activeCpu = Math.Max(0.0, cpuUsage);
+        double cpuIdle = Math.Max(0.0, 100.0 - activeCpu);
+
+        double layoutPct = layoutDuration * 100.0;
+        double renderingPct = Math.Max(0.0, frameDuration - layoutDuration) * 100.0;
+        double scriptingPct = queueDelay * 100.0;
+
+        double sumActive = scriptingPct + layoutPct + renderingPct;
+        if (sumActive > activeCpu && sumActive > 0)
+        {
+            double scale = activeCpu / sumActive;
+            scriptingPct *= scale;
+            layoutPct *= scale;
+            renderingPct *= scale;
+        }
+
+        double systemPct = Math.Max(0.0, activeCpu - (scriptingPct + layoutPct + renderingPct));
+
+        CpuIdle = cpuIdle;
+        CpuScripting = scriptingPct;
+        CpuRendering = renderingPct;
+        CpuLayout = layoutPct;
+        CpuSystem = systemPct;
     }
+
 
     public async Task RefreshMetricsAsync()
     {
@@ -373,6 +456,15 @@ public class PerformanceViewModel : ViewModelBase
             MemoryHistory = null;
             CpuHistory = null;
             FpsHistory = null;
+            CpuScripting = 0.0;
+            CpuRendering = 0.0;
+            CpuLayout = 0.0;
+            CpuSystem = 0.0;
+            CpuIdle = 100.0;
+            _latestCpuUsage = 0.0;
+            _latestLayoutDuration = 0.0;
+            _latestFrameDuration = 0.0;
+            _latestDispatcherQueueDelay = 0.0;
         });
     }
 

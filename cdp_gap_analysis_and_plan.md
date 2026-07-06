@@ -96,7 +96,7 @@ The bottom retainer panel traces the exact reference path keeping detached eleme
 ### Phase 6: Memory Allocation Timeline
 *Status: **Fully Implemented & Merged***
 - Tracked cumulative allocated bytes delta rate in `PerformanceDomain.cs` via `GC.GetTotalAllocatedBytes()`.
-- Added real-time allocation rate metrics history collection in `MemoryViewModel.cs` and stacked the red-orange `ChromeTimelineChart` at the top of the right pane in `MemoryView.axaml`.
+- Added real-time allocation rate metrics history collection in `MemoryViewModel.cs` and stacked the red-orange `TimelineChart` at the top of the right pane in `MemoryView.axaml`.
 
 ### Phase 7: Dynamic Console Object Expander
 *Status: **Planned***
