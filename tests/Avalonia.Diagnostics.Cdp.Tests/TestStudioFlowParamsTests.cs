@@ -306,8 +306,16 @@ public class TestStudioFlowParamsTests
         var recorder = new RecorderViewModel(cdp, () => "http://127.0.0.1:9222");
 
         recorder.TestStudio.IsAutoLaunchEnabled = true;
-        recorder.TestStudio.AutoLaunchPath = "/usr/bin/true";
-        recorder.TestStudio.AutoLaunchArguments = "";
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+        {
+            recorder.TestStudio.AutoLaunchPath = "cmd.exe";
+            recorder.TestStudio.AutoLaunchArguments = "/c exit 0";
+        }
+        else
+        {
+            recorder.TestStudio.AutoLaunchPath = "/usr/bin/true";
+            recorder.TestStudio.AutoLaunchArguments = "";
+        }
         recorder.TestStudio.Connection = new ConnectionViewModel(cdp);
 
         await recorder.ToggleRecordAsync();
@@ -328,8 +336,16 @@ public class TestStudioFlowParamsTests
         testStudio.Connection = connection;
 
         testStudio.IsAutoLaunchEnabled = true;
-        testStudio.AutoLaunchPath = "/usr/bin/true";
-        testStudio.AutoLaunchArguments = "";
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+        {
+            testStudio.AutoLaunchPath = "cmd.exe";
+            testStudio.AutoLaunchArguments = "/c exit 0";
+        }
+        else
+        {
+            testStudio.AutoLaunchPath = "/usr/bin/true";
+            testStudio.AutoLaunchArguments = "";
+        }
 
         await connection.ConnectAsync();
 
