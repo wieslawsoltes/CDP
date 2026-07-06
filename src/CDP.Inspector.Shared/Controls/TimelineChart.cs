@@ -8,22 +8,22 @@ using Avalonia.Media;
 
 namespace CdpInspectorApp.Controls;
 
-public class ChromeTimelineChart : Control
+public class TimelineChart : Control
 {
     public static readonly StyledProperty<IEnumerable<double>?> HistoryProperty =
-        AvaloniaProperty.Register<ChromeTimelineChart, IEnumerable<double>?>(nameof(History));
+        AvaloniaProperty.Register<TimelineChart, IEnumerable<double>?>(nameof(History));
 
     public static readonly StyledProperty<Color> FillColorProperty =
-        AvaloniaProperty.Register<ChromeTimelineChart, Color>(nameof(FillColor), Colors.DodgerBlue);
+        AvaloniaProperty.Register<TimelineChart, Color>(nameof(FillColor), Colors.DodgerBlue);
 
     public static readonly StyledProperty<Color> StrokeColorProperty =
-        AvaloniaProperty.Register<ChromeTimelineChart, Color>(nameof(StrokeColor), Colors.Blue);
+        AvaloniaProperty.Register<TimelineChart, Color>(nameof(StrokeColor), Colors.Blue);
 
     public static readonly StyledProperty<string> UnitProperty =
-        AvaloniaProperty.Register<ChromeTimelineChart, string>(nameof(Unit), "");
+        AvaloniaProperty.Register<TimelineChart, string>(nameof(Unit), "");
 
     public static readonly StyledProperty<double?> MaxDisplayValueProperty =
-        AvaloniaProperty.Register<ChromeTimelineChart, double?>(nameof(MaxDisplayValue), null);
+        AvaloniaProperty.Register<TimelineChart, double?>(nameof(MaxDisplayValue), null);
 
     public IEnumerable<double>? History
     {
@@ -55,9 +55,9 @@ public class ChromeTimelineChart : Control
         set => SetValue(MaxDisplayValueProperty, value);
     }
 
-    static ChromeTimelineChart()
+    static TimelineChart()
     {
-        AffectsRender<ChromeTimelineChart>(
+        AffectsRender<TimelineChart>(
             HistoryProperty,
             FillColorProperty,
             StrokeColorProperty,
