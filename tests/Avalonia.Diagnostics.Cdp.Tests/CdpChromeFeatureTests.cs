@@ -245,7 +245,7 @@ public class CdpChromeFeatureTests
         try
         {
             // 1. Create table and insert a record
-            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath}"))
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath};Pooling=False"))
             {
                 connection.Open();
                 using (var cmd = connection.CreateCommand())
