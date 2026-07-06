@@ -86,7 +86,14 @@ public static class TestStudioStepConverter
             if (step.Parameters.TryGetValue("height", out var hObj)) recStep.Height = SafeToDouble(hObj);
 
             // Url
-            if (step.Parameters.TryGetValue("url", out var urlObj) && urlObj is string urlStr) recStep.Url = urlStr;
+            if (step.Parameters.TryGetValue("url", out var urlObj) && urlObj is string urlStr)
+            {
+                recStep.Url = urlStr;
+            }
+            else if (step.Parameters.TryGetValue("link", out var linkObj) && linkObj is string linkStr)
+            {
+                recStep.Url = linkStr;
+            }
 
             // Key
             if (step.Parameters.TryGetValue("key", out var keyObj) && keyObj is string keyStr) recStep.Key = keyStr;
@@ -106,6 +113,11 @@ public static class TestStudioStepConverter
             // TargetOffsetX, TargetOffsetY
             if (step.Parameters.TryGetValue("targetOffsetX", out var toxObj)) recStep.TargetOffsetX = SafeToDouble(toxObj);
             if (step.Parameters.TryGetValue("targetOffsetY", out var toyObj)) recStep.TargetOffsetY = SafeToDouble(toyObj);
+        }
+
+        if (string.IsNullOrEmpty(recStep.Url) && action.Equals("openLink", StringComparison.OrdinalIgnoreCase))
+        {
+            recStep.Url = step.Value ?? "";
         }
 
         return recStep;

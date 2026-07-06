@@ -150,4 +150,56 @@ public class WorkspaceCodeGenTests
         Assert.Equal("/abs/path", vmLoad.CodeGenPlaywrightPath);
         Assert.False(vmLoad.CodeGenPlaywrightRelative);
     }
+
+    [Fact]
+    public void Test_WorkspaceCodeGen_PreserveRelativeSubfolders_And_OpenLink_Urls()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+
+            // 1. Create duplicate scenarios in different subfolders
+            var checkoutDir = Path.Combine(tempDir, "checkout");
+            Directory.CreateDirectory(checkoutDir);
+            var checkoutYamlFile = Path.Combine(checkoutDir, "login.yaml");
+            // Test scalar openLink
+            File.WriteAllText(checkoutYamlFile, "appId: \"testApp\"\ndescription: \"desc\"\n---\n- openLink: \"https://example.com/checkout\"\n");
+
+            var adminDir = Path.Combine(tempDir, "admin");
+            Directory.CreateDirectory(adminDir);
+            var adminYamlFile = Path.Combine(adminDir, "login.yaml");
+            // Test map-form openLink
+            File.WriteAllText(adminYamlFile, "appId: \"testApp\"\ndescription: \"desc\"\n---\n- openLink:\n    link: \"https://example.com/admin\"\n");
+
+            // Configure code-generation format
+            vm.CodeGenPuppeteerEnabled = true;
+            vm.CodeGenPuppeteerPath = "codegen/puppeteer";
+            vm.CodeGenPuppeteerRelative = true;
+
+            // Trigger generation
+            vm.GenerateAllCodeCommand.Execute(null);
+
+            // Assert relative subfolders are preserved
+            var expectedCheckoutFile = Path.Combine(tempDir, "codegen/puppeteer/checkout", "login.js");
+            var expectedAdminFile = Path.Combine(tempDir, "codegen/puppeteer/admin", "login.js");
+
+            Assert.True(File.Exists(expectedCheckoutFile), $"Checkout file should exist at: {expectedCheckoutFile}");
+            Assert.True(File.Exists(expectedAdminFile), $"Admin file should exist at: {expectedAdminFile}");
+
+            // Verify URL values are successfully mapped into code-gen Output
+            var checkoutJsContent = File.ReadAllText(expectedCheckoutFile);
+            Assert.Contains("https://example.com/checkout", checkoutJsContent);
+
+            var adminJsContent = File.ReadAllText(expectedAdminFile);
+            Assert.Contains("https://example.com/admin", adminJsContent);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }
