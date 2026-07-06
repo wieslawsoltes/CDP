@@ -25,6 +25,7 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
         sb.AppendLine("using Avalonia.Headless.XUnit;");
         sb.AppendLine("using Avalonia.Input;");
         sb.AppendLine("using Avalonia.VisualTree;");
+        sb.AppendLine("using CDP.Automation.Headless;");
         sb.AppendLine("using Xunit;");
         sb.AppendLine();
         sb.AppendLine("namespace HeadlessRecordedTests");
@@ -60,7 +61,7 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
                 sb.AppendLine($"                mainWin.Navigate(\"{EscapeCSharpString(step.Url)}\");");
                 sb.AppendLine($"            }}");
             }
-            else if (step.Type == "click")
+            else if (step.Type == "click" || step.Type == "tap" || step.Type == "tapOn")
             {
                 string selectorEscaped = EscapeCSharpString(step.Selector);
                 string buttonEnum = GetMouseButton(step.Button);
@@ -72,25 +73,72 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
                 {
                     sb.AppendLine($"            for (int c_{i} = 0; c_{i} < {step.ClickCount}; c_{i}++)");
                     sb.AppendLine($"            {{");
-                    sb.AppendLine($"                ClickControl(window, element_{i}, {buttonEnum}, {modifiersEnum});");
+                    sb.AppendLine($"                window.ClickControl(element_{i}, {buttonEnum}, {modifiersEnum});");
                     sb.AppendLine($"            }}");
                 }
                 else
                 {
-                    sb.AppendLine($"            ClickControl(window, element_{i}, {buttonEnum}, {modifiersEnum});");
+                    sb.AppendLine($"            window.ClickControl(element_{i}, {buttonEnum}, {modifiersEnum});");
                 }
             }
-            else if (step.Type == "change")
+            else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")
+            {
+                string selectorEscaped = EscapeCSharpString(step.Selector);
+
+                sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                sb.AppendLine($"            Assert.NotNull(element_{i});");
+                sb.AppendLine($"            window.ClickControl(element_{i}, MouseButton.Left, RawInputModifiers.None);");
+                sb.AppendLine($"            window.ClickControl(element_{i}, MouseButton.Left, RawInputModifiers.None);");
+            }
+            else if (step.Type == "longPress" || step.Type == "longPressOn")
+            {
+                string selectorEscaped = EscapeCSharpString(step.Selector);
+
+                sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                sb.AppendLine($"            Assert.NotNull(element_{i});");
+                sb.AppendLine($"            await window.LongPressControlAsync(element_{i}, 1000);");
+            }
+            else if (step.Type == "back")
+            {
+                sb.AppendLine($"            if (window is CdpSampleApp.MainWindow mainWin)");
+                sb.AppendLine($"            {{");
+                sb.AppendLine($"                mainWin.Navigate(\"/\");");
+                sb.AppendLine($"            }}");
+            }
+            else if (step.Type == "clear" || step.Type == "clearText")
+            {
+                string selectorEscaped = EscapeCSharpString(step.Selector);
+
+                sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                sb.AppendLine($"            Assert.NotNull(element_{i});");
+                sb.AppendLine($"            window.ClearControl(element_{i});");
+            }
+            else if (step.Type == "delay")
+            {
+                int delayMs = 1000;
+                if (int.TryParse(step.Value, out int val))
+                {
+                    delayMs = val;
+                }
+                sb.AppendLine($"            await Task.Delay({delayMs});");
+            }
+            else if (step.Type == "change" || step.Type == "inputText" || step.Type == "input")
             {
                 string selectorEscaped = EscapeCSharpString(step.Selector);
                 string valueEscaped = EscapeCSharpString(step.Value);
 
-                sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
-                sb.AppendLine($"            Assert.NotNull(element_{i});");
-                sb.AppendLine($"            element_{i}.Focus();");
-                sb.AppendLine($"            window.KeyTextInput(\"{valueEscaped}\");");
+                if (string.IsNullOrEmpty(step.Selector))
+                {
+                    sb.AppendLine($"            window.KeyTextInput(\"{valueEscaped}\");");
+                }
+                else
+                {
+                    sb.AppendLine($"            var element_{i} = SelectorEngine.QuerySelector(window, \"{selectorEscaped}\") as Control;");
+                    sb.AppendLine($"            Assert.NotNull(element_{i});");
+                    sb.AppendLine($"            window.InputText(element_{i}, \"{valueEscaped}\");");
+                }
             }
-            else if (step.Type == "keydown")
+            else if (step.Type == "keydown" || step.Type == "pressKey")
             {
                 string keyEnum = GetKeyEnum(step.Key);
                 string modifiersEnum = GetModifiersEnum(step.Modifiers);
@@ -107,7 +155,7 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
                 sb.AppendLine($"            var target_{i} = SelectorEngine.QuerySelector(window, \"{targetSelectorEscaped}\") as Control;");
                 sb.AppendLine($"            Assert.NotNull(source_{i});");
                 sb.AppendLine($"            Assert.NotNull(target_{i});");
-                sb.AppendLine($"            DragAndDrop(window, source_{i}, target_{i});");
+                sb.AppendLine($"            window.DragAndDrop(source_{i}, target_{i});");
             }
             else if (step.Type == "scroll")
             {
@@ -221,23 +269,6 @@ public class AvaloniaHeadlessXUnitGenerator : ICodeGenerator
         }
 
         sb.AppendLine("            await Task.Delay(50);");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine("        private static void ClickControl(Window window, Control control, MouseButton button, RawInputModifiers modifiers)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            var point = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window) ?? new Point();");
-        sb.AppendLine("            window.MouseDown(point, button, modifiers);");
-        sb.AppendLine("            window.MouseUp(point, button, modifiers);");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine("        private static void DragAndDrop(Window window, Control source, Control target)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            var startPoint = source.TranslatePoint(new Point(source.Bounds.Width / 2, source.Bounds.Height / 2), window) ?? new Point();");
-        sb.AppendLine("            var endPoint = target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window) ?? new Point();");
-        sb.AppendLine("            window.MouseMove(startPoint);");
-        sb.AppendLine("            window.MouseDown(startPoint, MouseButton.Left);");
-        sb.AppendLine("            window.MouseMove(endPoint);");
-        sb.AppendLine("            window.MouseUp(endPoint, MouseButton.Left);");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine("}");
