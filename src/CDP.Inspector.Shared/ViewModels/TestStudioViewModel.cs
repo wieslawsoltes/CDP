@@ -5582,6 +5582,32 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             }
         }
 
+        // Preserve relative subfolder structure if pathOption is not empty (specifically output directory configuration)
+        if (!string.IsNullOrEmpty(pathOption) && !string.IsNullOrEmpty(WorkspaceRootPath))
+        {
+            string fullSourcePath = Path.GetFullPath(sourceYamlPath);
+            string fullWorkspacePath = Path.GetFullPath(WorkspaceRootPath);
+
+            // Add trailing separator to workspace path to make relative path calculation clean
+            if (!fullWorkspacePath.EndsWith(Path.DirectorySeparatorChar.ToString()) && !fullWorkspacePath.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
+            {
+                fullWorkspacePath += Path.DirectorySeparatorChar;
+            }
+
+            if (fullSourcePath.StartsWith(fullWorkspacePath, StringComparison.OrdinalIgnoreCase))
+            {
+                string? sourceDir = Path.GetDirectoryName(fullSourcePath);
+                if (sourceDir != null && sourceDir.Length > fullWorkspacePath.Length)
+                {
+                    string relativeSubDir = sourceDir.Substring(fullWorkspacePath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    if (!string.IsNullOrEmpty(relativeSubDir))
+                    {
+                        targetDir = Path.Combine(targetDir, relativeSubDir);
+                    }
+                }
+            }
+        }
+
         if (!Directory.Exists(targetDir))
         {
             Directory.CreateDirectory(targetDir);
