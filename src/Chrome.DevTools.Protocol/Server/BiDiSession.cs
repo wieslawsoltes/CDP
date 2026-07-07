@@ -31,6 +31,13 @@ public class BiDiSession
         _sessionId = sessionId;
     }
 
+    public bool IsSubscribedToNetworkEvents()
+    {
+        return _subscribedEvents.Contains("network.beforeRequestSent") || 
+               _subscribedEvents.Contains("network.responseCompleted") || 
+               _subscribedEvents.Contains("network.fetchError");
+    }
+
     public async Task StartAsync(WebSocket webSocket)
     {
         _webSocket = webSocket;

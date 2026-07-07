@@ -295,8 +295,8 @@ public static class NetworkDomain
             Console.WriteLine("[CDP TRACE] OnRequestStart: request already tracked, ignoring duplicate start.");
             return;
         }
-        if (_enabledSessions.IsEmpty) {
-            Console.WriteLine("[CDP TRACE] OnRequestStart: _enabledSessions is empty, returning.");
+        if (_enabledSessions.IsEmpty && !HasBiDiNetworkSubscriptions()) {
+            Console.WriteLine("[CDP TRACE] OnRequestStart: _enabledSessions is empty and no BiDi network subscriptions, returning.");
             return;
         }
 
@@ -348,8 +348,8 @@ public static class NetworkDomain
             Console.WriteLine("[CDP TRACE] OnRequestStop: request ID not found in _requestIds.");
             return;
         }
-        if (_enabledSessions.IsEmpty) {
-            Console.WriteLine("[CDP TRACE] OnRequestStop: _enabledSessions is empty, returning.");
+        if (_enabledSessions.IsEmpty && !HasBiDiNetworkSubscriptions()) {
+            Console.WriteLine("[CDP TRACE] OnRequestStop: _enabledSessions is empty and no BiDi network subscriptions, returning.");
             return;
         }
 
@@ -479,6 +479,18 @@ public static class NetworkDomain
                 await Task.Delay((int)delayMs, cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    private static bool HasBiDiNetworkSubscriptions()
+    {
+        foreach (var session in CdpServer.BiDiSessions.Values)
+        {
+            if (session.IsSubscribedToNetworkEvents())
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
