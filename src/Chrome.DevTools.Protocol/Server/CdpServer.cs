@@ -482,7 +482,14 @@ public static class CdpServer
                         _bidiSessions[bidiSessionId] = bidiSession;
                     }
                     
-                    await bidiSession.StartAsync(wsContext.WebSocket);
+                    try
+                    {
+                        await bidiSession.StartAsync(wsContext.WebSocket);
+                    }
+                    finally
+                    {
+                        _bidiSessions.TryRemove(bidiSessionId, out _);
+                    }
                     return;
                 }
 

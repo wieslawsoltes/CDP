@@ -217,19 +217,33 @@ public class BiDiSession
                 throw new BiDiException("no such frame", $"Browsing context {contextId} not found");
             }
 
-            if (CdpDomainRegistry.TryGetHandler("Page", out var pageHandler))
+            var previousSession = cdpSession.CurrentTargetSession;
+            var targetSession = cdpSession.GetAttachedSessionForTarget(contextId);
+            if (targetSession != null)
             {
-                var p = new JsonObject { ["url"] = url };
-                var res = await pageHandler(cdpSession, "navigate", p);
-                return new JsonObject
-                {
-                    ["navigation"] = res["loaderId"]?.DeepClone() ?? (JsonNode)JsonValue.Create(Guid.NewGuid().ToString()),
-                    ["url"] = url
-                };
+                cdpSession.CurrentTargetSession = targetSession;
             }
-            else
+
+            try
             {
-                throw new Exception("Page domain handler not registered");
+                if (CdpDomainRegistry.TryGetHandler("Page", out var pageHandler))
+                {
+                    var p = new JsonObject { ["url"] = url };
+                    var res = await pageHandler(cdpSession, "navigate", p);
+                    return new JsonObject
+                    {
+                        ["navigation"] = res["loaderId"]?.DeepClone() ?? (JsonNode)JsonValue.Create(Guid.NewGuid().ToString()),
+                        ["url"] = url
+                    };
+                }
+                else
+                {
+                    throw new Exception("Page domain handler not registered");
+                }
+            }
+            finally
+            {
+                cdpSession.CurrentTargetSession = previousSession;
             }
         }
 
@@ -246,44 +260,58 @@ public class BiDiSession
                 throw new BiDiException("no such frame", $"Browsing context {contextId} not found");
             }
 
-            if (CdpDomainRegistry.TryGetHandler("Runtime", out var runtimeHandler))
+            var previousSession = cdpSession.CurrentTargetSession;
+            var targetSession = cdpSession.GetAttachedSessionForTarget(contextId);
+            if (targetSession != null)
             {
-                var maxDepth = 3;
-                var serializationOptions = @params["serializationOptions"] as JsonObject;
-                if (serializationOptions != null && serializationOptions.TryGetPropertyValue("maxDepth", out var maxDepthNode))
-                {
-                    maxDepth = maxDepthNode?.GetValue<int>() ?? 3;
-                }
-
-                var cdpParams = new JsonObject
-                {
-                    ["expression"] = expression,
-                    ["awaitPromise"] = awaitPromise,
-                    ["returnByValue"] = false,
-                    ["serializationOptions"] = new JsonObject
-                    {
-                        ["serialization"] = "deep",
-                        ["maxDepth"] = maxDepth
-                    }
-                };
-
-                var cdpResult = await runtimeHandler(cdpSession, "evaluate", cdpParams);
-                
-                if (cdpResult.TryGetPropertyValue("exceptionDetails", out var exceptionDetails))
-                {
-                    var text = exceptionDetails?["text"]?.GetValue<string>() ?? "Script evaluation failed";
-                    throw new Exception(text);
-                }
-
-                var resultNode = cdpResult["result"] as JsonObject;
-                var deepSerialized = resultNode?["deepSerializedValue"] as JsonObject;
-                
-                var mappedResult = MapToBiDiRemoteValue(deepSerialized ?? resultNode);
-                return new JsonObject { ["result"] = mappedResult };
+                cdpSession.CurrentTargetSession = targetSession;
             }
-            else
+
+            try
             {
-                throw new Exception("Runtime domain handler not registered");
+                if (CdpDomainRegistry.TryGetHandler("Runtime", out var runtimeHandler))
+                {
+                    var maxDepth = 3;
+                    var serializationOptions = @params["serializationOptions"] as JsonObject;
+                    if (serializationOptions != null && serializationOptions.TryGetPropertyValue("maxDepth", out var maxDepthNode))
+                    {
+                        maxDepth = maxDepthNode?.GetValue<int>() ?? 3;
+                    }
+
+                    var cdpParams = new JsonObject
+                    {
+                        ["expression"] = expression,
+                        ["awaitPromise"] = awaitPromise,
+                        ["returnByValue"] = false,
+                        ["serializationOptions"] = new JsonObject
+                        {
+                            ["serialization"] = "deep",
+                            ["maxDepth"] = maxDepth
+                        }
+                    };
+
+                    var cdpResult = await runtimeHandler(cdpSession, "evaluate", cdpParams);
+                    
+                    if (cdpResult.TryGetPropertyValue("exceptionDetails", out var exceptionDetails))
+                    {
+                        var text = exceptionDetails?["text"]?.GetValue<string>() ?? "Script evaluation failed";
+                        throw new Exception(text);
+                    }
+
+                    var resultNode = cdpResult["result"] as JsonObject;
+                    var deepSerialized = resultNode?["deepSerializedValue"] as JsonObject;
+                    
+                    var mappedResult = MapToBiDiRemoteValue(deepSerialized ?? resultNode);
+                    return new JsonObject { ["result"] = mappedResult };
+                }
+                else
+                {
+                    throw new Exception("Runtime domain handler not registered");
+                }
+            }
+            finally
+            {
+                cdpSession.CurrentTargetSession = previousSession;
             }
         }
 
@@ -296,80 +324,94 @@ public class BiDiSession
                 throw new BiDiException("no such frame", $"Browsing context {contextId} not found");
             }
 
-            var actionsNode = @params["actions"] as JsonArray;
-            if (actionsNode != null)
+            var previousSession = cdpSession.CurrentTargetSession;
+            var targetSession = cdpSession.GetAttachedSessionForTarget(contextId);
+            if (targetSession != null)
             {
-                double lastX = 0;
-                double lastY = 0;
-                
-                foreach (var chain in actionsNode)
-                {
-                    if (chain is not JsonObject chainObj) continue;
-                    var chainType = chainObj["type"]?.GetValue<string>();
-                    var innerActions = chainObj["actions"] as JsonArray;
-                    if (innerActions == null) continue;
+                cdpSession.CurrentTargetSession = targetSession;
+            }
 
-                    foreach (var action in innerActions)
+            try
+            {
+                var actionsNode = @params["actions"] as JsonArray;
+                if (actionsNode != null)
+                {
+                    double lastX = 0;
+                    double lastY = 0;
+                    
+                    foreach (var chain in actionsNode)
                     {
-                        if (action is not JsonObject actObj) continue;
-                        var actType = actObj["type"]?.GetValue<string>();
-                        if (chainType == "pointer")
+                        if (chain is not JsonObject chainObj) continue;
+                        var chainType = chainObj["type"]?.GetValue<string>();
+                        var innerActions = chainObj["actions"] as JsonArray;
+                        if (innerActions == null) continue;
+
+                        foreach (var action in innerActions)
                         {
-                            if (actType == "pointerMove")
+                            if (action is not JsonObject actObj) continue;
+                            var actType = actObj["type"]?.GetValue<string>();
+                            if (chainType == "pointer")
                             {
-                                lastX = actObj["x"]?.GetValue<double>() ?? lastX;
-                                lastY = actObj["y"]?.GetValue<double>() ?? lastY;
-                                await DispatchMouseEventAsync(cdpSession, "mouseMoved", lastX, lastY, "none");
-                            }
-                            else if (actType == "pointerDown")
-                            {
-                                var buttonNode = actObj["button"];
-                                var buttonCode = buttonNode?.GetValue<int>() ?? 0;
-                                var buttonStr = buttonCode == 2 ? "right" : (buttonCode == 1 ? "middle" : "left");
-                                lastX = actObj["x"]?.GetValue<double>() ?? lastX;
-                                lastY = actObj["y"]?.GetValue<double>() ?? lastY;
-                                await DispatchMouseEventAsync(cdpSession, "mousePressed", lastX, lastY, buttonStr);
-                            }
-                            else if (actType == "pointerUp")
-                            {
-                                var buttonNode = actObj["button"];
-                                var buttonCode = buttonNode?.GetValue<int>() ?? 0;
-                                var buttonStr = buttonCode == 2 ? "right" : (buttonCode == 1 ? "middle" : "left");
-                                lastX = actObj["x"]?.GetValue<double>() ?? lastX;
-                                lastY = actObj["y"]?.GetValue<double>() ?? lastY;
-                                await DispatchMouseEventAsync(cdpSession, "mouseReleased", lastX, lastY, buttonStr);
-                            }
-                        }
-                        else if (chainType == "key")
-                        {
-                            if (actType == "keyDown")
-                            {
-                                var val = actObj["value"]?.GetValue<string>() ?? "";
-                                if (!string.IsNullOrEmpty(val))
+                                if (actType == "pointerMove")
                                 {
-                                    var (key, code, text) = MapBiDiKey(val);
-                                    await DispatchKeyEventAsync(cdpSession, "rawKeyDown", key, code, text);
-                                    if (val.Length == 1 && (val[0] < '\uE000' || val[0] > '\uE03D') && val[0] >= 32 && val[0] != 127)
-                                    {
-                                        await InsertTextAsync(cdpSession, val);
-                                    }
+                                    lastX = actObj["x"]?.GetValue<double>() ?? lastX;
+                                    lastY = actObj["y"]?.GetValue<double>() ?? lastY;
+                                    await DispatchMouseEventAsync(cdpSession, "mouseMoved", lastX, lastY, "none");
+                                }
+                                else if (actType == "pointerDown")
+                                {
+                                    var buttonNode = actObj["button"];
+                                    var buttonCode = buttonNode?.GetValue<int>() ?? 0;
+                                    var buttonStr = buttonCode == 2 ? "right" : (buttonCode == 1 ? "middle" : "left");
+                                    lastX = actObj["x"]?.GetValue<double>() ?? lastX;
+                                    lastY = actObj["y"]?.GetValue<double>() ?? lastY;
+                                    await DispatchMouseEventAsync(cdpSession, "mousePressed", lastX, lastY, buttonStr);
+                                }
+                                else if (actType == "pointerUp")
+                                {
+                                    var buttonNode = actObj["button"];
+                                    var buttonCode = buttonNode?.GetValue<int>() ?? 0;
+                                    var buttonStr = buttonCode == 2 ? "right" : (buttonCode == 1 ? "middle" : "left");
+                                    lastX = actObj["x"]?.GetValue<double>() ?? lastX;
+                                    lastY = actObj["y"]?.GetValue<double>() ?? lastY;
+                                    await DispatchMouseEventAsync(cdpSession, "mouseReleased", lastX, lastY, buttonStr);
                                 }
                             }
-                            else if (actType == "keyUp")
+                            else if (chainType == "key")
                             {
-                                var val = actObj["value"]?.GetValue<string>() ?? "";
-                                if (!string.IsNullOrEmpty(val))
+                                if (actType == "keyDown")
                                 {
-                                    var (key, code, text) = MapBiDiKey(val);
-                                    await DispatchKeyEventAsync(cdpSession, "keyUp", key, code, text);
+                                    var val = actObj["value"]?.GetValue<string>() ?? "";
+                                    if (!string.IsNullOrEmpty(val))
+                                    {
+                                        var (key, code, text) = MapBiDiKey(val);
+                                        await DispatchKeyEventAsync(cdpSession, "rawKeyDown", key, code, text);
+                                        if (val.Length == 1 && (val[0] < '\uE000' || val[0] > '\uE03D') && val[0] >= 32 && val[0] != 127)
+                                        {
+                                            await InsertTextAsync(cdpSession, val);
+                                        }
+                                    }
+                                }
+                                else if (actType == "keyUp")
+                                {
+                                    var val = actObj["value"]?.GetValue<string>() ?? "";
+                                    if (!string.IsNullOrEmpty(val))
+                                    {
+                                        var (key, code, text) = MapBiDiKey(val);
+                                        await DispatchKeyEventAsync(cdpSession, "keyUp", key, code, text);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            return new JsonObject();
+                return new JsonObject();
+            }
+            finally
+            {
+                cdpSession.CurrentTargetSession = previousSession;
+            }
         }
 
         throw new BiDiException("unknown command", $"Method '{method}' is not implemented");
