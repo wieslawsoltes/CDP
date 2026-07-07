@@ -35,7 +35,10 @@ const guideSidebarItems = [
       { text: "Debugger Domain", link: "/articles/debugger-domain" },
       { text: "DOM Debugger Domain", link: "/articles/dom-debugger-domain" },
       { text: "Log Domain", link: "/articles/log-domain" },
-      { text: "Selector Engine", link: "/articles/selector-engine" }
+      { text: "Selector Engine", link: "/articles/selector-engine" },
+      { text: "WebDriver BiDi Support", link: "/articles/webdriver-bidi" },
+      { text: "MVVM DevTools Domain", link: "/articles/mvvm-developer-tools" },
+      { text: "Pre-flight Wait For Debugger", link: "/articles/wait-for-debugger" }
     ]
   },
   {
@@ -54,7 +57,8 @@ const guideSidebarItems = [
       { text: "Simulation Panel", link: "/articles/simulation-panel" },
       { text: "Audits Panel", link: "/articles/audits-panel" },
       { text: "Events Panel", link: "/articles/events-panel" },
-      { text: "Browser Inspector (WASM)", link: "/articles/browser-inspector" }
+      { text: "Browser Inspector (WASM)", link: "/articles/browser-inspector" },
+      { text: "MVVM Diagnostics Panel", link: "/articles/mvvm-panel" }
     ]
   },
   {

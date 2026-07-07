@@ -33,9 +33,10 @@ Shared UI components and view models for the CDP Inspector client.
 | `Accordion` | class | [`src/CDP.Inspector.Shared/Controls/Accordion.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/Accordion.cs) |
 | `AccordionItem` | class | [`src/CDP.Inspector.Shared/Controls/Accordion.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/Accordion.cs) |
 | `CpuPieChart` | class | [`src/CDP.Inspector.Shared/Controls/CpuPieChart.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/CpuPieChart.cs) |
-| `TimelineChart` | class | [`src/CDP.Inspector.Shared/Controls/TimelineChart.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/TimelineChart.cs) |
 | `EditableComboBox` | class | [`src/CDP.Inspector.Shared/Controls/EditableComboBox.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/EditableComboBox.cs) |
 | `PreviewHighlightOverlay` | class | [`src/CDP.Inspector.Shared/Controls/PreviewHighlightOverlay.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/PreviewHighlightOverlay.cs) |
+| `RequestTimingBar` | class | [`src/CDP.Inspector.Shared/Controls/RequestTimingBar.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/RequestTimingBar.cs) |
+| `TimelineChart` | class | [`src/CDP.Inspector.Shared/Controls/TimelineChart.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/TimelineChart.cs) |
 | `WaterfallBar` | class | [`src/CDP.Inspector.Shared/Controls/WaterfallBar.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Controls/WaterfallBar.cs) |
 
 ## CdpInspectorApp.Models
@@ -130,6 +131,7 @@ Shared UI components and view models for the CDP Inspector client.
 | `ApplicationViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/ApplicationViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/ApplicationViewModel.cs) |
 | `AuditsViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/AuditsViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/AuditsViewModel.cs) |
 | `CdpEventEntry` | class | [`src/CDP.Inspector.Shared/ViewModels/EventsViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/EventsViewModel.cs) |
+| `CommandExecutedModel` | class | [`src/CDP.Inspector.Shared/ViewModels/MvvmViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/MvvmViewModel.cs) |
 | `ConnectionViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/ConnectionViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/ConnectionViewModel.cs) |
 | `ConsoleViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/ConsoleViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/ConsoleViewModel.cs) |
 | `CustomParamEditor` | class | [`src/CDP.Inspector.Shared/ViewModels/TestStudioNodeViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/TestStudioNodeViewModel.cs) |
@@ -137,9 +139,12 @@ Shared UI components and view models for the CDP Inspector client.
 | `ElementPropertyInfo` | class | [`src/CDP.Inspector.Shared/ViewModels/ElementPropertyInfo.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/ElementPropertyInfo.cs) |
 | `ElementsViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/ElementsViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/ElementsViewModel.cs) |
 | `EventsViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/EventsViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/EventsViewModel.cs) |
+| `InspectorPropertyModel` | class | [`src/CDP.Inspector.Shared/ViewModels/MvvmViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/MvvmViewModel.cs) |
+| `InspectorViewModelNode` | class | [`src/CDP.Inspector.Shared/ViewModels/MvvmViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/MvvmViewModel.cs) |
 | `InteractionEventArgs` | class | [`src/CDP.Inspector.Shared/ViewModels/SimulationViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/SimulationViewModel.cs) |
 | `MainWindowViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/MainWindowViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/MainWindowViewModel.cs) |
 | `MemoryViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/MemoryViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/MemoryViewModel.cs) |
+| `MvvmViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/MvvmViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/MvvmViewModel.cs) |
 | `NetworkViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/NetworkViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/NetworkViewModel.cs) |
 | `PerformanceViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/PerformanceViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/PerformanceViewModel.cs) |
 | `PinnedExpressionViewModel` | class | [`src/CDP.Inspector.Shared/ViewModels/PinnedExpressionViewModel.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/ViewModels/PinnedExpressionViewModel.cs) |
@@ -167,6 +172,7 @@ Shared UI components and view models for the CDP Inspector client.
 | `ITelemetryUiProvider` | interface | [`src/CDP.Inspector.Shared/Views/ITelemetryUiProvider.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Views/ITelemetryUiProvider.cs) |
 | `MainView` | class | [`src/CDP.Inspector.Shared/MainView.axaml.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/MainView.axaml.cs) |
 | `MemoryView` | class | [`src/CDP.Inspector.Shared/Views/MemoryView.axaml.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Views/MemoryView.axaml.cs) |
+| `MvvmView` | class | [`src/CDP.Inspector.Shared/Views/MvvmView.axaml.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Views/MvvmView.axaml.cs) |
 | `NetworkTelemetryUiProvider` | class | [`src/CDP.Inspector.Shared/Views/ITelemetryUiProvider.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Views/ITelemetryUiProvider.cs) |
 | `NetworkView` | class | [`src/CDP.Inspector.Shared/Views/NetworkView.axaml.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Views/NetworkView.axaml.cs) |
 | `PerformanceTelemetryUiProvider` | class | [`src/CDP.Inspector.Shared/Views/ITelemetryUiProvider.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Inspector.Shared/Views/ITelemetryUiProvider.cs) |
