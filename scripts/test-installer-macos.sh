@@ -9,15 +9,16 @@ if [[ -z "$DMG_PATH" ]]; then
 fi
 
 echo "Mounting $DMG_PATH..."
-hdiutil attach "$DMG_PATH" -mountpoint /Volumes/CdpInspectorApp
+MOUNT_POINT=$(hdiutil attach "$DMG_PATH" | grep -o '/Volumes/.*' | head -n 1)
+echo "Mounted at: $MOUNT_POINT"
 
 echo "Copying CdpInspectorApp.app to local temp directory..."
 rm -rf temp-install
 mkdir temp-install
-cp -R /Volumes/CdpInspectorApp/CdpInspectorApp.app temp-install/
+cp -R "$MOUNT_POINT/CdpInspectorApp.app" temp-install/
 
 echo "Detaching DMG..."
-hdiutil detach /Volumes/CdpInspectorApp
+hdiutil detach "$MOUNT_POINT"
 
 echo "Removing quarantine attributes..."
 xattr -cr temp-install/CdpInspectorApp.app || true

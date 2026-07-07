@@ -79,6 +79,9 @@ if command -v hdiutil &> /dev/null; then
   mkdir -p "$STAGE_DIR"
   cp -R "$APP_DIR" "$STAGE_DIR/"
   
+  # Create a symbolic link to /Applications for standard drag-and-drop installer behavior
+  ln -s /Applications "$STAGE_DIR/Applications"
+  
   hdiutil create -fs HFS+ -volname "CdpInspectorApp" -srcfolder "$STAGE_DIR" "$DMG_PATH"
   rm -rf "$STAGE_DIR"
   echo "macOS DMG created: $DMG_PATH"
