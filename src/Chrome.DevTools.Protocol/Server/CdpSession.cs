@@ -45,6 +45,7 @@ public class CdpSession
     }
     public bool DiscoverTargetsEnabled { get; set; }
     public bool AutoAttachEnabled { get; set; }
+    public bool WaitForDebuggerOnStart { get; set; }
     public bool IsDomEnabled => CurrentTargetSession?.IsDomEnabled ?? false;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument => CurrentTargetSession?.ScriptsToEvaluateOnNewDocument ?? _dummyScripts;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocumentWorlds => CurrentTargetSession?.ScriptsToEvaluateOnNewDocumentWorlds ?? _dummyScripts;
@@ -197,6 +198,11 @@ public class CdpSession
             return;
         }
 
+        if (this.WaitForDebuggerOnStart)
+        {
+            CdpServer.SetTargetWaitingForDebugger(target.Id, true);
+        }
+
         var sessionId = Guid.NewGuid().ToString();
         var targetSession = CdpServer.TargetSessionFactory?.Invoke(this, sessionId, target.Id, target)
                             ?? new CdpTargetSession(this, sessionId, target.Id, target);
@@ -218,7 +224,7 @@ public class CdpSession
                 ["attached"] = true,
                 ["browserContextId"] = "1"
             },
-            ["waitingForDebugger"] = false
+            ["waitingForDebugger"] = CdpServer.IsTargetWaitingForDebugger(target.Id)
         };
 
         var activeTarget = parentSession ?? (CurrentTargetSession?.Target.Type == "tab" ? CurrentTargetSession : null);
