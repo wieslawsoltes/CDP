@@ -260,7 +260,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ needs.version.outputs.VERSION }}
-        target_commitish: ${{ github.ref_name }}
+        target_commitish: ${{ github.sha }}
         files: |
           artifacts/cdp-inspector-win-x64.zip
           artifacts/cdp-inspector-win-x64.msi
