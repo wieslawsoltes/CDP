@@ -286,6 +286,13 @@ public class BiDiProtocolTests
             if (broadcastMethod != null)
             {
                 broadcastMethod.Invoke(null, new object[] { "Network.responseReceived", dummyResponseParams });
+                var dummyFinishParams = new JsonObject
+                {
+                    ["requestId"] = "req-123",
+                    ["timestamp"] = 123.456,
+                    ["encodedDataLength"] = 456
+                };
+                broadcastMethod.Invoke(null, new object[] { "Network.loadingFinished", dummyFinishParams });
             }
 
             var bidiEvent2Str = await ReceiveMessageAsync(ws);
