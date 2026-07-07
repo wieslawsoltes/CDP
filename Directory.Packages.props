@@ -40,5 +40,8 @@
     <PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     <PackageVersion Include="Selenium.WebDriver" Version="4.44.0" />
     <PackageVersion Include="Appium.WebDriver" Version="8.3.0" />
+    <PackageVersion Include="ReactiveUI.Avalonia" Version="12.0.3" />
+    <PackageVersion Include="ReactiveUI" Version="23.2.28" />
+    <PackageVersion Include="ReactiveUI.SourceGenerators" Version="3.1.0" />
   </ItemGroup>
 </Project>
