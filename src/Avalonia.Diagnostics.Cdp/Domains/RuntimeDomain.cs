@@ -1547,6 +1547,28 @@ public static class RuntimeDomain
                 }
 
             case "runIfWaitingForDebugger":
+                {
+                    foreach (var script in session.ScriptsToEvaluateOnNewDocument.Values)
+                    {
+                        try
+                        {
+                            await EvaluateAsync(session, ScriptPreprocessor.Preprocess(script), inspectedNodeId: 0);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[CDP SERVER ERROR] Error evaluating pre-flight script: {ex.Message}");
+                        }
+                    }
+
+                    var targetId = session.CurrentTargetSession?.TargetId ?? session.Target?.Id;
+                    if (!string.IsNullOrEmpty(targetId))
+                    {
+                        CdpServer.ResumeTarget(targetId);
+                    }
+
+                    return new JsonObject();
+                }
+
             case "setCustomObjectFormatterEnabled":
             case "setMaxCallStackSizeToCapture":
             case "setAsyncCallStackDepth":

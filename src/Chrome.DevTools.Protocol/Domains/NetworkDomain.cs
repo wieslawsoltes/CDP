@@ -14,6 +14,7 @@ namespace Chrome.DevTools.Protocol.Domains;
 
 public static class NetworkDomain
 {
+    public static event Action<string, JsonObject>? NetworkEventBroadcasted;
     private static readonly ConcurrentDictionary<CdpSession, bool> _enabledSessions = new();
     private static readonly ConcurrentDictionary<string, (string Body, bool Base64Encoded)> _responseBodies = new();
     private static readonly ConcurrentDictionary<HttpRequestMessage, string> _requestIds = new();
@@ -419,6 +420,7 @@ public static class NetworkDomain
             Console.WriteLine($"[CDP TRACE] BroadcastEvent: sending event {method} to session.");
             _ = session.SendEventAsync(method, @params);
         }
+        NetworkEventBroadcasted?.Invoke(method, @params);
     }
 
     private static JsonObject MapHeaders(HttpRequestMessage request)
