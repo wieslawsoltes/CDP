@@ -78,7 +78,7 @@ EOT
 
 # Build package
 if command -v dpkg-deb &> /dev/null; then
-  dpkg-deb --build "$PKG_DIR" "${OUTPUT_DIR}/${PKG_NAME}_${DEB_VERSION}_amd64.deb"
+  dpkg-deb --root-owner-group --build "$PKG_DIR" "${OUTPUT_DIR}/${PKG_NAME}_${DEB_VERSION}_amd64.deb"
 else
   echo "dpkg-deb not found. Creating package archive (tar.gz) instead for simulation."
   tar -czf "${OUTPUT_DIR}/${PKG_NAME}_${DEB_VERSION}_amd64.deb.tar.gz" -C "$PKG_DIR" .
