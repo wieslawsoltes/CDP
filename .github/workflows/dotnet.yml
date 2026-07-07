@@ -23,6 +23,8 @@ jobs:
     - name: Run Unit Tests
       run: |
         dotnet test tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj -c Release --verbosity normal
+        dotnet test tests/CDP.Selenium.Tests/CDP.Selenium.Tests.csproj -c Release --verbosity normal
+        dotnet test tests/CDP.Appium.Tests/CDP.Appium.Tests.csproj -c Release --verbosity normal
 
     - name: Publish Linux Executable
       run: |
@@ -63,6 +65,8 @@ jobs:
     - name: Run Unit Tests
       run: |
         dotnet test tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj -c Release --verbosity normal
+        dotnet test tests/CDP.Selenium.Tests/CDP.Selenium.Tests.csproj -c Release --verbosity normal
+        dotnet test tests/CDP.Appium.Tests/CDP.Appium.Tests.csproj -c Release --verbosity normal
 
     - name: Publish macOS ARM64 Executable
       run: |
@@ -103,6 +107,8 @@ jobs:
       shell: pwsh
       run: |
         dotnet test tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj -c Release --verbosity normal
+        dotnet test tests/CDP.Selenium.Tests/CDP.Selenium.Tests.csproj -c Release --verbosity normal
+        dotnet test tests/CDP.Appium.Tests/CDP.Appium.Tests.csproj -c Release --verbosity normal
 
     - name: Publish Windows Executable
       shell: pwsh

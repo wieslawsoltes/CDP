@@ -61,7 +61,7 @@ if command -v sips &> /dev/null && command -v iconutil &> /dev/null && [ -f "ico
   sips -z 256 256 icon.png --out icon.iconset/icon_256x256.png &> /dev/null
   sips -z 512 512 icon.png --out icon.iconset/icon_256x256@2x.png &> /dev/null
   sips -z 512 512 icon.png --out icon.iconset/icon_512x512.png &> /dev/null
-  cp icon.png icon.iconset/icon_512x512@2x.png
+  sips -z 1024 1024 icon.png --out icon.iconset/icon_512x512@2x.png &> /dev/null
   iconutil -c icns icon.iconset
   mv icon.icns "$APP_DIR/Contents/Resources/icon.icns"
   rm -rf icon.iconset
