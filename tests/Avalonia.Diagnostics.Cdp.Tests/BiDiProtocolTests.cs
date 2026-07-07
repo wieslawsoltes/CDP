@@ -117,7 +117,15 @@ public class BiDiProtocolTests
             Assert.NotNull(getTreeResult);
             var contexts = getTreeResult["contexts"] as JsonArray;
             Assert.NotNull(contexts);
-            Assert.NotEmpty(contexts);
+            
+            var targetContext = contexts.FirstOrDefault(c => c?["context"]?.GetValue<string>() == targetId);
+            Assert.NotNull(targetContext);
+            
+            foreach (var ctx in contexts)
+            {
+                var id = ctx?["context"]?.GetValue<string>();
+                Assert.False(id?.StartsWith("tab-") ?? false);
+            }
 
             var contextId = targetId;
 
@@ -243,6 +251,59 @@ public class BiDiProtocolTests
             Assert.NotNull(uaVal);
             Assert.Equal("string", uaVal["type"]?.GetValue<string>());
             Assert.Equal("TestAgent", uaVal["value"]?.GetValue<string>());
+
+            // Test network.responseCompleted subscription
+            var subscribeResponseCmd = new JsonObject
+            {
+                ["id"] = 7,
+                ["method"] = "session.subscribe",
+                ["params"] = new JsonObject
+                {
+                    ["events"] = new JsonArray { "network.responseCompleted" }
+                }
+            };
+            await SendMessageAsync(ws, subscribeResponseCmd.ToJsonString());
+
+            var subResp2Str = await ReceiveMessageAsync(ws);
+            var subResp2 = JsonNode.Parse(subResp2Str) as JsonObject;
+            Assert.NotNull(subResp2);
+            Assert.Equal(7, subResp2["id"]?.GetValue<int>());
+            Assert.Equal("success", subResp2["type"]?.GetValue<string>());
+
+            var dummyResponseParams = new JsonObject
+            {
+                ["requestId"] = "req-123",
+                ["response"] = new JsonObject
+                {
+                    ["url"] = "http://example.com/test",
+                    ["status"] = 200,
+                    ["statusText"] = "OK",
+                    ["mimeType"] = "text/html",
+                    ["headers"] = new JsonObject { ["Content-Type"] = "text/html" }
+                }
+            };
+
+            if (broadcastMethod != null)
+            {
+                broadcastMethod.Invoke(null, new object[] { "Network.responseReceived", dummyResponseParams });
+            }
+
+            var bidiEvent2Str = await ReceiveMessageAsync(ws);
+            var bidiEvent2 = JsonNode.Parse(bidiEvent2Str) as JsonObject;
+            Assert.NotNull(bidiEvent2);
+            Assert.Equal("event", bidiEvent2["type"]?.GetValue<string>());
+            Assert.Equal("network.responseCompleted", bidiEvent2["method"]?.GetValue<string>());
+
+            var bidiParams2 = bidiEvent2["params"] as JsonObject;
+            Assert.NotNull(bidiParams2);
+            Assert.Equal("main", bidiParams2["context"]?.GetValue<string>());
+
+            var responseObj2 = bidiParams2["response"] as JsonObject;
+            Assert.NotNull(responseObj2);
+            Assert.Equal("http://example.com/test", responseObj2["url"]?.GetValue<string>());
+            Assert.Equal(200, responseObj2["status"]?.GetValue<int>());
+            Assert.Equal("OK", responseObj2["statusText"]?.GetValue<string>());
+            Assert.Equal("text/html", responseObj2["mimeType"]?.GetValue<string>());
 
             // 1. Test invalid context ID evaluation -> error "no such frame"
             var invalidEvalCmd = new JsonObject
