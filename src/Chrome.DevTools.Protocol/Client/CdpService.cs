@@ -247,6 +247,9 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
             // Enable real-time target discovery
             _ = SendCommandAsync("Target.setDiscoverTargets", new JsonObject { ["discover"] = true });
+
+            // Automatically resume targets that are blocked waiting for debugger connections
+            _ = SendCommandAsync("Runtime.runIfWaitingForDebugger");
         }
         catch (Exception ex)
         {

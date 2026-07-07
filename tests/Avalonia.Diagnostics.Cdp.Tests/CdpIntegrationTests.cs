@@ -886,6 +886,96 @@ public class CdpIntegrationTests
         }
     }
 
+    [AvaloniaFact]
+    public void TestPreflightWaitForDebuggerAndScriptInjection()
+    {
+        int port = GetFreePort();
+        Window? window = null;
+
+        try
+        {
+            CdpServer.WaitForDebugger = true;
+            Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = false;
+            CdpServer.Start(port);
+
+            var clientTask = Task.Run(async () =>
+            {
+                // Wait for the window target to be registered and retrieve its ID by Title
+                string? targetId = null;
+                while (targetId == null)
+                {
+                    var targets = Chrome.DevTools.Protocol.CdpServer.GetActiveTargets();
+                    foreach (var t in targets)
+                    {
+                        if (t is JsonObject tObj && tObj["title"]?.GetValue<string>() == "Initial Preflight Title")
+                        {
+                            targetId = tObj["targetId"]?.GetValue<string>();
+                            break;
+                        }
+                    }
+                    if (targetId == null)
+                    {
+                        await Task.Delay(50);
+                    }
+                }
+
+                using var ws = CreateClientWebSocket();
+                var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{targetId}");
+                await ConnectWithTimeoutAsync(ws, uri);
+
+                // Add pre-flight script to inject
+                var addScriptRequest = new JsonObject
+                {
+                    ["id"] = 1,
+                    ["method"] = "Page.addScriptToEvaluateOnNewDocument",
+                    ["params"] = new JsonObject
+                    {
+                        ["source"] = "__raw_window.Title = \"Preflight Success\";"
+                    }
+                };
+                await SendJsonAsync(ws, addScriptRequest);
+                var addScriptResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(1, addScriptResponse["id"]?.GetValue<int>());
+
+                // Run pre-flight script and resume
+                var runRequest = new JsonObject
+                {
+                    ["id"] = 2,
+                    ["method"] = "Runtime.runIfWaitingForDebugger"
+                };
+                await SendJsonAsync(ws, runRequest);
+                var runResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(2, runResponse["id"]?.GetValue<int>());
+
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
+            });
+
+            // Post window creation and show to dispatcher queue
+            Dispatcher.UIThread.Post(() =>
+            {
+                window = new Window { Title = "Initial Preflight Title" };
+                window.Show();
+            });
+
+            // Pump dispatcher until the background client completes
+            PumpDispatcher(clientTask);
+
+            // Assertions
+            Assert.NotNull(window);
+            Assert.Equal("Preflight Success", window.Title);
+        }
+        finally
+        {
+            CdpServer.Stop();
+            CdpServer.WaitForDebugger = false;
+            Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = false;
+            if (window != null)
+            {
+                window.Close();
+            }
+        }
+    }
+
     private static async Task ConnectWithTimeoutAsync(ClientWebSocket ws, Uri uri, int timeoutMs = 5000)
     {
         using var cts = new CancellationTokenSource(timeoutMs);
