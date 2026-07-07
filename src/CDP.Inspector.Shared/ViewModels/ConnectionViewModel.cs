@@ -482,7 +482,7 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
                 TestStudio.Log($"OS Automation: Connecting to process window '{SelectedTarget.Title}' (ID: {SelectedTarget.Id})...");
             }
 
-            await _cdpService.ConnectAsync(GeneratorHostAddress, SelectedTarget);
+            await _cdpService.ConnectAsync(GeneratorHostAddress, SelectedTarget, autoResume: true);
 
             if (isOsAutomation && TestStudio != null && _cdpService.IsConnected)
             {

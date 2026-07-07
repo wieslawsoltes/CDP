@@ -33,6 +33,7 @@ public interface ICdpService : INotifyPropertyChanged
 
     Task<List<TargetItem>> GetTargetsAsync(string host);
     Task ConnectAsync(string host, TargetItem target);
+    Task ConnectAsync(string host, TargetItem target, bool autoResume) => ConnectAsync(host, target);
     Task DisconnectAsync();
     Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null);
 }

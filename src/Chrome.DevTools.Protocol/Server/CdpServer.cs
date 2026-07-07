@@ -547,7 +547,7 @@ public static class CdpServer
                         ["sessionId"] = sessionId,
                         ["capabilities"] = new JsonObject
                         {
-                            ["webSocketUrl"] = $"ws://{host}/session/bidi"
+                            ["webSocketUrl"] = $"ws://{host}/session/bidi/{sessionId}"
                         }
                     }
                 };

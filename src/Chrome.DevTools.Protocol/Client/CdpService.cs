@@ -165,7 +165,9 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
     }
 
-    public async Task ConnectAsync(string host, TargetItem target)
+    public Task ConnectAsync(string host, TargetItem target) => ConnectAsync(host, target, autoResume: false);
+
+    public async Task ConnectAsync(string host, TargetItem target, bool autoResume)
     {
         await DisconnectAsync();
 
@@ -248,8 +250,11 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             // Enable real-time target discovery
             _ = SendCommandAsync("Target.setDiscoverTargets", new JsonObject { ["discover"] = true });
 
-            // Automatically resume targets that are blocked waiting for debugger connections
-            _ = SendCommandAsync("Runtime.runIfWaitingForDebugger");
+            if (autoResume)
+            {
+                // Automatically resume targets that are blocked waiting for debugger connections
+                _ = SendCommandAsync("Runtime.runIfWaitingForDebugger");
+            }
         }
         catch (Exception ex)
         {

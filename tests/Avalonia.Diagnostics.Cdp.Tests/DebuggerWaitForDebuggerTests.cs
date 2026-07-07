@@ -43,17 +43,20 @@ public class DebuggerWaitForDebuggerTests
         {
             var clientTask = Task.Run(async () =>
             {
-                // 1. Wait for target to be registered
-                string targetId = null;
+                // 1. Wait for target to be registered by Title
+                string? targetId = null;
                 for (int i = 0; i < 50; i++)
                 {
                     var windows = CdpServer.GetWindows();
-                    var enumerator = windows.GetEnumerator();
-                    if (enumerator.MoveNext())
+                    foreach (var w in windows)
                     {
-                        targetId = enumerator.Current.Id;
-                        break;
+                        if (w.Title == "Original Title")
+                        {
+                            targetId = w.Id;
+                            break;
+                        }
                     }
+                    if (targetId != null) break;
                     await Task.Delay(100);
                 }
 
@@ -211,7 +214,7 @@ public class DebuggerWaitForDebuggerTests
                         {
                             var targetInfo = paramsObj["targetInfo"];
                             if (targetInfo != null && 
-                                targetInfo["targetId"]?.GetValue<string>() != initialTargetId &&
+                                targetInfo["title"]?.GetValue<string>() == "Second Window" &&
                                 targetInfo["type"]?.GetValue<string>() == "page")
                             {
                                 Assert.True(paramsObj["waitingForDebugger"]?.GetValue<bool>());
