@@ -25,6 +25,7 @@ Cross-platform operating system automation and accessibility provider for Chrome
 | Type | Kind | Source |
 | --- | --- | --- |
 | `EnrichedOsAutomation` | class | [`src/CDP.Automation.OS/EnrichedOsAutomation.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/EnrichedOsAutomation.cs) |
+| `OsAutomationDaemon` | class | [`src/CDP.Automation.OS/OsAutomationDaemon.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/OsAutomationDaemon.cs) |
 | `OSAutomationService` | class | [`src/CDP.Automation.OS/OSAutomationService.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/OSAutomationService.cs) |
 | `OsWindowCdpTarget` | class | [`src/CDP.Automation.OS/ProxyProgram.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/ProxyProgram.cs) |
 | `ProxyProgram` | class | [`src/CDP.Automation.OS/ProxyProgram.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/CDP.Automation.OS/ProxyProgram.cs) |

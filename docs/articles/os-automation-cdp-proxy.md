@@ -98,3 +98,26 @@ test('Automate OS Desktop Native Application', async () => {
 ### macOS Configuration
 *   **API Backing**: Uses `AppKit` and core foundation `AXUIElement` accessibility frameworks.
 *   **System Permissions**: The proxy runner executable requires **Accessibility Permissions** granted under macOS System Settings -> Privacy & Security -> Accessibility. If the permission is missing, native DOM traversals and mouse dispatches will return access-denied faults.
+
+---
+
+## 5. Execution Instructions
+
+The `OsAutomationDaemon` is the default standalone proxy mechanism. By default, it can be run on port `9224` using the following instructions.
+
+### Running the Daemon
+
+To build and run the `OsAutomationDaemon` on port `9224`, run the following command from the root of the repository:
+
+```shell
+dotnet run --project src/CDP.Automation.OS/CDP.Automation.OS.csproj 9224
+```
+
+Upon startup, the console will output:
+```text
+Starting OS Automation CDP Emulation Daemon on port 9224...
+CDP Server running on port 9224.
+Press Ctrl+C to exit.
+```
+
+Once running, you can connect your CDP clients (such as Playwright, Puppeteer, or the `CdpInspectorApp`) directly to the WebSocket server at `http://127.0.0.1:9224`.
