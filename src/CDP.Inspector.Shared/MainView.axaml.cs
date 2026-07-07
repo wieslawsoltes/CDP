@@ -204,6 +204,7 @@ public partial class MainView : UserControl
             "Recorder" => new RecorderView(),
             "Window" => new WindowControlView(),
             "Events" => new EventsView(),
+            "Mvvm" => new MvvmView(),
             _ => new TextBlock { Text = $"View {viewName} not implemented", Margin = new Thickness(10) }
         };
 
@@ -218,7 +219,7 @@ public partial class MainView : UserControl
         var anchor = e.AnchorControl;
 
         var contextMenu = new ContextMenu();
-        string[] views = { "Simulation", "Elements", "Console", "Sources", "Network", "Performance", "Memory", "Application", "Audits", "Recorder", "Window", "Events" };
+        string[] views = { "Simulation", "Elements", "Console", "Sources", "Network", "Performance", "Memory", "Application", "Audits", "Recorder", "Window", "Events", "Mvvm" };
 
         foreach (var viewName in views)
         {

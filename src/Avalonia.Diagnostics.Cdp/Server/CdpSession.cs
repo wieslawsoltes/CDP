@@ -195,6 +195,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
         Domains.PerformanceDomain.CleanupSession(this);
         Domains.RecorderDomain.RemoveSession(this);
         Domains.WebMcpDomain.CleanupSession(this);
+        Domains.MvvmDomain.CleanupSession(this);
     }
 }
 

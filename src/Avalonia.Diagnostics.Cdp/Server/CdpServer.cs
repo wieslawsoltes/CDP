@@ -51,6 +51,43 @@ public static class CdpServer
     public static System.IO.TextWriter OriginalOut => Chrome.DevTools.Protocol.CdpServer.OriginalOut;
     public static System.IO.TextWriter OriginalError => Chrome.DevTools.Protocol.CdpServer.OriginalError;
 
+    public static bool WaitForDebugger
+    {
+        get => Chrome.DevTools.Protocol.CdpServer.WaitForDebugger;
+        set => Chrome.DevTools.Protocol.CdpServer.WaitForDebugger = value;
+    }
+
+    private static readonly ConcurrentDictionary<string, DispatcherFrame> _pausedFrames = new();
+
+    public static bool ShouldWaitForDebugger(TopLevel window)
+    {
+        if (Chrome.DevTools.Protocol.CdpServer.WaitForDebugger && !Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger)
+        {
+            return true;
+        }
+
+        if (_targets.TryGetValue(window, out var target))
+        {
+            if (Chrome.DevTools.Protocol.CdpServer.IsTargetWaitingForDebugger(target.Id))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static void ResumeTarget(string targetId)
+    {
+        Chrome.DevTools.Protocol.CdpServer.SetTargetWaitingForDebugger(targetId, false);
+        Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = true;
+
+        if (_pausedFrames.TryRemove(targetId, out var frame))
+        {
+            frame.Continue = false;
+        }
+    }
+
     static CdpServer()
     {
         // Set up delegates on the core server
@@ -99,11 +136,20 @@ public static class CdpServer
         CdpDomainRegistry.Register("Application", (s, a, p) => Domains.ApplicationDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("Debugger", (s, a, p) => Domains.DebuggerDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("WebMCP", (s, a, p) => Domains.WebMcpDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("Mvvm", (s, a, p) => Domains.MvvmDomain.HandleAsync((CdpSession)s, a, p));
 
         Window.WindowOpenedEvent.AddClassHandler<Window>((w, e) =>
         {
             Console.WriteLine($"[CDP SERVER DEBUG] WindowOpenedEvent for window: {w.GetType().FullName}, Title: '{w.Title}'");
-            Register(w, w.Title ?? w.GetType().Name);
+            var targetId = Register(w, w.Title ?? w.GetType().Name);
+
+            if (ShouldWaitForDebugger(w))
+            {
+                Chrome.DevTools.Protocol.CdpServer.SetTargetWaitingForDebugger(targetId, true);
+                var frame = new DispatcherFrame();
+                _pausedFrames[targetId] = frame;
+                Dispatcher.UIThread.PushFrame(frame);
+            }
         });
         Window.WindowClosedEvent.AddClassHandler<Window>((w, e) =>
         {
