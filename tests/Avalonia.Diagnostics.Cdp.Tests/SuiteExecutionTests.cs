@@ -271,8 +271,8 @@ public class SuiteExecutionTests
             var flow1 = Path.Combine(tempDir, "flow1.yaml");
             var flow2 = Path.Combine(tempDir, "flow2.yaml");
 
-            File.WriteAllText(flow1, $"appId: \"\"\ndescription: \"Flow 1\"\n---\n- runFlow: \"{flow2}\"\n");
-            File.WriteAllText(flow2, $"appId: \"\"\ndescription: \"Flow 2\"\n---\n- runFlow: \"{flow1}\"\n");
+            File.WriteAllText(flow1, $"appId: \"\"\ndescription: \"Flow 1\"\n---\n- runFlow: \"{flow2.Replace("\\", "/")}\"\n");
+            File.WriteAllText(flow2, $"appId: \"\"\ndescription: \"Flow 2\"\n---\n- runFlow: \"{flow1.Replace("\\", "/")}\"\n");
 
             vm.CurrentFlowFilePath = flow1;
             vm.LoadFlowFile(flow1);

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*" Name="CdpInspectorApp" Language="1033" Version="$(var.Version)" Manufacturer="DeepMind" UpgradeCode="d6ca8e74-0f2c-473d-9d4f-d007bbf99611">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." AllowSameVersionUpgrades="yes" />
+        <MediaTemplate EmbedCab="yes" />
+
+        <Feature Id="ProductFeature" Title="CdpInspectorApp" Level="1">
+            <ComponentGroupRef Id="ProductComponents" />
+            <ComponentRef Id="ApplicationShortcut" />
+        </Feature>
+    </Product>
+
+    <Fragment>
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="INSTALLFOLDER" Name="CdpInspectorApp" />
+            </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="CdpInspectorApp"/>
+            </Directory>
+        </Directory>
+    </Fragment>
+
+    <Fragment>
+        <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+            <Component Id="CdpInspectorApp_Executable" Guid="d6ca8e74-0f2c-473d-9d4f-d007bbf99612">
+                <File Id="CdpInspectorApp.exe" Source="$(var.PublishDir)\CdpInspectorApp.exe" KeyPath="yes" />
+            </Component>
+        </ComponentGroup>
+
+        <DirectoryRef Id="ApplicationProgramsFolder">
+            <Component Id="ApplicationShortcut" Guid="d6ca8e74-0f2c-473d-9d4f-d007bbf99613">
+                <Shortcut Id="ApplicationStartMenuShortcut" 
+                          Name="CDP Inspector" 
+                          Description="Chrome DevTools Protocol Client Inspector"
+                          Target="[INSTALLFOLDER]CdpInspectorApp.exe"
+                          WorkingDirectory="INSTALLFOLDER"/>
+                <RemoveFolder Id="CleanUpShortcuts" On="uninstall"/>
+                <RegistryValue Root="HKCU" Key="Software\DeepMind\CdpInspector" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+    </Fragment>
+</Wix>
