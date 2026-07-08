@@ -80,6 +80,7 @@ public class SessionMvvmState : IDisposable
     private readonly ConcurrentDictionary<string, WeakReference<object>> _idToVm = new();
     private readonly ConcurrentDictionary<object, PropertyChangedEventHandler> _subscribedVms = new();
     private readonly ConcurrentDictionary<object, IDisposable> _commandSubscriptions = new();
+    private readonly ConcurrentDictionary<object, List<object>> _vmToCommands = new();
 
     public SessionMvvmState(CdpSession session)
     {
@@ -106,7 +107,7 @@ public class SessionMvvmState : IDisposable
         return null;
     }
 
-    public void TrySubscribeToCommand(object command, string vmId, string vmType, string cmdName, IMvvmFrameworkProvider provider)
+    public void TrySubscribeToCommand(object command, object vm, string vmId, string vmType, string cmdName, IMvvmFrameworkProvider provider)
     {
         if (!_commandSubscriptions.ContainsKey(command))
         {
@@ -124,7 +125,12 @@ public class SessionMvvmState : IDisposable
 
             if (sub != null)
             {
-                _commandSubscriptions.TryAdd(command, sub);
+                if (_commandSubscriptions.TryAdd(command, sub))
+                {
+                    _vmToCommands.AddOrUpdate(vm, 
+                        _ => new List<object> { command }, 
+                        (_, list) => { lock (list) { list.Add(command); } return list; });
+                }
             }
         }
     }
@@ -146,6 +152,20 @@ public class SessionMvvmState : IDisposable
             if (_subscribedVms.TryRemove(vm, out var handler) && vm is INotifyPropertyChanged inpc)
             {
                 inpc.PropertyChanged -= handler;
+            }
+
+            if (_vmToCommands.TryRemove(vm, out var commands))
+            {
+                lock (commands)
+                {
+                    foreach (var cmd in commands)
+                    {
+                        if (_commandSubscriptions.TryRemove(cmd, out var sub))
+                        {
+                            sub.Dispose();
+                        }
+                    }
+                }
             }
         }
 
@@ -203,6 +223,7 @@ public class SessionMvvmState : IDisposable
         }
         _subscribedVms.Clear();
         _idToVm.Clear();
+        _vmToCommands.Clear();
 
         foreach (var sub in _commandSubscriptions.Values)
         {
@@ -460,7 +481,7 @@ public static class MvvmDomain
 
                         if (val != null && provider.IsCommand(val))
                         {
-                            state.TrySubscribeToCommand(val, id, currentDataContext.GetType().Name, prop.Name, provider);
+                            state.TrySubscribeToCommand(val, currentDataContext, id, currentDataContext.GetType().Name, prop.Name, provider);
                         }
                     }
                     catch

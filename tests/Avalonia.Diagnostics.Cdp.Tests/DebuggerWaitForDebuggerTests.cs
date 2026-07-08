@@ -143,6 +143,7 @@ public class DebuggerWaitForDebuggerTests
 
         // Create the second window
         var secondWindow = new Window { Title = "Second Window" };
+        var autoAttachTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         try
         {
@@ -186,6 +187,8 @@ public class DebuggerWaitForDebuggerTests
                 var buffer = new byte[4096];
                 var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                 var responseStr = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+                autoAttachTcs.SetResult();
 
                 string attachedSessionId = null;
                 string attachedTargetId = null;
@@ -261,6 +264,9 @@ public class DebuggerWaitForDebuggerTests
 
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
             });
+
+            // Wait for the client to complete auto-attach setup before showing the second window
+            await autoAttachTcs.Task;
 
             // This Show() will trigger the auto-attach, get paused, and resume when the client calls runIfWaitingForDebugger
             secondWindow.Show();

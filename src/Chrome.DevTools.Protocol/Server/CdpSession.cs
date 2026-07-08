@@ -13,7 +13,7 @@ using Jint;
 
 namespace Chrome.DevTools.Protocol;
 
-public class CdpSession
+public class CdpSession : IDisposable
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger("CdpSession");
     private readonly WebSocket _webSocket;
@@ -191,14 +191,14 @@ public class CdpSession
         return _attachedTargets.Values.FirstOrDefault(x => x.TargetId == targetId);
     }
 
-    public void AutoAttachTarget(ICdpTarget target, CdpTargetSession? parentSession = null)
+    public void AutoAttachTarget(ICdpTarget target, CdpTargetSession? parentSession = null, bool isNewTarget = false)
     {
         if (_attachedTargets.Values.Any(x => x.TargetId == target.Id))
         {
             return;
         }
 
-        if (this.WaitForDebuggerOnStart)
+        if (isNewTarget && this.WaitForDebuggerOnStart)
         {
             CdpServer.SetTargetWaitingForDebugger(target.Id, true);
         }
@@ -604,6 +604,11 @@ public class CdpSession
 
     protected virtual void OnCleanup()
     {
+    }
+
+    public void Dispose()
+    {
+        Cleanup();
     }
 
     public void StartObservingVisualTree()

@@ -82,6 +82,9 @@ public class OsAutomationDaemon
             CdpDomainRegistry.Register(d, (s, a, p) => HandleDomainAsync(s, d, a, p));
         }
 
+        // Subscribe to session removal to clean up daemon-scoped window sessions
+        CdpServer.SessionRemoved += OnCdpSessionRemoved;
+
         // Start CdpServer on port
         CdpServer.Start(_port);
         _isRunning = true;
@@ -92,10 +95,37 @@ public class OsAutomationDaemon
     {
         if (!_isRunning) return;
 
+        CdpServer.SessionRemoved -= OnCdpSessionRemoved;
         CdpServer.Stop();
+
+        foreach (var osSession in _sessionMap.Values)
+        {
+            try
+            {
+                osSession.Dispose();
+            }
+            catch { }
+        }
         _sessionMap.Clear();
         _isRunning = false;
         Console.WriteLine("CDP Server stopped.");
+    }
+
+    private static void OnCdpSessionRemoved(CdpSession session)
+    {
+        var prefix = $"{session.GetHashCode()}_";
+        var keysToRemove = _sessionMap.Keys.Where(k => k.StartsWith(prefix)).ToList();
+        foreach (var key in keysToRemove)
+        {
+            if (_sessionMap.TryRemove(key, out var osSession))
+            {
+                try
+                {
+                    osSession.Dispose();
+                }
+                catch { }
+            }
+        }
     }
 
     private static OsAutomationCdpSession GetOrCreateOsSession(CdpSession session)
@@ -113,14 +143,14 @@ public class OsAutomationDaemon
             }
             var osSession = new OsAutomationCdpSession(target.Id);
             
-            // Forward events (like Page.screencastFrame, Input.mouseEvent) back to the client session
+            // Forward events (like Page.screencastFrame) back to the client session using the correlated targetSession
             osSession.EventReceived += async (s, e) =>
             {
                 try
                 {
                     if (session != null)
                     {
-                        await session.SendEventAsync(e.Method, e.Params);
+                        await session.SendEventAsync(e.Method, e.Params, targetSession);
                     }
                 }
                 catch (Exception ex)

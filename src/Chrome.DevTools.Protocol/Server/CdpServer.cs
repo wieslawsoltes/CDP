@@ -80,15 +80,21 @@ public static class CdpServer
 
     public static event Action? ServerStarted;
     public static event Action? ServerStopped;
+    public static event Action<CdpSession>? SessionAdded;
+    public static event Action<CdpSession>? SessionRemoved;
 
     public static void AddSession(CdpSession session)
     {
         _sessions[session] = 0;
+        SessionAdded?.Invoke(session);
     }
 
     public static void RemoveSession(CdpSession session)
     {
-        _sessions.TryRemove(session, out _);
+        if (_sessions.TryRemove(session, out _))
+        {
+            SessionRemoved?.Invoke(session);
+        }
     }
 
     public static bool IsTargetAttached(string targetId)
@@ -157,13 +163,13 @@ public static class CdpServer
             if (session.AutoAttachEnabled)
             {
                 Console.WriteLine($"[CDP SERVER DEBUG] Auto-attaching target {target.Id} to session");
-                session.AutoAttachTarget(target);
+                session.AutoAttachTarget(target, isNewTarget: true);
                 if (target.Type == "page")
                 {
                     string tabId = $"tab-{target.Id}";
                     if (_targets.TryGetValue(tabId, out var tabTarget))
                     {
-                        session.AutoAttachTarget(tabTarget);
+                        session.AutoAttachTarget(tabTarget, isNewTarget: true);
                     }
                 }
             }
@@ -284,7 +290,7 @@ public static class CdpServer
                     {
                         if (session.AutoAttachEnabled)
                         {
-                            session.AutoAttachTarget(target);
+                            session.AutoAttachTarget(target, isNewTarget: true);
                         }
                     }
                 }

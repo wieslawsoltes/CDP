@@ -24,6 +24,8 @@ public class BiDiSession
     private readonly HashSet<string> _subscribedEvents = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _subscribedContexts = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, JsonObject> _pendingResponses = new();
+    private readonly ConcurrentBag<CdpSession> _bidiCreatedCdpSessions = new();
+    private readonly ConcurrentDictionary<string, (string Method, string Url)> _pendingRequests = new();
 
     public string SessionId => _sessionId;
 
@@ -81,6 +83,16 @@ public class BiDiSession
         _cts.Cancel();
         Chrome.DevTools.Protocol.Domains.NetworkDomain.NetworkEventBroadcasted -= OnNetworkEventBroadcasted;
         _pendingResponses.Clear();
+        _pendingRequests.Clear();
+
+        while (_bidiCreatedCdpSessions.TryTake(out var cdpSession))
+        {
+            try
+            {
+                cdpSession.Dispose();
+            }
+            catch { }
+        }
         
         if (_webSocket != null)
         {
@@ -438,6 +450,7 @@ public class BiDiSession
         var newSession = CdpServer.SessionFactory?.Invoke(dummySocket, target) ?? new CdpSession(dummySocket, target);
         
         CdpServer.AddSession(newSession);
+        _bidiCreatedCdpSessions.Add(newSession);
         return newSession;
     }
 
@@ -554,61 +567,66 @@ public class BiDiSession
 
     private void OnNetworkEventBroadcasted(string cdpMethod, JsonObject cdpParams)
     {
-        if (cdpMethod == "Network.requestWillBeSent" && _subscribedEvents.Contains("network.beforeRequestSent"))
+        if (cdpMethod == "Network.requestWillBeSent")
         {
             var requestNode = cdpParams["request"] as JsonObject;
-            if (requestNode == null) return;
-
-            var requestId = cdpParams["requestId"]?.GetValue<string>() ?? "";
-            var url = requestNode["url"]?.GetValue<string>() ?? "";
-            var method = requestNode["method"]?.GetValue<string>() ?? "GET";
-            
-            var bidiHeaders = new JsonArray();
-            var headersNode = requestNode["headers"] as JsonObject;
-            if (headersNode != null)
+            if (requestNode != null)
             {
-                foreach (var prop in headersNode)
+                var requestId = cdpParams["requestId"]?.GetValue<string>() ?? "";
+                var url = requestNode["url"]?.GetValue<string>() ?? "";
+                var method = requestNode["method"]?.GetValue<string>() ?? "GET";
+                _pendingRequests[requestId] = (method, url);
+
+                if (_subscribedEvents.Contains("network.beforeRequestSent"))
                 {
-                    bidiHeaders.Add(new JsonObject
+                    var bidiHeaders = new JsonArray();
+                    var headersNode = requestNode["headers"] as JsonObject;
+                    if (headersNode != null)
                     {
-                        ["name"] = prop.Key,
-                        ["value"] = new JsonObject
+                        foreach (var prop in headersNode)
                         {
-                            ["type"] = "string",
-                            ["value"] = prop.Value?.ToString() ?? ""
+                            bidiHeaders.Add(new JsonObject
+                            {
+                                ["name"] = prop.Key,
+                                ["value"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                    ["value"] = prop.Value?.ToString() ?? ""
+                                }
+                            });
                         }
-                    });
+                    }
+
+                    var bidiParams = new JsonObject
+                    {
+                        ["context"] = "main",
+                        ["navigation"] = null,
+                        ["redirectCount"] = 0,
+                        ["request"] = new JsonObject
+                        {
+                            ["request"] = requestId,
+                            ["url"] = url,
+                            ["method"] = method,
+                            ["headers"] = bidiHeaders,
+                            ["cookies"] = new JsonArray(),
+                            ["headersSize"] = 0,
+                            ["bodySize"] = 0,
+                            ["timings"] = new JsonObject()
+                        },
+                        ["timestamp"] = (long)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        ["initiator"] = new JsonObject { ["type"] = "other" }
+                    };
+
+                    var bidiEvent = new JsonObject
+                    {
+                        ["type"] = "event",
+                        ["method"] = "network.beforeRequestSent",
+                        ["params"] = bidiParams
+                    };
+
+                    _ = SendJsonAsync(bidiEvent);
                 }
             }
-
-            var bidiParams = new JsonObject
-            {
-                ["context"] = "main",
-                ["navigation"] = null,
-                ["redirectCount"] = 0,
-                ["request"] = new JsonObject
-                {
-                    ["request"] = requestId,
-                    ["url"] = url,
-                    ["method"] = method,
-                    ["headers"] = bidiHeaders,
-                    ["cookies"] = new JsonArray(),
-                    ["headersSize"] = 0,
-                    ["bodySize"] = 0,
-                    ["timings"] = new JsonObject()
-                },
-                ["timestamp"] = (long)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                ["initiator"] = new JsonObject { ["type"] = "other" }
-            };
-
-            var bidiEvent = new JsonObject
-            {
-                ["type"] = "event",
-                ["method"] = "network.beforeRequestSent",
-                ["params"] = bidiParams
-            };
-
-            _ = SendJsonAsync(bidiEvent);
         }
         else if (cdpMethod == "Network.responseReceived" && _subscribedEvents.Contains("network.responseCompleted"))
         {
@@ -623,6 +641,9 @@ public class BiDiSession
             var requestId = cdpParams["requestId"]?.GetValue<string>();
             if (!string.IsNullOrEmpty(requestId) && _pendingResponses.TryRemove(requestId, out var responseParams))
             {
+                _pendingRequests.TryRemove(requestId, out var reqInfo);
+                var reqMethod = reqInfo.Method ?? "GET";
+
                 var responseNode = responseParams["response"] as JsonObject;
                 if (responseNode != null)
                 {
@@ -658,7 +679,7 @@ public class BiDiSession
                         {
                             ["request"] = requestId,
                             ["url"] = url,
-                            ["method"] = "GET",
+                            ["method"] = reqMethod,
                             ["headers"] = new JsonArray(),
                             ["cookies"] = new JsonArray(),
                             ["headersSize"] = 0,
@@ -698,6 +719,40 @@ public class BiDiSession
             if (!string.IsNullOrEmpty(requestId))
             {
                 _pendingResponses.TryRemove(requestId, out _);
+                _pendingRequests.TryRemove(requestId, out var reqInfo);
+
+                if (_subscribedEvents.Contains("network.fetchError"))
+                {
+                    var errorText = cdpParams["errorText"]?.GetValue<string>() ?? "Loading failed";
+                    var bidiParams = new JsonObject
+                    {
+                        ["context"] = "main",
+                        ["navigation"] = null,
+                        ["redirectCount"] = 0,
+                        ["request"] = new JsonObject
+                        {
+                            ["request"] = requestId,
+                            ["url"] = reqInfo.Url ?? "",
+                            ["method"] = reqInfo.Method ?? "GET",
+                            ["headers"] = new JsonArray(),
+                            ["cookies"] = new JsonArray(),
+                            ["headersSize"] = 0,
+                            ["bodySize"] = 0,
+                            ["timings"] = new JsonObject()
+                        },
+                        ["timestamp"] = (long)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        ["errorText"] = errorText
+                    };
+
+                    var bidiEvent = new JsonObject
+                    {
+                        ["type"] = "event",
+                        ["method"] = "network.fetchError",
+                        ["params"] = bidiParams
+                    };
+
+                    _ = SendJsonAsync(bidiEvent);
+                }
             }
         }
     }

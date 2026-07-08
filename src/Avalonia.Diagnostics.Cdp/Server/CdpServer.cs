@@ -245,7 +245,7 @@ public static class CdpServer
         {
             foreach (var win in desktop.Windows)
             {
-                if (!_targets.ContainsKey(win))
+                if (win.IsVisible && !_targets.ContainsKey(win))
                 {
                     var title = win.Title ?? "Avalonia Window";
                     var target = new AvaloniaCdpTarget(win, Guid.NewGuid().ToString(), title);
