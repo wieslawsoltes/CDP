@@ -9,6 +9,7 @@
     <Nullable>enable</Nullable>
     <StartupObject Condition="'$(TargetFramework)' == 'net10.0-windows'">WpfSampleApp.App</StartupObject>
     <StartupObject Condition="'$(TargetFramework)' != 'net10.0-windows'">WpfSampleApp.Program</StartupObject>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <!-- Non-Windows compilation excludes XAML/WPF source files and builds placeholder Program.cs -->
