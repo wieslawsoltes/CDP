@@ -3,6 +3,7 @@ using System;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using System.Threading;
+using ReactiveUI.Avalonia;
 
 namespace CdpSampleApp;
 
@@ -31,6 +32,7 @@ class Program
             }
 
             var builder = AppBuilder.Configure<App>()
+                .UseReactiveUI(_ => { })
                 .WithInterFont()
                 .LogToTrace()
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseDotNetSystemFont = true });
@@ -63,6 +65,7 @@ class Program
     public static AppBuilder BuildAvaloniaApp()
     {
         var builder = AppBuilder.Configure<App>()
+            .UseReactiveUI(_ => { })
             .WithInterFont()
             .LogToTrace();
 

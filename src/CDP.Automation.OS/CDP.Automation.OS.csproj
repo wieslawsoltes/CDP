@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <StartupObject>CDP.Automation.OS.ProxyProgram</StartupObject>
     <PackageId>Chrome.DevTools.Automation.OS</PackageId>
     <Title>Chrome.DevTools.Automation.OS</Title>
     <Description>Cross-platform operating system automation and accessibility provider for Chrome DevTools Protocol (CDP).</Description>

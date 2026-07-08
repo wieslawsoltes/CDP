@@ -25,6 +25,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public SimulationViewModel Simulation { get; }
     public RecorderViewModel Recorder { get; }
     public EventsViewModel Events { get; }
+    public MvvmViewModel Mvvm { get; }
 
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
@@ -95,6 +96,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         );
         Recorder = new RecorderViewModel(CdpService, () => Connection.GeneratorHostAddress, () => Connection.UseAutomationSelectors);
         Events = new EventsViewModel(CdpService);
+        Mvvm = new MvvmViewModel(CdpService);
         Recorder.TestStudio.Connection = Connection;
         Connection.TestStudio = Recorder.TestStudio;
         Recorder.TestStudio.OnStepIndicatorChanged = indicator => Simulation.ActiveReplayIndicator = indicator;
@@ -187,6 +189,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         StateService.RegisterProvider(Memory);
         StateService.RegisterProvider(Application);
         StateService.RegisterProvider(Simulation);
+        StateService.RegisterProvider(Mvvm);
         StateService.RegisterProvider(this);
         if (loadState)
         {
@@ -236,7 +239,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         else
         {
             // Choose a next view sequentially that is not already visible, or a default fallback
-            string[] views = { "Console", "Recorder", "Sources", "Network", "Memory", "Application", "Audits" };
+            string[] views = { "Console", "Recorder", "Sources", "Network", "Memory", "Application", "Audits", "Mvvm" };
             string viewName = "Console";
             foreach (var v in views)
             {
@@ -397,6 +400,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         rightPane.AddTab("Recorder", "RecordIcon", "Recorder");
         rightPane.AddTab("Window", "WindowMultipleIcon", "Window");
         rightPane.AddTab("Events", "FlowchartIcon", "Events");
+        rightPane.AddTab("MVVM", "DiagramIcon", "Mvvm");
 
         LayoutRoot = new SplitContainerNode(
             Avalonia.Layout.Orientation.Horizontal,
@@ -532,6 +536,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
             "Recorder" => "RecordIcon",
             "Window" => "WindowMultipleIcon",
             "Events" => "FlowchartIcon",
+            "Mvvm" => "DiagramIcon",
             _ => "DocumentIcon"
         };
     }

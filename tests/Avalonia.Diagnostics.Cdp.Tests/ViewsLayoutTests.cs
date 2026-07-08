@@ -56,6 +56,9 @@ public class ViewsLayoutTests
 
             var applicationView = new ApplicationView();
             Assert.NotNull(applicationView);
+
+            var mvvmView = new MvvmView();
+            Assert.NotNull(mvvmView);
         }
         finally
         {

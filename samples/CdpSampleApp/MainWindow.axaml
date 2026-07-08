@@ -1,29 +1,31 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CdpSampleApp.ViewModels"
         x:Class="CdpSampleApp.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
         Title="Avalonia CDP Inspector Sample" Width="550" Height="520">
     <Grid Margin="10" RowDefinitions="Auto, *">
         <TextBlock Classes="header" Text="Avalonia CDP Inspector Sample" FontSize="20" FontWeight="Bold" Margin="10,0,10,10"/>
         
-        <TabControl Name="tabContainer" Grid.Row="1">
+        <TabControl Name="tabContainer" Grid.Row="1" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
             <!-- 1. Home Page (Existing controls) -->
             <TabItem Header="Home" Name="tabHome">
                 <ScrollViewer Margin="10">
                     <StackPanel Spacing="15">
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Button Name="btnClickMe" AutomationProperties.AutomationId="btnClickMe" Content="Click Me" Width="100"/>
-                            <Button Name="btnSendHttp" AutomationProperties.AutomationId="btnSendHttp" Content="Send HTTP Request" Width="150"/>
-                            <Button Name="btnOpenSecond" AutomationProperties.AutomationId="btnOpenSecond" Content="Open Second Window" Width="150"/>
-                            <TextBlock Name="txtStatus" Text="Not Clicked" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            <Button Name="btnClickMe" AutomationProperties.AutomationId="btnClickMe" Command="{Binding ClickCommand}" Content="Click Me" Width="100"/>
+                            <Button Name="btnSendHttp" AutomationProperties.AutomationId="btnSendHttp" Command="{Binding SendHttpCommand}" Content="Send HTTP Request" Width="150"/>
+                            <Button Name="btnOpenSecond" AutomationProperties.AutomationId="btnOpenSecond" Command="{Binding OpenSecondWindowCommand}" Content="Open Second Window" Width="150"/>
+                            <TextBlock Name="txtStatus" Text="{Binding StatusText}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         </StackPanel>
                         
-                        <TextBox Name="txtInput" AutomationProperties.AutomationId="txtTarget" PlaceholderText="Type text here..." Width="300" HorizontalAlignment="Left"/>
+                        <TextBox Name="txtInput" AutomationProperties.AutomationId="txtTarget" Text="{Binding InputText, Mode=TwoWay}" PlaceholderText="Type text here..." Width="300" HorizontalAlignment="Left"/>
                         
-                        <CheckBox Name="chkToggle" AutomationProperties.AutomationId="chkToggle" Content="Enable Option"/>
+                        <CheckBox Name="chkToggle" AutomationProperties.AutomationId="chkToggle" IsChecked="{Binding IsOptionEnabled, Mode=TwoWay}" Content="Enable Option"/>
                         
-                        <Slider Name="sliderValue" AutomationProperties.AutomationId="sliderValue" Minimum="0" Maximum="100" Value="50" Width="300" HorizontalAlignment="Left"/>
+                        <Slider Name="sliderValue" AutomationProperties.AutomationId="sliderValue" Minimum="0" Maximum="100" Value="{Binding SliderValue, Mode=TwoWay}" Width="300" HorizontalAlignment="Left"/>
                         
-                        <TextBlock Name="txtSliderVal" Text="{Binding #sliderValue.Value, StringFormat='Slider Value: {0:0}'}"/>
+                        <TextBlock Name="txtSliderVal" Text="{Binding SliderValue, StringFormat='Slider Value: {0:0}'}"/>
                         
                         <!-- More controls to satisfy 'add more control but keep existing ones' -->
                         <TextBlock Text="Additional Controls:" FontWeight="SemiBold" Margin="0,10,0,0"/>
@@ -31,7 +33,7 @@
                             <RadioButton Name="rbOption1" Content="Option 1" IsChecked="True"/>
                             <RadioButton Name="rbOption2" Content="Option 2"/>
                         </StackPanel>
-                        <ProgressBar Name="progressVal" Value="{Binding #sliderValue.Value}" Minimum="0" Maximum="100" Height="15" Width="300" HorizontalAlignment="Left"/>
+                        <ProgressBar Name="progressVal" Value="{Binding SliderValue}" Minimum="0" Maximum="100" Height="15" Width="300" HorizontalAlignment="Left"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -63,7 +65,7 @@
                     <TextBlock Text="About This App" FontSize="18" FontWeight="Bold" Foreground="#8ab4f8"/>
                     <TextBlock Text="This is a CDP sample target application designed for end-to-end testing, visual self-inspection, and layout verifications." TextWrapping="Wrap"/>
                     <TextBlock Text="Use the URL navigation 'http://localhost:9222/about' to reach this page programmatically." TextWrapping="Wrap" FontStyle="Italic" Foreground="#9aa0a6"/>
-                    <Button Name="btnGoBack" Content="Back to Home" Width="120" Margin="0,20,0,0"/>
+                    <Button Name="btnGoBack" Command="{Binding GoBackCommand}" Content="Back to Home" Width="120" Margin="0,20,0,0"/>
                 </StackPanel>
             </TabItem>
         </TabControl>

@@ -14,6 +14,7 @@ namespace Chrome.DevTools.Protocol.Domains;
 
 public static class NetworkDomain
 {
+    public static event Action<string, JsonObject>? NetworkEventBroadcasted;
     private static readonly ConcurrentDictionary<CdpSession, bool> _enabledSessions = new();
     private static readonly ConcurrentDictionary<string, (string Body, bool Base64Encoded)> _responseBodies = new();
     private static readonly ConcurrentDictionary<HttpRequestMessage, string> _requestIds = new();
@@ -294,8 +295,8 @@ public static class NetworkDomain
             Console.WriteLine("[CDP TRACE] OnRequestStart: request already tracked, ignoring duplicate start.");
             return;
         }
-        if (_enabledSessions.IsEmpty) {
-            Console.WriteLine("[CDP TRACE] OnRequestStart: _enabledSessions is empty, returning.");
+        if (_enabledSessions.IsEmpty && !HasBiDiNetworkSubscriptions()) {
+            Console.WriteLine("[CDP TRACE] OnRequestStart: _enabledSessions is empty and no BiDi network subscriptions, returning.");
             return;
         }
 
@@ -347,8 +348,8 @@ public static class NetworkDomain
             Console.WriteLine("[CDP TRACE] OnRequestStop: request ID not found in _requestIds.");
             return;
         }
-        if (_enabledSessions.IsEmpty) {
-            Console.WriteLine("[CDP TRACE] OnRequestStop: _enabledSessions is empty, returning.");
+        if (_enabledSessions.IsEmpty && !HasBiDiNetworkSubscriptions()) {
+            Console.WriteLine("[CDP TRACE] OnRequestStop: _enabledSessions is empty and no BiDi network subscriptions, returning.");
             return;
         }
 
@@ -419,6 +420,7 @@ public static class NetworkDomain
             Console.WriteLine($"[CDP TRACE] BroadcastEvent: sending event {method} to session.");
             _ = session.SendEventAsync(method, @params);
         }
+        NetworkEventBroadcasted?.Invoke(method, @params);
     }
 
     private static JsonObject MapHeaders(HttpRequestMessage request)
@@ -477,6 +479,18 @@ public static class NetworkDomain
                 await Task.Delay((int)delayMs, cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    private static bool HasBiDiNetworkSubscriptions()
+    {
+        foreach (var session in CdpServer.BiDiSessions.Values)
+        {
+            if (session.IsSubscribedToNetworkEvents())
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

@@ -37,6 +37,7 @@ Chrome DevTools Protocol (CDP) core server and session logic.
 | `AttributeSelector` | struct | [`src/Chrome.DevTools.Protocol/Selector/CssSelectorParser.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Selector/CssSelectorParser.cs) |
 | `AttributeSelectorOperator` | enum | [`src/Chrome.DevTools.Protocol/Selector/CssSelectorParser.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Selector/CssSelectorParser.cs) |
 | `AvaloniaHeadlessXUnitGenerator` | class | [`src/Chrome.DevTools.Protocol/Automation/Generators/AvaloniaHeadlessXUnitGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/Generators/AvaloniaHeadlessXUnitGenerator.cs) |
+| `BiDiSession` | class | [`src/Chrome.DevTools.Protocol/Server/BiDiSession.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/BiDiSession.cs) |
 | `CdpDelegatingHandler` | class | [`src/Chrome.DevTools.Protocol/Server/CdpDelegatingHandler.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpDelegatingHandler.cs) |
 | `CdpDispatcher` | class | [`src/Chrome.DevTools.Protocol/Server/CdpDispatcher.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpDispatcher.cs) |
 | `CdpDomainRegistry` | class | [`src/Chrome.DevTools.Protocol/Server/CdpDomainRegistry.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpDomainRegistry.cs) |
@@ -52,6 +53,7 @@ Chrome DevTools Protocol (CDP) core server and session logic.
 | `CdpTargetSession` | class | [`src/Chrome.DevTools.Protocol/Server/CdpTargetSession.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpTargetSession.cs) |
 | `ConsoleRedirector` | class | [`src/Chrome.DevTools.Protocol/Server/CdpServer.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/CdpServer.cs) |
 | `CssSelectorParser` | class | [`src/Chrome.DevTools.Protocol/Selector/CssSelectorParser.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Selector/CssSelectorParser.cs) |
+| `DummyWebSocket` | class | [`src/Chrome.DevTools.Protocol/Server/BiDiSession.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Server/BiDiSession.cs) |
 | `FlowCommandCatalog` | class | [`src/Chrome.DevTools.Protocol/Automation/FlowCommandCatalog.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/FlowCommandCatalog.cs) |
 | `FlowCommandValueKind` | enum | [`src/Chrome.DevTools.Protocol/Automation/FlowCommandCatalog.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Automation/FlowCommandCatalog.cs) |
 | `ICdpService` | interface | [`src/Chrome.DevTools.Protocol/Client/ICdpService.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Chrome.DevTools.Protocol/Client/ICdpService.cs) |

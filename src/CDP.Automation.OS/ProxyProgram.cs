@@ -41,90 +41,28 @@ public class OsWindowCdpTarget : ICdpTarget
 
 public static class ProxyProgram
 {
-    private static readonly ConcurrentDictionary<string, OsAutomationCdpSession> _sessionMap = new();
-
     public static async Task Main(string[] args)
     {
-        Console.WriteLine("Starting OS Automation CDP Emulation Proxy on port 9224...");
-
-        // Initialize OS Automation provider
-        OsAutomationProvider.Instance = OSAutomationService.Instance;
-
-        // Setup CdpServer options
-        CdpServer.TargetProvider = () =>
+        int port = 9224;
+        if (args.Length > 0 && int.TryParse(args[0], out int parsedPort))
         {
-            try
-            {
-                var windows = OSAutomationService.Instance.GetWindows();
-                return windows.Select(w => new OsWindowCdpTarget(w));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error getting windows: {ex.Message}");
-                return Enumerable.Empty<ICdpTarget>();
-            }
-        };
-
-        // Register domain handlers by routing them to OsAutomationCdpSession
-        string[] domains = new[]
-        {
-            "DOM", "Input", "Page", "SystemInfo", "Runtime", 
-            "Accessibility", "CSS", "Overlay", "Recorder", "Performance", 
-            "Memory", "Network", "Browser"
-        };
-
-        foreach (var domain in domains)
-        {
-            var d = domain; // closure
-            CdpDomainRegistry.Register(d, (s, a, p) => HandleDomainAsync(s, d, a, p));
+            port = parsedPort;
         }
 
-        // Start CdpServer on port 9224
-        CdpServer.Start(9224);
-        Console.WriteLine("CdpServer running on port 9224. Press Ctrl+C to stop.");
+        var daemon = new OsAutomationDaemon(port);
+        daemon.Start();
 
-        // Keep the program running
         var tcs = new TaskCompletionSource();
         Console.CancelKeyPress += (s, e) =>
         {
             e.Cancel = true;
             tcs.SetResult();
         };
+
+        Console.WriteLine("Proxy running. Press Ctrl+C to stop.");
         await tcs.Task;
 
-        CdpServer.Stop();
+        daemon.Stop();
         Console.WriteLine("Proxy stopped.");
-    }
-
-    private static OsAutomationCdpSession GetOrCreateOsSession(CdpSession session)
-    {
-        var targetSession = session.CurrentTargetSession;
-        string targetId = targetSession != null ? targetSession.TargetId : (session.Target?.Id ?? "");
-        string key = $"{session.GetHashCode()}_{targetId}";
-
-        return _sessionMap.GetOrAdd(key, _ =>
-        {
-            var target = (targetSession?.Target ?? session.Target) as OsWindowCdpTarget;
-            if (target == null)
-            {
-                throw new Exception($"Session target is not OsWindowCdpTarget. TargetId: {targetId}");
-            }
-            return new OsAutomationCdpSession(target.Id);
-        });
-    }
-
-    private static async Task<JsonObject> HandleDomainAsync(CdpSession session, string domain, string action, JsonObject @params)
-    {
-        try
-        {
-            var osSession = GetOrCreateOsSession(session);
-            var fullMethod = $"{domain}.{action}";
-            return await osSession.HandleCommandAsync(fullMethod, @params);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error handling command {domain}.{action}: {ex.Message}");
-            throw;
-        }
     }
 }

@@ -20,6 +20,39 @@ public static class CdpServer
     private static int _port = 9222;
     public static int Port => _port;
 
+    private static bool _waitForDebugger = false;
+    public static bool WaitForDebugger
+    {
+        get => _waitForDebugger;
+        set => _waitForDebugger = value;
+    }
+
+    private static bool _hasWaitedForDebugger = false;
+    public static bool HasWaitedForDebugger
+    {
+        get => _hasWaitedForDebugger;
+        set => _hasWaitedForDebugger = value;
+    }
+
+    private static readonly ConcurrentDictionary<string, bool> _waitingTargets = new();
+
+    public static bool IsTargetWaitingForDebugger(string targetId)
+    {
+        return _waitingTargets.TryGetValue(targetId, out var waiting) && waiting;
+    }
+
+    public static void SetTargetWaitingForDebugger(string targetId, bool waiting)
+    {
+        if (waiting)
+        {
+            _waitingTargets[targetId] = true;
+        }
+        else
+        {
+            _waitingTargets.TryRemove(targetId, out _);
+        }
+    }
+
     private static QueuedTextWriter? _queuedOut;
     private static QueuedTextWriter? _queuedError;
 
@@ -30,6 +63,8 @@ public static class CdpServer
     private static readonly HashSet<string> _providerTargetIds = new();
     private static readonly ConcurrentDictionary<CdpSession, byte> _sessions = new();
     public static IEnumerable<CdpSession> Sessions => _sessions.Keys;
+    private static readonly ConcurrentDictionary<string, BiDiSession> _bidiSessions = new();
+    public static ConcurrentDictionary<string, BiDiSession> BiDiSessions => _bidiSessions;
 
     private static System.IO.TextWriter? _originalOut;
     private static System.IO.TextWriter? _originalError;
@@ -45,15 +80,21 @@ public static class CdpServer
 
     public static event Action? ServerStarted;
     public static event Action? ServerStopped;
+    public static event Action<CdpSession>? SessionAdded;
+    public static event Action<CdpSession>? SessionRemoved;
 
     public static void AddSession(CdpSession session)
     {
         _sessions[session] = 0;
+        SessionAdded?.Invoke(session);
     }
 
     public static void RemoveSession(CdpSession session)
     {
-        _sessions.TryRemove(session, out _);
+        if (_sessions.TryRemove(session, out _))
+        {
+            SessionRemoved?.Invoke(session);
+        }
     }
 
     public static bool IsTargetAttached(string targetId)
@@ -122,13 +163,13 @@ public static class CdpServer
             if (session.AutoAttachEnabled)
             {
                 Console.WriteLine($"[CDP SERVER DEBUG] Auto-attaching target {target.Id} to session");
-                session.AutoAttachTarget(target);
+                session.AutoAttachTarget(target, isNewTarget: true);
                 if (target.Type == "page")
                 {
                     string tabId = $"tab-{target.Id}";
                     if (_targets.TryGetValue(tabId, out var tabTarget))
                     {
-                        session.AutoAttachTarget(tabTarget);
+                        session.AutoAttachTarget(tabTarget, isNewTarget: true);
                     }
                 }
             }
@@ -249,7 +290,7 @@ public static class CdpServer
                     {
                         if (session.AutoAttachEnabled)
                         {
-                            session.AutoAttachTarget(target);
+                            session.AutoAttachTarget(target, isNewTarget: true);
                         }
                     }
                 }
@@ -283,6 +324,16 @@ public static class CdpServer
         _port = port;
         _isRunning = true;
         Logger.ServerStarted(port);
+
+        try
+        {
+            var args = Environment.GetCommandLineArgs();
+            if (Array.Exists(args, arg => arg.Equals("--wait-for-debugger", StringComparison.OrdinalIgnoreCase)))
+            {
+                _waitForDebugger = true;
+            }
+        }
+        catch { }
 
         // Initialize Network diagnostic listener
         Chrome.DevTools.Protocol.Domains.NetworkDomain.Initialize();
@@ -361,6 +412,16 @@ public static class CdpServer
         }
         _sessions.Clear();
 
+        foreach (var session in _bidiSessions.Values)
+        {
+            try { session.Close(); } catch { }
+        }
+        _bidiSessions.Clear();
+
+        _waitingTargets.Clear();
+        _hasWaitedForDebugger = false;
+        _waitForDebugger = false;
+
         ServerStopped?.Invoke();
     }
 
@@ -390,6 +451,54 @@ public static class CdpServer
             if (request.IsWebSocketRequest)
             {
                 var path = request.Url?.AbsolutePath ?? "";
+                if (path == "/session/bidi" || path.StartsWith("/session/bidi/"))
+                {
+                    var wsContext = await context.AcceptWebSocketAsync(null, TimeSpan.FromSeconds(10));
+                    string? bidiSessionId = null;
+                    if (path.StartsWith("/session/bidi/"))
+                    {
+                        bidiSessionId = path.Substring("/session/bidi/".Length);
+                    }
+                    else
+                    {
+                        var query = request.Url?.Query;
+                        if (!string.IsNullOrEmpty(query))
+                        {
+                            var parts = query.TrimStart('?').Split('&');
+                            foreach (var part in parts)
+                            {
+                                var kv = part.Split('=');
+                                if (kv.Length == 2 && (kv[0] == "session" || kv[0] == "sessionId"))
+                                {
+                                    bidiSessionId = Uri.UnescapeDataString(kv[1]);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (string.IsNullOrEmpty(bidiSessionId))
+                    {
+                        bidiSessionId = _bidiSessions.Keys.LastOrDefault() ?? Guid.NewGuid().ToString();
+                    }
+                    
+                    if (!_bidiSessions.TryGetValue(bidiSessionId, out var bidiSession))
+                    {
+                        bidiSession = new BiDiSession(bidiSessionId);
+                        _bidiSessions[bidiSessionId] = bidiSession;
+                    }
+                    
+                    try
+                    {
+                        await bidiSession.StartAsync(wsContext.WebSocket);
+                    }
+                    finally
+                    {
+                        _bidiSessions.TryRemove(bidiSessionId, out _);
+                    }
+                    return;
+                }
+
                 if (path.StartsWith("/devtools/page/"))
                 {
                     var targetId = path.Substring("/devtools/page/".Length);
@@ -421,6 +530,13 @@ public static class CdpServer
                 return;
             }
 
+            var urlPath = request.Url?.AbsolutePath ?? "";
+            var host = request.Url?.Authority;
+            if (string.IsNullOrEmpty(host))
+            {
+                host = $"localhost:{_port}";
+            }
+
             if (request.HttpMethod == "OPTIONS")
             {
                 response.Headers.Add("Access-Control-Allow-Origin", "*");
@@ -431,11 +547,25 @@ public static class CdpServer
                 return;
             }
 
-            var urlPath = request.Url?.AbsolutePath ?? "";
-            var host = request.Url?.Authority;
-            if (string.IsNullOrEmpty(host))
+            if (request.HttpMethod == "POST" && (urlPath == "/session" || urlPath == "/session/"))
             {
-                host = $"localhost:{_port}";
+                var sessionId = Guid.NewGuid().ToString();
+                var bidiSession = new BiDiSession(sessionId);
+                _bidiSessions[sessionId] = bidiSession;
+                
+                var responseJson = new JsonObject
+                {
+                    ["value"] = new JsonObject
+                    {
+                        ["sessionId"] = sessionId,
+                        ["capabilities"] = new JsonObject
+                        {
+                            ["webSocketUrl"] = $"ws://{host}/session/bidi/{sessionId}"
+                        }
+                    }
+                };
+                SendJsonResponse(response, responseJson);
+                return;
             }
 
             if (urlPath == "/json/version" || urlPath == "/json/version/")

@@ -21,8 +21,10 @@ public static class TargetDomain
                 {
                     bool autoAttach = @params["autoAttach"]?.GetValue<bool>() ?? false;
                     bool flatten = @params["flatten"]?.GetValue<bool>() ?? false;
+                    bool waitForDebuggerOnStart = @params["waitForDebuggerOnStart"]?.GetValue<bool>() ?? false;
 
                     session.AutoAttachEnabled = autoAttach;
+                    session.WaitForDebuggerOnStart = waitForDebuggerOnStart;
 
                     if (autoAttach)
                     {
@@ -209,7 +211,7 @@ public static class TargetDomain
                             ["attached"] = true,
                             ["browserContextId"] = "1"
                         },
-                        ["waitingForDebugger"] = false
+                        ["waitingForDebugger"] = CdpServer.IsTargetWaitingForDebugger(targetId)
                     });
 
                     return new JsonObject { ["sessionId"] = sessionId };

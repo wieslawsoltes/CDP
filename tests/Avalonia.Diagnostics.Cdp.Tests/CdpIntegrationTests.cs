@@ -886,6 +886,93 @@ public class CdpIntegrationTests
         }
     }
 
+    [AvaloniaFact]
+    public void TestPreflightWaitForDebuggerAndScriptInjection()
+    {
+        int port = GetFreePort();
+        Window? window = null;
+        var targetIdSource = new TaskCompletionSource<string>();
+
+        try
+        {
+            CdpServer.WaitForDebugger = true;
+            Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = false;
+            CdpServer.Start(port);
+
+            var clientTask = Task.Run(async () =>
+            {
+                var targetId = await targetIdSource.Task;
+
+                using var ws = CreateClientWebSocket();
+                var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{targetId}");
+                await ConnectWithTimeoutAsync(ws, uri);
+
+                // Add pre-flight script to inject
+                var addScriptRequest = new JsonObject
+                {
+                    ["id"] = 1,
+                    ["method"] = "Page.addScriptToEvaluateOnNewDocument",
+                    ["params"] = new JsonObject
+                    {
+                        ["source"] = "__raw_window.Title = \"Preflight Success\";"
+                    }
+                };
+                await SendJsonAsync(ws, addScriptRequest);
+                var addScriptResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(1, addScriptResponse["id"]?.GetValue<int>());
+
+                // Run pre-flight script and resume
+                var runRequest = new JsonObject
+                {
+                    ["id"] = 2,
+                    ["method"] = "Runtime.runIfWaitingForDebugger"
+                };
+                await SendJsonAsync(ws, runRequest);
+                var runResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(2, runResponse["id"]?.GetValue<int>());
+
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
+            });
+
+            // Ensure we resume the target if the client task completes (especially if it fails/faults)
+            _ = clientTask.ContinueWith(async t =>
+            {
+                try
+                {
+                    var tid = await targetIdSource.Task;
+                    CdpServer.ResumeTarget(tid);
+                }
+                catch { }
+            }, TaskScheduler.Default);
+
+            // Post window creation and show to dispatcher queue
+            Dispatcher.UIThread.Post(() =>
+            {
+                window = new Window { Title = "Initial Preflight Title" };
+                var tid = CdpServer.GetOrCreateTarget(window).Id;
+                targetIdSource.SetResult(tid);
+                window.Show();
+            });
+
+            // Pump dispatcher until the background client completes
+            PumpDispatcher(clientTask);
+
+            // Assertions
+            Assert.NotNull(window);
+            Assert.Equal("Preflight Success", window.Title);
+        }
+        finally
+        {
+            CdpServer.Stop();
+            CdpServer.WaitForDebugger = false;
+            Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = false;
+            if (window != null)
+            {
+                window.Close();
+            }
+        }
+    }
+
     private static async Task ConnectWithTimeoutAsync(ClientWebSocket ws, Uri uri, int timeoutMs = 5000)
     {
         using var cts = new CancellationTokenSource(timeoutMs);

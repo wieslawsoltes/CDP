@@ -32,12 +32,16 @@ Chrome DevTools Protocol (CDP) diagnostics server support for Avalonia UI.
 | `DomSelectorGenerator` | class | [`src/Avalonia.Diagnostics.Cdp/Selector/DomSelectorGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Selector/DomSelectorGenerator.cs) |
 | `HighlightAdorner` | class | [`src/Avalonia.Diagnostics.Cdp/Highlighting/HighlightAdorner.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Highlighting/HighlightAdorner.cs) |
 | `HighlightOverlayManager` | class | [`src/Avalonia.Diagnostics.Cdp/Highlighting/HighlightOverlayManager.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Highlighting/HighlightOverlayManager.cs) |
+| `IMcpTool` | interface | [`src/Avalonia.Diagnostics.Cdp/Domains/WebMcpDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/WebMcpDomain.cs) |
+| `IMcpToolProvider` | interface | [`src/Avalonia.Diagnostics.Cdp/Domains/WebMcpDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/WebMcpDomain.cs) |
 | `ISelectorGenerator` | interface | [`src/Avalonia.Diagnostics.Cdp/Selector/ISelectorGenerator.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Selector/ISelectorGenerator.cs) |
+| `McpToolRegistry` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/WebMcpDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/WebMcpDomain.cs) |
 | `NodeMap` | class | [`src/Avalonia.Diagnostics.Cdp/Selector/NodeMap.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Selector/NodeMap.cs) |
 | `PaintRectsAdorner` | class | [`src/Avalonia.Diagnostics.Cdp/Highlighting/PaintRectsAdorner.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Highlighting/PaintRectsAdorner.cs) |
 | `PaintRectsOverlayManager` | class | [`src/Avalonia.Diagnostics.Cdp/Highlighting/PaintRectsOverlayManager.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Highlighting/PaintRectsOverlayManager.cs) |
 | `SelectorEngine` | class | [`src/Avalonia.Diagnostics.Cdp/Selector/SelectorEngine.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Selector/SelectorEngine.cs) |
 | `SelectorRegistry` | class | [`src/Avalonia.Diagnostics.Cdp/Selector/SelectorRegistry.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Selector/SelectorRegistry.cs) |
+| `WebMcpDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/WebMcpDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/WebMcpDomain.cs) |
 
 ## Avalonia.Diagnostics.Cdp.Domains
 
@@ -64,6 +68,8 @@ Chrome DevTools Protocol (CDP) diagnostics server support for Avalonia UI.
 | `JintResult` | struct | [`src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs) |
 | `LocalVariablesScope` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/DebuggerDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/DebuggerDomain.cs) |
 | `MemoryDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/MemoryDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/MemoryDomain.cs) |
+| `MvvmDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs) |
+| `ObservableSubscriptionHelper` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs) |
 | `OverlayDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/OverlayDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/OverlayDomain.cs) |
 | `PageDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/PageDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/PageDomain.cs) |
 | `PerformanceDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/PerformanceDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/PerformanceDomain.cs) |
@@ -80,5 +86,8 @@ Chrome DevTools Protocol (CDP) diagnostics server support for Avalonia UI.
 | `ReplGlobals` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs) |
 | `RuntimeDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs) |
 | `ScriptPreprocessor` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/RuntimeDomain.cs) |
+| `SessionMvvmState` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs) |
+| `SubscriptionHelper` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs) |
+| `ViewModelNode` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/MvvmDomain.cs) |
 | `WindowChromeDomain` | class | [`src/Avalonia.Diagnostics.Cdp/Domains/WindowChromeDomain.cs`](https://github.com/wieslawsoltes/CDP/blob/main/src/Avalonia.Diagnostics.Cdp/Domains/WindowChromeDomain.cs) |
 
