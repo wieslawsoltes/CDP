@@ -112,7 +112,14 @@ public static class PageDomain
                     }
 
                     var workspaceRoot = FindWorkspaceRoot();
-                    var fullPath = Path.Combine(workspaceRoot, path);
+                    var fullPath = Path.GetFullPath(Path.Combine(workspaceRoot, path));
+
+                    var relative = Path.GetRelativePath(workspaceRoot, fullPath);
+                    if (relative.StartsWith("..") || Path.IsPathRooted(relative))
+                    {
+                        throw new Exception("Access denied: path traversal detected");
+                    }
+
                     if (File.Exists(fullPath))
                     {
                         var content = await File.ReadAllTextAsync(fullPath);
