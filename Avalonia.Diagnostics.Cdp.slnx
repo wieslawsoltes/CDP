@@ -4,10 +4,16 @@
     <Project Path="samples/CdpInspectorApp/CdpInspectorApp.csproj" />
     <Project Path="samples/CdpInspectorApp.Browser/CdpInspectorApp.Browser.csproj" />
     <Project Path="samples/CDP.HeadlessRunner/CDP.HeadlessRunner.csproj" />
+    <Project Path="samples/WpfSampleApp/WpfSampleApp.csproj" />
+    <Project Path="samples/WinUiSampleApp/WinUiSampleApp.csproj" />
+    <Project Path="samples/UnoSampleApp/UnoSampleApp.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
     <Project Path="src/Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj" />
+    <Project Path="src/Wpf.Diagnostics.Cdp/Wpf.Diagnostics.Cdp.csproj" />
+    <Project Path="src/WinUI.Diagnostics.Cdp/WinUI.Diagnostics.Cdp.csproj" />
+    <Project Path="src/Uno.Diagnostics.Cdp/Uno.Diagnostics.Cdp.csproj" />
     <Project Path="src/CDP.Editor.Minimap/CDP.Editor.Minimap.csproj" />
     <Project Path="src/CDP.Editor.Nodes/CDP.Editor.Nodes.csproj" />
     <Project Path="src/CDP.Editor.Nodes.Msagl/CDP.Editor.Nodes.Msagl.csproj" />
