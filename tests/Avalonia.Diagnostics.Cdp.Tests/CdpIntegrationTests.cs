@@ -891,6 +891,7 @@ public class CdpIntegrationTests
     {
         int port = GetFreePort();
         Window? window = null;
+        var targetIdSource = new TaskCompletionSource<string>();
 
         try
         {
@@ -900,24 +901,7 @@ public class CdpIntegrationTests
 
             var clientTask = Task.Run(async () =>
             {
-                // Wait for the window target to be registered and retrieve its ID by Title
-                string? targetId = null;
-                while (targetId == null)
-                {
-                    var targets = Chrome.DevTools.Protocol.CdpServer.GetActiveTargets();
-                    foreach (var t in targets)
-                    {
-                        if (t is JsonObject tObj && tObj["title"]?.GetValue<string>() == "Initial Preflight Title")
-                        {
-                            targetId = tObj["targetId"]?.GetValue<string>();
-                            break;
-                        }
-                    }
-                    if (targetId == null)
-                    {
-                        await Task.Delay(50);
-                    }
-                }
+                var targetId = await targetIdSource.Task;
 
                 using var ws = CreateClientWebSocket();
                 var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{targetId}");
@@ -950,10 +934,23 @@ public class CdpIntegrationTests
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close test", CancellationToken.None);
             });
 
+            // Ensure we resume the target if the client task completes (especially if it fails/faults)
+            _ = clientTask.ContinueWith(async t =>
+            {
+                try
+                {
+                    var tid = await targetIdSource.Task;
+                    CdpServer.ResumeTarget(tid);
+                }
+                catch { }
+            }, TaskScheduler.Default);
+
             // Post window creation and show to dispatcher queue
             Dispatcher.UIThread.Post(() =>
             {
                 window = new Window { Title = "Initial Preflight Title" };
+                var tid = CdpServer.GetOrCreateTarget(window).Id;
+                targetIdSource.SetResult(tid);
                 window.Show();
             });
 

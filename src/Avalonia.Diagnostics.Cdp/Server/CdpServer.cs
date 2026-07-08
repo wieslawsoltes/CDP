@@ -180,6 +180,13 @@ public static class CdpServer
         }
 
         _targets.Clear();
+
+        // Resume and clear all paused dispatcher frames to prevent thread hangs
+        foreach (var frame in _pausedFrames.Values)
+        {
+            frame.Continue = false;
+        }
+        _pausedFrames.Clear();
     }
 
     public static string Register(TopLevel window, string title)

@@ -38,31 +38,13 @@ public class DebuggerWaitForDebuggerTests
         CdpServer.WaitForDebugger = true;
 
         var window = new Window { Title = "Original Title" };
+        var targetId = CdpServer.GetOrCreateTarget(window).Id;
 
         try
         {
             var clientTask = Task.Run(async () =>
             {
-                // 1. Wait for target to be registered by Title
-                string? targetId = null;
-                for (int i = 0; i < 50; i++)
-                {
-                    var windows = CdpServer.GetWindows();
-                    foreach (var w in windows)
-                    {
-                        if (w.Title == "Original Title")
-                        {
-                            targetId = w.Id;
-                            break;
-                        }
-                    }
-                    if (targetId != null) break;
-                    await Task.Delay(100);
-                }
-
-                Assert.NotNull(targetId);
-
-                // 2. Connect client WebSocket with retry
+                // Connect client WebSocket directly using upfront targetId
                 var ws = CreateClientWebSocket();
                 var uri = new Uri($"ws://127.0.0.1:{port}/devtools/page/{targetId}");
                 
@@ -120,6 +102,12 @@ public class DebuggerWaitForDebuggerTests
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
             });
 
+            // Ensure we resume the target if the client task completes (especially if it fails/faults)
+            _ = clientTask.ContinueWith(t =>
+            {
+                CdpServer.ResumeTarget(targetId);
+            }, TaskScheduler.Default);
+
             // This will trigger WindowOpenedEvent, block in PushFrame,
             // and resume only after runIfWaitingForDebugger is called.
             window.Show();
@@ -131,8 +119,7 @@ public class DebuggerWaitForDebuggerTests
             Assert.Equal("Injected Title", window.Title);
 
             // Verify the target is no longer waiting for debugger
-            var targetIdForWindow = CdpServer.GetOrCreateTarget(window).Id;
-            Assert.False(Chrome.DevTools.Protocol.CdpServer.IsTargetWaitingForDebugger(targetIdForWindow));
+            Assert.False(Chrome.DevTools.Protocol.CdpServer.IsTargetWaitingForDebugger(targetId));
         }
         finally
         {
