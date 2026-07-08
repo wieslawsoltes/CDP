@@ -3,7 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <VersionPrefix>0.1.0</VersionPrefix>
-    <VersionSuffix>preview.17</VersionSuffix>
+    <VersionSuffix>preview.18</VersionSuffix>
     <Authors>Wiesław Šoltés</Authors>
     <Company>Wiesław Šoltés</Company>
     <PackageProjectUrl>https://github.com/wieslawsoltes/CDP</PackageProjectUrl>
