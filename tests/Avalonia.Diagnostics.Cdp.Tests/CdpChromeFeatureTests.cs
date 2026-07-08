@@ -8,6 +8,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp.Domains;
 using EmulationDomain = Avalonia.Diagnostics.Cdp.Domains.EmulationDomain;
+using ApplicationDomain = Avalonia.Diagnostics.Cdp.Domains.ApplicationDomain;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Xunit;

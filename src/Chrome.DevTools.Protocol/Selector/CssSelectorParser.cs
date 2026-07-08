@@ -228,4 +228,81 @@ public static class CssSelectorParser
         
         return tokens;
     }
+
+    public static List<string> SplitSimpleSelector(string selector)
+    {
+        var parts = new List<string>();
+        if (string.IsNullOrEmpty(selector)) return parts;
+
+        int i = 0;
+        int start = 0;
+        bool inBrackets = false;
+        bool inQuotes = false;
+        char quoteChar = '\0';
+
+        while (i < selector.Length)
+        {
+            char c = selector[i];
+
+            if (inQuotes)
+            {
+                if (c == quoteChar)
+                {
+                    inQuotes = false;
+                }
+                i++;
+                continue;
+            }
+
+            if (c == '"' || c == '\'')
+            {
+                inQuotes = true;
+                quoteChar = c;
+                i++;
+                continue;
+            }
+
+            if (inBrackets)
+            {
+                if (c == ']')
+                {
+                    inBrackets = false;
+                    parts.Add(selector.Substring(start, i - start + 1));
+                    start = i + 1;
+                }
+                i++;
+                continue;
+            }
+
+            if (c == '[')
+            {
+                if (i > start)
+                {
+                    parts.Add(selector.Substring(start, i - start));
+                }
+                start = i;
+                inBrackets = true;
+                i++;
+                continue;
+            }
+
+            if (c == '#' || c == '.' || c == ':')
+            {
+                if (i > start)
+                {
+                    parts.Add(selector.Substring(start, i - start));
+                    start = i;
+                }
+            }
+
+            i++;
+        }
+
+        if (i > start)
+        {
+            parts.Add(selector.Substring(start, i - start));
+        }
+
+        return parts;
+    }
 }

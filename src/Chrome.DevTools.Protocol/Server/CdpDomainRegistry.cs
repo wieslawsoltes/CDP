@@ -24,6 +24,11 @@ public static class CdpDomainRegistry
         s_domains["Browser"] = (Domains.BrowserDomain.HandleAsync, "1.3");
         s_domains["Emulation"] = (Domains.EmulationDomain.HandleAsync, "1.3");
         s_domains["Profiler"] = (Domains.ProfilerDomain.HandleAsync, "1.3");
+        s_domains["Application"] = (Domains.ApplicationDomain.HandleAsync, "1.3");
+        s_domains["Audits"] = (Domains.AuditsDomain.HandleAsync, "1.3");
+        s_domains["Debugger"] = (Domains.DebuggerDomain.HandleAsync, "1.3");
+        s_domains["DOMDebugger"] = (Domains.DomDebuggerDomain.HandleAsync, "1.3");
+        s_domains["WebMCP"] = (Domains.WebMcpDomain.HandleAsync, "1.3");
 
         s_domains["Ads"] = (Domains.AdsDomain.HandleAsync, "1.3");
         s_domains["Autofill"] = (Domains.AutofillDomain.HandleAsync, "1.3");

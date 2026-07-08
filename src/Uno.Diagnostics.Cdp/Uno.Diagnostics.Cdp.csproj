@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Chrome.DevTools.Uno</PackageId>
+    <Title>Chrome.DevTools.Uno</Title>
+    <Description>Chrome DevTools Protocol (CDP) diagnostics server support for Uno Platform.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>uno-platform;uno;winui;cdp;chrome-devtools-protocol;diagnostics;server</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- Share all code files from WinUI.Diagnostics.Cdp -->
+  <ItemGroup>
+    <Compile Include="../WinUI.Diagnostics.Cdp/Server/**/*.cs" LinkBase="Server" />
+    <Compile Include="../WinUI.Diagnostics.Cdp/Selector/**/*.cs" LinkBase="Selector" />
+    <Compile Include="../WinUI.Diagnostics.Cdp/Highlighting/**/*.cs" LinkBase="Highlighting" />
+    <Compile Include="../WinUI.Diagnostics.Cdp/Domains/**/*.cs" LinkBase="Domains" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Uno.WinUI" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Jint" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Features" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Chrome.DevTools.Protocol" />
+    <Using Include="Chrome.DevTools.Protocol.Domains" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>
