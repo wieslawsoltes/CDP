@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Input;
+using Avalonia.Controls;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Microsoft.CodeAnalysis;
@@ -1959,7 +1960,13 @@ public static class RuntimeDomain
                 visual = target as Visual;
             }
             if (visual == null) return null;
-            return Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(visual, sel, session.UseLogicalTree);
+            var match = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(visual, sel, session.UseLogicalTree);
+            if (match != null)
+            {
+                var matchWindow = TopLevel.GetTopLevel(match);
+                if (matchWindow != null) session.Window = matchWindow;
+            }
+            return match;
         }));
 
         engine.SetValue("__querySelectorAll", new Func<object, string, IEnumerable<Visual>>((target, sel) => 
@@ -1978,7 +1985,13 @@ public static class RuntimeDomain
                 visual = target as Visual;
             }
             if (visual == null) return Array.Empty<Visual>();
-            return Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(visual, sel, session.UseLogicalTree);
+            var matches = Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(visual, sel, session.UseLogicalTree);
+            if (matches.Count > 0)
+            {
+                var matchWindow = TopLevel.GetTopLevel(matches[0]);
+                if (matchWindow != null) session.Window = matchWindow;
+            }
+            return matches;
         }));
 
         if (isNew)

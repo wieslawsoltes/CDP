@@ -36,6 +36,8 @@ public static class LogDomain
         _enabledSessions.TryRemove(session, out _);
     }
 
+    public static bool HasEnabledSessions => !_enabledSessions.IsEmpty;
+
     public static void BroadcastLog(string area, string level, string text)
     {
         if (_enabledSessions.IsEmpty) return;

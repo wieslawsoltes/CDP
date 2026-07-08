@@ -22,6 +22,8 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     private readonly TopLevel? _window;
     private readonly NodeMap _nodeMap = new();
 
+    private WeakReference<TopLevel>? _activeWindowOverride;
+
     public CdpSession(WebSocket webSocket, TopLevel? window) 
         : base(webSocket, window != null ? CdpServer.GetOrCreateTarget(window) : null)
     {
@@ -31,7 +33,28 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
 
     public new CdpTargetSession? CurrentTargetSession => base.CurrentTargetSession as CdpTargetSession;
 
-    public TopLevel? Window => CurrentTargetSession?.Window ?? _window;
+    public TopLevel? Window
+    {
+        get
+        {
+            if (_activeWindowOverride != null && _activeWindowOverride.TryGetTarget(out var win) && win.IsVisible)
+            {
+                return win;
+            }
+            return CurrentTargetSession?.Window ?? _window;
+        }
+        set
+        {
+            if (value != null)
+            {
+                _activeWindowOverride = new WeakReference<TopLevel>(value);
+            }
+            else
+            {
+                _activeWindowOverride = null;
+            }
+        }
+    }
     public NodeMap NodeMap => CurrentTargetSession?.NodeMap ?? _nodeMap;
     public IInputDevice TouchDevice => CurrentTargetSession?.TouchDevice ?? _dummyTouchDevice;
     public bool UseSlimTree { get; set; }

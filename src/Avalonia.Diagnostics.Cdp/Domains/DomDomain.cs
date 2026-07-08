@@ -125,6 +125,11 @@ public static class DomDomain
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
                     var match = SelectorEngine.QuerySelector(root, selector, session.UseLogicalTree);
+                    if (match != null)
+                    {
+                        var matchWindow = TopLevel.GetTopLevel(match);
+                        if (matchWindow != null) session.Window = matchWindow;
+                    }
                     int matchId = match != null ? session.NodeMap.GetOrAdd(match) : 0;
                     return new JsonObject { ["nodeId"] = matchId };
                 }
@@ -139,6 +144,11 @@ public static class DomDomain
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
                     var matches = SelectorEngine.QuerySelectorAll(root, selector, session.UseLogicalTree);
+                    if (matches.Count > 0)
+                    {
+                        var matchWindow = TopLevel.GetTopLevel(matches[0]);
+                        if (matchWindow != null) session.Window = matchWindow;
+                    }
                     var nodeIds = new JsonArray();
                     foreach (var match in matches)
                     {
@@ -337,6 +347,11 @@ public static class DomDomain
                     try
                     {
                         var matches = SelectorEngine.QuerySelectorAll(session.Window, query, session.UseLogicalTree);
+                        if (matches.Count > 0)
+                        {
+                            var matchWindow = TopLevel.GetTopLevel(matches[0]);
+                            if (matchWindow != null) session.Window = matchWindow;
+                        }
                         foreach (var match in matches)
                         {
                             results.Add(session.NodeMap.GetOrAdd(match));

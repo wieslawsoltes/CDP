@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using CdpInspectorApp.Services;
 using Xunit;
@@ -105,4 +106,67 @@ description: ""Integration test for new commands""
             window.Close();
         }
     }
+
+    public class MockWindowWithPopup : Window
+    {
+        public Popup MyPopup { get; }
+        public MockWindowWithPopup()
+        {
+            Title = "Headless Test Adapter Mock Window with Popup";
+            Width = 400;
+            Height = 300;
+            var button = new Button
+            {
+                Name = "btnOpenPopup",
+                Content = "Open Popup"
+            };
+            MyPopup = new Popup
+            {
+                Name = "myPopup",
+                PlacementTarget = button,
+                Child = new Border
+                {
+                    Height = 100,
+                    Width = 100,
+                    Child = new TextBlock
+                    {
+                        Name = "popupText",
+                        Text = "Inside Popup"
+                    }
+                }
+            };
+            button.Click += (s, e) => {
+                MyPopup.IsOpen = true;
+            };
+
+            var panel = new StackPanel();
+            panel.Children.Add(button);
+            panel.Children.Add(MyPopup);
+            Content = panel;
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task RunTestAsync_ExecutesPopupSuccessfully()
+    {
+        var window = new MockWindowWithPopup();
+        try
+        {
+            var adapter = new HeadlessTestAdapter();
+
+            string yaml = @"appId: ""MockWindowWithPopup""
+description: ""Integration test for popup visibility""
+---
+- tapOn: ""#btnOpenPopup""
+- assertVisible: ""#popupText""
+";
+
+            await adapter.RunTestAsync(window, yaml, isYamlContent: true);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
 }
+

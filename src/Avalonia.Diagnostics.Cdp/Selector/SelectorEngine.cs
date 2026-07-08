@@ -489,7 +489,23 @@ public static class SelectorEngine
     {
         if (string.IsNullOrWhiteSpace(selector)) return null;
         var normalizedSelector = NormalizeSelector(selector);
-        return QuerySelectorInternal(root, normalizedSelector, useLogicalTree);
+        var result = QuerySelectorInternal(root, normalizedSelector, useLogicalTree);
+        if (result != null) return result;
+
+        // Fallback: search other registered windows/TopLevels only if query root is a TopLevel window
+        if (root is TopLevel)
+        {
+            foreach (var win in CdpServer.GetWindows().Select(x => x.Window))
+            {
+                if (win != root)
+                {
+                    result = QuerySelectorInternal(win, normalizedSelector, useLogicalTree);
+                    if (result != null) return result;
+                }
+            }
+        }
+
+        return null;
     }
 
     public static List<Visual> QuerySelectorAll(Visual root, string selector, bool useLogicalTree = false)
@@ -498,6 +514,19 @@ public static class SelectorEngine
         if (string.IsNullOrWhiteSpace(selector)) return results;
         var normalizedSelector = NormalizeSelector(selector);
         QuerySelectorAllInternal(root, normalizedSelector, results, useLogicalTree);
+
+        // Fallback: search other registered windows/TopLevels if no matches found in root and root is a TopLevel window
+        if (results.Count == 0 && root is TopLevel)
+        {
+            foreach (var win in CdpServer.GetWindows().Select(x => x.Window))
+            {
+                if (win != root)
+                {
+                    QuerySelectorAllInternal(win, normalizedSelector, results, useLogicalTree);
+                }
+            }
+        }
+
         return results;
     }
 
