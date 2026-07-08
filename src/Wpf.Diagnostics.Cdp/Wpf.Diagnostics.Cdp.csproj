@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0;net10.0-windows</TargetFrameworks>
+    <UseWPF Condition="'$(TargetFramework)' == 'net10.0-windows'">true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Wpf</PackageId>
+    <Title>Chrome.DevTools.Wpf</Title>
+    <Description>Chrome DevTools Protocol (CDP) diagnostics server support for WPF.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>wpf;cdp;chrome-devtools-protocol;diagnostics;server</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- If compiling for net10.0 (non-Windows target), exclude most files or only build dummy placeholders -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows'">
+    <Compile Remove="**/*.cs" />
+    <Compile Include="Placeholder.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Jint" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Features" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <Using Include="Chrome.DevTools.Protocol" />
+    <Using Include="Chrome.DevTools.Protocol.Domains" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>
