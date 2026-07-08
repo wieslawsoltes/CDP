@@ -14,6 +14,16 @@ const guideSidebarItems = [
     ]
   },
   {
+    text: "Supported UI Frameworks",
+    collapsed: false,
+    items: [
+      { text: "Avalonia UI", link: "/articles/getting-started" },
+      { text: "WPF (Windows Presentation Foundation)", link: "/articles/wpf-support" },
+      { text: "WinUI 3", link: "/articles/winui-support" },
+      { text: "Uno Platform", link: "/articles/uno-support" }
+    ]
+  },
+  {
     text: "CDP Server Integration",
     collapsed: false,
     items: [

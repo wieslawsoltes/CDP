@@ -12,6 +12,9 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 | :--- | :--- | :--- | :--- |
 | **Chrome.DevTools.Protocol** | Core Protocol & Client Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) |
 | **Chrome.DevTools.Avalonia** | Avalonia Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) |
+| **Chrome.DevTools.Wpf** | WPF Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Wpf.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Wpf/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Wpf.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Wpf/) |
+| **Chrome.DevTools.WinUI** | WinUI 3 Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.WinUI.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.WinUI/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.WinUI.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.WinUI/) |
+| **Chrome.DevTools.Uno** | Uno Platform Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Uno.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Uno/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Uno.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Uno/) |
 | **Chrome.DevTools.Automation.OS** | OS Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.OS.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.OS/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.OS.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.OS/) |
 | **Chrome.DevTools.Automation.Appium** | Appium E2E Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.Appium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Appium/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.Appium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Appium/) |
 | **Chrome.DevTools.Automation.Selenium** | Selenium E2E Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.Selenium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Selenium/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.Selenium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Selenium/) |
@@ -256,6 +259,9 @@ In your XAML, declare a `SuperSplit` layout element:
 
 ### Start the Server
 
+Depending on your UI framework, initialize and start the CDP server in your application startup.
+
+#### Avalonia UI (`Chrome.DevTools.Avalonia`)
 Initialize and start the CDP server in your application startup (typically in `App.axaml.cs` inside `OnFrameworkInitializationCompleted`):
 
 ```csharp
@@ -278,7 +284,55 @@ public override void OnFrameworkInitializationCompleted()
 Make sure to stop the server when the application shuts down:
 
 ```csharp
-// Typically called during application exit/shutdown
+CdpServer.Stop();
+```
+
+#### WPF (`Chrome.DevTools.Wpf`)
+Start the CDP server inside your `App.xaml.cs` startup handler:
+
+```csharp
+using System.Windows;
+using Wpf.Diagnostics.Cdp;
+
+public partial class App : Application
+{
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        // Start CDP diagnostics server on port 9224
+        CdpServer.EnsureInitialized();
+        CdpServer.Start(9224);
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        CdpServer.Stop();
+        base.OnExit(e);
+    }
+}
+```
+
+#### WinUI 3 & Uno Platform (`Chrome.DevTools.WinUI` & `Chrome.DevTools.Uno`)
+Start the CDP server and register your window in your application startup handler:
+
+```csharp
+using Microsoft.UI.Xaml;
+using WinUI.Diagnostics.Cdp;
+
+// Start CDP diagnostics server on port 9225
+CdpServer.EnsureInitialized();
+CdpServer.Start(9225);
+
+// Once your main window is instantiated, register it as a debug target:
+var window = new MainWindow();
+CdpServer.GetOrCreateTarget(window);
+window.Activate();
+```
+
+Make sure to stop the server when the application shuts down:
+
+```csharp
 CdpServer.Stop();
 ```
 

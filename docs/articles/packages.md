@@ -19,6 +19,9 @@ Chrome.DevTools.Inspector (.NET Global Tool - GUI)
 Chrome.DevTools.Cli (.NET Global Tool - CLI)
 └─ Chrome.DevTools.Inspector.Shared
    ├─ Chrome.DevTools.Avalonia
+   ├─ Chrome.DevTools.Wpf
+   ├─ Chrome.DevTools.WinUI
+   ├─ Chrome.DevTools.Uno
    │  └─ Chrome.DevTools.Protocol
    │     └─ Chrome.DevTools.Automation.OS
    ├─ Chrome.DevTools.Editor.Minimap
@@ -38,6 +41,9 @@ Below is a summary table mapping each package:
 | :--- | :--- | :--- |
 | **Chrome.DevTools.Protocol** | Base protocol server and client WebSocket routing | Preview / Centralized |
 | **Chrome.DevTools.Avalonia** | Embedded CDP server for Avalonia applications | Preview / Centralized |
+| **Chrome.DevTools.Wpf** | Embedded CDP server for WPF applications | Preview / Centralized |
+| **Chrome.DevTools.WinUI** | Embedded CDP server for WinUI 3 applications | Preview / Centralized |
+| **Chrome.DevTools.Uno** | Embedded CDP server for Uno Platform applications | Preview / Centralized |
 | **Chrome.DevTools.Automation.OS** | Platform-native window & Accessibility tree driver | Preview / Centralized |
 | **Chrome.DevTools.Automation.Appium** | Appium client-driver and test setup orchestrator | Preview / Centralized |
 | **Chrome.DevTools.Automation.Selenium** | Selenium client-driver and test setup orchestrator | Preview / Centralized |
@@ -134,7 +140,104 @@ public override void OnFrameworkInitializationCompleted()
 
 ---
 
-### 3. Chrome.DevTools.Automation.OS
+### 3. Chrome.DevTools.Wpf
+
+The embedded CDP diagnostics server package for Windows Presentation Foundation (WPF) applications. It exposes WPF's native visual tree, maps simulated keyboard/mouse input actions, evaluates runtime C# expressions inside Jint, registers layout overlays via the native `AdornerLayer`, and captures high-DPI screenshots of the application window.
+
+| Property | Description |
+| :--- | :--- |
+| **Package ID** | `Chrome.DevTools.Wpf` |
+| **Install Command** | `dotnet add package Chrome.DevTools.Wpf --prerelease` |
+| **When to Use** | Add this to your main WPF application executable project to enable E2E testing or remote client inspections on Windows targets. |
+| **Project References** | `Chrome.DevTools.Protocol.csproj` |
+| **NuGet Dependencies** | `Jint`, `SkiaSharp`, `Microsoft.CodeAnalysis.CSharp.Scripting`, `Microsoft.Extensions.Logging.Abstractions` |
+
+#### Key Types
+* `CdpServer.cs`: Entry point to initialize and start/stop the WPF CDP server.
+* `CdpTargetSession.cs`: Hooks into WPF's active window layout passes and handles screenshots.
+* `SelectorEngine.cs`: Evaluates selector chains against WPF controls using visual and logical tree lookups.
+* `AccessibilityDomain.cs`: Walks WPF's accessibility structures using automation peers.
+
+#### Usage Example
+```csharp
+using System.Windows;
+using Wpf.Diagnostics.Cdp;
+
+public partial class App : Application
+{
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+        CdpServer.EnsureInitialized();
+        CdpServer.Start(9224);
+    }
+}
+```
+
+---
+
+### 4. Chrome.DevTools.WinUI
+
+The embedded CDP diagnostics server package for WinUI 3 desktop applications. It implements CDP WebSocket endpoints to query WinUI control trees, inject inputs, evaluate expressions in Jint, and capture screenshot arrays. It renders visual boundaries overlays by inserting a transparent overlay canvas directly into the application window's root layout container.
+
+| Property | Description |
+| :--- | :--- |
+| **Package ID** | `Chrome.DevTools.WinUI` |
+| **Install Command** | `dotnet add package Chrome.DevTools.WinUI --prerelease` |
+| **When to Use** | Add this to your WinUI 3 desktop application project to enable remote DevTools protocol inspections and Playwright automation. |
+| **Project References** | `Chrome.DevTools.Protocol.csproj` |
+| **NuGet Dependencies** | `Microsoft.WindowsAppSDK`, `Jint`, `SkiaSharp`, `Microsoft.CodeAnalysis.CSharp.Scripting`, `Microsoft.Extensions.Logging.Abstractions` |
+
+#### Key Types
+* `CdpServer.cs`: Starts/stops the server and registers new window targets.
+* `CdpTargetSession.cs`: Manages transparent overlay injection and frames encoding loops.
+* `SelectorEngine.cs`: Matches CSS, presence, and automation ID selectors against the WinUI visual tree.
+
+#### Usage Example
+```csharp
+using Microsoft.UI.Xaml;
+using WinUI.Diagnostics.Cdp;
+
+// Start server
+CdpServer.EnsureInitialized();
+CdpServer.Start(9225);
+
+// Register MainWindow as debug target
+var window = new MainWindow();
+CdpServer.GetOrCreateTarget(window);
+```
+
+---
+
+### 5. Chrome.DevTools.Uno
+
+The embedded CDP diagnostics server package for Uno Platform applications. It enables the same standard inspection, screenshot capturing, and input injection capabilities cross-platform on macOS, Linux, and Windows, matching the WinUI API structure.
+
+| Property | Description |
+| :--- | :--- |
+| **Package ID** | `Chrome.DevTools.Uno` |
+| **Install Command** | `dotnet add package Chrome.DevTools.Uno --prerelease` |
+| **When to Use** | Add this to your Uno Platform application project to automate UI tests and perform inspect operations on non-Windows target platforms. |
+| **Project References** | `Chrome.DevTools.Protocol.csproj` |
+| **NuGet Dependencies** | `Uno.WinUI`, `Jint`, `SkiaSharp`, `Microsoft.CodeAnalysis.CSharp.Scripting`, `Microsoft.Extensions.Logging.Abstractions` |
+
+#### Usage Example
+```csharp
+using Microsoft.UI.Xaml;
+using WinUI.Diagnostics.Cdp;
+
+// Start Uno Platform server
+CdpServer.EnsureInitialized();
+CdpServer.Start(9225);
+
+// Register Uno active window target
+var window = new Window();
+CdpServer.GetOrCreateTarget(window);
+```
+
+---
+
+### 6. Chrome.DevTools.Automation.OS
 
 A cross-platform native operating system automation and accessibility driver. It interfaces with platform-native accessibility engines (AXUIElement on macOS, UIAutomation on Windows, and X11/libX11 on Linux) to identify windows, read screen bounding boxes, dispatch raw OS-level mouse/keyboard coordinates, and take desktop snapshots.
 
@@ -169,7 +272,7 @@ foreach (var win in windows)
 
 ---
 
-### 4. Chrome.DevTools.Automation.Appium
+### 7. Chrome.DevTools.Automation.Appium
 
 An Appium client-driver and test setup orchestrator. It manages the execution lifecycle of target desktop applications, launches the Node.js Appium-CDP proxy server in the background, and initiates W3C-compliant WebDriver client sessions.
 
@@ -198,7 +301,7 @@ public class MyTests : IClassFixture<CdpAppiumFixture>
 
 ---
 
-### 5. Chrome.DevTools.Automation.Selenium
+### 8. Chrome.DevTools.Automation.Selenium
 
 A Selenium client-driver and test setup orchestrator. It manages the execution lifecycle of target desktop applications and initiates ChromeDriver client sessions attached to the active CDP port.
 
@@ -227,7 +330,7 @@ public class MyTests : IClassFixture<CdpSeleniumFixture>
 
 ---
 
-### 6. Chrome.DevTools.Automation.Headless
+### 9. Chrome.DevTools.Automation.Headless
 
 Headless driver and test helper support for Chrome DevTools Protocol (CDP) and Avalonia UI. It simplifies writing headless UI tests by providing extension methods for control interaction such as clicking and dragging.
 
@@ -252,7 +355,7 @@ window.ClickControl(element, MouseButton.Left, RawInputModifiers.None);
 
 ---
 
-### 7. Chrome.DevTools.Inspector.Shared
+### 10. Chrome.DevTools.Inspector.Shared
 
 The shared UI core of the custom Chrome DevTools inspector client application. It encapsulates the MVVM pattern, offering views and view models for the Elements, CSS Styles, Console REPL, Network intercepter, Performance monitor, and Flow-compatible Test Studio panels. It also manages YAML parsing, step-by-step debug execution, and output reporting (HTML/PDF/Screencast files).
 
@@ -290,7 +393,7 @@ await adapter.RunTestAsync(myWindow, testScript, isYamlContent: true);
 
 ---
 
-### 8. Chrome.DevTools.DiagnosticTools
+### 11. Chrome.DevTools.DiagnosticTools
 
 A diagnostics package for in-process inspection. It serves as a direct, drop-in replacement for the standard Avalonia DevTools inspector window. Once configured, pressing **F12** inside the application opens a custom nested inspector window (hosting the shared inspector view) connected directly to the application's local server.
 
@@ -325,7 +428,7 @@ public partial class MainWindow : Window
 
 ---
 
-### 9. Chrome.DevTools.Editor.Minimap
+### 12. Chrome.DevTools.Editor.Minimap
 
 A standalone text editor control built on top of `AvaloniaEdit` that features a scrollable pixel minimap. This package has no dependencies on the Chrome DevTools Protocol or network server modules and is optimized for file editing, YAML syntax review, and long logs.
 
@@ -355,7 +458,7 @@ A standalone text editor control built on top of `AvaloniaEdit` that features a 
 
 ---
 
-### 10. Chrome.DevTools.Editor.Nodes
+### 13. Chrome.DevTools.Editor.Nodes
 
 A standalone graphical node editor canvas control for Avalonia UI. It features an interactive grid supporting drag-and-drop linking, bezier connection paths, zoom-to-pointer, multi-selection, and customized node templates. It has no network or protocol dependencies.
 
@@ -386,7 +489,7 @@ vm.ConnectNodes(nodeA, nodeB);
 
 ---
 
-### 11. Chrome.DevTools.Editor.Nodes.Msagl
+### 14. Chrome.DevTools.Editor.Nodes.Msagl
 
 A layout integration extension for the Node Editor canvas. It integrates Microsoft's MSAGL library, offering automatic layout solvers (including Sugiyama hierarchy, spring layouts, and multidimensional scaling solvers) to programmatically position nodes and routes.
 
@@ -411,7 +514,7 @@ NodeEditor.LayoutProviders.Add(new MsaglLayoutProvider());
 
 ---
 
-### 12. Chrome.DevTools.Editor.Splits
+### 15. Chrome.DevTools.Editor.Splits
 
 A standalone layout control providing user-resizable split panes. It supports nesting horizontal and vertical grid splits, custom grab handle render layers, and sizing properties.
 
@@ -440,7 +543,7 @@ A standalone layout control providing user-resizable split panes. It supports ne
 
 ---
 
-### 13. Chrome.DevTools.Inspector (.NET global tool)
+### 16. Chrome.DevTools.Inspector (.NET global tool)
 
 The standalone desktop inspector app packaged as a global .NET CLI tool. When run, it launches a custom DevTools inspector client styled with a premium dark mode theme, allowing developers to scan active ports, attach to local or remote servers, evaluate code, edit elements, and manage visual tests.
 
@@ -468,7 +571,7 @@ cdp-inspector
 
 ---
 
-### 14. Chrome.DevTools.Cli (.NET global tool)
+### 17. Chrome.DevTools.Cli (.NET global tool)
 
 The standalone CLI test runner and interaction tool packaged as a global .NET CLI tool. When run, it connects to a remote or auto-launched CDP-enabled target, executes YAML test flows/suites headlessly, dumps tree hierarchies, evaluates C# scripts, streams logs in real-time, and dispatches individual pointer/keyboard/scrolling actions.
 
