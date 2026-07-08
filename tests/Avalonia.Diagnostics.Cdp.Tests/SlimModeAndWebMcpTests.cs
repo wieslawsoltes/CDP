@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp;
 using Avalonia.Diagnostics.Cdp.Domains;
+using WebMcpDomain = Avalonia.Diagnostics.Cdp.Domains.WebMcpDomain;
 using Avalonia.Headless.XUnit;
 using Xunit;
 
