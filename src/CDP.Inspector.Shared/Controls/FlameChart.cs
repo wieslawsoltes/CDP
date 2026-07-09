@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Globalization;
@@ -46,6 +47,9 @@ public class FlameChart : Control
     public static readonly StyledProperty<bool> IsMemoryModeProperty =
         AvaloniaProperty.Register<FlameChart, bool>(nameof(IsMemoryMode), false);
 
+    public static readonly StyledProperty<double> OffsetYProperty =
+        AvaloniaProperty.Register<FlameChart, double>(nameof(OffsetY), 0.0);
+
     public IEnumerable<FlameBlock>? Blocks
     {
         get => GetValue(BlocksProperty);
@@ -62,6 +66,12 @@ public class FlameChart : Control
     {
         get => GetValue(OffsetXProperty);
         set => SetValue(OffsetXProperty, value);
+    }
+
+    public double OffsetY
+    {
+        get => GetValue(OffsetYProperty);
+        set => SetValue(OffsetYProperty, value);
     }
 
     public string? SearchText
@@ -96,6 +106,7 @@ public class FlameChart : Control
     private Point _dragStartPoint;
     private Point _pointerDownPosition;
     private double _dragStartOffset;
+    private double _dragStartOffsetY;
 
     static FlameChart()
     {
@@ -103,6 +114,7 @@ public class FlameChart : Control
             BlocksProperty,
             ZoomScaleProperty,
             OffsetXProperty,
+            OffsetYProperty,
             SearchTextProperty,
             HoveredBlockProperty,
             SelectedBlockProperty,
@@ -173,17 +185,11 @@ public class FlameChart : Control
     private static readonly IBrush _brushRoot = new SolidColorBrush(Color.FromRgb(48, 57, 66));
     private static readonly IBrush _brushIdle = new SolidColorBrush(Color.FromRgb(32, 33, 36));
     private static readonly IBrush _brushNative = new SolidColorBrush(Color.FromRgb(189, 189, 189));
-    private static readonly IBrush _brushSystem = new SolidColorBrush(Color.FromRgb(100, 181, 246));
-    private static readonly IBrush _brushAvalonia = new SolidColorBrush(Color.FromRgb(129, 199, 132));
-    private static readonly IBrush _brushUser = new SolidColorBrush(Color.FromRgb(255, 183, 77));
 
     private static readonly IBrush _brushDefaultDimmed = new SolidColorBrush(Color.FromArgb(0x22, 100, 100, 100));
     private static readonly IBrush _brushRootDimmed = new SolidColorBrush(Color.FromArgb(0x22, 48, 57, 66));
     private static readonly IBrush _brushIdleDimmed = new SolidColorBrush(Color.FromArgb(0x22, 32, 33, 36));
     private static readonly IBrush _brushNativeDimmed = new SolidColorBrush(Color.FromArgb(0x22, 189, 189, 189));
-    private static readonly IBrush _brushSystemDimmed = new SolidColorBrush(Color.FromArgb(0x22, 100, 181, 246));
-    private static readonly IBrush _brushAvaloniaDimmed = new SolidColorBrush(Color.FromArgb(0x22, 129, 199, 132));
-    private static readonly IBrush _brushUserDimmed = new SolidColorBrush(Color.FromArgb(0x22, 255, 183, 77));
 
     private static readonly IBrush _brushRulerBg = new SolidColorBrush(Color.FromRgb(32, 33, 36));
     private static readonly IBrush _brushMinimapBg = new SolidColorBrush(Color.FromRgb(24, 25, 28));
@@ -199,6 +205,48 @@ public class FlameChart : Control
     private static readonly IPen _penHoveredBorder = new Pen(Brushes.White, 1.0);
     private static readonly IPen _penSearchBorder = new Pen(Brushes.Yellow, 1.5);
 
+    private static readonly ConcurrentDictionary<string, (IBrush normal, IBrush dimmed)> _brushCache = new();
+
+    private static Color GetFlameColor(string name)
+    {
+        int hash = name.GetHashCode();
+        // Warm flame hues between 12 (red-orange) and 52 (orange-yellow)
+        double hue = 12.0 + Math.Abs(hash % 41);
+        // Saturation: 70% to 95%
+        double sat = 0.70 + (Math.Abs((hash >> 5) % 26) / 100.0);
+        // Lightness: 50% to 70%
+        double light = 0.50 + (Math.Abs((hash >> 10) % 21) / 100.0);
+        return ColorFromHsl(hue, sat, light);
+    }
+
+    private static Color ColorFromHsl(double h, double s, double l)
+    {
+        double r = 0, g = 0, b = 0;
+        if (s == 0)
+        {
+            r = g = b = l;
+        }
+        else
+        {
+            double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            double p = 2 * l - q;
+            r = HueToRgb(p, q, h / 360.0 + 1.0 / 3.0);
+            g = HueToRgb(p, q, h / 360.0);
+            b = HueToRgb(p, q, h / 360.0 - 1.0 / 3.0);
+        }
+        return Color.FromRgb((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
+    }
+
+    private static double HueToRgb(double p, double q, double t)
+    {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1.0 / 6.0) return p + (q - p) * 6 * t;
+        if (t < 1.0 / 2.0) return q;
+        if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6;
+        return p;
+    }
+
     private static IBrush GetBrushForMethod(string methodName, string url, bool dimmed)
     {
         if (string.IsNullOrEmpty(methodName)) return dimmed ? _brushDefaultDimmed : _brushDefault;
@@ -211,21 +259,15 @@ public class FlameChart : Control
             return dimmed ? _brushNativeDimmed : _brushNative;
         }
 
-        if (url.Contains("System.", StringComparison.OrdinalIgnoreCase) || 
-            url.Contains("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
-            methodName.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
-            methodName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase))
+        var pair = _brushCache.GetOrAdd(methodName, name =>
         {
-            return dimmed ? _brushSystemDimmed : _brushSystem;
-        }
+            var color = GetFlameColor(name);
+            var normal = new SolidColorBrush(color);
+            var dim = new SolidColorBrush(Color.FromArgb(0x22, color.R, color.G, color.B));
+            return (normal, dim);
+        });
 
-        if (url.Contains("Avalonia.", StringComparison.OrdinalIgnoreCase) ||
-            methodName.StartsWith("Avalonia.", StringComparison.OrdinalIgnoreCase))
-        {
-            return dimmed ? _brushAvaloniaDimmed : _brushAvalonia;
-        }
-
-        return dimmed ? _brushUserDimmed : _brushUser;
+        return dimmed ? pair.dimmed : pair.normal;
     }
 
     public override void Render(DrawingContext context)
@@ -294,7 +336,8 @@ public class FlameChart : Control
         double blocksOffsetY = RulerHeight + MinimapHeight;
         for (int i = 0; i <= maxDepth + 1; i++)
         {
-            double y = blocksOffsetY + i * RowHeight;
+            double y = blocksOffsetY + i * RowHeight + OffsetY;
+            if (y < blocksOffsetY) continue;
             context.DrawLine(_penGrid, new Point(0, y), new Point(width, y));
         }
 
@@ -306,8 +349,9 @@ public class FlameChart : Control
             if (bx + bw < 0 || bx > width) continue; // Viewport culling (horizontal)
             if (bw < 0.2) continue; // Viewport culling (sub-pixel size check)
 
-            double by = blocksOffsetY + block.Depth * RowHeight;
+            double by = blocksOffsetY + block.Depth * RowHeight + OffsetY;
             double bh = RowHeight - 1;
+            if (by + bh < blocksOffsetY || by > height) continue; // Viewport culling (vertical)
 
             bool matchesSearch = !string.IsNullOrEmpty(SearchText) &&
                                  block.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
@@ -434,11 +478,12 @@ public class FlameChart : Control
             }
             else
             {
-                // Dragging Main Timeline
+                // Dragging Main Timeline (Horizontal and Vertical)
                 _isDragging = true;
                 _pointerDownPosition = e.GetPosition(this);
                 _dragStartPoint = _pointerDownPosition;
                 _dragStartOffset = OffsetX;
+                _dragStartOffsetY = OffsetY;
                 e.Handled = true;
             }
         }
@@ -456,9 +501,22 @@ public class FlameChart : Control
         }
         else if (_isDragging)
         {
-            OffsetX = _dragStartOffset + (currentPoint.X - _dragStartPoint.X);
-            InvalidateVisual();
-            e.Handled = true;
+            if (Blocks != null)
+            {
+                var blocksList = Blocks.ToList();
+                double maxDepth = blocksList.Count > 0 ? blocksList.Max(b => b.Depth) : 0;
+                double totalHeight = maxDepth * RowHeight;
+                double blocksOffsetY = RulerHeight + MinimapHeight;
+                double viewHeight = Bounds.Height - blocksOffsetY;
+
+                OffsetX = _dragStartOffset + (currentPoint.X - _dragStartPoint.X);
+                double proposedY = _dragStartOffsetY + (currentPoint.Y - _dragStartPoint.Y);
+                double minOffsetY = viewHeight > totalHeight ? 0 : viewHeight - totalHeight - 20;
+                OffsetY = Math.Max(minOffsetY, Math.Min(0, proposedY));
+
+                InvalidateVisual();
+                e.Handled = true;
+            }
         }
         else
         {
@@ -474,7 +532,7 @@ public class FlameChart : Control
 
             double timeMs = (currentPoint.X - OffsetX) / ZoomScale / scaleX;
             double blocksOffsetY = RulerHeight + MinimapHeight;
-            int depth = (int)((currentPoint.Y - blocksOffsetY) / RowHeight);
+            int depth = (int)((currentPoint.Y - blocksOffsetY - OffsetY) / RowHeight);
 
             if (currentPoint.Y < blocksOffsetY)
             {
@@ -518,7 +576,7 @@ public class FlameChart : Control
                             double scaleX = Bounds.Width / maxTime;
                             double timeMs = (releasePos.X - OffsetX) / ZoomScale / scaleX;
                             double blocksOffsetY = RulerHeight + MinimapHeight;
-                            int depth = (int)((releasePos.Y - blocksOffsetY) / RowHeight);
+                            int depth = (int)((releasePos.Y - blocksOffsetY - OffsetY) / RowHeight);
 
                             if (releasePos.Y >= blocksOffsetY)
                             {
