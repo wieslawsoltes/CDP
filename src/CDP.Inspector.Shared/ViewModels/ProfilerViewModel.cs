@@ -82,8 +82,29 @@ public class ProfilerViewModel : ViewModelBase
     public FlameBlock? HoveredBlock
     {
         get => _hoveredBlock;
-        set => RaiseAndSetIfChanged(ref _hoveredBlock, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _hoveredBlock, value))
+            {
+                OnPropertyChanged(nameof(ActiveDetailBlock));
+            }
+        }
     }
+
+    private FlameBlock? _selectedBlock;
+    public FlameBlock? SelectedBlock
+    {
+        get => _selectedBlock;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedBlock, value))
+            {
+                OnPropertyChanged(nameof(ActiveDetailBlock));
+            }
+        }
+    }
+
+    public FlameBlock? ActiveDetailBlock => SelectedBlock ?? HoveredBlock;
 
     public ObservableCollection<FlameBlock> Blocks => _blocks;
     public ObservableCollection<ProfileMethodStats> MethodStats => _methodStats;

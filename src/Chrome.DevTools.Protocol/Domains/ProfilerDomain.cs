@@ -116,7 +116,8 @@ public class ProfilerState
                 var providers = new List<EventPipeProvider>
                 {
                     new EventPipeProvider("Microsoft-DotNETCore-SampleProfiler", System.Diagnostics.Tracing.EventLevel.Verbose),
-                    new EventPipeProvider("Microsoft-Windows-DotNETRuntime", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2018)
+                    new EventPipeProvider("Microsoft-Windows-DotNETRuntime", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2018),
+                    new EventPipeProvider("Microsoft-Windows-DotNETRuntimeRundown", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2058)
                 };
 
                 _session = client.StartEventPipeSession(providers, requestRundown: true);

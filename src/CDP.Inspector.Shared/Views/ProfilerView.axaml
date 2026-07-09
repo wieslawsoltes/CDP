@@ -66,11 +66,12 @@
                                              OffsetX="{Binding Profiler.OffsetX, Mode=TwoWay}"
                                              SearchText="{Binding Profiler.SearchText}"
                                              HoveredBlock="{Binding Profiler.HoveredBlock, Mode=TwoWay}"
+                                             SelectedBlock="{Binding Profiler.SelectedBlock, Mode=TwoWay}"
                                              HorizontalAlignment="Stretch"
                                              VerticalAlignment="Stretch"/>
                     </Border>
                     <!-- Small instruction tip -->
-                    <TextBlock Grid.Row="1" Text="Tip: Zoom with Mouse Wheel. Pan by dragging with Left Mouse Button."
+                    <TextBlock Grid.Row="1" Text="Tip: Zoom with Mouse Wheel. Pan by dragging with Left Mouse Button. Click on any block to Select &amp; Lock details."
                                Foreground="#9aa0a6" FontSize="10" Margin="0,4,0,0" HorizontalAlignment="Right"/>
                 </Grid>
             </TabItem>
@@ -102,12 +103,12 @@
                 <TextBlock Name="lblHoverDetails" Foreground="#e8eaed" FontSize="11" TextWrapping="NoWrap">
                     <TextBlock.Text>
                         <MultiBinding StringFormat="{}{0} - Self: {1:F2}ms ({2:F1}%), Total: {3:F2}ms ({4:F1}%) - {5}">
-                            <Binding Path="Profiler.HoveredBlock.Name" FallbackValue="None"/>
-                            <Binding Path="Profiler.HoveredBlock.SelfTimeMs" FallbackValue="0.0"/>
-                            <Binding Path="Profiler.HoveredBlock.SelfTimePct" FallbackValue="0.0"/>
-                            <Binding Path="Profiler.HoveredBlock.TotalTimeMs" FallbackValue="0.0"/>
-                            <Binding Path="Profiler.HoveredBlock.TotalTimePct" FallbackValue="0.0"/>
-                            <Binding Path="Profiler.HoveredBlock.Url" FallbackValue=""/>
+                            <Binding Path="Profiler.ActiveDetailBlock.Name" FallbackValue="None"/>
+                            <Binding Path="Profiler.ActiveDetailBlock.SelfTimeMs" FallbackValue="0.0"/>
+                            <Binding Path="Profiler.ActiveDetailBlock.SelfTimePct" FallbackValue="0.0"/>
+                            <Binding Path="Profiler.ActiveDetailBlock.TotalTimeMs" FallbackValue="0.0"/>
+                            <Binding Path="Profiler.ActiveDetailBlock.TotalTimePct" FallbackValue="0.0"/>
+                            <Binding Path="Profiler.ActiveDetailBlock.Url" FallbackValue=""/>
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
