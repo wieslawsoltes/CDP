@@ -1740,6 +1740,81 @@ public class NewDomainTests
         Assert.Equal(expectedSize, parsedSize);
     }
 
+    [AvaloniaFact]
+    public void TestProfilerViewModelLoadDualProfile()
+    {
+        var mockCdpService = new MockInspectorCdpService();
+        var vm = new ProfilerViewModel(mockCdpService);
+        
+        string json = """
+        {
+          "profile": {
+            "nodes": [
+              {
+                "id": 1,
+                "hitCount": 0,
+                "callFrame": { "functionName": "(root)", "url": "" },
+                "children": [2]
+              },
+              {
+                "id": 2,
+                "hitCount": 1,
+                "callFrame": { "functionName": "MyMethod", "url": "MyModule.dll" }
+              }
+            ],
+            "startTime": 0.0,
+            "endTime": 1000.0,
+            "samples": [2],
+            "timeDeltas": [1000]
+          },
+          "memoryProfile": {
+            "nodes": [
+              {
+                "id": 1,
+                "hitCount": 0,
+                "callFrame": { "functionName": "(root)", "url": "" },
+                "children": [2]
+              },
+              {
+                "id": 2,
+                "hitCount": 1,
+                "callFrame": { "functionName": "AllocatedMethod", "url": "MyModule.dll" }
+              }
+            ],
+            "startTime": 0.0,
+            "endTime": 2000.0,
+            "samples": [2],
+            "timeDeltas": [2000]
+          },
+          "memoryAllocations": [
+            {
+              "typeName": "System.Byte[]",
+              "bytes": 100680,
+              "count": 30
+            }
+          ]
+        }
+        """;
+        
+        vm.LoadProfileFromJson(json);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        
+        Assert.NotNull(vm.SelectedSession);
+        Assert.NotEmpty(vm.Blocks);
+        Assert.Equal("(root)", vm.Blocks[0].Name);
+        Assert.Equal("MyMethod", vm.Blocks[1].Name);
+        
+        Assert.NotEmpty(vm.MemoryBlocks);
+        Assert.Equal("(root)", vm.MemoryBlocks[0].Name);
+        Assert.Equal("AllocatedMethod", vm.MemoryBlocks[1].Name);
+        
+        Assert.NotEmpty(vm.MemoryStats);
+        Assert.Equal("System.Byte[]", vm.MemoryStats[0].TypeName);
+        Assert.Equal(100680, vm.MemoryStats[0].AllocatedBytes);
+        Assert.Equal(30, vm.MemoryStats[0].AllocationCount);
+    }
+
+
     public class TestDataContext
     {
         public int SomeValue { get; set; }

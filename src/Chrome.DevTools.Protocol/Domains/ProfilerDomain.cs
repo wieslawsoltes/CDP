@@ -273,13 +273,26 @@ public class ProfilerState
         double memStartTimeMs = 0;
         double memEndTimeMs = 0;
 
+        int totalEvents = 0;
+        int dotNetRuntimeEvents = 0;
+        int parsedTickEvents = 0;
+        int parsedSampledEvents = 0;
+        int sampleProfilerEvents = 0;
+
         using (var traceLog = new TraceLog(_tempEtlxFile))
         {
             foreach (var ev in traceLog.Events)
             {
+                totalEvents++;
+                if (ev.ProviderName == "Microsoft-Windows-DotNETRuntime")
+                {
+                    dotNetRuntimeEvents++;
+                }
+
                 // Parse CPU Sample
                 if (ev.ProviderName == "Microsoft-DotNETCore-SampleProfiler" && ev.EventName == "Thread/Sample")
                 {
+                    sampleProfilerEvents++;
                     double timeMs = ev.TimeStampRelativeMSec;
                     if (startTimeMs == 0) startTimeMs = timeMs;
                     endTimeMs = timeMs;
@@ -305,11 +318,13 @@ public class ProfilerState
                 // Parse Memory Allocation
                 else if (ev is GCAllocationTickTraceData allocEv)
                 {
+                    parsedTickEvents++;
                     string typeName = allocEv.TypeName ?? "Unknown";
                     ProcessAllocation(ev, typeName, allocEv.AllocationAmount, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
                 }
                 else if ((int)ev.ID == 303)
                 {
+                    parsedSampledEvents++;
                     try
                     {
                         byte[] data = ev.EventData();
@@ -325,6 +340,8 @@ public class ProfilerState
                 }
             }
         }
+
+        CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Trace Log parsing complete. Total Events: {totalEvents}, DotNetRuntime: {dotNetRuntimeEvents}, SampleProfiler: {sampleProfilerEvents}, Parsed Ticks: {parsedTickEvents}, Parsed Sampled (303): {parsedSampledEvents}");
 
         // Build CPU V8 JSON
         var cpuNodesArray = new JsonArray();
