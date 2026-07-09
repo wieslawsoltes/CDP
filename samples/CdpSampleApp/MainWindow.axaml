@@ -16,6 +16,7 @@
                             <Button Name="btnClickMe" AutomationProperties.AutomationId="btnClickMe" Command="{Binding ClickCommand}" Content="Click Me" Width="100"/>
                             <Button Name="btnSendHttp" AutomationProperties.AutomationId="btnSendHttp" Command="{Binding SendHttpCommand}" Content="Send HTTP Request" Width="150"/>
                             <Button Name="btnOpenSecond" AutomationProperties.AutomationId="btnOpenSecond" Command="{Binding OpenSecondWindowCommand}" Content="Open Second Window" Width="150"/>
+                            <Button Name="btnRunCpuLoad" AutomationProperties.AutomationId="btnRunCpuLoad" Command="{Binding RunCpuLoadCommand}" Content="Run CPU Load (2s)" Width="150" Background="#f57c00" Foreground="White"/>
                             <TextBlock Name="txtStatus" Text="{Binding StatusText}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         </StackPanel>
                         

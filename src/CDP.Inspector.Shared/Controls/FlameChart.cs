@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Linq;
 using Avalonia;
@@ -104,7 +105,8 @@ public class FlameChart : Control
             OffsetXProperty,
             SearchTextProperty,
             HoveredBlockProperty,
-            SelectedBlockProperty);
+            SelectedBlockProperty,
+            IsMemoryModeProperty);
 
         SelectedBlockProperty.Changed.AddClassHandler<FlameChart>((chart, e) => chart.OnSelectedBlockChanged(e));
     }
@@ -113,6 +115,29 @@ public class FlameChart : Control
     {
         ClipToBounds = true;
         Focusable = true;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == BlocksProperty)
+        {
+            if (change.OldValue is INotifyCollectionChanged oldCol)
+            {
+                oldCol.CollectionChanged -= OnBlocksCollectionChanged;
+            }
+            if (change.NewValue is INotifyCollectionChanged newCol)
+            {
+                newCol.CollectionChanged += OnBlocksCollectionChanged;
+            }
+            InvalidateVisual();
+        }
+    }
+
+    private void OnBlocksCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        InvalidateVisual();
     }
 
     private void OnSelectedBlockChanged(AvaloniaPropertyChangedEventArgs e)
@@ -144,36 +169,63 @@ public class FlameChart : Control
         InvalidateVisual();
     }
 
-    private static Color GetColorForMethod(string methodName, string url)
-    {
-        if (string.IsNullOrEmpty(methodName)) return Color.FromRgb(100, 100, 100);
-        if (methodName.Contains("(root)", StringComparison.OrdinalIgnoreCase)) return Color.FromRgb(48, 57, 66);
-        if (methodName.Contains("(idle)", StringComparison.OrdinalIgnoreCase)) return Color.FromRgb(32, 33, 36);
+    private static readonly IBrush _brushDefault = new SolidColorBrush(Color.FromRgb(100, 100, 100));
+    private static readonly IBrush _brushRoot = new SolidColorBrush(Color.FromRgb(48, 57, 66));
+    private static readonly IBrush _brushIdle = new SolidColorBrush(Color.FromRgb(32, 33, 36));
+    private static readonly IBrush _brushNative = new SolidColorBrush(Color.FromRgb(189, 189, 189));
+    private static readonly IBrush _brushSystem = new SolidColorBrush(Color.FromRgb(100, 181, 246));
+    private static readonly IBrush _brushAvalonia = new SolidColorBrush(Color.FromRgb(129, 199, 132));
+    private static readonly IBrush _brushUser = new SolidColorBrush(Color.FromRgb(255, 183, 77));
 
-        // Core runtime thread / native code
-        if (methodName.Contains("[native code]", StringComparison.OrdinalIgnoreCase) || url.EndsWith(".dll") && !url.Contains("System") && !url.Contains("Microsoft") && !url.Contains("Avalonia"))
+    private static readonly IBrush _brushDefaultDimmed = new SolidColorBrush(Color.FromArgb(0x22, 100, 100, 100));
+    private static readonly IBrush _brushRootDimmed = new SolidColorBrush(Color.FromArgb(0x22, 48, 57, 66));
+    private static readonly IBrush _brushIdleDimmed = new SolidColorBrush(Color.FromArgb(0x22, 32, 33, 36));
+    private static readonly IBrush _brushNativeDimmed = new SolidColorBrush(Color.FromArgb(0x22, 189, 189, 189));
+    private static readonly IBrush _brushSystemDimmed = new SolidColorBrush(Color.FromArgb(0x22, 100, 181, 246));
+    private static readonly IBrush _brushAvaloniaDimmed = new SolidColorBrush(Color.FromArgb(0x22, 129, 199, 132));
+    private static readonly IBrush _brushUserDimmed = new SolidColorBrush(Color.FromArgb(0x22, 255, 183, 77));
+
+    private static readonly IBrush _brushRulerBg = new SolidColorBrush(Color.FromRgb(32, 33, 36));
+    private static readonly IBrush _brushMinimapBg = new SolidColorBrush(Color.FromRgb(24, 25, 28));
+    private static readonly IBrush _brushMask = new SolidColorBrush(Color.FromArgb(0x88, 0x10, 0x10, 0x10));
+    private static readonly IBrush _brushWindowBorder = new SolidColorBrush(Color.FromRgb(138, 180, 248));
+    private static readonly IPen _penWindowBorder = new Pen(_brushWindowBorder, 1.5);
+    private static readonly IPen _penDivider = new Pen(new SolidColorBrush(Color.FromRgb(60, 64, 67)), 1.0);
+    private static readonly IPen _penGrid = new Pen(new SolidColorBrush(Color.FromArgb(0x13, 0xFF, 0xFF, 0xFF)), 1.0);
+    private static readonly IBrush _brushText = Brushes.White;
+    private static readonly IBrush _brushRulerText = new SolidColorBrush(Color.FromRgb(154, 160, 166));
+    private static readonly IPen _penTick = new Pen(new SolidColorBrush(Color.FromRgb(95, 99, 104)), 1.0);
+    private static readonly IPen _penSelectedBorder = new Pen(new SolidColorBrush(Color.FromRgb(66, 165, 245)), 2.0);
+    private static readonly IPen _penHoveredBorder = new Pen(Brushes.White, 1.0);
+    private static readonly IPen _penSearchBorder = new Pen(Brushes.Yellow, 1.5);
+
+    private static IBrush GetBrushForMethod(string methodName, string url, bool dimmed)
+    {
+        if (string.IsNullOrEmpty(methodName)) return dimmed ? _brushDefaultDimmed : _brushDefault;
+        if (methodName.Contains("(root)", StringComparison.OrdinalIgnoreCase)) return dimmed ? _brushRootDimmed : _brushRoot;
+        if (methodName.Contains("(idle)", StringComparison.OrdinalIgnoreCase)) return dimmed ? _brushIdleDimmed : _brushIdle;
+
+        if (methodName.Contains("[native code]", StringComparison.OrdinalIgnoreCase) || 
+            (url.EndsWith(".dll") && !url.Contains("System") && !url.Contains("Microsoft") && !url.Contains("Avalonia")))
         {
-            return Color.FromRgb(189, 189, 189); // Gray 400
+            return dimmed ? _brushNativeDimmed : _brushNative;
         }
 
-        // Framework code: System / Microsoft
         if (url.Contains("System.", StringComparison.OrdinalIgnoreCase) || 
             url.Contains("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
             methodName.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
             methodName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase))
         {
-            return Color.FromRgb(100, 181, 246); // Material Blue 300
+            return dimmed ? _brushSystemDimmed : _brushSystem;
         }
 
-        // Avalonia framework layout/rendering code
         if (url.Contains("Avalonia.", StringComparison.OrdinalIgnoreCase) ||
             methodName.StartsWith("Avalonia.", StringComparison.OrdinalIgnoreCase))
         {
-            return Color.FromRgb(129, 199, 132); // Material Green 300
+            return dimmed ? _brushAvaloniaDimmed : _brushAvalonia;
         }
 
-        // User application code: Amber/Orange
-        return Color.FromRgb(255, 183, 77); // Material Amber 300
+        return dimmed ? _brushUserDimmed : _brushUser;
     }
 
     public override void Render(DrawingContext context)
@@ -193,12 +245,10 @@ public class FlameChart : Control
         double scaleX = width / maxTime;
 
         // 1. Draw Time Ruler Background & Divide Line
-        var rulerBgBrush = new SolidColorBrush(Color.FromRgb(32, 33, 36));
-        context.DrawRectangle(rulerBgBrush, null, new Rect(0, 0, width, RulerHeight));
+        context.DrawRectangle(_brushRulerBg, null, new Rect(0, 0, width, RulerHeight));
 
         // 2. Draw Minimap / Overview Background & Content
-        var minimapBgBrush = new SolidColorBrush(Color.FromRgb(24, 25, 28));
-        context.DrawRectangle(minimapBgBrush, null, new Rect(0, RulerHeight, width, MinimapHeight));
+        context.DrawRectangle(_brushMinimapBg, null, new Rect(0, RulerHeight, width, MinimapHeight));
 
         int maxDepth = blocksList.Max(b => b.Depth);
         double miniRowHeight = MinimapHeight / (maxDepth + 1);
@@ -206,10 +256,12 @@ public class FlameChart : Control
         {
             double mx = block.StartTimeMs * scaleX;
             double mw = (block.EndTimeMs - block.StartTimeMs) * scaleX;
+            if (mw < 0.2) continue; // Skip blocks that are too small to be visible on the minimap
+
             double my = RulerHeight + block.Depth * miniRowHeight;
             double mh = miniRowHeight - 0.5;
 
-            var mBrush = new SolidColorBrush(GetColorForMethod(block.Name, block.Url));
+            var mBrush = GetBrushForMethod(block.Name, block.Url, false);
             context.DrawRectangle(mBrush, null, new Rect(mx, my, mw, mh));
         }
 
@@ -220,61 +272,48 @@ public class FlameChart : Control
         vx1 = Math.Max(0.0, Math.Min(width, vx1));
         vx2 = Math.Max(0.0, Math.Min(width, vx2));
 
-        var maskBrush = new SolidColorBrush(Color.FromArgb(0x88, 0x10, 0x10, 0x10));
         // Draw left mask
         if (vx1 > 0)
         {
-            context.DrawRectangle(maskBrush, null, new Rect(0, RulerHeight, vx1, MinimapHeight));
+            context.DrawRectangle(_brushMask, null, new Rect(0, RulerHeight, vx1, MinimapHeight));
         }
         // Draw right mask
         if (vx2 < width)
         {
-            context.DrawRectangle(maskBrush, null, new Rect(vx2, RulerHeight, width - vx2, MinimapHeight));
+            context.DrawRectangle(_brushMask, null, new Rect(vx2, RulerHeight, width - vx2, MinimapHeight));
         }
 
         // Highlight visible window outline
-        var windowBorderPen = new Pen(new SolidColorBrush(Color.FromRgb(138, 180, 248)), 1.5);
-        context.DrawRectangle(null, windowBorderPen, new Rect(vx1, RulerHeight, vx2 - vx1, MinimapHeight));
+        context.DrawRectangle(null, _penWindowBorder, new Rect(vx1, RulerHeight, vx2 - vx1, MinimapHeight));
 
         // Dividers
-        var dividerPen = new Pen(new SolidColorBrush(Color.FromRgb(60, 64, 67)), 1.0);
-        context.DrawLine(dividerPen, new Point(0, RulerHeight), new Point(width, RulerHeight));
-        context.DrawLine(dividerPen, new Point(0, RulerHeight + MinimapHeight), new Point(width, RulerHeight + MinimapHeight));
+        context.DrawLine(_penDivider, new Point(0, RulerHeight), new Point(width, RulerHeight));
+        context.DrawLine(_penDivider, new Point(0, RulerHeight + MinimapHeight), new Point(width, RulerHeight + MinimapHeight));
 
         // 3. Draw horizontal grid lines (below minimap)
-        var gridPen = new Pen(new SolidColorBrush(Color.FromArgb(0x13, 0xFF, 0xFF, 0xFF)), 1.0);
         double blocksOffsetY = RulerHeight + MinimapHeight;
         for (int i = 0; i <= maxDepth + 1; i++)
         {
             double y = blocksOffsetY + i * RowHeight;
-            context.DrawLine(gridPen, new Point(0, y), new Point(width, y));
+            context.DrawLine(_penGrid, new Point(0, y), new Point(width, y));
         }
 
         // 4. Draw Flame Blocks
-        var textBrush = new SolidColorBrush(Colors.White);
-
         foreach (var block in blocksList)
         {
             double bx = block.StartTimeMs * scaleX * ZoomScale + OffsetX;
             double bw = (block.EndTimeMs - block.StartTimeMs) * scaleX * ZoomScale;
+            if (bx + bw < 0 || bx > width) continue; // Viewport culling (horizontal)
+            if (bw < 0.2) continue; // Viewport culling (sub-pixel size check)
+
             double by = blocksOffsetY + block.Depth * RowHeight;
             double bh = RowHeight - 1;
-
-            // Viewport culling
-            if (bx + bw < 0 || bx > width) continue;
 
             bool matchesSearch = !string.IsNullOrEmpty(SearchText) &&
                                  block.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
 
-            var baseColor = GetColorForMethod(block.Name, block.Url);
-            
-            // Dim non-matching blocks if search is active
-            if (!string.IsNullOrEmpty(SearchText) && !matchesSearch)
-            {
-                baseColor = Color.FromArgb(0x22, baseColor.R, baseColor.G, baseColor.B);
-            }
-
-            var fillBrush = new SolidColorBrush(baseColor);
+            bool isDimmed = !string.IsNullOrEmpty(SearchText) && !matchesSearch;
+            var fillBrush = GetBrushForMethod(block.Name, block.Url, isDimmed);
             var rect = new Rect(bx, by, bw, bh);
 
             context.DrawRectangle(fillBrush, null, rect);
@@ -282,16 +321,16 @@ public class FlameChart : Control
             // Highlight matches with a bright yellow border
             if (matchesSearch)
             {
-                context.DrawRectangle(null, new Pen(Brushes.Yellow, 1.5), rect);
+                context.DrawRectangle(null, _penSearchBorder, rect);
             }
             // Highlight selected block with a blue border
             if (SelectedBlock == block)
             {
-                context.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(66, 165, 245)), 2.0), rect);
+                context.DrawRectangle(null, _penSelectedBorder, rect);
             }
             else if (HoveredBlock == block)
             {
-                context.DrawRectangle(null, new Pen(Brushes.White, 1.0), rect);
+                context.DrawRectangle(null, _penHoveredBorder, rect);
             }
 
             // Draw function label if width is sufficient
@@ -305,7 +344,7 @@ public class FlameChart : Control
                         FlowDirection.LeftToRight,
                         Typeface.Default,
                         9.0,
-                        textBrush
+                        _brushText
                     );
                     context.DrawText(formattedText, new Point(bx + 4, by + 3));
                 }
