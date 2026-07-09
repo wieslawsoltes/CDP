@@ -19,6 +19,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public SourcesViewModel Sources { get; }
     public NetworkViewModel Network { get; }
     public PerformanceViewModel Performance { get; }
+    public ProfilerViewModel Profiler { get; }
     public MemoryViewModel Memory { get; }
     public ApplicationViewModel Application { get; }
     public AuditsViewModel Audits { get; }
@@ -82,6 +83,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         Sources = new SourcesViewModel(CdpService);
         Network = new NetworkViewModel(CdpService);
         Performance = new PerformanceViewModel(CdpService);
+        Profiler = new ProfilerViewModel(CdpService);
         Memory = new MemoryViewModel(CdpService);
         Application = new ApplicationViewModel(CdpService);
         Audits = new AuditsViewModel(CdpService, nodeId => Elements.SelectNodeById(nodeId));
@@ -394,6 +396,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         rightPane.AddTab("Sources", "DocumentIcon", "Sources");
         rightPane.AddTab("Network", "GlobeIcon", "Network");
         rightPane.AddTab("Performance", "TimerIcon", "Performance");
+        rightPane.AddTab("Profiler", "SaveIcon", "Profiler");
         rightPane.AddTab("Memory", "DeveloperBoardIcon", "Memory");
         rightPane.AddTab("Application", "AppsIcon", "Application");
         rightPane.AddTab("Audits", "EyeIcon", "Audits");
@@ -530,6 +533,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
             "Sources" => "DocumentIcon",
             "Network" => "GlobeIcon",
             "Performance" => "TimerIcon",
+            "Profiler" => "SaveIcon",
             "Memory" => "DeveloperBoardIcon",
             "Application" => "AppsIcon",
             "Audits" => "EyeIcon",

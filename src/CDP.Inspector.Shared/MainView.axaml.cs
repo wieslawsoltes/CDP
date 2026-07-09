@@ -198,6 +198,7 @@ public partial class MainView : UserControl
             "Sources" => new SourcesView(),
             "Network" => new NetworkView(),
             "Performance" => new PerformanceView(),
+            "Profiler" => new ProfilerView(),
             "Memory" => new MemoryView(),
             "Application" => new ApplicationView(),
             "Audits" => new AuditsView(),
@@ -219,7 +220,7 @@ public partial class MainView : UserControl
         var anchor = e.AnchorControl;
 
         var contextMenu = new ContextMenu();
-        string[] views = { "Simulation", "Elements", "Console", "Sources", "Network", "Performance", "Memory", "Application", "Audits", "Recorder", "Window", "Events", "Mvvm" };
+        string[] views = { "Simulation", "Elements", "Console", "Sources", "Network", "Performance", "Profiler", "Memory", "Application", "Audits", "Recorder", "Window", "Events", "Mvvm" };
 
         foreach (var viewName in views)
         {
