@@ -20,6 +20,8 @@
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="Jint" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" />
   </ItemGroup>
 
   <ItemGroup>
