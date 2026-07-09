@@ -22,20 +22,122 @@ public class ProfileMethodStats : ViewModelBase
     public int HitCount { get; set; }
 }
 
-public class ProfilerViewModel : ViewModelBase
+public class ProfileMemoryStats : ViewModelBase
+{
+    private string _typeName = "";
+    private long _allocatedBytes;
+    private double _sizePct;
+    private int _allocationCount;
+    private double _countPct;
+
+    public string TypeName
+    {
+        get => _typeName;
+        set => RaiseAndSetIfChanged(ref _typeName, value);
+    }
+
+    public long AllocatedBytes
+    {
+        get => _allocatedBytes;
+        set => RaiseAndSetIfChanged(ref _allocatedBytes, value);
+    }
+
+    public double SizePct
+    {
+        get => _sizePct;
+        set => RaiseAndSetIfChanged(ref _sizePct, value);
+    }
+
+    public int AllocationCount
+    {
+        get => _allocationCount;
+        set => RaiseAndSetIfChanged(ref _allocationCount, value);
+    }
+
+    public double CountPct
+    {
+        get => _countPct;
+        set => RaiseAndSetIfChanged(ref _countPct, value);
+    }
+}
+
+public class ProfileSessionModel : ViewModelBase
+{
+    private string _name = "";
+    private DateTime _timestamp;
+    private double _totalDurationMs;
+    private double _totalAllocatedBytes;
+    private int _totalSamplesCount;
+    private int _totalAllocationsCount;
+
+    public string Name
+    {
+        get => _name;
+        set => RaiseAndSetIfChanged(ref _name, value);
+    }
+
+    public DateTime Timestamp
+    {
+        get => _timestamp;
+        set => RaiseAndSetIfChanged(ref _timestamp, value);
+    }
+
+    public double TotalDurationMs
+    {
+        get => _totalDurationMs;
+        set => RaiseAndSetIfChanged(ref _totalDurationMs, value);
+    }
+
+    public double TotalAllocatedBytes
+    {
+        get => _totalAllocatedBytes;
+        set => RaiseAndSetIfChanged(ref _totalAllocatedBytes, value);
+    }
+
+    public int TotalSamplesCount
+    {
+        get => _totalSamplesCount;
+        set => RaiseAndSetIfChanged(ref _totalSamplesCount, value);
+    }
+
+    public int TotalAllocationsCount
+    {
+        get => _totalAllocationsCount;
+        set => RaiseAndSetIfChanged(ref _totalAllocationsCount, value);
+    }
+
+    public ObservableCollection<FlameBlock> Blocks { get; } = new();
+    public ObservableCollection<FlameBlock> MemoryBlocks { get; } = new();
+    public ObservableCollection<ProfileMethodStats> MethodStats { get; } = new();
+    public ObservableCollection<ProfileMemoryStats> MemoryStats { get; } = new();
+    public string RawJson { get; set; } = "";
+}
+
+public class ProfilerViewModel : ViewModelBase, IStateProvider
 {
     private readonly ICdpService _cdpService;
     private bool _isProfilingActive;
     private string _statusText = "Idle - Connect target to record or load a profile";
     private double _totalDurationMs;
+    private double _totalAllocatedBytes;
     private int _totalSamplesCount;
+    private int _totalAllocationsCount;
     private double _zoomScale = 1.0;
     private double _offsetX = 0.0;
     private string? _searchText;
     private FlameBlock? _hoveredBlock;
+    private FlameBlock? _selectedBlock;
+    private FlameBlock? _hoveredMemoryBlock;
+    private FlameBlock? _selectedMemoryBlock;
+    private int _sessionCounter = 1;
     
-    private ObservableCollection<FlameBlock> _blocks = new();
-    private ObservableCollection<ProfileMethodStats> _methodStats = new();
+    private readonly ObservableCollection<ProfileSessionModel> _sessions = new();
+    private ProfileSessionModel? _selectedSession;
+    
+    private readonly ObservableCollection<FlameBlock> _blocks = new();
+    private readonly ObservableCollection<FlameBlock> _memoryBlocks = new();
+    private readonly ObservableCollection<ProfileMethodStats> _methodStats = new();
+    private readonly ObservableCollection<ProfileMemoryStats> _memoryStats = new();
 
     public bool IsProfilingActive
     {
@@ -55,10 +157,22 @@ public class ProfilerViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _totalDurationMs, value);
     }
 
+    public double TotalAllocatedBytes
+    {
+        get => _totalAllocatedBytes;
+        private set => RaiseAndSetIfChanged(ref _totalAllocatedBytes, value);
+    }
+
     public int TotalSamplesCount
     {
         get => _totalSamplesCount;
         private set => RaiseAndSetIfChanged(ref _totalSamplesCount, value);
+    }
+
+    public int TotalAllocationsCount
+    {
+        get => _totalAllocationsCount;
+        private set => RaiseAndSetIfChanged(ref _totalAllocationsCount, value);
     }
 
     public double ZoomScale
@@ -114,7 +228,6 @@ public class ProfilerViewModel : ViewModelBase
         }
     }
 
-    private FlameBlock? _selectedBlock;
     public FlameBlock? SelectedBlock
     {
         get => _selectedBlock;
@@ -129,8 +242,50 @@ public class ProfilerViewModel : ViewModelBase
 
     public FlameBlock? ActiveDetailBlock => SelectedBlock ?? HoveredBlock;
 
+    public FlameBlock? HoveredMemoryBlock
+    {
+        get => _hoveredMemoryBlock;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _hoveredMemoryBlock, value))
+            {
+                OnPropertyChanged(nameof(ActiveDetailMemoryBlock));
+            }
+        }
+    }
+
+    public FlameBlock? SelectedMemoryBlock
+    {
+        get => _selectedMemoryBlock;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedMemoryBlock, value))
+            {
+                OnPropertyChanged(nameof(ActiveDetailMemoryBlock));
+            }
+        }
+    }
+
+    public FlameBlock? ActiveDetailMemoryBlock => SelectedMemoryBlock ?? HoveredMemoryBlock;
+
+    public ObservableCollection<ProfileSessionModel> Sessions => _sessions;
+
+    public ProfileSessionModel? SelectedSession
+    {
+        get => _selectedSession;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedSession, value))
+            {
+                OnSessionSelected(value);
+            }
+        }
+    }
+
     public ObservableCollection<FlameBlock> Blocks => _blocks;
+    public ObservableCollection<FlameBlock> MemoryBlocks => _memoryBlocks;
     public ObservableCollection<ProfileMethodStats> MethodStats => _methodStats;
+    public ObservableCollection<ProfileMemoryStats> MemoryStats => _memoryStats;
 
     public Func<string, Task>? SaveFileCallback { get; set; }
     public Func<Task<string?>>? OpenFileCallback { get; set; }
@@ -138,6 +293,7 @@ public class ProfilerViewModel : ViewModelBase
     public ICommand StartProfilerCommand { get; }
     public ICommand StopProfilerCommand { get; }
     public ICommand LoadProfileCommand { get; }
+    public ICommand ExportProfileCommand { get; }
     public ICommand ZoomInCommand { get; }
     public ICommand ZoomOutCommand { get; }
     public ICommand ResetViewCommand { get; }
@@ -152,12 +308,48 @@ public class ProfilerViewModel : ViewModelBase
         StartProfilerCommand = new RelayCommand(async () => await StartProfilerAsync(), () => _cdpService.IsConnected && !IsProfilingActive);
         StopProfilerCommand = new RelayCommand(async () => await StopProfilerAsync(), () => _cdpService.IsConnected && IsProfilingActive);
         LoadProfileCommand = new RelayCommand(async () => await LoadProfileAsync());
+        ExportProfileCommand = new RelayCommand(async () => await ExportProfileAsync(), () => SelectedSession != null);
         
         ZoomInCommand = new RelayCommand(() => ZoomScale = Math.Min(1000.0, ZoomScale * 1.5));
         ZoomOutCommand = new RelayCommand(() => ZoomScale = Math.Max(1.0, ZoomScale / 1.5));
         ResetViewCommand = new RelayCommand(() => { ZoomScale = 1.0; OffsetX = 0.0; });
         NextSearchMatchCommand = new RelayCommand(NextSearchMatch, () => HasMatches);
         PrevSearchMatchCommand = new RelayCommand(PrevSearchMatch, () => HasMatches);
+    }
+
+    private void OnSessionSelected(ProfileSessionModel? session)
+    {
+        _blocks.Clear();
+        _memoryBlocks.Clear();
+        _methodStats.Clear();
+        _memoryStats.Clear();
+
+        if (session != null)
+        {
+            foreach (var b in session.Blocks) _blocks.Add(b);
+            foreach (var b in session.MemoryBlocks) _memoryBlocks.Add(b);
+            foreach (var s in session.MethodStats) _methodStats.Add(s);
+            foreach (var s in session.MemoryStats) _memoryStats.Add(s);
+
+            TotalDurationMs = session.TotalDurationMs;
+            TotalAllocatedBytes = session.TotalAllocatedBytes;
+            TotalSamplesCount = session.TotalSamplesCount;
+            TotalAllocationsCount = session.TotalAllocationsCount;
+        }
+        else
+        {
+            TotalDurationMs = 0;
+            TotalAllocatedBytes = 0;
+            TotalSamplesCount = 0;
+            TotalAllocationsCount = 0;
+        }
+
+        SelectedBlock = null;
+        SelectedMemoryBlock = null;
+        HoveredBlock = null;
+        HoveredMemoryBlock = null;
+
+        ((RelayCommand)ExportProfileCommand).RaiseCanExecuteChanged();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -185,7 +377,7 @@ public class ProfilerViewModel : ViewModelBase
             await _cdpService.SendCommandAsync("Profiler.enable");
             await _cdpService.SendCommandAsync("Profiler.start");
             IsProfilingActive = true;
-            StatusText = "Profiling CPU Activity...";
+            StatusText = "Profiling CPU & Memory Activity...";
             
             ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
             ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
@@ -201,24 +393,18 @@ public class ProfilerViewModel : ViewModelBase
         if (!_cdpService.IsConnected) return;
         try
         {
-            StatusText = "Stopping Profiler and fetching CPU profile...";
+            StatusText = "Stopping Profiler and fetching CPU & Memory profiles...";
             var res = await _cdpService.SendCommandAsync("Profiler.stop");
             IsProfilingActive = false;
             
             ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
             ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
 
-            var profileNode = res["profile"]?.AsObject();
-            if (profileNode != null)
+            if (res != null)
             {
-                var profileJson = profileNode.ToString();
-                LoadProfileFromJson(profileJson);
-                StatusText = "CPU Profile successfully loaded and rendered!";
-
-                if (SaveFileCallback != null)
-                {
-                    await SaveFileCallback(profileJson);
-                }
+                var jsonStr = res.ToJsonString();
+                LoadProfileFromJson(jsonStr);
+                StatusText = "Session profile successfully loaded and rendered!";
             }
             else
             {
@@ -244,12 +430,26 @@ public class ProfilerViewModel : ViewModelBase
             {
                 StatusText = "Parsing selected profile JSON...";
                 LoadProfileFromJson(json);
-                StatusText = "External CPU Profile loaded and visualized successfully!";
+                StatusText = "External CPU & Memory Profile loaded successfully!";
             }
         }
         catch (Exception ex)
         {
             StatusText = $"Load profile failed: {ex.Message}";
+        }
+    }
+
+    public async Task ExportProfileAsync()
+    {
+        if (SelectedSession == null || SaveFileCallback == null) return;
+        try
+        {
+            await SaveFileCallback(SelectedSession.RawJson);
+            StatusText = $"Session '{SelectedSession.Name}' exported successfully.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Export failed: {ex.Message}";
         }
     }
 
@@ -260,56 +460,78 @@ public class ProfilerViewModel : ViewModelBase
             var root = JsonNode.Parse(json)?.AsObject();
             if (root == null) return;
 
-            var nodesArray = root["nodes"]?.AsArray();
-            var samplesArray = root["samples"]?.AsArray();
-            var timeDeltasArray = root["timeDeltas"]?.AsArray();
-            double startTime = root["startTime"]?.GetValue<double>() ?? 0.0;
-            double endTime = root["endTime"]?.GetValue<double>() ?? 0.0;
-
-            if (nodesArray == null || samplesArray == null || timeDeltasArray == null)
+            var session = new ProfileSessionModel
             {
-                StatusText = "Invalid V8 profile format: missing nodes, samples, or timeDeltas.";
-                return;
+                Name = $"Profile {_sessionCounter++}",
+                Timestamp = DateTime.Now,
+                RawJson = json
+            };
+
+            var cpuProfileObj = root["profile"]?.AsObject();
+            var memProfileObj = root["memoryProfile"]?.AsObject();
+            var memAllocArray = root["memoryAllocations"]?.AsArray();
+
+            if (cpuProfileObj != null)
+            {
+                ProcessV8Profile(cpuProfileObj, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
+                session.TotalDurationMs = cpuDur;
+                session.TotalSamplesCount = cpuSamples;
+            }
+            else
+            {
+                ProcessV8Profile(root, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
+                session.TotalDurationMs = cpuDur;
+                session.TotalSamplesCount = cpuSamples;
             }
 
-            // Parse nodes
-            var nodes = new List<Chrome.DevTools.Protocol.Domains.V8ProfileNode>();
-            var nodeMap = new Dictionary<int, Chrome.DevTools.Protocol.Domains.V8ProfileNode>();
-            foreach (var n in nodesArray)
+            if (memProfileObj != null)
             {
-                if (n is JsonObject nObj)
+                ProcessV8Profile(memProfileObj, session.MemoryBlocks, new ObservableCollection<ProfileMethodStats>(), true, out double memDur, out int memSamples);
+                session.TotalAllocatedBytes = memDur;
+                session.TotalAllocationsCount = memSamples;
+            }
+
+            if (memAllocArray != null)
+            {
+                long totalBytes = 0;
+                int totalCount = 0;
+                var list = new List<ProfileMemoryStats>();
+
+                foreach (var item in memAllocArray)
                 {
-                    int id = nObj["id"]?.GetValue<int>() ?? 0;
-                    int hitCount = nObj["hitCount"]?.GetValue<int>() ?? 0;
-                    var cfObj = nObj["callFrame"] as JsonObject;
-                    string funcName = cfObj?["functionName"]?.GetValue<string>() ?? "";
-                    string url = cfObj?["url"]?.GetValue<string>() ?? "";
-                    int line = cfObj?["lineNumber"]?.GetValue<int>() ?? 0;
-                    int col = cfObj?["columnNumber"]?.GetValue<int>() ?? 0;
-
-                    var node = new Chrome.DevTools.Protocol.Domains.V8ProfileNode(id, funcName, url, line, col);
-                    node.HitCount = hitCount;
-                    
-                    var children = nObj["children"]?.AsArray();
-                    if (children != null)
+                    if (item is JsonObject obj)
                     {
-                        foreach (var cId in children)
+                        string typeName = obj["typeName"]?.GetValue<string>() ?? "Unknown";
+                        long bytes = obj["bytes"]?.GetValue<long>() ?? 0;
+                        int count = obj["count"]?.GetValue<int>() ?? 0;
+
+                        list.Add(new ProfileMemoryStats
                         {
-                            node.Children.Add(cId?.GetValue<int>() ?? 0);
-                        }
+                            TypeName = typeName,
+                            AllocatedBytes = bytes,
+                            AllocationCount = count
+                        });
+
+                        totalBytes += bytes;
+                        totalCount += count;
                     }
-
-                    nodes.Add(node);
-                    nodeMap[id] = node;
                 }
-            }
 
-            var samples = samplesArray.Select(s => s?.GetValue<int>() ?? 0).ToList();
-            var timeDeltas = timeDeltasArray.Select(t => t?.GetValue<int>() ?? 0).ToList();
+                foreach (var stat in list)
+                {
+                    stat.SizePct = totalBytes > 0 ? (stat.AllocatedBytes / (double)totalBytes) * 100.0 : 0.0;
+                    stat.CountPct = totalCount > 0 ? (stat.AllocationCount / (double)totalCount) * 100.0 : 0.0;
+                    session.MemoryStats.Add(stat);
+                }
+
+                session.TotalAllocatedBytes = totalBytes;
+                session.TotalAllocationsCount = totalCount;
+            }
 
             Dispatcher.UIThread.Post(() =>
             {
-                UpdateProfileData(nodes, nodeMap, samples, timeDeltas, startTime, endTime);
+                Sessions.Add(session);
+                SelectedSession = session;
             });
         }
         catch (Exception ex)
@@ -318,17 +540,60 @@ public class ProfilerViewModel : ViewModelBase
         }
     }
 
-    private void UpdateProfileData(
-        List<Chrome.DevTools.Protocol.Domains.V8ProfileNode> nodes,
-        Dictionary<int, Chrome.DevTools.Protocol.Domains.V8ProfileNode> nodeMap,
-        List<int> samples,
-        List<int> timeDeltas,
-        double startTime,
-        double endTime)
+    private void ProcessV8Profile(
+        JsonObject profileObj,
+        ObservableCollection<FlameBlock> targetBlocks,
+        ObservableCollection<ProfileMethodStats> targetStats,
+        bool isMemoryMode,
+        out double totalDuration,
+        out int samplesCount)
     {
-        TotalSamplesCount = samples.Count;
+        totalDuration = 0;
+        samplesCount = 0;
 
-        // Build parent links map
+        var nodesArray = profileObj["nodes"]?.AsArray();
+        var samplesArray = profileObj["samples"]?.AsArray();
+        var timeDeltasArray = profileObj["timeDeltas"]?.AsArray();
+
+        if (nodesArray == null || samplesArray == null || timeDeltasArray == null) return;
+
+        var nodes = new List<Chrome.DevTools.Protocol.Domains.V8ProfileNode>();
+        var nodeMap = new Dictionary<int, Chrome.DevTools.Protocol.Domains.V8ProfileNode>();
+        foreach (var n in nodesArray)
+        {
+            if (n is JsonObject nObj)
+            {
+                int id = nObj["id"]?.GetValue<int>() ?? 0;
+                int hitCount = nObj["hitCount"]?.GetValue<int>() ?? 0;
+                var cfObj = nObj["callFrame"] as JsonObject;
+                string funcName = cfObj?["functionName"]?.GetValue<string>() ?? "";
+                string url = cfObj?["url"]?.GetValue<string>() ?? "";
+                int line = cfObj?["lineNumber"]?.GetValue<int>() ?? 0;
+                int col = cfObj?["columnNumber"]?.GetValue<int>() ?? 0;
+
+                var node = new Chrome.DevTools.Protocol.Domains.V8ProfileNode(id, funcName, url, line, col)
+                {
+                    HitCount = hitCount
+                };
+
+                var children = nObj["children"]?.AsArray();
+                if (children != null)
+                {
+                    foreach (var cId in children)
+                    {
+                        node.Children.Add(cId?.GetValue<int>() ?? 0);
+                    }
+                }
+                nodes.Add(node);
+                nodeMap[id] = node;
+            }
+        }
+
+        var samples = samplesArray.Select(s => s?.GetValue<int>() ?? 0).ToList();
+        var timeDeltas = timeDeltasArray.Select(t => t?.GetValue<int>() ?? 0).ToList();
+
+        samplesCount = samples.Count;
+
         var parentMap = new Dictionary<int, int>();
         foreach (var node in nodes)
         {
@@ -338,15 +603,15 @@ public class ProfilerViewModel : ViewModelBase
             }
         }
 
-        // Calculate chronological timeline and blocks
         var newBlocks = new List<FlameBlock>();
         var activeBlocks = new Dictionary<int, FlameBlock>();
 
-        double currentTimeMs = 0.0;
+        double currentValue = 0.0;
         for (int i = 0; i < samples.Count; i++)
         {
             int nodeId = samples[i];
-            double durationMs = (i < timeDeltas.Count ? timeDeltas[i] : 0) / 1000.0;
+            double delta = i < timeDeltas.Count ? timeDeltas[i] : 0;
+            double duration = isMemoryMode ? delta : (delta / 1000.0);
 
             var stack = GetStack(nodeId, nodeMap, parentMap);
 
@@ -355,7 +620,7 @@ public class ProfilerViewModel : ViewModelBase
                 var node = stack[depth];
                 if (activeBlocks.TryGetValue(depth, out var active) && active.Name == node.FunctionName && active.Url == node.Url)
                 {
-                    active.EndTimeMs = currentTimeMs + durationMs;
+                    active.EndTimeMs = currentValue + duration;
                 }
                 else
                 {
@@ -367,8 +632,8 @@ public class ProfilerViewModel : ViewModelBase
                     {
                         Name = node.FunctionName,
                         Url = node.Url,
-                        StartTimeMs = currentTimeMs,
-                        EndTimeMs = currentTimeMs + durationMs,
+                        StartTimeMs = currentValue,
+                        EndTimeMs = currentValue + duration,
                         Depth = depth
                     };
                     activeBlocks[depth] = newBlock;
@@ -382,7 +647,7 @@ public class ProfilerViewModel : ViewModelBase
                 activeBlocks.Remove(depth);
             }
 
-            currentTimeMs += durationMs;
+            currentValue += duration;
         }
 
         foreach (var active in activeBlocks.Values)
@@ -390,16 +655,16 @@ public class ProfilerViewModel : ViewModelBase
             newBlocks.Add(active);
         }
 
-        TotalDurationMs = currentTimeMs;
+        totalDuration = currentValue;
 
-        // Compute bottom-up stats
         var statsMap = new Dictionary<string, ProfileMethodStats>();
-        double totalTimeSumUs = timeDeltas.Sum();
+        double totalDeltaSum = timeDeltas.Sum();
 
         for (int i = 0; i < samples.Count; i++)
         {
             int nodeId = samples[i];
             double dt = i < timeDeltas.Count ? timeDeltas[i] : 0;
+            double val = isMemoryMode ? dt : (dt / 1000.0);
 
             var stack = GetStack(nodeId, nodeMap, parentMap);
             if (stack.Count == 0) continue;
@@ -411,7 +676,7 @@ public class ProfilerViewModel : ViewModelBase
                 leafStats = new ProfileMethodStats { MethodName = leaf.FunctionName, ModuleName = leaf.Url };
                 statsMap[leafKey] = leafStats;
             }
-            leafStats.SelfTimeMs += dt / 1000.0;
+            leafStats.SelfTimeMs += val;
             leafStats.HitCount++;
 
             var uniqueKeys = stack.Select(s => $"{s.FunctionName}@{s.Url}").Distinct();
@@ -423,19 +688,18 @@ public class ProfilerViewModel : ViewModelBase
                     stats = new ProfileMethodStats { MethodName = node.FunctionName, ModuleName = node.Url };
                     statsMap[key] = stats;
                 }
-                stats.TotalTimeMs += dt / 1000.0;
+                stats.TotalTimeMs += val;
             }
         }
 
-        double totalTimeMs = totalTimeSumUs / 1000.0;
+        double totalVal = isMemoryMode ? totalDeltaSum : (totalDeltaSum / 1000.0);
         foreach (var stats in statsMap.Values)
         {
-            stats.SelfTimePct = totalTimeMs > 0 ? (stats.SelfTimeMs / totalTimeMs) * 100.0 : 0.0;
-            stats.TotalTimePct = totalTimeMs > 0 ? (stats.TotalTimeMs / totalTimeMs) * 100.0 : 0.0;
+            stats.SelfTimePct = totalVal > 0 ? (stats.SelfTimeMs / totalVal) * 100.0 : 0.0;
+            stats.TotalTimePct = totalVal > 0 ? (stats.TotalTimeMs / totalVal) * 100.0 : 0.0;
         }
 
-        // Populate Blocks (resolving aggregated times from statsMap)
-        Blocks.Clear();
+        targetBlocks.Clear();
         foreach (var block in newBlocks)
         {
             string key = $"{block.Name}@{block.Url}";
@@ -446,21 +710,14 @@ public class ProfilerViewModel : ViewModelBase
                 block.TotalTimeMs = stats.TotalTimeMs;
                 block.TotalTimePct = stats.TotalTimePct;
             }
-            Blocks.Add(block);
+            targetBlocks.Add(block);
         }
 
-        MethodStats.Clear();
-        var sortedStats = statsMap.Values.OrderByDescending(s => s.TotalTimeMs).ToList();
-        foreach (var stat in sortedStats)
+        targetStats.Clear();
+        foreach (var stats in statsMap.Values.OrderByDescending(s => s.SelfTimeMs))
         {
-            MethodStats.Add(stat);
+            targetStats.Add(stats);
         }
-
-        // Reset view scale and offsets
-        ZoomScale = 1.0;
-        OffsetX = 0.0;
-        SelectedBlock = null;
-        UpdateSearchMatches();
     }
 
     private void UpdateSearchMatches()
@@ -539,5 +796,16 @@ public class ProfilerViewModel : ViewModelBase
             }
         }
         return stack;
+    }
+
+    public string StateKey => "profiler";
+
+    public JsonNode? SaveState()
+    {
+        return null;
+    }
+
+    public void LoadState(JsonNode state)
+    {
     }
 }
