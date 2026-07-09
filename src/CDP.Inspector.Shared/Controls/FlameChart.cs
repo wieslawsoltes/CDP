@@ -42,6 +42,9 @@ public class FlameChart : Control
     public static readonly StyledProperty<FlameBlock?> SelectedBlockProperty =
         AvaloniaProperty.Register<FlameChart, FlameBlock?>(nameof(SelectedBlock));
 
+    public static readonly StyledProperty<bool> IsMemoryModeProperty =
+        AvaloniaProperty.Register<FlameChart, bool>(nameof(IsMemoryMode), false);
+
     public IEnumerable<FlameBlock>? Blocks
     {
         get => GetValue(BlocksProperty);
@@ -76,6 +79,12 @@ public class FlameChart : Control
     {
         get => GetValue(SelectedBlockProperty);
         set => SetValue(SelectedBlockProperty, value);
+    }
+
+    public bool IsMemoryMode
+    {
+        get => GetValue(IsMemoryModeProperty);
+        set => SetValue(IsMemoryModeProperty, value);
     }
 
     private const double RulerHeight = 22.0;
@@ -315,12 +324,24 @@ public class FlameChart : Control
 
         // Choose appropriate ruler intervals dynamically
         double interval = 5000.0;
-        if (visibleDuration < 10.0) interval = 1.0;
-        else if (visibleDuration < 50.0) interval = 5.0;
-        else if (visibleDuration < 200.0) interval = 20.0;
-        else if (visibleDuration < 1000.0) interval = 100.0;
-        else if (visibleDuration < 5000.0) interval = 500.0;
-        else if (visibleDuration < 20000.0) interval = 2000.0;
+        if (IsMemoryMode)
+        {
+            if (visibleDuration < 1024.0) interval = 128.0;
+            else if (visibleDuration < 10240.0) interval = 1024.0;
+            else if (visibleDuration < 102400.0) interval = 10240.0;
+            else if (visibleDuration < 1024000.0) interval = 102400.0;
+            else if (visibleDuration < 5120000.0) interval = 512000.0;
+            else interval = 1024.0 * 1024.0;
+        }
+        else
+        {
+            if (visibleDuration < 10.0) interval = 1.0;
+            else if (visibleDuration < 50.0) interval = 5.0;
+            else if (visibleDuration < 200.0) interval = 20.0;
+            else if (visibleDuration < 1000.0) interval = 100.0;
+            else if (visibleDuration < 5000.0) interval = 500.0;
+            else if (visibleDuration < 20000.0) interval = 2000.0;
+        }
 
         double t = Math.Ceiling(startTime / interval) * interval;
         while (t < endTime)
@@ -331,7 +352,17 @@ public class FlameChart : Control
                 // Major tick
                 context.DrawLine(tickPen, new Point(tx, RulerHeight - 8), new Point(tx, RulerHeight));
 
-                string label = t >= 1000.0 ? $"{(t / 1000.0):0.##} s" : $"{t:0} ms";
+                string label;
+                if (IsMemoryMode)
+                {
+                    if (t >= 1024.0 * 1024.0) label = $"{(t / 1024.0 / 1024.0):0.##} MB";
+                    else if (t >= 1024.0) label = $"{(t / 1024.0):0.#} KB";
+                    else label = $"{t:0} B";
+                }
+                else
+                {
+                    label = t >= 1000.0 ? $"{(t / 1000.0):0.##} s" : $"{t:0} ms";
+                }
                 var labelText = new FormattedText(
                     label,
                     CultureInfo.InvariantCulture,
