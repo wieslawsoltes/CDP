@@ -78,26 +78,6 @@ public partial class MainWindowViewModel : ReactiveObject
     }
 
     [ReactiveCommand]
-    private async Task CpuLoad()
-    {
-        StatusText = "Running CPU load...";
-        await Task.Run(() =>
-        {
-            double dummy = 0;
-            var end = DateTime.UtcNow.AddSeconds(2.0);
-            while (DateTime.UtcNow < end)
-            {
-                for (int j = 0; j < 50000; j++)
-                {
-                    dummy += Math.Sqrt(j) * Math.Sin(j);
-                }
-                System.Threading.Thread.Sleep(1);
-            }
-        });
-        StatusText = "CPU load complete!";
-    }
-
-    [ReactiveCommand]
     private void GoBack()
     {
         SelectedTabIndex = 0;
