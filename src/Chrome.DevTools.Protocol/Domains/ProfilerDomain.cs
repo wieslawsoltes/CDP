@@ -217,7 +217,8 @@ public class ProfilerState
             try
             {
                 var profile = ConvertNetTraceToV8Profile(netTraceFileToProcess);
-                var samples = profile["samples"]?.AsArray();
+                var cpuProfile = profile["profile"] as JsonObject;
+                var samples = cpuProfile?["samples"]?.AsArray();
                 if (samples != null && samples.Count > 0)
                 {
                     return profile;
@@ -304,37 +305,22 @@ public class ProfilerState
                 // Parse Memory Allocation
                 else if (ev is GCAllocationTickTraceData allocEv)
                 {
-                    double timeMs = ev.TimeStampRelativeMSec;
-                    if (memStartTimeMs == 0) memStartTimeMs = timeMs;
-                    memEndTimeMs = timeMs;
-
-                    long allocAmount = allocEv.AllocationAmount;
                     string typeName = allocEv.TypeName ?? "Unknown";
-
-                    // Aggregate memory stats by type
-                    if (memAllocStats.TryGetValue(typeName, out var currentStats))
+                    ProcessAllocation(ev, typeName, allocEv.AllocationAmount, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
+                }
+                else if ((int)ev.ID == 303)
+                {
+                    try
                     {
-                        memAllocStats[typeName] = (currentStats.bytes + allocAmount, currentStats.count + 1);
+                        byte[] data = ev.EventData();
+                        if (TryParseAllocationSampled(data, ev.PointerSize, out var typeName, out var objectSize))
+                        {
+                            ProcessAllocation(ev, typeName, objectSize, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        memAllocStats[typeName] = (allocAmount, 1);
-                    }
-
-                    var stack = ev.CallStack();
-                    if (stack == null)
-                    {
-                        memSamples.Add(1);
-                        memRootNode.HitCount++;
-                        memTimeDeltas.Add((int)allocAmount);
-                    }
-                    else
-                    {
-                        int leafNodeId = ResolveTraceEventStackNode(stack, memNodes, ref memNextNodeId, memStackCache);
-                        memSamples.Add(leafNodeId);
-                        var leafNode = memNodes.First(n => n.Id == leafNodeId);
-                        leafNode.HitCount++;
-                        memTimeDeltas.Add((int)allocAmount);
+                        CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to manually parse EventID(303): {ex}");
                     }
                 }
             }
@@ -382,13 +368,92 @@ public class ProfilerState
             });
         }
 
-        // Return wrapped dual-profile
         return new JsonObject
         {
             ["profile"] = cpuProfileJson,
             ["memoryProfile"] = memProfileJson,
             ["memoryAllocations"] = memStatsArray
         };
+    }
+
+    public static bool TryParseAllocationSampled(byte[] data, int pointerSize, out string typeName, out long objectSize)
+    {
+        typeName = "Unknown";
+        objectSize = 0;
+
+        if (data == null || data.Length < 6)
+        {
+            return false;
+        }
+
+        int typeNameOffset = 6 + pointerSize;
+        if (data.Length <= typeNameOffset)
+        {
+            return false;
+        }
+
+        int len = 0;
+        while (typeNameOffset + len < data.Length - 1 && BitConverter.ToUInt16(data, typeNameOffset + len) != 0)
+        {
+            len += 2;
+        }
+
+        typeName = System.Text.Encoding.Unicode.GetString(data, typeNameOffset, len);
+        int nextOffset = typeNameOffset + len + 2; // skip type name and null terminator
+
+        if (data.Length >= nextOffset + pointerSize + 8)
+        {
+            nextOffset += pointerSize; // skip Address
+            objectSize = BitConverter.ToInt64(data, nextOffset);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ProcessAllocation(
+        TraceEvent ev,
+        string typeName,
+        long allocAmount,
+        ref double memStartTimeMs,
+        ref double memEndTimeMs,
+        Dictionary<string, (long bytes, int count)> memAllocStats,
+        List<V8ProfileNode> memNodes,
+        ref int memNextNodeId,
+        Dictionary<CallStackIndex, int> memStackCache,
+        List<int> memSamples,
+        V8ProfileNode memRootNode,
+        List<int> memTimeDeltas)
+    {
+        double timeMs = ev.TimeStampRelativeMSec;
+        if (memStartTimeMs == 0) memStartTimeMs = timeMs;
+        memEndTimeMs = timeMs;
+
+        // Aggregate memory stats by type
+        if (memAllocStats.TryGetValue(typeName, out var currentStats))
+        {
+            memAllocStats[typeName] = (currentStats.bytes + allocAmount, currentStats.count + 1);
+        }
+        else
+        {
+            memAllocStats[typeName] = (allocAmount, 1);
+        }
+
+        var stack = ev.CallStack();
+        if (stack == null)
+        {
+            memSamples.Add(1);
+            memRootNode.HitCount++;
+            memTimeDeltas.Add((int)allocAmount);
+        }
+        else
+        {
+            int leafNodeId = ResolveTraceEventStackNode(stack, memNodes, ref memNextNodeId, memStackCache);
+            memSamples.Add(leafNodeId);
+            var leafNode = memNodes.First(n => n.Id == leafNodeId);
+            leafNode.HitCount++;
+            memTimeDeltas.Add((int)allocAmount);
+        }
     }
 
     private int ResolveTraceEventStackNode(

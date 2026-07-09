@@ -1563,7 +1563,13 @@ public class NewDomainTests
         var profile = stopResult["profile"] as JsonObject;
         Assert.NotNull(profile);
 
-        var nodes = profile["nodes"] as JsonArray;
+        JsonObject cpuProfile = profile;
+        if (profile.ContainsKey("profile") && profile["profile"] is JsonObject innerProfile)
+        {
+            cpuProfile = innerProfile;
+        }
+
+        var nodes = cpuProfile["nodes"] as JsonArray;
         Assert.NotNull(nodes);
         Assert.NotEmpty(nodes);
 
@@ -1572,15 +1578,15 @@ public class NewDomainTests
         Assert.NotNull(rootNode);
         Assert.Equal("(root)", rootNode["callFrame"]?["functionName"]?.GetValue<string>());
 
-        var startTime = profile["startTime"]?.GetValue<double>() ?? 0.0;
-        var endTime = profile["endTime"]?.GetValue<double>() ?? 0.0;
+        var startTime = cpuProfile["startTime"]?.GetValue<double>() ?? 0.0;
+        var endTime = cpuProfile["endTime"]?.GetValue<double>() ?? 0.0;
         Assert.True(endTime > startTime);
 
-        var samples = profile["samples"] as JsonArray;
+        var samples = cpuProfile["samples"] as JsonArray;
         Assert.NotNull(samples);
         Assert.NotEmpty(samples);
 
-        var timeDeltas = profile["timeDeltas"] as JsonArray;
+        var timeDeltas = cpuProfile["timeDeltas"] as JsonArray;
         Assert.NotNull(timeDeltas);
         Assert.NotEmpty(timeDeltas);
         Assert.Equal(samples.Count, timeDeltas.Count);
@@ -1698,7 +1704,41 @@ public class NewDomainTests
         Assert.NotNull(disableResult);
     }
 
+    [Fact]
+    public void TestProfilerAllocationSampledManualParsing()
+    {
+        int pointerSize = 8;
+        string typeName = "System.Byte[]";
+        long expectedSize = 56;
+        
+        int typeNameOffset = 6 + pointerSize;
+        int stringBytesCount = (typeName.Length + 1) * 2;
+        int nextOffset = typeNameOffset + stringBytesCount;
+        int totalBytes = nextOffset + pointerSize + 8 + 8;
+        
+        byte[] data = new byte[totalBytes];
+        
+        BitConverter.TryWriteBytes(data.AsSpan(0, 4), 0U);
+        BitConverter.TryWriteBytes(data.AsSpan(4, 2), (ushort)0);
+        BitConverter.TryWriteBytes(data.AsSpan(6, 8), 0x10921CC20L);
+        
+        byte[] stringBytes = System.Text.Encoding.Unicode.GetBytes(typeName);
+        Array.Copy(stringBytes, 0, data, typeNameOffset, stringBytes.Length);
+        
+        BitConverter.TryWriteBytes(data.AsSpan(nextOffset, 8), 0x137645F28L);
+        nextOffset += pointerSize;
+        
+        BitConverter.TryWriteBytes(data.AsSpan(nextOffset, 8), expectedSize);
+        nextOffset += 8;
+        
+        BitConverter.TryWriteBytes(data.AsSpan(nextOffset, 8), 34L);
 
+        bool success = ProfilerState.TryParseAllocationSampled(data, pointerSize, out string parsedTypeName, out long parsedSize);
+        
+        Assert.True(success);
+        Assert.Equal(typeName, parsedTypeName);
+        Assert.Equal(expectedSize, parsedSize);
+    }
 
     public class TestDataContext
     {
