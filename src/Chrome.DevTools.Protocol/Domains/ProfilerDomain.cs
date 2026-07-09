@@ -252,7 +252,7 @@ public class ProfilerState
         {
             foreach (var ev in traceLog.Events)
             {
-                if (ev.ProviderName == "Microsoft-DotNETCore-SampleProfiler" && ev.EventName == "ThreadCPUProfileSample")
+                if (ev.ProviderName == "Microsoft-DotNETCore-SampleProfiler" && ev.EventName == "Thread/Sample")
                 {
                     double timeMs = ev.TimeStampRelativeMSec;
                     if (startTimeMs == 0) startTimeMs = timeMs;
