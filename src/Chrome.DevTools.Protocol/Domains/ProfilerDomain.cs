@@ -124,7 +124,7 @@ public class ProfilerState
                 var stream = _session.EventStream;
                 var filePath = _tempNetTraceFile;
 
-                _copyTask = Task.Run(async () =>
+                 _copyTask = Task.Run(async () =>
                 {
                     try
                     {
@@ -136,13 +136,16 @@ public class ProfilerState
                             await fileStream.WriteAsync(buffer, 0, bytesRead);
                         }
                     }
-                    catch {}
+                    catch (Exception ex)
+                    {
+                        CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Copy stream task failed: {ex}");
+                    }
                 });
             }
             catch (Exception ex)
             {
                 // Fallback to simulated profiling if EventPipe fails to launch (e.g. lacks privileges or dependencies)
-                System.Diagnostics.Debug.WriteLine($"Failed to initialize EventPipe profiling: {ex.Message}");
+                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to initialize EventPipe profiling: {ex.Message}");
                 _session = null;
                 _tempNetTraceFile = null;
             }
@@ -196,9 +199,15 @@ public class ProfilerState
             {
                 try
                 {
-                    copyTaskToWait.Wait(3000);
+                    if (!copyTaskToWait.Wait(15000))
+                    {
+                        CdpServer.OriginalOut.WriteLine("[CDP PROFILER] Warning: copy task did not finish in 15 seconds.");
+                    }
                 }
-                catch {}
+                catch (Exception ex)
+                {
+                    CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Copy task wait threw exception: {ex}");
+                }
             }
         }
 
@@ -215,7 +224,7 @@ public class ProfilerState
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"EventPipe profile conversion failed: {ex.Message}");
+                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] EventPipe profile conversion failed: {ex}");
             }
             finally
             {
