@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.Diagnostics.NETCore.Client;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Etlx;
+using Microsoft.Diagnostics.Tracing.Parsers.Clr;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
@@ -116,7 +117,7 @@ public class ProfilerState
                 var providers = new List<EventPipeProvider>
                 {
                     new EventPipeProvider("Microsoft-DotNETCore-SampleProfiler", System.Diagnostics.Tracing.EventLevel.Verbose),
-                    new EventPipeProvider("Microsoft-Windows-DotNETRuntime", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2018),
+                    new EventPipeProvider("Microsoft-Windows-DotNETRuntime", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2019),
                     new EventPipeProvider("Microsoft-Windows-DotNETRuntimeRundown", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2058)
                 };
 
@@ -244,64 +245,149 @@ public class ProfilerState
         _tempEtlxFile = Path.ChangeExtension(netTracePath, ".etlx");
         TraceLog.CreateFromEventPipeDataFile(netTracePath, _tempEtlxFile);
 
-        var nodes = new List<V8ProfileNode>();
-        var v8Samples = new List<int>();
-        var v8TimeDeltas = new List<int>();
+        // CPU V8 Profile variables
+        var cpuNodes = new List<V8ProfileNode>();
+        var cpuSamples = new List<int>();
+        var cpuTimeDeltas = new List<int>();
+        var cpuRootNode = new V8ProfileNode(1, "(root)", "", -1, -1);
+        cpuNodes.Add(cpuRootNode);
+        int cpuNextNodeId = 2;
+        var cpuStackCache = new Dictionary<CallStackIndex, int>();
 
-        var rootNode = new V8ProfileNode(1, "(root)", "", -1, -1);
-        nodes.Add(rootNode);
-        int nextNodeId = 2;
+        // Memory V8 Profile variables
+        var memNodes = new List<V8ProfileNode>();
+        var memSamples = new List<int>();
+        var memTimeDeltas = new List<int>();
+        var memRootNode = new V8ProfileNode(1, "(root)", "", -1, -1);
+        memNodes.Add(memRootNode);
+        int memNextNodeId = 2;
+        var memStackCache = new Dictionary<CallStackIndex, int>();
 
-        var stackCache = new Dictionary<CallStackIndex, int>();
+        // Aggregated memory allocations stats
+        var memAllocStats = new Dictionary<string, (long bytes, int count)>();
 
         double startTimeMs = 0;
         double endTimeMs = 0;
-        double lastTimeMs = 0;
+        double cpuLastTimeMs = 0;
+        double memStartTimeMs = 0;
+        double memEndTimeMs = 0;
 
         using (var traceLog = new TraceLog(_tempEtlxFile))
         {
             foreach (var ev in traceLog.Events)
             {
+                // Parse CPU Sample
                 if (ev.ProviderName == "Microsoft-DotNETCore-SampleProfiler" && ev.EventName == "Thread/Sample")
                 {
                     double timeMs = ev.TimeStampRelativeMSec;
                     if (startTimeMs == 0) startTimeMs = timeMs;
                     endTimeMs = timeMs;
 
-                    int deltaUs = (lastTimeMs == 0) ? 0 : (int)Math.Max(0, (timeMs - lastTimeMs) * 1000.0);
-                    v8TimeDeltas.Add(deltaUs);
-                    lastTimeMs = timeMs;
+                    int deltaUs = (cpuLastTimeMs == 0) ? 0 : (int)Math.Max(0, (timeMs - cpuLastTimeMs) * 1000.0);
+                    cpuTimeDeltas.Add(deltaUs);
+                    cpuLastTimeMs = timeMs;
 
                     var stack = ev.CallStack();
                     if (stack == null)
                     {
-                        v8Samples.Add(1);
-                        rootNode.HitCount++;
+                        cpuSamples.Add(1);
+                        cpuRootNode.HitCount++;
                     }
                     else
                     {
-                        int leafNodeId = ResolveTraceEventStackNode(stack, nodes, ref nextNodeId, stackCache);
-                        v8Samples.Add(leafNodeId);
-                        var leafNode = nodes.First(n => n.Id == leafNodeId);
+                        int leafNodeId = ResolveTraceEventStackNode(stack, cpuNodes, ref cpuNextNodeId, cpuStackCache);
+                        cpuSamples.Add(leafNodeId);
+                        var leafNode = cpuNodes.First(n => n.Id == leafNodeId);
                         leafNode.HitCount++;
+                    }
+                }
+                // Parse Memory Allocation
+                else if (ev is GCAllocationTickTraceData allocEv)
+                {
+                    double timeMs = ev.TimeStampRelativeMSec;
+                    if (memStartTimeMs == 0) memStartTimeMs = timeMs;
+                    memEndTimeMs = timeMs;
+
+                    long allocAmount = allocEv.AllocationAmount;
+                    string typeName = allocEv.TypeName ?? "Unknown";
+
+                    // Aggregate memory stats by type
+                    if (memAllocStats.TryGetValue(typeName, out var currentStats))
+                    {
+                        memAllocStats[typeName] = (currentStats.bytes + allocAmount, currentStats.count + 1);
+                    }
+                    else
+                    {
+                        memAllocStats[typeName] = (allocAmount, 1);
+                    }
+
+                    var stack = ev.CallStack();
+                    if (stack == null)
+                    {
+                        memSamples.Add(1);
+                        memRootNode.HitCount++;
+                        memTimeDeltas.Add((int)allocAmount);
+                    }
+                    else
+                    {
+                        int leafNodeId = ResolveTraceEventStackNode(stack, memNodes, ref memNextNodeId, memStackCache);
+                        memSamples.Add(leafNodeId);
+                        var leafNode = memNodes.First(n => n.Id == leafNodeId);
+                        leafNode.HitCount++;
+                        memTimeDeltas.Add((int)allocAmount);
                     }
                 }
             }
         }
 
-        var nodesArray = new JsonArray();
-        foreach (var node in nodes)
+        // Build CPU V8 JSON
+        var cpuNodesArray = new JsonArray();
+        foreach (var node in cpuNodes)
         {
-            nodesArray.Add(node.ToJson());
+            cpuNodesArray.Add(node.ToJson());
         }
-
-        return new JsonObject
+        var cpuProfileJson = new JsonObject
         {
-            ["nodes"] = nodesArray,
+            ["nodes"] = cpuNodesArray,
             ["startTime"] = startTimeMs * 1000.0,
             ["endTime"] = endTimeMs * 1000.0,
-            ["samples"] = new JsonArray(v8Samples.Select(s => (JsonNode)s).ToArray()),
-            ["timeDeltas"] = new JsonArray(v8TimeDeltas.Select(d => (JsonNode)d).ToArray())
+            ["samples"] = new JsonArray(cpuSamples.Select(s => (JsonNode)s).ToArray()),
+            ["timeDeltas"] = new JsonArray(cpuTimeDeltas.Select(d => (JsonNode)d).ToArray())
+        };
+
+        // Build Memory V8 JSON
+        var memNodesArray = new JsonArray();
+        foreach (var node in memNodes)
+        {
+            memNodesArray.Add(node.ToJson());
+        }
+        var memProfileJson = new JsonObject
+        {
+            ["nodes"] = memNodesArray,
+            ["startTime"] = memStartTimeMs * 1000.0,
+            ["endTime"] = memEndTimeMs * 1000.0,
+            ["samples"] = new JsonArray(memSamples.Select(s => (JsonNode)s).ToArray()),
+            ["timeDeltas"] = new JsonArray(memTimeDeltas.Select(d => (JsonNode)d).ToArray())
+        };
+
+        // Build Memory stats JSON array
+        var memStatsArray = new JsonArray();
+        foreach (var pair in memAllocStats.OrderByDescending(p => p.Value.bytes))
+        {
+            memStatsArray.Add(new JsonObject
+            {
+                ["typeName"] = pair.Key,
+                ["bytes"] = pair.Value.bytes,
+                ["count"] = pair.Value.count
+            });
+        }
+
+        // Return wrapped dual-profile
+        return new JsonObject
+        {
+            ["profile"] = cpuProfileJson,
+            ["memoryProfile"] = memProfileJson,
+            ["memoryAllocations"] = memStatsArray
         };
     }
 
