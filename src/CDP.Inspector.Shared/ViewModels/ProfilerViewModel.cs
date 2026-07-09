@@ -76,7 +76,30 @@ public class ProfilerViewModel : ViewModelBase
     public string? SearchText
     {
         get => _searchText;
-        set => RaiseAndSetIfChanged(ref _searchText, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _searchText, value))
+            {
+                UpdateSearchMatches();
+            }
+        }
+    }
+
+    private string _currentMatchIndexText = "";
+    private bool _hasMatches;
+    private readonly List<FlameBlock> _matchingSearchBlocks = new();
+    private int _currentMatchIndex = -1;
+
+    public string CurrentMatchIndexText
+    {
+        get => _currentMatchIndexText;
+        private set => RaiseAndSetIfChanged(ref _currentMatchIndexText, value);
+    }
+
+    public bool HasMatches
+    {
+        get => _hasMatches;
+        private set => RaiseAndSetIfChanged(ref _hasMatches, value);
     }
 
     public FlameBlock? HoveredBlock
@@ -118,6 +141,8 @@ public class ProfilerViewModel : ViewModelBase
     public ICommand ZoomInCommand { get; }
     public ICommand ZoomOutCommand { get; }
     public ICommand ResetViewCommand { get; }
+    public ICommand NextSearchMatchCommand { get; }
+    public ICommand PrevSearchMatchCommand { get; }
 
     public ProfilerViewModel(ICdpService cdpService)
     {
@@ -131,6 +156,8 @@ public class ProfilerViewModel : ViewModelBase
         ZoomInCommand = new RelayCommand(() => ZoomScale = Math.Min(1000.0, ZoomScale * 1.5));
         ZoomOutCommand = new RelayCommand(() => ZoomScale = Math.Max(1.0, ZoomScale / 1.5));
         ResetViewCommand = new RelayCommand(() => { ZoomScale = 1.0; OffsetX = 0.0; });
+        NextSearchMatchCommand = new RelayCommand(NextSearchMatch, () => HasMatches);
+        PrevSearchMatchCommand = new RelayCommand(PrevSearchMatch, () => HasMatches);
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -432,6 +459,57 @@ public class ProfilerViewModel : ViewModelBase
         // Reset view scale and offsets
         ZoomScale = 1.0;
         OffsetX = 0.0;
+        SelectedBlock = null;
+        UpdateSearchMatches();
+    }
+
+    private void UpdateSearchMatches()
+    {
+        _matchingSearchBlocks.Clear();
+        if (!string.IsNullOrEmpty(SearchText))
+        {
+            foreach (var block in _blocks)
+            {
+                if (block.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
+                {
+                    _matchingSearchBlocks.Add(block);
+                }
+            }
+        }
+
+        if (_matchingSearchBlocks.Count > 0)
+        {
+            _currentMatchIndex = 0;
+            HasMatches = true;
+            CurrentMatchIndexText = $"{_currentMatchIndex + 1} of {_matchingSearchBlocks.Count}";
+            SelectedBlock = _matchingSearchBlocks[_currentMatchIndex];
+        }
+        else
+        {
+            _currentMatchIndex = -1;
+            HasMatches = false;
+            CurrentMatchIndexText = string.IsNullOrEmpty(SearchText) ? "" : "0 of 0";
+        }
+
+        if (NextSearchMatchCommand is RelayCommand cmdNext) cmdNext.RaiseCanExecuteChanged();
+        if (PrevSearchMatchCommand is RelayCommand cmdPrev) cmdPrev.RaiseCanExecuteChanged();
+    }
+
+    private void NextSearchMatch()
+    {
+        if (_matchingSearchBlocks.Count == 0) return;
+        _currentMatchIndex = (_currentMatchIndex + 1) % _matchingSearchBlocks.Count;
+        CurrentMatchIndexText = $"{_currentMatchIndex + 1} of {_matchingSearchBlocks.Count}";
+        SelectedBlock = _matchingSearchBlocks[_currentMatchIndex];
+    }
+
+    private void PrevSearchMatch()
+    {
+        if (_matchingSearchBlocks.Count == 0) return;
+        _currentMatchIndex = _currentMatchIndex - 1;
+        if (_currentMatchIndex < 0) _currentMatchIndex = _matchingSearchBlocks.Count - 1;
+        CurrentMatchIndexText = $"{_currentMatchIndex + 1} of {_matchingSearchBlocks.Count}";
+        SelectedBlock = _matchingSearchBlocks[_currentMatchIndex];
     }
 
     private static List<Chrome.DevTools.Protocol.Domains.V8ProfileNode> GetStack(

@@ -48,6 +48,17 @@
             <!-- Search box -->
             <TextBox PlaceholderText="Search methods..." Width="200" VerticalAlignment="Center" Text="{Binding Profiler.SearchText, Mode=TwoWay}"/>
 
+            <!-- Search match navigation controls -->
+            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" IsVisible="{Binding Profiler.HasMatches}">
+                <TextBlock Text="{Binding Profiler.CurrentMatchIndexText}" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <Button Command="{Binding Profiler.PrevSearchMatchCommand}" Width="24" Height="24" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" ToolTip.Tip="Previous Search Match (or Up key)">
+                    <PathIcon Data="{StaticResource ChevronUpIcon}" Width="10" Height="10"/>
+                </Button>
+                <Button Command="{Binding Profiler.NextSearchMatchCommand}" Width="24" Height="24" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" ToolTip.Tip="Next Search Match (or Down key)">
+                    <PathIcon Data="{StaticResource ChevronDownIcon}" Width="10" Height="10"/>
+                </Button>
+            </StackPanel>
+
             <!-- Recording indicator -->
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="5,0,0,0" IsVisible="{Binding Profiler.IsProfilingActive}">
                 <Ellipse Width="8" Height="8" Fill="#ff5252"/>

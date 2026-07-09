@@ -79,8 +79,10 @@ public class FlameChart : Control
     }
 
     private const double RulerHeight = 22.0;
+    private const double MinimapHeight = 35.0;
     private const double RowHeight = 18.0;
     private bool _isDragging;
+    private bool _isDraggingMinimap;
     private Point _dragStartPoint;
     private Point _pointerDownPosition;
     private double _dragStartOffset;
@@ -94,11 +96,43 @@ public class FlameChart : Control
             SearchTextProperty,
             HoveredBlockProperty,
             SelectedBlockProperty);
+
+        SelectedBlockProperty.Changed.AddClassHandler<FlameChart>((chart, e) => chart.OnSelectedBlockChanged(e));
     }
 
     public FlameChart()
     {
         ClipToBounds = true;
+        Focusable = true;
+    }
+
+    private void OnSelectedBlockChanged(AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is FlameBlock block)
+        {
+            CenterBlock(block);
+        }
+    }
+
+    public void CenterBlock(FlameBlock block)
+    {
+        if (block == null) return;
+        double width = Bounds.Width;
+        if (width <= 0) return;
+
+        if (Blocks == null) return;
+        var blocksList = Blocks.ToList();
+        if (blocksList.Count == 0) return;
+
+        double maxTime = blocksList.Max(b => b.EndTimeMs);
+        if (maxTime <= 0) return;
+
+        double scaleX = width / maxTime;
+        double blockCenterTime = block.StartTimeMs + (block.EndTimeMs - block.StartTimeMs) / 2.0;
+
+        // OffsetX corresponding to centering this time in the viewport
+        OffsetX = (width / 2.0) - (blockCenterTime * scaleX * ZoomScale);
+        InvalidateVisual();
     }
 
     private static Color GetColorForMethod(string methodName, string url)
@@ -153,23 +187,68 @@ public class FlameChart : Control
         var rulerBgBrush = new SolidColorBrush(Color.FromRgb(32, 33, 36));
         context.DrawRectangle(rulerBgBrush, null, new Rect(0, 0, width, RulerHeight));
 
-        // 2. Draw horizontal grid lines (below ruler)
-        var gridPen = new Pen(new SolidColorBrush(Color.FromArgb(0x13, 0xFF, 0xFF, 0xFF)), 1.0);
+        // 2. Draw Minimap / Overview Background & Content
+        var minimapBgBrush = new SolidColorBrush(Color.FromRgb(24, 25, 28));
+        context.DrawRectangle(minimapBgBrush, null, new Rect(0, RulerHeight, width, MinimapHeight));
+
         int maxDepth = blocksList.Max(b => b.Depth);
+        double miniRowHeight = MinimapHeight / (maxDepth + 1);
+        foreach (var block in blocksList)
+        {
+            double mx = block.StartTimeMs * scaleX;
+            double mw = (block.EndTimeMs - block.StartTimeMs) * scaleX;
+            double my = RulerHeight + block.Depth * miniRowHeight;
+            double mh = miniRowHeight - 0.5;
+
+            var mBrush = new SolidColorBrush(GetColorForMethod(block.Name, block.Url));
+            context.DrawRectangle(mBrush, null, new Rect(mx, my, mw, mh));
+        }
+
+        // Draw visible window overlay on minimap
+        double vx1 = -OffsetX / ZoomScale;
+        double vx2 = (width - OffsetX) / ZoomScale;
+        // Clamp to screen bounds
+        vx1 = Math.Max(0.0, Math.Min(width, vx1));
+        vx2 = Math.Max(0.0, Math.Min(width, vx2));
+
+        var maskBrush = new SolidColorBrush(Color.FromArgb(0x88, 0x10, 0x10, 0x10));
+        // Draw left mask
+        if (vx1 > 0)
+        {
+            context.DrawRectangle(maskBrush, null, new Rect(0, RulerHeight, vx1, MinimapHeight));
+        }
+        // Draw right mask
+        if (vx2 < width)
+        {
+            context.DrawRectangle(maskBrush, null, new Rect(vx2, RulerHeight, width - vx2, MinimapHeight));
+        }
+
+        // Highlight visible window outline
+        var windowBorderPen = new Pen(new SolidColorBrush(Color.FromRgb(138, 180, 248)), 1.5);
+        context.DrawRectangle(null, windowBorderPen, new Rect(vx1, RulerHeight, vx2 - vx1, MinimapHeight));
+
+        // Dividers
+        var dividerPen = new Pen(new SolidColorBrush(Color.FromRgb(60, 64, 67)), 1.0);
+        context.DrawLine(dividerPen, new Point(0, RulerHeight), new Point(width, RulerHeight));
+        context.DrawLine(dividerPen, new Point(0, RulerHeight + MinimapHeight), new Point(width, RulerHeight + MinimapHeight));
+
+        // 3. Draw horizontal grid lines (below minimap)
+        var gridPen = new Pen(new SolidColorBrush(Color.FromArgb(0x13, 0xFF, 0xFF, 0xFF)), 1.0);
+        double blocksOffsetY = RulerHeight + MinimapHeight;
         for (int i = 0; i <= maxDepth + 1; i++)
         {
-            double y = RulerHeight + i * RowHeight;
+            double y = blocksOffsetY + i * RowHeight;
             context.DrawLine(gridPen, new Point(0, y), new Point(width, y));
         }
 
-        // 3. Draw Flame Blocks
+        // 4. Draw Flame Blocks
         var textBrush = new SolidColorBrush(Colors.White);
 
         foreach (var block in blocksList)
         {
             double bx = block.StartTimeMs * scaleX * ZoomScale + OffsetX;
             double bw = (block.EndTimeMs - block.StartTimeMs) * scaleX * ZoomScale;
-            double by = RulerHeight + block.Depth * RowHeight;
+            double by = blocksOffsetY + block.Depth * RowHeight;
             double bh = RowHeight - 1;
 
             // Viewport culling
@@ -224,10 +303,8 @@ public class FlameChart : Control
             }
         }
 
-        // 4. Draw Time Ruler Tick Marks and Text Labels
+        // 5. Draw Time Ruler Tick Marks and Text Labels (Top Ruler)
         var rulerDividerPen = new Pen(new SolidColorBrush(Color.FromRgb(60, 64, 67)), 1.0);
-        context.DrawLine(rulerDividerPen, new Point(0, RulerHeight), new Point(width, RulerHeight));
-
         var rulerTextBrush = new SolidColorBrush(Color.FromRgb(154, 160, 166));
         var tickPen = new Pen(new SolidColorBrush(Color.FromRgb(95, 99, 104)), 1.0);
 
@@ -272,14 +349,28 @@ public class FlameChart : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        Focus();
         var pt = e.GetCurrentPoint(this);
+        double y = pt.Position.Y;
+
         if (pt.Properties.IsLeftButtonPressed)
         {
-            _isDragging = true;
-            _pointerDownPosition = e.GetPosition(this);
-            _dragStartPoint = _pointerDownPosition;
-            _dragStartOffset = OffsetX;
-            e.Handled = true;
+            if (y >= RulerHeight && y < RulerHeight + MinimapHeight)
+            {
+                // Interaction with Minimap
+                _isDraggingMinimap = true;
+                UpdateMinimapOffset(pt.Position.X);
+                e.Handled = true;
+            }
+            else
+            {
+                // Dragging Main Timeline
+                _isDragging = true;
+                _pointerDownPosition = e.GetPosition(this);
+                _dragStartPoint = _pointerDownPosition;
+                _dragStartOffset = OffsetX;
+                e.Handled = true;
+            }
         }
     }
 
@@ -288,7 +379,12 @@ public class FlameChart : Control
         base.OnPointerMoved(e);
         var currentPoint = e.GetPosition(this);
 
-        if (_isDragging)
+        if (_isDraggingMinimap)
+        {
+            UpdateMinimapOffset(currentPoint.X);
+            e.Handled = true;
+        }
+        else if (_isDragging)
         {
             OffsetX = _dragStartOffset + (currentPoint.X - _dragStartPoint.X);
             InvalidateVisual();
@@ -307,9 +403,10 @@ public class FlameChart : Control
             double scaleX = Bounds.Width / maxTime;
 
             double timeMs = (currentPoint.X - OffsetX) / ZoomScale / scaleX;
-            int depth = (int)((currentPoint.Y - RulerHeight) / RowHeight);
+            double blocksOffsetY = RulerHeight + MinimapHeight;
+            int depth = (int)((currentPoint.Y - blocksOffsetY) / RowHeight);
 
-            if (currentPoint.Y < RulerHeight)
+            if (currentPoint.Y < blocksOffsetY)
             {
                 depth = -1;
             }
@@ -326,13 +423,18 @@ public class FlameChart : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_isDragging)
+        if (_isDraggingMinimap)
+        {
+            _isDraggingMinimap = false;
+            e.Handled = true;
+        }
+        else if (_isDragging)
         {
             _isDragging = false;
             var releasePos = e.GetPosition(this);
             double distance = Math.Sqrt(Math.Pow(releasePos.X - _pointerDownPosition.X, 2) + Math.Pow(releasePos.Y - _pointerDownPosition.Y, 2));
 
-            // If the user barely moved, treat it as a selection click
+            // If user barely moved, treat it as a click selection
             if (distance < 3.0)
             {
                 if (Blocks != null)
@@ -345,9 +447,10 @@ public class FlameChart : Control
                         {
                             double scaleX = Bounds.Width / maxTime;
                             double timeMs = (releasePos.X - OffsetX) / ZoomScale / scaleX;
-                            int depth = (int)((releasePos.Y - RulerHeight) / RowHeight);
+                            double blocksOffsetY = RulerHeight + MinimapHeight;
+                            int depth = (int)((releasePos.Y - blocksOffsetY) / RowHeight);
 
-                            if (releasePos.Y >= RulerHeight)
+                            if (releasePos.Y >= blocksOffsetY)
                             {
                                 var block = blocksList.FirstOrDefault(b => b.Depth == depth && timeMs >= b.StartTimeMs && timeMs <= b.EndTimeMs);
                                 SelectedBlock = block;
@@ -361,6 +464,27 @@ public class FlameChart : Control
                 }
             }
         }
+    }
+
+    private void UpdateMinimapOffset(double rawX)
+    {
+        if (Blocks == null) return;
+        var blocksList = Blocks.ToList();
+        if (blocksList.Count == 0) return;
+
+        double maxTime = blocksList.Max(b => b.EndTimeMs);
+        if (maxTime <= 0) return;
+
+        double width = Bounds.Width;
+        double scaleX = width / maxTime;
+
+        double clickedTime = rawX / scaleX;
+        double visibleDuration = width / scaleX / ZoomScale;
+        double newStartTime = clickedTime - visibleDuration / 2.0;
+
+        // Apply new OffsetX
+        OffsetX = -newStartTime * scaleX * ZoomScale;
+        InvalidateVisual();
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -382,7 +506,6 @@ public class FlameChart : Control
         double timeUnderMouse = (mousePos.X - OffsetX) / ZoomScale;
 
         // Adjust ZoomScale
-        double oldZoom = ZoomScale;
         ZoomScale = Math.Max(1.0, Math.Min(1000.0, ZoomScale * (delta > 0 ? 1.25 : 0.8)));
 
         // Adjust OffsetX to maintain center of zoom at mouse cursor
@@ -390,5 +513,114 @@ public class FlameChart : Control
 
         InvalidateVisual();
         e.Handled = true;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+
+        if (Blocks == null) return;
+        var blocksList = Blocks.ToList();
+        if (blocksList.Count == 0) return;
+
+        double maxTime = blocksList.Max(b => b.EndTimeMs);
+        if (maxTime <= 0) return;
+
+        double width = Bounds.Width;
+        double scaleX = width / maxTime;
+
+        // Pan Left / Right
+        if (e.Key == Key.A || e.Key == Key.Left)
+        {
+            if (SelectedBlock != null && e.Key == Key.Left)
+            {
+                var sibling = blocksList
+                    .Where(b => b.Depth == SelectedBlock.Depth && b.EndTimeMs <= SelectedBlock.StartTimeMs)
+                    .OrderByDescending(b => b.EndTimeMs)
+                    .FirstOrDefault();
+                if (sibling != null)
+                {
+                    SelectedBlock = sibling;
+                    CenterBlock(sibling);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            OffsetX += 50.0;
+            InvalidateVisual();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.D || e.Key == Key.Right)
+        {
+            if (SelectedBlock != null && e.Key == Key.Right)
+            {
+                var sibling = blocksList
+                    .Where(b => b.Depth == SelectedBlock.Depth && b.StartTimeMs >= SelectedBlock.EndTimeMs)
+                    .OrderBy(b => b.StartTimeMs)
+                    .FirstOrDefault();
+                if (sibling != null)
+                {
+                    SelectedBlock = sibling;
+                    CenterBlock(sibling);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            OffsetX -= 50.0;
+            InvalidateVisual();
+            e.Handled = true;
+        }
+        // Zoom In / Out / Stack Traverse Up
+        else if (e.Key == Key.W || e.Key == Key.Up)
+        {
+            if (SelectedBlock != null && e.Key == Key.Up)
+            {
+                var caller = blocksList
+                    .Where(b => b.Depth == SelectedBlock.Depth - 1 && b.StartTimeMs <= SelectedBlock.EndTimeMs && b.EndTimeMs >= SelectedBlock.StartTimeMs)
+                    .OrderByDescending(b => b.EndTimeMs - b.StartTimeMs)
+                    .FirstOrDefault();
+                if (caller != null)
+                {
+                    SelectedBlock = caller;
+                    CenterBlock(caller);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            else
+            {
+                double timeCenter = (-OffsetX + width / 2.0) / ZoomScale;
+                ZoomScale = Math.Min(1000.0, ZoomScale * 1.25);
+                OffsetX = (width / 2.0) - (timeCenter * ZoomScale);
+                InvalidateVisual();
+                e.Handled = true;
+            }
+        }
+        // Zoom Out / Stack Traverse Down
+        else if (e.Key == Key.S || e.Key == Key.Down)
+        {
+            if (SelectedBlock != null && e.Key == Key.Down)
+            {
+                var callee = blocksList
+                    .Where(b => b.Depth == SelectedBlock.Depth + 1 && b.StartTimeMs <= SelectedBlock.EndTimeMs && b.EndTimeMs >= SelectedBlock.StartTimeMs)
+                    .OrderByDescending(b => b.EndTimeMs - b.StartTimeMs)
+                    .FirstOrDefault();
+                if (callee != null)
+                {
+                    SelectedBlock = callee;
+                    CenterBlock(callee);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            else
+            {
+                double timeCenter = (-OffsetX + width / 2.0) / ZoomScale;
+                ZoomScale = Math.Max(1.0, ZoomScale * 0.8);
+                OffsetX = (width / 2.0) - (timeCenter * ZoomScale);
+                InvalidateVisual();
+                e.Handled = true;
+            }
+        }
     }
 }
