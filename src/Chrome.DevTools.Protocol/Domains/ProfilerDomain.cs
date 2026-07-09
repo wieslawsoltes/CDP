@@ -1,8 +1,14 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Diagnostics.NETCore.Client;
+using Microsoft.Diagnostics.Tracing;
+using Microsoft.Diagnostics.Tracing.Etlx;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
@@ -86,6 +92,12 @@ public class ProfilerState
     private DateTime _startTime;
     private bool _isRunning;
 
+    // Real-time EventPipe profiling session details
+    private EventPipeSession? _session;
+    private string? _tempNetTraceFile;
+    private string? _tempEtlxFile;
+    private Task? _copyTask;
+
     public bool IsRunning => _isRunning;
 
     public void Start()
@@ -95,6 +107,44 @@ public class ProfilerState
             _spans.Clear();
             _startTime = DateTime.UtcNow;
             _isRunning = true;
+
+            try
+            {
+                // Start a real EventPipe session targeting the current process
+                _tempNetTraceFile = Path.Combine(Path.GetTempPath(), $"cdp_profile_{Guid.NewGuid()}.nettrace");
+                var client = new DiagnosticsClient(System.Diagnostics.Process.GetCurrentProcess().Id);
+                var providers = new List<EventPipeProvider>
+                {
+                    new EventPipeProvider("Microsoft-DotNETCore-SampleProfiler", System.Diagnostics.Tracing.EventLevel.Verbose),
+                    new EventPipeProvider("Microsoft-Windows-DotNETRuntime", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2018)
+                };
+
+                _session = client.StartEventPipeSession(providers, requestRundown: true);
+                var stream = _session.EventStream;
+                var filePath = _tempNetTraceFile;
+
+                _copyTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
+                        byte[] buffer = new byte[16 * 1024];
+                        int bytesRead;
+                        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        }
+                    }
+                    catch {}
+                });
+            }
+            catch (Exception ex)
+            {
+                // Fallback to simulated profiling if EventPipe fails to launch (e.g. lacks privileges or dependencies)
+                System.Diagnostics.Debug.WriteLine($"Failed to initialize EventPipe profiling: {ex.Message}");
+                _session = null;
+                _tempNetTraceFile = null;
+            }
         }
     }
 
@@ -114,6 +164,9 @@ public class ProfilerState
         DateTime endTime;
         List<ProfileSpan> spansCopy;
         DateTime startTimeCopy;
+        EventPipeSession? sessionToStop;
+        Task? copyTaskToWait;
+        string? netTraceFileToProcess;
 
         lock (_lock)
         {
@@ -121,9 +174,186 @@ public class ProfilerState
             _isRunning = false;
             spansCopy = new List<ProfileSpan>(_spans);
             startTimeCopy = _startTime;
+            sessionToStop = _session;
+            copyTaskToWait = _copyTask;
+            netTraceFileToProcess = _tempNetTraceFile;
+
+            _session = null;
+            _copyTask = null;
+            _tempNetTraceFile = null;
+        }
+
+        if (sessionToStop != null)
+        {
+            try
+            {
+                sessionToStop.Stop();
+            }
+            catch {}
+
+            if (copyTaskToWait != null)
+            {
+                try
+                {
+                    copyTaskToWait.Wait(3000);
+                }
+                catch {}
+            }
+        }
+
+        if (netTraceFileToProcess != null && File.Exists(netTraceFileToProcess))
+        {
+            try
+            {
+                var profile = ConvertNetTraceToV8Profile(netTraceFileToProcess);
+                var samples = profile["samples"]?.AsArray();
+                if (samples != null && samples.Count > 0)
+                {
+                    return profile;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EventPipe profile conversion failed: {ex.Message}");
+            }
+            finally
+            {
+                try { File.Delete(netTraceFileToProcess); } catch {}
+                if (_tempEtlxFile != null && File.Exists(_tempEtlxFile))
+                {
+                    try { File.Delete(_tempEtlxFile); } catch {}
+                }
+            }
         }
 
         return GenerateProfile(startTimeCopy, endTime, spansCopy);
+    }
+
+    private JsonObject ConvertNetTraceToV8Profile(string netTracePath)
+    {
+        _tempEtlxFile = Path.ChangeExtension(netTracePath, ".etlx");
+        TraceLog.CreateFromEventPipeDataFile(netTracePath, _tempEtlxFile);
+
+        var nodes = new List<V8ProfileNode>();
+        var v8Samples = new List<int>();
+        var v8TimeDeltas = new List<int>();
+
+        var rootNode = new V8ProfileNode(1, "(root)", "", -1, -1);
+        nodes.Add(rootNode);
+        int nextNodeId = 2;
+
+        var stackCache = new Dictionary<CallStackIndex, int>();
+
+        double startTimeMs = 0;
+        double endTimeMs = 0;
+        double lastTimeMs = 0;
+
+        using (var traceLog = new TraceLog(_tempEtlxFile))
+        {
+            foreach (var ev in traceLog.Events)
+            {
+                if (ev.ProviderName == "Microsoft-DotNETCore-SampleProfiler" && ev.EventName == "ThreadCPUProfileSample")
+                {
+                    double timeMs = ev.TimeStampRelativeMSec;
+                    if (startTimeMs == 0) startTimeMs = timeMs;
+                    endTimeMs = timeMs;
+
+                    int deltaUs = (lastTimeMs == 0) ? 0 : (int)Math.Max(0, (timeMs - lastTimeMs) * 1000.0);
+                    v8TimeDeltas.Add(deltaUs);
+                    lastTimeMs = timeMs;
+
+                    var stack = ev.CallStack();
+                    if (stack == null)
+                    {
+                        v8Samples.Add(1);
+                        rootNode.HitCount++;
+                    }
+                    else
+                    {
+                        int leafNodeId = ResolveTraceEventStackNode(stack, nodes, ref nextNodeId, stackCache);
+                        v8Samples.Add(leafNodeId);
+                        var leafNode = nodes.First(n => n.Id == leafNodeId);
+                        leafNode.HitCount++;
+                    }
+                }
+            }
+        }
+
+        var nodesArray = new JsonArray();
+        foreach (var node in nodes)
+        {
+            nodesArray.Add(node.ToJson());
+        }
+
+        return new JsonObject
+        {
+            ["nodes"] = nodesArray,
+            ["startTime"] = startTimeMs * 1000.0,
+            ["endTime"] = endTimeMs * 1000.0,
+            ["samples"] = new JsonArray(v8Samples.Select(s => (JsonNode)s).ToArray()),
+            ["timeDeltas"] = new JsonArray(v8TimeDeltas.Select(d => (JsonNode)d).ToArray())
+        };
+    }
+
+    private int ResolveTraceEventStackNode(
+        TraceCallStack stack,
+        List<V8ProfileNode> nodes,
+        ref int nextNodeId,
+        Dictionary<CallStackIndex, int> cache)
+    {
+        var idx = stack.CallStackIndex;
+        if (cache.TryGetValue(idx, out int existingId))
+        {
+            return existingId;
+        }
+
+        int parentNodeId = 1; // root
+        if (stack.Caller != null)
+        {
+            parentNodeId = ResolveTraceEventStackNode(stack.Caller, nodes, ref nextNodeId, cache);
+        }
+
+        string funcName = "Unknown";
+        string fileUrl = "";
+
+        if (stack.CodeAddress != null)
+        {
+            funcName = stack.CodeAddress.FullMethodName ?? "Unknown";
+            if (stack.CodeAddress.ModuleFile != null)
+            {
+                fileUrl = stack.CodeAddress.ModuleFile.FilePath ?? "";
+            }
+        }
+
+        var parentNode = nodes.First(n => n.Id == parentNodeId);
+
+        int existingChildId = -1;
+        foreach (var childId in parentNode.Children)
+        {
+            var childNode = nodes.First(n => n.Id == childId);
+            if (childNode.FunctionName == funcName && childNode.Url == fileUrl)
+            {
+                existingChildId = childId;
+                break;
+            }
+        }
+
+        int nodeId;
+        if (existingChildId != -1)
+        {
+            nodeId = existingChildId;
+        }
+        else
+        {
+            nodeId = nextNodeId++;
+            var newNode = new V8ProfileNode(nodeId, funcName, fileUrl, 0, 0);
+            newNode.HitCount = 0;
+            nodes.Add(newNode);
+            parentNode.Children.Add(nodeId);
+        }
+
+        cache[idx] = nodeId;
+        return nodeId;
     }
 
     private JsonObject GenerateProfile(DateTime start, DateTime end, List<ProfileSpan> spans)
