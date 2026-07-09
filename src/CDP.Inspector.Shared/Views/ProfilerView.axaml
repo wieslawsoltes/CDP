@@ -1,0 +1,120 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             x:Class="CdpInspectorApp.Views.ProfilerView"
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
+    <Grid RowDefinitions="Auto, *, Auto" Margin="10">
+        <!-- 1. Toolbar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
+            <!-- Start/Stop CPU Profiler -->
+            <Button Name="btnStartProfiler" Command="{Binding Profiler.StartProfilerCommand}" Background="#1565c0" Foreground="White" BorderBrush="#1565c0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="{StaticResource PlayIcon}" Width="12" Height="12"/>
+                    <TextBlock Text="Start CPU Profiler" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button Name="btnStopProfiler" Command="{Binding Profiler.StopProfilerCommand}" Background="#c62828" Foreground="White" BorderBrush="#c62828">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="{StaticResource StopIcon}" Width="12" Height="12"/>
+                    <TextBlock Text="Stop CPU Profiler" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Load Profile -->
+            <Button Name="btnLoadProfile" Command="{Binding Profiler.LoadProfileCommand}" Background="#2e7d32" Foreground="White" BorderBrush="#2e7d32">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="{StaticResource FolderIcon}" Width="12" Height="12"/>
+                    <TextBlock Text="Load CPU Profile" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+
+            <Separator Width="1" Height="20" Background="#3c4043" VerticalAlignment="Center"/>
+
+            <!-- Panning and Zooming controls -->
+            <Button Command="{Binding Profiler.ZoomInCommand}" ToolTip.Tip="Zoom In (or Mouse Wheel Up)">
+                <PathIcon Data="{StaticResource ZoomFitIcon}" Width="12" Height="12"/>
+            </Button>
+            <Button Command="{Binding Profiler.ZoomOutCommand}" ToolTip.Tip="Zoom Out (or Mouse Wheel Down)">
+                <PathIcon Data="{StaticResource SubtractIcon}" Width="12" Height="12"/>
+            </Button>
+            <Button Command="{Binding Profiler.ResetViewCommand}" ToolTip.Tip="Reset View Size">
+                <PathIcon Data="{StaticResource RefreshIcon}" Width="12" Height="12"/>
+            </Button>
+
+            <Separator Width="1" Height="20" Background="#3c4043" VerticalAlignment="Center"/>
+
+            <!-- Search box -->
+            <TextBox PlaceholderText="Search methods..." Width="200" VerticalAlignment="Center" Text="{Binding Profiler.SearchText, Mode=TwoWay}"/>
+
+            <!-- Recording indicator -->
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="5,0,0,0" IsVisible="{Binding Profiler.IsProfilingActive}">
+                <Ellipse Width="8" Height="8" Fill="#ff5252"/>
+                <TextBlock Text="Recording CPU Profile..." Foreground="#ff5252" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- 2. Main content (TabControl) -->
+        <TabControl Grid.Row="1" Theme="{StaticResource $DefaultTabControlTheme}" Padding="0,10,0,0">
+            <TabItem Header="Flame Chart">
+                <Grid RowDefinitions="*, Auto">
+                    <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
+                        <controls:FlameChart Name="chartProfiler"
+                                             Blocks="{Binding Profiler.Blocks}"
+                                             ZoomScale="{Binding Profiler.ZoomScale, Mode=TwoWay}"
+                                             OffsetX="{Binding Profiler.OffsetX, Mode=TwoWay}"
+                                             SearchText="{Binding Profiler.SearchText}"
+                                             HoveredBlock="{Binding Profiler.HoveredBlock, Mode=TwoWay}"
+                                             HorizontalAlignment="Stretch"
+                                             VerticalAlignment="Stretch"/>
+                    </Border>
+                    <!-- Small instruction tip -->
+                    <TextBlock Grid.Row="1" Text="Tip: Zoom with Mouse Wheel. Pan by dragging with Left Mouse Button."
+                               Foreground="#9aa0a6" FontSize="10" Margin="0,4,0,0" HorizontalAlignment="Right"/>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Bottom-Up Calls">
+                <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                    <DataGrid Name="dgMethodStats" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.MethodStats}"
+                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                              Background="Transparent" BorderThickness="0" x:DataType="vm:ProfileMethodStats">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Self Time (ms)" Binding="{Binding SelfTimeMs, StringFormat=\{0:F2\}}" Width="110" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                            <DataGridTextColumn Header="Self Time (%)" Binding="{Binding SelfTimePct, StringFormat=\{0:F1\}%}" Width="100" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                            <DataGridTextColumn Header="Total Time (ms)" Binding="{Binding TotalTimeMs, StringFormat=\{0:F2\}}" Width="115" Foreground="#e8eaed" FontSize="12"/>
+                            <DataGridTextColumn Header="Total Time (%)" Binding="{Binding TotalTimePct, StringFormat=\{0:F1\}%}" Width="110" Foreground="#9aa0a6" FontSize="12"/>
+                            <DataGridTextColumn Header="Samples" Binding="{Binding HitCount}" Width="80" Foreground="#e8eaed" FontSize="12"/>
+                            <DataGridTextColumn Header="Function / Method Name" Binding="{Binding MethodName}" Width="2*" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                            <DataGridTextColumn Header="Module / Script Path" Binding="{Binding ModuleName}" Width="3*" Foreground="#9aa0a6" FontSize="11"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </TabItem>
+        </TabControl>
+
+        <!-- 3. Bottom status details bar -->
+        <Grid Grid.Row="2" ColumnDefinitions="*, Auto" Margin="0,8,0,0">
+            <!-- Selected or Hovered frame details -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Method Details: " Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
+                <TextBlock Name="lblHoverDetails" Foreground="#e8eaed" FontSize="11" TextWrapping="NoWrap">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0} - Self: {1:F2}ms ({2:F1}%), Total: {3:F2}ms ({4:F1}%) - {5}">
+                            <Binding Path="Profiler.HoveredBlock.Name" FallbackValue="None"/>
+                            <Binding Path="Profiler.HoveredBlock.SelfTimeMs" FallbackValue="0.0"/>
+                            <Binding Path="Profiler.HoveredBlock.SelfTimePct" FallbackValue="0.0"/>
+                            <Binding Path="Profiler.HoveredBlock.TotalTimeMs" FallbackValue="0.0"/>
+                            <Binding Path="Profiler.HoveredBlock.TotalTimePct" FallbackValue="0.0"/>
+                            <Binding Path="Profiler.HoveredBlock.Url" FallbackValue=""/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Status Text & general info -->
+            <TextBlock Grid.Column="1" Text="{Binding Profiler.StatusText}" Foreground="#8ab4f8" FontSize="11" VerticalAlignment="Center" TextAlignment="Right"/>
+        </Grid>
+    </Grid>
+</UserControl>
