@@ -171,10 +171,20 @@ public class PerformanceViewModel : ViewModelBase
         private set => RaiseAndSetIfChanged(ref _cpuIdle, value);
     }
 
+    private bool _isProfilingActive;
+    public bool IsProfilingActive
+    {
+        get => _isProfilingActive;
+        private set => RaiseAndSetIfChanged(ref _isProfilingActive, value);
+    }
+
+    public Func<string, Task>? SaveFileCallback { get; set; }
 
     public ICommand RefreshMetricsCommand { get; }
     public ICommand CollectGarbageCommand { get; }
     public ICommand CloseTargetCommand { get; }
+    public ICommand StartProfilerCommand { get; }
+    public ICommand StopProfilerCommand { get; }
 
     public PerformanceViewModel(ICdpService cdpService)
     {
@@ -185,6 +195,8 @@ public class PerformanceViewModel : ViewModelBase
         RefreshMetricsCommand = new RelayCommand(async () => await RefreshMetricsAsync(), () => _cdpService.IsConnected);
         CollectGarbageCommand = new RelayCommand(async () => await CollectGarbageAsync(), () => _cdpService.IsConnected);
         CloseTargetCommand = new RelayCommand(async () => await CloseTargetAsync(), () => _cdpService.IsConnected);
+        StartProfilerCommand = new RelayCommand(async () => await StartProfilerAsync(), () => _cdpService.IsConnected && !IsProfilingActive);
+        StopProfilerCommand = new RelayCommand(async () => await StopProfilerAsync(), () => _cdpService.IsConnected && IsProfilingActive);
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -202,6 +214,8 @@ public class PerformanceViewModel : ViewModelBase
             ((RelayCommand)RefreshMetricsCommand).RaiseCanExecuteChanged();
             ((RelayCommand)CollectGarbageCommand).RaiseCanExecuteChanged();
             ((RelayCommand)CloseTargetCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
         }
     }
 
@@ -435,6 +449,48 @@ public class PerformanceViewModel : ViewModelBase
         }
     }
 
+    public async Task StartProfilerAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Profiler.enable");
+            await _cdpService.SendCommandAsync("Profiler.start");
+            IsProfilingActive = true;
+            ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Start profiler failed: {ex.Message}");
+        }
+    }
+
+    public async Task StopProfilerAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            var res = await _cdpService.SendCommandAsync("Profiler.stop");
+            IsProfilingActive = false;
+            ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
+
+            var profile = res["profile"]?.ToString();
+            if (profile != null && SaveFileCallback != null)
+            {
+                await SaveFileCallback(profile);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Stop profiler failed: {ex.Message}");
+            IsProfilingActive = false;
+            ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
+        }
+    }
+
     private void ClearData()
     {
         Dispatcher.UIThread.Post(() =>
@@ -465,7 +521,10 @@ public class PerformanceViewModel : ViewModelBase
             _latestLayoutDuration = 0.0;
             _latestFrameDuration = 0.0;
             _latestDispatcherQueueDelay = 0.0;
+            IsProfilingActive = false;
         });
+        ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
     }
 
     private static double GetDouble(JsonNode? node)

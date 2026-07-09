@@ -12,6 +12,22 @@
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
                 <Button Name="btnRefreshMetrics" Command="{Binding Performance.RefreshMetricsCommand}" Content="Refresh Metrics" Classes="accent"/>
                 <Button Name="btnCollectGarbage" Command="{Binding Performance.CollectGarbageCommand}" Content="Collect Garbage" Background="#2e7d32" Foreground="White" BorderBrush="#2e7d32"/>
+                <Button Name="btnStartProfiler" Command="{Binding Performance.StartProfilerCommand}" Background="#1565c0" Foreground="White" BorderBrush="#1565c0">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource PlayIcon}" Width="12" Height="12"/>
+                        <TextBlock Text="Start CPU Profiler" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Name="btnStopProfiler" Command="{Binding Performance.StopProfilerCommand}" Background="#c62828" Foreground="White" BorderBrush="#c62828">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="{StaticResource StopIcon}" Width="12" Height="12"/>
+                        <TextBlock Text="Stop CPU Profiler" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="5,0,0,0" IsVisible="{Binding Performance.IsProfilingActive}">
+                    <Ellipse Width="8" Height="8" Fill="#ff5252"/>
+                    <TextBlock Text="Recording CPU Profile..." Foreground="#ff5252" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                </StackPanel>
             </StackPanel>
             <ScrollViewer Grid.Row="1">
                 <StackPanel Spacing="12" Margin="0,5,0,0">
