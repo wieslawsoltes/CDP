@@ -175,6 +175,33 @@ public class ProfilerState
 
         lock (_lock)
         {
+            if (!_isRunning || _startTime == DateTime.MinValue)
+            {
+                return new JsonObject
+                {
+                    ["nodes"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["id"] = 1,
+                            ["callFrame"] = new JsonObject
+                            {
+                                ["functionName"] = "(root)",
+                                ["url"] = "",
+                                ["scriptId"] = "0",
+                                ["lineNumber"] = -1,
+                                ["columnNumber"] = -1
+                            },
+                            ["hitCount"] = 0
+                        }
+                    },
+                    ["startTime"] = 0.0,
+                    ["endTime"] = 0.0,
+                    ["samples"] = new JsonArray(),
+                    ["timeDeltas"] = new JsonArray()
+                };
+            }
+
             endTime = DateTime.UtcNow;
             _isRunning = false;
             spansCopy = new List<ProfileSpan>(_spans);
@@ -183,6 +210,7 @@ public class ProfilerState
             copyTaskToWait = _copyTask;
             netTraceFileToProcess = _tempNetTraceFile;
 
+            _startTime = DateTime.MinValue;
             _session = null;
             _copyTask = null;
             _tempNetTraceFile = null;
