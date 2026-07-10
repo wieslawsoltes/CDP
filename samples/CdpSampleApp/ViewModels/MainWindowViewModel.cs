@@ -78,32 +78,6 @@ public partial class MainWindowViewModel : ReactiveObject
         secondWin.Show();
     }
 
-    [ReactiveCommand]
-    private async Task RunCpuLoad()
-    {
-        StatusText = "Running CPU Load & Allocations (2s)...";
-        await Task.Run(() =>
-        {
-            var list = new List<object>();
-            var end = DateTime.UtcNow.AddSeconds(2.0);
-            while (DateTime.UtcNow < end)
-            {
-                double d = 0;
-                for (int i = 0; i < 10000; i++)
-                {
-                    d += Math.Sqrt(i);
-                }
-                
-                for (int i = 0; i < 100; i++)
-                {
-                    list.Add(new byte[1024]);
-                    list.Add(new string('a', i));
-                }
-                list.Clear();
-            }
-        });
-        StatusText = "CPU Load & Allocations Complete!";
-    }
 
     [ReactiveCommand]
     private void GoBack()

@@ -460,6 +460,12 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             var root = JsonNode.Parse(json)?.AsObject();
             if (root == null) return;
 
+            var wrapper = root;
+            if (root.ContainsKey("profile") && root["profile"] is JsonObject innerWrapper && innerWrapper.ContainsKey("profile"))
+            {
+                wrapper = innerWrapper;
+            }
+
             var session = new ProfileSessionModel
             {
                 Name = $"Profile {_sessionCounter++}",
@@ -467,9 +473,9 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 RawJson = json
             };
 
-            var cpuProfileObj = root["profile"]?.AsObject();
-            var memProfileObj = root["memoryProfile"]?.AsObject();
-            var memAllocArray = root["memoryAllocations"]?.AsArray();
+            var cpuProfileObj = wrapper["profile"]?.AsObject();
+            var memProfileObj = wrapper["memoryProfile"]?.AsObject();
+            var memAllocArray = wrapper["memoryAllocations"]?.AsArray();
 
             if (cpuProfileObj != null)
             {
@@ -479,7 +485,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             }
             else
             {
-                ProcessV8Profile(root, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
+                ProcessV8Profile(wrapper, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
                 session.TotalDurationMs = cpuDur;
                 session.TotalSamplesCount = cpuSamples;
             }

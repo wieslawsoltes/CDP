@@ -3,7 +3,7 @@
         xmlns:vm="using:CdpSampleApp.ViewModels"
         x:Class="CdpSampleApp.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="Avalonia CDP Inspector Sample" Width="720" Height="520">
+        Title="Avalonia CDP Inspector Sample" Width="550" Height="520">
     <Grid Margin="10" RowDefinitions="Auto, *">
         <TextBlock Classes="header" Text="Avalonia CDP Inspector Sample" FontSize="20" FontWeight="Bold" Margin="10,0,10,10"/>
         
@@ -16,7 +16,6 @@
                             <Button Name="btnClickMe" AutomationProperties.AutomationId="btnClickMe" Command="{Binding ClickCommand}" Content="Click Me" Width="100" Margin="0,0,10,10"/>
                             <Button Name="btnSendHttp" AutomationProperties.AutomationId="btnSendHttp" Command="{Binding SendHttpCommand}" Content="Send HTTP Request" Width="150" Margin="0,0,10,10"/>
                             <Button Name="btnOpenSecond" AutomationProperties.AutomationId="btnOpenSecond" Command="{Binding OpenSecondWindowCommand}" Content="Open Second Window" Width="150" Margin="0,0,10,10"/>
-                            <Button Name="btnRunCpuLoad" AutomationProperties.AutomationId="btnRunCpuLoad" Command="{Binding RunCpuLoadCommand}" Content="Run CPU Load (2s)" Width="150" Background="#f57c00" Foreground="White" Margin="0,0,10,10"/>
                             <TextBlock Name="txtStatus" Text="{Binding StatusText}" VerticalAlignment="Center" Margin="0,0,0,10"/>
                         </WrapPanel>
                         
