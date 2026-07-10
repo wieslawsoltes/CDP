@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Reactive;
 using System.Threading.Tasks;
@@ -76,6 +77,7 @@ public partial class MainWindowViewModel : ReactiveObject
         };
         secondWin.Show();
     }
+
 
     [ReactiveCommand]
     private void GoBack()
