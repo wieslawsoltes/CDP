@@ -597,7 +597,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         }
 
         var samples = samplesArray.Select(s => s?.GetValue<int>() ?? 0).ToList();
-        var timeDeltas = timeDeltasArray.Select(t => t?.GetValue<int>() ?? 0).ToList();
+        var timeDeltas = timeDeltasArray.Select(t => t?.GetValue<double>() ?? 0.0).ToList();
 
         samplesCount = samples.Count;
 
@@ -631,10 +631,16 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 }
                 else
                 {
-                    if (active != null)
+                    var maxActiveDepth = activeBlocks.Keys.DefaultIfEmpty(-1).Max();
+                    for (int d = depth; d <= maxActiveDepth; d++)
                     {
-                        newBlocks.Add(active);
+                        if (activeBlocks.TryGetValue(d, out var deeperActive))
+                        {
+                            newBlocks.Add(deeperActive);
+                            activeBlocks.Remove(d);
+                        }
                     }
+
                     var newBlock = new FlameBlock
                     {
                         Name = node.FunctionName,
