@@ -350,6 +350,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         HoveredMemoryBlock = null;
 
         ((RelayCommand)ExportProfileCommand).RaiseCanExecuteChanged();
+        UpdateSearchMatches();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
