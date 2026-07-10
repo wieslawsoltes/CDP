@@ -117,7 +117,7 @@ public class ProfilerState
                 var providers = new List<EventPipeProvider>
                 {
                     new EventPipeProvider("Microsoft-DotNETCore-SampleProfiler", System.Diagnostics.Tracing.EventLevel.Verbose),
-                    new EventPipeProvider("Microsoft-Windows-DotNETRuntime", System.Diagnostics.Tracing.EventLevel.Verbose, 0x80000002019L),
+                    new EventPipeProvider("Microsoft-Windows-DotNETRuntime", System.Diagnostics.Tracing.EventLevel.Verbose, 0x8000300201bL),
                     new EventPipeProvider("Microsoft-Windows-DotNETRuntimeRundown", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2058)
                 };
 
@@ -281,62 +281,78 @@ public class ProfilerState
 
         using (var traceLog = new TraceLog(_tempEtlxFile))
         {
+            var clr = traceLog.Clr; // Force loading built-in CLR parser templates
             foreach (var ev in traceLog.Events)
             {
-                totalEvents++;
-                if (ev.ProviderName == "Microsoft-Windows-DotNETRuntime")
+                try
                 {
-                    dotNetRuntimeEvents++;
-                }
-
-                // Parse CPU Sample
-                if (ev.ProviderName == "Microsoft-DotNETCore-SampleProfiler" && ev.EventName == "Thread/Sample")
-                {
-                    sampleProfilerEvents++;
-                    double timeMs = ev.TimeStampRelativeMSec;
-                    if (startTimeMs == 0) startTimeMs = timeMs;
-                    endTimeMs = timeMs;
-
-                    int deltaUs = (cpuLastTimeMs == 0) ? 0 : (int)Math.Max(0, (timeMs - cpuLastTimeMs) * 1000.0);
-                    cpuTimeDeltas.Add(deltaUs);
-                    cpuLastTimeMs = timeMs;
-
-                    var stack = ev.CallStack();
-                    if (stack == null)
+                    totalEvents++;
+                    if (ev.ProviderName == "Microsoft-Windows-DotNETRuntime")
                     {
-                        cpuSamples.Add(1);
-                        cpuRootNode.HitCount++;
+                        dotNetRuntimeEvents++;
                     }
-                    else
+
+                    // Parse CPU Sample
+                    if (ev.ProviderName == "Microsoft-DotNETCore-SampleProfiler" && ev.EventName == "Thread/Sample")
                     {
-                        int leafNodeId = ResolveTraceEventStackNode(stack, cpuNodes, ref cpuNextNodeId, cpuStackCache);
-                        cpuSamples.Add(leafNodeId);
-                        var leafNode = cpuNodes.First(n => n.Id == leafNodeId);
-                        leafNode.HitCount++;
+                        sampleProfilerEvents++;
+                        double timeMs = ev.TimeStampRelativeMSec;
+                        if (startTimeMs == 0) startTimeMs = timeMs;
+                        endTimeMs = timeMs;
+
+                        int deltaUs = (cpuLastTimeMs == 0) ? 0 : (int)Math.Max(0, (timeMs - cpuLastTimeMs) * 1000.0);
+                        cpuTimeDeltas.Add(deltaUs);
+                        cpuLastTimeMs = timeMs;
+
+                        var stack = ev.CallStack();
+                        if (stack == null)
+                        {
+                            cpuSamples.Add(1);
+                            cpuRootNode.HitCount++;
+                        }
+                        else
+                        {
+                            int leafNodeId = ResolveTraceEventStackNode(stack, cpuNodes, ref cpuNextNodeId, cpuStackCache);
+                            cpuSamples.Add(leafNodeId);
+                            var leafNode = cpuNodes.First(n => n.Id == leafNodeId);
+                            leafNode.HitCount++;
+                        }
                     }
-                }
-                // Parse Memory Allocation
-                else if (ev is GCAllocationTickTraceData allocEv)
-                {
-                    parsedTickEvents++;
-                    string typeName = allocEv.TypeName ?? "Unknown";
-                    ProcessAllocation(ev, typeName, allocEv.AllocationAmount, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
-                }
-                else if ((int)ev.ID == 303)
-                {
-                    parsedSampledEvents++;
-                    try
+                    // Parse Memory Allocation
+                    else if (ev is GCAllocationTickTraceData allocEv)
                     {
-                        byte[] data = ev.EventData();
-                        if (TryParseAllocationSampled(data, ev.PointerSize, out var typeName, out var objectSize))
+                        parsedTickEvents++;
+                        string typeName = allocEv.TypeName ?? "Unknown";
+                        ProcessAllocation(ev, typeName, allocEv.AllocationAmount, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
+                    }
+                    else if ((int)ev.ID == 10 || ev.EventName == "GC/AllocationTick" || ev.EventName == "GC/AllocationTick_V2" || ev.EventName == "GC/AllocationTick_V3" || ev.EventName == "GC/AllocationTick_V4")
+                    {
+                        parsedTickEvents++;
+                        if (TryGetDynamicAllocationTick(ev, out var typeName, out var objectSize))
                         {
                             ProcessAllocation(ev, typeName, objectSize, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
                         }
                     }
-                    catch (Exception ex)
+                    else if ((int)ev.ID == 303)
                     {
-                        CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to manually parse EventID(303): {ex}");
+                        parsedSampledEvents++;
+                        try
+                        {
+                            byte[] data = ev.EventData();
+                            if (TryParseAllocationSampled(data, ev.PointerSize, out var typeName, out var objectSize))
+                            {
+                                ProcessAllocation(ev, typeName, objectSize, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to manually parse EventID(303): {ex}");
+                        }
                     }
+                }
+                catch (Exception ex)
+                {
+                    CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to process event {ev?.EventName} (ID {ev?.ID}): {ex.Message}");
                 }
             }
         }
@@ -391,6 +407,31 @@ public class ProfilerState
             ["memoryProfile"] = memProfileJson,
             ["memoryAllocations"] = memStatsArray
         };
+    }
+
+    public static bool TryGetDynamicAllocationTick(TraceEvent ev, out string typeName, out long objectSize)
+    {
+        typeName = "Unknown";
+        objectSize = 0;
+        try
+        {
+            var typeNameObj = ev.PayloadByName("TypeName");
+            var amountObj = ev.PayloadByName("AllocationAmount");
+            if (typeNameObj != null)
+            {
+                typeName = typeNameObj.ToString() ?? "Unknown";
+            }
+            if (amountObj != null)
+            {
+                objectSize = Convert.ToInt64(amountObj);
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore conversion errors
+        }
+        return false;
     }
 
     public static bool TryParseAllocationSampled(byte[] data, int pointerSize, out string typeName, out long objectSize)
