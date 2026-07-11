@@ -7,6 +7,7 @@ public class OpenEditorModel : ViewModelBase
     private string _filePath = "";
     private string _displayName = "";
     private string _originalContent = "";
+    private string _currentContent = "";
     private bool _isDirty;
     private bool _isActive;
 
@@ -26,6 +27,12 @@ public class OpenEditorModel : ViewModelBase
     {
         get => _originalContent;
         set => RaiseAndSetIfChanged(ref _originalContent, value);
+    }
+
+    public string CurrentContent
+    {
+        get => _currentContent;
+        set => RaiseAndSetIfChanged(ref _currentContent, value);
     }
 
     public bool IsDirty

@@ -436,63 +436,106 @@
                     <Grid RowDefinitions="Auto, *" IsVisible="{Binding Recorder.TestStudio.IsProjectsActive}">
                         <TextBlock Grid.Row="0" Text="PROJECTS &amp; SUITES" FontSize="11" FontWeight="Bold" Foreground="#9aa0a6" Margin="0,0,0,8"/>
                         
-                        <StackPanel Grid.Row="1" Spacing="12">
-                            <!-- Environment Selector -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Target Environment:" FontSize="11" Foreground="#9aa0a6"/>
-                                <Grid ColumnDefinitions="*, Auto">
-                                    <ComboBox Grid.Column="0" ItemsSource="{Binding Recorder.TestStudio.Environments}"
-                                              SelectedItem="{Binding Recorder.TestStudio.SelectedEnvironment, Mode=TwoWay}"
-                                              HorizontalAlignment="Stretch" Height="26" FontSize="11">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate x:DataType="models:TestEnvironmentModel">
-                                                <TextBlock Text="{Binding Name}"/>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                    <Button Grid.Column="1" Command="{Binding Recorder.TestStudio.ManageEnvironmentsCommand}" Classes="toolbar-btn" ToolTip.Tip="Manage Environments" Margin="4,0,0,0">
-                                        <PathIcon Data="{StaticResource SettingsIcon}" Width="14" Height="14"/>
-                                    </Button>
-                                </Grid>
-                            </StackPanel>
-
-                            <!-- Workspace Path -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Workspace Location:" FontSize="11" Foreground="#9aa0a6"/>
-                                <Grid ColumnDefinitions="*, Auto">
-                                    <TextBox Grid.Column="0" Text="{Binding Recorder.TestStudio.WorkspaceRootPath, Mode=TwoWay}" IsReadOnly="True" FontSize="11" Height="24" Padding="4,2"/>
-                                    <Button Grid.Column="1" Command="{Binding Recorder.TestStudio.BrowseWorkspaceRootCommand}" Classes="toolbar-btn" ToolTip.Tip="Select Workspace" Margin="4,0,0,0">
-                                        <PathIcon Data="{StaticResource FolderOpenIcon}" Width="14" Height="14"/>
-                                    </Button>
-                                </Grid>
-                            </StackPanel>
-
-                            <!-- Suite Controls -->
-                            <StackPanel Spacing="8">
-                                <Button Content="Run Suite on Selected Folder" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}"
-                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" FontSize="11" Height="28"/>
-                            </StackPanel>
-
-                            <!-- Suite Results Overview -->
-                            <Border BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4" Padding="10" Background="#1e1e1e">
-                                <StackPanel Spacing="6">
-                                    <TextBlock Text="SUITE EXECUTION SUMMARY" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6" Margin="0,0,0,4"/>
-                                    <Grid ColumnDefinitions="*, Auto" Margin="0,2">
-                                        <TextBlock Text="Status:" FontSize="11" Foreground="#9aa0a6"/>
-                                        <TextBlock Grid.Column="1" Text="Running" Foreground="#8ab4f8" FontWeight="Bold" IsVisible="{Binding Recorder.TestStudio.IsSuiteExecuting}" FontSize="11"/>
-                                        <TextBlock Grid.Column="1" Text="Idle" Foreground="#9aa0a6" IsVisible="{Binding !Recorder.TestStudio.IsSuiteExecuting}" FontSize="11"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*, Auto" Margin="0,2">
-                                        <TextBlock Text="Passed:" FontSize="11" Foreground="#9aa0a6"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Recorder.TestStudio.SuitePassCount}" Foreground="#4caf50" FontWeight="Bold" FontSize="11"/>
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*, Auto" Margin="0,2">
-                                        <TextBlock Text="Failed:" FontSize="11" Foreground="#9aa0a6"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Recorder.TestStudio.SuiteFailCount}" Foreground="#f44336" FontWeight="Bold" FontSize="11"/>
+                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Spacing="12" Margin="0,0,8,0">
+                                <!-- Environment Selector -->
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Target Environment:" FontSize="11" Foreground="#9aa0a6"/>
+                                    <Grid ColumnDefinitions="*, Auto">
+                                        <ComboBox Grid.Column="0" ItemsSource="{Binding Recorder.TestStudio.Environments}"
+                                                  SelectedItem="{Binding Recorder.TestStudio.SelectedEnvironment, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch" Height="26" FontSize="11">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="models:TestEnvironmentModel">
+                                                    <TextBlock Text="{Binding Name}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <Button Grid.Column="1" Command="{Binding Recorder.TestStudio.ManageEnvironmentsCommand}" Classes="toolbar-btn" ToolTip.Tip="Manage Environments" Margin="4,0,0,0">
+                                            <PathIcon Data="{StaticResource SettingsIcon}" Width="14" Height="14"/>
+                                        </Button>
                                     </Grid>
                                 </StackPanel>
-                            </Border>
-                        </StackPanel>
+
+                                <!-- Workspace Path -->
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Workspace Location:" FontSize="11" Foreground="#9aa0a6"/>
+                                    <Grid ColumnDefinitions="*, Auto">
+                                        <TextBox Grid.Column="0" Text="{Binding Recorder.TestStudio.WorkspaceRootPath, Mode=TwoWay}" IsReadOnly="True" FontSize="11" Height="24" Padding="4,2"/>
+                                        <Button Grid.Column="1" Command="{Binding Recorder.TestStudio.BrowseWorkspaceRootCommand}" Classes="toolbar-btn" ToolTip.Tip="Select Workspace" Margin="4,0,0,0">
+                                            <PathIcon Data="{StaticResource FolderOpenIcon}" Width="14" Height="14"/>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Auto Launch Section -->
+                                <Border BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4" Padding="8" Background="#1e1e1e">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="AUTO LAUNCH APP" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+                                        
+                                        <CheckBox Name="chkTestStudioAutoLaunchSidebar" IsChecked="{Binding Recorder.TestStudio.IsAutoLaunchEnabled, Mode=TwoWay}" FontSize="11" Margin="0">
+                                            <TextBlock Text="Enable Auto Launch" FontSize="11" Foreground="#e8eaed"/>
+                                        </CheckBox>
+                                        
+                                        <StackPanel Spacing="4" IsEnabled="{Binding Recorder.TestStudio.IsAutoLaunchEnabled}">
+                                            <TextBlock Text="App Executable Path:" FontSize="10" Foreground="#9aa0a6" Margin="0,4,0,0"/>
+                                            <Grid ColumnDefinitions="*, Auto">
+                                                <TextBox Name="txtAutoLaunchPath" Grid.Column="0" Text="{Binding Recorder.TestStudio.AutoLaunchPath, Mode=TwoWay}" PlaceholderText="Path to executable..." FontSize="11" Height="24" Padding="4,2"/>
+                                                <Button Name="btnBrowseAutoLaunchPath" Grid.Column="1" Command="{Binding Recorder.TestStudio.BrowseAutoLaunchPathCommand}" Classes="toolbar-btn" ToolTip.Tip="Browse Executable" Margin="4,0,0,0">
+                                                    <PathIcon Data="{StaticResource FolderOpenIcon}" Width="12" Height="12"/>
+                                                </Button>
+                                            </Grid>
+                                            
+                                            <TextBlock Text="Arguments:" FontSize="10" Foreground="#9aa0a6" Margin="0,4,0,0"/>
+                                            <TextBox Name="txtAutoLaunchArguments" Text="{Binding Recorder.TestStudio.AutoLaunchArguments, Mode=TwoWay}" PlaceholderText="Arguments..." FontSize="11" Height="24" Padding="4,2"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Reports Directory Section -->
+                                <Border BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4" Padding="8" Background="#1e1e1e">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="REPORTS &amp; RECORDING" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+                                        
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="Output Directory:" FontSize="10" Foreground="#9aa0a6"/>
+                                            <Grid ColumnDefinitions="*, Auto">
+                                                <TextBox Name="txtTestStudioOutputDirectory" Grid.Column="0" Text="{Binding Recorder.TestStudio.OutputDirectory, Mode=TwoWay}" PlaceholderText="Output directory..." FontSize="11" Height="24" Padding="4,2"/>
+                                                <Button Name="btnBrowseReportDir" Grid.Column="1" Classes="toolbar-btn" ToolTip.Tip="Browse Output Directory" Margin="4,0,0,0">
+                                                    <PathIcon Data="{StaticResource FolderOpenIcon}" Width="12" Height="12"/>
+                                                </Button>
+                                            </Grid>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Suite Controls -->
+                                <StackPanel Spacing="8">
+                                    <Button Content="Run Suite on Selected Folder" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{Binding Recorder.TestStudio.SelectedWorkspaceItem.Path}"
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" FontSize="11" Height="28"/>
+                                </StackPanel>
+
+                                <!-- Suite Results Overview -->
+                                <Border BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4" Padding="10" Background="#1e1e1e">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="SUITE EXECUTION SUMMARY" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+                                        <Grid ColumnDefinitions="*, Auto" Margin="0,2">
+                                            <TextBlock Text="Status:" FontSize="11" Foreground="#9aa0a6"/>
+                                            <TextBlock Grid.Column="1" Text="Running" Foreground="#8ab4f8" FontWeight="Bold" IsVisible="{Binding Recorder.TestStudio.IsSuiteExecuting}" FontSize="11"/>
+                                            <TextBlock Grid.Column="1" Text="Idle" Foreground="#9aa0a6" IsVisible="{Binding !Recorder.TestStudio.IsSuiteExecuting}" FontSize="11"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*, Auto" Margin="0,2">
+                                            <TextBlock Text="Passed:" FontSize="11" Foreground="#9aa0a6"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Recorder.TestStudio.SuitePassCount}" Foreground="#4caf50" FontWeight="Bold" FontSize="11"/>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*, Auto" Margin="0,2">
+                                            <TextBlock Text="Failed:" FontSize="11" Foreground="#9aa0a6"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Recorder.TestStudio.SuiteFailCount}" Foreground="#f44336" FontWeight="Bold" FontSize="11"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Grid>
                 </Grid>
             </Border>

@@ -6413,6 +6413,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             if (editor != null)
             {
                 editor.OriginalContent = YamlCode;
+                editor.CurrentContent = YamlCode;
                 editor.IsDirty = false;
             }
 
@@ -6443,13 +6444,19 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 throw new FileNotFoundException($"Flow file not found: {path}");
             }
 
-            Steps.Clear();
-            var content = File.ReadAllText(path);
+            var existing = OpenEditors.FirstOrDefault(x => string.Equals(x.FilePath, path, StringComparison.OrdinalIgnoreCase));
+            string content;
+            if (existing != null && !string.IsNullOrEmpty(existing.CurrentContent))
+            {
+                content = existing.CurrentContent;
+            }
+            else
+            {
+                content = File.ReadAllText(path);
+            }
             CurrentFlowFilePath = path;
             YamlCode = content;
 
-            // Track in OpenEditors
-            var existing = OpenEditors.FirstOrDefault(x => string.Equals(x.FilePath, path, StringComparison.OrdinalIgnoreCase));
             if (existing == null)
             {
                 existing = new OpenEditorModel
@@ -6457,6 +6464,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     FilePath = path,
                     DisplayName = Path.GetFileName(path),
                     OriginalContent = content,
+                    CurrentContent = content,
                     IsDirty = false
                 };
                 OpenEditors.Add(existing);
@@ -7063,6 +7071,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         var editor = OpenEditors.FirstOrDefault(x => string.Equals(x.FilePath, CurrentFlowFilePath, StringComparison.OrdinalIgnoreCase));
         if (editor != null)
         {
+            editor.CurrentContent = YamlCode;
             editor.IsDirty = (YamlCode != editor.OriginalContent);
         }
     }
