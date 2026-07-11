@@ -6436,6 +6436,16 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             return;
         }
 
+        _appId = null;
+        _description = null;
+        FlowTags = new();
+        FlowEnv = new();
+        foreach (var step in Steps)
+        {
+            UnsubscribeStep(step);
+        }
+        Steps.Clear();
+
         try
         {
             if (!File.Exists(path))
@@ -7121,15 +7131,30 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             var rootDir = new DirectoryInfo(WorkspaceRootPath);
             if (!rootDir.Exists) return;
 
-            var files = rootDir.GetFiles("*.yaml", SearchOption.AllDirectories);
-            foreach (var file in files)
+            SearchDirRecursive(rootDir);
+        }
+        catch (Exception ex)
+        {
+            Log($"Search error: {ex.Message}");
+        }
+        finally
+        {
+            IsSearching = false;
+        }
+    }
+
+    private void SearchDirRecursive(DirectoryInfo dir)
+    {
+        if (dir.Name.StartsWith(".") || dir.Name == "bin" || dir.Name == "obj" || dir.Name == "node_modules")
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var file in dir.GetFiles("*.yaml"))
             {
                 var relPath = Path.GetRelativePath(WorkspaceRootPath, file.FullName);
-                if (relPath.Split(Path.DirectorySeparatorChar).Any(p => p.StartsWith(".") || p == "bin" || p == "obj" || p == "node_modules"))
-                {
-                    continue;
-                }
-
                 try
                 {
                     var lines = File.ReadAllLines(file.FullName);
@@ -7187,11 +7212,19 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Log($"Search error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Failed to list files in {dir.FullName}: {ex.Message}");
         }
-        finally
+
+        try
         {
-            IsSearching = false;
+            foreach (var subDir in dir.GetDirectories())
+            {
+                SearchDirRecursive(subDir);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to list subdirectories in {dir.FullName}: {ex.Message}");
         }
     }
 

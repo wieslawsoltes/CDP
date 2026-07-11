@@ -443,4 +443,69 @@ public class WorkspaceSidebarTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void Test_Workspace_LoadFlowFile_ClearsStaleStepsOnParseError()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(tempDir, "flow2.yaml");
+
+        // Valid YAML
+        File.WriteAllText(testFile1, "appId: \"app-1\"\ndescription: \"desc\"\nsteps:\n  - action: tap\n    selector: \"#btn\"\n");
+        // Invalid YAML
+        File.WriteAllText(testFile2, "invalid: : yaml :\n");
+
+        try
+        {
+            vm.LoadFlowFile(testFile1);
+            vm.Steps.Add(new TestStudioStepModel { Action = "tap" });
+            Assert.NotEmpty(vm.Steps);
+
+            // Switching to invalid YAML should clear Steps and throw
+            Assert.ThrowsAny<Exception>(() => vm.LoadFlowFile(testFile2));
+            Assert.Empty(vm.Steps);
+            Assert.Empty(vm.FlowTags);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_Search_PrunesIgnoredDirectories()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var nodeModulesDir = Path.Combine(tempDir, "node_modules");
+        Directory.CreateDirectory(nodeModulesDir);
+
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(nodeModulesDir, "flow2.yaml");
+
+        File.WriteAllText(testFile1, "appId: \"target-app\"\n");
+        File.WriteAllText(testFile2, "appId: \"target-app\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.SearchQuery = "target";
+            vm.IsSearchCaseSensitive = false;
+            vm.IsSearchRegex = false;
+            vm.PerformSearch();
+
+            // Search results should only contain flow1.yaml, flow2.yaml in node_modules must be ignored
+            Assert.Single(vm.SearchResults);
+            Assert.Equal(testFile1, vm.SearchResults[0].FilePath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }
