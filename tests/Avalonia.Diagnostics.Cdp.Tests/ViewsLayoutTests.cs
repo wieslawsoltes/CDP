@@ -1267,4 +1267,66 @@ public class ViewsLayoutTests
         var perfVm = new PerformanceViewModel(mockService);
         Assert.NotNull(perfVm.LayoutRoot);
     }
+
+    [Fact]
+    public void Test_Application_Navigation_Switches_Active_Tab_And_Preserves_Names()
+    {
+        var mockService = new MemoryViewModelTests.MockCdpService();
+        var appVm = new ApplicationViewModel(mockService);
+
+        // Initially ActiveTab should be the first tab (Global Resources / ResourceEditor)
+        var rightPane = (BoxNode)((SplitContainerNode)appVm.LayoutRoot).Child2;
+        Assert.Equal("ResourceEditor", rightPane.ActiveTab.SelectedViewName);
+
+        // Navigate to StorageEditor
+        appVm.NavigateToView("StorageEditor");
+
+        // ActiveTab should change to Storage Editor, and its view name should be StorageEditor
+        Assert.Equal("StorageEditor", rightPane.ActiveTab.SelectedViewName);
+        Assert.Equal("Storage Editor", rightPane.ActiveTab.Title);
+
+        // Now navigate back to ResourceEditor
+        appVm.NavigateToView("ResourceEditor");
+
+        // ActiveTab should be back to Global Resources, and its view name should still be ResourceEditor
+        Assert.Equal("ResourceEditor", rightPane.ActiveTab.SelectedViewName);
+        Assert.Equal("Global Resources", rightPane.ActiveTab.Title);
+    }
+
+    [Fact]
+    public void Test_MainWindow_Navigation_Switches_Active_Tab()
+    {
+        var mockService = new MemoryViewModelTests.MockCdpService();
+        var mainVm = new MainWindowViewModel(mockService);
+
+        // Reset/initialize layout
+        mainVm.ResetLayoutCommand.Execute(null);
+
+        // Verify we have a BoxNode with tabs
+        BoxNode? rightPane = null;
+        void FindRightPane(SplitNode? node)
+        {
+            if (node is BoxNode box && box.Tabs.Any(t => t.SelectedViewName == "Elements"))
+            {
+                rightPane = box;
+            }
+            else if (node is SplitContainerNode container)
+            {
+                FindRightPane(container.Child1);
+                FindRightPane(container.Child2);
+            }
+        }
+        FindRightPane(mainVm.LayoutRoot);
+        Assert.NotNull(rightPane);
+
+        // Navigate to Console
+        mainVm.NavigateToView("Console");
+
+        // The active tab should be Console
+        Assert.Equal("Console", rightPane.ActiveTab.SelectedViewName);
+
+        // Navigate back to Elements
+        mainVm.NavigateToView("Elements");
+        Assert.Equal("Elements", rightPane.ActiveTab.SelectedViewName);
+    }
 }

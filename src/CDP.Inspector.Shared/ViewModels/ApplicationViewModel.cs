@@ -637,7 +637,11 @@ public class ApplicationViewModel : ViewModelBase, IStateProvider
         var box = FindBoxNodeByViewName(LayoutRoot, viewName);
         if (box != null)
         {
-            box.SelectedViewName = viewName;
+            var tab = box.Tabs.FirstOrDefault(t => t.SelectedViewName == viewName);
+            if (tab != null)
+            {
+                box.ActiveTab = tab;
+            }
         }
     }
 
