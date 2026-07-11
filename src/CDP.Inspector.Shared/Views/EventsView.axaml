@@ -31,14 +31,20 @@
 
         <!-- Main Workspace split into List (Left) and Detailed Payload (Right) -->
         <Grid Grid.Row="2" ColumnDefinitions="*, 4, 1.5*">
-            <!-- Left Column: DataGrid of Events -->
             <DataGrid Grid.Column="0" ItemsSource="{Binding Events.FilteredEvents}" SelectedItem="{Binding Events.SelectedEvent, Mode=TwoWay}" CanUserResizeColumns="True" GridLinesVisibility="All" Background="#292a2d">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Set as Left Side of Diff" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).SetDiffLeftEventCommand}"/>
+                        <MenuItem Header="Set as Right Side of Diff" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).SetDiffRightEventCommand}"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp}" Width="110" IsReadOnly="True"/>
                     <DataGridTextColumn Header="Method" Binding="{Binding Method}" Width="180" IsReadOnly="True"/>
                     <DataGridTextColumn Header="Selector" Binding="{Binding Selector}" Width="*" IsReadOnly="True"/>
                 </DataGrid.Columns>
             </DataGrid>
+
 
             <!-- Column Splitter -->
             <GridSplitter Grid.Column="1" Background="#1f1f1f" ResizeDirection="Columns"/>

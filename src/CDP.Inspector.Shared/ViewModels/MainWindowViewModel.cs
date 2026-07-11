@@ -27,6 +27,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public RecorderViewModel Recorder { get; }
     public EventsViewModel Events { get; }
     public MvvmViewModel Mvvm { get; }
+    public DiffViewModel Diff { get; }
 
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
@@ -71,7 +72,15 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public ICommand ResetLayoutCommand { get; }
     public ICommand FloatPaneCommand { get; }
 
+    private string? _leftDiffPayload;
+    private string _leftDiffTitle = "Original / Request";
+    private string? _rightDiffPayload;
+    private string _rightDiffTitle = "Modified / Response";
 
+    public ICommand SetDiffLeftEventCommand { get; }
+    public ICommand SetDiffRightEventCommand { get; }
+    public ICommand SetDiffLeftRequestCommand { get; }
+    public ICommand SetDiffRightRequestCommand { get; }
 
     public MainWindowViewModel(ICdpService? cdpService = null, bool loadState = false)
     {
@@ -99,6 +108,48 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         Recorder = new RecorderViewModel(CdpService, () => Connection.GeneratorHostAddress, () => Connection.UseAutomationSelectors);
         Events = new EventsViewModel(CdpService);
         Mvvm = new MvvmViewModel(CdpService);
+        Diff = new DiffViewModel();
+
+        SetDiffLeftEventCommand = new RelayCommand(() =>
+        {
+            if (Events.SelectedEvent != null)
+            {
+                _leftDiffTitle = $"Event: {Events.SelectedEvent.Method} ({Events.SelectedEvent.Timestamp})";
+                _leftDiffPayload = Events.SelectedEvent.ParamsJson;
+                TriggerDiffUpdateIfReady();
+            }
+        });
+
+        SetDiffRightEventCommand = new RelayCommand(() =>
+        {
+            if (Events.SelectedEvent != null)
+            {
+                _rightDiffTitle = $"Event: {Events.SelectedEvent.Method} ({Events.SelectedEvent.Timestamp})";
+                _rightDiffPayload = Events.SelectedEvent.ParamsJson;
+                TriggerDiffUpdateIfReady();
+            }
+        });
+
+        SetDiffLeftRequestCommand = new RelayCommand(() =>
+        {
+            if (Network.SelectedRequest != null)
+            {
+                _leftDiffTitle = $"Request: {Network.SelectedRequest.Method} {Network.SelectedRequest.Url}";
+                _leftDiffPayload = Network.SelectedRequest.ResponseBody;
+                TriggerDiffUpdateIfReady();
+            }
+        });
+
+        SetDiffRightRequestCommand = new RelayCommand(() =>
+        {
+            if (Network.SelectedRequest != null)
+            {
+                _rightDiffTitle = $"Request: {Network.SelectedRequest.Method} {Network.SelectedRequest.Url}";
+                _rightDiffPayload = Network.SelectedRequest.ResponseBody;
+                TriggerDiffUpdateIfReady();
+            }
+        });
+
         Recorder.TestStudio.Connection = Connection;
         Connection.TestStudio = Recorder.TestStudio;
         Recorder.TestStudio.OnStepIndicatorChanged = indicator => Simulation.ActiveReplayIndicator = indicator;
@@ -523,6 +574,18 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public void SetDiffOperands(string leftTitle, string leftContent, string rightTitle, string rightContent)
+    {
+        Diff.SetCompareTexts(leftTitle, leftContent, rightTitle, rightContent);
+        NavigateToView("Diff");
+    }
+
+    private void TriggerDiffUpdateIfReady()
+    {
+        Diff.SetCompareTexts(_leftDiffTitle, _leftDiffPayload ?? "", _rightDiffTitle, _rightDiffPayload ?? "");
+        NavigateToView("Diff");
+    }
+
     public static string GetIconKeyForView(string viewName)
     {
         return viewName switch
@@ -541,6 +604,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
             "Window" => "WindowMultipleIcon",
             "Events" => "FlowchartIcon",
             "Mvvm" => "DiagramIcon",
+            "Diff" => "CodeIcon",
             _ => "DocumentIcon"
         };
     }
