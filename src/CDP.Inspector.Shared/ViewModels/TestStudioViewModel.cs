@@ -351,6 +351,48 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    private OpenEditorModel? _selectedOpenEditor;
+
+    public OpenEditorModel? SelectedOpenEditor
+    {
+        get => _selectedOpenEditor;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedOpenEditor, value))
+            {
+                if (value != null)
+                {
+                    if (CurrentFlowFilePath != value.FilePath)
+                    {
+                        LoadFlowFile(value.FilePath);
+                    }
+                    var item = FindWorkspaceItemByPath(WorkspaceFiles, value.FilePath);
+                    if (item != null)
+                    {
+                        if (_selectedWorkspaceItem != item)
+                        {
+                            _selectedWorkspaceItem = item;
+                            OnPropertyChanged(nameof(SelectedWorkspaceItem));
+                        }
+                        if (HierarchicalWorkspace != null)
+                        {
+                            var nodeResult = HierarchicalWorkspace.FindNode(item);
+                            if (nodeResult != null)
+                            {
+                                var node = nodeResult.Value;
+                                if (!Equals(_selectedWorkspaceNode, node))
+                                {
+                                    _selectedWorkspaceNode = node;
+                                    OnPropertyChanged(nameof(SelectedWorkspaceNode));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public ObservableCollection<WorkspaceItemModel> WorkspaceFiles
     {
         get => _workspaceFiles;
@@ -6423,6 +6465,12 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             {
                 oe.IsActive = string.Equals(oe.FilePath, path, StringComparison.OrdinalIgnoreCase);
             }
+            var activeEditor = OpenEditors.FirstOrDefault(x => string.Equals(x.FilePath, path, StringComparison.OrdinalIgnoreCase));
+            if (activeEditor != null && _selectedOpenEditor != activeEditor)
+            {
+                _selectedOpenEditor = activeEditor;
+                OnPropertyChanged(nameof(SelectedOpenEditor));
+            }
 
             var parsed = TestStudioYamlParser.Parse(content, out var appId, out var desc, out var tags, out var env);
             _appId = appId;
@@ -7036,6 +7084,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 CurrentFlowFilePath = null;
                 YamlCode = "";
                 Steps.Clear();
+                SelectedOpenEditor = null;
             }
         }
     }
@@ -7046,6 +7095,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         CurrentFlowFilePath = null;
         YamlCode = "";
         Steps.Clear();
+        SelectedOpenEditor = null;
     }
 
     public void PerformSearch()
@@ -7156,6 +7206,45 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         {
             CollapseNode(file);
         }
+    }
+
+    private WorkspaceItemModel? FindWorkspaceItemByPath(IEnumerable<WorkspaceItemModel> items, string path)
+    {
+        if (items == null) return null;
+        foreach (var item in items)
+        {
+            if (string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase))
+            {
+                return item;
+            }
+            var found = FindWorkspaceItemByPath(item.Children, path);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private HierarchicalNode<WorkspaceItemModel>? FindHierarchicalNode(IEnumerable<HierarchicalNode<WorkspaceItemModel>> nodes, WorkspaceItemModel item)
+    {
+        if (nodes == null) return null;
+        foreach (var node in nodes)
+        {
+            if (node.Item == item)
+            {
+                return node;
+            }
+            if (node.Children != null)
+            {
+                var found = FindHierarchicalNode(node.Children.Cast<HierarchicalNode<WorkspaceItemModel>>(), item);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private async Task CopyFullPathAsync()

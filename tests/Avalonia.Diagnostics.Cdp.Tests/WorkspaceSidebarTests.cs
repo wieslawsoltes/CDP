@@ -398,4 +398,49 @@ public class WorkspaceSidebarTests
 
         Assert.Equal(string.Empty, vm.FileFilterText);
     }
+
+    [Fact]
+    public void Test_SelectedOpenEditor_Switches_Active_File()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(tempDir, "flow2.yaml");
+        File.WriteAllText(testFile1, "appId: \"test-app-1\"\n");
+        File.WriteAllText(testFile2, "appId: \"test-app-2\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            
+            // Load first file
+            vm.LoadFlowFile(testFile1);
+            Assert.Equal(testFile1, vm.CurrentFlowFilePath);
+            Assert.Single(vm.OpenEditors);
+
+            // Load second file
+            vm.LoadFlowFile(testFile2);
+            Assert.Equal(testFile2, vm.CurrentFlowFilePath);
+            Assert.Equal(2, vm.OpenEditors.Count);
+
+            // Verify both editors are in the collection and second is active
+            var editor1 = vm.OpenEditors[0];
+            var editor2 = vm.OpenEditors[1];
+            Assert.False(editor1.IsActive);
+            Assert.True(editor2.IsActive);
+
+            // Switch to first editor by setting SelectedOpenEditor
+            vm.SelectedOpenEditor = editor1;
+
+            // Verify active file switched
+            Assert.Equal(testFile1, vm.CurrentFlowFilePath);
+            Assert.True(editor1.IsActive);
+            Assert.False(editor2.IsActive);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }
