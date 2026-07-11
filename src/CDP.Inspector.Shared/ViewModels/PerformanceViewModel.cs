@@ -30,6 +30,9 @@ public class PerformanceViewModel : ViewModelBase
     private List<double>? _memoryHistory = new();
     private List<double>? _cpuHistory = new();
     private List<double>? _fpsHistory = new();
+    private double _cpuPercentageValue;
+    private double _fpsPercentageValue;
+    private double _memoryPercentageValue;
 
     private double _latestCpuUsage = 0.0;
     private double _latestLayoutDuration = 0.0;
@@ -139,6 +142,24 @@ public class PerformanceViewModel : ViewModelBase
     {
         get => _fpsHistory;
         private set => RaiseAndSetIfChanged(ref _fpsHistory, value);
+    }
+
+    public double CpuPercentageValue
+    {
+        get => _cpuPercentageValue;
+        private set => RaiseAndSetIfChanged(ref _cpuPercentageValue, value);
+    }
+
+    public double FpsPercentageValue
+    {
+        get => _fpsPercentageValue;
+        private set => RaiseAndSetIfChanged(ref _fpsPercentageValue, value);
+    }
+
+    public double MemoryPercentageValue
+    {
+        get => _memoryPercentageValue;
+        private set => RaiseAndSetIfChanged(ref _memoryPercentageValue, value);
     }
 
     public double CpuScripting
@@ -269,6 +290,7 @@ public class PerformanceViewModel : ViewModelBase
                 PerfMemoryText = $"{(val / 1024 / 1024):F2} MB";
                 newHistory.Add(val / 1024 / 1024);
                 if (newHistory.Count > 30) newHistory.RemoveAt(0);
+                MemoryPercentageValue = Math.Clamp((val / 1024 / 1024) / 256.0, 0.0, 1.0);
             }
             else if (name == "JSHeapTotalSize")
             {
@@ -280,6 +302,7 @@ public class PerformanceViewModel : ViewModelBase
                 PerfCpuText = $"{val:F1} %";
                 newHistoryCpu.Add(val);
                 if (newHistoryCpu.Count > 30) newHistoryCpu.RemoveAt(0);
+                CpuPercentageValue = Math.Clamp(val / 100.0, 0.0, 1.0);
             }
             else if (name == "LayoutCount")
             {
@@ -295,6 +318,7 @@ public class PerformanceViewModel : ViewModelBase
                 PerfFpsText = $"{val:F1} FPS";
                 newHistoryFps.Add(val);
                 if (newHistoryFps.Count > 30) newHistoryFps.RemoveAt(0);
+                FpsPercentageValue = Math.Clamp(val / 60.0, 0.0, 1.0);
             }
             else if (name == "FrameDuration")
             {
@@ -518,6 +542,9 @@ public class PerformanceViewModel : ViewModelBase
             CpuSystem = 0.0;
             CpuIdle = 100.0;
             _latestCpuUsage = 0.0;
+            CpuPercentageValue = 0.0;
+            FpsPercentageValue = 0.0;
+            MemoryPercentageValue = 0.0;
             _latestLayoutDuration = 0.0;
             _latestFrameDuration = 0.0;
             _latestDispatcherQueueDelay = 0.0;

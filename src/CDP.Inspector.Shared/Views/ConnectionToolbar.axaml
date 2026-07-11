@@ -46,7 +46,12 @@
                 <Button Name="btnReload" Command="{Binding Connection.ReloadCommand}" ToolTip.Tip="Reload" Background="#4a148c" Foreground="White" BorderBrush="#4a148c" Height="28" Width="30" Padding="0" VerticalAlignment="Center">
                     <PathIcon Data="{StaticResource RefreshIcon}" Width="13" Height="13"/>
                 </Button>
-                <TextBlock Name="txtConnectionStatus" Text="{Binding Connection.ConnectionStatusText}" Foreground="{Binding Connection.ConnectionStatusBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                <controls:PulsingStatusBadge Name="txtConnectionStatus"
+                                             StatusText="{Binding Connection.ConnectionStatusText}"
+                                             StatusColor="{Binding Connection.ConnectionStatusColor}"
+                                             IsPulsing="{Binding Connection.IsConnected}"
+                                             Height="24" Width="110"
+                                             VerticalAlignment="Center" Margin="10,0,0,0"/>
             </StackPanel>
 
             <!-- Group 5: SuperSplit Controls -->

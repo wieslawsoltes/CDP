@@ -59,6 +59,12 @@
                        CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                        GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                        Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Set as Left Side of Diff" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).SetDiffLeftRequestCommand}"/>
+                        <MenuItem Header="Set as Right Side of Diff" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).SetDiffRightRequestCommand}"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
                 <DataGrid.ColumnHeaderContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
@@ -215,6 +221,14 @@
                                             </Grid>
                                         </StackPanel>
                                     </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="Headers Diff" IsVisible="{Binding Network.SelectedRequest, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <Grid RowDefinitions="Auto, *" Margin="5">
+                                        <TextBlock Grid.Row="0" Text="Request Headers vs Response Headers Diff" FontSize="11" Foreground="#9aa0a6" Margin="0,0,0,5"/>
+                                        <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Height="250">
+                                            <controls:DiffViewer DataContext="{Binding Network.SelectedRequestHeaderDiff}"/>
+                                        </Border>
+                                    </Grid>
                                 </TabItem>
                             </TabControl>
                         </Grid>

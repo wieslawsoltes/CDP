@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             x:Class="CdpInspectorApp.Views.DiffView"
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
+    <Grid RowDefinitions="Auto, *" Background="#202124" Margin="10">
+        <!-- Top Toolbar & Dashboard -->
+        <Border Grid.Row="0" Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,10">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="Auto, *, Auto">
+                    <!-- Mode Toggles -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                        <Button Content="Inline View" 
+                                Command="{Binding Diff.ToggleDiffModeCommand}" 
+                                IsVisible="{Binding !Diff.IsInlineMode}"
+                                Padding="12,6"
+                                FontSize="11"
+                                Classes="accent"/>
+                        <Button Content="Side-by-Side View" 
+                                Command="{Binding Diff.ToggleDiffModeCommand}" 
+                                IsVisible="{Binding Diff.IsInlineMode}"
+                                Padding="12,6"
+                                FontSize="11"/>
+                        <Button Content="Clear" 
+                                Command="{Binding Diff.ClearDiffCommand}" 
+                                Padding="12,6"
+                                FontSize="11"/>
+                    </StackPanel>
+
+                    <!-- Titles Display -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="15" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Diff.LeftTitle}" FontWeight="SemiBold" Foreground="#f28b82" FontSize="11"/>
+                        <TextBlock Text="vs" Foreground="#9aa0a6" FontSize="11"/>
+                        <TextBlock Text="{Binding Diff.RightTitle}" FontWeight="SemiBold" Foreground="#81c995" FontSize="11"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="2" Text="DIAGNOSTICS DIFF" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="10" FontWeight="Bold" LetterSpacing="1"/>
+                </Grid>
+
+                <!-- Statistics and Segmented Proportion Bar -->
+                <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,4,0,0">
+                    <!-- Stats Badges -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <!-- Deletions -->
+                        <Border Background="#2b1b1f" BorderBrush="#f28b82" BorderThickness="1" CornerRadius="3" Padding="6,2">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="-" Foreground="#f28b82" FontWeight="Bold" FontSize="10"/>
+                                <TextBlock Text="{Binding Diff.LinesDeletedCount}" Foreground="#f28b82" FontWeight="Bold" FontSize="10"/>
+                                <TextBlock Text="deleted" Foreground="#9aa0a6" FontSize="10"/>
+                            </StackPanel>
+                        </Border>
+                        <!-- Additions -->
+                        <Border Background="#1b2b21" BorderBrush="#81c995" BorderThickness="1" CornerRadius="3" Padding="6,2">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="+" Foreground="#81c995" FontWeight="Bold" FontSize="10"/>
+                                <TextBlock Text="{Binding Diff.LinesAddedCount}" Foreground="#81c995" FontWeight="Bold" FontSize="10"/>
+                                <TextBlock Text="added" Foreground="#9aa0a6" FontSize="10"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Proportion Bar Grid -->
+                    <Grid Grid.Column="1" Name="ProportionBarGrid" Height="4" Margin="20,0" VerticalAlignment="Center" ClipToBounds="True">
+                        <!-- We round the outer border but keep the children inside -->
+                        <Border Grid.Column="0" Background="#3c4043" ToolTip.Tip="Unchanged lines"/>
+                        <Border Grid.Column="1" Background="#ea4335" ToolTip.Tip="Deleted lines"/>
+                        <Border Grid.Column="2" Background="#34a853" ToolTip.Tip="Added lines"/>
+                    </Grid>
+
+                    <!-- Total count summary -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Text="Total diff lines:" Foreground="#9aa0a6" FontSize="10"/>
+                        <TextBlock Text="{Binding Diff.DiffLines.Count}" Foreground="#e8eaed" FontWeight="SemiBold" FontSize="10"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Diff Editor Area -->
+        <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+            <controls:DiffViewer DataContext="{Binding Diff}"/>
+        </Border>
+    </Grid>
+</UserControl>

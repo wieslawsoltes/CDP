@@ -99,6 +99,8 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public DiffViewModel SelectedRequestHeaderDiff { get; } = new();
+
     public NetworkRequestModel? SelectedRequest
     {
         get => _selectedRequest;
@@ -509,6 +511,12 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
             SelectedRequestHeaders = SelectedRequest.RequestHeaders;
             SelectedResponseHeaders = SelectedRequest.ResponseHeaders;
             SelectedResponseBody = SelectedRequest.ResponseBody;
+            SelectedRequestHeaderDiff.SetCompareTexts(
+                "Request Headers",
+                SelectedRequest.RequestHeaders,
+                "Response Headers",
+                SelectedRequest.ResponseHeaders
+            );
         }
         else
         {
@@ -516,6 +524,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
             SelectedRequestHeaders = "";
             SelectedResponseHeaders = "";
             SelectedResponseBody = "";
+            SelectedRequestHeaderDiff.SetCompareTexts("Request Headers", "", "Response Headers", "");
         }
     }
 

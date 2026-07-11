@@ -12,7 +12,7 @@ public partial class ConnectionToolbar : UserControl
     public Button BtnDisconnect => btnDisconnect;
     public ToggleButton BtnInspect => btnInspect;
     public Button BtnReload => btnReload;
-    public TextBlock TxtConnectionStatus => txtConnectionStatus;
+    public Control TxtConnectionStatus => txtConnectionStatus;
 
     public ConnectionToolbar()
     {
