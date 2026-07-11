@@ -8,6 +8,8 @@ using System.Text.Json.Nodes;
 using System.Windows.Input;
 using Avalonia.Threading;
 using Chrome.DevTools.Protocol;
+using CDP.Editor.Splits.Models;
+using Avalonia.Layout;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -36,6 +38,33 @@ public class EventsViewModel : ViewModelBase
     private bool _filterConsoleLog = true;
     private bool _filterNetwork = true;
     private bool _filterOther = true;
+
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
+    public void ResetLayout()
+    {
+        var list = new BoxNode();
+        list.AddTab("Logged Events", "TableIcon", "EventsList");
+
+        var payload = new BoxNode();
+        payload.AddTab("Event Payload", "EyeIcon", "EventsPayload");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, list, payload) { SplitterRatio = 0.4 };
+        SelectedPane = list;
+    }
 
     public ObservableCollection<CdpEventEntry> FilteredEvents => _filteredEvents;
 
@@ -188,6 +217,8 @@ public class EventsViewModel : ViewModelBase
         {
             _ = EnableInputDomainAsync();
         }
+
+        ResetLayout();
     }
 
     private void CdpService_PropertyChanged(object? sender, PropertyChangedEventArgs e)

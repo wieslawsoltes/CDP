@@ -7,6 +7,8 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using CDP.Editor.Splits.Models;
+using Avalonia.Layout;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -44,6 +46,38 @@ public class PerformanceViewModel : ViewModelBase
     private double _cpuLayout = 0.0;
     private double _cpuSystem = 0.0;
     private double _cpuIdle = 100.0;
+
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
+    public void ResetLayout()
+    {
+        var stats = new BoxNode();
+        stats.AddTab("Diagnostics Stats", "DeveloperBoardIcon", "PerformanceStats");
+
+        var chart = new BoxNode();
+        chart.AddTab("Performance Monitor", "FlowchartIcon", "PerformanceChart");
+
+        var topHorizontal = new SplitContainerNode(Orientation.Horizontal, stats, chart) { SplitterRatio = 0.5 };
+
+        var controlCounts = new BoxNode();
+        controlCounts.AddTab("Live Control Counts", "TableIcon", "PerformanceControls");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Vertical, topHorizontal, controlCounts) { SplitterRatio = 0.5 };
+        SelectedPane = stats;
+    }
 
 
     public string PerfNodesText
@@ -207,6 +241,7 @@ public class PerformanceViewModel : ViewModelBase
     public ICommand StartProfilerCommand { get; }
     public ICommand StopProfilerCommand { get; }
 
+
     public PerformanceViewModel(ICdpService cdpService)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
@@ -218,6 +253,8 @@ public class PerformanceViewModel : ViewModelBase
         CloseTargetCommand = new RelayCommand(async () => await CloseTargetAsync(), () => _cdpService.IsConnected);
         StartProfilerCommand = new RelayCommand(async () => await StartProfilerAsync(), () => _cdpService.IsConnected && !IsProfilingActive);
         StopProfilerCommand = new RelayCommand(async () => await StopProfilerAsync(), () => _cdpService.IsConnected && IsProfilingActive);
+
+        ResetLayout();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

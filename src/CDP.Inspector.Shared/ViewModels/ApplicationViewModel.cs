@@ -9,11 +9,28 @@ using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
 using Microsoft.Extensions.Logging;
 using Chrome.DevTools.Protocol;
+using Avalonia.Layout;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ApplicationViewModel : ViewModelBase, IStateProvider
 {
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
     private static readonly ILogger Logger = CdpLogging.CreateLogger<ApplicationViewModel>();
     private readonly ICdpService _cdpService;
     private ObservableCollection<ResourceEntryModel> _resources = new();
@@ -466,6 +483,14 @@ public class ApplicationViewModel : ViewModelBase, IStateProvider
                     SelectedIndexedDBObjectStore = _selectedNode.Name;
                 }
 
+                if (IsResourceEditorVisible) NavigateToView("ResourceEditor");
+                else if (IsStorageEditorVisible) NavigateToView("StorageEditor");
+                else if (IsCookieEditorVisible) NavigateToView("CookieEditor");
+                else if (IsDatabaseViewerVisible) NavigateToView("DatabaseViewer");
+                else if (IsBackgroundServicesVisible) NavigateToView("BackgroundServices");
+                else if (IsIndexedDBVisible) NavigateToView("IndexedDBExplorer");
+                else NavigateToView("Simulator");
+
                 if (value == null)
                 {
                     SelectedNavigationNodeNode = null;
@@ -567,6 +592,53 @@ public class ApplicationViewModel : ViewModelBase, IStateProvider
         HierarchicalNavigationNodes.SetRoots(NavigationNodes);
 
         InitializeNavigationTree();
+        ResetLayout();
+    }
+
+    public void ResetLayout()
+    {
+        var left = new BoxNode();
+        left.AddTab("Navigation", "FolderIcon", "Navigation");
+
+        var right = new BoxNode();
+        right.AddTab("Global Resources", "SettingsIcon", "ResourceEditor");
+        right.AddTab("Storage Editor", "TableIcon", "StorageEditor");
+        right.AddTab("Cookie Editor", "GlobeIcon", "CookieEditor");
+        right.AddTab("Database Viewer", "TerminalIcon", "DatabaseViewer");
+        right.AddTab("Background Services", "TimerIcon", "BackgroundServices");
+        right.AddTab("IndexedDB Explorer", "AppsIcon", "IndexedDBExplorer");
+        right.AddTab("Simulator", "EyeIcon", "Simulator");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.25 };
+        SelectedPane = left;
+    }
+
+    private BoxNode? FindBoxNodeByViewName(SplitNode? node, string viewName)
+    {
+        if (node == null) return null;
+        if (node is BoxNode box)
+        {
+            foreach (var tab in box.Tabs)
+            {
+                if (tab.SelectedViewName == viewName) return box;
+            }
+        }
+        if (node is SplitContainerNode container)
+        {
+            var found = FindBoxNodeByViewName(container.Child1, viewName);
+            if (found != null) return found;
+            return FindBoxNodeByViewName(container.Child2, viewName);
+        }
+        return null;
+    }
+
+    public void NavigateToView(string viewName)
+    {
+        var box = FindBoxNodeByViewName(LayoutRoot, viewName);
+        if (box != null)
+        {
+            box.SelectedViewName = viewName;
+        }
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

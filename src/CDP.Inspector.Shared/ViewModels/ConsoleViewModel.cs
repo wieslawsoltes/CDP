@@ -10,6 +10,8 @@ using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Microsoft.Extensions.Logging;
 using Chrome.DevTools.Protocol;
+using CDP.Editor.Splits.Models;
+using Avalonia.Layout;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -34,10 +36,37 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
     private bool _filterVerbose;
     private string _filterQuery = "";
 
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
+    public void ResetLayout()
+    {
+        var logs = new BoxNode();
+        logs.AddTab("Console Logs", "TerminalIcon", "ConsoleLogs");
+
+        var watch = new BoxNode();
+        watch.AddTab("Live Watch", "TimerIcon", "ConsoleWatch");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, logs, watch) { SplitterRatio = 0.7 };
+        SelectedPane = logs;
+    }
+
     public ObservableCollection<LogModel> Logs => _logs;
     public ObservableCollection<ConsoleItemModel> ConsoleHistory => _consoleHistory;
     public ObservableCollection<PinnedExpressionViewModel> PinnedExpressions => _pinnedExpressions;
-
+    
     public string ConsoleInputText
     {
         get => _consoleInputText;
@@ -194,6 +223,8 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
         {
             StartWatchTimer();
         }
+
+        ResetLayout();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

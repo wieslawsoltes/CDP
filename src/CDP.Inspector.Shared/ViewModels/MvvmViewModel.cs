@@ -8,6 +8,8 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Services;
 using Chrome.DevTools.Protocol;
+using Avalonia.Layout;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -193,6 +195,21 @@ public class CommandExecutedModel : ViewModelBase
 
 public class MvvmViewModel : ViewModelBase, IStateProvider
 {
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
     private readonly ICdpService _cdpService;
     private InspectorViewModelNode? _selectedNode;
     private ObservableCollection<InspectorViewModelNode> _mvvmTree = new();
@@ -232,6 +249,24 @@ public class MvvmViewModel : ViewModelBase, IStateProvider
         {
             _ = InitializeMvvmAsync();
         }
+
+        ResetLayout();
+    }
+
+    public void ResetLayout()
+    {
+        var left = new BoxNode();
+        left.AddTab("ViewModels Tree", "DiagramIcon", "MvvmTree");
+
+        var right = new BoxNode();
+        right.AddTab("ViewModel Properties", "TableIcon", "MvvmProperties");
+
+        var bottom = new BoxNode();
+        bottom.AddTab("Command History", "TerminalIcon", "CommandHistory");
+
+        var topContainer = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.45 };
+        LayoutRoot = new SplitContainerNode(Orientation.Vertical, topContainer, bottom) { SplitterRatio = 0.65 };
+        SelectedPane = left;
     }
 
     private void CdpService_PropertyChanged(object? sender, PropertyChangedEventArgs e)

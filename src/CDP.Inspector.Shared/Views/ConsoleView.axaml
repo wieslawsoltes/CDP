@@ -4,14 +4,22 @@
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.ConsoleView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
     <Grid RowDefinitions="*, Auto" Margin="10">
-        <!-- Main Area: Logs on Left, Watch on Right -->
-        <Grid ColumnDefinitions="*, Auto, 300">
+        <!-- Main Area: SuperSplit layout -->
+        <splits:SuperSplit Name="SplitControl"
+                           Grid.Row="0"
+                           Root="{Binding Console.LayoutRoot}"
+                           SelectedNode="{Binding Console.SelectedPane, Mode=TwoWay}"
+                           DockGroup="ConsoleGroup"
+                           ConstrainDockingToRoot="True"/>
+
+        <Grid Name="HiddenPanel" IsVisible="False">
             <!-- Left Pane: Logs -->
-            <Grid Grid.Column="0" RowDefinitions="Auto, *">
+            <Grid Name="ConsoleLogsPanel" RowDefinitions="Auto, *">
                 <!-- Filter Toolbar -->
                 <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,8">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -38,11 +46,11 @@
                         <ContextMenu>
                             <MenuItem Header="Columns" ItemsSource="{Binding $parent[DataGrid].Columns}">
                                 <MenuItem.ItemContainerTheme>
-                                    <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="DataGridColumn">
-                                        <Setter Property="Header" Value="{Binding Header}" />
-                                        <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
-                                        <Setter Property="ToggleType" Value="CheckBox" />
-                                    </ControlTheme>
+                                     <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="DataGridColumn">
+                                         <Setter Property="Header" Value="{Binding Header}" />
+                                         <Setter Property="IsChecked" Value="{Binding IsVisible, Mode=TwoWay}" />
+                                         <Setter Property="ToggleType" Value="CheckBox" />
+                                     </ControlTheme>
                                 </MenuItem.ItemContainerTheme>
                             </MenuItem>
                         </ContextMenu>
@@ -67,11 +75,8 @@
                 </DataGrid>
             </Grid>
 
-            <!-- Splitter -->
-            <GridSplitter Grid.Column="1" Background="#3c4043" Margin="5,0"/>
-
             <!-- Right Pane: Watch Panel -->
-            <Grid Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="5,0,0,0">
+            <Grid Name="ConsoleWatchPanel" RowDefinitions="Auto, *, Auto">
                 <TextBlock Text="Live Pinned Expressions" Classes="panel-header" Margin="0,0,0,8"/>
                 
                 <ListBox Grid.Row="1" ItemsSource="{Binding Console.PinnedExpressions}" Background="#202124" BorderBrush="#3c4043">

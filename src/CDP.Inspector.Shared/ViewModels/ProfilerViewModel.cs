@@ -8,6 +8,8 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using CdpInspectorApp.Controls;
 using CdpInspectorApp.Services;
+using Avalonia.Layout;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -115,6 +117,21 @@ public class ProfileSessionModel : ViewModelBase
 
 public class ProfilerViewModel : ViewModelBase, IStateProvider
 {
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
     private readonly ICdpService _cdpService;
     private bool _isProfilingActive;
     private string _statusText = "Idle - Connect target to record or load a profile";
@@ -315,6 +332,21 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         ResetViewCommand = new RelayCommand(() => { ZoomScale = 1.0; OffsetX = 0.0; });
         NextSearchMatchCommand = new RelayCommand(NextSearchMatch, () => HasMatches);
         PrevSearchMatchCommand = new RelayCommand(PrevSearchMatch, () => HasMatches);
+        ResetLayout();
+    }
+
+    public void ResetLayout()
+    {
+        var left = new BoxNode();
+        left.AddTab("Sessions List", "TableIcon", "SessionsList");
+
+        var right = new BoxNode();
+        right.AddTab("Flame Charts", "CodeIcon", "FlameCharts");
+        right.AddTab("Bottom-Up Calls", "TerminalIcon", "BottomUpCalls");
+        right.AddTab("Memory Allocations", "SaveIcon", "MemoryAllocations");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.35 };
+        SelectedPane = left;
     }
 
     private void OnSessionSelected(ProfileSessionModel? session)

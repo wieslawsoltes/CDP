@@ -7,11 +7,28 @@ using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
+using Avalonia.Layout;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class SourcesViewModel : ViewModelBase, IStateProvider
 {
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
     private string? _pendingFilePathToSelect;
     private readonly ICdpService _cdpService;
     private ObservableCollection<WorkspaceFileNode> _workspaceFiles = new();
@@ -208,6 +225,24 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         };
         HierarchicalWorkspaceFiles = new HierarchicalModel<WorkspaceFileNode>(options);
         HierarchicalWorkspaceFiles.SetRoots(WorkspaceFiles);
+        ResetLayout();
+    }
+
+    public void ResetLayout()
+    {
+        var left = new BoxNode();
+        left.AddTab("Files", "FolderIcon", "SourcesFiles");
+        left.AddTab("Search", "SearchIcon", "SourcesSearch");
+
+        var mid = new BoxNode();
+        mid.AddTab("Source Editor", "CodeIcon", "CodeViewer");
+
+        var right = new BoxNode();
+        right.AddTab("Debugger", "DeveloperBoardIcon", "Debugger");
+
+        var rightContainer = new SplitContainerNode(Orientation.Horizontal, mid, right) { SplitterRatio = 0.65 };
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, rightContainer) { SplitterRatio = 0.25 };
+        SelectedPane = left;
     }
 
     private void RaiseDebuggerCommandCanExecuteChanged()

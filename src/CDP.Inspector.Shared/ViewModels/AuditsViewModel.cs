@@ -9,6 +9,8 @@ using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Microsoft.Extensions.Logging;
 using Chrome.DevTools.Protocol;
+using CDP.Editor.Splits.Models;
+using Avalonia.Layout;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -24,6 +26,33 @@ public class AuditsViewModel : ViewModelBase
     private bool _isAuditing;
     private ObservableCollection<AuditIssueModel> _issues = new();
     private AuditIssueModel? _selectedIssue;
+
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
+    public void ResetLayout()
+    {
+        var issues = new BoxNode();
+        issues.AddTab("Diagnostic Recommendations", "TableIcon", "AuditIssues");
+
+        var details = new BoxNode();
+        details.AddTab("Issue Details", "EyeIcon", "AuditDetails");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, issues, details) { SplitterRatio = 0.6 };
+        SelectedPane = issues;
+    }
 
     public int AccessibilityScore
     {
@@ -79,6 +108,8 @@ public class AuditsViewModel : ViewModelBase
 
         RunAuditsCommand = new RelayCommand(async () => await RunAuditsAsync(), () => _cdpService.IsConnected && !IsAuditing);
         InspectIssueCommand = new RelayCommand(InspectIssue, () => SelectedIssue != null);
+
+        ResetLayout();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

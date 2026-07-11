@@ -4,6 +4,7 @@
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.NetworkView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -52,8 +53,15 @@
             </ListBox.Styles>
         </ListBox>
 
-        <!-- Grid split pane -->
-        <Grid Grid.Row="2" ColumnDefinitions="*, 4, 380">
+        <!-- SuperSplit Control -->
+        <splits:SuperSplit Name="SplitControl"
+                            Grid.Row="2"
+                            Root="{Binding Network.LayoutRoot}"
+                            SelectedNode="{Binding Network.SelectedPane, Mode=TwoWay}"
+                            DockGroup="Network"
+                            ConstrainDockingToRoot="True"/>
+
+        <Grid Name="HiddenPanel" IsVisible="False">
             <!-- List -->
             <DataGrid Name="lstNetworkRequests" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.FilteredNetworkRequests}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedRequest, Mode=TwoWay}" x:DataType="models:NetworkRequestModel"
                        CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
@@ -102,13 +110,8 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <GridSplitter Grid.Column="1" Background="#3c4043"/>
-
-            <!-- Details drawer -->
-            <Border Grid.Column="2" BorderBrush="#3c4043" BorderThickness="1,0,0,0" Margin="10,0,0,0" Padding="10,0,0,0">
-                <TabControl Background="Transparent" BorderThickness="0">
-                    <TabItem Header="Request Details">
-                        <Grid RowDefinitions="Auto, Auto, *">
+            <!-- Request Details panel -->
+            <Grid Name="pnlRequestDetails" RowDefinitions="Auto, Auto, *">
                             <TextBlock Text="Request Details" FontSize="14" FontWeight="Bold" Foreground="#e8eaed" Margin="0,10,0,10"/>
                             <StackPanel Grid.Row="1" Spacing="3" Margin="0,0,0,10">
                                 <TextBlock Text="Request URL:" Foreground="#9aa0a6" FontSize="11"/>
@@ -232,9 +235,9 @@
                                 </TabItem>
                             </TabControl>
                         </Grid>
-                    </TabItem>
-                    <TabItem Header="Mocking Rules">
-                        <Grid RowDefinitions="Auto, *, Auto">
+
+                        <!-- Mocking Rules panel -->
+                        <Grid Name="pnlMockingRules" RowDefinitions="Auto, *, Auto">
                             <Button Name="btnAddMockRule" Command="{Binding Network.AddMockRuleCommand}" Content="Add Mock Rule" Margin="0,10,0,10" HorizontalAlignment="Stretch"/>
                             
                             <DataGrid Grid.Row="1" Name="lstMockRules" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.MockRules}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Network.SelectedMockRule, Mode=TwoWay}" x:DataType="models:MockRuleModel"
@@ -286,9 +289,6 @@
                                 </StackPanel>
                             </ScrollViewer>
                         </Grid>
-                    </TabItem>
-                </TabControl>
-            </Border>
         </Grid>
     </Grid>
 </UserControl>

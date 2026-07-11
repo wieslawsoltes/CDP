@@ -1,11 +1,14 @@
 using Avalonia.Controls;
 using CdpInspectorApp.ViewModels;
+using CDP.Editor.Splits.Controls;
 
 namespace CdpInspectorApp.Views;
 
 [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataGrid is not trim-safe")]
 public partial class ConsoleView : UserControl
 {
+    private readonly System.Collections.Generic.Dictionary<string, Control> _viewsCache = new();
+
     public Button BtnClearLogs => btnClearLogs;
     public DataGrid ListLogs => listLogs;
     public ListBox ListConsole => listConsole;
@@ -13,9 +16,48 @@ public partial class ConsoleView : UserControl
     public Button BtnSendConsole => btnSendConsole;
     public TextBox TxtPinnedExpression => txtPinnedExpression;
 
+    private void DetachControl(Control control)
+    {
+        if (control.Parent is Panel panel)
+        {
+            panel.Children.Remove(control);
+        }
+        else if (control.Parent is ContentControl contentControl)
+        {
+            contentControl.Content = null;
+        }
+        else if (control.Parent is SuperSplitBox splitBox)
+        {
+            splitBox.InnerContent = null;
+            splitBox.UpdateLayout();
+        }
+    }
+
     public ConsoleView()
     {
         InitializeComponent();
+
+        var logsPanel = ConsoleLogsPanel;
+        var watchPanel = ConsoleWatchPanel;
+
+        HiddenPanel.Children.Clear();
+
+        _viewsCache["ConsoleLogs"] = logsPanel;
+        _viewsCache["ConsoleWatch"] = watchPanel;
+
+        SplitControl.ViewResolver = (viewName, targetBox) =>
+        {
+            if (_viewsCache.TryGetValue(viewName, out var cached))
+            {
+                if (targetBox == null || cached.Parent != targetBox)
+                {
+                    DetachControl(cached);
+                }
+                return cached;
+            }
+            return new Control();
+        };
+
         txtConsoleInput.KeyDown += (sender, e) =>
         {
             if (DataContext is MainWindowViewModel vm)

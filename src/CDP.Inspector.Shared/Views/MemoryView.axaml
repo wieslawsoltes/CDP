@@ -4,12 +4,22 @@
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.MemoryView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
-    <Grid ColumnDefinitions="240, 4, *" Margin="10">
+    <Grid RowDefinitions="*">
+        <!-- SuperSplit Control -->
+        <splits:SuperSplit Name="SplitControl"
+                            Grid.Row="0"
+                            Root="{Binding Memory.LayoutRoot}"
+                            SelectedNode="{Binding Memory.SelectedPane, Mode=TwoWay}"
+                            DockGroup="Memory"
+                            ConstrainDockingToRoot="True"/>
+        
+        <Grid Name="HiddenPanel" IsVisible="False">
         <!-- Left panel (Snapshots list & controls) -->
-        <Grid RowDefinitions="Auto, *" Margin="0,0,10,0">
+        <Grid Name="pnlSnapshotsList" RowDefinitions="Auto, *" Margin="0,0,10,0">
             <StackPanel Spacing="8" Margin="0,0,0,10">
                 <Button Name="btnTakeSnapshot" Command="{Binding Memory.TakeSnapshotCommand}" Content="Take Heap Snapshot" Classes="accent" HorizontalAlignment="Stretch"/>
                 <Button Name="btnGcCollect" Command="{Binding Memory.CollectGarbageCommand}" Content="Collect Garbage" HorizontalAlignment="Stretch" Background="#2e7d32" Foreground="White" BorderBrush="#2e7d32"/>
@@ -31,12 +41,9 @@
                 </Grid>
             </Border>
         </Grid>
- 
-        <!-- Splitter -->
-        <GridSplitter Grid.Column="1" Background="#3c4043"/>
- 
+
         <!-- Right panel (Snapshot details) -->
-        <Grid Grid.Column="2" RowDefinitions="Auto, Auto, *" Margin="10,0,0,0">
+        <Grid Name="pnlSnapshotOverview" RowDefinitions="Auto, Auto, *">
             <!-- Details Header toolbar -->
             <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,10">
                 <TextBlock Text="{Binding Memory.SelectedSnapshot.Name, FallbackValue='Select or Take a Snapshot'}" Classes="panel-header" FontSize="16" VerticalAlignment="Center"/>
@@ -67,10 +74,7 @@
             <!-- Table content -->
             <Border Grid.Row="2" Classes="panel-card" ClipToBounds="True">
                 <Grid>
-                    <TabControl IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
-                        <!-- Live Counts Tab -->
-                        <TabItem Header="Live Counts">
-                            <Grid>
+                    <Grid IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
                                 <!-- Summary mode list -->
                                 <Grid IsVisible="{Binding !Memory.IsComparisonMode}">
                                     <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.CurrentEntries}" x:DataType="models:ControlCountModel"
@@ -133,12 +137,19 @@
                                     </DataGrid>
                                 </Grid>
                             </Grid>
-                        </TabItem>
+                    
+                    <!-- Empty state -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNull}}">
+                        <TextBlock Text="No snapshot selected" Foreground="#9aa0a6" FontSize="13" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Click 'Take Heap Snapshot' on the left to capture control instances footprint." Foreground="#5f6368" FontSize="11" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
 
-                        <!-- Detached Controls Tab -->
-                        <TabItem Header="Detached Controls (Leaked)">
-                            <Grid RowDefinitions="*, 4, *">
-                                <DataGrid Grid.Row="0" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.DetachedControls}"
+        <!-- Detached Controls Panel -->
+        <Grid Name="pnlDetachedControls" RowDefinitions="*, 4, *">
+            <DataGrid Grid.Row="0" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.DetachedControls}"
                                           SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.SelectedDetachedControl, Mode=TwoWay}"
                                           x:DataType="models:DetachedControlModel"
                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
@@ -195,16 +206,6 @@
                                     </DataGrid>
                                 </Grid>
                             </Grid>
-                        </TabItem>
-                    </TabControl>
-                    
-                    <!-- Empty state -->
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNull}}">
-                        <TextBlock Text="No snapshot selected" Foreground="#9aa0a6" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Click 'Take Heap Snapshot' on the left to capture control instances footprint." Foreground="#5f6368" FontSize="11" HorizontalAlignment="Center"/>
-                    </StackPanel>
-                </Grid>
-            </Border>
         </Grid>
     </Grid>
 </UserControl>

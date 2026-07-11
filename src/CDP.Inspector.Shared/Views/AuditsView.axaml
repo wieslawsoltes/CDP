@@ -3,6 +3,7 @@
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.AuditsView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -60,10 +61,17 @@
             </Grid>
         </Border>
 
-        <!-- 3. Issues & Recommendations Grid -->
-        <Grid Grid.Row="2" ColumnDefinitions="*, 4, 380">
+        <!-- 3. Issues & Recommendations SuperSplit Layout -->
+        <splits:SuperSplit Name="SplitControl"
+                           Grid.Row="2"
+                           Root="{Binding Audits.LayoutRoot}"
+                           SelectedNode="{Binding Audits.SelectedPane, Mode=TwoWay}"
+                           DockGroup="AuditsGroup"
+                           ConstrainDockingToRoot="True"/>
+
+        <Grid Name="HiddenPanel" IsVisible="False">
             <!-- Left Pane (Issues List) -->
-            <Border Classes="panel-card" ClipToBounds="True">
+            <Border Name="AuditIssuesPanel" Classes="panel-card" ClipToBounds="True">
                 <Grid RowDefinitions="Auto, *">
                     <TextBlock Text="DIAGNOSTIC RECOMMENDATIONS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
                     
@@ -93,11 +101,8 @@
                 </Grid>
             </Border>
 
-            <!-- Splitter -->
-            <GridSplitter Grid.Column="1" Background="#3c4043"/>
-
             <!-- Right Pane (Issue Inspection details) -->
-            <Border Grid.Column="2" Classes="panel-card" Margin="10,0,0,0">
+            <Border Name="AuditDetailsPanel" Classes="panel-card">
                 <Grid>
                     <!-- Issue Detail Card -->
                     <Grid RowDefinitions="Auto, *, Auto" IsVisible="{Binding Audits.SelectedIssue, Converter={x:Static ObjectConverters.IsNotNull}}">

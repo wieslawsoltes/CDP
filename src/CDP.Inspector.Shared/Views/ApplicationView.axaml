@@ -3,343 +3,353 @@
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.ApplicationView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
-    <Grid ColumnDefinitions="250, 4, *" Margin="10">
-        <!-- Sidebar tree -->
-        <Grid RowDefinitions="Auto, *">
-            <TextBlock Text="Application Data" Classes="panel-header"/>
-            <DataGrid Name="treeAppNav"
-                          HierarchicalModel="{Binding Application.HierarchicalNavigationNodes}"
-                          SelectedItem="{Binding Application.SelectedNavigationNodeNode, Mode=TwoWay}"
-                          HierarchicalRowsEnabled="True"
-                          GridLinesVisibility="None"
-                          HeadersVisibility="None"
-                          Background="Transparent" BorderThickness="0"
-                          CanUserResizeColumns="True"
-                          CanUserSortColumns="False"
-                          Grid.Row="1">
-                <DataGrid.Styles>
-                    <Style Selector="DataGridCell TextBlock">
-                        <Setter Property="FontSize" Value="12"/>
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                    </Style>
-                </DataGrid.Styles>
-                <DataGrid.Columns>
-                    <DataGridHierarchicalColumn Width="*">
-                        <DataGridHierarchicalColumn.CellTemplate>
-                            <DataTemplate x:DataType="tree:HierarchicalNode">
-                                <TextBlock Text="{Binding ((models:AppNavNode)Item).Name}" FontSize="12" VerticalAlignment="Center"/>
-                            </DataTemplate>
-                        </DataGridHierarchicalColumn.CellTemplate>
-                    </DataGridHierarchicalColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Grid>
+    <Grid RowDefinitions="*" Margin="10">
+        <!-- SuperSplit Control -->
+        <splits:SuperSplit Name="SplitControl"
+                            Root="{Binding Application.LayoutRoot}"
+                            SelectedNode="{Binding Application.SelectedPane, Mode=TwoWay}"
+                            DockGroup="Application"
+                            ConstrainDockingToRoot="True"/>
 
-        <!-- Splitter -->
-        <GridSplitter Grid.Column="1" Background="#3c4043"/>
-
-        <!-- Editor -->
-        <Grid Name="gridResourceEditor" Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0" IsVisible="{Binding Application.IsResourceEditorVisible}">
-            <Grid ColumnDefinitions="*, Auto">
-                <TextBlock Text="Global Application Resources" Classes="panel-header"/>
-                <Button Grid.Column="1" Name="btnRefreshResources" Command="{Binding Application.RefreshResourcesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
+        <!-- Hidden panels container to keep fields generated and bindings intact -->
+        <Grid Name="HiddenPanel" IsVisible="False">
+            <!-- Sidebar tree -->
+            <Grid Name="pnlNavigation" RowDefinitions="Auto, *">
+                <TextBlock Text="Application Data" Classes="panel-header"/>
+                <DataGrid Name="treeAppNav"
+                              HierarchicalModel="{Binding Application.HierarchicalNavigationNodes}"
+                              SelectedItem="{Binding Application.SelectedNavigationNodeNode, Mode=TwoWay}"
+                              HierarchicalRowsEnabled="True"
+                              GridLinesVisibility="None"
+                              HeadersVisibility="None"
+                              Background="Transparent" BorderThickness="0"
+                              CanUserResizeColumns="True"
+                              CanUserSortColumns="False"
+                              Grid.Row="1">
+                    <DataGrid.Styles>
+                        <Style Selector="DataGridCell TextBlock">
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGrid.Styles>
+                    <DataGrid.Columns>
+                        <DataGridHierarchicalColumn Width="*">
+                            <DataGridHierarchicalColumn.CellTemplate>
+                                <DataTemplate x:DataType="tree:HierarchicalNode">
+                                    <TextBlock Text="{Binding ((models:AppNavNode)Item).Name}" FontSize="12" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridHierarchicalColumn.CellTemplate>
+                        </DataGridHierarchicalColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
             </Grid>
-            
-            <DataGrid Name="lstApplicationResources" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.Resources}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedResource, Mode=TwoWay}" Grid.Row="1"
-                      x:DataType="models:ResourceEntryModel"
-                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                      Background="Transparent" BorderThickness="0">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Key Name" Binding="{Binding Key}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
-                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
-                    <DataGridTemplateColumn Header="Action" Width="80">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate x:DataType="models:ResourceEntryModel">
-                                <Button Name="btnDeleteResource" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteResourceCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
 
-            <!-- Modifier Panel -->
-            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
-                <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
-                    <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Global Resource Entry" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
-                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtResourceKey" Text="{Binding Application.ResourceKeyInput, Mode=TwoWay}" PlaceholderText="Resource Key Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtResourceValue" Text="{Binding Application.ResourceValueInput, Mode=TwoWay}" PlaceholderText="Value (Hex Color, Brush, Double...)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <Button Grid.Row="1" Grid.Column="2" Name="btnSaveResource" Command="{Binding Application.SaveResourceCommand}" Content="Save Resource" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
-                    <Button Grid.Row="1" Grid.Column="3" Name="btnAddResource" Command="{Binding Application.AddResourceCommand}" Content="Add New" Height="28" Padding="12,0"/>
+            <!-- Editor -->
+            <Grid Name="gridResourceEditor" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0">
+                <Grid ColumnDefinitions="*, Auto">
+                    <TextBlock Text="Global Application Resources" Classes="panel-header"/>
+                    <Button Grid.Column="1" Name="btnRefreshResources" Command="{Binding Application.RefreshResourcesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
                 </Grid>
-            </Border>
-        </Grid>
-
-        <!-- Storage Editor -->
-        <Grid Name="gridStorageEditor" Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0" IsVisible="{Binding Application.IsStorageEditorVisible}">
-            <Grid ColumnDefinitions="*, Auto">
-                <TextBlock Text="{Binding Application.StorageTitle}" Classes="panel-header"/>
-                <Button Grid.Column="1" Name="btnRefreshStorage" Command="{Binding Application.RefreshStorageCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
-            </Grid>
-            
-            <DataGrid Name="lstStorageItems" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.StorageItems}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1"
-                      x:DataType="models:StorageEntryModel"
-                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                      Background="Transparent" BorderThickness="0">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Key Name" Binding="{Binding Key}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
-                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
-                    <DataGridTemplateColumn Header="Action" Width="80">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate x:DataType="models:StorageEntryModel">
-                                <Button Name="btnDeleteStorageItem" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteStorageItemCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-
-            <!-- Storage Modifier Panel -->
-            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
-                <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
-                    <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Storage Item" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
-                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtStorageKey" Text="{Binding Application.StorageKeyInput, Mode=TwoWay}" PlaceholderText="Key" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtStorageValue" Text="{Binding Application.StorageValueInput, Mode=TwoWay}" PlaceholderText="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <Button Grid.Row="1" Grid.Column="2" Name="btnSaveStorageItem" Command="{Binding Application.SaveStorageItemCommand}" Content="Save Item" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
-                    <Button Grid.Row="1" Grid.Column="3" Name="btnAddStorageItem" Command="{Binding Application.AddStorageItemCommand}" Content="Add New" Height="28" Padding="12,0"/>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <!-- Cookie Editor -->
-        <Grid Name="gridCookieEditor" Grid.Column="2" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0" IsVisible="{Binding Application.IsCookieEditorVisible}">
-            <Grid ColumnDefinitions="*, Auto">
-                <TextBlock Text="Active Cookies" Classes="panel-header"/>
-                <Button Grid.Column="1" Name="btnRefreshCookies" Command="{Binding Application.RefreshCookiesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
-            </Grid>
-            
-            <DataGrid Name="lstCookies" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.Cookies}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedCookie, Mode=TwoWay}" Grid.Row="1"
-                      x:DataType="models:CookieEntryModel"
-                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                      Background="Transparent" BorderThickness="0">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
-                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
-                    <DataGridTextColumn Header="Domain" Binding="{Binding Domain}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
-                    <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="80" Foreground="#9aa0a6" FontSize="12"/>
-                    <DataGridTextColumn Header="Expires" Binding="{Binding Expires}" Width="100" Foreground="#9aa0a6" FontSize="12"/>
-                    <DataGridTemplateColumn Header="Action" Width="80">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate x:DataType="models:CookieEntryModel">
-                                <Button Name="btnDeleteCookie" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteCookieCommand}" CommandParameter="{Binding}" Content="Delete" Tag="{Binding Name}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-
-            <!-- Cookie Modifier Panel -->
-            <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
-                <Grid ColumnDefinitions="*, *, *, *, *, Auto, Auto" RowDefinitions="Auto, Auto">
-                    <TextBlock Grid.Row="0" Grid.ColumnSpan="7" Text="Add / Edit Cookie" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
-                    <TextBox Grid.Row="1" Grid.Column="0" Name="txtCookieName" Text="{Binding Application.CookieNameInput, Mode=TwoWay}" PlaceholderText="Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" Name="txtCookieValue" Text="{Binding Application.CookieValueInput, Mode=TwoWay}" PlaceholderText="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Grid.Row="1" Grid.Column="2" Name="txtCookieDomain" Text="{Binding Application.CookieDomainInput, Mode=TwoWay}" PlaceholderText="Domain" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Grid.Row="1" Grid.Column="3" Name="txtCookiePath" Text="{Binding Application.CookiePathInput, Mode=TwoWay}" PlaceholderText="Path" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Grid.Row="1" Grid.Column="4" Name="txtCookieExpires" Text="{Binding Application.CookieExpiresInput, Mode=TwoWay}" PlaceholderText="Expires" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
-                    <Button Grid.Row="1" Grid.Column="5" Name="btnSaveCookie" Command="{Binding Application.SaveCookieCommand}" Content="Save Cookie" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
-                    <Button Grid.Row="1" Grid.Column="6" Name="btnAddCookie" Command="{Binding Application.AddCookieCommand}" Content="Add New" Height="28" Padding="12,0"/>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <!-- Database Viewer -->
-        <Grid Name="gridDatabaseViewer" Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0" IsVisible="{Binding Application.IsDatabaseViewerVisible}">
-            <!-- Header: Selected database file path -->
-            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
-                <TextBlock Text="{Binding Application.SelectedDatabasePath, FallbackValue='No Database Selected', TargetNullValue='No Database Selected'}" Classes="panel-header" TextWrapping="Wrap"/>
-            </Grid>
-
-            <!-- Split Pane -->
-            <Grid Grid.Row="1" ColumnDefinitions="200, 4, *">
-                <!-- Left: Database tables list -->
-                <Grid RowDefinitions="Auto, *">
-                    <TextBlock Text="Tables" FontWeight="Bold" Margin="0,0,0,4" FontSize="11" Foreground="#9aa0a6"/>
-                    <ListBox Grid.Row="1" Name="lstTables" ItemsSource="{Binding Application.DatabaseTables}" SelectedItem="{Binding Application.SelectedTableName, Mode=TwoWay}" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="x:String">
-                                <TextBlock Text="{Binding}" FontSize="12" Padding="4,2"/>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
-
-                <!-- Splitter -->
-                <GridSplitter Grid.Column="1" Background="#3c4043"/>
-
-                <!-- Right: Table View -->
-                <TabControl Grid.Column="2" Margin="10,0,0,0">
-                    <!-- Tab 1: Active Table Records -->
-                    <TabItem Header="Table Data">
-                        <Grid RowDefinitions="*">
-                            <DataGrid Name="dgActiveTable" ItemsSource="{Binding Application.TableRows}"
-                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
-                                      GridLinesVisibility="All" HeadersVisibility="Column"
-                                      Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
-                                <!-- Columns will be generated programmatically in code-behind -->
-                            </DataGrid>
-                        </Grid>
-                    </TabItem>
-
-                    <!-- Tab 2: SQL Console -->
-                    <TabItem Header="SQL Console">
-                        <Grid RowDefinitions="100, Auto, *">
-                            <TextBox Grid.Row="0" Name="txtCustomSql" Text="{Binding Application.CustomSqlQuery, Mode=TwoWay}"
-                                     AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="12"
-                                     Watermark="Enter SQL query here..." Margin="0,0,0,8" VerticalContentAlignment="Top"/>
-                            <Button Grid.Row="1" Name="btnRunQuery" Command="{Binding Application.ExecuteSQLCommand}" CommandParameter="{Binding Application.CustomSqlQuery}"
-                                    Content="Run Query" Classes="accent" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-                            <DataGrid Grid.Row="2" Name="dgConsoleResult" ItemsSource="{Binding Application.ConsoleRows}"
-                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
-                                      GridLinesVisibility="All" HeadersVisibility="Column"
-                                      Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
-                                <!-- Columns will be generated programmatically in code-behind -->
-                            </DataGrid>
-                        </Grid>
-                    </TabItem>
-                </TabControl>
-            </Grid>
-        </Grid>
-
-        <!-- Background Services -->
-        <Grid Name="gridBackgroundServices" Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0" IsVisible="{Binding Application.IsBackgroundServicesVisible}">
-            <!-- Toolbar -->
-            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto" Margin="0,0,0,8" VerticalAlignment="Center">
-                <TextBlock Text="Background Services" Classes="panel-header" VerticalAlignment="Center" Margin="0,0,15,0"/>
                 
-                <ComboBox Grid.Column="1" ItemsSource="{Binding Application.AvailableBackgroundServices}" 
-                          SelectedItem="{Binding Application.SelectedBackgroundService}"
-                          Width="180" Height="26" VerticalAlignment="Center" Margin="0,0,10,0"/>
-
-                <Button Grid.Column="2" Command="{Binding Application.ToggleBackgroundRecordingCommand}" 
-                        Height="26" VerticalAlignment="Center" Margin="0,0,10,0">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Panel Width="8" Height="8" VerticalAlignment="Center">
-                            <Ellipse Fill="Red" IsVisible="{Binding Application.IsBackgroundRecording}"/>
-                            <Ellipse Fill="#9aa0a6" IsVisible="{Binding !Application.IsBackgroundRecording}"/>
-                        </Panel>
-                        <TextBlock Text="Stop" IsVisible="{Binding Application.IsBackgroundRecording}" VerticalAlignment="Center"/>
-                        <TextBlock Text="Record" IsVisible="{Binding !Application.IsBackgroundRecording}" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
-
-                <Button Grid.Column="4" Command="{Binding Application.ClearBackgroundEventsCommand}" Content="Clear" 
-                        Height="26" VerticalAlignment="Center"/>
-            </Grid>
-
-            <!-- Events Grid & Details -->
-            <Grid Grid.Row="1" ColumnDefinitions="*, 4, 300" Margin="0,5,0,0">
-                <!-- Events DataGrid -->
-                <DataGrid Grid.Column="0" Name="dgBackgroundEvents" 
-                          ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.BackgroundEvents}" 
-                          SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedBackgroundEvent, Mode=TwoWay}"
-                          x:DataType="models:BackgroundServiceEventModel"
+                <DataGrid Name="lstApplicationResources" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.Resources}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedResource, Mode=TwoWay}" Grid.Row="1"
+                          x:DataType="models:ResourceEntryModel"
                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                          Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                          Background="Transparent" BorderThickness="0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Timestamp" Binding="{Binding TimestampString}" Width="150" Foreground="#9aa0a6" FontSize="11"/>
-                        <DataGridTextColumn Header="Event" Binding="{Binding EventName}" Width="120" Foreground="#e8eaed" FontSize="11" FontWeight="Bold"/>
-                        <DataGridTextColumn Header="Origin" Binding="{Binding Origin}" Width="150" Foreground="#9aa0a6" FontSize="11"/>
-                        <DataGridTextColumn Header="SW Reg ID" Binding="{Binding ServiceWorkerRegistrationId}" Width="80" Foreground="#9aa0a6" FontSize="11"/>
-                        <DataGridTextColumn Header="Instance ID" Binding="{Binding InstanceId}" Width="*" Foreground="#9aa0a6" FontSize="11"/>
+                        <DataGridTextColumn Header="Key Name" Binding="{Binding Key}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                        <DataGridTemplateColumn Header="Action" Width="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ResourceEntryModel">
+                                    <Button Name="btnDeleteResource" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteResourceCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <!-- Splitter -->
-                <GridSplitter Grid.Column="1" Background="#3c4043"/>
+                <!-- Modifier Panel -->
+                <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                    <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
+                        <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Global Resource Entry" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Grid.Row="1" Grid.Column="0" Name="txtResourceKey" Text="{Binding Application.ResourceKeyInput, Mode=TwoWay}" PlaceholderText="Resource Key Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Name="txtResourceValue" Text="{Binding Application.ResourceValueInput, Mode=TwoWay}" PlaceholderText="Value (Hex Color, Brush, Double...)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <Button Grid.Row="1" Grid.Column="2" Name="btnSaveResource" Command="{Binding Application.SaveResourceCommand}" Content="Save Resource" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
+                        <Button Grid.Row="1" Grid.Column="3" Name="btnAddResource" Command="{Binding Application.AddResourceCommand}" Content="Add New" Height="28" Padding="12,0"/>
+                    </Grid>
+                </Border>
+            </Grid>
 
-                <!-- Metadata Properties Panel -->
-                <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
-                    <TextBlock Text="Event Metadata" FontWeight="Bold" Margin="0,0,0,6" FontSize="11" Foreground="#9aa0a6"/>
-                    <DataGrid Grid.Row="1" Name="dgMetadata" 
-                              ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedBackgroundEventMetadata}"
-                              x:DataType="models:BackgroundServiceMetadataModel"
-                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+            <!-- Storage Editor -->
+            <Grid Name="gridStorageEditor" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0">
+                <Grid ColumnDefinitions="*, Auto">
+                    <TextBlock Text="{Binding Application.StorageTitle}" Classes="panel-header"/>
+                    <Button Grid.Column="1" Name="btnRefreshStorage" Command="{Binding Application.RefreshStorageCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
+                </Grid>
+                
+                <DataGrid Name="lstStorageItems" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.StorageItems}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedStorageItem, Mode=TwoWay}" Grid.Row="1"
+                          x:DataType="models:StorageEntryModel"
+                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                          Background="Transparent" BorderThickness="0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Key Name" Binding="{Binding Key}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                        <DataGridTemplateColumn Header="Action" Width="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:StorageEntryModel">
+                                    <Button Name="btnDeleteStorageItem" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteStorageItemCommand}" CommandParameter="{Binding Key}" Content="Delete" Tag="{Binding Key}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Storage Modifier Panel -->
+                <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                    <Grid ColumnDefinitions="*, *, Auto, Auto" RowDefinitions="Auto, Auto">
+                        <TextBlock Grid.Row="0" Grid.ColumnSpan="4" Text="Add / Edit Storage Item" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Grid.Row="1" Grid.Column="0" Name="txtStorageKey" Text="{Binding Application.StorageKeyInput, Mode=TwoWay}" PlaceholderText="Key" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Name="txtStorageValue" Text="{Binding Application.StorageValueInput, Mode=TwoWay}" PlaceholderText="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <Button Grid.Row="1" Grid.Column="2" Name="btnSaveStorageItem" Command="{Binding Application.SaveStorageItemCommand}" Content="Save Item" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
+                        <Button Grid.Row="1" Grid.Column="3" Name="btnAddStorageItem" Command="{Binding Application.AddStorageItemCommand}" Content="Add New" Height="28" Padding="12,0"/>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Cookie Editor -->
+            <Grid Name="gridCookieEditor" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0">
+                <Grid ColumnDefinitions="*, Auto">
+                    <TextBlock Text="Active Cookies" Classes="panel-header"/>
+                    <Button Grid.Column="1" Name="btnRefreshCookies" Command="{Binding Application.RefreshCookiesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
+                </Grid>
+                
+                <DataGrid Name="lstCookies" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.Cookies}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedCookie, Mode=TwoWay}" Grid.Row="1"
+                          x:DataType="models:CookieEntryModel"
+                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                          Background="Transparent" BorderThickness="0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                        <DataGridTextColumn Header="Domain" Binding="{Binding Domain}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
+                        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="80" Foreground="#9aa0a6" FontSize="12"/>
+                        <DataGridTextColumn Header="Expires" Binding="{Binding Expires}" Width="100" Foreground="#9aa0a6" FontSize="12"/>
+                        <DataGridTemplateColumn Header="Action" Width="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:CookieEntryModel">
+                                    <Button Name="btnDeleteCookie" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.DeleteCookieCommand}" CommandParameter="{Binding}" Content="Delete" Tag="{Binding Name}" Background="#b71c1c" Foreground="White" BorderBrush="#b71c1c" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="8,2" FontSize="10"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Cookie Modifier Panel -->
+                <Border Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                    <Grid ColumnDefinitions="*, *, *, *, *, Auto, Auto" RowDefinitions="Auto, Auto">
+                        <TextBlock Grid.Row="0" Grid.ColumnSpan="7" Text="Add / Edit Cookie" FontWeight="Bold" Margin="0,0,0,8" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Grid.Row="1" Grid.Column="0" Name="txtCookieName" Text="{Binding Application.CookieNameInput, Mode=TwoWay}" PlaceholderText="Name" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Name="txtCookieValue" Text="{Binding Application.CookieValueInput, Mode=TwoWay}" PlaceholderText="Value" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBox Grid.Row="1" Grid.Column="2" Name="txtCookieDomain" Text="{Binding Application.CookieDomainInput, Mode=TwoWay}" PlaceholderText="Domain" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBox Grid.Row="1" Grid.Column="3" Name="txtCookiePath" Text="{Binding Application.CookiePathInput, Mode=TwoWay}" PlaceholderText="Path" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBox Grid.Row="1" Grid.Column="4" Name="txtCookieExpires" Text="{Binding Application.CookieExpiresInput, Mode=TwoWay}" PlaceholderText="Expires" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                        <Button Grid.Row="1" Grid.Column="5" Name="btnSaveCookie" Command="{Binding Application.SaveCookieCommand}" Content="Save Cookie" Height="28" Padding="12,0" Margin="0,0,5,0" Classes="accent"/>
+                        <Button Grid.Row="1" Grid.Column="6" Name="btnAddCookie" Command="{Binding Application.AddCookieCommand}" Content="Add New" Height="28" Padding="12,0"/>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Database Viewer -->
+            <Grid Name="gridDatabaseViewer" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                <!-- Header: Selected database file path -->
+                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                    <TextBlock Text="{Binding Application.SelectedDatabasePath, FallbackValue='No Database Selected', TargetNullValue='No Database Selected'}" Classes="panel-header" TextWrapping="Wrap"/>
+                </Grid>
+
+                <!-- Split Pane -->
+                <Grid Grid.Row="1" ColumnDefinitions="200, 4, *">
+                    <!-- Left: Database tables list -->
+                    <Grid RowDefinitions="Auto, *">
+                        <TextBlock Text="Tables" FontWeight="Bold" Margin="0,0,0,4" FontSize="11" Foreground="#9aa0a6"/>
+                        <ListBox Grid.Row="1" Name="lstTables" ItemsSource="{Binding Application.DatabaseTables}" SelectedItem="{Binding Application.SelectedTableName, Mode=TwoWay}" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}" FontSize="12" Padding="4,2"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+
+                    <!-- Splitter -->
+                    <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                    <!-- Right: Table View -->
+                    <TabControl Grid.Column="2" Margin="10,0,0,0">
+                        <!-- Tab 1: Active Table Records -->
+                        <TabItem Header="Table Data">
+                            <Grid RowDefinitions="*">
+                                <DataGrid Name="dgActiveTable" ItemsSource="{Binding Application.TableRows}"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+                                          GridLinesVisibility="All" HeadersVisibility="Column"
+                                          Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                                    <!-- Columns will be generated programmatically in code-behind -->
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+
+                        <!-- Tab 2: SQL Console -->
+                        <TabItem Header="SQL Console">
+                            <Grid RowDefinitions="100, Auto, *">
+                                <TextBox Grid.Row="0" Name="txtCustomSql" Text="{Binding Application.CustomSqlQuery, Mode=TwoWay}"
+                                         AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="12"
+                                         Watermark="Enter SQL query here..." Margin="0,0,0,8" VerticalContentAlignment="Top"/>
+                                <Button Grid.Row="1" Name="btnRunQuery" Command="{Binding Application.ExecuteSQLCommand}" CommandParameter="{Binding Application.CustomSqlQuery}"
+                                        Content="Run Query" Classes="accent" HorizontalAlignment="Right" Margin="0,0,0,8"/>
+                                <DataGrid Grid.Row="2" Name="dgConsoleResult" ItemsSource="{Binding Application.ConsoleRows}"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+                                          GridLinesVisibility="All" HeadersVisibility="Column"
+                                          Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                                    <!-- Columns will be generated programmatically in code-behind -->
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
+
+            <!-- Background Services -->
+            <Grid Name="gridBackgroundServices" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                <!-- Toolbar -->
+                <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto" Margin="0,0,0,8" VerticalAlignment="Center">
+                    <TextBlock Text="Background Services" Classes="panel-header" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                    
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Application.AvailableBackgroundServices}" 
+                              SelectedItem="{Binding Application.SelectedBackgroundService}"
+                              Width="180" Height="26" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <Button Grid.Column="2" Command="{Binding Application.ToggleBackgroundRecordingCommand}" 
+                            Height="26" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Panel Width="8" Height="8" VerticalAlignment="Center">
+                                <Ellipse Fill="Red" IsVisible="{Binding Application.IsBackgroundRecording}"/>
+                                <Ellipse Fill="#9aa0a6" IsVisible="{Binding !Application.IsBackgroundRecording}"/>
+                            </Panel>
+                            <TextBlock Text="Stop" IsVisible="{Binding Application.IsBackgroundRecording}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Record" IsVisible="{Binding !Application.IsBackgroundRecording}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Grid.Column="4" Command="{Binding Application.ClearBackgroundEventsCommand}" Content="Clear" 
+                            Height="26" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Events Grid & Details -->
+                <Grid Grid.Row="1" ColumnDefinitions="*, 4, 300" Margin="0,5,0,0">
+                    <!-- Events DataGrid -->
+                    <DataGrid Grid.Column="0" Name="dgBackgroundEvents" 
+                              ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.BackgroundEvents}" 
+                              SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedBackgroundEvent, Mode=TwoWay}"
+                              x:DataType="models:BackgroundServiceEventModel"
+                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                               Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="120" Foreground="#e8eaed" FontSize="11" FontWeight="Bold"/>
-                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="11"/>
+                            <DataGridTextColumn Header="Timestamp" Binding="{Binding TimestampString}" Width="150" Foreground="#9aa0a6" FontSize="11"/>
+                            <DataGridTextColumn Header="Event" Binding="{Binding EventName}" Width="120" Foreground="#e8eaed" FontSize="11" FontWeight="Bold"/>
+                            <DataGridTextColumn Header="Origin" Binding="{Binding Origin}" Width="150" Foreground="#9aa0a6" FontSize="11"/>
+                            <DataGridTextColumn Header="SW Reg ID" Binding="{Binding ServiceWorkerRegistrationId}" Width="80" Foreground="#9aa0a6" FontSize="11"/>
+                            <DataGridTextColumn Header="Instance ID" Binding="{Binding InstanceId}" Width="*" Foreground="#9aa0a6" FontSize="11"/>
                         </DataGrid.Columns>
                     </DataGrid>
+
+                    <!-- Splitter -->
+                    <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                    <!-- Metadata Properties Panel -->
+                    <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                        <TextBlock Text="Event Metadata" FontWeight="Bold" Margin="0,0,0,6" FontSize="11" Foreground="#9aa0a6"/>
+                        <DataGrid Grid.Row="1" Name="dgMetadata" 
+                                  ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedBackgroundEventMetadata}"
+                                  x:DataType="models:BackgroundServiceMetadataModel"
+                                  CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                  Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="120" Foreground="#e8eaed" FontSize="11" FontWeight="Bold"/>
+                                <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#9aa0a6" FontSize="11"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </Grid>
             </Grid>
-        </Grid>
 
-        <!-- IndexedDB Explorer -->
-        <Grid Name="gridIndexedDBExplorer" Grid.Column="2" RowDefinitions="Auto, *" Margin="10,0,0,0" IsVisible="{Binding Application.IsIndexedDBVisible}">
-            <!-- Header/Toolbar -->
-            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto" Margin="0,0,0,8" VerticalAlignment="Center">
-                <TextBlock Text="Database:" Classes="panel-header" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
-                <ComboBox Grid.Column="1" ItemsSource="{Binding Application.IndexedDBDatabases}" 
-                          SelectedItem="{Binding Application.SelectedIndexedDBDatabase, Mode=TwoWay}"
-                          Width="180" Height="26" VerticalAlignment="Center" Margin="0,0,15,0"/>
+            <!-- IndexedDB Explorer -->
+            <Grid Name="gridIndexedDBExplorer" RowDefinitions="Auto, *" Margin="10,0,0,0">
+                <!-- Header/Toolbar -->
+                <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto" Margin="0,0,0,8" VerticalAlignment="Center">
+                    <TextBlock Text="Database:" Classes="panel-header" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Application.IndexedDBDatabases}" 
+                              SelectedItem="{Binding Application.SelectedIndexedDBDatabase, Mode=TwoWay}"
+                              Width="180" Height="26" VerticalAlignment="Center" Margin="0,0,15,0"/>
 
-                <Button Grid.Column="4" Command="{Binding Application.RefreshIndexedDBCommand}" Content="Refresh" 
-                        Height="26" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <Button Grid.Column="5" Command="{Binding Application.ClearIndexedDBObjectStoreCommand}" Content="Clear Object Store" 
-                        Height="26" VerticalAlignment="Center"/>
-            </Grid>
-
-            <!-- Main Split Panel -->
-            <Grid Grid.Row="1" ColumnDefinitions="200, 4, *">
-                <!-- Left Side: Object Stores list -->
-                <Grid RowDefinitions="Auto, *">
-                    <TextBlock Text="Object Stores" FontWeight="Bold" Margin="0,0,0,4" FontSize="11" Foreground="#9aa0a6"/>
-                    <ListBox Grid.Row="1" Name="lstObjectStores" ItemsSource="{Binding Application.IndexedDBObjectStores}" 
-                             SelectedItem="{Binding Application.SelectedIndexedDBObjectStore, Mode=TwoWay}" 
-                             Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="x:String">
-                                <TextBlock Text="{Binding}" FontSize="12" Padding="4,2"/>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <Button Grid.Column="4" Command="{Binding Application.RefreshIndexedDBCommand}" Content="Refresh" 
+                            Height="26" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <Button Grid.Column="5" Command="{Binding Application.ClearIndexedDBObjectStoreCommand}" Content="Clear Object Store" 
+                            Height="26" VerticalAlignment="Center"/>
                 </Grid>
 
-                <!-- Splitter -->
-                <GridSplitter Grid.Column="1" Background="#3c4043"/>
+                <!-- Main Split Panel -->
+                <Grid Grid.Row="1" ColumnDefinitions="200, 4, *">
+                    <!-- Left Side: Object Stores list -->
+                    <Grid RowDefinitions="Auto, *">
+                        <TextBlock Text="Object Stores" FontWeight="Bold" Margin="0,0,0,4" FontSize="11" Foreground="#9aa0a6"/>
+                        <ListBox Grid.Row="1" Name="lstObjectStores" ItemsSource="{Binding Application.IndexedDBObjectStores}" 
+                                 SelectedItem="{Binding Application.SelectedIndexedDBObjectStore, Mode=TwoWay}" 
+                                 Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}" FontSize="12" Padding="4,2"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
 
-                <!-- Right Side: DataGrid for records -->
-                <Grid Grid.Column="2" RowDefinitions="*" Margin="10,0,0,0">
-                    <DataGrid Name="dgIndexedDBRecords" ItemsSource="{Binding Application.IndexedDBRows}"
-                              CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
-                              GridLinesVisibility="All" HeadersVisibility="Column"
-                              Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
-                        <!-- Columns generated dynamically in code-behind -->
-                    </DataGrid>
+                    <!-- Splitter -->
+                    <GridSplitter Grid.Column="1" Background="#3c4043"/>
+
+                    <!-- Right Side: DataGrid for records -->
+                    <Grid Grid.Column="2" RowDefinitions="*" Margin="10,0,0,0">
+                        <DataGrid Name="dgIndexedDBRecords" ItemsSource="{Binding Application.IndexedDBRows}"
+                                  CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="False" IsReadOnly="True"
+                                  GridLinesVisibility="All" HeadersVisibility="Column"
+                                  Background="Transparent" BorderThickness="1" BorderBrush="#3c4043">
+                            <!-- Columns generated dynamically in code-behind -->
+                        </DataGrid>
+                    </Grid>
                 </Grid>
             </Grid>
-        </Grid>
 
-        <!-- Placeholder for simulated nodes (Cookies / Background Services / Preferences) -->
-        <StackPanel Grid.Column="2" Margin="30" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" IsVisible="{Binding Application.IsPlaceholderVisible}">
-            <TextBlock Text="Chrome Parity Simulator" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8" HorizontalAlignment="Center"/>
-            <TextBlock Text="{Binding Application.SelectedNode.Name, StringFormat='The {0} store is simulated via CdpServer domain hooks.'}" 
-                       Foreground="#9aa0a6" FontSize="12" HorizontalAlignment="Center" TextAlignment="Center"/>
-            <Border BorderBrush="#3c4043" BorderThickness="1" Background="#292a2d" Padding="15" CornerRadius="4" Width="400">
-                <StackPanel Spacing="5">
-                    <TextBlock Text="Status: Active" Foreground="#81c995" FontWeight="SemiBold" FontSize="12"/>
-                    <TextBlock Text="Service Type: Protocol Mock Stubs" Foreground="#e8eaed" FontSize="11"/>
-                    <TextBlock Text="Connection: ws://localhost:9222/devtools/browser" Foreground="#9aa0a6" FontSize="11"/>
+            <!-- Placeholder for simulated nodes (Cookies / Background Services / Preferences) -->
+            <Grid Name="pnlSimulator">
+                <StackPanel Margin="30" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+                    <TextBlock Text="Chrome Parity Simulator" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding Application.SelectedNode.Name, StringFormat='The {0} store is simulated via CdpServer domain hooks.'}" 
+                               Foreground="#9aa0a6" FontSize="12" HorizontalAlignment="Center" TextAlignment="Center"/>
+                    <Border BorderBrush="#3c4043" BorderThickness="1" Background="#292a2d" Padding="15" CornerRadius="4" Width="400">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Status: Active" Foreground="#81c995" FontWeight="SemiBold" FontSize="12"/>
+                            <TextBlock Text="Service Type: Protocol Mock Stubs" Foreground="#e8eaed" FontSize="11"/>
+                            <TextBlock Text="Connection: ws://localhost:9222/devtools/browser" Foreground="#9aa0a6" FontSize="11"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
-        </StackPanel>
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>
