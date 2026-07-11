@@ -6446,7 +6446,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
             var existing = OpenEditors.FirstOrDefault(x => string.Equals(x.FilePath, path, StringComparison.OrdinalIgnoreCase));
             string content;
-            if (existing != null && !string.IsNullOrEmpty(existing.CurrentContent))
+            if (existing != null)
             {
                 content = existing.CurrentContent;
             }

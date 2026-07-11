@@ -1629,7 +1629,6 @@ public class SuperSplit : ContentControl
         if (SuperSplitDragManager.SourceDockGroup != this.DockGroup)
         {
             e.DragEffects = DragDropEffects.None;
-            CleanUpDrag(false);
             e.Handled = true;
             return;
         }
@@ -1637,7 +1636,6 @@ public class SuperSplit : ContentControl
         if (this.ConstrainDockingToRoot && SuperSplitDragManager.SourceSplit != this)
         {
             e.DragEffects = DragDropEffects.None;
-            CleanUpDrag(false);
             e.Handled = true;
             return;
         }

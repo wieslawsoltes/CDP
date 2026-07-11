@@ -1192,6 +1192,7 @@ public class ViewsLayoutTests
         onDropMethod.Invoke(split2, new object[] { split2, dropArgs });
 
         Assert.Equal(DragDropEffects.None, dropArgs.DragEffects);
+        Assert.True(CDP.Editor.Splits.Models.SuperSplitDragManager.IsDragging);
 
         // 2. Setup ConstrainDockingToRoot = true on split1
         split1.ConstrainDockingToRoot = true;
@@ -1227,6 +1228,7 @@ public class ViewsLayoutTests
 
         onDropMethod.Invoke(split1, new object[] { split1, dropArgs2 });
         Assert.Equal(DragDropEffects.None, dropArgs2.DragEffects);
+        Assert.True(CDP.Editor.Splits.Models.SuperSplitDragManager.IsDragging);
     }
 
     [Fact]
