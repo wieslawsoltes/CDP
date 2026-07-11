@@ -94,15 +94,24 @@
             <TextBlock Text="Performance Monitor" Classes="panel-header"/>
             <ScrollViewer Grid.Row="1">
                 <StackPanel Spacing="10" Margin="0,0,10,0">
-                    <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
-                        <controls:TimelineChart StrokeColor="#ff9800" FillColor="#ff9800" Unit="%" MaxDisplayValue="100.0" Height="65" History="{Binding Performance.CpuHistory}"/>
-                    </Border>
-                    <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
-                        <controls:TimelineChart StrokeColor="#4caf50" FillColor="#4caf50" Unit="FPS" MaxDisplayValue="60.0" Height="65" History="{Binding Performance.FpsHistory}"/>
-                    </Border>
-                    <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
-                        <controls:TimelineChart StrokeColor="#2196f3" FillColor="#2196f3" Unit="MB" Height="65" History="{Binding Performance.MemoryHistory}"/>
-                    </Border>
+                    <controls:MetricMeterCard Title="CPU Usage"
+                                              ValueText="{Binding Performance.PerfCpuText}"
+                                              FillPercentage="{Binding Performance.CpuPercentageValue}"
+                                              HistoryData="{Binding Performance.CpuHistory}"
+                                              ThemeColor="#ff9800"
+                                              Height="75"/>
+                    <controls:MetricMeterCard Title="Frame Rate"
+                                              ValueText="{Binding Performance.PerfFpsText}"
+                                              FillPercentage="{Binding Performance.FpsPercentageValue}"
+                                              HistoryData="{Binding Performance.FpsHistory}"
+                                              ThemeColor="#4caf50"
+                                              Height="75"/>
+                    <controls:MetricMeterCard Title="JS Heap Size"
+                                              ValueText="{Binding Performance.PerfMemoryText}"
+                                              FillPercentage="{Binding Performance.MemoryPercentageValue}"
+                                              HistoryData="{Binding Performance.MemoryHistory}"
+                                              ThemeColor="#2196f3"
+                                              Height="75"/>
                     <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True" Padding="10">
                         <controls:CpuPieChart Height="120"
                                               CpuScripting="{Binding Performance.CpuScripting}"

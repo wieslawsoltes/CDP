@@ -3,6 +3,7 @@
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.ConsoleView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -51,7 +52,7 @@
                         <DataGridTemplateColumn Header="Level" Width="70">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate x:DataType="models:LogModel">
-                                    <TextBlock Text="{Binding Level}" Foreground="{Binding LevelBrush}" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <controls:LogLevelBadge Level="{Binding Level}" Height="18" Width="55" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>

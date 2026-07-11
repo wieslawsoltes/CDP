@@ -203,6 +203,15 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
         _ => Brushes.LightCoral
     };
 
+    public Color ConnectionStatusColor => ConnectionStatusText.ToLowerInvariant() switch
+    {
+        "connected" => Colors.LightGreen,
+        "connecting..." => Colors.Orange,
+        "connection failed" => Colors.Red,
+        "disconnecting..." => Colors.Orange,
+        _ => Colors.LightCoral
+    };
+
     public bool IsInspectModeActive
     {
         get => _isInspectModeActive;
@@ -292,6 +301,7 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
         {
             OnPropertyChanged(nameof(ConnectionStatusText));
             OnPropertyChanged(nameof(ConnectionStatusBrush));
+            OnPropertyChanged(nameof(ConnectionStatusColor));
         }
     }
 

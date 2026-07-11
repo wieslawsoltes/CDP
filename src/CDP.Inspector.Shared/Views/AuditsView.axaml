@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
              x:Class="CdpInspectorApp.Views.AuditsView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -20,25 +21,40 @@
             <Grid ColumnDefinitions="*, *, *">
                 <!-- Accessibility Gauge -->
                 <StackPanel Spacing="10" HorizontalAlignment="Center">
-                    <Border Width="84" Height="84" CornerRadius="42" BorderThickness="6" BorderBrush="{Binding Audits.A11yBrush}" Background="#202124" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid Width="84" Height="84">
+                        <controls:RadialGauge Value="{Binding Audits.AccessibilityScore}"
+                                              Minimum="0" Maximum="100"
+                                              TrackBrush="#202124"
+                                              IndicatorBrush="{Binding Audits.A11yBrush}"
+                                              TrackThickness="6" IndicatorThickness="6"/>
                         <TextBlock Text="{Binding Audits.AccessibilityScore}" FontWeight="Bold" FontSize="22" Foreground="{Binding Audits.A11yBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
+                    </Grid>
                     <TextBlock Text="Accessibility" FontWeight="SemiBold" FontSize="13" Foreground="#e8eaed" HorizontalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Best Practices Gauge -->
                 <StackPanel Grid.Column="1" Spacing="10" HorizontalAlignment="Center">
-                    <Border Width="84" Height="84" CornerRadius="42" BorderThickness="6" BorderBrush="{Binding Audits.BestPracticesBrush}" Background="#202124" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid Width="84" Height="84">
+                        <controls:RadialGauge Value="{Binding Audits.BestPracticesScore}"
+                                              Minimum="0" Maximum="100"
+                                              TrackBrush="#202124"
+                                              IndicatorBrush="{Binding Audits.BestPracticesBrush}"
+                                              TrackThickness="6" IndicatorThickness="6"/>
                         <TextBlock Text="{Binding Audits.BestPracticesScore}" FontWeight="Bold" FontSize="22" Foreground="{Binding Audits.BestPracticesBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
+                    </Grid>
                     <TextBlock Text="Best Practices" FontWeight="SemiBold" FontSize="13" Foreground="#e8eaed" HorizontalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Layout Gauge -->
                 <StackPanel Grid.Column="2" Spacing="10" HorizontalAlignment="Center">
-                    <Border Width="84" Height="84" CornerRadius="42" BorderThickness="6" BorderBrush="{Binding Audits.LayoutBrush}" Background="#202124" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid Width="84" Height="84">
+                        <controls:RadialGauge Value="{Binding Audits.LayoutScore}"
+                                              Minimum="0" Maximum="100"
+                                              TrackBrush="#202124"
+                                              IndicatorBrush="{Binding Audits.LayoutBrush}"
+                                              TrackThickness="6" IndicatorThickness="6"/>
                         <TextBlock Text="{Binding Audits.LayoutScore}" FontWeight="Bold" FontSize="22" Foreground="{Binding Audits.LayoutBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
+                    </Grid>
                     <TextBlock Text="Layout" FontWeight="SemiBold" FontSize="13" Foreground="#e8eaed" HorizontalAlignment="Center"/>
                 </StackPanel>
             </Grid>
