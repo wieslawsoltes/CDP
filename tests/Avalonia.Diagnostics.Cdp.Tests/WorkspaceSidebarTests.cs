@@ -239,4 +239,163 @@ public class WorkspaceSidebarTests
         Assert.Equal(350, vm.SidebarColumnWidth.Value);
         Assert.Equal(4, vm.SidebarSplitterWidth.Value);
     }
+
+    [Fact]
+    public void Test_WorkspaceItemModel_BindingProperties()
+    {
+        var model = new WorkspaceItemModel
+        {
+            Name = "flow.yaml",
+            Path = "/flow.yaml",
+            IsFolder = false,
+            FileType = "YAML Flow File",
+            FormattedSize = "2.3 KB",
+            FormattedDateModified = "2026-07-11 12:00:00",
+            IsExpanded = true,
+            IsSelected = true
+        };
+
+        Assert.Equal("flow.yaml", model.Name);
+        Assert.Equal("/flow.yaml", model.Path);
+        Assert.False(model.IsFolder);
+        Assert.Equal("YAML Flow File", model.FileType);
+        Assert.Equal("2.3 KB", model.FormattedSize);
+        Assert.Equal("2026-07-11 12:00:00", model.FormattedDateModified);
+        Assert.True(model.IsExpanded);
+        Assert.True(model.IsSelected);
+    }
+
+    [Fact]
+    public void Test_OpenEditors_Management()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile = Path.Combine(tempDir, "flow1.yaml");
+        File.WriteAllText(testFile, "appId: \"test-app\"\ndescription: \"\"\nsteps: []\n");
+
+        try
+        {
+            // Initial state
+            Assert.Empty(vm.OpenEditors);
+
+            // Load file should register in OpenEditors and set Active
+            vm.LoadFlowFile(testFile);
+            Assert.Single(vm.OpenEditors);
+            var editor = vm.OpenEditors[0];
+            Assert.Equal(testFile, editor.FilePath);
+            Assert.Equal("flow1.yaml", editor.DisplayName);
+            Assert.True(editor.IsActive);
+            Assert.False(editor.IsDirty);
+
+            // Mutating YamlCode should set IsDirty
+            vm.YamlCode = "appId: \"modified-app\"\ndescription: \"\"\nsteps: []\n";
+            Assert.True(editor.IsDirty);
+
+            // Saving YamlCode should clear IsDirty
+            vm.SaveYaml();
+            Assert.False(editor.IsDirty);
+
+            // Closing editor should clean up
+            vm.CloseEditor(editor);
+            Assert.Empty(vm.OpenEditors);
+            Assert.Null(vm.CurrentFlowFilePath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_Search()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(tempDir, "flow2.yaml");
+        File.WriteAllText(testFile1, "appId: \"target-app\"\n");
+        File.WriteAllText(testFile2, "appId: \"other-app\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            
+            // Search query "target" (Case Insensitive)
+            vm.SearchQuery = "target";
+            vm.IsSearchCaseSensitive = false;
+            vm.IsSearchRegex = false;
+            vm.PerformSearch();
+
+            Assert.Single(vm.SearchResults);
+            var fileResult = vm.SearchResults[0];
+            Assert.Equal(testFile1, fileResult.FilePath);
+            Assert.Single(fileResult.Matches);
+            Assert.Equal(1, fileResult.Matches[0].LineNumber);
+            Assert.Equal("appId: \"target-app\"", fileResult.Matches[0].LineText);
+
+            // Clear search
+            vm.ClearSearchResults();
+            Assert.Empty(vm.SearchResults);
+            Assert.Equal("", vm.SearchQuery);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_MoveWorkspaceItem()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var subDir = Path.Combine(tempDir, "SubDir");
+        Directory.CreateDirectory(subDir);
+
+        var testFile = Path.Combine(tempDir, "flow.yaml");
+        File.WriteAllText(testFile, "appId: \"test-app\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.LoadWorkspaceTree();
+
+            // Load file
+            vm.LoadFlowFile(testFile);
+            Assert.Single(vm.OpenEditors);
+
+            // Move flow.yaml to SubDir
+            vm.MoveWorkspaceItem(testFile, subDir);
+
+            var expectedNewPath = Path.Combine(subDir, "flow.yaml");
+            Assert.True(File.Exists(expectedNewPath));
+            Assert.False(File.Exists(testFile));
+
+            // Verify active editor path updated
+            Assert.Equal(expectedNewPath, vm.CurrentFlowFilePath);
+
+            // Verify OpenEditors path updated
+            Assert.Single(vm.OpenEditors);
+            Assert.Equal(expectedNewPath, vm.OpenEditors[0].FilePath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_ClearFileFilter_Resets_Text()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        vm.FileFilterText = "some-filter";
+        Assert.Equal("some-filter", vm.FileFilterText);
+
+        vm.ClearFileFilterCommand.Execute(null);
+
+        Assert.Equal(string.Empty, vm.FileFilterText);
+    }
 }

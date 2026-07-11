@@ -1139,4 +1139,132 @@ public class ViewsLayoutTests
 
         window.Close();
     }
+
+    [Fact]
+    public void Test_SuperSplit_DockGroup_And_DockingToRoot_Constraints()
+    {
+        // 1. Setup two SuperSplit instances with different DockGroups
+        var split1 = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            DockGroup = "GroupA"
+        };
+        var split2 = new CDP.Editor.Splits.Controls.SuperSplit
+        {
+            DockGroup = "GroupB"
+        };
+
+        // Initialize drag with GroupA
+        CDP.Editor.Splits.Models.SuperSplitDragManager.Reset();
+        CDP.Editor.Splits.Models.SuperSplitDragManager.IsDragging = true;
+        CDP.Editor.Splits.Models.SuperSplitDragManager.DraggedNode = new CDP.Editor.Splits.Models.BoxNode();
+        CDP.Editor.Splits.Models.SuperSplitDragManager.SourceSplit = split1;
+        CDP.Editor.Splits.Models.SuperSplitDragManager.SourceDockGroup = "GroupA";
+
+        var dataObject = new DataTransfer();
+
+        // DragOver split2 (different group) should reject
+        var dragOverArgs = new DragEventArgs(
+            null,
+            dataObject,
+            split2,
+            new Point(0, 0),
+            KeyModifiers.None
+        ) { DragEffects = DragDropEffects.Move };
+
+        var onDragOverMethod = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("OnDragOver", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(onDragOverMethod);
+        onDragOverMethod.Invoke(split2, new object[] { split2, dragOverArgs });
+
+        Assert.Equal(DragDropEffects.None, dragOverArgs.DragEffects);
+        Assert.False(CDP.Editor.Splits.Models.SuperSplitDragManager.IsOverDropTarget);
+
+        // Drop on split2 (different group) should reject
+        var dropArgs = new DragEventArgs(
+            null,
+            dataObject,
+            split2,
+            new Point(0, 0),
+            KeyModifiers.None
+        ) { DragEffects = DragDropEffects.Move };
+
+        var onDropMethod = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetMethod("OnDrop", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(onDropMethod);
+        onDropMethod.Invoke(split2, new object[] { split2, dropArgs });
+
+        Assert.Equal(DragDropEffects.None, dropArgs.DragEffects);
+
+        // 2. Setup ConstrainDockingToRoot = true on split1
+        split1.ConstrainDockingToRoot = true;
+
+        // Reset drag manager with split2 as source but same DockGroup GroupA
+        split2.DockGroup = "GroupA";
+        CDP.Editor.Splits.Models.SuperSplitDragManager.Reset();
+        CDP.Editor.Splits.Models.SuperSplitDragManager.IsDragging = true;
+        CDP.Editor.Splits.Models.SuperSplitDragManager.DraggedNode = new CDP.Editor.Splits.Models.BoxNode();
+        CDP.Editor.Splits.Models.SuperSplitDragManager.SourceSplit = split2;
+        CDP.Editor.Splits.Models.SuperSplitDragManager.SourceDockGroup = "GroupA";
+
+        // DragOver split1 (which constrains to its own root split1, but source is split2) should reject
+        var dragOverArgs2 = new DragEventArgs(
+            null,
+            dataObject,
+            split1,
+            new Point(0, 0),
+            KeyModifiers.None
+        ) { DragEffects = DragDropEffects.Move };
+
+        onDragOverMethod.Invoke(split1, new object[] { split1, dragOverArgs2 });
+        Assert.Equal(DragDropEffects.None, dragOverArgs2.DragEffects);
+
+        // Drop on split1 (which constrains to its own root split1, but source is split2) should reject
+        var dropArgs2 = new DragEventArgs(
+            null,
+            dataObject,
+            split1,
+            new Point(0, 0),
+            KeyModifiers.None
+        ) { DragEffects = DragDropEffects.Move };
+
+        onDropMethod.Invoke(split1, new object[] { split1, dropArgs2 });
+        Assert.Equal(DragDropEffects.None, dropArgs2.DragEffects);
+    }
+
+    [Fact]
+    public void Test_SubSplit_ViewModels_Layout_Initialization()
+    {
+        var mockService = new MemoryViewModelTests.MockCdpService();
+
+        var consoleVm = new ConsoleViewModel(mockService);
+        Assert.NotNull(consoleVm.LayoutRoot);
+
+        var elementsVm = new ElementsViewModel(mockService);
+        Assert.NotNull(elementsVm.LayoutRoot);
+
+        var networkVm = new NetworkViewModel(mockService);
+        Assert.NotNull(networkVm.LayoutRoot);
+
+        var memoryVm = new MemoryViewModel(mockService);
+        Assert.NotNull(memoryVm.LayoutRoot);
+
+        var profilerVm = new ProfilerViewModel(mockService);
+        Assert.NotNull(profilerVm.LayoutRoot);
+
+        var sourcesVm = new SourcesViewModel(mockService);
+        Assert.NotNull(sourcesVm.LayoutRoot);
+
+        var auditsVm = new AuditsViewModel(mockService, _ => {});
+        Assert.NotNull(auditsVm.LayoutRoot);
+
+        var eventsVm = new EventsViewModel(mockService);
+        Assert.NotNull(eventsVm.LayoutRoot);
+
+        var appVm = new ApplicationViewModel(mockService);
+        Assert.NotNull(appVm.LayoutRoot);
+
+        var mvvmVm = new MvvmViewModel(mockService);
+        Assert.NotNull(mvvmVm.LayoutRoot);
+
+        var perfVm = new PerformanceViewModel(mockService);
+        Assert.NotNull(perfVm.LayoutRoot);
+    }
 }
