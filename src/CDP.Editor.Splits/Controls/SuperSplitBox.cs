@@ -943,6 +943,7 @@ public class SuperSplitBox : ContentControl
                 }
 
                 InnerContent = view;
+                view.DataContext = superSplit.DataContext;
                 System.Diagnostics.Debug.WriteLine($"[SuperSplitBox] Set InnerContent to view!");
             }
         }
