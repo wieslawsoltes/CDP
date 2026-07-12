@@ -140,8 +140,8 @@
 
             <!-- Bottom-Up Calls Panel -->
             <Border Name="pnlBottomUpCalls" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
-                <DataGrid Name="dgMethodStats" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.MethodStats}"
-                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                <DataGrid Name="dgMethodStats" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.MethodStats}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.SelectedMethod, Mode=TwoWay}"
+                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True"
                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                           Background="Transparent" BorderThickness="0" x:DataType="models:ProfileMethodStats">
                     <DataGrid.Columns>
@@ -198,6 +198,60 @@
                         </TreeDataTemplate>
                     </TreeView.ItemTemplate>
                 </TreeView>
+            </Grid>
+
+            <!-- Caller / Callee Panel -->
+            <Grid Name="pnlCallerCallee" RowDefinitions="Auto, *" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                <!-- Header displaying the selected method -->
+                <Border Grid.Row="0" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <PathIcon Data="{StaticResource SwapVertIcon}" Width="14" Height="14" Foreground="#8ab4f8"/>
+                        <TextBlock Text="Selected Method: " Foreground="#9aa0a6" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Profiler.SelectedMethodHeader}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Side-by-side lists of Callers and Callees -->
+                <Grid Grid.Row="1" ColumnDefinitions="*, 1, *">
+                    <!-- Left: Callers -->
+                    <Grid Grid.Column="0" RowDefinitions="Auto, *" Margin="8">
+                        <TextBlock Grid.Row="0" Text="CALLERS (Parent Functions)" Foreground="#ff5252" FontSize="11" FontWeight="Bold" Margin="4,0,0,6"/>
+                        <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+                            <DataGrid Name="dgCallerMethods" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.CallerMethods}"
+                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                      Background="Transparent" BorderThickness="0" x:DataType="models:ProfileCallItem">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Time (ms)" Binding="{Binding TimeMs, StringFormat=\{0:F2\}}" Width="90" Foreground="#e8eaed" FontSize="11"/>
+                                    <DataGridTextColumn Header="%" Binding="{Binding Percentage, StringFormat=\{0:F1\}%}" Width="60" Foreground="#ff5252" FontSize="11" FontWeight="Bold"/>
+                                    <DataGridTextColumn Header="Samples" Binding="{Binding HitCount}" Width="70" Foreground="#e8eaed" FontSize="11"/>
+                                    <DataGridTextColumn Header="Method" Binding="{Binding MethodName}" Width="*" Foreground="#ff5252" FontSize="11" FontWeight="Bold"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </Grid>
+
+                    <!-- Divider -->
+                    <Border Grid.Column="1" Background="#3c4043"/>
+
+                    <!-- Right: Callees -->
+                    <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="8">
+                        <TextBlock Grid.Row="0" Text="CALLEES (Child Functions)" Foreground="#4caf50" FontSize="11" FontWeight="Bold" Margin="4,0,0,6"/>
+                        <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+                            <DataGrid Name="dgCalleeMethods" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.CalleeMethods}"
+                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                      Background="Transparent" BorderThickness="0" x:DataType="models:ProfileCallItem">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Time (ms)" Binding="{Binding TimeMs, StringFormat=\{0:F2\}}" Width="90" Foreground="#e8eaed" FontSize="11"/>
+                                    <DataGridTextColumn Header="%" Binding="{Binding Percentage, StringFormat=\{0:F1\}%}" Width="60" Foreground="#4caf50" FontSize="11" FontWeight="Bold"/>
+                                    <DataGridTextColumn Header="Samples" Binding="{Binding HitCount}" Width="70" Foreground="#e8eaed" FontSize="11"/>
+                                    <DataGridTextColumn Header="Method" Binding="{Binding MethodName}" Width="*" Foreground="#4caf50" FontSize="11" FontWeight="Bold"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </Grid>
+                </Grid>
             </Grid>
 
             <!-- Memory Allocations Panel -->
