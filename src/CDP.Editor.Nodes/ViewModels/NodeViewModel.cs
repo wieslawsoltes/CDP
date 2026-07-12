@@ -49,10 +49,23 @@ public class NodeViewModel : NodeEditorViewModelBase
         set => RaiseAndSetIfChanged(ref _width, value);
     }
 
+    private System.Collections.ObjectModel.ObservableCollection<PinViewModel> _inputs = new();
+    private System.Collections.ObjectModel.ObservableCollection<PinViewModel> _outputs = new();
+
+    public System.Collections.ObjectModel.ObservableCollection<PinViewModel> Inputs => _inputs;
+    public System.Collections.ObjectModel.ObservableCollection<PinViewModel> Outputs => _outputs;
+
     public double Height
     {
         get => _height;
-        set => RaiseAndSetIfChanged(ref _height, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _height, value))
+            {
+                foreach (var pin in _inputs) pin.RaiseTopChanged();
+                foreach (var pin in _outputs) pin.RaiseTopChanged();
+            }
+        }
     }
 
     public bool IsSelected
