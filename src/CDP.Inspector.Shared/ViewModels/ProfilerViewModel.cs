@@ -63,6 +63,45 @@ public class ProfileMemoryStats : ViewModelBase
     }
 }
 
+public class ProfileCallItem : ViewModelBase
+{
+    private string _methodName = "";
+    private string _moduleName = "";
+    private double _timeMs;
+    private double _percentage;
+    private int _hitCount;
+
+    public string MethodName
+    {
+        get => _methodName;
+        set => RaiseAndSetIfChanged(ref _methodName, value);
+    }
+
+    public string ModuleName
+    {
+        get => _moduleName;
+        set => RaiseAndSetIfChanged(ref _moduleName, value);
+    }
+
+    public double TimeMs
+    {
+        get => _timeMs;
+        set => RaiseAndSetIfChanged(ref _timeMs, value);
+    }
+
+    public double Percentage
+    {
+        get => _percentage;
+        set => RaiseAndSetIfChanged(ref _percentage, value);
+    }
+
+    public int HitCount
+    {
+        get => _hitCount;
+        set => RaiseAndSetIfChanged(ref _hitCount, value);
+    }
+}
+
 public class ProfileSessionModel : ViewModelBase
 {
     private string _name = "";
@@ -113,6 +152,12 @@ public class ProfileSessionModel : ViewModelBase
     public ObservableCollection<ProfileMethodStats> MethodStats { get; } = new();
     public ObservableCollection<ProfileMemoryStats> MemoryStats { get; } = new();
     public string RawJson { get; set; } = "";
+
+    // Keep raw/parsed V8 node info for caller/callee traversal
+    public List<int>? CpuSamples { get; set; }
+    public List<double>? CpuTimeDeltas { get; set; }
+    public Dictionary<int, Chrome.DevTools.Protocol.Domains.V8ProfileNode>? CpuNodeMap { get; set; }
+    public Dictionary<int, int>? CpuParentMap { get; set; }
 }
 
 public class ProfilerViewModel : ViewModelBase, IStateProvider
@@ -155,6 +200,12 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     private readonly ObservableCollection<FlameBlock> _memoryBlocks = new();
     private readonly ObservableCollection<ProfileMethodStats> _methodStats = new();
     private readonly ObservableCollection<ProfileMemoryStats> _memoryStats = new();
+
+    private readonly ObservableCollection<ProfileCallItem> _callerMethods = new();
+    private readonly ObservableCollection<ProfileCallItem> _calleeMethods = new();
+    private string _selectedMethodHeader = "No method selected";
+    private ProfileMethodStats? _selectedMethod;
+    private bool _isUpdatingSelection;
 
     public bool IsProfilingActive
     {
@@ -253,6 +304,63 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             if (RaiseAndSetIfChanged(ref _selectedBlock, value))
             {
                 OnPropertyChanged(nameof(ActiveDetailBlock));
+                if (!_isUpdatingSelection)
+                {
+                    _isUpdatingSelection = true;
+                    try
+                    {
+                        if (value != null)
+                        {
+                            SelectedMethod = null;
+                            UpdateCallerCallee(value.Name, value.Url);
+                        }
+                        else
+                        {
+                            if (SelectedMethod == null)
+                            {
+                                UpdateCallerCallee(null, null);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _isUpdatingSelection = false;
+                    }
+                }
+            }
+        }
+    }
+
+    public ProfileMethodStats? SelectedMethod
+    {
+        get => _selectedMethod;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedMethod, value))
+            {
+                if (!_isUpdatingSelection)
+                {
+                    _isUpdatingSelection = true;
+                    try
+                    {
+                        if (value != null)
+                        {
+                            SelectedBlock = null;
+                            UpdateCallerCallee(value.MethodName, value.ModuleName);
+                        }
+                        else
+                        {
+                            if (SelectedBlock == null)
+                            {
+                                UpdateCallerCallee(null, null);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _isUpdatingSelection = false;
+                    }
+                }
             }
         }
     }
@@ -304,6 +412,15 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     public ObservableCollection<ProfileMethodStats> MethodStats => _methodStats;
     public ObservableCollection<ProfileMemoryStats> MemoryStats => _memoryStats;
 
+    public ObservableCollection<ProfileCallItem> CallerMethods => _callerMethods;
+    public ObservableCollection<ProfileCallItem> CalleeMethods => _calleeMethods;
+
+    public string SelectedMethodHeader
+    {
+        get => _selectedMethodHeader;
+        set => RaiseAndSetIfChanged(ref _selectedMethodHeader, value);
+    }
+
     public Func<string, Task>? SaveFileCallback { get; set; }
     public Func<Task<string?>>? OpenFileCallback { get; set; }
 
@@ -343,6 +460,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         var right = new BoxNode();
         right.AddTab("Flame Charts", "CodeIcon", "FlameCharts");
         right.AddTab("Bottom-Up Calls", "TerminalIcon", "BottomUpCalls");
+        right.AddTab("Caller / Callee", "SwapVertIcon", "CallerCallee");
         right.AddTab("Memory Allocations", "SaveIcon", "MemoryAllocations");
 
         LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.35 };
@@ -355,6 +473,9 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         _memoryBlocks.Clear();
         _methodStats.Clear();
         _memoryStats.Clear();
+        _callerMethods.Clear();
+        _calleeMethods.Clear();
+        SelectedMethodHeader = "No method selected";
 
         if (session != null)
         {
@@ -377,6 +498,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         }
 
         SelectedBlock = null;
+        SelectedMethod = null;
         SelectedMemoryBlock = null;
         HoveredBlock = null;
         HoveredMemoryBlock = null;
@@ -512,20 +634,20 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
 
             if (cpuProfileObj != null)
             {
-                ProcessV8Profile(cpuProfileObj, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
+                ProcessV8Profile(session, cpuProfileObj, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
                 session.TotalDurationMs = cpuDur;
                 session.TotalSamplesCount = cpuSamples;
             }
             else
             {
-                ProcessV8Profile(wrapper, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
+                ProcessV8Profile(session, wrapper, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
                 session.TotalDurationMs = cpuDur;
                 session.TotalSamplesCount = cpuSamples;
             }
 
             if (memProfileObj != null)
             {
-                ProcessV8Profile(memProfileObj, session.MemoryBlocks, new ObservableCollection<ProfileMethodStats>(), true, out double memDur, out int memSamples);
+                ProcessV8Profile(session, memProfileObj, session.MemoryBlocks, new ObservableCollection<ProfileMethodStats>(), true, out double memDur, out int memSamples);
                 session.TotalAllocatedBytes = memDur;
                 session.TotalAllocationsCount = memSamples;
             }
@@ -580,6 +702,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     }
 
     private void ProcessV8Profile(
+        ProfileSessionModel session,
         JsonObject profileObj,
         ObservableCollection<FlameBlock> targetBlocks,
         ObservableCollection<ProfileMethodStats> targetStats,
@@ -640,6 +763,14 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             {
                 parentMap[childId] = node.Id;
             }
+        }
+
+        if (!isMemoryMode)
+        {
+            session.CpuSamples = samples;
+            session.CpuTimeDeltas = timeDeltas;
+            session.CpuNodeMap = nodeMap;
+            session.CpuParentMap = parentMap;
         }
 
         var newBlocks = new List<FlameBlock>();
@@ -841,6 +972,112 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             }
         }
         return stack;
+    }
+
+    private void UpdateCallerCallee(string? methodName, string? moduleName)
+    {
+        _callerMethods.Clear();
+        _calleeMethods.Clear();
+
+        if (string.IsNullOrEmpty(methodName))
+        {
+            SelectedMethodHeader = "No method selected";
+            return;
+        }
+
+        SelectedMethodHeader = $"{methodName} ({moduleName})";
+
+        var session = SelectedSession;
+        if (session == null || session.CpuSamples == null || session.CpuTimeDeltas == null || session.CpuNodeMap == null || session.CpuParentMap == null)
+        {
+            return;
+        }
+
+        var callersDict = new Dictionary<string, (string name, string url, double time, int hits)>();
+        var calleesDict = new Dictionary<string, (string name, string url, double time, int hits)>();
+        double totalSelectedMethodTime = 0.0;
+
+        for (int i = 0; i < session.CpuSamples.Count; i++)
+        {
+            int nodeId = session.CpuSamples[i];
+            double dt = i < session.CpuTimeDeltas.Count ? session.CpuTimeDeltas[i] : 0.0;
+            double val = dt / 1000.0; // convert to ms
+
+            var stack = GetStack(nodeId, session.CpuNodeMap, session.CpuParentMap);
+            if (stack.Count == 0) continue;
+
+            // Find occurrences of this method in the stack
+            for (int j = 0; j < stack.Count; j++)
+            {
+                var node = stack[j];
+                if (node.FunctionName == methodName && node.Url == moduleName)
+                {
+                    totalSelectedMethodTime += val;
+
+                    if (j > 0)
+                    {
+                        var caller = stack[j - 1];
+                        string key = $"{caller.FunctionName}@{caller.Url}";
+                        if (!callersDict.TryGetValue(key, out var entry))
+                        {
+                            entry = (caller.FunctionName, caller.Url, 0.0, 0);
+                        }
+                        entry.time += val;
+                        entry.hits++;
+                        callersDict[key] = entry;
+                    }
+                    else
+                    {
+                        string key = "[Root]@[System]";
+                        if (!callersDict.TryGetValue(key, out var entry))
+                        {
+                            entry = ("[Root]", "[System]", 0.0, 0);
+                        }
+                        entry.time += val;
+                        entry.hits++;
+                        callersDict[key] = entry;
+                    }
+
+                    if (j < stack.Count - 1)
+                    {
+                        var callee = stack[j + 1];
+                        string key = $"{callee.FunctionName}@{callee.Url}";
+                        if (!calleesDict.TryGetValue(key, out var entry))
+                        {
+                            entry = (callee.FunctionName, callee.Url, 0.0, 0);
+                        }
+                        entry.time += val;
+                        entry.hits++;
+                        calleesDict[key] = entry;
+                    }
+                }
+            }
+        }
+
+        // Now populate the observable collections
+        foreach (var entry in callersDict.Values.OrderByDescending(c => c.time))
+        {
+            _callerMethods.Add(new ProfileCallItem
+            {
+                MethodName = entry.name,
+                ModuleName = entry.url,
+                TimeMs = entry.time,
+                Percentage = totalSelectedMethodTime > 0 ? (entry.time / totalSelectedMethodTime) * 100.0 : 0.0,
+                HitCount = entry.hits
+            });
+        }
+
+        foreach (var entry in calleesDict.Values.OrderByDescending(c => c.time))
+        {
+            _calleeMethods.Add(new ProfileCallItem
+            {
+                MethodName = entry.name,
+                ModuleName = entry.url,
+                TimeMs = entry.time,
+                Percentage = totalSelectedMethodTime > 0 ? (entry.time / totalSelectedMethodTime) * 100.0 : 0.0,
+                HitCount = entry.hits
+            });
+        }
     }
 
     public string StateKey => "profiler";

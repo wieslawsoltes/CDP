@@ -70,6 +70,7 @@ public partial class ProfilerView : UserControl
         var pnl2 = this.FindControl<Control>("pnlFlameCharts");
         var pnl3 = this.FindControl<Control>("pnlBottomUpCalls");
         var pnl4 = this.FindControl<Control>("pnlMemoryAllocations");
+        var pnl5 = this.FindControl<Control>("pnlCallerCallee");
         var hiddenPanel = this.FindControl<Panel>("HiddenPanel");
         if (hiddenPanel != null)
         {
@@ -77,6 +78,7 @@ public partial class ProfilerView : UserControl
             if (pnl2 != null) { hiddenPanel.Children.Remove(pnl2); _viewsCache["FlameCharts"] = pnl2; }
             if (pnl3 != null) { hiddenPanel.Children.Remove(pnl3); _viewsCache["BottomUpCalls"] = pnl3; }
             if (pnl4 != null) { hiddenPanel.Children.Remove(pnl4); _viewsCache["MemoryAllocations"] = pnl4; }
+            if (pnl5 != null) { hiddenPanel.Children.Remove(pnl5); _viewsCache["CallerCallee"] = pnl5; }
         }
 
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
