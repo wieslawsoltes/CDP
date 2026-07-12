@@ -447,7 +447,6 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
     private async Task ReceiveLoopAsync()
     {
-        Console.WriteLine("[CdpService] ReceiveLoopAsync started!");
         var buffer = new byte[8192];
         try
         {
@@ -467,7 +466,6 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 }
 
                 var jsonStr = Encoding.UTF8.GetString(ms.ToArray());
-                Console.WriteLine($"[CdpService] Received raw message: {(jsonStr.Length > 200 ? jsonStr.Substring(0, 200) + "..." : jsonStr)}");
                 var node = JsonNode.Parse(jsonStr, null, new JsonDocumentOptions { MaxDepth = 1024 }) as JsonObject;
                 if (node == null) continue;
 
@@ -490,7 +488,6 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
                     if (method == "Page.screencastFrame")
                     {
-                        Console.WriteLine($"[CdpService Screencast] Received event! Params keys: {string.Join(", ", parameters.Select(p => p.Key))}");
                         var transferMode = parameters["transferMode"]?.GetValue<string>();
                         if (string.Equals(transferMode, "tiled", StringComparison.OrdinalIgnoreCase))
                         {
@@ -504,9 +501,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
                                 if (tiles != null && pixelWidth > 0 && pixelHeight > 0)
                                 {
-                                    Console.WriteLine($"[CdpService Screencast] Updating reconstructor with {pixelWidth}x{pixelHeight}, tiles: {tiles.Count}");
                                     _screencastReconstructor.Update(pixelWidth, pixelHeight, tileWidth, tileHeight, tiles);
-                                    Console.WriteLine($"[CdpService Screencast] Reconstructor BackingBitmap is null: {_screencastReconstructor.BackingBitmap == null}");
 
                                     if (RecordFullFrames)
                                     {
@@ -537,7 +532,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CdpService] ReceiveLoopAsync Exception: {ex.Message}\n{ex.StackTrace}");
+            Logger.LogErrorMessage("CdpService", "ReceiveLoopAsync Exception", ex);
         }
         finally
         {

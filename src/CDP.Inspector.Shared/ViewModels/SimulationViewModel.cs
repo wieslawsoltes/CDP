@@ -1004,14 +1004,8 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
 
     private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
     {
-        if (e.Method != "Runtime.consoleAPICalled" && e.Method != "Console.messageAdded")
-        {
-            Console.WriteLine($"[SimulationVM Event] Method: {e.Method}");
-        }
-
          if (e.Method == "Page.screencastFrame")
         {
-            Console.WriteLine($"[SimulationVM Event] Processing Page.screencastFrame. Params keys: {string.Join(", ", e.Params.Select(p => p.Key))}");
             try
             {
                 var base64 = e.Params["data"]?.GetValue<string>() ?? "";
