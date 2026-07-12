@@ -207,5 +207,60 @@
                                 </Grid>
                             </Grid>
         </Grid>
+        <!-- Dominator Tree Panel -->
+        <Grid Name="pnlDominatorTree" RowDefinitions="*">
+            <Border Classes="panel-card" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,4">
+                        <TextBlock Text="DOMINATOR TREE (RETAINED SIZES &amp; INSTANCES)" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
+                    </Border>
+                    <DataGrid Name="treeDominators" Grid.Row="1"
+                              HierarchicalModel="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.HierarchicalDominators}"
+                              HierarchicalRowsEnabled="True"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              Background="Transparent"
+                              BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridHierarchicalColumn Header="Control Type / Category" Width="*">
+                                <DataGridHierarchicalColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,2">
+                                            <TextBlock Text="{Binding ((models:DominatorNodeModel)Item).TypeName}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridHierarchicalColumn.CellTemplate>
+                            </DataGridHierarchicalColumn>
+                            <DataGridTemplateColumn Header="Retained Size" Width="120" SortMemberPath="Item.RetainedSize">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <TextBlock Text="{Binding ((models:DominatorNodeModel)Item).RetainedSize, StringFormat='{}{0} B'}"
+                                                   Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" Margin="10,0" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Retained %" Width="100" SortMemberPath="Item.RetainedPct">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <TextBlock Text="{Binding ((models:DominatorNodeModel)Item).RetainedPct, StringFormat='{}{0:F2} %'}"
+                                                   Foreground="#34a853" FontSize="12" Margin="10,0" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Count" Width="100" SortMemberPath="Item.InstanceCount">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <TextBlock Text="{Binding ((models:DominatorNodeModel)Item).InstanceCount}"
+                                                   Foreground="#f28b82" FontSize="12" Margin="10,0" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

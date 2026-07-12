@@ -63,12 +63,14 @@ public partial class MemoryView : UserControl
         var pnl1 = this.FindControl<Control>("pnlSnapshotsList");
         var pnl2 = this.FindControl<Control>("pnlSnapshotOverview");
         var pnl3 = this.FindControl<Control>("pnlDetachedControls");
+        var pnl4 = this.FindControl<Control>("pnlDominatorTree");
         var hiddenPanel = this.FindControl<Panel>("HiddenPanel");
         if (hiddenPanel != null)
         {
             if (pnl1 != null) { hiddenPanel.Children.Remove(pnl1); _viewsCache["SnapshotsList"] = pnl1; }
             if (pnl2 != null) { hiddenPanel.Children.Remove(pnl2); _viewsCache["SnapshotOverview"] = pnl2; }
             if (pnl3 != null) { hiddenPanel.Children.Remove(pnl3); _viewsCache["DetachedControls"] = pnl3; }
+            if (pnl4 != null) { hiddenPanel.Children.Remove(pnl4); _viewsCache["DominatorTree"] = pnl4; }
         }
 
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
