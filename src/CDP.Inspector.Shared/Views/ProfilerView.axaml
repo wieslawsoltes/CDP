@@ -132,7 +132,20 @@
                           Background="Transparent" BorderThickness="0" x:DataType="models:ProfileMethodStats">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Self Time (ms)" Binding="{Binding SelfTimeMs, StringFormat=\{0:F2\}}" Width="110" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
-                        <DataGridTextColumn Header="Self Time (%)" Binding="{Binding SelfTimePct, StringFormat=\{0:F1\}%}" Width="100" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                        <DataGridTemplateColumn Header="Self Time (%)" Width="110">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMethodStats">
+                                    <Grid Margin="5,2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <Border BorderBrush="#ff5722" BorderThickness="1" Background="#1aff5722" CornerRadius="4" Height="20" Width="100" HorizontalAlignment="Left">
+                                            <Panel>
+                                                <Border Background="#ff5722" CornerRadius="3" HorizontalAlignment="Left" Width="{Binding SelfTimePct}"/>
+                                                <TextBlock Text="{Binding SelfTimePct, StringFormat=\{0:F1\}%}" Foreground="#ffffff" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Panel>
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="Total Time (ms)" Binding="{Binding TotalTimeMs, StringFormat=\{0:F2\}}" Width="115" Foreground="#e8eaed" FontSize="12"/>
                         <DataGridTextColumn Header="Total Time (%)" Binding="{Binding TotalTimePct, StringFormat=\{0:F1\}%}" Width="110" Foreground="#9aa0a6" FontSize="12"/>
                         <DataGridTextColumn Header="Samples" Binding="{Binding HitCount}" Width="80" Foreground="#e8eaed" FontSize="12"/>
