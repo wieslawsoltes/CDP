@@ -247,6 +247,14 @@ public class PerformanceViewModel : ViewModelBase
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
+        _cdpService.TimeMachine.FrameChanged += async (sender, args) =>
+        {
+            if (_cdpService.TimeMachine.IsReplaying)
+            {
+                await RefreshMetricsAsync();
+            }
+        };
+        _cdpService.TimeMachine.ReplayStateCleared += (sender, args) => ClearData();
 
         RefreshMetricsCommand = new RelayCommand(async () => await RefreshMetricsAsync(), () => _cdpService.IsConnected);
         CollectGarbageCommand = new RelayCommand(async () => await CollectGarbageAsync(), () => _cdpService.IsConnected);

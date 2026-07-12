@@ -241,6 +241,14 @@ public class MvvmViewModel : ViewModelBase, IStateProvider
         _cdpService = cdpService;
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
+        _cdpService.TimeMachine.FrameChanged += async (sender, args) =>
+        {
+            if (_cdpService.TimeMachine.IsReplaying)
+            {
+                await RefreshMvvmTreeAsync();
+            }
+        };
+        _cdpService.TimeMachine.ReplayStateCleared += (sender, args) => ClearData();
 
         RefreshTreeCommand = new RelayCommand(async () => await RefreshMvvmTreeAsync(), () => _cdpService.IsConnected);
         ClearHistoryCommand = new RelayCommand(() => CommandHistory.Clear());

@@ -207,6 +207,7 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
         _getTestStudioFunc = getTestStudioFunc;
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
+        _cdpService.TimeMachine.ReplayStateCleared += (sender, args) => ClearLogs();
 
         ClearLogsCommand = new RelayCommand(ClearLogs);
         EvaluateCommand = new RelayCommand(async () => await EvaluateAsync(), () => !string.IsNullOrEmpty(ConsoleInputText) && _cdpService.IsConnected);

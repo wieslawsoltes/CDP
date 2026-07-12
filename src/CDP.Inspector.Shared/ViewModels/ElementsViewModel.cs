@@ -708,6 +708,14 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
+        _cdpService.TimeMachine.FrameChanged += async (sender, args) =>
+        {
+            if (_cdpService.TimeMachine.IsReplaying)
+            {
+                await RefreshDomTreeAsync();
+            }
+        };
+        _cdpService.TimeMachine.ReplayStateCleared += (sender, args) => ClearData();
 
         FocusSelectedNodeCommand = new RelayCommand(async () => await FocusSelectedNodeAsync(), () => SelectedNode != null);
         DeleteSelectedNodeCommand = new RelayCommand(async () => await DeleteSelectedNodeAsync(), () => SelectedNode != null);

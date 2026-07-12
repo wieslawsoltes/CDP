@@ -373,6 +373,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine($"[SimulationVM] CdpService_PropertyChanged: {e.PropertyName}, IsConnected: {_cdpService.IsConnected}");
         if (e.PropertyName == nameof(ICdpService.IsConnected))
         {
             if (!_cdpService.IsConnected)
@@ -954,6 +955,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
 
     private async Task StartScreencastAsync()
     {
+        Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine("[SimulationVM] StartScreencastAsync called!");
         if (!_cdpService.IsConnected) return;
         try
         {
@@ -961,7 +963,10 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
             {
                 await _cdpService.SendCommandAsync("Page.enable", new JsonObject());
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine($"[SimulationVM] Page.enable failed: {ex.Message}");
+            }
 
             if (SelectedDevicePreset != null && SelectedDevicePreset.Width == 0 && SelectedDevicePreset.Height == 0)
             {
@@ -981,6 +986,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                 });
             }
 
+            Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine("[SimulationVM] Sending Page.startScreencast");
             await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
             {
                 ["format"] = "png",
@@ -988,17 +994,24 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                 ["transferMode"] = "tiled"
             });
             _cdpService.IsPreviewScreencastActive = true;
+            Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine("[SimulationVM] Page.startScreencast sent successfully!");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"StartScreencast failed: {ex.Message}");
+            Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine($"[SimulationVM] StartScreencast failed: {ex.Message}");
         }
     }
 
     private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
     {
-        if (e.Method == "Page.screencastFrame")
+        if (e.Method != "Runtime.consoleAPICalled" && e.Method != "Console.messageAdded")
         {
+            Console.WriteLine($"[SimulationVM Event] Method: {e.Method}");
+        }
+
+         if (e.Method == "Page.screencastFrame")
+        {
+            Console.WriteLine($"[SimulationVM Event] Processing Page.screencastFrame. Params keys: {string.Join(", ", e.Params.Select(p => p.Key))}");
             try
             {
                 var base64 = e.Params["data"]?.GetValue<string>() ?? "";
@@ -1025,6 +1038,9 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                 {
                     int pixelWidth = e.Params["pixelWidth"]?.GetValue<int>() ?? 0;
                     int pixelHeight = e.Params["pixelHeight"]?.GetValue<int>() ?? 0;
+                    int tileWidth = e.Params["tileWidth"]?.GetValue<int>() ?? 0;
+                    int tileHeight = e.Params["tileHeight"]?.GetValue<int>() ?? 0;
+                    var tiles = e.Params["tiles"] as JsonArray;
 
                     if (pixelWidth > 0 && pixelHeight > 0)
                     {

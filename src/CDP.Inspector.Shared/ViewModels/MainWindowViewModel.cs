@@ -28,6 +28,8 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public EventsViewModel Events { get; }
     public MvvmViewModel Mvvm { get; }
     public DiffViewModel Diff { get; }
+    public ScratchViewModel Scratch { get; }
+    public TimeMachineViewModel TimeMachine { get; }
 
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
@@ -82,8 +84,11 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public ICommand SetDiffLeftRequestCommand { get; }
     public ICommand SetDiffRightRequestCommand { get; }
 
+    public static MainWindowViewModel? Instance { get; private set; }
+
     public MainWindowViewModel(ICdpService? cdpService = null, bool loadState = false)
     {
+        Instance = this;
         CdpService = cdpService ?? new CdpService();
 
         Connection = new ConnectionViewModel(CdpService);
@@ -109,6 +114,8 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         Events = new EventsViewModel(CdpService);
         Mvvm = new MvvmViewModel(CdpService);
         Diff = new DiffViewModel();
+        Scratch = new ScratchViewModel(CdpService, Console, Network);
+        TimeMachine = new TimeMachineViewModel(CdpService);
 
         SetDiffLeftEventCommand = new RelayCommand(() =>
         {
@@ -243,6 +250,8 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         StateService.RegisterProvider(Application);
         StateService.RegisterProvider(Simulation);
         StateService.RegisterProvider(Mvvm);
+        StateService.RegisterProvider(Scratch);
+        StateService.RegisterProvider(TimeMachine);
         StateService.RegisterProvider(this);
         if (loadState)
         {
@@ -455,6 +464,8 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         rightPane.AddTab("Window", "WindowMultipleIcon", "Window");
         rightPane.AddTab("Events", "FlowchartIcon", "Events");
         rightPane.AddTab("MVVM", "DiagramIcon", "Mvvm");
+        rightPane.AddTab("Scratch", "FlowchartIcon", "Scratch");
+        rightPane.AddTab("Time Machine", "HistoryIcon", "TimeMachine");
 
         LayoutRoot = new SplitContainerNode(
             Avalonia.Layout.Orientation.Horizontal,
@@ -529,7 +540,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         }
     }
 
-    private BoxNode? FindBoxNodeByViewName(SplitNode? node, string viewName)
+    public BoxNode? FindBoxNodeByViewName(SplitNode? node, string viewName)
     {
         if (node == null) return null;
         if (node is BoxNode box)
@@ -610,6 +621,8 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
             "Events" => "FlowchartIcon",
             "Mvvm" => "DiagramIcon",
             "Diff" => "CodeIcon",
+            "Scratch" => "FlowchartIcon",
+            "TimeMachine" => "HistoryIcon",
             _ => "DocumentIcon"
         };
     }

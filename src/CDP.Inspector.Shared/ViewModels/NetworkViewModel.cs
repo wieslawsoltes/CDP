@@ -168,6 +168,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
+        _cdpService.TimeMachine.ReplayStateCleared += (sender, args) => ClearNetwork();
 
         _selectedProfile = _throttlingProfiles[0];
         ClearNetworkCommand = new RelayCommand(ClearNetwork);
