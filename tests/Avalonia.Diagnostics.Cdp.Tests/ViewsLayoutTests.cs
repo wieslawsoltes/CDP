@@ -59,6 +59,48 @@ public class ViewsLayoutTests
 
             var mvvmView = new MvvmView();
             Assert.NotNull(mvvmView);
+
+            var scratchView = new ScratchView();
+            Assert.NotNull(scratchView);
+
+            var scratchDomNodeView = new ScratchDomNodeView();
+            Assert.NotNull(scratchDomNodeView);
+
+            var scratchAccessibilityNodeView = new ScratchAccessibilityNodeView();
+            Assert.NotNull(scratchAccessibilityNodeView);
+
+            var scratchConsoleNodeView = new ScratchConsoleNodeView();
+            Assert.NotNull(scratchConsoleNodeView);
+
+            var scratchPerformanceNodeView = new ScratchPerformanceNodeView();
+            Assert.NotNull(scratchPerformanceNodeView);
+
+            var scratchApplicationNodeView = new ScratchApplicationNodeView();
+            Assert.NotNull(scratchApplicationNodeView);
+
+            var scratchNetworkNodeView = new ScratchNetworkNodeView();
+            Assert.NotNull(scratchNetworkNodeView);
+
+            var scratchPageNodeView = new ScratchPageNodeView();
+            Assert.NotNull(scratchPageNodeView);
+
+            var scratchTimeMachineNodeView = new ScratchTimeMachineNodeView();
+            Assert.NotNull(scratchTimeMachineNodeView);
+
+            var scratchAssertionNodeView = new ScratchAssertionNodeView();
+            Assert.NotNull(scratchAssertionNodeView);
+
+            var scratchDiffNodeView = new ScratchDiffNodeView();
+            Assert.NotNull(scratchDiffNodeView);
+
+            var scratchImageDiffNodeView = new ScratchImageDiffNodeView();
+            Assert.NotNull(scratchImageDiffNodeView);
+
+            var scratchMvvmNodeView = new ScratchMvvmNodeView();
+            Assert.NotNull(scratchMvvmNodeView);
+
+            var timeMachineView = new TimeMachineView();
+            Assert.NotNull(timeMachineView);
         }
         finally
         {
