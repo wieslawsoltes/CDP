@@ -43,7 +43,7 @@
         </Grid>
 
         <!-- Right panel (Snapshot details) -->
-        <Grid Name="pnlSnapshotOverview" RowDefinitions="Auto, Auto, *">
+        <Grid Name="pnlSnapshotOverview" RowDefinitions="Auto, Auto, Auto, *">
             <!-- Details Header toolbar -->
             <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,10">
                 <TextBlock Text="{Binding Memory.SelectedSnapshot.Name, FallbackValue='Select or Take a Snapshot'}" Classes="panel-header" FontSize="16" VerticalAlignment="Center"/>
@@ -71,8 +71,40 @@
                 </Border>
             </StackPanel>
  
+            <!-- Memory Generations Distribution Chart -->
+            <StackPanel Grid.Row="2" Spacing="5" Margin="0,0,0,15" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid ColumnDefinitions="*, Auto">
+                    <TextBlock Text="Memory Generations Distribution" Classes="panel-header" FontSize="12"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="8" Height="8" CornerRadius="4" Background="#4caf50" VerticalAlignment="Center"/>
+                            <TextBlock Text="Gen 0" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="8" Height="8" CornerRadius="4" Background="#2196f3" VerticalAlignment="Center"/>
+                            <TextBlock Text="Gen 1" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="8" Height="8" CornerRadius="4" Background="#ffeb3b" VerticalAlignment="Center"/>
+                            <TextBlock Text="Gen 2" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="8" Height="8" CornerRadius="4" Background="#ff9800" VerticalAlignment="Center"/>
+                            <TextBlock Text="LOH" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+                <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="5" Padding="8,10">
+                    <controls:GenerationsBarChart Height="24"
+                                                   Gen0Size="{Binding Memory.Gen0Size}"
+                                                   Gen1Size="{Binding Memory.Gen1Size}"
+                                                   Gen2Size="{Binding Memory.Gen2Size}"
+                                                   LohSize="{Binding Memory.LohSize}"/>
+                </Border>
+            </StackPanel>
+
             <!-- Table content -->
-            <Border Grid.Row="2" Classes="panel-card" ClipToBounds="True">
+            <Border Grid.Row="3" Classes="panel-card" ClipToBounds="True">
                 <Grid>
                     <Grid IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
                                 <!-- Summary mode list -->

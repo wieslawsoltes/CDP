@@ -112,6 +112,12 @@ public static class MemoryDomain
                     int gen1 = GC.CollectionCount(1);
                     int gen2 = GC.CollectionCount(2);
 
+                    var generationInfo = mc.GenerationInfo;
+                    long gen0Size = generationInfo.Length > 0 ? generationInfo[0].SizeAfterBytes : 0;
+                    long gen1Size = generationInfo.Length > 1 ? generationInfo[1].SizeAfterBytes : 0;
+                    long gen2Size = generationInfo.Length > 2 ? generationInfo[2].SizeAfterBytes : 0;
+                    long lohSize = generationInfo.Length > 3 ? generationInfo[3].SizeAfterBytes : 0;
+
                     return new JsonObject
                     {
                         ["totalAllocatedBytes"] = totalAllocated,
@@ -119,7 +125,11 @@ public static class MemoryDomain
                         ["fragmentedBytes"] = fragmented,
                         ["gen0Collections"] = gen0,
                         ["gen1Collections"] = gen1,
-                        ["gen2Collections"] = gen2
+                        ["gen2Collections"] = gen2,
+                        ["gen0Size"] = gen0Size,
+                        ["gen1Size"] = gen1Size,
+                        ["gen2Size"] = gen2Size,
+                        ["lohSize"] = lohSize
                     };
                 }
 
