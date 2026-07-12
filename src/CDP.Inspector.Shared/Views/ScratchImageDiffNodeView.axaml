@@ -1,0 +1,13 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             x:Class="CdpInspectorApp.Views.ScratchImageDiffNodeView"
+             x:DataType="vm:ScratchImageDiffNodeViewModel"
+             x:CompileBindings="True">
+    <Grid RowDefinitions="Auto, *" Margin="8" Width="140" Height="90">
+        <TextBlock Grid.Row="0" Text="Diff Preview" FontSize="10" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+        <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Background="#1e1e24" ClipToBounds="True">
+            <Image Source="{Binding DiffImage}" Stretch="Uniform" Height="60"/>
+        </Border>
+    </Grid>
+</UserControl>
