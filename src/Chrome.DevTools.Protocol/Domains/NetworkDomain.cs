@@ -628,6 +628,13 @@ internal class InterceptingHttpContent : HttpContent
         OnComplete();
     }
 
+    protected override void SerializeToStream(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+    {
+        using var trackingStream = new TrackingStream(stream, this, leaveOpen: true);
+        _inner.CopyTo(trackingStream, context, cancellationToken);
+        OnComplete();
+    }
+
     protected override Task<Stream> CreateContentReadStreamAsync()
     {
         return CreateContentReadStreamAsync(CancellationToken.None);
@@ -636,6 +643,12 @@ internal class InterceptingHttpContent : HttpContent
     protected override async Task<Stream> CreateContentReadStreamAsync(CancellationToken cancellationToken)
     {
         var stream = await _inner.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        return new TrackingStream(stream, this);
+    }
+
+    protected override Stream CreateContentReadStream(CancellationToken cancellationToken)
+    {
+        var stream = _inner.ReadAsStream(cancellationToken);
         return new TrackingStream(stream, this);
     }
 

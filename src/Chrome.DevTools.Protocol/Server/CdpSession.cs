@@ -334,6 +334,7 @@ public class CdpSession : IDisposable
 
     public async Task StartAsync()
     {
+        Console.WriteLine($"[CDP SERVER] CdpSession.StartAsync entered! Target: {Target?.Id}");
         var buffer = new byte[8192];
         try
         {
@@ -357,9 +358,9 @@ public class CdpSession : IDisposable
                 await HandleMessageAsync(jsonStr);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Session closed or faulted
+            Console.WriteLine($"[CDP SERVER] StartAsync Exception: {ex.Message}\n{ex.StackTrace}");
         }
         finally
         {
@@ -384,6 +385,7 @@ public class CdpSession : IDisposable
 
     private async Task HandleMessageAsync(string jsonStr)
     {
+        Console.WriteLine($"[CDP SERVER] HandleMessageAsync entered! msg: {jsonStr}");
         try
         {
             var node = JsonNode.Parse(jsonStr);
@@ -564,6 +566,7 @@ public class CdpSession : IDisposable
 
     public void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null, string? transferMode = null)
     {
+        Console.WriteLine($"[CDP SERVER] StartScreencast. CurrentTargetSession is null: {CurrentTargetSession == null}, Type: {CurrentTargetSession?.GetType().FullName}");
         CurrentTargetSession?.StartScreencast(format, quality, maxWidth, maxHeight, everyNthFrame, transferMode);
     }
 

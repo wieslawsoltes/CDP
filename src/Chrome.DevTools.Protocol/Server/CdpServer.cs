@@ -782,6 +782,7 @@ public class QueuedTextWriter : System.IO.TextWriter
                 try
                 {
                     _underlying.Write(item);
+                    _underlying.Flush();
                 }
                 catch { }
             }

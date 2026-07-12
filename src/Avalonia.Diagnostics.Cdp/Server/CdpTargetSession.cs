@@ -151,6 +151,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
 
     public override void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null, string? transferMode = null)
     {
+        Console.WriteLine($"[CdpTargetSession] StartScreencast called! Window is null: {Window == null}");
         if (Window == null) return;
 
         _screencastFormat = format;
@@ -199,10 +200,12 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
 
         Task.Run(async () =>
         {
+            Console.WriteLine("[CdpTargetSession Screencast] Task started!");
             while (_screencastEnabled && !_cts.IsCancellationRequested)
             {
                 try
                 {
+                    Console.WriteLine($"[CdpTargetSession Screencast] Loop iteration. Dirty: {_screencastDirty}");
                     if (!_screencastDirty)
                     {
                         await _screencastSignal.WaitAsync(_cts.Token);
@@ -292,8 +295,9 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                                 currentDirtyRect = new SkiaSharp.SKRect(left, top, right, bottom);
                             }
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
+                            Console.WriteLine($"[CdpTargetSession Screencast] Render Exception: {ex.Message}\n{ex.StackTrace}");
                         }
                     }, DispatcherPriority.Background);
 
@@ -313,8 +317,9 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                                 rawPngLength = rawPngBytes.Length;
                             }
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
+                            Console.WriteLine($"[CdpTargetSession Screencast] Save Exception: {ex.Message}\n{ex.StackTrace}");
                         }
                     }
 
@@ -423,6 +428,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
 
                                 _lastFrameSentTime = DateTime.UtcNow;
 
+                                Console.WriteLine($"[CdpTargetSession Screencast] Sending Page.screencastFrame (tiled). ID: {currentFrameId}, tiles: {changedTiles.Count}");
                                 await _session.SendEventAsync("Page.screencastFrame", new JsonObject
                                 {
                                     ["transferMode"] = "tiled",
@@ -493,16 +499,18 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                             }
                         }
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
+                        Console.WriteLine($"[CdpTargetSession Screencast] Inner Exception: {ex.Message}\n{ex.StackTrace}");
                     }
                 }
                 catch (OperationCanceledException)
                 {
                     break;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    Console.WriteLine($"[CdpTargetSession Screencast] Outer Exception: {ex.Message}\n{ex.StackTrace}");
                     try
                     {
                         await Task.Delay(100, _cts.Token);

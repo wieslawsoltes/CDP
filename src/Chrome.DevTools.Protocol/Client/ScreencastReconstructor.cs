@@ -28,6 +28,7 @@ public class ScreencastReconstructor : IDisposable
         {
             if (_backingBitmap == null || _backingBitmap.Width != destWidth || _backingBitmap.Height != destHeight)
             {
+                Console.WriteLine($"[ScreencastReconstructor CopyTo FAIL] _backingBitmap is null: {_backingBitmap == null}, backing: {_backingBitmap?.Width}x{_backingBitmap?.Height}, dest: {destWidth}x{destHeight}");
                 return false;
             }
 

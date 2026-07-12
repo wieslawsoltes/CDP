@@ -20,6 +20,7 @@ public class CdpEventEventArgs : EventArgs
 
 public interface ICdpService : INotifyPropertyChanged
 {
+    ITimeMachineService TimeMachine => new TimeMachineService();
     bool IsConnected { get; }
     string ConnectionStatus { get; }
     string ConnectedHost { get; }
