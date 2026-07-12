@@ -84,6 +84,15 @@ public class BoxNode : SplitNode
 
     public ObservableCollection<BoxTabNode> Tabs => _tabs;
 
+    public BoxNode()
+    {
+    }
+
+    public BoxNode(string viewName, string title, string iconKey)
+    {
+        AddTab(title, iconKey, viewName);
+    }
+
     public BoxTabNode AddTab(string title, string iconKey, string viewName)
     {
         var tab = new BoxTabNode
