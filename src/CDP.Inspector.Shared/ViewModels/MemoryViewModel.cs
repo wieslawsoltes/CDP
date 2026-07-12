@@ -47,6 +47,11 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
     private List<double>? _allocationHistory;
     private ObservableCollection<MemoryInspectionModel> _inspections = new();
     public ObservableCollection<MemoryInspectionModel> Inspections => _inspections;
+    private long _gen0Size;
+    private long _gen1Size;
+    private long _gen2Size;
+    private long _lohSize;
+    private readonly DispatcherTimer? _heapInfoTimer;
 
     public ObservableCollection<DetachedControlModel> DetachedControls => _detachedControls;
 
@@ -183,6 +188,30 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         private set => RaiseAndSetIfChanged(ref _allocationHistory, value);
     }
 
+    public long Gen0Size
+    {
+        get => _gen0Size;
+        set => RaiseAndSetIfChanged(ref _gen0Size, value);
+    }
+
+    public long Gen1Size
+    {
+        get => _gen1Size;
+        set => RaiseAndSetIfChanged(ref _gen1Size, value);
+    }
+
+    public long Gen2Size
+    {
+        get => _gen2Size;
+        set => RaiseAndSetIfChanged(ref _gen2Size, value);
+    }
+
+    public long LohSize
+    {
+        get => _lohSize;
+        set => RaiseAndSetIfChanged(ref _lohSize, value);
+    }
+
     public ICommand TakeSnapshotCommand { get; }
     public ICommand ClearSnapshotsCommand { get; }
     public ICommand CollectGarbageCommand { get; }
@@ -219,6 +248,18 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         HierarchicalDominators.SetRoots(DominatorRoots);
 
         ResetLayout();
+
+        _heapInfoTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(1000)
+        };
+        _heapInfoTimer.Tick += async (sender, e) => await UpdateHeapInfoAsync();
+
+        if (_cdpService.IsConnected)
+        {
+            _heapInfoTimer.Start();
+            _ = UpdateHeapInfoAsync();
+        }
     }
 
     public void ResetLayout()
@@ -240,8 +281,14 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
     {
         if (e.PropertyName == nameof(ICdpService.IsConnected))
         {
-            if (!_cdpService.IsConnected)
+            if (_cdpService.IsConnected)
             {
+                _heapInfoTimer?.Start();
+                _ = UpdateHeapInfoAsync();
+            }
+            else
+            {
+                _heapInfoTimer?.Stop();
                 ClearData();
             }
             ((RelayCommand)TakeSnapshotCommand).RaiseCanExecuteChanged();
@@ -427,6 +474,10 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             RetainerRoots.Clear();
             DominatorRoots.Clear();
             _snapshotCounter = 1;
+            Gen0Size = 0;
+            Gen1Size = 0;
+            Gen2Size = 0;
+            LohSize = 0;
         });
     }
 
@@ -548,6 +599,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         return 0.0;
     }
 
+<<<<<<< HEAD
     private void UpdateDominatorTree()
     {
         Dispatcher.UIThread.Post(() =>
@@ -788,6 +840,47 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         }
 
         return list;
+    }
+
+    private async Task UpdateHeapInfoAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Memory.getHeapInfo");
+            if (response != null)
+            {
+                long gen0 = GetLong(response["gen0Size"]);
+                long gen1 = GetLong(response["gen1Size"]);
+                long gen2 = GetLong(response["gen2Size"]);
+                long loh = GetLong(response["lohSize"]);
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Gen0Size = gen0;
+                    Gen1Size = gen1;
+                    Gen2Size = gen2;
+                    LohSize = loh;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching heap info: {ex.Message}");
+        }
+    }
+
+    private static long GetLong(JsonNode? node)
+    {
+        if (node == null) return 0;
+        if (node is JsonValue jsonVal)
+        {
+            if (jsonVal.TryGetValue<long>(out long l)) return l;
+            if (jsonVal.TryGetValue<int>(out int i)) return i;
+            if (jsonVal.TryGetValue<double>(out double d)) return (long)d;
+        }
+        return 0;
     }
 }
 
