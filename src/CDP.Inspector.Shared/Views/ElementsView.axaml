@@ -38,7 +38,14 @@
                                 <DataGridHierarchicalColumn Width="*">
                                     <DataGridHierarchicalColumn.CellTemplate>
                                         <DataTemplate x:DataType="tree:HierarchicalNode">
-                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0" Background="Transparent">
+                                                <StackPanel.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="Add to Scratchpad as DOM Node"
+                                                                  Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Scratch.AddDomNodeFromTreeCommand}"
+                                                                  CommandParameter="{Binding ((models:DomNodeModel)Item)}"/>
+                                                    </ContextMenu>
+                                                </StackPanel.ContextMenu>
                                                 <TextBlock Text="{Binding ((models:DomNodeModel)Item).DisplayName}" Foreground="{Binding ((models:DomNodeModel)Item).ForegroundBrush}" FontSize="12" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </DataTemplate>
@@ -84,7 +91,14 @@
                                 <DataGridHierarchicalColumn Width="*">
                                     <DataGridHierarchicalColumn.CellTemplate>
                                         <DataTemplate x:DataType="tree:HierarchicalNode">
-                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,0" Background="Transparent">
+                                                <StackPanel.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="Add to Scratchpad as Accessibility Node"
+                                                                  Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Scratch.AddAxNodeFromTreeCommand}"
+                                                                  CommandParameter="{Binding ((models:AxNodeModel)Item)}"/>
+                                                    </ContextMenu>
+                                                </StackPanel.ContextMenu>
                                                 <TextBlock Text="{Binding ((models:AxNodeModel)Item).DisplayName}" Foreground="{Binding ((models:AxNodeModel)Item).ForegroundBrush}" FontSize="12" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </DataTemplate>

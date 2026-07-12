@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             x:Class="CdpInspectorApp.Views.ScratchDiffNodeView"
+             x:DataType="vm:ScratchDiffNodeViewModel"
+             x:CompileBindings="True">
+    <Grid RowDefinitions="Auto, Auto" Margin="8" Width="140" Height="80">
+        <TextBlock Text="Diff Summary" FontSize="10" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+        <StackPanel Grid.Row="1" Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="+" FontSize="11" FontWeight="Bold" Foreground="#81c995"/>
+                <TextBlock Text="{Binding Diff.LinesAddedCount}" FontSize="11" Foreground="#81c995"/>
+                <TextBlock Text="added" FontSize="10" Foreground="#9aa0a6"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="-" FontSize="11" FontWeight="Bold" Foreground="#f28b82"/>
+                <TextBlock Text="{Binding Diff.LinesDeletedCount}" FontSize="11" Foreground="#f28b82"/>
+                <TextBlock Text="deleted" FontSize="10" Foreground="#9aa0a6"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</UserControl>

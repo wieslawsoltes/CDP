@@ -1,0 +1,323 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:views="clr-namespace:CdpInspectorApp.Views"
+             xmlns:proto="clr-namespace:Chrome.DevTools.Protocol;assembly=Chrome.DevTools.Protocol"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
+             x:Class="CdpInspectorApp.Views.TimeMachineView"
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
+
+    <UserControl.DataTemplates>
+        <DataTemplate x:DataType="vm:ScratchDomNodeViewModel">
+            <views:ScratchDomNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchAccessibilityNodeViewModel">
+            <views:ScratchAccessibilityNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchConsoleNodeViewModel">
+            <views:ScratchConsoleNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchNetworkNodeViewModel">
+            <views:ScratchNetworkNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchPerformanceNodeViewModel">
+            <views:ScratchPerformanceNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchMvvmNodeViewModel">
+            <views:ScratchMvvmNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchApplicationNodeViewModel">
+            <views:ScratchApplicationNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchPageNodeViewModel">
+            <views:ScratchPageNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchTimeMachineNodeViewModel">
+            <views:ScratchTimeMachineNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchAssertionNodeViewModel">
+            <views:ScratchAssertionNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchDiffNodeViewModel">
+            <views:ScratchDiffNodeView/>
+        </DataTemplate>
+        <DataTemplate x:DataType="vm:ScratchImageDiffNodeViewModel">
+            <views:ScratchImageDiffNodeView/>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Grid RowDefinitions="Auto, *" Margin="10" Background="#202124">
+        <!-- 1. Playback & Timeline Scrubber Toolbar -->
+        <Border Grid.Row="0" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="Auto, 15, *, 15, Auto">
+                <!-- Playback Buttons -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                    <!-- Record Button -->
+                    <ToggleButton Command="{Binding TimeMachine.ToggleRecordCommand}" IsChecked="{Binding TimeMachine.IsRecording, Mode=OneWay}" ToolTip.Tip="Record Time Machine Stream">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse Width="10" Height="10" Fill="{Binding TimeMachine.RecordingIndicatorColor}"/>
+                            <TextBlock Text="Record" VerticalAlignment="Center" FontSize="11" Foreground="#e8eaed"/>
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <Separator Width="1" Height="20" Background="#3c4043" Margin="4,0"/>
+
+                    <!-- Play/Pause/Stop/Step Controls -->
+                    <Button Command="{Binding TimeMachine.PlayCommand}" ToolTip.Tip="Play Replay Stream">
+                        <PathIcon Data="{StaticResource PlayIcon}" Width="12" Height="12" Foreground="#4caf50"/>
+                    </Button>
+                    <Button Command="{Binding TimeMachine.PauseCommand}" ToolTip.Tip="Pause Replay">
+                        <PathIcon Data="{StaticResource PauseIcon}" Width="12" Height="12" Foreground="#ffca28"/>
+                    </Button>
+                    <Button Command="{Binding TimeMachine.StopCommand}" ToolTip.Tip="Stop Replay / Live Mode">
+                        <PathIcon Data="{StaticResource StopIcon}" Width="12" Height="12" Foreground="#ff5252"/>
+                    </Button>
+
+                    <Separator Width="1" Height="20" Background="#3c4043" Margin="4,0"/>
+
+                    <Button Command="{Binding TimeMachine.StepBackwardCommand}" ToolTip.Tip="Step Backward (Previous Frame)">
+                        <PathIcon Data="{StaticResource ChevronLeftIcon}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Command="{Binding TimeMachine.StepForwardCommand}" ToolTip.Tip="Step Forward (Next Frame)">
+                        <PathIcon Data="{StaticResource ChevronRightIcon}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Command="{Binding TimeMachine.ClearCommand}" ToolTip.Tip="Clear Recording Data">
+                        <PathIcon Data="{StaticResource DismissIcon}" Width="12" Height="12"/>
+                    </Button>
+                </StackPanel>
+
+                <!-- Slider Scrubber & Event Density Track -->
+                <Grid Grid.Column="2" RowDefinitions="Auto, Auto" VerticalAlignment="Center">
+                    <!-- Event Density Track -->
+                    <Border Grid.Row="0" Height="8" Background="#1e1e24" CornerRadius="4" BorderBrush="#3c4043" BorderThickness="1" Margin="0,0,0,4" ClipToBounds="True">
+                        <ItemsControl ItemsSource="{Binding TimeMachine.TimeMachine.Frames}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="proto:TimeMachineFrame">
+                                    <Border Margin="0.5,0" CornerRadius="1">
+                                        <Border.Styles>
+                                            <Style Selector="Border">
+                                                <Setter Property="Background" Value="#3c4043"/>
+                                            </Style>
+                                            <Style Selector="Border[Tag=DOM]">
+                                                <Setter Property="Background" Value="#81c995"/>
+                                            </Style>
+                                            <Style Selector="Border[Tag=Input]">
+                                                <Setter Property="Background" Value="#f28b82"/>
+                                            </Style>
+                                            <Style Selector="Border[Tag=Runtime]">
+                                                <Setter Property="Background" Value="#ffca28"/>
+                                            </Style>
+                                            <Style Selector="Border[Tag=Network]">
+                                                <Setter Property="Background" Value="#8ab4f8"/>
+                                            </Style>
+                                            <Style Selector="Border[Tag=Page]">
+                                                <Setter Property="Background" Value="#c58af9"/>
+                                            </Style>
+                                        </Border.Styles>
+                                        <Border.Tag>
+                                            <Binding Path="Domain"/>
+                                        </Border.Tag>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+
+                    <!-- Slider Scrubber Grid -->
+                    <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto" VerticalAlignment="Center">
+                        <TextBlock Grid.Column="0" Text="0" Foreground="#9aa0a6" FontSize="10" Margin="0,0,8,0"/>
+                        <Slider Grid.Column="1" 
+                                Minimum="0" 
+                                Maximum="{Binding TimeMachine.MaxFrameIndex}" 
+                                Value="{Binding TimeMachine.CurrentFrameIndex, Mode=TwoWay}"
+                                Foreground="#1a73e8"
+                                Margin="0,-8,0,-8"/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                            <TextBlock Text="{Binding TimeMachine.CurrentFrameIndex}" Foreground="#1a73e8" FontWeight="Bold" FontSize="10"/>
+                            <TextBlock Text="/" Foreground="#9aa0a6" FontSize="10" Margin="2,0"/>
+                            <TextBlock Text="{Binding TimeMachine.MaxFrameIndex}" Foreground="#9aa0a6" FontSize="10"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+
+                <!-- Export / Import Session -->
+                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6">
+                    <Button Command="{Binding TimeMachine.ImportCommand}" ToolTip.Tip="Import Time Machine Session (.tm)">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource FolderOpenIcon}" Width="12" Height="12" Foreground="#ffca28"/>
+                            <TextBlock Text="Import" VerticalAlignment="Center" FontSize="11"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding TimeMachine.ExportCommand}" ToolTip.Tip="Export Time Machine Session (.tm)">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource SaveIcon}" Width="12" Height="12" Foreground="#2196f3"/>
+                            <TextBlock Text="Export" VerticalAlignment="Center" FontSize="11"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 2. Main Frame details Split Layout -->
+        <splits:SuperSplit Name="SplitControl"
+                           Grid.Row="1"
+                           Root="{Binding TimeMachine.LayoutRoot}"
+                           SelectedNode="{Binding TimeMachine.SelectedPane, Mode=TwoWay}"
+                           DockGroup="TimeMachineGroup"
+                           ConstrainDockingToRoot="True"/>
+
+        <Grid Name="HiddenPanel" IsVisible="False">
+            <!-- Frame List Panel -->
+            <Border Name="TimeMachineFramesPanel" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="8">
+                <Grid RowDefinitions="Auto, Auto, *">
+                    <!-- Search Input -->
+                    <TextBox Grid.Row="0" 
+                             Text="{Binding TimeMachine.SearchText, Mode=TwoWay}" 
+                             PlaceholderText="Filter frames by domain or method..." 
+                             Classes="clearButton"
+                             Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed"
+                             Margin="0,0,0,8" Height="28" FontSize="11"/>
+
+                    <!-- Sort and Filter Controls -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*, *" Margin="0,0,0,8">
+                        <Grid Grid.Column="0" ColumnDefinitions="Auto, *" Margin="0,0,4,0">
+                            <PathIcon Grid.Column="0" Data="{StaticResource SwapVertIcon}" Width="12" Height="12" Foreground="#9aa0a6" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1" 
+                                      ItemsSource="{Binding TimeMachine.SortOptions}" 
+                                      SelectedItem="{Binding TimeMachine.SelectedSortOption, Mode=TwoWay}" 
+                                      HorizontalAlignment="Stretch" 
+                                      Height="28" 
+                                      FontSize="11" 
+                                      Background="#202124" 
+                                      BorderBrush="#3c4043" 
+                                      Foreground="#e8eaed"/>
+                        </Grid>
+                        
+                        <Grid Grid.Column="1" ColumnDefinitions="Auto, *" Margin="4,0,0,0">
+                            <PathIcon Grid.Column="0" Data="{StaticResource FilterIcon}" Width="12" Height="12" Foreground="#9aa0a6" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1" 
+                                      ItemsSource="{Binding TimeMachine.DomainFilters}" 
+                                      SelectedItem="{Binding TimeMachine.SelectedDomainFilter, Mode=TwoWay}" 
+                                      HorizontalAlignment="Stretch" 
+                                      Height="28" 
+                                      FontSize="11" 
+                                      Background="#202124" 
+                                      BorderBrush="#3c4043" 
+                                      Foreground="#e8eaed"/>
+                        </Grid>
+                    </Grid>
+                    
+                    <!-- Frame list -->
+                    <ListBox Name="FramesListBox" Grid.Row="2" 
+                             ItemsSource="{Binding TimeMachine.FilteredFrames}"
+                             SelectedItem="{Binding TimeMachine.SelectedFrame, Mode=TwoWay}"
+                             Background="Transparent" BorderThickness="0"
+                             PointerPressed="FramesListBox_PointerPressed">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="proto:TimeMachineFrame">
+                                <Border BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="4,6">
+                                    <Grid ColumnDefinitions="30, 80, Auto, *">
+                                        <TextBlock Grid.Column="0" Text="{Binding Index, StringFormat='#{0}'}" Foreground="#1a73e8" FontWeight="Bold" FontSize="10" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Timestamp, StringFormat='HH:mm:ss.fff'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center" Margin="5,0"/>
+                                        <Border Grid.Column="2" Background="#3c4043" CornerRadius="4" Padding="4,2" Margin="5,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Domain}" Foreground="#e8eaed" FontSize="9" FontWeight="Bold"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="3" Text="{Binding Method}" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- Details & Diffs Panel -->
+            <Border Name="TimeMachineDetailsPanel" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="8">
+                <TabControl BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Frame Payload">
+                        <TextBox Text="{Binding TimeMachine.SelectedFramePayloadText}"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 FontFamily="Courier New,Consolas,Monospace"
+                                 FontSize="11"
+                                 Background="#202124" Foreground="#e8eaed" BorderThickness="0"
+                                 Margin="0,8,0,0"/>
+                    </TabItem>
+                    <TabItem Header="Frame Delta Diff">
+                        <controls:DiffViewer DataContext="{Binding TimeMachine.Diff}" Margin="0,8,0,0"/>
+                    </TabItem>
+                    <TabItem Header="Preview Visualizer">
+                        <ContentControl Content="{Binding TimeMachine.SelectedFrameViewModel}" Margin="0,8,0,0"/>
+                    </TabItem>
+                    <TabItem Header="Assertions &amp; Sync">
+                        <ScrollViewer Margin="0,8,0,0">
+                            <StackPanel Spacing="16" Margin="4">
+                                <!-- Sync Check Toggles Card (Glassmorphic panel style with light transparency) -->
+                                <Border Background="#12ffffff" BorderBrush="#2fffffff" BorderThickness="1" CornerRadius="8" Padding="14" BoxShadow="0 4 12 0 #1a000000">
+                                    <StackPanel Spacing="12">
+                                        <TextBlock Text="Synchronization Checks" FontWeight="Bold" FontSize="12" Foreground="#8ab4f8"/>
+                                        
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Timeline Playback Sync" FontSize="11" Foreground="#e8eaed"/>
+                                                <TextBlock Text="Sync frame transitions with the active inspector preview" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding TimeMachine.IsReplaying, Mode=TwoWay}" OnContent="" OffContent="" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        
+                                        <Border Height="1" Background="#1cffffff"/>
+
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Real-Time Event Recording Sync" FontSize="11" Foreground="#e8eaed"/>
+                                                <TextBlock Text="Capture CDP events and append them to the Time Machine stream" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding TimeMachine.IsRecording, Mode=TwoWay}" OnContent="" OffContent="" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Glassmorphic Assertion Cards -->
+                                <TextBlock Text="Active Assertion Cards" FontWeight="Bold" FontSize="11" Foreground="#9aa0a6" Margin="0,4,0,0"/>
+                                
+                                <!-- Assertion Card 1: DOM Structure Integrity -->
+                                <Border Background="#0fffffff" BorderBrush="#23ffffff" BorderThickness="1" CornerRadius="8" Padding="12" BoxShadow="0 4 12 0 #1a000000">
+                                    <Grid ColumnDefinitions="Auto, *, Auto">
+                                        <PathIcon Grid.Column="0" Data="{StaticResource FlowchartIcon}" Width="16" Height="16" Foreground="#81c995" Margin="0,0,10,0" VerticalAlignment="Top"/>
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="DOM Structure Integrity" FontWeight="SemiBold" FontSize="11" Foreground="#e8eaed"/>
+                                            <TextBlock Text="Ensures target visual tree hierarchy matches recorded nodes" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            <TextBlock Text="STATUS: VERIFIED" FontSize="8" FontWeight="Bold" Foreground="#81c995" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Assertion Card 2: Accessibility / Automation Properties Check -->
+                                <Border Background="#0fffffff" BorderBrush="#23ffffff" BorderThickness="1" CornerRadius="8" Padding="12" BoxShadow="0 4 12 0 #1a000000">
+                                    <Grid ColumnDefinitions="Auto, *, Auto">
+                                        <PathIcon Grid.Column="0" Data="{StaticResource DeveloperBoardIcon}" Width="16" Height="16" Foreground="#8ab4f8" Margin="0,0,10,0" VerticalAlignment="Top"/>
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="Accessibility Identifiers Assertion" FontWeight="SemiBold" FontSize="11" Foreground="#e8eaed"/>
+                                            <TextBlock Text="Verifies that all interactive elements expose AutomationId" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            <TextBlock Text="STATUS: PASSED (14/14)" FontSize="8" FontWeight="Bold" Foreground="#8ab4f8" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

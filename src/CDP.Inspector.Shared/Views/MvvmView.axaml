@@ -43,7 +43,14 @@
                 <TreeView Grid.Row="1" ItemsSource="{Binding Mvvm.MvvmTree}" SelectedItem="{Binding Mvvm.SelectedNode, Mode=TwoWay}">
                     <TreeView.ItemTemplate>
                         <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="vm:InspectorViewModelNode">
-                            <StackPanel Orientation="Horizontal" Spacing="6" Height="22">
+                            <StackPanel Orientation="Horizontal" Spacing="6" Height="22" Background="Transparent">
+                                <StackPanel.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Add to Scratchpad as MVVM Node"
+                                                  Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Scratch.AddMvvmNodeFromTreeCommand}"
+                                                  CommandParameter="{Binding}"/>
+                                    </ContextMenu>
+                                </StackPanel.ContextMenu>
                                 <PathIcon Data="{StaticResource DiagramIcon}" Width="12" Height="12" Foreground="#8ab4f8"/>
                                 <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" FontSize="12" Foreground="#e8eaed"/>
                             </StackPanel>

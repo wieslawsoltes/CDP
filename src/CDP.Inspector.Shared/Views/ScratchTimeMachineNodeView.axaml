@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             x:Class="CdpInspectorApp.Views.ScratchTimeMachineNodeView"
+             x:DataType="vm:ScratchTimeMachineNodeViewModel"
+             x:CompileBindings="True">
+    <Grid RowDefinitions="Auto, Auto" Margin="8" Width="140" Height="80">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Frame:" FontSize="10" Foreground="#9aa0a6"/>
+            <TextBlock Text="{Binding CurrentFrameIndex}" FontSize="10" FontWeight="Bold" Foreground="#8ab4f8"/>
+            <TextBlock Text="/" FontSize="10" Foreground="#9aa0a6"/>
+            <TextBlock Text="{Binding MaxFrameIndex}" FontSize="10" Foreground="#9aa0a6"/>
+        </StackPanel>
+        <ProgressBar Grid.Row="1" Minimum="0" Maximum="{Binding MaxFrameIndex}" Value="{Binding CurrentFrameIndex}" Height="6" Background="#3c4043" Foreground="#8ab4f8" Margin="0,10,0,0" CornerRadius="3"/>
+    </Grid>
+</UserControl>

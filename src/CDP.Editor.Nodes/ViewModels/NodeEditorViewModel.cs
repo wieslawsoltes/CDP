@@ -265,6 +265,33 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
         Connections.Add(connection);
     }
 
+    public void ConnectPins(PinViewModel fromPin, PinViewModel toPin)
+    {
+        if (fromPin == null || toPin == null) return;
+        if (fromPin.Owner == null || toPin.Owner == null) return;
+        if (fromPin.Owner == toPin.Owner) return;
+
+        if (Connections.Any(c => c.FromPin == fromPin && c.ToPin == toPin)) return;
+
+        var existing = Connections.Where(c => c.ToPin == toPin).ToList();
+        foreach (var conn in existing)
+        {
+            Connections.Remove(conn);
+        }
+
+        var connection = new ConnectionViewModel(fromPin, toPin);
+        Connections.Add(connection);
+    }
+
+    public void DisconnectPins(PinViewModel fromPin, PinViewModel toPin)
+    {
+        var conn = Connections.FirstOrDefault(c => c.FromPin == fromPin && c.ToPin == toPin);
+        if (conn != null)
+        {
+            Connections.Remove(conn);
+        }
+    }
+
     public void DisconnectNodes(NodeViewModel fromNode, NodeViewModel toNode)
     {
         var conn = Connections.FirstOrDefault(c => c.FromNode == fromNode && c.ToNode == toNode);
@@ -353,7 +380,7 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
     }
 
     private static List<CopiedNodeData> s_copiedNodes = new();
-    private static List<Tuple<string, string>> s_copiedConnections = new();
+    private static List<Tuple<string, string, string, string>> s_copiedConnections = new();
 
     private class CopiedNodeData
     {
@@ -423,7 +450,7 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
             if (c.FromNode != null && c.ToNode != null &&
                 selectedIds.Contains(c.FromNode.Id) && selectedIds.Contains(c.ToNode.Id))
             {
-                s_copiedConnections.Add(Tuple.Create(c.FromNode.Id, c.ToNode.Id));
+                s_copiedConnections.Add(Tuple.Create(c.FromNode.Id, c.ToNode.Id, c.FromPin?.Id ?? "", c.ToPin?.Id ?? ""));
             }
         }
     }
@@ -549,7 +576,16 @@ public class NodeEditorViewModel : NodeEditorViewModelBase
             if (idMap.TryGetValue(conn.Item1, out var fromNode) &&
                 idMap.TryGetValue(conn.Item2, out var toNode))
             {
-                ConnectNodes(fromNode, toNode);
+                var fromPin = fromNode.Outputs.FirstOrDefault(p => p.Id == conn.Item3);
+                var toPin = toNode.Inputs.FirstOrDefault(p => p.Id == conn.Item4);
+                if (fromPin != null && toPin != null)
+                {
+                    ConnectPins(fromPin, toPin);
+                }
+                else
+                {
+                    ConnectNodes(fromNode, toNode);
+                }
             }
         }
 

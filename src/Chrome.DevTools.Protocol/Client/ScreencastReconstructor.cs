@@ -90,9 +90,9 @@ public class ScreencastReconstructor : IDisposable
                     decodedTiles[i] = (col, row, tileBitmap);
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Error decoding tile ({col}, {row}) in parallel: {ex.Message}");
+                // Ignore decoding error
             }
         });
 

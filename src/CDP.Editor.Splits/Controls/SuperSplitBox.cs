@@ -943,11 +943,8 @@ public class SuperSplitBox : ContentControl
                 }
 
                 InnerContent = view;
-                if (!view.IsSet(StyledElement.DataContextProperty))
-                {
-                    view.DataContext = superSplit.DataContext;
-                }
-                System.Diagnostics.Debug.WriteLine($"[SuperSplitBox] Set InnerContent to view!");
+                view.Bind(StyledElement.DataContextProperty, new Avalonia.Data.Binding("DataContext") { Source = superSplit });
+                System.Diagnostics.Debug.WriteLine($"[SuperSplitBox] Set InnerContent to view with DataContext binding!");
             }
         }
     }

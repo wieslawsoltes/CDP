@@ -41,6 +41,8 @@ public partial class NodeEditorView : UserControl
     private NodeViewModel? _connectionSourceNode;
     private bool _isReverseDrag;
     private NodeViewModel? _highlightedSnapNode;
+    private PinViewModel? _connectionSourcePin;
+    private PinViewModel? _highlightedSnapPin;
 
     // Selection box state
     private Rectangle? _selectionBox;
@@ -387,29 +389,31 @@ public partial class NodeEditorView : UserControl
                 e.Handled = true;
                 return;
             }
-            if (sourceElement?.DataContext is NodeViewModel nodeVM)
+            PinViewModel? pin = sourceElement?.DataContext as PinViewModel;
+            if (pin == null && sourceElement?.DataContext is NodeViewModel nodeVM)
             {
+                if (isInputPin) pin = nodeVM.Inputs.FirstOrDefault();
+                else pin = nodeVM.Outputs.FirstOrDefault();
+            }
+
+            if (pin != null && pin.Owner != null)
+            {
+                _connectionSourcePin = pin;
+                _connectionSourceNode = pin.Owner;
                 _isReverseDrag = isInputPin;
                 _highlightedSnapNode = null;
+                _highlightedSnapPin = null;
 
                 if (isInputPin)
                 {
-                    var existingConn = vm.Connections.FirstOrDefault(c => c.ToNode == nodeVM);
+                    var existingConn = vm.Connections.FirstOrDefault(c => c.ToPin == pin);
                     if (existingConn != null)
                     {
-                        // Unplug existing connection and drag from its source output pin instead!
+                        _connectionSourcePin = existingConn.FromPin;
                         _connectionSourceNode = existingConn.FromNode;
                         _isReverseDrag = false;
                         vm.Connections.Remove(existingConn);
                     }
-                    else
-                    {
-                        _connectionSourceNode = nodeVM;
-                    }
-                }
-                else
-                {
-                    _connectionSourceNode = nodeVM;
                 }
 
                 if (_connectionSourceNode != null)
@@ -424,11 +428,11 @@ public partial class NodeEditorView : UserControl
                         Point startPoint;
                         if (_isReverseDrag)
                         {
-                            startPoint = new Point(_connectionSourceNode.X, _connectionSourceNode.Y + _connectionSourceNode.Height / 2.0);
+                            startPoint = new Point(_connectionSourceNode.X, _connectionSourceNode.Y + (_connectionSourcePin?.Top ?? (_connectionSourceNode.Height / 2.0 - 5.0)) + 5.0);
                         }
                         else
                         {
-                            startPoint = new Point(_connectionSourceNode.X + _connectionSourceNode.Width, _connectionSourceNode.Y + _connectionSourceNode.Height / 2.0);
+                            startPoint = new Point(_connectionSourceNode.X + _connectionSourceNode.Width, _connectionSourceNode.Y + (_connectionSourcePin?.Top ?? (_connectionSourceNode.Height / 2.0 - 5.0)) + 5.0);
                         }
 
                         _previewFigure.StartPoint = startPoint;
@@ -577,43 +581,40 @@ public partial class NodeEditorView : UserControl
         if (_isDraggingConnection && _connectionSourceNode != null && _previewSegment != null && _previewFigure != null)
         {
             var currentPosCanvas = e.GetPosition(_nodeCanvas);
-            NodeViewModel? targetNode = null;
+            PinViewModel? targetPin = null;
 
             foreach (var node in vm.Nodes)
             {
                 if (node == _connectionSourceNode) continue;
                 if (node is GroupNodeViewModel) continue;
 
-                double pinX, pinY;
-                if (_isReverseDrag)
+                var candidatePins = _isReverseDrag ? node.Outputs : node.Inputs;
+                foreach (var pin in candidatePins)
                 {
-                    pinX = node.X + node.Width;
-                    pinY = node.Y + node.Height / 2.0;
-                }
-                else
-                {
-                    pinX = node.X;
-                    pinY = node.Y + node.Height / 2.0;
-                }
+                    double pinX = _isReverseDrag ? (node.X + node.Width) : node.X;
+                    double pinY = node.Y + pin.Top + 5.0;
 
-                double dx = currentPosCanvas.X - pinX;
-                double dy = currentPosCanvas.Y - pinY;
-                double distance = Math.Sqrt(dx * dx + dy * dy);
+                    double dx = currentPosCanvas.X - pinX;
+                    double dy = currentPosCanvas.Y - pinY;
+                    double distance = Math.Sqrt(dx * dx + dy * dy);
 
-                if (distance < 25.0)
-                {
-                    targetNode = node;
-                    break;
+                    if (distance < 25.0)
+                    {
+                        targetPin = pin;
+                        break;
+                    }
                 }
+                if (targetPin != null) break;
             }
 
-            if (targetNode != _highlightedSnapNode)
+            if (targetPin != _highlightedSnapPin)
             {
                 if (_highlightedSnapNode != null)
                 {
                     _highlightedSnapNode.IsConnectionTarget = false;
                 }
-                _highlightedSnapNode = targetNode;
+                _highlightedSnapPin = targetPin;
+                _highlightedSnapNode = targetPin?.Owner;
                 if (_highlightedSnapNode != null)
                 {
                     _highlightedSnapNode.IsConnectionTarget = true;
@@ -621,15 +622,15 @@ public partial class NodeEditorView : UserControl
             }
 
             Point endpoint;
-            if (_highlightedSnapNode != null)
+            if (_highlightedSnapPin != null && _highlightedSnapNode != null)
             {
                 if (_isReverseDrag)
                 {
-                    endpoint = new Point(_highlightedSnapNode.X + _highlightedSnapNode.Width, _highlightedSnapNode.Y + _highlightedSnapNode.Height / 2.0);
+                    endpoint = new Point(_highlightedSnapNode.X + _highlightedSnapNode.Width, _highlightedSnapNode.Y + _highlightedSnapPin.Top + 5.0);
                 }
                 else
                 {
-                    endpoint = new Point(_highlightedSnapNode.X, _highlightedSnapNode.Y + _highlightedSnapNode.Height / 2.0);
+                    endpoint = new Point(_highlightedSnapNode.X, _highlightedSnapNode.Y + _highlightedSnapPin.Top + 5.0);
                 }
             }
             else
@@ -755,24 +756,29 @@ public partial class NodeEditorView : UserControl
                 _previewConnectionPath.IsVisible = false;
             }
 
-            if (_highlightedSnapNode != null)
+            if (_highlightedSnapPin != null && _connectionSourcePin != null)
             {
-                _highlightedSnapNode.IsConnectionTarget = false;
+                if (_highlightedSnapNode != null)
+                {
+                    _highlightedSnapNode.IsConnectionTarget = false;
+                }
 
                 if (_isReverseDrag)
                 {
-                    vm.ConnectNodes(_highlightedSnapNode, _connectionSourceNode);
+                    vm.ConnectPins(_highlightedSnapPin, _connectionSourcePin);
                 }
                 else
                 {
-                    vm.ConnectNodes(_connectionSourceNode, _highlightedSnapNode);
+                    vm.ConnectPins(_connectionSourcePin, _highlightedSnapPin);
                 }
             }
 
             _isDraggingConnection = false;
             vm.IsDraggingConnection = false;
             _connectionSourceNode = null;
+            _connectionSourcePin = null;
             _highlightedSnapNode = null;
+            _highlightedSnapPin = null;
             _isReverseDrag = false;
             e.Handled = true;
             return;

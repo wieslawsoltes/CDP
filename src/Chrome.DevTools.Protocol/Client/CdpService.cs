@@ -78,8 +78,55 @@ public class CdpService : ICdpService, INotifyPropertyChanged
     private readonly ScreencastReconstructor _screencastReconstructor = new();
     public ScreencastReconstructor ScreencastReconstructor => _screencastReconstructor;
 
+    private int _lastDispatchedIndex = -1;
+    public ITimeMachineService TimeMachine { get; } = new TimeMachineService();
+
     public event EventHandler<CdpEventEventArgs>? EventReceived;
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public CdpService()
+    {
+        TimeMachine.FrameChanged += TimeMachine_FrameChanged;
+        TimeMachine.ReplayStateCleared += TimeMachine_ReplayStateCleared;
+    }
+
+    private void TimeMachine_ReplayStateCleared(object? sender, EventArgs e)
+    {
+        _lastDispatchedIndex = -1;
+    }
+
+    private void TimeMachine_FrameChanged(object? sender, EventArgs e)
+    {
+        if (TimeMachine.IsReplaying)
+        {
+            var currentIndex = TimeMachine.CurrentFrameIndex;
+            var frames = TimeMachine.Frames;
+            if (currentIndex >= 0 && currentIndex < frames.Count)
+            {
+                if (currentIndex == _lastDispatchedIndex + 1)
+                {
+                    var frame = frames[currentIndex];
+                    if (frame.Type == "Event")
+                    {
+                        EventReceived?.Invoke(this, new CdpEventEventArgs(frame.Method, frame.Payload ?? new JsonObject()));
+                    }
+                    _lastDispatchedIndex = currentIndex;
+                }
+                else
+                {
+                    for (int i = 0; i <= currentIndex; i++)
+                    {
+                        var frame = frames[i];
+                        if (frame.Type == "Event")
+                        {
+                            EventReceived?.Invoke(this, new CdpEventEventArgs(frame.Method, frame.Payload ?? new JsonObject()));
+                        }
+                    }
+                    _lastDispatchedIndex = currentIndex;
+                }
+            }
+        }
+    }
 
     protected virtual void OnPropertyChanged(string propertyName)
     {
@@ -137,6 +184,10 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 }
             }
 
+            if (targetHost != null)
+            {
+                targetHost = targetHost.TrimEnd('/');
+            }
             var url = $"{targetHost}/json";
             var jsonStr = await _httpClient.GetStringAsync(url);
             var arr = JsonNode.Parse(jsonStr) as JsonArray;
@@ -170,6 +221,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
     public async Task ConnectAsync(string host, TargetItem target, bool autoResume)
     {
         await DisconnectAsync();
+        TimeMachine.IsReplaying = false;
 
         if (host != null && host.StartsWith("os://", StringComparison.OrdinalIgnoreCase))
         {
@@ -331,9 +383,20 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
     public async Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
     {
+        if (TimeMachine.IsReplaying)
+        {
+            var replayResponse = TimeMachine.GetReplayResponse(method, parameters);
+            return replayResponse ?? new JsonObject();
+        }
+
         if (_osSession != null)
         {
-            return await _osSession.HandleCommandAsync(method, parameters);
+            var osResult = await _osSession.HandleCommandAsync(method, parameters);
+            if (TimeMachine.IsRecording)
+            {
+                TimeMachine.RecordResponse(method, parameters, osResult);
+            }
+            return osResult;
         }
 
         var ws = _ws;
@@ -374,7 +437,12 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             throw new Exception(err?["message"]?.GetValue<string>() ?? "Unknown CDP error");
         }
 
-        return response["result"] as JsonObject ?? new JsonObject();
+        var resultNode = response["result"] as JsonObject ?? new JsonObject();
+        if (TimeMachine.IsRecording)
+        {
+            TimeMachine.RecordResponse(method, parameters, resultNode);
+        }
+        return resultNode;
     }
 
     private async Task ReceiveLoopAsync()
@@ -454,14 +522,17 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                         }
                     }
 
+                    // Record event
+                    TimeMachine.RecordEvent(method, parameters);
+
                     // Raise event to subscribers
                     EventReceived?.Invoke(this, new CdpEventEventArgs(method, parameters));
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Ignore socket receive exceptions
+            Logger.LogErrorMessage("CdpService", "ReceiveLoopAsync Exception", ex);
         }
         finally
         {

@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             x:Class="CdpInspectorApp.Views.ScratchApplicationNodeView"
+             x:DataType="vm:ScratchApplicationNodeViewModel"
+             x:CompileBindings="True">
+    <Grid RowDefinitions="Auto, Auto, Auto" Margin="8" Width="140" Height="80">
+        <!-- Purple App badge -->
+        <Border Grid.Row="0" Background="#9c27b0" CornerRadius="3" Padding="4,2" HorizontalAlignment="Left">
+            <TextBlock Text="App" FontSize="10" FontWeight="Bold" Foreground="White"/>
+        </Border>
+        <!-- Active Window counts -->
+        <TextBlock Grid.Row="1" Text="{Binding WindowCount, StringFormat='{}{0} Active Windows'}" FontSize="11" Foreground="#e8eaed" Margin="0,6,0,0"/>
+        <!-- Stylesheet counts -->
+        <TextBlock Grid.Row="2" Text="{Binding StylesheetCount, StringFormat='{}{0} Stylesheets'}" FontSize="10" Foreground="#9aa0a6" Margin="0,2,0,0"/>
+    </Grid>
+</UserControl>

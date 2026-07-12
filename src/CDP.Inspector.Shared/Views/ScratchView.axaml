@@ -1,0 +1,1495 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:views="clr-namespace:CdpInspectorApp.Views"
+             xmlns:nodes="clr-namespace:CDP.Editor.Nodes.Views;assembly=CDP.Editor.Nodes"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:proto="clr-namespace:Chrome.DevTools.Protocol;assembly=Chrome.DevTools.Protocol"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
+             x:Class="CdpInspectorApp.Views.ScratchView"
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
+
+    
+    <UserControl.DataTemplates>
+        <!-- ScratchDomNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchDomNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#1a73e8" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="DOM" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Captured:" FontSize="10" Foreground="#9aa0a6"/>
+                            <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="10" Foreground="#e8eaed"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Capture DOM"
+                            Command="{Binding CaptureCommand}"
+                            IsEnabled="{Binding !IsCapturing}"
+                            Background="#1a73e8" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Import Payload"
+                            Command="{Binding ImportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Export Payload"
+                            Command="{Binding ExportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="DOM Tree View">
+                        <Grid RowDefinitions="Auto, *" Margin="0,10,0,0">
+                            <!-- Search Bar -->
+                            <TextBox Grid.Row="0" Text="{Binding SearchTerm, Mode=TwoWay}" Watermark="Search nodes by name or attribute..." FontSize="11" Margin="0,0,0,10" Background="#202124" BorderBrush="#3c4043"/>
+                            
+                            <Grid Grid.Row="1" ColumnDefinitions="*, *">
+                                <TextBox Grid.Column="0" Text="{Binding SemanticDomText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas,Monospace" FontSize="11" Background="#202124" BorderBrush="#3c4043"/>
+                                
+                                <Border Grid.Column="1" IsVisible="{Binding SearchTerm, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Background="#28292c" BorderBrush="#3c4043" BorderThickness="1,0,0,0" Padding="10,0,0,0" Margin="10,0,0,0">
+                                    <Grid RowDefinitions="Auto, *">
+                                        <TextBlock Grid.Row="0" Text="Search Results" FontSize="11" FontWeight="Bold" Foreground="#8ab4f8" Margin="0,0,0,6"/>
+                                        <ListBox Grid.Row="1" ItemsSource="{Binding SearchResults}" Background="Transparent" BorderThickness="0">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" FontSize="10.5" Foreground="#e8eaed" TextWrapping="Wrap"/>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+                    
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding RawJsonData}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+
+                    <TabItem Header="Assertions &amp; Sync">
+                        <ScrollViewer Margin="0,10,0,0">
+                            <StackPanel Spacing="12">
+                                <Border Background="#12ffffff" BorderBrush="#2fffffff" BorderThickness="1" CornerRadius="8" Padding="12">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Canvas Sync Checks" FontWeight="Bold" FontSize="11" Foreground="#8ab4f8"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Synchronize Node Payload" FontSize="10.5" Foreground="#e8eaed"/>
+                                                <TextBlock Text="Automatically sync data changes across all connected diagram nodes" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsCapturing, Mode=TwoWay}" OnContent="" OffContent="" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchAccessibilityNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchAccessibilityNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,10">
+                    <!-- Metadata Card -->
+                    <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*, Auto">
+                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                <Border Grid.Column="1" Background="#b04600" CornerRadius="3" Padding="6,2">
+                                    <TextBlock Text="Accessibility Audit" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                </Border>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Node Count:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding NodeCount}" FontSize="10" Foreground="#e8eaed" FontWeight="SemiBold"/>
+                                <TextBlock Text="|" FontSize="10" Foreground="#3c4043" Margin="4,0"/>
+                                <TextBlock Text="Warnings:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding WarningsCount}" FontSize="10" Foreground="#f28b82" FontWeight="Bold"/>
+                                <TextBlock Text="|" FontSize="10" Foreground="#3c4043" Margin="4,0"/>
+                                <TextBlock Text="Captured:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="10" Foreground="#e8eaed"/>
+                            </StackPanel>
+                            <!-- Link/Picker section -->
+                            <Border BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,4,0,0">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="LINKED TO TREE ELEMENT:" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6"/>
+                                    <Grid ColumnDefinitions="*, Auto" RowDefinitions="Auto, Auto" Margin="0,2">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding LinkedElementName, FallbackValue='Not Linked'}" FontSize="11" Foreground="#e8eaed" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding LinkedElementId, StringFormat='ID: \{0\}', FallbackValue=''}" IsVisible="{Binding IsLinked}" FontSize="9" Foreground="#9aa0a6"/>
+                                        
+                                        <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                            <Button Content="Link Selected" Command="{Binding LinkSelectedNodeCommand}" ToolTip.Tip="Link to currently selected element in Accessibility Tree" Padding="6,4" FontSize="10"/>
+                                            <Button Content="Locate" Command="{Binding ShowInTreeCommand}" IsEnabled="{Binding IsLinked}" ToolTip.Tip="Show this element in Accessibility Tree" Padding="6,4" FontSize="10"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- Input Connection Card -->
+                    <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Input Connection (A11y Node):" FontSize="10" Foreground="#9aa0a6"/>
+                            <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.Scratch.InputNodes}"
+                                      SelectedItem="{Binding InputNode, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ScratchNodeViewModelBase">
+                                        <TextBlock Text="{Binding Name}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Capture AX Tree"
+                             Command="{Binding CaptureCommand}"
+                             IsEnabled="{Binding !IsCapturing}"
+                             Background="#1a73e8" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Import Payload"
+                             Command="{Binding ImportPayloadCommand}"
+                             Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Export Payload"
+                             Command="{Binding ExportPayloadCommand}"
+                             Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Audit Issues">
+                        <DataGrid ItemsSource="{Binding Warnings}" IsReadOnly="True" GridLinesVisibility="All" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Node ID" Binding="{Binding NodeId}" Width="80"/>
+                                <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="100"/>
+                                <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90"/>
+                                <DataGridTextColumn Header="Issue" Binding="{Binding Issue}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+
+                    <TabItem Header="Accessibility Tree">
+                        <DataGrid ItemsSource="{Binding AccessibilityNodes}" IsReadOnly="True" GridLinesVisibility="All" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Node ID" Binding="{Binding NodeId}" Width="100"/>
+                                <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="150"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
+                                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+                    
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding RawJsonData}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchConsoleNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchConsoleNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#1a73e8" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Console" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Captured:" FontSize="10" Foreground="#9aa0a6"/>
+                            <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="10" Foreground="#e8eaed"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Capture Logs"
+                            Command="{Binding CaptureCommand}"
+                            IsEnabled="{Binding !IsCapturing}"
+                            Background="#1a73e8" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Import Payload"
+                            Command="{Binding ImportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Export Payload"
+                            Command="{Binding ExportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Console Logs">
+                        <DataGrid ItemsSource="{Binding ConsoleLogs}" IsReadOnly="True" GridLinesVisibility="All" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Time" Binding="{Binding Timestamp}" Width="120"/>
+                                <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="80"/>
+                                <DataGridTextColumn Header="Message" Binding="{Binding Text}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+                    
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding RawJsonData}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+
+                    <TabItem Header="Assertions &amp; Sync">
+                        <ScrollViewer Margin="0,10,0,0">
+                            <StackPanel Spacing="12">
+                                <Border Background="#12ffffff" BorderBrush="#2fffffff" BorderThickness="1" CornerRadius="8" Padding="12">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Canvas Sync Checks" FontWeight="Bold" FontSize="11" Foreground="#8ab4f8"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Synchronize Node Payload" FontSize="10.5" Foreground="#e8eaed"/>
+                                                <TextBlock Text="Automatically sync data changes across all connected diagram nodes" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsCapturing, Mode=TwoWay}" OnContent="" OffContent="" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchNetworkNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchNetworkNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#1a73e8" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Network" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Captured:" FontSize="10" Foreground="#9aa0a6"/>
+                            <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="10" Foreground="#e8eaed"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Capture Traffic"
+                            Command="{Binding CaptureCommand}"
+                            IsEnabled="{Binding !IsCapturing}"
+                            Background="#1a73e8" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Import Payload"
+                            Command="{Binding ImportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Export Payload"
+                            Command="{Binding ExportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Network Requests">
+                        <DataGrid ItemsSource="{Binding NetworkRequests}" IsReadOnly="True" GridLinesVisibility="All" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Method" Binding="{Binding Method}" Width="80"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="100"/>
+                                <DataGridTextColumn Header="URL" Binding="{Binding Url}" Width="*"/>
+                                <DataGridTextColumn Header="Time (ms)" Binding="{Binding Time}" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+                    
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding RawJsonData}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+
+                    <TabItem Header="Assertions &amp; Sync">
+                        <ScrollViewer Margin="0,10,0,0">
+                            <StackPanel Spacing="12">
+                                <Border Background="#12ffffff" BorderBrush="#2fffffff" BorderThickness="1" CornerRadius="8" Padding="12">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Canvas Sync Checks" FontWeight="Bold" FontSize="11" Foreground="#8ab4f8"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Synchronize Node Payload" FontSize="10.5" Foreground="#e8eaed"/>
+                                                <TextBlock Text="Automatically sync data changes across all connected diagram nodes" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsCapturing, Mode=TwoWay}" OnContent="" OffContent="" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchPerformanceNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchPerformanceNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#1a73e8" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Performance" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Captured:" FontSize="10" Foreground="#9aa0a6"/>
+                            <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="10" Foreground="#e8eaed"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Capture Metrics"
+                            Command="{Binding CaptureCommand}"
+                            IsEnabled="{Binding !IsCapturing}"
+                            Background="#1a73e8" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Import Payload"
+                            Command="{Binding ImportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Export Payload"
+                            Command="{Binding ExportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Performance Metrics">
+                        <DataGrid ItemsSource="{Binding PerformanceMetrics}" IsReadOnly="True" GridLinesVisibility="All" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Metric Name" Binding="{Binding Name}" Width="*"/>
+                                <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="150"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+                    
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding RawJsonData}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+
+                    <TabItem Header="Assertions &amp; Sync">
+                        <ScrollViewer Margin="0,10,0,0">
+                            <StackPanel Spacing="12">
+                                <Border Background="#12ffffff" BorderBrush="#2fffffff" BorderThickness="1" CornerRadius="8" Padding="12">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Canvas Sync Checks" FontWeight="Bold" FontSize="11" Foreground="#8ab4f8"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Synchronize Node Payload" FontSize="10.5" Foreground="#e8eaed"/>
+                                                <TextBlock Text="Automatically sync data changes across all connected diagram nodes" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsCapturing, Mode=TwoWay}" OnContent="" OffContent="" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchMvvmNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchMvvmNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#1a73e8" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="MVVM" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Captured:" FontSize="10" Foreground="#9aa0a6"/>
+                            <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="10" Foreground="#e8eaed"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Capture ViewModels"
+                            Command="{Binding CaptureCommand}"
+                            IsEnabled="{Binding !IsCapturing}"
+                            Background="#1a73e8" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Import Payload"
+                            Command="{Binding ImportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    <Button Content="Export Payload"
+                            Command="{Binding ExportPayloadCommand}"
+                            Background="#3c4043" Foreground="#e8eaed" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="MVVM Hierarchy">
+                        <TextBox Text="{Binding MvvmTreeText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                    
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding RawJsonData}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+
+                    <TabItem Header="Assertions &amp; Sync">
+                        <ScrollViewer Margin="0,10,0,0">
+                            <StackPanel Spacing="12">
+                                <Border Background="#12ffffff" BorderBrush="#2fffffff" BorderThickness="1" CornerRadius="8" Padding="12">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Canvas Sync Checks" FontWeight="Bold" FontSize="11" Foreground="#8ab4f8"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Synchronize Node Payload" FontSize="10.5" Foreground="#e8eaed"/>
+                                                <TextBlock Text="Automatically sync data changes across all connected diagram nodes" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsCapturing, Mode=TwoWay}" OnContent="" OffContent="" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchApplicationNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchApplicationNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#9c27b0" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Application" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Windows:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding WindowCount}" FontSize="10" Foreground="#e8eaed" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Stylesheets:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding StylesheetCount}" FontSize="10" Foreground="#e8eaed" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Captured:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="10" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Capture Application Metadata"
+                            Command="{Binding CaptureCommand}"
+                            IsEnabled="{Binding !IsCapturing}"
+                            Background="#9c27b0" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Resources JSON">
+                        <TextBox Text="{Binding AppResourcesJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                    
+                    <TabItem Header="Node Output">
+                        <TextBox Text="{Binding OutputJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchNetworkNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchNetworkNodeViewModel">
+            <Grid RowDefinitions="Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#1a73e8" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Network" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Total Requests:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding TotalRequests}" FontSize="10" Foreground="#e8eaed" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Failed Requests:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding FailedRequests}" FontSize="10" Foreground="#ff5252" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="1" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding NetworkRequestsJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchDiffNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchDiffNodeViewModel">
+            <Grid RowDefinitions="Auto, *" Margin="12">
+                <!-- Diff Selectors Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Diff Configuration" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                        <Grid ColumnDefinitions="*, 15, *">
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock Text="Left Input:" FontSize="10" Foreground="#9aa0a6"/>
+                                <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.Scratch.InputNodes}"
+                                          SelectedItem="{Binding LeftNode, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ScratchNodeViewModelBase">
+                                            <TextBlock Text="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            
+                            <TextBlock Grid.Column="1" Text="vs" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="#9aa0a6" FontWeight="Bold" Margin="0,12,0,0"/>
+                            
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="Right Input:" FontSize="10" Foreground="#9aa0a6"/>
+                                <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.Scratch.InputNodes}"
+                                          SelectedItem="{Binding RightNode, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ScratchNodeViewModelBase">
+                                            <TextBlock Text="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Diff Content -->
+                <TabControl Grid.Row="1" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Semantic Diff">
+                        <Grid RowDefinitions="Auto, *" Margin="0,10,0,0">
+                            <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,10">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="Auto, *">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Content="Inline Mode" Command="{Binding Diff.ToggleDiffModeCommand}" IsVisible="{Binding !Diff.IsInlineMode}" FontSize="11" Padding="10,4"/>
+                                            <Button Content="Side-by-Side" Command="{Binding Diff.ToggleDiffModeCommand}" IsVisible="{Binding Diff.IsInlineMode}" FontSize="11" Padding="10,4"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding LeftTitle}" Foreground="#f28b82" FontSize="11" FontWeight="SemiBold"/>
+                                            <TextBlock Text="vs" Foreground="#9aa0a6" FontSize="11"/>
+                                            <TextBlock Text="{Binding RightTitle}" Foreground="#81c995" FontSize="11" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto, *, Auto" Margin="0,4,0,0">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                            <Border Background="#2b1b1f" BorderBrush="#f28b82" BorderThickness="1" CornerRadius="3" Padding="6,2">
+                                                <TextBlock Text="{Binding Diff.LinesDeletedCount, StringFormat='-{0} deleted'}" Foreground="#f28b82" FontSize="10" FontWeight="Bold"/>
+                                            </Border>
+                                            <Border Background="#1b2b21" BorderBrush="#81c995" BorderThickness="1" CornerRadius="3" Padding="6,2">
+                                                <TextBlock Text="{Binding Diff.LinesAddedCount, StringFormat='+{0} added'}" Foreground="#81c995" FontSize="10" FontWeight="Bold"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding Diff.DiffLines.Count, StringFormat='Total Lines: {0}'}" Foreground="#9aa0a6" FontSize="10"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            <!-- Text representation showing diff or overview -->
+                            <TextBox Grid.Row="1" Text="{Binding Diff.LeftText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas,Monospace" FontSize="11" Background="#202124" BorderBrush="#3c4043"/>
+                        </Grid>
+                    </TabItem>
+                    
+                    <TabItem Header="Raw JSON Diff">
+                        <Border Margin="0,10,0,0" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4">
+                            <controls:DiffViewer DataContext="{Binding Diff}"/>
+                        </Border>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchTimeMachineNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchTimeMachineNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#1a73e8" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Time Machine Node" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Local canvas controller synced with inspector replay frames" FontSize="11" Foreground="#9aa0a6"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Playback Timeline controls card -->
+                <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                    <Grid ColumnDefinitions="Auto, 10, *">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                            <Button Command="{Binding PlayCommand}" ToolTip.Tip="Play Replay Stream">
+                                <PathIcon Data="{StaticResource PlayIcon}" Width="12" Height="12" Foreground="#4caf50"/>
+                            </Button>
+                            <Button Command="{Binding PauseCommand}" ToolTip.Tip="Pause Replay">
+                                <PathIcon Data="{StaticResource PauseIcon}" Width="12" Height="12" Foreground="#ffca28"/>
+                            </Button>
+                            <Button Command="{Binding StopCommand}" ToolTip.Tip="Stop Replay / Live Mode">
+                                <PathIcon Data="{StaticResource StopIcon}" Width="12" Height="12" Foreground="#ff5252"/>
+                            </Button>
+                            <Separator Width="1" Height="16" Background="#3c4043" Margin="2,0"/>
+                            <Button Command="{Binding StepBackwardCommand}" ToolTip.Tip="Step Backward">
+                                <PathIcon Data="{StaticResource ChevronLeftIcon}" Width="12" Height="12"/>
+                            </Button>
+                            <Button Command="{Binding StepForwardCommand}" ToolTip.Tip="Step Forward">
+                                <PathIcon Data="{StaticResource ChevronRightIcon}" Width="12" Height="12"/>
+                            </Button>
+                        </StackPanel>
+
+                        <Grid Grid.Column="2" RowDefinitions="Auto, Auto" VerticalAlignment="Center">
+                            <!-- Event Density Track -->
+                            <Border Grid.Row="0" Height="8" Background="#1e1e24" CornerRadius="4" BorderBrush="#3c4043" BorderThickness="1" Margin="0,0,0,4" ClipToBounds="True">
+                                <ItemsControl ItemsSource="{Binding TimeMachine.Frames}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Rows="1"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="proto:TimeMachineFrame">
+                                            <Border Margin="0.5,0" CornerRadius="1">
+                                                <Border.Styles>
+                                                    <Style Selector="Border">
+                                                        <Setter Property="Background" Value="#3c4043"/>
+                                                    </Style>
+                                                    <Style Selector="Border[Tag=DOM]">
+                                                        <Setter Property="Background" Value="#81c995"/>
+                                                    </Style>
+                                                    <Style Selector="Border[Tag=Input]">
+                                                        <Setter Property="Background" Value="#f28b82"/>
+                                                    </Style>
+                                                    <Style Selector="Border[Tag=Runtime]">
+                                                        <Setter Property="Background" Value="#ffca28"/>
+                                                    </Style>
+                                                    <Style Selector="Border[Tag=Network]">
+                                                        <Setter Property="Background" Value="#8ab4f8"/>
+                                                    </Style>
+                                                    <Style Selector="Border[Tag=Page]">
+                                                        <Setter Property="Background" Value="#c58af9"/>
+                                                    </Style>
+                                                </Border.Styles>
+                                                <Border.Tag>
+                                                    <Binding Path="Domain"/>
+                                                </Border.Tag>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+
+                            <Grid Grid.Row="1" ColumnDefinitions="*, Auto" VerticalAlignment="Center">
+                                <Slider Grid.Column="0" 
+                                        Minimum="0" 
+                                        Maximum="{Binding MaxFrameIndex}" 
+                                        Value="{Binding CurrentFrameIndex, Mode=TwoWay}"
+                                        Foreground="#1a73e8"
+                                        Margin="0,-8,0,-8"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                                    <TextBlock Text="{Binding CurrentFrameIndex}" Foreground="#1a73e8" FontWeight="Bold" FontSize="10"/>
+                                    <TextBlock Text="/" Foreground="#9aa0a6" FontSize="10" Margin="1,0"/>
+                                    <TextBlock Text="{Binding MaxFrameIndex}" Foreground="#9aa0a6" FontSize="10"/>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Tabs detailing active frame -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Frame Payload">
+                        <TextBox Text="{Binding SelectedFramePayloadText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+
+                    <TabItem Header="Assertions &amp; Sync">
+                        <ScrollViewer Margin="0,10,0,0">
+                            <StackPanel Spacing="12">
+                                <!-- Sync Check Toggle (Glassmorphic) -->
+                                <Border Background="#12ffffff" BorderBrush="#2fffffff" BorderThickness="1" CornerRadius="8" Padding="12" BoxShadow="0 4 10 0 #15000000">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Time Machine Synch Checks" FontWeight="Bold" FontSize="11" Foreground="#8ab4f8"/>
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="Automatic Frame Playback Sync" FontSize="10.5" Foreground="#e8eaed"/>
+                                                <TextBlock Text="Sync this canvas node's step progression with the inspector timeline" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsChecked="{Binding TimeMachine.IsReplaying, Mode=TwoWay}" OnContent="" OffContent="" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Glassmorphic Assertion Cards -->
+                                <TextBlock Text="Time Machine Verification Checklist" FontWeight="Bold" FontSize="10" Foreground="#9aa0a6" Margin="0,2,0,0"/>
+
+                                <Border Background="#0fffffff" BorderBrush="#23ffffff" BorderThickness="1" CornerRadius="6" Padding="10" BoxShadow="0 4 8 0 #10000000">
+                                    <Grid ColumnDefinitions="Auto, *, Auto">
+                                        <PathIcon Grid.Column="0" Data="{StaticResource CheckIcon}" Width="14" Height="14" Foreground="#81c995" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="Step Boundary Verification" FontWeight="SemiBold" FontSize="10" Foreground="#e8eaed"/>
+                                            <TextBlock Text="Ensure frame index does not exceed recording bounds" FontSize="8.5" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border Background="#0fffffff" BorderBrush="#23ffffff" BorderThickness="1" CornerRadius="6" Padding="10" BoxShadow="0 4 8 0 #10000000">
+                                    <Grid ColumnDefinitions="Auto, *, Auto">
+                                        <PathIcon Grid.Column="0" Data="{StaticResource HistoryIcon}" Width="14" Height="14" Foreground="#ffca28" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="Timeline Stream Coherency Check" FontWeight="SemiBold" FontSize="10" Foreground="#e8eaed"/>
+                                            <TextBlock Text="Validate chronology of frames in state cache" FontSize="8.5" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchAssertionNodeViewModel Template -->
+        <DataTemplate x:DataType="vm:ScratchAssertionNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata/Config Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#b06000" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Assertion Node" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="Status:" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                            <Border Background="{Binding PassedBrush}" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="{Binding PassedText}" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Configuration inputs -->
+                <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="8">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Input Connection:" FontSize="10" Foreground="#9aa0a6"/>
+                            <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.Scratch.InputNodes}"
+                                      SelectedItem="{Binding InputNode, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ScratchNodeViewModelBase">
+                                        <TextBlock Text="{Binding Name}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="*, 8, *">
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock Text="JSON Path:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBox Text="{Binding Path, Mode=TwoWay}" FontSize="11" Watermark="e.g. root.children[0].nodeName"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="Operator:" FontSize="10" Foreground="#9aa0a6"/>
+                                <ComboBox SelectedItem="{Binding Operator, Mode=TwoWay}"
+                                          ItemsSource="{Binding AllOperators}"
+                                          HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Expected Value:" FontSize="10" Foreground="#9aa0a6"/>
+                            <TextBox Text="{Binding ExpectedValue, Mode=TwoWay}" FontSize="11" Watermark="Value to match"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Output Display -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Assertion Report">
+                        <Grid Margin="0,10,0,0" RowDefinitions="Auto, Auto, *">
+                            <TextBlock Grid.Row="0" Text="{Binding Message}" FontWeight="Medium" Foreground="{Binding PassedTextBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="1" Text="Actual Value:" FontSize="10" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+                            <TextBox Grid.Row="2" Text="{Binding ActualValue}" IsReadOnly="True" FontSize="11" Background="#202124" BorderBrush="#3c4043" Height="80" AcceptsReturn="True" TextWrapping="Wrap"/>
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="Output JSON">
+                        <TextBox Text="{Binding OutputJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchMvvmNodeViewModel Details Template -->
+        <DataTemplate x:DataType="vm:ScratchMvvmNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata/Config Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#137333" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="MVVM Node" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding CurrentVmType, StringFormat='ViewModel: {0}'}" FontSize="10" Foreground="#e8eaed" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding PropertiesCount, StringFormat='Properties: {0}'}" FontSize="10" Foreground="#9aa0a6"/>
+                        </StackPanel>
+                        <!-- Link/Picker section -->
+                        <Border BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,4,0,0">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="LINKED TO TREE ELEMENT:" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6"/>
+                                <Grid ColumnDefinitions="*, Auto" RowDefinitions="Auto, Auto" Margin="0,2">
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding LinkedElementName, FallbackValue='Not Linked'}" FontSize="11" Foreground="#e8eaed" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding LinkedElementId, StringFormat='ID: \{0\}', FallbackValue=''}" IsVisible="{Binding IsLinked}" FontSize="9" Foreground="#9aa0a6"/>
+                                    
+                                    <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                        <Button Content="Link Selected" Command="{Binding LinkSelectedNodeCommand}" ToolTip.Tip="Link to currently selected element in ViewModel Tree" Padding="6,4" FontSize="10"/>
+                                        <Button Content="Locate" Command="{Binding ShowInTreeCommand}" IsEnabled="{Binding IsLinked}" ToolTip.Tip="Show this element in ViewModel Tree" Padding="6,4" FontSize="10"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Configuration inputs -->
+                <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="8">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Input Connection:" FontSize="10" Foreground="#9aa0a6"/>
+                            <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.Scratch.InputNodes}"
+                                      SelectedItem="{Binding InputNode, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ScratchNodeViewModelBase">
+                                        <TextBlock Text="{Binding Name}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Output Display -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Hierarchy View">
+                        <TextBox Text="{Binding MvvmHierarchyText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding MvvmTreeJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchDomNodeViewModel Details Template -->
+        <DataTemplate x:DataType="vm:ScratchDomNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#2e7d32" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="DOM Tree" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Elements:" FontSize="10" Foreground="#9aa0a6"/>
+                                <TextBlock Text="{Binding ElementCount}" FontSize="10" FontWeight="Bold" Foreground="#81c995"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <!-- Link/Picker section -->
+                        <Border BorderBrush="#3c4043" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,4,0,0">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="LINKED TO TREE ELEMENT:" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6"/>
+                                <Grid ColumnDefinitions="*, Auto" RowDefinitions="Auto, Auto" Margin="0,2">
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding LinkedElementName, FallbackValue='Not Linked'}" FontSize="11" Foreground="#e8eaed" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding LinkedElementId, StringFormat='ID: \{0\}', FallbackValue=''}" IsVisible="{Binding IsLinked}" FontSize="9" Foreground="#9aa0a6"/>
+                                    
+                                    <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                        <Button Content="Link Selected" Command="{Binding LinkSelectedNodeCommand}" ToolTip.Tip="Link to currently selected element in DOM Tree" Padding="6,4" FontSize="10"/>
+                                        <Button Content="Locate" Command="{Binding ShowInTreeCommand}" IsEnabled="{Binding IsLinked}" ToolTip.Tip="Show this element in DOM Tree" Padding="6,4" FontSize="10"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions & Search -->
+                <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,10">
+                    <Button Grid.Column="0" Content="Capture DOM Tree"
+                            Command="{Binding CaptureCommand}"
+                            IsEnabled="{Binding !IsCapturing}"
+                            Background="#2e7d32" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                    
+                    <TextBox Grid.Column="1" Margin="8,0,0,0" Watermark="Search DOM Tree..." 
+                             Text="{Binding SearchQuery, Mode=TwoWay}" FontSize="11" Height="28" Padding="6,0" VerticalContentAlignment="Center" Background="#202124" BorderBrush="#3c4043"/>
+                </Grid>
+
+                <!-- Content Tabs -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="DOM Tree JSON">
+                        <TextBox Text="{Binding DomTreeJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchPageNodeViewModel Details Template -->
+        <DataTemplate x:DataType="vm:ScratchPageNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#a50e0e" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Page Screenshot" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Visual page snapshot node" FontSize="11" Foreground="#9aa0a6"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Capture Screenshot"
+                            Command="{Binding CaptureCommand}"
+                            IsEnabled="{Binding !IsCapturing}"
+                            Background="#1a73e8" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content -->
+                <Border Grid.Row="2" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12">
+                    <Grid RowDefinitions="Auto, *">
+                        <TextBlock Text="Screenshot Preview" FontSize="11" FontWeight="Bold" Foreground="#e8eaed" Margin="0,0,0,8"/>
+                        <ScrollViewer Grid.Row="1">
+                            <Image Source="{Binding ScreenshotImage}" Stretch="Uniform" Margin="0,4"/>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchPerformanceNodeViewModel Details Template -->
+        <DataTemplate x:DataType="vm:ScratchPerformanceNodeViewModel">
+            <Grid RowDefinitions="Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#8e24aa" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Performance" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Live application performance diagnostics" FontSize="11" Foreground="#9aa0a6"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Metrics Display -->
+                <TabControl Grid.Row="1" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Metrics Summary">
+                        <StackPanel Spacing="12" Margin="0,10,0,0">
+                            <!-- CPU -->
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Text="CPU Usage" FontSize="11" Foreground="#9aa0a6" FontWeight="SemiBold"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding CpuUsage, StringFormat='{}{0:F1} %'}" FontSize="11" Foreground="#e8eaed" FontWeight="SemiBold"/>
+                                </Grid>
+                                <ProgressBar Value="{Binding CpuUsage}" Minimum="0" Maximum="100" Height="6" Background="#3c4043" Foreground="#8e24aa" CornerRadius="3"/>
+                            </StackPanel>
+
+                            <!-- Memory -->
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Text="Memory Usage" FontSize="11" Foreground="#9aa0a6"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding MemoryUsage, StringFormat='{}{0:F2} MB'}" FontSize="11" Foreground="#e8eaed"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Layout Count -->
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Text="Layout Count" FontSize="11" Foreground="#9aa0a6"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding LayoutCount}" FontSize="11" Foreground="#e8eaed"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </TabItem>
+                    <TabItem Header="Output JSON">
+                        <TextBox Text="{Binding OutputJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchImageDiffNodeViewModel Details Template -->
+        <DataTemplate x:DataType="vm:ScratchImageDiffNodeViewModel">
+            <Grid RowDefinitions="Auto, *" Margin="12">
+                <!-- Diff Selectors Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Image Diff Configuration" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                        <Grid ColumnDefinitions="*, 15, *">
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock Text="Left Page Input:" FontSize="10" Foreground="#9aa0a6"/>
+                                <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.Scratch.InputNodes}"
+                                          SelectedItem="{Binding LeftNode, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ScratchNodeViewModelBase">
+                                            <TextBlock Text="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            
+                            <TextBlock Grid.Column="1" Text="vs" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="#9aa0a6" FontWeight="Bold" Margin="0,12,0,0"/>
+                            
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="Right Page Input:" FontSize="10" Foreground="#9aa0a6"/>
+                                <ComboBox ItemsSource="{Binding $parent[UserControl].DataContext.Scratch.InputNodes}"
+                                          SelectedItem="{Binding RightNode, Mode=TwoWay}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ScratchNodeViewModelBase">
+                                            <TextBlock Text="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Diff Content -->
+                <TabControl Grid.Row="1" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Visual Image Diff">
+                        <Grid RowDefinitions="Auto, *" Margin="0,10,0,0">
+                            <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,10">
+                                <StackPanel Spacing="4">
+                                    <Grid ColumnDefinitions="Auto, *, Auto">
+                                        <TextBlock Grid.Column="0" Text="Pixel comparison highlight (differences in red)" FontSize="10" Foreground="#9aa0a6"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding OutputJson}" FontSize="10" Foreground="#81c995" FontWeight="Bold"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            <ScrollViewer Grid.Row="1">
+                                <Image Source="{Binding DiffImage}" Stretch="Uniform" Margin="0,4"/>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+                    
+                    <TabItem Header="Metrics JSON">
+                        <TextBox Text="{Binding OutputJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- ScratchConsoleNodeViewModel Details Template -->
+        <DataTemplate x:DataType="vm:ScratchConsoleNodeViewModel">
+            <Grid RowDefinitions="Auto, Auto, *" Margin="12">
+                <!-- Metadata Card -->
+                <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" Background="#ffb300" CornerRadius="3" Padding="6,2">
+                                <TextBlock Text="Console Stream" FontSize="9" FontWeight="Bold" Foreground="Black"/>
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Streams live console log updates from target" FontSize="11" Foreground="#9aa0a6"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                    <Button Content="Clear Logs"
+                            Command="{Binding ClearLogsCommand}"
+                            Background="#ff5252" Foreground="White" FontSize="11" Padding="10,6" CornerRadius="4"/>
+                </StackPanel>
+
+                <!-- Content TabControl -->
+                <TabControl Grid.Row="2" BorderBrush="#3c4043" BorderThickness="0,1,0,0">
+                    <TabItem Header="Console Logs">
+                        <Grid Margin="0,10,0,0">
+                            <!-- Console Logs Grid -->
+                            <DataGrid ItemsSource="{Binding ConsoleLogs}" IsReadOnly="True" GridLinesVisibility="All" Background="#202124" BorderBrush="#3c4043">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Time" Binding="{Binding Timestamp}" Width="120"/>
+                                    <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="60"/>
+                                    <DataGridTextColumn Header="Message" Binding="{Binding Text}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </TabItem>
+                    
+                    <TabItem Header="Raw JSON">
+                        <TextBox Text="{Binding ConsoleLogsJson}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,Monospace" FontSize="11" Margin="0,10,0,0" Background="#202124" BorderBrush="#3c4043"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Grid RowDefinitions="Auto, *" Background="#202124">
+        <!-- Row 0: Toolbar -->
+        <Border Grid.Row="0" Background="#28292c" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="10,6">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <!-- Save Button -->
+                <Button Command="{Binding Scratch.SaveProjectCommand}" ToolTip.Tip="Save Project" Background="Transparent" BorderThickness="0" Padding="6">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource SaveIcon}" Width="14" Height="14" Foreground="#8ab4f8"/>
+                        <TextBlock Text="Save" FontSize="11" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                    </StackPanel>
+                </Button>
+                
+                <!-- Load Button -->
+                <Button Command="{Binding Scratch.LoadProjectCommand}" ToolTip.Tip="Load Project" Background="Transparent" BorderThickness="0" Padding="6">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource FolderIcon}" Width="14" Height="14" Foreground="#8ab4f8"/>
+                        <TextBlock Text="Open" FontSize="11" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                    </StackPanel>
+                </Button>
+                
+                <!-- Clear Canvas -->
+                <Button Command="{Binding Scratch.ClearCanvasCommand}" ToolTip.Tip="Clear Canvas" Background="Transparent" BorderThickness="0" Padding="6">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource DismissIcon}" Width="14" Height="14" Foreground="#ff5252"/>
+                        <TextBlock Text="Clear" FontSize="11" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                    </StackPanel>
+                </Button>
+
+                <Separator Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center"/>
+
+                <!-- Auto Layout -->
+                <Button Command="{Binding Scratch.AutoLayoutCommand}" ToolTip.Tip="Auto Layout Canvas" Background="Transparent" BorderThickness="0" Padding="6">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <PathIcon Data="{StaticResource FlowchartIcon}" Width="14" Height="14" Foreground="#81c995"/>
+                        <TextBlock Text="Auto Layout" FontSize="11" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                    </StackPanel>
+                </Button>
+
+                <Separator Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center"/>
+
+                <!-- Add Node Dropdown Button -->
+                <Button Content="Add Node..." Background="#1a73e8" Foreground="White" FontSize="11" FontWeight="Medium" CornerRadius="4" Padding="12,6">
+                    <Button.Flyout>
+                        <MenuFlyout Placement="Bottom">
+                            <MenuItem Header="DOM Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="DOM"/>
+                            <MenuItem Header="Accessibility Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Accessibility"/>
+                            <MenuItem Header="Network Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Network"/>
+                            <MenuItem Header="Console Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Console"/>
+                            <MenuItem Header="Performance Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Performance"/>
+                            <MenuItem Header="MVVM Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="MVVM"/>
+                            <MenuItem Header="Application Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Application"/>
+                            <Separator/>
+                            <MenuItem Header="Diff Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Diff"/>
+                            <MenuItem Header="Time Machine Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="TimeMachine"/>
+                            <MenuItem Header="Assertion Node" Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Assertion"/>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <splits:SuperSplit Name="SplitControl" Grid.Row="1" Root="{Binding Scratch.LayoutRoot}" SelectedNode="{Binding Scratch.SelectedPane, Mode=TwoWay}" DockGroup="ScratchGroup" ConstrainDockingToRoot="True"/>
+
+        <Grid Name="HiddenPanel" IsVisible="False">
+            <!-- Toolbox Panel -->
+            <Border Name="ScratchToolboxPanel" Background="#28292c" BorderBrush="#3c4043" BorderThickness="0,0,1,0" Padding="8">
+                <ScrollViewer>
+                    <StackPanel Spacing="12">
+                        <!-- Category: Capture Nodes -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Capture Nodes" FontSize="11" FontWeight="Bold" Foreground="#8ab4f8" Margin="0,4,0,2"/>
+                            
+                            <!-- DOM Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="DOM" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource FlowchartIcon}" Width="14" Height="14" Foreground="#81c995" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="DOM Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="Control tree structures" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                            
+                            <!-- Accessibility Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Accessibility" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource DeveloperBoardIcon}" Width="14" Height="14" Foreground="#8ab4f8" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Accessibility Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="A11y hierarchy &amp; roles" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Console Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Console" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource TerminalIcon}" Width="14" Height="14" Foreground="#ffca28" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Console Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="Debug output logs" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Network Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Network" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource GlobeIcon}" Width="14" Height="14" Foreground="#8ab4f8" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Network Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="HTTP traffic requests" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Performance Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Performance" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource TimerIcon}" Width="14" Height="14" Foreground="#c58af9" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Performance Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="CPU &amp; memory metrics" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- MVVM Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="MVVM" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource AppsIcon}" Width="14" Height="14" Foreground="#81c995" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="MVVM Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="DataContext states" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Application Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Application" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource WindowMultipleIcon}" Width="14" Height="14" Foreground="#c58af9" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Application Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="App resources &amp; assets" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Page (Screenshot) Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Page" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource EyeIcon}" Width="14" Height="14" Foreground="#f28b82" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Page Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="Visual screenshots" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Category: Replay Nodes -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Replay Nodes" FontSize="11" FontWeight="Bold" Foreground="#ffca28" Margin="0,4,0,2"/>
+                            
+                            <!-- Time Machine Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="TimeMachine" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource HistoryIcon}" Width="14" Height="14" Foreground="#ffca28" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Time Machine Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="Replay stream timeline" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Console Stream Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="ConsoleStream" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource TerminalIcon}" Width="14" Height="14" Foreground="#ffca28" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Console Stream Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="Live console streaming" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Category: Analysis Nodes -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Analysis Nodes" FontSize="11" FontWeight="Bold" Foreground="#c58af9" Margin="0,4,0,2"/>
+                            
+                            <!-- Diff Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Diff" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource CodeIcon}" Width="14" Height="14" Foreground="#81c995" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Text Diff Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="JSON payload comparison" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Image Diff Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="ImageDiff" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource EyeIcon}" Width="14" Height="14" Foreground="#f28b82" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Image Diff Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="Pixel snapshot diffs" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Assertion Node -->
+                            <Button Command="{Binding Scratch.AddScratchNodeCommand}" CommandParameter="Assertion" PointerPressed="ToolboxButton_PointerPressed" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="#3c4043" CornerRadius="4">
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <PathIcon Grid.Column="0" Data="{StaticResource CheckIcon}" Width="14" Height="14" Foreground="#81c995" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Assertion Node" FontSize="11" FontWeight="SemiBold" Foreground="#e8eaed"/>
+                                        <TextBlock Text="Validate payload values" FontSize="9" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Canvas Panel -->
+            <Border Name="ScratchCanvasPanel" Background="#202124">
+                <nodes:NodeEditorView Name="ScratchNodeEditor" DragDrop.AllowDrop="True" DataContext="{Binding Scratch}">
+                    <nodes:NodeEditorView.DataTemplates>
+                        <!-- custom templates inside nodes:NodeEditorView.DataTemplates -->
+                        <DataTemplate x:DataType="vm:ScratchDomNodeViewModel">
+                            <views:ScratchDomNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchAccessibilityNodeViewModel">
+                            <views:ScratchAccessibilityNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchConsoleNodeViewModel">
+                            <views:ScratchConsoleNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchNetworkNodeViewModel">
+                            <views:ScratchNetworkNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchPerformanceNodeViewModel">
+                            <views:ScratchPerformanceNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchMvvmNodeViewModel">
+                            <views:ScratchMvvmNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchApplicationNodeViewModel">
+                            <views:ScratchApplicationNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchPageNodeViewModel">
+                            <views:ScratchPageNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchTimeMachineNodeViewModel">
+                            <views:ScratchTimeMachineNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchAssertionNodeViewModel">
+                            <views:ScratchAssertionNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchDiffNodeViewModel">
+                            <views:ScratchDiffNodeView/>
+                        </DataTemplate>
+
+                        <DataTemplate x:DataType="vm:ScratchImageDiffNodeViewModel">
+                            <views:ScratchImageDiffNodeView/>
+                        </DataTemplate>
+                    </nodes:NodeEditorView.DataTemplates>
+                </nodes:NodeEditorView>
+            </Border>
+
+            <!-- Details Panel -->
+            <Border Name="ScratchDetailsPanel" Background="#28292c" BorderBrush="#3c4043" BorderThickness="1,0,0,0">
+                <Grid>
+                    <!-- If SelectedNode is NOT null -->
+                    <ContentControl Content="{Binding Scratch.SelectedNode}" IsVisible="{Binding Scratch.SelectedNode, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                    
+                    <!-- Fallback placeholder: If SelectedNode IS null -->
+                    <Border IsVisible="{Binding Scratch.SelectedNode, Converter={x:Static ObjectConverters.IsNull}}" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <StackPanel Spacing="10" HorizontalAlignment="Center">
+                            <PathIcon Data="{StaticResource DeveloperBoardIcon}" Width="36" Height="36" Foreground="#5f6368" HorizontalAlignment="Center"/>
+                            <TextBlock Text="No Node Selected" FontSize="13" FontWeight="SemiBold" Foreground="#e8eaed" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Select a data or diff node on the canvas to view detailed attributes." FontSize="10" Foreground="#9aa0a6" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="180"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
