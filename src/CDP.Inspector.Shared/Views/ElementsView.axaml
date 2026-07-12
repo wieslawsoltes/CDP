@@ -3,15 +3,20 @@
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.ElementsView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
-    <Grid ColumnDefinitions="*, 4, 1.2*">
-        <!-- Left Side (DOM / Accessibility Trees) -->
-        <TabControl Margin="10" Padding="0,5,0,0" SelectedIndex="{Binding Elements.SelectedTreeTabIndex, Mode=TwoWay}">
-            <!-- DOM Tree Tab -->
-            <TabItem Header="DOM Tree">
-                <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
+    <Grid RowDefinitions="*">
+        <splits:SuperSplit Name="SplitControl"
+                            Grid.Row="0"
+                            Root="{Binding Elements.LayoutRoot}"
+                            SelectedNode="{Binding Elements.SelectedPane, Mode=TwoWay}"
+                            DockGroup="Elements"
+                            ConstrainDockingToRoot="True"/>
+        
+        <Grid Name="HiddenPanel" IsVisible="False">
+            <Grid Name="pnlDomTree" RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                     <!-- Search -->
                     <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
                         <TextBox Name="txtSearch" Text="{Binding Elements.SearchQuery, Mode=TwoWay}" PlaceholderText="Search by tag, ID, class, or text content..." Height="28" VerticalContentAlignment="Center"/>
@@ -57,11 +62,7 @@
                         </StackPanel>
                     </Grid>
                 </Grid>
-            </TabItem>
-
-            <!-- Accessibility Tree Tab -->
-            <TabItem Header="Accessibility Tree">
-                <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
+            <Grid Name="pnlAccessibilityTree" RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                     <!-- Search -->
                     <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,8">
                         <TextBox Name="txtAxSearch" Text="{Binding Elements.AxSearchQuery, Mode=TwoWay}" PlaceholderText="Search by role or accessible name..." Height="28" VerticalContentAlignment="Center"/>
@@ -98,18 +99,7 @@
                         <TextBlock Text="Selecting an AX node automatically highlights and selects its DOM element." Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
                     </Grid>
                 </Grid>
-            </TabItem>
-        </TabControl>
-
-        <!-- Splitter -->
-        <GridSplitter Grid.Column="1" Background="#3c4043"/>
-
-        <!-- Styles & Attributes sidebar (Right Side) -->
-        <Grid Grid.Column="2" Margin="10">
-            <TabControl Padding="0,5,0,0">
-                <!-- Styles subtab -->
-                <TabItem Header="Styles">
-                    <Grid RowDefinitions="*, Auto" Margin="0,5,0,0">
+            <Grid Name="pnlStyles" RowDefinitions="*, Auto" Margin="0,5,0,0">
                         <TabControl Grid.Row="0" Padding="0,5,0,0">
                             <TabItem Header="Inline styles">
                             <Grid RowDefinitions="Auto, Auto, Auto, *, Auto" Margin="0,5,0,0">
@@ -306,11 +296,7 @@
                         </StackPanel>
                     </Border>
                     </Grid>
-                </TabItem>
-
-                <!-- Attributes subtab -->
-                <TabItem Header="Attributes">
-                    <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
+            <Grid Name="pnlAttributes" RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                         <TextBox Name="txtAttributesSearch" Text="{Binding Elements.AttributeSearchText, Mode=TwoWay}" PlaceholderText="Filter attributes" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
                         <DataGrid Grid.Row="1" Name="listAttributes" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredAttributes}"
                                   x:DataType="models:AttributeModel"
@@ -330,11 +316,7 @@
                             <Button Grid.Column="3" Name="btnDeleteAttr" Command="{Binding Elements.DeleteAttributeCommand}" Content="Delete" Padding="10,0" Height="28"/>
                         </Grid>
                     </Grid>
-                </TabItem>
-
-                <!-- Properties subtab -->
-                <TabItem Header="Properties">
-                    <Grid RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
+            <Grid Name="pnlProperties" RowDefinitions="Auto, *, Auto" Margin="0,5,0,0">
                         <TextBox Name="txtPropertiesSearch" Text="{Binding Elements.PropertySearchText, Mode=TwoWay}" PlaceholderText="Filter properties" Height="26" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
                         <DataGrid Grid.Row="1" Name="listProperties" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.FilteredProperties}"
                                   x:DataType="models:PropertyModel"
@@ -355,11 +337,8 @@
                             <Button Grid.Column="3" Name="btnApplyProperty" Command="{Binding Elements.ApplyPropertyCommand}" Content="Set" Margin="5,0,0,0" Padding="10,0" Height="28"/>
                         </Grid>
                     </Grid>
-                </TabItem>
-
-                <!-- Event Listeners subtab -->
-                <TabItem Header="Event Listeners">
-                    <DataGrid Name="listEventListeners" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.EventListeners}" Margin="0,5,0,0"
+            <Grid Name="pnlEventListeners" Margin="0,5,0,0">
+<DataGrid Name="listEventListeners" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Elements.EventListeners}" Margin="0,5,0,0"
                               x:DataType="models:EventListenerModel"
                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="None" HeadersVisibility="None"
@@ -370,10 +349,8 @@
                             <DataGridTextColumn Header="Capture" Binding="{Binding CaptureText, StringFormat='(Capture: {0})'}" IsReadOnly="True" Width="*" Foreground="#9aa0a6" FontSize="10"/>
                         </DataGrid.Columns>
                     </DataGrid>
-                </TabItem>
-                <!-- Accessibility subtab -->
-                <TabItem Header="Accessibility">
-                    <ScrollViewer Margin="0,5,0,0">
+</Grid>
+            <ScrollViewer Name="pnlAccessibility" Margin="0,5,0,0">
                         <StackPanel Spacing="10" Margin="5">
                             <TextBlock Text="Accessibility Properties" FontWeight="SemiBold" Foreground="#9aa0a6" FontSize="12" Margin="0,0,0,5"/>
                             
@@ -404,11 +381,7 @@
                             </Grid>
                         </StackPanel>
                     </ScrollViewer>
-                </TabItem>
-
-                <!-- Layout subtab -->
-                <TabItem Header="Layout">
-                    <ScrollViewer Margin="0,5,0,0">
+            <ScrollViewer Name="pnlLayout" Margin="0,5,0,0">
                         <StackPanel Spacing="15" Margin="5">
                             <!-- Box Model Visualizer -->
                             <TextBlock Text="Box Model" FontWeight="SemiBold" Foreground="#9aa0a6" FontSize="12" Margin="0,0,0,5"/>
@@ -471,8 +444,6 @@
                             </Grid>
                         </StackPanel>
                     </ScrollViewer>
-                </TabItem>
-            </TabControl>
         </Grid>
     </Grid>
 </UserControl>

@@ -349,8 +349,8 @@ public static class CdpServer
         Console.SetError(_redirectedError);
 
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://localhost:{port}/");
         _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        _listener.Prefixes.Add($"http://localhost:{port}/");
 
         try
         {
@@ -360,8 +360,18 @@ public static class CdpServer
         {
             try { _listener.Close(); } catch { }
             _listener = new HttpListener();
-            _listener.Prefixes.Add($"http://localhost:{port}/");
-            _listener.Start();
+            _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+            try
+            {
+                _listener.Start();
+            }
+            catch
+            {
+                try { _listener.Close(); } catch { }
+                _listener = new HttpListener();
+                _listener.Prefixes.Add($"http://localhost:{port}/");
+                _listener.Start();
+            }
         }
 
         Task.Run(ListenLoopAsync);

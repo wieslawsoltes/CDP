@@ -494,6 +494,12 @@ public class SuperSplit : ContentControl
     public static readonly StyledProperty<SplitNode?> RootProperty =
         AvaloniaProperty.Register<SuperSplit, SplitNode?>(nameof(Root), null);
 
+    public static readonly StyledProperty<string?> DockGroupProperty =
+        AvaloniaProperty.Register<SuperSplit, string?>(nameof(DockGroup), null);
+
+    public static readonly StyledProperty<bool> ConstrainDockingToRootProperty =
+        AvaloniaProperty.Register<SuperSplit, bool>(nameof(ConstrainDockingToRoot), false);
+
     public static readonly StyledProperty<BoxNode?> SelectedNodeProperty =
         AvaloniaProperty.Register<SuperSplit, BoxNode?>(nameof(SelectedNode), null, defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
@@ -504,6 +510,18 @@ public class SuperSplit : ContentControl
     {
         get => GetValue(RootProperty);
         set => SetValue(RootProperty, value);
+    }
+
+    public string? DockGroup
+    {
+        get => GetValue(DockGroupProperty);
+        set => SetValue(DockGroupProperty, value);
+    }
+
+    public bool ConstrainDockingToRoot
+    {
+        get => GetValue(ConstrainDockingToRootProperty);
+        set => SetValue(ConstrainDockingToRootProperty, value);
     }
 
     public BoxNode? SelectedNode
@@ -1435,6 +1453,7 @@ public class SuperSplit : ContentControl
         SuperSplitDragManager.SourceTab = draggedTab;
         SuperSplitDragManager.SourceSplit = this;
         SuperSplitDragManager.DraggedNode = draggedBox;
+        SuperSplitDragManager.SourceDockGroup = this.DockGroup;
 
         SetupDragPreview(draggedBox);
         UpdateDragPreviewPosition(e.GetPosition(this));
@@ -1457,7 +1476,7 @@ public class SuperSplit : ContentControl
             System.Diagnostics.Debug.WriteLine($"Native drag initiation failed: {ex.Message}");
         }
 
-        if (!success && !SuperSplitDragManager.IsOverDropTarget && SuperSplitDragManager.FloatNodeCallback != null)
+        if (!success && !SuperSplitDragManager.IsOverDropTarget && SuperSplitDragManager.FloatNodeCallback != null && !ConstrainDockingToRoot)
         {
             if (draggedBox != null)
             {
@@ -1516,6 +1535,22 @@ public class SuperSplit : ContentControl
         {
             e.DragEffects = DragDropEffects.None;
             SuperSplitDragManager.IsOverDropTarget = false;
+            return;
+        }
+
+        if (SuperSplitDragManager.SourceDockGroup != this.DockGroup)
+        {
+            e.DragEffects = DragDropEffects.None;
+            SuperSplitDragManager.IsOverDropTarget = false;
+            e.Handled = true;
+            return;
+        }
+
+        if (this.ConstrainDockingToRoot && SuperSplitDragManager.SourceSplit != this)
+        {
+            e.DragEffects = DragDropEffects.None;
+            SuperSplitDragManager.IsOverDropTarget = false;
+            e.Handled = true;
             return;
         }
 
@@ -1590,6 +1625,21 @@ public class SuperSplit : ContentControl
     private void OnDrop(object? sender, DragEventArgs e)
     {
         SuperSplitDragManager.IsOverDropTarget = false;
+
+        if (SuperSplitDragManager.SourceDockGroup != this.DockGroup)
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        if (this.ConstrainDockingToRoot && SuperSplitDragManager.SourceSplit != this)
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         bool success = false;
         if (SuperSplitDragManager.IsDragging && SuperSplitDragManager.DraggedNode != null &&
             _currentHoverNode != null && _currentDropLocation != RelativeDropLocation.None)

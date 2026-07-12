@@ -1,9 +1,12 @@
 using System;
 using System.IO;
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
+using Avalonia.Controls.Presenters;
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
 using TextMateSharp.Grammars;
@@ -22,10 +25,79 @@ public partial class SourcesView : UserControl
     private TextMate.Installation? _textMateInstallation;
     private RegistryOptions? _registryOptions;
     private int? _pendingScrollLine;
+    private readonly System.Collections.Generic.Dictionary<string, Control> _viewsCache = new();
+
+    private Control GetOrCreateViewInstance(string viewName, CDP.Editor.Splits.Controls.SuperSplitBox? targetBox = null)
+    {
+        string cacheKey = viewName;
+        if (viewName == "SourcesFiles") cacheKey = "pnlSourcesFiles";
+        else if (viewName == "SourcesSearch") cacheKey = "pnlSourcesSearch";
+        else if (viewName == "CodeViewer") cacheKey = "pnlCodeViewer";
+        else if (viewName == "Debugger") cacheKey = "pnlDebugger";
+
+        if (_viewsCache.TryGetValue(cacheKey, out var cached))
+        {
+            if (targetBox == null || cached.Parent != targetBox)
+            {
+                DetachControl(cached);
+            }
+            return cached;
+        }
+        return new TextBlock { Text = $"View {viewName} not found", Margin = new Thickness(10) };
+    }
+
+    private void DetachControl(Control control)
+    {
+        if (control.Parent is CDP.Editor.Splits.Controls.SuperSplitBox splitBox)
+        {
+            splitBox.InnerContent = null;
+            splitBox.UpdateLayout();
+        }
+        else if (control.Parent is Panel panel)
+        {
+            panel.Children.Remove(control);
+        }
+        else if (control.Parent is ContentControl contentControl)
+        {
+            contentControl.Content = null;
+        }
+
+        var visualParent = control.GetVisualParent();
+        if (visualParent is ContentPresenter presenter)
+        {
+            presenter.Content = null;
+        }
+        else if (visualParent is Panel visualPanel)
+        {
+            visualPanel.Children.Remove(control);
+        }
+    }
 
     public SourcesView()
     {
         InitializeComponent();
+
+        // Cache control references in local variables explicitly before detaching
+        var wFiles = treeWorkspaceFiles;
+        var sContent = txtSourceContent;
+        var sFileName = lblSourceFileName;
+
+        // Initialize view cache
+        var hiddenPanel = this.FindControl<Grid>("HiddenPanel");
+        if (hiddenPanel != null)
+        {
+            var children = System.Linq.Enumerable.ToList(hiddenPanel.Children);
+            foreach (var child in children)
+            {
+                if (child is Control ctrl && !string.IsNullOrEmpty(ctrl.Name))
+                {
+                    hiddenPanel.Children.Remove(ctrl);
+                    _viewsCache[ctrl.Name] = ctrl;
+                }
+            }
+        }
+
+        SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
         
         var editor = txtSourceContent;
         if (editor != null)

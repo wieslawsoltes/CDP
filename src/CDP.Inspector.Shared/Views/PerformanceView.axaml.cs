@@ -4,12 +4,15 @@ using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using CdpInspectorApp.Controls;
 using CdpInspectorApp.ViewModels;
+using CDP.Editor.Splits.Controls;
 
 namespace CdpInspectorApp.Views;
 
 [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataGrid is not trim-safe")]
 public partial class PerformanceView : UserControl
 {
+    private readonly System.Collections.Generic.Dictionary<string, Control> _viewsCache = new();
+
     public Button BtnRefreshMetrics => btnRefreshMetrics;
     public Button BtnCollectGarbage => btnCollectGarbage;
     public TextBlock LblPerfNodes => lblPerfNodes;
@@ -21,9 +24,49 @@ public partial class PerformanceView : UserControl
     public Button BtnCloseTarget => btnCloseTarget;
     public DataGrid LstLiveControls => lstLiveControls;
 
+    private void DetachControl(Control control)
+    {
+        if (control.Parent is Panel panel)
+        {
+            panel.Children.Remove(control);
+        }
+        else if (control.Parent is ContentControl contentControl)
+        {
+            contentControl.Content = null;
+        }
+        else if (control.Parent is SuperSplitBox splitBox)
+        {
+            splitBox.InnerContent = null;
+            splitBox.UpdateLayout();
+        }
+    }
+
     public PerformanceView()
     {
         InitializeComponent();
+
+        var statsPanel = PerformanceStatsPanel;
+        var chartPanel = PerformanceChartPanel;
+        var controlsPanel = PerformanceControlsPanel;
+
+        HiddenPanel.Children.Clear();
+
+        _viewsCache["PerformanceStats"] = statsPanel;
+        _viewsCache["PerformanceChart"] = chartPanel;
+        _viewsCache["PerformanceControls"] = controlsPanel;
+
+        SplitControl.ViewResolver = (viewName, targetBox) =>
+        {
+            if (_viewsCache.TryGetValue(viewName, out var cached))
+            {
+                if (targetBox == null || cached.Parent != targetBox)
+                {
+                    DetachControl(cached);
+                }
+                return cached;
+            }
+            return new Control();
+        };
     }
 
     protected override void OnDataContextChanged(EventArgs e)

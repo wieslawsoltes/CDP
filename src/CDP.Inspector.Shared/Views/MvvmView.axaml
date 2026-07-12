@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.MvvmView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -24,68 +25,65 @@
             </StackPanel>
         </Border>
 
-        <!-- Main Workspace -->
-        <Grid Grid.Row="1" RowDefinitions="*, 4, 180">
-            <!-- Top Half (Left Tree and Right Grid) -->
-            <Grid Grid.Row="0" ColumnDefinitions="*, 4, 1.2*">
-                <!-- Left Pane: ViewModels Tree -->
-                <Border Grid.Column="0" BorderBrush="#3c4043" BorderThickness="0,0,1,0">
-                    <Grid RowDefinitions="Auto, *">
-                        <Border Background="#202124" Padding="8,4" BorderBrush="#3c4043" BorderThickness="0,0,0,1">
-                            <TextBlock Text="ACTIVE VIEWMODELS TREE" FontSize="11" FontWeight="Bold" Foreground="#9aa0a6"/>
-                        </Border>
-                        <TreeView Grid.Row="1" ItemsSource="{Binding Mvvm.MvvmTree}" SelectedItem="{Binding Mvvm.SelectedNode, Mode=TwoWay}">
-                            <TreeView.ItemTemplate>
-                                <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="vm:InspectorViewModelNode">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" Height="22">
-                                        <PathIcon Data="{StaticResource DiagramIcon}" Width="12" Height="12" Foreground="#8ab4f8"/>
-                                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" FontSize="12" Foreground="#e8eaed"/>
-                                    </StackPanel>
-                                </TreeDataTemplate>
-                            </TreeView.ItemTemplate>
-                            <TreeView.Styles>
-                                <Style Selector="TreeViewItem" x:DataType="vm:InspectorViewModelNode">
-                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                </Style>
-                            </TreeView.Styles>
-                        </TreeView>
-                    </Grid>
+        <!-- Main Workspace (SuperSplit) -->
+        <splits:SuperSplit Name="SplitControl"
+                            Grid.Row="1"
+                            Root="{Binding Mvvm.LayoutRoot}"
+                            SelectedNode="{Binding Mvvm.SelectedPane, Mode=TwoWay}"
+                            DockGroup="Mvvm"
+                            ConstrainDockingToRoot="True"/>
+
+        <!-- Hidden panels container to keep fields generated and bindings intact -->
+        <Grid Name="HiddenPanel" IsVisible="False">
+            <!-- ViewModels Tree -->
+            <Grid Name="pnlMvvmTree" RowDefinitions="Auto, *">
+                <Border Background="#202124" Padding="8,4" BorderBrush="#3c4043" BorderThickness="0,0,0,1">
+                    <TextBlock Text="ACTIVE VIEWMODELS TREE" FontSize="11" FontWeight="Bold" Foreground="#9aa0a6"/>
                 </Border>
-
-                <!-- Column Splitter -->
-                <GridSplitter Grid.Column="1" Background="#3c4043"/>
-
-                <!-- Right Pane: Properties Grid -->
-                <Grid Grid.Column="2" RowDefinitions="Auto, *">
-                    <Border Grid.Row="0" Background="#202124" Padding="8,4" BorderBrush="#3c4043" BorderThickness="0,0,0,1">
-                        <TextBlock Text="VIEWMODEL PROPERTIES" FontSize="11" FontWeight="Bold" Foreground="#9aa0a6"/>
-                    </Border>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Mvvm.SelectedNode.Properties}" x:DataType="vm:InspectorPropertyModel"
-                              CanUserResizeColumns="True" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                              Background="Transparent" BorderThickness="0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Property" Binding="{Binding Name}" Width="150" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                            <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="200" Foreground="#9aa0a6" FontSize="11"/>
-                            <DataGridTemplateColumn Header="Value" Width="*">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate x:DataType="vm:InspectorPropertyModel">
-                                        <Grid ColumnDefinitions="*, Auto" Margin="2">
-                                            <TextBox Name="txtVal" Text="{Binding DisplayValue, Mode=TwoWay}" IsReadOnly="{Binding !IsWritable}" FontSize="12" Height="24" Padding="4,2"/>
-                                            <Button Grid.Column="1" Content="Set" Command="{Binding UpdateValueCommand}" CommandParameter="{Binding #txtVal.Text}" IsVisible="{Binding IsWritable}" FontSize="11" Margin="4,0,0,0" Padding="8,2" Classes="accent"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
+                <TreeView Grid.Row="1" ItemsSource="{Binding Mvvm.MvvmTree}" SelectedItem="{Binding Mvvm.SelectedNode, Mode=TwoWay}">
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="vm:InspectorViewModelNode">
+                            <StackPanel Orientation="Horizontal" Spacing="6" Height="22">
+                                <PathIcon Data="{StaticResource DiagramIcon}" Width="12" Height="12" Foreground="#8ab4f8"/>
+                                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" FontSize="12" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem" x:DataType="vm:InspectorViewModelNode">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        </Style>
+                    </TreeView.Styles>
+                </TreeView>
             </Grid>
 
-            <!-- Horizontal Splitter -->
-            <GridSplitter Grid.Row="1" Background="#3c4043"/>
+            <!-- Properties Grid -->
+            <Grid Name="pnlMvvmProperties" RowDefinitions="Auto, *">
+                <Border Grid.Row="0" Background="#202124" Padding="8,4" BorderBrush="#3c4043" BorderThickness="0,0,0,1">
+                    <TextBlock Text="VIEWMODEL PROPERTIES" FontSize="11" FontWeight="Bold" Foreground="#9aa0a6"/>
+                </Border>
+                <DataGrid Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Mvvm.SelectedNode.Properties}" x:DataType="vm:InspectorPropertyModel"
+                          CanUserResizeColumns="True" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                          Background="Transparent" BorderThickness="0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Property" Binding="{Binding Name}" Width="150" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
+                        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="200" Foreground="#9aa0a6" FontSize="11"/>
+                        <DataGridTemplateColumn Header="Value" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:InspectorPropertyModel">
+                                    <Grid ColumnDefinitions="*, Auto" Margin="2">
+                                        <TextBox Name="txtVal" Text="{Binding DisplayValue, Mode=TwoWay}" IsReadOnly="{Binding !IsWritable}" FontSize="12" Height="24" Padding="4,2"/>
+                                        <Button Grid.Column="1" Content="Set" Command="{Binding UpdateValueCommand}" CommandParameter="{Binding #txtVal.Text}" IsVisible="{Binding IsWritable}" FontSize="11" Margin="4,0,0,0" Padding="8,2" Classes="accent"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
 
-            <!-- Bottom Pane: Command Execution History -->
-            <Grid Grid.Row="2" RowDefinitions="Auto, *">
+            <!-- Command Execution History -->
+            <Grid Name="pnlCommandHistory" RowDefinitions="Auto, *">
                 <Border Grid.Row="0" Background="#202124" Padding="8,4" BorderBrush="#3c4043" BorderThickness="0,0,0,1">
                     <TextBlock Text="COMMAND EXECUTION HISTORY (REACTIVECOMMANDS)" FontSize="11" FontWeight="Bold" Foreground="#9aa0a6"/>
                 </Border>

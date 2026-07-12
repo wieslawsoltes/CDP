@@ -12,12 +12,29 @@ using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
 using Microsoft.Extensions.Logging;
 using Chrome.DevTools.Protocol;
+using Avalonia.Layout;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ElementsViewModel : ViewModelBase, IStateProvider
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger<ElementsViewModel>();
+    
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
     private readonly ICdpService _cdpService;
     private readonly Dictionary<string, JsonObject> _axNodeDetailsMap = new();
     private ObservableCollection<DomNodeModel> _rootNodes = new();
@@ -734,6 +751,25 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         };
         HierarchicalAxRootNodes = new HierarchicalModel<AxNodeModel>(axOptions);
         HierarchicalAxRootNodes.SetRoots(AxRootNodes);
+        ResetLayout();
+    }
+
+    public void ResetLayout()
+    {
+        var left = new BoxNode();
+        left.AddTab("DOM Tree", "DocumentIcon", "DomTree");
+        left.AddTab("Accessibility Tree", "EyeIcon", "AccessibilityTree");
+
+        var right = new BoxNode();
+        right.AddTab("Styles", "CodeIcon", "Styles");
+        right.AddTab("Attributes", "TableIcon", "Attributes");
+        right.AddTab("Properties", "DeveloperBoardIcon", "Properties");
+        right.AddTab("Event Listeners", "TimerIcon", "EventListeners");
+        right.AddTab("Accessibility", "EyeIcon", "Accessibility");
+        right.AddTab("Layout", "GlobeIcon", "Layout");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.45 };
+        SelectedPane = left;
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

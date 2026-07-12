@@ -10,11 +10,27 @@ using System.Collections.Specialized;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Avalonia.Layout;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class NetworkViewModel : ViewModelBase, IStateProvider
 {
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
     private readonly ICdpService _cdpService;
     private ObservableCollection<NetworkRequestModel> _networkRequests = new();
     private NetworkRequestModel? _selectedRequest;
@@ -162,6 +178,20 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         RemoveMockRuleCommand = new RelayCommand<MockRuleModel>(RemoveMockRule);
 
         _networkRequests.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredNetworkRequests));
+        ResetLayout();
+    }
+
+    public void ResetLayout()
+    {
+        var left = new BoxNode();
+        left.AddTab("Requests List", "TableIcon", "RequestsList");
+
+        var right = new BoxNode();
+        right.AddTab("Request Details", "CodeIcon", "RequestDetails");
+        right.AddTab("Mocking Rules", "SettingsIcon", "MockingRules");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.55 };
+        SelectedPane = left;
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -1,11 +1,14 @@
 using System;
 using System.Globalization;
 using System.IO;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using CdpInspectorApp.ViewModels;
+using Avalonia.VisualTree;
+using Avalonia.Controls.Presenters;
 
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
@@ -56,10 +59,65 @@ public partial class RecorderView : UserControl
 
     private TextMate.Installation? _textMateInstallation;
     private RegistryOptions? _registryOptions;
+    private readonly System.Collections.Generic.Dictionary<string, Control> _viewsCache = new();
+
+    private Control GetOrCreateViewInstance(string viewName, CDP.Editor.Splits.Controls.SuperSplitBox? targetBox = null)
+    {
+        if (_viewsCache.TryGetValue(viewName, out var cached))
+        {
+            if (targetBox == null || cached.Parent != targetBox)
+            {
+                DetachControl(cached);
+            }
+            return cached;
+        }
+        return new TextBlock { Text = $"View {viewName} not found", Margin = new Thickness(10) };
+    }
+
+    private void DetachControl(Control control)
+    {
+        if (control.Parent is CDP.Editor.Splits.Controls.SuperSplitBox splitBox)
+        {
+            splitBox.InnerContent = null;
+            splitBox.UpdateLayout();
+        }
+        else if (control.Parent is Panel panel)
+        {
+            panel.Children.Remove(control);
+        }
+        else if (control.Parent is ContentControl contentControl)
+        {
+            contentControl.Content = null;
+        }
+
+        var visualParent = control.GetVisualParent();
+        if (visualParent is ContentPresenter presenter)
+        {
+            presenter.Content = null;
+        }
+        else if (visualParent is Panel visualPanel)
+        {
+            visualPanel.Children.Remove(control);
+        }
+    }
 
     public RecorderView()
     {
         InitializeComponent();
+
+        // Initialize view cache
+        var pnl1 = this.FindControl<Control>("pnlRecordedSteps");
+        var pnl2 = this.FindControl<Control>("pnlPuppeteerScript");
+        var pnl3 = this.FindControl<Control>("pnlRecordingGuide");
+        var hiddenPanel = this.FindControl<Panel>("HiddenPanel");
+        if (hiddenPanel != null)
+        {
+            if (pnl1 != null) { hiddenPanel.Children.Remove(pnl1); _viewsCache["RecordedSteps"] = pnl1; }
+            if (pnl2 != null) { hiddenPanel.Children.Remove(pnl2); _viewsCache["PuppeteerScript"] = pnl2; }
+            if (pnl3 != null) { hiddenPanel.Children.Remove(pnl3); _viewsCache["RecordingGuide"] = pnl3; }
+        }
+
+        SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
         
         var editor = txtGeneratedCode;
         if (editor != null)

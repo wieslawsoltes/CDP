@@ -19,28 +19,74 @@ using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using Avalonia.Controls.DataGridHierarchical;
 using Avalonia.LogicalTree;
+using CDP.Editor.Splits.Controls;
 
 namespace CdpInspectorApp.Views;
 
 [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataGrid is not trim-safe")]
 public partial class TestStudioView : UserControl
 {
+    public static readonly DataFormat<string> WorkspaceItemPathFormat = DataFormat.CreateInProcessFormat<string>("workspace-item-path");
     private bool _isUpdatingText = false;
     private TextMate.Installation? _textMateInstallation;
     private RegistryOptions? _registryOptions;
 
+    private readonly System.Collections.Generic.Dictionary<string, Control> _viewsCache = new();
+    private TextEditor? _yamlEditor;
+    private DataGrid? _stepsGrid;
+
     public TestStudioView()
     {
         InitializeComponent();
+
+        // 1. Cache controls from HiddenPanel
+        var hiddenPanel = this.FindControl<Grid>("HiddenPanel");
+        if (hiddenPanel != null)
+        {
+            var children = hiddenPanel.Children.ToList();
+            foreach (var child in children)
+            {
+                if (child is Control ctrl && !string.IsNullOrEmpty(ctrl.Name))
+                {
+                    hiddenPanel.Children.Remove(ctrl);
+                    _viewsCache[ctrl.Name] = ctrl;
+                }
+            }
+        }
+
+        // 2. Setup SuperSplit ViewResolver
+        var splitControl = this.FindControl<SuperSplit>("SplitControl");
+        if (splitControl != null)
+        {
+            splitControl.ViewResolver = (viewName, box) =>
+            {
+                string cacheKey = viewName;
+                if (viewName == "StepsList") cacheKey = "pnlStepsList";
+                else if (viewName == "NodeEditor") cacheKey = "pnlNodeEditor";
+                else if (viewName == "YamlConfiguration") cacheKey = "pnlYamlConfiguration";
+                else if (viewName == "ExecutionLog") cacheKey = "pnlExecutionLog";
+                else if (viewName == "ProjectSidebar") cacheKey = "pnlProjectSidebar";
+
+                if (_viewsCache.TryGetValue(cacheKey, out var view))
+                {
+                    return view;
+                }
+                return null;
+            };
+        }
+
+        // 3. Cache references to the text editor and steps list
+        _yamlEditor = this.FindControl<TextEditor>("txtYamlCode");
+        _stepsGrid = this.FindControl<DataGrid>("lstSteps");
         
-        var editor = this.FindControl<TextEditor>("txtYamlCode");
+        var editor = _yamlEditor;
         if (editor != null)
         {
             if (!OperatingSystem.IsBrowser())
             {
                 try
                 {
-                    // 1. Initialize TextMate with Dark+ theme
+                    // Initialize TextMate with Dark+ theme
                     _registryOptions = new RegistryOptions(ThemeName.DarkPlus);
                     _textMateInstallation = editor.InstallTextMate(_registryOptions);
                     var yamlLanguage = _registryOptions.GetLanguageByExtension(".yaml");
@@ -55,7 +101,7 @@ public partial class TestStudioView : UserControl
                 }
             }
 
-            // 2. Synchronize editor edits back to ViewModel
+            // Synchronize editor edits back to ViewModel
             editor.TextChanged += (s, e) =>
             {
                 if (_isUpdatingText) return;
@@ -73,11 +119,11 @@ public partial class TestStudioView : UserControl
                 }
             };
 
-            // 2b. Attach auto-completion handlers
+            // Attach auto-completion handlers
             editor.TextArea.TextEntered += TextArea_TextEntered;
             editor.TextArea.KeyDown += TextArea_KeyDown;
 
-            // 2c. Update editor text when it gets focused to ensure sync
+            // Update editor text when it gets focused to ensure sync
             editor.GotFocus += (s, ev) =>
             {
                 if (DataContext is MainWindowViewModel vm)
@@ -94,7 +140,7 @@ public partial class TestStudioView : UserControl
             };
         }
 
-        // 3. Synchronize ViewModel changes to editor
+        // Synchronize ViewModel changes to editor
         DataContextChanged += (sender, args) =>
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -141,12 +187,58 @@ public partial class TestStudioView : UserControl
                         return null;
                     };
 
+                    vm.Recorder.TestStudio.ConfirmCloseDirtyEditorCallback = async (filePath) =>
+                    {
+                        var topLevel = TopLevel.GetTopLevel(this);
+                        if (topLevel is Window parentWindow)
+                        {
+                            var discardBtn = new Button { Content = "Discard" };
+                            var cancelBtn = new Button { Content = "Cancel" };
+                            var dialog = new Window
+                            {
+                                Title = "Save Changes?",
+                                Width = 400,
+                                Height = 150,
+                                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                                Content = new StackPanel
+                                {
+                                    Spacing = 20,
+                                    Margin = new Thickness(20),
+                                    Children =
+                                    {
+                                        new TextBlock 
+                                        { 
+                                            Text = filePath == null 
+                                                ? "You have unsaved changes in multiple editors. Do you want to close them and discard unsaved changes?"
+                                                : $"You have unsaved changes in '{System.IO.Path.GetFileName(filePath)}'. Do you want to close it and discard unsaved changes?",
+                                            TextWrapping = Avalonia.Media.TextWrapping.Wrap 
+                                        },
+                                        new StackPanel
+                                        {
+                                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                                            Spacing = 10,
+                                            Children =
+                                            {
+                                                discardBtn,
+                                                cancelBtn
+                                            }
+                                        }
+                                    }
+                                }
+                            };
+                            discardBtn.Click += (s, e) => dialog.Close(true);
+                            cancelBtn.Click += (s, e) => dialog.Close(false);
+                            return await dialog.ShowDialog<bool>(parentWindow);
+                        }
+                        return true;
+                    };
+
                     // Insert Gutter status margin if not already added
-                    var editor = this.FindControl<TextEditor>("txtYamlCode");
-                    if (editor != null)
+                    if (_yamlEditor != null)
                     {
                         bool alreadyAdded = false;
-                        foreach (var margin in editor.TextArea.LeftMargins)
+                        foreach (var margin in _yamlEditor.TextArea.LeftMargins)
                         {
                             if (margin is ReplayGutterMargin)
                             {
@@ -160,16 +252,16 @@ public partial class TestStudioView : UserControl
                             var provider = new TestStudioGutterDataProvider(vm.Recorder.TestStudio, vm.Recorder);
                             var gutter = new ReplayGutterMargin(provider);
                             int insertIndex = 0;
-                            for (int i = 0; i < editor.TextArea.LeftMargins.Count; i++)
+                            for (int i = 0; i < _yamlEditor.TextArea.LeftMargins.Count; i++)
                             {
-                                var margin = editor.TextArea.LeftMargins[i];
+                                var margin = _yamlEditor.TextArea.LeftMargins[i];
                                 if (margin.GetType().Name.Contains("LineNumberMargin"))
                                 {
                                     insertIndex = i + 1;
                                     break;
                                 }
                             }
-                            editor.TextArea.LeftMargins.Insert(insertIndex, gutter);
+                            _yamlEditor.TextArea.LeftMargins.Insert(insertIndex, gutter);
                         }
                     }
                 }
@@ -223,6 +315,99 @@ public partial class TestStudioView : UserControl
                     }
                 }
             };
+
+            // Setup Workspace Drag & Drop support
+            DragDrop.SetAllowDrop(treeWorkspace, true);
+            
+            Point dragStartPoint = new Point();
+            WorkspaceItemModel? dragSourceItem = null;
+            PointerPressedEventArgs? pressedArgs = null;
+
+            treeWorkspace.PointerPressed += (s, e) =>
+            {
+                var properties = e.GetCurrentPoint(treeWorkspace).Properties;
+                if (properties.IsLeftButtonPressed)
+                {
+                    dragStartPoint = e.GetPosition(treeWorkspace);
+                    pressedArgs = e;
+                    var visual = e.Source as Visual;
+                    while (visual != null)
+                    {
+                        if (visual is DataGridRow row && row.DataContext is HierarchicalNode<WorkspaceItemModel> node)
+                        {
+                            dragSourceItem = node.Item;
+                            break;
+                        }
+                        visual = visual.GetVisualParent();
+                    }
+                }
+            };
+
+            treeWorkspace.PointerMoved += async (s, e) =>
+            {
+                var properties = e.GetCurrentPoint(treeWorkspace).Properties;
+                if (properties.IsLeftButtonPressed && dragSourceItem != null && pressedArgs != null)
+                {
+                    var pos = e.GetPosition(treeWorkspace);
+                    if (Math.Abs(pos.X - dragStartPoint.X) > 5 || Math.Abs(pos.Y - dragStartPoint.Y) > 5)
+                    {
+                        var dragData = new DataTransfer();
+                        var item = new DataTransferItem();
+                        item.Set(WorkspaceItemPathFormat, dragSourceItem.Path);
+                        dragData.Add(item);
+
+                        var currentPressedArgs = pressedArgs;
+                        dragSourceItem = null; // Reset to prevent multiple drag starts
+                        pressedArgs = null;
+
+                        await DragDrop.DoDragDropAsync(currentPressedArgs, dragData, DragDropEffects.Move);
+                    }
+                }
+            };
+
+            treeWorkspace.AddHandler(DragDrop.DragOverEvent, (s, e) =>
+            {
+                if (e.DataTransfer.Formats.Any(f => f == WorkspaceItemPathFormat))
+                {
+                    e.DragEffects = DragDropEffects.Move;
+                }
+                else
+                {
+                    e.DragEffects = DragDropEffects.None;
+                }
+                e.Handled = true;
+            });
+
+            treeWorkspace.AddHandler(DragDrop.DropEvent, (s, e) =>
+            {
+                if (e.DataTransfer.Formats.Any(f => f == WorkspaceItemPathFormat) && DataContext is MainWindowViewModel vm)
+                {
+                    var sourcePath = e.DataTransfer.TryGetValue(WorkspaceItemPathFormat) as string;
+                    if (!string.IsNullOrEmpty(sourcePath))
+                    {
+                        var visual = e.Source as Visual;
+                        WorkspaceItemModel? targetItem = null;
+                        while (visual != null)
+                        {
+                            if (visual is DataGridRow row && row.DataContext is HierarchicalNode<WorkspaceItemModel> node)
+                            {
+                                targetItem = node.Item;
+                                break;
+                            }
+                            visual = visual.GetVisualParent();
+                        }
+
+                        string targetPath = vm.Recorder.TestStudio.WorkspaceRootPath ?? "";
+                        if (targetItem != null)
+                        {
+                            targetPath = targetItem.IsFolder ? targetItem.Path : System.IO.Path.GetDirectoryName(targetItem.Path) ?? targetPath;
+                        }
+
+                        vm.Recorder.TestStudio.MoveWorkspaceItem(sourcePath, targetPath);
+                    }
+                }
+                e.Handled = true;
+            });
         }
 
         // --- Toolbox Drag & Drop & Context Menus Initialization ---
@@ -238,47 +423,45 @@ public partial class TestStudioView : UserControl
         this.AddHandler(PointerMovedEvent, OnToolboxPointerMoved, RoutingStrategies.Tunnel);
         this.AddHandler(PointerReleasedEvent, OnToolboxPointerReleased, RoutingStrategies.Tunnel);
 
-        var yamlEditor = this.FindControl<TextEditor>("txtYamlCode");
-        if (yamlEditor != null)
+        if (_yamlEditor != null)
         {
-            DragDrop.SetAllowDrop(yamlEditor, true);
-            yamlEditor.AddHandler(DragDrop.DragOverEvent, OnYamlDragOver);
-            yamlEditor.AddHandler(DragDrop.DropEvent, OnYamlDrop);
+            DragDrop.SetAllowDrop(_yamlEditor, true);
+            _yamlEditor.AddHandler(DragDrop.DragOverEvent, OnYamlDragOver);
+            _yamlEditor.AddHandler(DragDrop.DropEvent, OnYamlDrop);
 
-            yamlEditor.PointerPressed += (s, e) =>
+            _yamlEditor.PointerPressed += (s, e) =>
             {
-                var prop = e.GetCurrentPoint(yamlEditor).Properties;
+                var prop = e.GetCurrentPoint(_yamlEditor).Properties;
                 if (prop.IsRightButtonPressed)
                 {
-                    var pos = e.GetPosition(yamlEditor.TextArea);
-                    var caretPos = yamlEditor.GetPositionFromPoint(pos);
+                    var pos = e.GetPosition(_yamlEditor.TextArea);
+                    var caretPos = _yamlEditor.GetPositionFromPoint(pos);
                     if (caretPos.HasValue)
                     {
-                        yamlEditor.CaretOffset = yamlEditor.Document.GetOffset(caretPos.Value.Line, caretPos.Value.Column);
+                        _yamlEditor.CaretOffset = _yamlEditor.Document.GetOffset(caretPos.Value.Line, caretPos.Value.Column);
                     }
                 }
             };
 
-            yamlEditor.ContextMenu = ToolboxMenuHelper.CreateContextMenu(cmd =>
+            _yamlEditor.ContextMenu = ToolboxMenuHelper.CreateContextMenu(cmd =>
             {
                 string yamlTemplate = ToolboxMenuHelper.GetYamlTemplateForCommand(cmd);
-                yamlEditor.Document.Insert(yamlEditor.CaretOffset, yamlTemplate);
+                _yamlEditor.Document.Insert(_yamlEditor.CaretOffset, yamlTemplate);
             });
         }
 
-        var stepsGrid = this.FindControl<DataGrid>("lstSteps");
-        if (stepsGrid != null)
+        if (_stepsGrid != null)
         {
-            DragDrop.SetAllowDrop(stepsGrid, true);
-            stepsGrid.AddHandler(DragDrop.DragOverEvent, OnStepsDragOver);
-            stepsGrid.AddHandler(DragDrop.DropEvent, OnStepsDrop);
+            DragDrop.SetAllowDrop(_stepsGrid, true);
+            _stepsGrid.AddHandler(DragDrop.DragOverEvent, OnStepsDragOver);
+            _stepsGrid.AddHandler(DragDrop.DropEvent, OnStepsDrop);
 
-            stepsGrid.ContextMenu = ToolboxMenuHelper.CreateContextMenu(cmd =>
+            _stepsGrid.ContextMenu = ToolboxMenuHelper.CreateContextMenu(cmd =>
             {
                 if (DataContext is MainWindowViewModel vm)
                 {
                     int insertIndex = vm.Recorder.TestStudio.Steps.Count;
-                    if (stepsGrid.SelectedItem is HierarchicalNode<TestStudioStepModel> node && node.Item is TestStudioStepModel targetStep)
+                    if (_stepsGrid.SelectedItem is HierarchicalNode<TestStudioStepModel> node && node.Item is TestStudioStepModel targetStep)
                     {
                         insertIndex = vm.Recorder.TestStudio.Steps.IndexOf(targetStep);
                     }
@@ -312,8 +495,7 @@ public partial class TestStudioView : UserControl
             {
                 if (DataContext is MainWindowViewModel vm)
                 {
-                    var editor = this.FindControl<TextEditor>("txtYamlCode");
-                    if (editor != null && !editor.IsFocused && !editor.TextArea.IsFocused)
+                    if (_yamlEditor != null && !_yamlEditor.IsFocused && !_yamlEditor.TextArea.IsFocused)
                     {
                         UpdateEditorText(vm.Recorder.TestStudio.YamlCode);
                     }
@@ -330,10 +512,9 @@ public partial class TestStudioView : UserControl
                     var step = testStudio.ExecutingStep;
                     if (step != null)
                     {
-                        var editor = this.FindControl<TextEditor>("txtYamlCode");
-                        if (editor != null && step.StartLine > 0 && step.StartLine <= editor.Document.LineCount)
+                        if (_yamlEditor != null && step.StartLine > 0 && step.StartLine <= _yamlEditor.Document.LineCount)
                         {
-                            editor.ScrollToLine(step.StartLine);
+                            _yamlEditor.ScrollToLine(step.StartLine);
                         }
 
                         var node = testStudio.NodeEditor.Nodes.OfType<TestStudioNodeViewModel>()
@@ -343,10 +524,9 @@ public partial class TestStudioView : UserControl
                             testStudio.NodeEditor.BringNodeIntoView(node);
                         }
 
-                        var lstSteps = this.FindControl<DataGrid>("lstSteps");
-                        if (lstSteps != null)
+                        if (_stepsGrid != null)
                         {
-                            lstSteps.ScrollIntoView(step, null);
+                            _stepsGrid.ScrollIntoView(step, null);
                         }
                     }
                 }
@@ -360,10 +540,9 @@ public partial class TestStudioView : UserControl
         _isUpdatingText = true;
         try
         {
-            var editor = this.FindControl<TextEditor>("txtYamlCode");
-            if (editor != null && editor.Text != text)
+            if (_yamlEditor != null && _yamlEditor.Text != text)
             {
-                editor.Text = text ?? "";
+                _yamlEditor.Text = text ?? "";
             }
         }
         finally
@@ -399,14 +578,13 @@ public partial class TestStudioView : UserControl
 
     private void ShowCompletion(bool explicitInvocation)
     {
-        var editor = this.FindControl<TextEditor>("txtYamlCode");
-        if (editor == null) return;
+        if (_yamlEditor == null) return;
 
         var vm = DataContext as MainWindowViewModel;
         if (vm == null) return;
 
-        string text = editor.Text ?? "";
-        int caretOffset = editor.CaretOffset;
+        string text = _yamlEditor.Text ?? "";
+        int caretOffset = _yamlEditor.CaretOffset;
 
         var suggestions = YamlIntelliSenseProvider.GetSuggestions(text, caretOffset, vm);
         if (suggestions == null || suggestions.Count == 0)
@@ -417,7 +595,7 @@ public partial class TestStudioView : UserControl
 
         CloseCompletionWindow();
 
-        var completionWindow = new CompletionWindow(editor.TextArea)
+        var completionWindow = new CompletionWindow(_yamlEditor.TextArea)
         {
             CloseAutomatically = true,
             CloseWhenCaretAtBeginning = false
@@ -546,24 +724,23 @@ public partial class TestStudioView : UserControl
 
     private void OnYamlDrop(object? sender, DragEventArgs e)
     {
-        var yamlEditor = this.FindControl<TextEditor>("txtYamlCode");
-        if (yamlEditor != null)
+        if (_yamlEditor != null)
         {
             var text = e.DataTransfer.TryGetText();
             if (!string.IsNullOrEmpty(text))
             {
-                var visualPos = e.GetPosition(yamlEditor.TextArea);
-                var position = yamlEditor.GetPositionFromPoint(visualPos);
+                var visualPos = e.GetPosition(_yamlEditor.TextArea);
+                var position = _yamlEditor.GetPositionFromPoint(visualPos);
                 if (position.HasValue)
                 {
-                    int offset = yamlEditor.Document.GetOffset(position.Value.Line, position.Value.Column);
-                    yamlEditor.Document.Insert(offset, text);
-                    yamlEditor.CaretOffset = offset + text.Length;
-                    yamlEditor.Focus();
+                    int offset = _yamlEditor.Document.GetOffset(position.Value.Line, position.Value.Column);
+                    _yamlEditor.Document.Insert(offset, text);
+                    _yamlEditor.CaretOffset = offset + text.Length;
+                    _yamlEditor.Focus();
                 }
                 else
                 {
-                    yamlEditor.Document.Insert(yamlEditor.CaretOffset, text);
+                    _yamlEditor.Document.Insert(_yamlEditor.CaretOffset, text);
                 }
                 e.Handled = true;
             }
@@ -585,8 +762,7 @@ public partial class TestStudioView : UserControl
 
     private void OnStepsDrop(object? sender, DragEventArgs e)
     {
-        var stepsGrid = this.FindControl<DataGrid>("lstSteps");
-        if (stepsGrid != null && DataContext is MainWindowViewModel vm)
+        if (_stepsGrid != null && DataContext is MainWindowViewModel vm)
         {
             var command = e.DataTransfer.TryGetValue(ToolboxMenuHelper.CdpCommandFormat);
             if (!string.IsNullOrEmpty(command))

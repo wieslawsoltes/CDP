@@ -10,6 +10,7 @@ using CdpInspectorApp.Services;
 using System.Text.Json.Nodes;
 using ProDataGrid;
 using Avalonia.Controls.DataGridHierarchical;
+using CDP.Editor.Splits.Models;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -238,5 +239,425 @@ public class WorkspaceSidebarTests
         vm.IsSidebarCollapsed = false;
         Assert.Equal(350, vm.SidebarColumnWidth.Value);
         Assert.Equal(4, vm.SidebarSplitterWidth.Value);
+    }
+
+    [Fact]
+    public void Test_WorkspaceItemModel_BindingProperties()
+    {
+        var model = new WorkspaceItemModel
+        {
+            Name = "flow.yaml",
+            Path = "/flow.yaml",
+            IsFolder = false,
+            FileType = "YAML Flow File",
+            FormattedSize = "2.3 KB",
+            FormattedDateModified = "2026-07-11 12:00:00",
+            IsExpanded = true,
+            IsSelected = true
+        };
+
+        Assert.Equal("flow.yaml", model.Name);
+        Assert.Equal("/flow.yaml", model.Path);
+        Assert.False(model.IsFolder);
+        Assert.Equal("YAML Flow File", model.FileType);
+        Assert.Equal("2.3 KB", model.FormattedSize);
+        Assert.Equal("2026-07-11 12:00:00", model.FormattedDateModified);
+        Assert.True(model.IsExpanded);
+        Assert.True(model.IsSelected);
+    }
+
+    [Fact]
+    public void Test_OpenEditors_Management()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile = Path.Combine(tempDir, "flow1.yaml");
+        File.WriteAllText(testFile, "appId: \"test-app\"\ndescription: \"\"\nsteps: []\n");
+
+        try
+        {
+            // Initial state
+            Assert.Empty(vm.OpenEditors);
+
+            // Load file should register in OpenEditors and set Active
+            vm.LoadFlowFile(testFile);
+            Assert.Single(vm.OpenEditors);
+            var editor = vm.OpenEditors[0];
+            Assert.Equal(testFile, editor.FilePath);
+            Assert.Equal("flow1.yaml", editor.DisplayName);
+            Assert.True(editor.IsActive);
+            Assert.False(editor.IsDirty);
+
+            // Mutating YamlCode should set IsDirty
+            vm.YamlCode = "appId: \"modified-app\"\ndescription: \"\"\nsteps: []\n";
+            Assert.True(editor.IsDirty);
+
+            // Saving YamlCode should clear IsDirty
+            vm.SaveYaml();
+            Assert.False(editor.IsDirty);
+
+            // Closing editor should clean up
+            vm.CloseEditor(editor);
+            Assert.Empty(vm.OpenEditors);
+            Assert.Null(vm.CurrentFlowFilePath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_Search()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(tempDir, "flow2.yaml");
+        File.WriteAllText(testFile1, "appId: \"target-app\"\n");
+        File.WriteAllText(testFile2, "appId: \"other-app\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            
+            // Search query "target" (Case Insensitive)
+            vm.SearchQuery = "target";
+            vm.IsSearchCaseSensitive = false;
+            vm.IsSearchRegex = false;
+            vm.PerformSearch();
+
+            Assert.Single(vm.SearchResults);
+            var fileResult = vm.SearchResults[0];
+            Assert.Equal(testFile1, fileResult.FilePath);
+            Assert.Single(fileResult.Matches);
+            Assert.Equal(1, fileResult.Matches[0].LineNumber);
+            Assert.Equal("appId: \"target-app\"", fileResult.Matches[0].LineText);
+
+            // Clear search
+            vm.ClearSearchResults();
+            Assert.Empty(vm.SearchResults);
+            Assert.Equal("", vm.SearchQuery);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_MoveWorkspaceItem()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var subDir = Path.Combine(tempDir, "SubDir");
+        Directory.CreateDirectory(subDir);
+
+        var testFile = Path.Combine(tempDir, "flow.yaml");
+        File.WriteAllText(testFile, "appId: \"test-app\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.LoadWorkspaceTree();
+
+            // Load file
+            vm.LoadFlowFile(testFile);
+            Assert.Single(vm.OpenEditors);
+
+            // Move flow.yaml to SubDir
+            vm.MoveWorkspaceItem(testFile, subDir);
+
+            var expectedNewPath = Path.Combine(subDir, "flow.yaml");
+            Assert.True(File.Exists(expectedNewPath));
+            Assert.False(File.Exists(testFile));
+
+            // Verify active editor path updated
+            Assert.Equal(expectedNewPath, vm.CurrentFlowFilePath);
+
+            // Verify OpenEditors path updated
+            Assert.Single(vm.OpenEditors);
+            Assert.Equal(expectedNewPath, vm.OpenEditors[0].FilePath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_ClearFileFilter_Resets_Text()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        vm.FileFilterText = "some-filter";
+        Assert.Equal("some-filter", vm.FileFilterText);
+
+        vm.ClearFileFilterCommand.Execute(null);
+
+        Assert.Equal(string.Empty, vm.FileFilterText);
+    }
+
+    [Fact]
+    public void Test_SelectedOpenEditor_Switches_Active_File()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(tempDir, "flow2.yaml");
+        File.WriteAllText(testFile1, "appId: \"test-app-1\"\n");
+        File.WriteAllText(testFile2, "appId: \"test-app-2\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            
+            // Load first file
+            vm.LoadFlowFile(testFile1);
+            Assert.Equal(testFile1, vm.CurrentFlowFilePath);
+            Assert.Single(vm.OpenEditors);
+
+            // Load second file
+            vm.LoadFlowFile(testFile2);
+            Assert.Equal(testFile2, vm.CurrentFlowFilePath);
+            Assert.Equal(2, vm.OpenEditors.Count);
+
+            // Verify both editors are in the collection and second is active
+            var editor1 = vm.OpenEditors[0];
+            var editor2 = vm.OpenEditors[1];
+            Assert.False(editor1.IsActive);
+            Assert.True(editor2.IsActive);
+
+            // Switch to first editor by setting SelectedOpenEditor
+            vm.SelectedOpenEditor = editor1;
+
+            // Verify active file switched
+            Assert.Equal(testFile1, vm.CurrentFlowFilePath);
+            Assert.True(editor1.IsActive);
+            Assert.False(editor2.IsActive);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_LoadFlowFile_ClearsStaleStepsOnParseError()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(tempDir, "flow2.yaml");
+
+        // Valid YAML
+        File.WriteAllText(testFile1, "appId: \"app-1\"\ndescription: \"desc\"\nsteps:\n  - action: tap\n    selector: \"#btn\"\n");
+        // Invalid YAML
+        File.WriteAllText(testFile2, "invalid: : yaml :\n");
+
+        try
+        {
+            vm.LoadFlowFile(testFile1);
+            vm.Steps.Add(new TestStudioStepModel { Action = "tap" });
+            Assert.NotEmpty(vm.Steps);
+
+            // Switching to invalid YAML should clear Steps and throw
+            Assert.ThrowsAny<Exception>(() => vm.LoadFlowFile(testFile2));
+            Assert.Empty(vm.Steps);
+            Assert.Empty(vm.FlowTags);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_Search_PrunesIgnoredDirectories()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var nodeModulesDir = Path.Combine(tempDir, "node_modules");
+        Directory.CreateDirectory(nodeModulesDir);
+
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(nodeModulesDir, "flow2.yaml");
+
+        File.WriteAllText(testFile1, "appId: \"target-app\"\n");
+        File.WriteAllText(testFile2, "appId: \"target-app\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.SearchQuery = "target";
+            vm.IsSearchCaseSensitive = false;
+            vm.IsSearchRegex = false;
+            vm.PerformSearch();
+
+            // Search results should only contain flow1.yaml, flow2.yaml in node_modules must be ignored
+            Assert.Single(vm.SearchResults);
+            Assert.Equal(testFile1, vm.SearchResults[0].FilePath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_Search_Finds_Yml_Files()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(tempDir, "flow2.yml");
+
+        File.WriteAllText(testFile1, "appId: \"test-app-match\"\n");
+        File.WriteAllText(testFile2, "appId: \"test-app-match\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.SearchQuery = "match";
+            vm.IsSearchCaseSensitive = false;
+            vm.IsSearchRegex = false;
+            vm.PerformSearch();
+
+            // Search results should contain both .yaml and .yml files
+            Assert.Equal(2, vm.SearchResults.Count);
+            var paths = vm.SearchResults.Select(x => x.FilePath).ToList();
+            Assert.Contains(testFile1, paths);
+            Assert.Contains(testFile2, paths);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_CloseEditor_Asynchronously_Confirms_Dirty_State()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var editor = new OpenEditorModel
+        {
+            FilePath = "/test.yaml",
+            OriginalContent = "original",
+            CurrentContent = "dirty",
+            IsDirty = true
+        };
+        vm.OpenEditors.Add(editor);
+
+        // Scenario 1: Callback returns false (user cancels close)
+        vm.ConfirmCloseDirtyEditorCallback = (path) => Task.FromResult(false);
+        vm.CloseEditor(editor);
+        Assert.Single(vm.OpenEditors);
+
+        // Scenario 2: Callback returns true (user discards edits)
+        vm.ConfirmCloseDirtyEditorCallback = (path) => Task.FromResult(true);
+        vm.CloseEditor(editor);
+        Assert.Empty(vm.OpenEditors);
+    }
+
+    [Fact]
+    public void Test_Workspace_RenameItem_Updates_OpenEditors_Paths()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var oldPath = Path.Combine(tempDir, "oldFlow.yaml");
+        var newPath = Path.Combine(tempDir, "newFlow.yaml");
+
+        File.WriteAllText(oldPath, "appId: \"test\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.LoadFlowFile(oldPath);
+            Assert.Single(vm.OpenEditors);
+            Assert.Equal(oldPath, vm.OpenEditors[0].FilePath);
+
+            vm.SelectedWorkspaceItem = new WorkspaceItemModel { Path = oldPath, Name = "oldFlow.yaml", IsFolder = false };
+            vm.RenameItem("newFlow.yaml");
+
+            // Verify the OpenEditor path was rebased
+            Assert.Single(vm.OpenEditors);
+            Assert.Equal(newPath, vm.OpenEditors[0].FilePath);
+            Assert.Equal("newFlow.yaml", vm.OpenEditors[0].DisplayName);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_DeleteItem_Removes_OpenEditors()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile = Path.Combine(tempDir, "deleteFlow.yaml");
+
+        File.WriteAllText(testFile, "appId: \"test\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.LoadFlowFile(testFile);
+            Assert.Single(vm.OpenEditors);
+
+            vm.DeleteItem(testFile);
+
+            // Verify it was pruned from OpenEditors
+            Assert.Empty(vm.OpenEditors);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_ToggleSidebar_Preserves_CoDocked_Tabs()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        vm.IsSidebarCollapsed = false;
+
+        // Traverse to find the sidebar BoxNode
+        Assert.NotNull(vm.LayoutRoot);
+        Assert.True(vm.LayoutRoot is SplitContainerNode);
+        var rootContainer = (SplitContainerNode)vm.LayoutRoot;
+        Assert.True(rootContainer.Child1 is BoxNode);
+        var sidebarBox = (BoxNode)rootContainer.Child1;
+        Assert.Equal("ProjectSidebar", sidebarBox.Tabs[0].SelectedViewName);
+
+        // Co-dock another tab into the sidebar box
+        var extraTab = sidebarBox.AddTab("Extra Tab", "InfoIcon", "ExtraView");
+        Assert.Equal(2, sidebarBox.Tabs.Count);
+
+        // Collapse sidebar
+        vm.IsSidebarCollapsed = true;
+
+        // The sidebar box should still be in the tree because it has "ExtraView" tab
+        Assert.Equal(1, sidebarBox.Tabs.Count);
+        Assert.Equal("ExtraView", sidebarBox.Tabs[0].SelectedViewName);
+        Assert.Same(sidebarBox, rootContainer.Child1);
+
+        // Expand sidebar
+        vm.IsSidebarCollapsed = false;
+
+        // The sidebar tab should be restored to the same box node at index 0
+        Assert.Equal(2, sidebarBox.Tabs.Count);
+        Assert.Equal("ProjectSidebar", sidebarBox.Tabs[0].SelectedViewName);
+        Assert.Equal("ExtraView", sidebarBox.Tabs[1].SelectedViewName);
     }
 }

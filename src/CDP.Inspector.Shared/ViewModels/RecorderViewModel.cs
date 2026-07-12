@@ -14,6 +14,8 @@ using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Microsoft.Extensions.Logging;
 using Chrome.DevTools.Protocol;
+using Avalonia.Layout;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -172,6 +174,21 @@ public class RecorderViewModel : ViewModelBase
         }
     }
 
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
     public TestStudioViewModel TestStudio { get; }
 
     public ICommand ToggleRecordCommand { get; }
@@ -233,6 +250,20 @@ public class RecorderViewModel : ViewModelBase
         };
 
         UpdateGeneratedCode();
+        ResetLayout();
+    }
+
+    public void ResetLayout()
+    {
+        var left = new BoxNode();
+        left.AddTab("Recorded Steps", "TableIcon", "RecordedSteps");
+
+        var right = new BoxNode();
+        right.AddTab("Puppeteer Script", "CodeIcon", "PuppeteerScript");
+        right.AddTab("Recording Guide", "EyeIcon", "RecordingGuide");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.5 };
+        SelectedPane = left;
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

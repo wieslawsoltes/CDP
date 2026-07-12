@@ -2,6 +2,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:CdpInspectorApp.Controls">
     <Styles.Resources>
+        <StreamGeometry x:Key="FolderAddIcon">M3.5 6.25V8H8.12868C8.32759 8 8.51836 7.92098 8.65901 7.78033L10.1893 6.25L8.65901 4.71967C8.51836 4.57902 8.32759 4.5 8.12868 4.5H5.25C4.2835 4.5 3.5 5.2835 3.5 6.25ZM2 6.25C2 4.45507 3.45507 3 5.25 3H8.12868C8.72542 3 9.29771 3.23705 9.71967 3.65901L11.5607 5.5H18.75C20.5449 5.5 22 6.95507 22 8.75V12.8096C21.5557 12.3832 21.051 12.0194 20.5 11.7322V8.75C20.5 7.7835 19.7165 7 18.75 7H11.5607L9.71967 8.84099C9.29771 9.26295 8.72542 9.5 8.12868 9.5H3.5V17.75C3.5 18.7165 4.2835 19.5 5.25 19.5H11.3135C11.4858 20.0335 11.7253 20.5368 12.0218 21H5.25C3.45507 21 2 19.5449 2 17.75V6.25ZM23 17.5C23 14.4624 20.5376 12 17.5 12C14.4624 12 12 14.4624 12 17.5C12 20.5376 14.4624 23 17.5 23C20.5376 23 23 20.5376 23 17.5ZM18.0006 18L18.0011 20.5035C18.0011 20.7797 17.7773 21.0035 17.5011 21.0035C17.225 21.0035 17.0011 20.7797 17.0011 20.5035L17.0006 18H14.4956C14.2197 18 13.9961 17.7762 13.9961 17.5C13.9961 17.2239 14.2197 17 14.4956 17H17.0005L17 14.4993C17 14.2231 17.2239 13.9993 17.5 13.9993C17.7761 13.9993 18 14.2231 18 14.4993L18.0005 17H20.4966C20.7725 17 20.9961 17.2239 20.9961 17.5C20.9961 17.7762 20.7725 18 20.4966 18H18.0006Z</StreamGeometry>
+        <StreamGeometry x:Key="DocumentAddIcon">M18.5 20C18.5 20.275 18.276 20.5 18 20.5H12.2678C11.9806 21.051 11.6168 21.5557 11.1904 22H18C19.104 22 20 21.104 20 20V9.828C20 9.298 19.789 8.789 19.414 8.414L13.585 2.586C13.2277 2.22867 12.6729 2 12.172 2H6C4.896 2 4 2.896 4 4V11.4982C4.47417 11.3004 4.97679 11.1572 5.5 11.0764V4C5.5 3.725 5.724 3.5 6 3.5H12V8C12 9.104 12.896 10 14 10H18.5V20ZM13.5 4.621L17.378 8.5H14C13.724 8.5 13.5 8.275 13.5 8V4.621ZM12 17.5C12 14.4624 9.53757 12 6.5 12C3.46243 12 1 14.4624 1 17.5C1 20.5376 3.46243 23 6.5 23C9.53757 23 12 20.5376 12 17.5ZM7.00065 18L7.00111 20.5035C7.00111 20.7797 6.77725 21.0035 6.50111 21.0035C6.22497 21.0035 6.00111 20.7797 6.00111 20.5035L6.00065 18H3.4956C3.21973 18 2.99609 17.7762 2.99609 17.5C2.99609 17.2239 3.21973 17 3.4956 17H6.00046L6 14.4993C6 14.2231 6.22386 13.9993 6.5 13.9993C6.77614 13.9993 7 14.2231 7 14.4993L7.00046 17H9.49659C9.77246 17 9.99609 17.2239 9.99609 17.5C9.99609 17.7762 9.77246 18 9.49659 18H7.00065Z</StreamGeometry>
+        <StreamGeometry x:Key="ArrowCollapseAllIcon">M2 4.75C2 4.33579 2.33579 4 2.75 4H21.25C21.6642 4 22 4.33579 22 4.75C22 5.16421 21.6642 5.5 21.25 5.5H2.75C2.33579 5.5 2 5.16421 2 4.75ZM12 8.75C12 8.33579 12.3358 8 12.75 8H21.25C21.6642 8 22 8.33579 22 8.75C22 9.16421 21.6642 9.5 21.25 9.5H12.75C12.3358 9.5 12 9.16421 12 8.75ZM7.28033 8.21967C7.13968 8.07902 6.94891 8 6.75 8C6.55109 8 6.36032 8.07902 6.21967 8.21967L3.21967 11.2197C2.92678 11.5126 2.92678 11.9874 3.21967 12.2803C3.51256 12.5732 3.98744 12.5732 4.28033 12.2803L6 10.5607V19.25C6 19.6642 6.33579 20 6.75 20C7.16421 20 7.5 19.6642 7.5 19.25V10.5607L9.21967 12.2803C9.51256 12.5732 9.98744 12.5732 10.2803 12.2803C10.5732 11.9874 10.5732 11.5126 10.2803 11.2197L7.28033 8.21967Z</StreamGeometry>
+        <StreamGeometry x:Key="FolderOpenIcon">M3.50014 6.25C3.50014 5.2835 4.28364 4.5 5.25014 4.5H8.12882C8.32773 4.5 8.5185 4.57902 8.65915 4.71967L10.7198 6.78033C10.8605 6.92098 11.0512 7 11.2501 7H16.7501C17.7166 7 18.5001 7.7835 18.5001 8.75C18.5001 8.83602 18.5146 8.91866 18.5413 8.99561L8.71867 8.99561C7.37893 8.99561 6.14095 9.71035 5.47108 10.8706L3.50014 14.2844V6.25ZM2.00036 17.7883C2.02089 19.5656 3.468 21 5.25014 21H11.0001C11.0292 21 11.058 20.9983 11.0862 20.9951H16.2812C17.6209 20.9951 18.8589 20.2804 19.5288 19.1201L22.5596 13.8706C23.7748 11.7657 22.3337 9.14964 19.9567 9.00214C19.9848 8.92334 20.0001 8.83846 20.0001 8.75C20.0001 6.95507 18.5451 5.5 16.7501 5.5H11.5608L9.71981 3.65901C9.29786 3.23705 8.72556 3 8.12882 3H5.25014C3.45522 3 2.00014 4.45507 2.00014 6.25V17.71C1.9999 17.7362 1.99997 17.7623 2.00036 17.7883ZM8.71867 10.4956L19.745 10.4956C21.0921 10.4956 21.9341 11.9539 21.2605 13.1206L18.2297 18.3701C17.8278 19.0663 17.085 19.4951 16.2812 19.4951H5.25485C3.9077 19.4951 3.06573 18.0368 3.7393 16.8701L6.77011 11.6206C7.17204 10.9245 7.91482 10.4956 8.71867 10.4956ZM12.0001 1.99805Z</StreamGeometry>
+        <StreamGeometry x:Key="SearchIcon">M16.1017 17.1624C14.717 18.3101 12.9391 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11C19 12.9391 18.3101 14.717 17.1624 16.1018L21.7803 20.7197C22.0732 21.0126 22.0732 21.4874 21.7803 21.7803C21.4874 22.0732 21.0125 22.0732 20.7196 21.7803L16.1017 17.1624ZM17.5 11C17.5 7.41015 14.5899 4.5 11 4.5C7.41015 4.5 4.5 7.41015 4.5 11C4.5 14.5899 7.41015 17.5 11 17.5C14.5899 17.5 17.5 14.5899 17.5 11Z</StreamGeometry>
+        <StreamGeometry x:Key="TableIcon">M3 6.25C3 4.45507 4.45507 3 6.25 3H17.75C19.5449 3 21 4.45507 21 6.25V17.75C21 19.5449 19.5449 21 17.75 21H6.25C4.45507 21 3 19.5449 3 17.75V6.25ZM6.25 4.5C5.2835 4.5 4.5 5.2835 4.5 6.25V8.5H8.5V4.5H6.25ZM4.5 10V14H8.5L8.5 10H4.5ZM10 10L10 14H14L14 10H10ZM15.5 10L15.5 14H19.5V10H15.5ZM14 15.5H10V19.5H14V15.5ZM15.5 19.5H17.75C18.7165 19.5 19.5 18.7165 19.5 17.75V15.5H15.5V19.5ZM15.5 8.5H19.5V6.25C19.5 5.2835 18.7165 4.5 17.75 4.5H15.5V8.5ZM14 4.5H10V8.5H14V4.5ZM4.5 15.5V17.75C4.5 18.7165 5.2835 19.5 6.25 19.5H8.5V15.5H4.5Z</StreamGeometry>
         <StreamGeometry x:Key="LinkIcon">M9.25 7C9.66421 7 10 7.33579 10 7.75C10 8.12656 9.72249 8.4383 9.36083 8.49187L9.25 8.5H7C5.067 8.5 3.5 10.067 3.5 12C3.5 13.864 4.95707 15.3876 6.79435 15.4941L7 15.5H9.25C9.66421 15.5 10 15.8358 10 16.25C10 16.6266 9.72249 16.9383 9.36083 16.9919L9.25 17H7C4.23858 17 2 14.7614 2 12C2 9.32226 4.10496 7.13615 6.75045 7.00612L7 7H9.25ZM17 7C19.7614 7 22 9.23858 22 12C22 14.6777 19.895 16.8638 17.2495 16.9939L17 17H14.75C14.3358 17 14 16.6642 14 16.25C14 15.8734 14.2775 15.5617 14.6392 15.5081L14.75 15.5H17C18.933 15.5 20.5 13.933 20.5 12C20.5 10.136 19.0429 8.6124 17.2057 8.50594L17 8.5H14.75C14.3358 8.5 14 8.16421 14 7.75C14 7.37344 14.2775 7.0617 14.6392 7.00813L14.75 7H17ZM7 11.25H17C17.4142 11.25 17.75 11.5858 17.75 12C17.75 12.3797 17.4678 12.6935 17.1018 12.7432L17 12.75H7C6.58579 12.75 6.25 12.4142 6.25 12C6.25 11.6203 6.53215 11.3065 6.89823 11.2568L7 11.25H17H7Z</StreamGeometry>
         <StreamGeometry x:Key="FolderIcon">M3.5 6.25V8H8.12868C8.32759 8 8.51836 7.92098 8.65901 7.78033L10.1893 6.25L8.65901 4.71967C8.51836 4.57902 8.32759 4.5 8.12868 4.5H5.25C4.2835 4.5 3.5 5.2835 3.5 6.25ZM2 6.25C2 4.45507 3.45507 3 5.25 3H8.12868C8.72542 3 9.29771 3.23705 9.71967 3.65901L11.5607 5.5H18.75C20.5449 5.5 22 6.95507 22 8.75V17.75C22 19.5449 20.5449 21 18.75 21H5.25C3.45507 21 2 19.5449 2 17.75V6.25ZM3.5 9.5V17.75C3.5 18.7165 4.2835 19.5 5.25 19.5H18.75C19.7165 19.5 20.5 18.7165 20.5 17.75V8.75C20.5 7.7835 19.7165 7 18.75 7H11.5607L9.71967 8.84099C9.29771 9.26295 8.72542 9.5 8.12868 9.5H3.5Z</StreamGeometry>
         <StreamGeometry x:Key="SaveIcon">M3 5.75C3 4.23122 4.23122 3 5.75 3H15.7145C16.5764 3 17.4031 3.34241 18.0126 3.9519L20.0481 5.98744C20.6576 6.59693 21 7.42358 21 8.28553V18.25C21 19.7688 19.7688 21 18.25 21H5.75C4.23122 21 3 19.7688 3 18.25V5.75ZM5.75 4.5C5.05964 4.5 4.5 5.05964 4.5 5.75V18.25C4.5 18.9404 5.05964 19.5 5.75 19.5H6V14.25C6 13.0074 7.00736 12 8.25 12H15.75C16.9926 12 18 13.0074 18 14.25V19.5H18.25C18.9404 19.5 19.5 18.9404 19.5 18.25V8.28553C19.5 7.8214 19.3156 7.37629 18.9874 7.0481L16.9519 5.01256C16.6918 4.75246 16.3582 4.58269 16 4.52344V7.25C16 8.49264 14.9926 9.5 13.75 9.5H9.25C8.00736 9.5 7 8.49264 7 7.25V4.5H5.75ZM16.5 19.5V14.25C16.5 13.8358 16.1642 13.5 15.75 13.5H8.25C7.83579 13.5 7.5 13.8358 7.5 14.25V19.5H16.5ZM8.5 4.5V7.25C8.5 7.66421 8.83579 8 9.25 8H13.75C14.1642 8 14.5 7.66421 14.5 7.25V4.5H8.5Z</StreamGeometry>
@@ -423,6 +429,188 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="MinHeight" Value="0"/>
         <Setter Property="Padding" Value="4,0"/>
+    </Style>
+
+    <!-- Activity Bar Button Styling -->
+    <Style Selector="Button.activity-btn">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+    <Style Selector="Button.activity-btn PathIcon">
+        <Setter Property="Foreground" Value="#858585"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Foreground" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.activity-btn:pointerover PathIcon">
+        <Setter Property="Foreground" Value="#cccccc"/>
+    </Style>
+    <Style Selector="Button.activity-btn.active PathIcon">
+        <Setter Property="Foreground" Value="#ffffff"/>
+    </Style>
+
+    <!-- Toolbar Small Icon Button Styling -->
+    <Style Selector="Button.toolbar-btn">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="CornerRadius" Value="3"/>
+    </Style>
+    <Style Selector="Button.toolbar-btn:pointerover">
+        <Setter Property="Background" Value="#3c3c3c"/>
+    </Style>
+    <Style Selector="Button.toolbar-btn PathIcon">
+        <Setter Property="Foreground" Value="#cccccc"/>
+    </Style>
+    <Style Selector="Button.toolbar-btn:pointerover PathIcon">
+        <Setter Property="Foreground" Value="#ffffff"/>
+    </Style>
+
+    <Style Selector="ToggleButton.toolbar-btn">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="CornerRadius" Value="3"/>
+    </Style>
+    <Style Selector="ToggleButton.toolbar-btn:pointerover">
+        <Setter Property="Background" Value="#3c3c3c"/>
+    </Style>
+    <Style Selector="ToggleButton.toolbar-btn:checked">
+        <Setter Property="Background" Value="#37373d"/>
+    </Style>
+    <Style Selector="ToggleButton.toolbar-btn PathIcon">
+        <Setter Property="Foreground" Value="#cccccc"/>
+    </Style>
+    <Style Selector="ToggleButton.toolbar-btn:checked PathIcon">
+        <Setter Property="Foreground" Value="#3794ff"/>
+    </Style>
+
+    <!-- ========================================== -->
+    <!-- Project Explorer & Workspace Tree Styling  -->
+    <!-- ========================================== -->
+    <Style Selector="DataGrid#treeWorkspace">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="GridLinesVisibility" Value="None"/>
+        <Setter Property="RowHeight" Value="24"/>
+        <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+    </Style>
+    <Style Selector="DataGrid#treeWorkspace DataGridRow">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="DataGrid#treeWorkspace DataGridRow:pointerover">
+        <Setter Property="Background" Value="#2a2d2e"/>
+    </Style>
+    <Style Selector="DataGrid#treeWorkspace DataGridRow:selected">
+        <Setter Property="Background" Value="#04395e"/>
+    </Style>
+    <Style Selector="DataGrid#treeWorkspace DataGridRow:selected:pointerover">
+        <Setter Property="Background" Value="#04395e"/>
+    </Style>
+    <Style Selector="DataGrid#treeWorkspace DataGridCell:selected /template/ Border#PART_CellBorder">
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+
+    <!-- Custom inline toggle buttons inside TextBox -->
+    <Style Selector="ToggleButton.inline-toggle">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="4,2"/>
+        <Setter Property="Width" Value="22"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="CornerRadius" Value="2"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="ToggleButton.inline-toggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#35363a"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="ToggleButton.inline-toggle:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#0e639c"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="ToggleButton.inline-toggle TextBlock">
+        <Setter Property="Foreground" Value="#cccccc"/>
+    </Style>
+    <Style Selector="ToggleButton.inline-toggle:checked TextBlock">
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+
+    <!-- Open Editors ListBox & ListBoxItem custom styles -->
+    <Style Selector="ListBox">
+        <Setter Property="Background" Value="#1e1e1e"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="ListBoxItem">
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="CornerRadius" Value="2"/>
+    </Style>
+    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#2a2d2e"/>
+    </Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#2b2d30"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+
+    <!-- Color-coded toolbox buttons -->
+    <Style Selector="Button.category-btn">
+        <Setter Property="Margin" Value="0,0,4,4"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="Background" Value="#2d2d2d"/>
+    </Style>
+    
+    <Style Selector="Button.category-btn-interaction">
+        <Setter Property="BorderBrush" Value="#0e639c"/>
+        <Setter Property="Foreground" Value="#61afef"/>
+    </Style>
+    <Style Selector="Button.category-btn-interaction:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#0e639c"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="#0e639c"/>
+    </Style>
+    
+    <Style Selector="Button.category-btn-assertion">
+        <Setter Property="BorderBrush" Value="#4caf50"/>
+        <Setter Property="Foreground" Value="#98c379"/>
+    </Style>
+    <Style Selector="Button.category-btn-assertion:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#4caf50"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="#4caf50"/>
+    </Style>
+    
+    <Style Selector="Button.category-btn-device">
+        <Setter Property="BorderBrush" Value="#ab47bc"/>
+        <Setter Property="Foreground" Value="#c678dd"/>
+    </Style>
+    <Style Selector="Button.category-btn-device:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#ab47bc"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="#ab47bc"/>
+    </Style>
+    
+    <Style Selector="Button.category-btn-logic">
+        <Setter Property="BorderBrush" Value="#ff9800"/>
+        <Setter Property="Foreground" Value="#d19a66"/>
+    </Style>
+    <Style Selector="Button.category-btn-logic:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#ff9800"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="#ff9800"/>
     </Style>
 
 </Styles>

@@ -9,11 +9,27 @@ using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
+using Avalonia.Layout;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class MemoryViewModel : ViewModelBase, IStateProvider
 {
+    private SplitNode? _layoutRoot;
+    private BoxNode? _selectedPane;
+
+    public SplitNode? LayoutRoot
+    {
+        get => _layoutRoot;
+        set => RaiseAndSetIfChanged(ref _layoutRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
     private readonly ICdpService _cdpService;
     private ObservableCollection<MemorySnapshotModel> _snapshots = new();
     private MemorySnapshotModel? _selectedSnapshot;
@@ -184,6 +200,20 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         };
         HierarchicalRetainers = new HierarchicalModel<RetainerNodeModel>(retainerOptions);
         HierarchicalRetainers.SetRoots(RetainerRoots);
+        ResetLayout();
+    }
+
+    public void ResetLayout()
+    {
+        var left = new BoxNode();
+        left.AddTab("Snapshots List", "TableIcon", "SnapshotsList");
+
+        var right = new BoxNode();
+        right.AddTab("Snapshot Overview", "CodeIcon", "SnapshotOverview");
+        right.AddTab("Detached Controls", "DocumentIcon", "DetachedControls");
+
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.35 };
+        SelectedPane = left;
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

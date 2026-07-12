@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.EventsView"
              x:DataType="vm:MainWindowViewModel"
              x:CompileBindings="True">
@@ -30,8 +31,15 @@
         </StackPanel>
 
         <!-- Main Workspace split into List (Left) and Detailed Payload (Right) -->
-        <Grid Grid.Row="2" ColumnDefinitions="*, 4, 1.5*">
-            <DataGrid Grid.Column="0" ItemsSource="{Binding Events.FilteredEvents}" SelectedItem="{Binding Events.SelectedEvent, Mode=TwoWay}" CanUserResizeColumns="True" GridLinesVisibility="All" Background="#292a2d">
+        <splits:SuperSplit Name="SplitControl"
+                           Grid.Row="2"
+                           Root="{Binding Events.LayoutRoot}"
+                           SelectedNode="{Binding Events.SelectedPane, Mode=TwoWay}"
+                           DockGroup="EventsGroup"
+                           ConstrainDockingToRoot="True"/>
+
+        <Grid Name="HiddenPanel" IsVisible="False">
+            <DataGrid Name="lstEvents" ItemsSource="{Binding Events.FilteredEvents}" SelectedItem="{Binding Events.SelectedEvent, Mode=TwoWay}" CanUserResizeColumns="True" GridLinesVisibility="All" Background="#292a2d">
                 <DataGrid.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Set as Left Side of Diff" Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).SetDiffLeftEventCommand}"/>
@@ -45,12 +53,8 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-
-            <!-- Column Splitter -->
-            <GridSplitter Grid.Column="1" Background="#1f1f1f" ResizeDirection="Columns"/>
-
             <!-- Right Column: Formatted JSON Payload Details -->
-            <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="8,0,0,0">
+            <Grid Name="EventsPayloadPanel" RowDefinitions="Auto, *">
                 <TextBlock Grid.Row="0" Text="Event Parameter Payload" FontWeight="SemiBold" Margin="0,0,0,6" Foreground="#8ab4f8"/>
                 <Border Grid.Row="1" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="6">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">

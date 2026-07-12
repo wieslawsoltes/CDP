@@ -554,6 +554,11 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         if (box != null)
         {
             SelectedPane = box;
+            var tab = box.Tabs.FirstOrDefault(t => t.SelectedViewName == viewName);
+            if (tab != null)
+            {
+                box.ActiveTab = tab;
+            }
         }
         else if (SelectedPane != null)
         {
