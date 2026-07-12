@@ -11,6 +11,7 @@ using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
 using Avalonia.Layout;
 using CDP.Editor.Splits.Models;
+using System.Text.Json.Serialization;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -44,6 +45,8 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
     private ObservableCollection<DominatorNodeModel> _dominatorRoots = new();
     private int _snapshotCounter = 1;
     private List<double>? _allocationHistory;
+    private ObservableCollection<MemoryInspectionModel> _inspections = new();
+    public ObservableCollection<MemoryInspectionModel> Inspections => _inspections;
 
     public ObservableCollection<DetachedControlModel> DetachedControls => _detachedControls;
 
@@ -140,6 +143,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
                 UpdateDisplayEntries();
                 UpdateComparisonBaselines();
                 UpdateDominatorTree();
+                _ = RunInspectionsAsync();
             }
         }
     }
@@ -226,6 +230,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         right.AddTab("Snapshot Overview", "CodeIcon", "SnapshotOverview");
         right.AddTab("Detached Controls", "DocumentIcon", "DetachedControls");
         right.AddTab("Dominator Tree", "FlowchartIcon", "DominatorTree");
+        right.AddTab("Inspections", "WarningIcon", "InspectionsPanel");
 
         LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.35 };
         SelectedPane = left;
@@ -641,6 +646,149 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             DominatorRoots.Add(root);
         });
     }
+
+    private async Task RunInspectionsAsync()
+    {
+        var localSnapshot = SelectedSnapshot;
+        if (localSnapshot == null)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => Inspections.Clear());
+            return;
+        }
+
+        var results = await AuditSnapshotAsync(localSnapshot);
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            Inspections.Clear();
+            foreach (var res in results)
+            {
+                Inspections.Add(res);
+            }
+        });
+    }
+
+    private async Task<List<MemoryInspectionModel>> AuditSnapshotAsync(MemorySnapshotModel snapshot)
+    {
+        var list = new List<MemoryInspectionModel>();
+
+        // 1. Event Leaks / Detached Controls Audit
+        if (snapshot.DetachedEntries != null && snapshot.DetachedEntries.Count > 0)
+        {
+            var groupedDetached = snapshot.DetachedEntries.GroupBy(e => e.Type).ToList();
+            foreach (var group in groupedDetached)
+            {
+                int count = group.Count();
+                var dataContexts = group.Where(e => e.HasDataContext && !string.IsNullOrEmpty(e.DataContextType))
+                                       .Select(e => e.DataContextType)
+                                       .Distinct()
+                                       .ToList();
+                
+                string details = $"Found {count} detached visual control instance(s) of '{group.Key}' still held in memory.";
+                if (dataContexts.Count > 0)
+                {
+                    details += $" Warning: Detached controls are holding references to DataContext view models: {string.Join(", ", dataContexts)}. This is a classic event handler or subscription leak.";
+                }
+                else
+                {
+                    details += " These detached controls might be kept alive by strong event handlers or direct reference leaks.";
+                }
+
+                list.Add(new MemoryInspectionModel
+                {
+                    Title = "Event Leak: Detached Control",
+                    Description = $"Detached control '{group.Key.Split('.').Last()}' is still alive in memory.",
+                    Severity = "Error",
+                    Count = count,
+                    Details = details
+                });
+            }
+        }
+
+        // 2. Large Structure / Visual Bloating Audit
+        if (snapshot.Entries != null)
+        {
+            var largeEntries = snapshot.Entries.Where(e => e.Count > 30).ToList();
+            foreach (var entry in largeEntries)
+            {
+                list.Add(new MemoryInspectionModel
+                {
+                    Title = "Large Structure / Visual Bloating",
+                    Description = $"High count of '{entry.Type}' ({entry.Count} instances).",
+                    Severity = "Warning",
+                    Count = entry.Count,
+                    Details = $"The visual tree contains {entry.Count} instances of '{entry.Type}'. A high number of UI elements degrades layout and rendering performance. Consider enabling DataGrid virtualization or optimizing your layout panels."
+                });
+            }
+        }
+
+        // 3. Duplicate String Value Audit
+        if (_cdpService.IsConnected)
+        {
+            try
+            {
+                var evalScript = @"
+                    (function() {
+                        var all = document.querySelectorAll('*');
+                        var map = {};
+                        for (var i = 0; i < all.length; i++) {
+                            var txt = all[i].textContent || all[i].text;
+                            if (txt && txt.trim().length > 0) {
+                                var key = txt.trim();
+                                map[key] = (map[key] || 0) + 1;
+                            }
+                        }
+                        var result = [];
+                        for (var k in map) {
+                            if (map[k] > 5) {
+                                result.push({ text: k.substring(0, 50), count: map[k] });
+                            }
+                        }
+                        result.sort(function(a, b) { return b.count - a.count; });
+                        return JSON.stringify(result.slice(0, 10));
+                    })()";
+
+                var @params = new JsonObject
+                {
+                    ["expression"] = evalScript,
+                    ["returnByValue"] = true
+                };
+
+                var evalResult = await _cdpService.SendCommandAsync("Runtime.evaluate", @params);
+                if (evalResult != null && evalResult.TryGetPropertyValue("result", out var resNode) && resNode is JsonObject resObj)
+                {
+                    if (resObj.TryGetPropertyValue("value", out var valNode) && valNode != null)
+                    {
+                        var jsonString = valNode.GetValue<string>();
+                        if (!string.IsNullOrEmpty(jsonString))
+                        {
+                            var duplicates = System.Text.Json.JsonSerializer.Deserialize<List<StringDuplicateDto>>(jsonString);
+                            if (duplicates != null && duplicates.Count > 0)
+                            {
+                                foreach (var dup in duplicates)
+                                {
+                                    list.Add(new MemoryInspectionModel
+                                    {
+                                        Title = "Duplicate String Value",
+                                        Description = $"String '{dup.Text}' duplicated {dup.Count} times in visual tree.",
+                                        Severity = "Warning",
+                                        Count = dup.Count,
+                                        Details = $"The string value '{dup.Text}' appears {dup.Count} times in visual elements text properties. If these are static text headers or labels, consider resource/style reuse or localized resource lookup to reduce heap allocations."
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error running duplicate strings audit: {ex.Message}");
+            }
+        }
+
+        return list;
+    }
 }
 
 namespace CdpInspectorApp.Models
@@ -653,4 +801,32 @@ namespace CdpInspectorApp.Models
         public int InstanceCount { get; set; }
         public List<DominatorNodeModel> Children { get; set; } = new();
     }
+}
+
+public class MemoryInspectionModel
+{
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Severity { get; set; } = "Warning";
+    public int Count { get; set; }
+    public string Details { get; set; } = "";
+
+    public string SeverityColor
+    {
+        get
+        {
+            if (Severity == "Error") return "#f28b82"; // Red
+            if (Severity == "Warning") return "#fdd663"; // Yellow
+            return "#8ab4f8"; // Blue
+        }
+    }
+}
+
+public class StringDuplicateDto
+{
+    [System.Text.Json.Serialization.JsonPropertyName("text")]
+    public string Text { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonPropertyName("count")]
+    public int Count { get; set; }
 }

@@ -262,5 +262,39 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- Inspections Panel -->
+        <Grid Name="pnlInspections" RowDefinitions="*">
+            <Grid IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}" RowDefinitions="*">
+                <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.Inspections}"
+                          x:DataType="vm:MemoryInspectionModel"
+                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                          Background="Transparent" BorderThickness="0">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Severity" Width="100" SortMemberPath="Severity">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="5,0,0,0" VerticalAlignment="Center">
+                                        <PathIcon Data="{StaticResource WarningIcon}" Width="12" Height="12" Foreground="{Binding SeverityColor}"/>
+                                        <TextBlock Text="{Binding Severity}" Foreground="{Binding SeverityColor}" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Issue" Binding="{Binding Title}" Width="200" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
+                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="280" Foreground="#e8eaed" FontSize="12"/>
+                        <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="80" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                        <DataGridTextColumn Header="Details / Recommendations" Binding="{Binding Details}" Width="*" Foreground="#9aa0a6" FontSize="11"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+
+            <!-- Empty state -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNull}}">
+                <TextBlock Text="No snapshot selected" Foreground="#9aa0a6" FontSize="13" HorizontalAlignment="Center"/>
+                <TextBlock Text="Take or select a snapshot to view automatic memory audit inspections." Foreground="#5f6368" FontSize="11" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>
