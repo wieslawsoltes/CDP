@@ -10,6 +10,7 @@ using CdpInspectorApp.Services;
 using System.Text.Json.Nodes;
 using ProDataGrid;
 using Avalonia.Controls.DataGridHierarchical;
+using CDP.Editor.Splits.Models;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -507,5 +508,156 @@ public class WorkspaceSidebarTests
         {
             Directory.Delete(tempDir, true);
         }
+    }
+
+    [Fact]
+    public void Test_Workspace_Search_Finds_Yml_Files()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var testFile1 = Path.Combine(tempDir, "flow1.yaml");
+        var testFile2 = Path.Combine(tempDir, "flow2.yml");
+
+        File.WriteAllText(testFile1, "appId: \"test-app-match\"\n");
+        File.WriteAllText(testFile2, "appId: \"test-app-match\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.SearchQuery = "match";
+            vm.IsSearchCaseSensitive = false;
+            vm.IsSearchRegex = false;
+            vm.PerformSearch();
+
+            // Search results should contain both .yaml and .yml files
+            Assert.Equal(2, vm.SearchResults.Count);
+            var paths = vm.SearchResults.Select(x => x.FilePath).ToList();
+            Assert.Contains(testFile1, paths);
+            Assert.Contains(testFile2, paths);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_CloseEditor_Asynchronously_Confirms_Dirty_State()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var editor = new OpenEditorModel
+        {
+            FilePath = "/test.yaml",
+            OriginalContent = "original",
+            CurrentContent = "dirty",
+            IsDirty = true
+        };
+        vm.OpenEditors.Add(editor);
+
+        // Scenario 1: Callback returns false (user cancels close)
+        vm.ConfirmCloseDirtyEditorCallback = (path) => Task.FromResult(false);
+        vm.CloseEditor(editor);
+        Assert.Single(vm.OpenEditors);
+
+        // Scenario 2: Callback returns true (user discards edits)
+        vm.ConfirmCloseDirtyEditorCallback = (path) => Task.FromResult(true);
+        vm.CloseEditor(editor);
+        Assert.Empty(vm.OpenEditors);
+    }
+
+    [Fact]
+    public void Test_Workspace_RenameItem_Updates_OpenEditors_Paths()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var oldPath = Path.Combine(tempDir, "oldFlow.yaml");
+        var newPath = Path.Combine(tempDir, "newFlow.yaml");
+
+        File.WriteAllText(oldPath, "appId: \"test\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.LoadFlowFile(oldPath);
+            Assert.Single(vm.OpenEditors);
+            Assert.Equal(oldPath, vm.OpenEditors[0].FilePath);
+
+            vm.SelectedWorkspaceItem = new WorkspaceItemModel { Path = oldPath, Name = "oldFlow.yaml", IsFolder = false };
+            vm.RenameItem("newFlow.yaml");
+
+            // Verify the OpenEditor path was rebased
+            Assert.Single(vm.OpenEditors);
+            Assert.Equal(newPath, vm.OpenEditors[0].FilePath);
+            Assert.Equal("newFlow.yaml", vm.OpenEditors[0].DisplayName);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_DeleteItem_Removes_OpenEditors()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var testFile = Path.Combine(tempDir, "deleteFlow.yaml");
+
+        File.WriteAllText(testFile, "appId: \"test\"\n");
+
+        try
+        {
+            vm.WorkspaceRootPath = tempDir;
+            vm.LoadFlowFile(testFile);
+            Assert.Single(vm.OpenEditors);
+
+            vm.DeleteItem(testFile);
+
+            // Verify it was pruned from OpenEditors
+            Assert.Empty(vm.OpenEditors);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_Workspace_ToggleSidebar_Preserves_CoDocked_Tabs()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        vm.IsSidebarCollapsed = false;
+
+        // Traverse to find the sidebar BoxNode
+        Assert.NotNull(vm.LayoutRoot);
+        Assert.True(vm.LayoutRoot is SplitContainerNode);
+        var rootContainer = (SplitContainerNode)vm.LayoutRoot;
+        Assert.True(rootContainer.Child1 is BoxNode);
+        var sidebarBox = (BoxNode)rootContainer.Child1;
+        Assert.Equal("ProjectSidebar", sidebarBox.Tabs[0].SelectedViewName);
+
+        // Co-dock another tab into the sidebar box
+        var extraTab = sidebarBox.AddTab("Extra Tab", "InfoIcon", "ExtraView");
+        Assert.Equal(2, sidebarBox.Tabs.Count);
+
+        // Collapse sidebar
+        vm.IsSidebarCollapsed = true;
+
+        // The sidebar box should still be in the tree because it has "ExtraView" tab
+        Assert.Equal(1, sidebarBox.Tabs.Count);
+        Assert.Equal("ExtraView", sidebarBox.Tabs[0].SelectedViewName);
+        Assert.Same(sidebarBox, rootContainer.Child1);
+
+        // Expand sidebar
+        vm.IsSidebarCollapsed = false;
+
+        // The sidebar tab should be restored to the same box node at index 0
+        Assert.Equal(2, sidebarBox.Tabs.Count);
+        Assert.Equal("ProjectSidebar", sidebarBox.Tabs[0].SelectedViewName);
+        Assert.Equal("ExtraView", sidebarBox.Tabs[1].SelectedViewName);
     }
 }

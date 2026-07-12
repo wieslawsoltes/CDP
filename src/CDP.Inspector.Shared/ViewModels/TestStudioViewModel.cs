@@ -503,6 +503,8 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public Func<string?, Task<bool>>? ConfirmCloseDirtyEditorCallback { get; set; }
+
     public bool IsDetailedViewEnabled
     {
         get => _isDetailedViewEnabled;
@@ -575,6 +577,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     public ICommand CopyRelativePathCommand { get; }
     public ICommand RevealInExplorerCommand { get; }
 
+    private BoxNode? _hiddenSidebarBoxNode;
     private bool _isRecordVideoEnabled = true;
     private bool _isGenerateReportEnabled = true;
     private bool _isAutoAssertionEnabled = true;
@@ -1343,24 +1346,51 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         return null;
     }
 
+    private static bool IsNodeInTree(SplitNode? root, SplitNode target)
+    {
+        if (root == null) return false;
+        if (root == target) return true;
+        if (root is SplitContainerNode container)
+        {
+            return IsNodeInTree(container.Child1, target) || IsNodeInTree(container.Child2, target);
+        }
+        return false;
+    }
+
     private void ShowProjectSidebar()
     {
         var sb = FindBoxNodeByViewName(LayoutRoot, "ProjectSidebar");
         if (sb != null) return;
 
-        var sidebarNode = new BoxNode();
-        sidebarNode.AddTab("Project Explorer", "FolderIcon", "ProjectSidebar");
+        bool isCachedBoxInTree = _hiddenSidebarBoxNode != null && IsNodeInTree(LayoutRoot, _hiddenSidebarBoxNode);
 
-        if (LayoutRoot == null)
+        if (isCachedBoxInTree)
         {
-            LayoutRoot = sidebarNode;
+            var tab = new BoxTabNode
+            {
+                Title = "Project Explorer",
+                IconKey = "FolderIcon",
+                SelectedViewName = "ProjectSidebar"
+            };
+            _hiddenSidebarBoxNode!.Tabs.Insert(0, tab);
+            _hiddenSidebarBoxNode.ActiveTab = tab;
         }
         else
         {
-            LayoutRoot = new SplitContainerNode(Orientation.Horizontal, sidebarNode, LayoutRoot)
+            var sidebarNode = new BoxNode();
+            sidebarNode.AddTab("Project Explorer", "FolderIcon", "ProjectSidebar");
+
+            if (LayoutRoot == null)
             {
-                SplitterRatio = 0.25
-            };
+                LayoutRoot = sidebarNode;
+            }
+            else
+            {
+                LayoutRoot = new SplitContainerNode(Orientation.Horizontal, sidebarNode, LayoutRoot)
+                {
+                    SplitterRatio = 0.25
+                };
+            }
         }
     }
 
@@ -1369,35 +1399,52 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         var sb = FindBoxNodeByViewName(LayoutRoot, "ProjectSidebar");
         if (sb == null) return;
 
-        if (sb == LayoutRoot)
-        {
-            LayoutRoot = null;
-            SelectedPane = null;
-        }
-        else if (sb.Parent is SplitContainerNode parent)
-        {
-            var sibling = parent.Child1 == sb ? parent.Child2 : parent.Child1;
-            var grandparent = parent.Parent;
+        _hiddenSidebarBoxNode = sb;
 
-            if (parent == LayoutRoot)
+        var tab = sb.Tabs.FirstOrDefault(t => t.SelectedViewName == "ProjectSidebar");
+        if (tab != null)
+        {
+            if (sb.Tabs.Count > 1)
             {
-                sibling.Parent = null;
-                LayoutRoot = sibling;
-            }
-            else if (grandparent is SplitContainerNode gp)
-            {
-                if (gp.Child1 == parent)
+                sb.Tabs.Remove(tab);
+                if (sb.ActiveTab == tab)
                 {
-                    gp.Child1 = sibling;
-                }
-                else
-                {
-                    gp.Child2 = sibling;
+                    sb.ActiveTab = sb.Tabs.FirstOrDefault();
                 }
             }
-            if (SelectedPane == sb)
+            else
             {
-                SelectedPane = sibling as BoxNode;
+                if (sb == LayoutRoot)
+                {
+                    LayoutRoot = null;
+                    SelectedPane = null;
+                }
+                else if (sb.Parent is SplitContainerNode parent)
+                {
+                    var sibling = parent.Child1 == sb ? parent.Child2 : parent.Child1;
+                    var grandparent = parent.Parent;
+
+                    if (parent == LayoutRoot)
+                    {
+                        sibling.Parent = null;
+                        LayoutRoot = sibling;
+                    }
+                    else if (grandparent is SplitContainerNode gp)
+                    {
+                        if (gp.Child1 == parent)
+                        {
+                            gp.Child1 = sibling;
+                        }
+                        else
+                        {
+                            gp.Child2 = sibling;
+                        }
+                    }
+                    if (SelectedPane == sb)
+                    {
+                        SelectedPane = sibling as BoxNode;
+                    }
+                }
             }
         }
     }
@@ -6293,6 +6340,12 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 {
                     CurrentFlowFilePath = newPath;
                 }
+                var editor = OpenEditors.FirstOrDefault(x => string.Equals(x.FilePath, oldPath, StringComparison.OrdinalIgnoreCase));
+                if (editor != null)
+                {
+                    editor.FilePath = newPath;
+                    editor.DisplayName = Path.GetFileName(newPath);
+                }
             }
             else if (Directory.Exists(oldPath))
             {
@@ -6308,11 +6361,20 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     }
                 }
 
+                var normalizedOldDir = oldPath.EndsWith(Path.DirectorySeparatorChar.ToString()) ? oldPath : oldPath + Path.DirectorySeparatorChar;
+                var affectedEditors = OpenEditors.Where(x => x.FilePath.StartsWith(normalizedOldDir, StringComparison.OrdinalIgnoreCase)).ToList();
+
                 Directory.Move(oldPath, newPath);
 
                 if (rebaseFlowFile)
                 {
                     CurrentFlowFilePath = Path.Combine(newPath, relativePath);
+                }
+
+                foreach (var editor in affectedEditors)
+                {
+                    var rel = Path.GetRelativePath(oldPath, editor.FilePath);
+                    editor.FilePath = Path.Combine(newPath, rel);
                 }
             }
             else
@@ -6320,6 +6382,12 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 if (string.Equals(CurrentFlowFilePath, oldPath, StringComparison.OrdinalIgnoreCase))
                 {
                     CurrentFlowFilePath = newPath;
+                }
+                var editor = OpenEditors.FirstOrDefault(x => string.Equals(x.FilePath, oldPath, StringComparison.OrdinalIgnoreCase));
+                if (editor != null)
+                {
+                    editor.FilePath = newPath;
+                    editor.DisplayName = Path.GetFileName(newPath);
                 }
             }
             LoadWorkspaceTree();
@@ -6367,6 +6435,17 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 }
             }
 
+            var normalizedTargetDir = targetPath.EndsWith(Path.DirectorySeparatorChar.ToString()) ? targetPath : targetPath + Path.DirectorySeparatorChar;
+            var editorsToRemove = OpenEditors.Where(x => 
+                string.Equals(x.FilePath, targetPath, StringComparison.OrdinalIgnoreCase) ||
+                x.FilePath.StartsWith(normalizedTargetDir, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
+
+            foreach (var editor in editorsToRemove)
+            {
+                OpenEditors.Remove(editor);
+            }
+
             if (File.Exists(targetPath))
             {
                 File.Delete(targetPath);
@@ -6378,8 +6457,18 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
             if (isCurrentFlowAffected)
             {
-                CurrentFlowFilePath = null;
-                Steps.Clear();
+                var nextActive = OpenEditors.LastOrDefault();
+                if (nextActive != null)
+                {
+                    LoadFlowFile(nextActive.FilePath);
+                }
+                else
+                {
+                    CurrentFlowFilePath = null;
+                    YamlCode = "";
+                    Steps.Clear();
+                    SelectedOpenEditor = null;
+                }
             }
 
             LoadWorkspaceTree();
@@ -7086,9 +7175,22 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
     }
 
-    public void CloseEditor(OpenEditorModel editor)
+    public async void CloseEditor(OpenEditorModel editor)
     {
         if (editor == null) return;
+
+        if (string.Equals(CurrentFlowFilePath, editor.FilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            editor.CurrentContent = YamlCode;
+            editor.IsDirty = (YamlCode != editor.OriginalContent);
+        }
+
+        if (editor.IsDirty && ConfirmCloseDirtyEditorCallback != null)
+        {
+            var confirm = await ConfirmCloseDirtyEditorCallback(editor.FilePath);
+            if (!confirm) return;
+        }
+
         OpenEditors.Remove(editor);
 
         if (string.Equals(CurrentFlowFilePath, editor.FilePath, StringComparison.OrdinalIgnoreCase))
@@ -7108,8 +7210,17 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
     }
 
-    public void CloseAllEditors()
+    public async void CloseAllEditors()
     {
+        UpdateActiveEditorDirtyState();
+
+        var dirtyEditors = OpenEditors.Where(x => x.IsDirty).ToList();
+        if (dirtyEditors.Count > 0 && ConfirmCloseDirtyEditorCallback != null)
+        {
+            var confirm = await ConfirmCloseDirtyEditorCallback(null);
+            if (!confirm) return;
+        }
+
         OpenEditors.Clear();
         CurrentFlowFilePath = null;
         YamlCode = "";
@@ -7152,7 +7263,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
         try
         {
-            foreach (var file in dir.GetFiles("*.yaml"))
+            foreach (var file in dir.GetFiles("*.yaml").Concat(dir.GetFiles("*.yml")))
             {
                 var relPath = Path.GetRelativePath(WorkspaceRootPath, file.FullName);
                 try

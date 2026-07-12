@@ -1476,7 +1476,7 @@ public class SuperSplit : ContentControl
             System.Diagnostics.Debug.WriteLine($"Native drag initiation failed: {ex.Message}");
         }
 
-        if (!success && !SuperSplitDragManager.IsOverDropTarget && SuperSplitDragManager.FloatNodeCallback != null)
+        if (!success && !SuperSplitDragManager.IsOverDropTarget && SuperSplitDragManager.FloatNodeCallback != null && !ConstrainDockingToRoot)
         {
             if (draggedBox != null)
             {

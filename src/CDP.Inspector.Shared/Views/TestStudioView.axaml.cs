@@ -187,6 +187,53 @@ public partial class TestStudioView : UserControl
                         return null;
                     };
 
+                    vm.Recorder.TestStudio.ConfirmCloseDirtyEditorCallback = async (filePath) =>
+                    {
+                        var topLevel = TopLevel.GetTopLevel(this);
+                        if (topLevel is Window parentWindow)
+                        {
+                            var discardBtn = new Button { Content = "Discard" };
+                            var cancelBtn = new Button { Content = "Cancel" };
+                            var dialog = new Window
+                            {
+                                Title = "Save Changes?",
+                                Width = 400,
+                                Height = 150,
+                                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                                Content = new StackPanel
+                                {
+                                    Spacing = 20,
+                                    Margin = new Thickness(20),
+                                    Children =
+                                    {
+                                        new TextBlock 
+                                        { 
+                                            Text = filePath == null 
+                                                ? "You have unsaved changes in multiple editors. Do you want to close them and discard unsaved changes?"
+                                                : $"You have unsaved changes in '{System.IO.Path.GetFileName(filePath)}'. Do you want to close it and discard unsaved changes?",
+                                            TextWrapping = Avalonia.Media.TextWrapping.Wrap 
+                                        },
+                                        new StackPanel
+                                        {
+                                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                                            Spacing = 10,
+                                            Children =
+                                            {
+                                                discardBtn,
+                                                cancelBtn
+                                            }
+                                        }
+                                    }
+                                }
+                            };
+                            discardBtn.Click += (s, e) => dialog.Close(true);
+                            cancelBtn.Click += (s, e) => dialog.Close(false);
+                            return await dialog.ShowDialog<bool>(parentWindow);
+                        }
+                        return true;
+                    };
+
                     // Insert Gutter status margin if not already added
                     if (_yamlEditor != null)
                     {
