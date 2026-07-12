@@ -63,6 +63,33 @@ public class ProfileMemoryStats : ViewModelBase
     }
 }
 
+public class ThreadGroup : ViewModelBase
+{
+    private string _name = "";
+    private int _id;
+    private bool _isVisible = true;
+
+    public string Name
+    {
+        get => _name;
+        set => RaiseAndSetIfChanged(ref _name, value);
+    }
+
+    public int Id
+    {
+        get => _id;
+        set => RaiseAndSetIfChanged(ref _id, value);
+    }
+
+    public bool IsVisible
+    {
+        get => _isVisible;
+        set => RaiseAndSetIfChanged(ref _isVisible, value);
+    }
+
+    public ObservableCollection<FlameBlock> Blocks { get; } = new();
+}
+
 public class ProfileSessionModel : ViewModelBase
 {
     private string _name = "";
@@ -112,6 +139,7 @@ public class ProfileSessionModel : ViewModelBase
     public ObservableCollection<FlameBlock> MemoryBlocks { get; } = new();
     public ObservableCollection<ProfileMethodStats> MethodStats { get; } = new();
     public ObservableCollection<ProfileMemoryStats> MemoryStats { get; } = new();
+    public ObservableCollection<ThreadGroup> ThreadGroups { get; } = new();
     public string RawJson { get; set; } = "";
 }
 
@@ -155,6 +183,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     private readonly ObservableCollection<FlameBlock> _memoryBlocks = new();
     private readonly ObservableCollection<ProfileMethodStats> _methodStats = new();
     private readonly ObservableCollection<ProfileMemoryStats> _memoryStats = new();
+    private readonly ObservableCollection<ThreadGroup> _threadGroups = new();
 
     public bool IsProfilingActive
     {
@@ -303,6 +332,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     public ObservableCollection<FlameBlock> MemoryBlocks => _memoryBlocks;
     public ObservableCollection<ProfileMethodStats> MethodStats => _methodStats;
     public ObservableCollection<ProfileMemoryStats> MemoryStats => _memoryStats;
+    public ObservableCollection<ThreadGroup> ThreadGroups => _threadGroups;
 
     public Func<string, Task>? SaveFileCallback { get; set; }
     public Func<Task<string?>>? OpenFileCallback { get; set; }
@@ -355,6 +385,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         _memoryBlocks.Clear();
         _methodStats.Clear();
         _memoryStats.Clear();
+        _threadGroups.Clear();
 
         if (session != null)
         {
@@ -362,6 +393,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             foreach (var b in session.MemoryBlocks) _memoryBlocks.Add(b);
             foreach (var s in session.MethodStats) _methodStats.Add(s);
             foreach (var s in session.MemoryStats) _memoryStats.Add(s);
+            foreach (var tg in session.ThreadGroups) _threadGroups.Add(tg);
 
             TotalDurationMs = session.TotalDurationMs;
             TotalAllocatedBytes = session.TotalAllocatedBytes;
@@ -510,17 +542,73 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             var memProfileObj = wrapper["memoryProfile"]?.AsObject();
             var memAllocArray = wrapper["memoryAllocations"]?.AsArray();
 
-            if (cpuProfileObj != null)
+            var threadsArray = wrapper["threads"]?.AsArray() ?? cpuProfileObj?["threads"]?.AsArray();
+            if (threadsArray != null && threadsArray.Count > 0)
             {
-                ProcessV8Profile(cpuProfileObj, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
-                session.TotalDurationMs = cpuDur;
-                session.TotalSamplesCount = cpuSamples;
+                double maxDuration = 0;
+                int totalSamples = 0;
+
+                foreach (var tNode in threadsArray)
+                {
+                    if (tNode is JsonObject tObj)
+                    {
+                        string tName = tObj["name"]?.GetValue<string>() ?? tObj["threadName"]?.GetValue<string>() ?? "Thread";
+                        int tId = tObj["id"]?.GetValue<int>() ?? tObj["tid"]?.GetValue<int>() ?? 1;
+
+                        var tg = new ThreadGroup { Name = tName, Id = tId };
+
+                        var tempProfile = new JsonObject();
+                        if (tObj.ContainsKey("nodes"))
+                        {
+                            tempProfile["nodes"] = tObj["nodes"]?.DeepClone();
+                        }
+                        else if (cpuProfileObj != null && cpuProfileObj.ContainsKey("nodes"))
+                        {
+                            tempProfile["nodes"] = cpuProfileObj["nodes"]?.DeepClone();
+                        }
+                        else if (wrapper.ContainsKey("nodes"))
+                        {
+                            tempProfile["nodes"] = wrapper["nodes"]?.DeepClone();
+                        }
+
+                        tempProfile["samples"] = tObj["samples"]?.DeepClone();
+                        tempProfile["timeDeltas"] = tObj["timeDeltas"]?.DeepClone();
+
+                        ProcessV8Profile(tempProfile, tg.Blocks, new ObservableCollection<ProfileMethodStats>(), false, out double tDur, out int tSamples);
+
+                        session.ThreadGroups.Add(tg);
+                        if (tDur > maxDuration) maxDuration = tDur;
+                        totalSamples += tSamples;
+
+                        if (session.Blocks.Count == 0)
+                        {
+                            foreach (var b in tg.Blocks) session.Blocks.Add(b);
+                            ProcessV8Profile(tempProfile, new ObservableCollection<FlameBlock>(), session.MethodStats, false, out _, out _);
+                        }
+                    }
+                }
+
+                session.TotalDurationMs = maxDuration;
+                session.TotalSamplesCount = totalSamples;
             }
             else
             {
-                ProcessV8Profile(wrapper, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
-                session.TotalDurationMs = cpuDur;
-                session.TotalSamplesCount = cpuSamples;
+                if (cpuProfileObj != null)
+                {
+                    ProcessV8Profile(cpuProfileObj, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
+                    session.TotalDurationMs = cpuDur;
+                    session.TotalSamplesCount = cpuSamples;
+                }
+                else
+                {
+                    ProcessV8Profile(wrapper, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
+                    session.TotalDurationMs = cpuDur;
+                    session.TotalSamplesCount = cpuSamples;
+                }
+
+                var tg = new ThreadGroup { Name = "Main Thread", Id = 1 };
+                foreach (var b in session.Blocks) tg.Blocks.Add(b);
+                session.ThreadGroups.Add(tg);
             }
 
             if (memProfileObj != null)

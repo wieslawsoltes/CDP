@@ -86,20 +86,34 @@
 
                 <!-- 2. Main content (Flame Chart Grid) -->
                 <Grid Grid.Row="1" RowDefinitions="*, 4, *" Margin="0,5,0,0">
-                    <!-- Top Half: CPU Flame Chart -->
+                    <!-- Top Half: CPU Flame Chart / Threads Timeline -->
                     <Grid Grid.Row="0" RowDefinitions="Auto, *">
-                        <TextBlock Grid.Row="0" Text="CPU Execution Timeline (ms / s)" Foreground="#8ab4f8" FontSize="11" FontWeight="Bold" Margin="0,0,0,4"/>
-                        <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True">
-                            <controls:FlameChart Name="chartProfiler"
-                                                 Blocks="{Binding Profiler.Blocks}"
-                                                 ZoomScale="{Binding Profiler.ZoomScale, Mode=TwoWay}"
-                                                 OffsetX="{Binding Profiler.OffsetX, Mode=TwoWay}"
-                                                 SearchText="{Binding Profiler.SearchText}"
-                                                 HoveredBlock="{Binding Profiler.HoveredBlock, Mode=TwoWay}"
-                                                 SelectedBlock="{Binding Profiler.SelectedBlock, Mode=TwoWay}"
-                                                 HorizontalAlignment="Stretch"
-                                                 VerticalAlignment="Stretch"/>
-                        </Border>
+                        <TextBlock Grid.Row="0" Text="CPU Execution Timeline (ms / s) - Grouped by Thread" Foreground="#8ab4f8" FontSize="11" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Profiler.ThreadGroups}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ThreadGroup">
+                                        <Grid RowDefinitions="Auto, *" Margin="0,0,0,12">
+                                            <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,2,0,4">
+                                                <PathIcon Data="{StaticResource CodeIcon}" Width="11" Height="11" Foreground="#8ab4f8" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Name}" Foreground="#e8eaed" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Id, StringFormat='(TID: {0})'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                            </StackPanel>
+                                            <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True" Height="160">
+                                                <controls:FlameChart Blocks="{Binding Blocks}"
+                                                                     ZoomScale="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.ZoomScale, Mode=TwoWay}"
+                                                                     OffsetX="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.OffsetX, Mode=TwoWay}"
+                                                                     SearchText="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.SearchText}"
+                                                                     HoveredBlock="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.HoveredBlock, Mode=TwoWay}"
+                                                                     SelectedBlock="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.SelectedBlock, Mode=TwoWay}"
+                                                                     HorizontalAlignment="Stretch"
+                                                                     VerticalAlignment="Stretch"/>
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </Grid>
 
                     <!-- Splitter -->
