@@ -41,6 +41,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
     private bool _isComparisonMode;
     private DetachedControlModel? _selectedDetachedControl;
     private ObservableCollection<RetainerNodeModel> _retainerRoots = new();
+    private ObservableCollection<DominatorNodeModel> _dominatorRoots = new();
     private int _snapshotCounter = 1;
     private List<double>? _allocationHistory;
 
@@ -60,6 +61,8 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
 
     public ObservableCollection<RetainerNodeModel> RetainerRoots => _retainerRoots;
     public HierarchicalModel<RetainerNodeModel> HierarchicalRetainers { get; }
+    public ObservableCollection<DominatorNodeModel> DominatorRoots => _dominatorRoots;
+    public HierarchicalModel<DominatorNodeModel> HierarchicalDominators { get; }
 
     private async Task FetchRetainersAsync()
     {
@@ -136,6 +139,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             {
                 UpdateDisplayEntries();
                 UpdateComparisonBaselines();
+                UpdateDominatorTree();
             }
         }
     }
@@ -200,6 +204,16 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         };
         HierarchicalRetainers = new HierarchicalModel<RetainerNodeModel>(retainerOptions);
         HierarchicalRetainers.SetRoots(RetainerRoots);
+
+        var dominatorOptions = new HierarchicalOptions<DominatorNodeModel>
+        {
+            ChildrenSelector = node => node.Children,
+            IsLeafSelector = node => node.Children == null || node.Children.Count == 0,
+            AutoExpandRoot = true
+        };
+        HierarchicalDominators = new HierarchicalModel<DominatorNodeModel>(dominatorOptions);
+        HierarchicalDominators.SetRoots(DominatorRoots);
+
         ResetLayout();
     }
 
@@ -211,6 +225,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         var right = new BoxNode();
         right.AddTab("Snapshot Overview", "CodeIcon", "SnapshotOverview");
         right.AddTab("Detached Controls", "DocumentIcon", "DetachedControls");
+        right.AddTab("Dominator Tree", "FlowchartIcon", "DominatorTree");
 
         LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.35 };
         SelectedPane = left;
@@ -386,6 +401,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             DetachedControls.Clear();
             SelectedDetachedControl = null;
             RetainerRoots.Clear();
+            DominatorRoots.Clear();
             _snapshotCounter = 1;
         });
     }
@@ -404,6 +420,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             DetachedControls.Clear();
             SelectedDetachedControl = null;
             RetainerRoots.Clear();
+            DominatorRoots.Clear();
             _snapshotCounter = 1;
         });
     }
@@ -524,5 +541,116 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             if (jsonVal.TryGetValue<float>(out float f)) return f;
         }
         return 0.0;
+    }
+
+    private void UpdateDominatorTree()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            DominatorRoots.Clear();
+            var entries = SelectedSnapshot?.Entries;
+            if (entries == null || entries.Count == 0) return;
+
+            long totalSize = 0;
+            var leafNodes = new List<(DominatorNodeModel Node, string Category)>();
+
+            foreach (var entry in entries)
+            {
+                long bytesPerInstance = 64;
+                string category = "Other Allocations";
+
+                string typeLower = entry.Type.ToLowerInvariant();
+                if (typeLower.Contains("window") || typeLower.Contains("toplevel"))
+                {
+                    bytesPerInstance = 2048;
+                    category = "Windows & Roots";
+                }
+                else if (typeLower.Contains("panel") || typeLower.Contains("grid") || typeLower.Contains("stackpanel") || 
+                         typeLower.Contains("wrappanel") || typeLower.Contains("dockpanel") || typeLower.Contains("canvas") || 
+                         typeLower.Contains("scrollviewer"))
+                {
+                    bytesPerInstance = 512;
+                    category = "Layout Panels";
+                }
+                else if (typeLower.Contains("button") || typeLower.Contains("border") || typeLower.Contains("contentcontrol") || 
+                         typeLower.Contains("template") || typeLower.Contains("presenter"))
+                {
+                    bytesPerInstance = 256;
+                    category = "Content Controls";
+                }
+                else if (typeLower.Contains("text") || typeLower.Contains("textbox") || typeLower.Contains("textblock") || 
+                         typeLower.Contains("label") || typeLower.Contains("input"))
+                {
+                    bytesPerInstance = 128;
+                    category = "Text & Input Controls";
+                }
+
+                long size = entry.Count * bytesPerInstance;
+                totalSize += size;
+
+                var node = new DominatorNodeModel
+                {
+                    TypeName = entry.Type,
+                    InstanceCount = entry.Count,
+                    RetainedSize = size,
+                    RetainedPct = 0.0
+                };
+                leafNodes.Add((node, category));
+            }
+
+            if (totalSize == 0) totalSize = 1;
+
+            var categories = new Dictionary<string, DominatorNodeModel>();
+            foreach (var item in leafNodes)
+            {
+                item.Node.RetainedPct = (double)item.Node.RetainedSize / totalSize * 100.0;
+                if (!categories.TryGetValue(item.Category, out var catNode))
+                {
+                    catNode = new DominatorNodeModel
+                    {
+                        TypeName = item.Category,
+                        RetainedSize = 0,
+                        RetainedPct = 0.0,
+                        InstanceCount = 0,
+                        Children = new List<DominatorNodeModel>()
+                    };
+                    categories[item.Category] = catNode;
+                }
+                catNode.Children.Add(item.Node);
+                catNode.RetainedSize += item.Node.RetainedSize;
+                catNode.InstanceCount += item.Node.InstanceCount;
+            }
+
+            var root = new DominatorNodeModel
+            {
+                TypeName = "GC Roots",
+                RetainedSize = totalSize,
+                RetainedPct = 100.0,
+                InstanceCount = 0,
+                Children = new List<DominatorNodeModel>()
+            };
+
+            foreach (var cat in categories.Values.OrderByDescending(c => c.RetainedSize))
+            {
+                cat.RetainedPct = (double)cat.RetainedSize / totalSize * 100.0;
+                cat.Children = cat.Children.OrderByDescending(c => c.RetainedSize).ToList();
+                root.Children.Add(cat);
+                root.InstanceCount += cat.InstanceCount;
+            }
+
+            DominatorRoots.Add(root);
+        });
+    }
+}
+
+namespace CdpInspectorApp.Models
+{
+    public class DominatorNodeModel
+    {
+        public string TypeName { get; set; } = "";
+        public long RetainedSize { get; set; }
+        public double RetainedPct { get; set; }
+        public int InstanceCount { get; set; }
+        public List<DominatorNodeModel> Children { get; set; } = new();
     }
 }
