@@ -1598,6 +1598,136 @@ public class NewDomainTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task TestProfilerPluggableEngines()
+    {
+        var window = new Window
+        {
+            Title = "Profiler Pluggable Engine Test Window",
+            Width = 400,
+            Height = 300
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Enable Profiler
+        await ProfilerDomain.HandleAsync(session, "enable", new JsonObject());
+
+        // 2. Get default engine (should be eventpipe)
+        var getEngineRes = await ProfilerDomain.HandleAsync(session, "getProfilingEngine", new JsonObject());
+        Assert.NotNull(getEngineRes);
+        Assert.Equal("eventpipe", getEngineRes["engineName"]?.GetValue<string>());
+
+        // 3. Set engine to simulated
+        var setEngineRes = await ProfilerDomain.HandleAsync(session, "setProfilingEngine", new JsonObject
+        {
+            ["engineName"] = "simulated"
+        });
+        Assert.NotNull(setEngineRes);
+
+        // 4. Verify engine is now simulated
+        getEngineRes = await ProfilerDomain.HandleAsync(session, "getProfilingEngine", new JsonObject());
+        Assert.NotNull(getEngineRes);
+        Assert.Equal("simulated", getEngineRes["engineName"]?.GetValue<string>());
+
+        // 5. Start, record, and stop
+        await ProfilerDomain.HandleAsync(session, "start", new JsonObject());
+        
+        var now = DateTime.UtcNow;
+        ProfilerDomain.RecordActivity(session, "LayoutPass", now.AddMilliseconds(-50), now);
+        ProfilerDomain.RecordActivity(session, "RenderFrame", now.AddMilliseconds(-20), now);
+        
+        await Task.Delay(50);
+        
+        var stopRes = await ProfilerDomain.HandleAsync(session, "stop", new JsonObject());
+        Assert.NotNull(stopRes);
+        var profile = stopRes["profile"] as JsonObject;
+        Assert.NotNull(profile);
+
+        // 6. Set engine back to eventpipe
+        await ProfilerDomain.HandleAsync(session, "setProfilingEngine", new JsonObject
+        {
+            ["engineName"] = "eventpipe"
+        });
+        getEngineRes = await ProfilerDomain.HandleAsync(session, "getProfilingEngine", new JsonObject());
+        Assert.Equal("eventpipe", getEngineRes["engineName"]?.GetValue<string>());
+
+        // 7. Disable Profiler
+        await ProfilerDomain.HandleAsync(session, "disable", new JsonObject());
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TestJetBrainsProfilingEngines()
+    {
+        var window = new Window
+        {
+            Title = "JetBrains Profiler Engine Test Window",
+            Width = 400,
+            Height = 300
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        var session = new CdpSession(clientWs, window);
+
+        // 1. Enable Profiler
+        await ProfilerDomain.HandleAsync(session, "enable", new JsonObject());
+
+        // 2. Set engine to dottrace
+        var setTraceRes = await ProfilerDomain.HandleAsync(session, "setProfilingEngine", new JsonObject
+        {
+            ["engineName"] = "dottrace"
+        });
+        Assert.NotNull(setTraceRes);
+
+        var getTraceRes = await ProfilerDomain.HandleAsync(session, "getProfilingEngine", new JsonObject());
+        Assert.Equal("dottrace", getTraceRes["engineName"]?.GetValue<string>());
+
+        // 3. Set engine to dotmemory
+        var setMemoryRes = await ProfilerDomain.HandleAsync(session, "setProfilingEngine", new JsonObject
+        {
+            ["engineName"] = "dotmemory"
+        });
+        Assert.NotNull(setMemoryRes);
+
+        var getMemoryRes = await ProfilerDomain.HandleAsync(session, "getProfilingEngine", new JsonObject());
+        Assert.Equal("dotmemory", getMemoryRes["engineName"]?.GetValue<string>());
+
+        // 4. Test custom command takeJetBrainsMemorySnapshot
+        // Since dotMemory.Attach is called during Start and we haven't started, the engine is not running, so TakeSnapshot returns empty string.
+        var snapshotRes = await ProfilerDomain.HandleAsync(session, "takeJetBrainsMemorySnapshot", new JsonObject
+        {
+            ["name"] = "TestSnapshot"
+        });
+        Assert.NotNull(snapshotRes);
+        var path = snapshotRes["snapshotPath"]?.GetValue<string>();
+        Assert.NotNull(path);
+
+        // 5. Test takeJetBrainsMemorySnapshot fallback on simulated engine
+        await ProfilerDomain.HandleAsync(session, "setProfilingEngine", new JsonObject
+        {
+            ["engineName"] = "simulated"
+        });
+        var fallbackRes = await ProfilerDomain.HandleAsync(session, "takeJetBrainsMemorySnapshot", new JsonObject
+        {
+            ["name"] = "FallbackSnapshot"
+        });
+        Assert.NotNull(fallbackRes);
+        var fallbackPath = fallbackRes["snapshotPath"]?.GetValue<string>();
+        Assert.NotNull(fallbackPath);
+        Assert.Contains("FallbackSnapshot", fallbackPath);
+
+        // 6. Disable Profiler
+        await ProfilerDomain.HandleAsync(session, "disable", new JsonObject());
+
+        window.Close();
+    }
+
+
     [Fact]
     public async Task TestBackgroundServiceDomain()
     {

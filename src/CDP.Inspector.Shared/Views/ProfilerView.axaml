@@ -142,6 +142,37 @@
                 </DataGrid>
             </Border>
 
+            <!-- Call Tree Panel -->
+            <Grid Name="pnlCallTree" RowDefinitions="Auto, *" Background="#202124">
+                <!-- Headers -->
+                <Grid Grid.Row="0" ColumnDefinitions="*, 90, 80, 90, 80, 80" Background="#292a2d" Height="28" Margin="0,0,0,2">
+                    <TextBlock Text="Method / Function Name" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                    <TextBlock Grid.Column="1" Text="Self Time" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="Self %" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="3" Text="Total Time" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="4" Text="Total %" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="5" Text="Samples" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                </Grid>
+
+                <TreeView Grid.Row="1" ItemsSource="{Binding Profiler.SelectedSession.CallTreeRoots}" Background="Transparent" BorderThickness="0">
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="models:CallTreeNodeModel">
+                            <Grid ColumnDefinitions="*, 90, 80, 90, 80, 80">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Data="{StaticResource CodeIcon}" Width="12" Height="12" Foreground="#8ab4f8"/>
+                                    <TextBlock Text="{Binding Name}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding SelfTimeMs, StringFormat=\{0:F2\} ms}" Foreground="#e8eaed" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding SelfTimePct, StringFormat=\{0:F1\}%}" Foreground="#8ab4f8" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding TotalTimeMs, StringFormat=\{0:F2\} ms}" Foreground="#e8eaed" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding TotalTimePct, StringFormat=\{0:F1\}%}" Foreground="#9aa0a6" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="5" Text="{Binding HitCount}" Foreground="#e8eaed" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            </Grid>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </Grid>
+
             <!-- Memory Allocations Panel -->
             <Border Name="pnlMemoryAllocations" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
                 <DataGrid Name="dgMemoryStats" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.MemoryStats}"

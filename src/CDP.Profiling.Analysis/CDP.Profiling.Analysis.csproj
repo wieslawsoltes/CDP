@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>CDP.Profiling.Analysis</PackageId>
+    <Title>CDP.Profiling.Analysis</Title>
+    <Description>Standalone library for parsing and analyzing dotTrace .dtp and dotMemory .dmw profiles.</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- System.IO.Compression and System.Text.Json are part of the shared framework, no PackageReference needed -->
+  </ItemGroup>
+
+</Project>

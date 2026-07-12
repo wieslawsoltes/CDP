@@ -1173,6 +1173,65 @@ public class Program
                     };
                 }
 
+            case "profile_start":
+                {
+                    var engineName = args["engineName"]?.GetValue<string>();
+                    if (!string.IsNullOrEmpty(engineName))
+                    {
+                        await cdp.SendCommandAsync("Profiler.setProfilingEngine", new JsonObject { ["engineName"] = engineName });
+                    }
+                    await cdp.SendCommandAsync("Profiler.start", new JsonObject());
+                    return new JsonObject
+                    {
+                        ["content"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["type"] = "text",
+                                ["text"] = "Profiling started successfully."
+                            }
+                        }
+                    };
+                }
+
+            case "profile_stop":
+                {
+                    var result = await cdp.SendCommandAsync("Profiler.stop", new JsonObject());
+                    return new JsonObject
+                    {
+                        ["content"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["type"] = "text",
+                                ["text"] = result.ToJsonString()
+                            }
+                        }
+                    };
+                }
+
+            case "profile_take_snapshot":
+                {
+                    var name = args["name"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(name))
+                    {
+                        name = "Snapshot";
+                    }
+                    var result = await cdp.SendCommandAsync("Profiler.takeJetBrainsMemorySnapshot", new JsonObject { ["name"] = name });
+                    var snapshotPath = result["snapshotPath"]?.GetValue<string>() ?? "";
+                    return new JsonObject
+                    {
+                        ["content"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["type"] = "text",
+                                ["text"] = $"Memory snapshot taken successfully. Path: {snapshotPath}"
+                            }
+                        }
+                    };
+                }
+
             default:
                 throw new Exception($"Tool '{toolName}' is not implemented.");
         }
@@ -1308,6 +1367,50 @@ public class Program
                         }
                     },
                     ["required"] = new JsonArray { "selector", "direction" }
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "profile_start",
+                ["description"] = "Start a profiling session on the target application",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["engineName"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Profiling engine name (optional, e.g., 'eventpipe', 'simulated', 'dottrace', 'dotmemory')"
+                        }
+                    }
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "profile_stop",
+                ["description"] = "Stop the active profiling session and return the collected profile data",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject()
+                }
+            },
+            new JsonObject
+            {
+                ["name"] = "profile_take_snapshot",
+                ["description"] = "Take a memory snapshot (useful for JetBrains dotMemory profiling)",
+                ["inputSchema"] = new JsonObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
+                    {
+                        ["name"] = new JsonObject
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Optional name for the snapshot"
+                        }
+                    }
                 }
             }
         };

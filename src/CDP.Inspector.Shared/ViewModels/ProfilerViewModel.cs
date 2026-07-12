@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using CDP.Profiling.Analysis;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -22,6 +24,17 @@ public class ProfileMethodStats : ViewModelBase
     public double TotalTimeMs { get; set; }
     public double TotalTimePct { get; set; }
     public int HitCount { get; set; }
+}
+
+public class CallTreeNodeModel : ViewModelBase
+{
+    public string Name { get; set; } = "";
+    public double SelfTimeMs { get; set; }
+    public double SelfTimePct { get; set; }
+    public double TotalTimeMs { get; set; }
+    public double TotalTimePct { get; set; }
+    public int HitCount { get; set; }
+    public ObservableCollection<CallTreeNodeModel> Children { get; } = new();
 }
 
 public class ProfileMemoryStats : ViewModelBase
@@ -112,6 +125,7 @@ public class ProfileSessionModel : ViewModelBase
     public ObservableCollection<FlameBlock> MemoryBlocks { get; } = new();
     public ObservableCollection<ProfileMethodStats> MethodStats { get; } = new();
     public ObservableCollection<ProfileMemoryStats> MemoryStats { get; } = new();
+    public ObservableCollection<CallTreeNodeModel> CallTreeRoots { get; } = new();
     public string RawJson { get; set; } = "";
 }
 
@@ -155,6 +169,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     private readonly ObservableCollection<FlameBlock> _memoryBlocks = new();
     private readonly ObservableCollection<ProfileMethodStats> _methodStats = new();
     private readonly ObservableCollection<ProfileMemoryStats> _memoryStats = new();
+    private readonly ObservableCollection<CallTreeNodeModel> _callTreeRoots = new();
 
     public bool IsProfilingActive
     {
@@ -303,6 +318,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     public ObservableCollection<FlameBlock> MemoryBlocks => _memoryBlocks;
     public ObservableCollection<ProfileMethodStats> MethodStats => _methodStats;
     public ObservableCollection<ProfileMemoryStats> MemoryStats => _memoryStats;
+    public ObservableCollection<CallTreeNodeModel> CallTreeRoots => _callTreeRoots;
 
     public Func<string, Task>? SaveFileCallback { get; set; }
     public Func<Task<string?>>? OpenFileCallback { get; set; }
@@ -342,6 +358,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
 
         var right = new BoxNode();
         right.AddTab("Flame Charts", "CodeIcon", "FlameCharts");
+        right.AddTab("Call Tree", "CodeIcon", "CallTree");
         right.AddTab("Bottom-Up Calls", "TerminalIcon", "BottomUpCalls");
         right.AddTab("Memory Allocations", "SaveIcon", "MemoryAllocations");
 
@@ -355,6 +372,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         _memoryBlocks.Clear();
         _methodStats.Clear();
         _memoryStats.Clear();
+        _callTreeRoots.Clear();
 
         if (session != null)
         {
@@ -362,6 +380,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             foreach (var b in session.MemoryBlocks) _memoryBlocks.Add(b);
             foreach (var s in session.MethodStats) _methodStats.Add(s);
             foreach (var s in session.MemoryStats) _memoryStats.Add(s);
+            foreach (var r in session.CallTreeRoots) _callTreeRoots.Add(r);
 
             TotalDurationMs = session.TotalDurationMs;
             TotalAllocatedBytes = session.TotalAllocatedBytes;
@@ -458,18 +477,136 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         if (OpenFileCallback == null) return;
         try
         {
-            var json = await OpenFileCallback();
-            if (!string.IsNullOrEmpty(json))
+            var filePath = await OpenFileCallback();
+            if (!string.IsNullOrEmpty(filePath))
             {
-                StatusText = "Parsing selected profile JSON...";
-                LoadProfileFromJson(json);
-                StatusText = "External CPU & Memory Profile loaded successfully!";
+                StatusText = $"Loading profile file: {System.IO.Path.GetFileName(filePath)}...";
+                
+                if (filePath.EndsWith(".cpuprofile", StringComparison.OrdinalIgnoreCase) ||
+                    filePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    string json = await System.IO.File.ReadAllTextAsync(filePath);
+                    LoadProfileFromJson(json);
+                    StatusText = "External CPU & Memory Profile loaded successfully!";
+                }
+                else if (filePath.EndsWith(".dtp", StringComparison.OrdinalIgnoreCase))
+                {
+                    var cpuSession = DtpTraceAnalyzer.LoadTrace(filePath);
+                    if (cpuSession != null)
+                    {
+                        var session = new ProfileSessionModel
+                        {
+                            Name = cpuSession.Name,
+                            Timestamp = DateTime.Now,
+                            TotalDurationMs = cpuSession.TotalDurationMs,
+                            TotalSamplesCount = cpuSession.TotalSamplesCount
+                        };
+
+                        foreach (var b in cpuSession.Blocks)
+                        {
+                            session.Blocks.Add(new FlameBlock
+                            {
+                                Name = b.Name,
+                                Url = b.Url,
+                                StartTimeMs = b.StartTimeMs,
+                                EndTimeMs = b.EndTimeMs,
+                                Depth = b.Depth
+                            });
+                        }
+
+                        foreach (var s in cpuSession.MethodStats)
+                        {
+                            session.MethodStats.Add(new ProfileMethodStats
+                            {
+                                MethodName = s.MethodName,
+                                ModuleName = s.ModuleName,
+                                SelfTimeMs = s.SelfTimeMs,
+                                SelfTimePct = s.SelfTimePct,
+                                TotalTimeMs = s.TotalTimeMs,
+                                TotalTimePct = s.TotalTimePct,
+                                HitCount = s.HitCount
+                            });
+                        }
+
+                        foreach (var rootNode in cpuSession.CallTreeRoots)
+                        {
+                            var mappedRoot = MapCallTreeNode(rootNode);
+                            if (mappedRoot != null)
+                            {
+                                session.CallTreeRoots.Add(mappedRoot);
+                            }
+                        }
+
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            Sessions.Add(session);
+                            SelectedSession = session;
+                        });
+                        StatusText = "dotTrace CPU Profile loaded successfully!";
+                    }
+                }
+                else if (filePath.EndsWith(".dmw", StringComparison.OrdinalIgnoreCase))
+                {
+                    var memSession = DmwSnapshotAnalyzer.LoadWorkspace(filePath);
+                    if (memSession != null)
+                    {
+                        var session = new ProfileSessionModel
+                        {
+                            Name = memSession.Name,
+                            Timestamp = DateTime.Now,
+                            TotalAllocatedBytes = memSession.TotalAllocatedBytes,
+                            TotalAllocationsCount = memSession.TotalAllocationsCount
+                        };
+
+                        foreach (var s in memSession.MemoryStats)
+                        {
+                            session.MemoryStats.Add(new ProfileMemoryStats
+                            {
+                                TypeName = s.TypeName,
+                                AllocatedBytes = s.AllocatedBytes,
+                                SizePct = s.SizePct,
+                                AllocationCount = s.AllocationCount,
+                                CountPct = s.CountPct
+                            });
+                        }
+
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            Sessions.Add(session);
+                            SelectedSession = session;
+                        });
+                        StatusText = "dotMemory workspace profile loaded successfully!";
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
             StatusText = $"Load profile failed: {ex.Message}";
         }
+    }
+
+    private CallTreeNodeModel? MapCallTreeNode(AnalyzedCallTreeNode node)
+    {
+        if (node == null) return null;
+        var mapped = new CallTreeNodeModel
+        {
+            Name = node.Name,
+            SelfTimeMs = node.SelfTimeMs,
+            SelfTimePct = node.SelfTimePct,
+            TotalTimeMs = node.TotalTimeMs,
+            TotalTimePct = node.TotalTimePct,
+            HitCount = node.HitCount
+        };
+        foreach (var child in node.Children)
+        {
+            var mappedChild = MapCallTreeNode(child);
+            if (mappedChild != null)
+            {
+                mapped.Children.Add(mappedChild);
+            }
+        }
+        return mapped;
     }
 
     public async Task ExportProfileAsync()
@@ -515,12 +652,14 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 ProcessV8Profile(cpuProfileObj, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
                 session.TotalDurationMs = cpuDur;
                 session.TotalSamplesCount = cpuSamples;
+                BuildV8CallTreeFromProfile(cpuProfileObj, session);
             }
             else
             {
                 ProcessV8Profile(wrapper, session.Blocks, session.MethodStats, false, out double cpuDur, out int cpuSamples);
                 session.TotalDurationMs = cpuDur;
                 session.TotalSamplesCount = cpuSamples;
+                BuildV8CallTreeFromProfile(wrapper, session);
             }
 
             if (memProfileObj != null)
@@ -576,6 +715,82 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             StatusText = $"Parse profile failed: {ex.Message}";
+        }
+    }
+
+    private void BuildV8CallTreeFromProfile(JsonObject profileObj, ProfileSessionModel session)
+    {
+        var nodesArray = profileObj["nodes"]?.AsArray();
+        if (nodesArray == null) return;
+
+        var nodeMap = new Dictionary<int, JsonObject>();
+        foreach (var n in nodesArray)
+        {
+            if (n is JsonObject nObj)
+            {
+                int id = nObj["id"]?.GetValue<int>() ?? 0;
+                nodeMap[id] = nObj;
+            }
+        }
+
+        var statsMap = session.MethodStats.ToDictionary(s => s.MethodName, s => s);
+
+        CallTreeNodeModel? BuildNode(int nodeId, HashSet<int> visited)
+        {
+            if (!nodeMap.TryGetValue(nodeId, out var nObj)) return null;
+            if (visited.Contains(nodeId)) return null;
+            visited.Add(nodeId);
+
+            var cfObj = nObj["callFrame"] as JsonObject;
+            string funcName = cfObj?["functionName"]?.GetValue<string>() ?? "";
+            
+            double selfTime = 0;
+            double selfPct = 0;
+            double totalTime = 0;
+            double totalPct = 0;
+            int hitCount = nObj["hitCount"]?.GetValue<int>() ?? 0;
+
+            if (statsMap.TryGetValue(funcName, out var stats))
+            {
+                selfTime = stats.SelfTimeMs;
+                selfPct = stats.SelfTimePct;
+                totalTime = stats.TotalTimeMs;
+                totalPct = stats.TotalTimePct;
+            }
+
+            var model = new CallTreeNodeModel
+            {
+                Name = funcName,
+                SelfTimeMs = selfTime,
+                SelfTimePct = selfPct,
+                TotalTimeMs = totalTime,
+                TotalTimePct = totalPct,
+                HitCount = hitCount
+            };
+
+            var children = nObj["children"]?.AsArray();
+            if (children != null)
+            {
+                foreach (var childIdNode in children)
+                {
+                    int childId = childIdNode?.GetValue<int>() ?? 0;
+                    var childModel = BuildNode(childId, visited);
+                    if (childModel != null)
+                    {
+                        model.Children.Add(childModel);
+                    }
+                }
+            }
+
+            visited.Remove(nodeId);
+            return model;
+        }
+
+        var visitedSet = new HashSet<int>();
+        var rootModel = BuildNode(1, visitedSet);
+        if (rootModel != null)
+        {
+            session.CallTreeRoots.Add(rootModel);
         }
     }
 

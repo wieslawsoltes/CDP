@@ -22,6 +22,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" />
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" />
+    <PackageReference Include="JetBrains.Profiler.SelfApi" />
+    <PackageReference Include="JetBrains.Profiler.Api" />
   </ItemGroup>
 
   <ItemGroup>
