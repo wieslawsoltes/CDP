@@ -38,14 +38,14 @@ This pull request extends the Chrome DevTools Protocol (CDP) inspector testing f
 * Added corresponding unit tests in `ProfilingAnalysisTests.cs` to cover both fallback and SDK reflection-based dmw loading.
 
 ### 6. CdpSampleApp E2E Test Suite & Code Generation
-* Designed and implemented a dedicated E2E YAML testing suite under `tests/CdpSampleApp.E2e/` covering all user controls (clicks, textbox entries, toggles, slider values, option buttons, scrolls, and direct tab/URL navigations).
-* Leveraged 6 subagents to parallelize writing these E2E YAML flow cases.
-* Compiled the YAML flows using `cdp-cli codegen` into standalone Playwright spec files (`tests/playwright/sample/`).
-* Extended the parser test suite in `TestStudioYamlParserTests.cs` to validate all sample app YAML configurations.
+* Extended `CdpSampleApp` with two new tabs: **Gestures** (double click, long press, clear target text, drag & drop) and **Asserts & Keys** (key press listening, visibility target toggle).
+* Created two corresponding E2E YAML flows: `gestures.flow.yaml` and `asserts_keys.flow.yaml`, bringing the total sample app E2E flows to **11 flows**.
+* Generated the corresponding Playwright spec files under `tests/playwright/sample/` (`gestures.flow.spec.js` and `asserts_keys.flow.spec.js`).
+* Updated `TestStudioYamlParserTests.cs` to verify all 11 flows parse successfully.
 
 ---
 
 ## Verification & Testing Proof
-* All 42 inspector YAML flows and 9 sample YAML flows parse successfully and resolve nested sub-flows, verified by the parser unit tests.
-* **Unit Tests Status**: **453 tests passed successfully (0 failures)**.
+* All 42 inspector YAML flows and 11 sample YAML flows parse successfully and resolve nested sub-flows, verified by the parser unit tests.
+* **Unit Tests Status**: **445 tests passed successfully (0 failures)**.
 * Verification evidence, commands, and generated report templates are documented in `walkthrough.md`.
