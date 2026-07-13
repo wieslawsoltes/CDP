@@ -140,7 +140,7 @@
                                     <Border Grid.Row="0" Background="#2d2d2d" Padding="6,3" CornerRadius="2" Margin="0,0,0,4">
                                         <TextBlock Text="OPEN EDITORS" FontSize="9" FontWeight="Bold" Foreground="#9aa0a6"/>
                                     </Border>
-                                    <ListBox Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.OpenEditors}" SelectedItem="{Binding Recorder.TestStudio.SelectedOpenEditor, Mode=TwoWay}"
+                                    <ListBox Name="lstOpenEditors" Grid.Row="1" ItemsSource="{Binding Recorder.TestStudio.OpenEditors}" SelectedItem="{Binding Recorder.TestStudio.SelectedOpenEditor, Mode=TwoWay}"
                                              Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="models:OpenEditorModel">

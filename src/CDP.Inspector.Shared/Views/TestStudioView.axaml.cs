@@ -469,6 +469,65 @@ public partial class TestStudioView : UserControl
                 }
             });
         }
+
+        var lstOpenEditors = this.FindControl<ListBox>("lstOpenEditors");
+        if (lstOpenEditors != null)
+        {
+            lstOpenEditors.PointerPressed += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    var visual = e.Source as Visual;
+                    while (visual != null)
+                    {
+                        if (visual is ListBoxItem listItem && listItem.DataContext is OpenEditorModel oe)
+                        {
+                            try
+                            {
+                                vm.Recorder.TestStudio.LoadFlowFile(oe.FilePath);
+                            }
+                            catch (System.Exception ex)
+                            {
+                                vm.Recorder.TestStudio.Log($"Error loading flow file: {ex.Message}");
+                            }
+                            break;
+                        }
+                        visual = visual.GetVisualParent();
+                    }
+                }
+            };
+        }
+
+        if (treeWorkspace != null)
+        {
+            treeWorkspace.PointerPressed += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    var visual = e.Source as Visual;
+                    while (visual != null)
+                    {
+                        if (visual is DataGridRow row && row.DataContext is HierarchicalNode<WorkspaceItemModel> node)
+                        {
+                            var item = node.Item;
+                            if (item != null && !item.IsFolder)
+                            {
+                                try
+                                {
+                                    vm.Recorder.TestStudio.LoadFlowFile(item.Path);
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    vm.Recorder.TestStudio.Log($"Error loading flow file: {ex.Message}");
+                                }
+                            }
+                            break;
+                        }
+                        visual = visual.GetVisualParent();
+                    }
+                }
+            };
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

@@ -1,5 +1,6 @@
 System.Exception: Failed to connect to target: Unable to connect to the remote server
- ---> System.Net.WebSockets.WebSocketException (2): Unable to connect to the remote server ---> System.Net.Http.HttpRequestException: Connection refused (127.0.0.1:9222)
+ ---> System.Net.WebSockets.WebSocketException (0x80004005): Unable to connect to the remote server
+ ---> System.Net.Http.HttpRequestException: Connection refused (127.0.0.1:9222)
  ---> System.Net.Sockets.SocketException (61): Connection refused
    at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.ThrowException(SocketError error, CancellationToken cancellationToken)
    at System.Net.Sockets.Socket.AwaitableSocketAsyncEventArgs.System.Threading.Tasks.Sources.IValueTaskSource.GetResult(Int16 token)
