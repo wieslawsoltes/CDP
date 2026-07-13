@@ -1,0 +1,12 @@
+appId: "CdpInspectorApp"
+description: "Open and view a file inside the source code viewer editor"
+---
+- delay: "1000"
+- tapOn: "#TabSources"
+- delay: "1000"
+- assertVisible: "#treeWorkspaceFiles"
+- evalScript: "var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext; var firstFile = vm.Sources.WorkspaceFiles.FirstOrDefault(f => !f.IsDirectory); if (firstFile != null) { vm.Sources.SelectedFile = firstFile; }"
+- delay: "1000"
+- assertVisible: "#pnlCodeViewer"
+- assertVisible: "#lblSourceFileName"
+- assertVisible: "#txtSourceContent"

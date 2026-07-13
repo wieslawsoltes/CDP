@@ -1,0 +1,13 @@
+appId: "CdpInspectorApp"
+description: "Switch preview modes and active view tabs"
+---
+- delay: "1000"
+- tapOn: "#btnTogglePreview"
+- delay: "2000"
+- assertTrue: "!__raw_window.DataContext.IsPreviewPanelVisible"
+- tapOn: "#btnTogglePreview"
+- delay: "2000"
+- assertTrue: "__raw_window.DataContext.IsPreviewPanelVisible"
+- tapOn: "#TabSimulation"
+- delay: "2000"
+- assertTrue: "!__raw_window.DataContext.IsPreviewPanelVisible"

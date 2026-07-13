@@ -547,4 +547,38 @@ description: ""E2E Flow""
         Assert.Contains("element_6.SendKeys(\"admin\");", selCode);
         Assert.Contains("action_7 = action_7.KeyDown(Keys.Control);", selCode);
     }
+
+    [Fact]
+    public void TestCdpInspectorAppE2eFlows()
+    {
+        var e2eDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "../../../../../tests/CdpInspectorApp.E2e");
+        if (!System.IO.Directory.Exists(e2eDir))
+        {
+            e2eDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "tests/CdpInspectorApp.E2e");
+            if (!System.IO.Directory.Exists(e2eDir))
+            {
+                e2eDir = "../../../tests/CdpInspectorApp.E2e";
+            }
+        }
+
+        if (!System.IO.Directory.Exists(e2eDir))
+        {
+            e2eDir = "/Users/wieslawsoltes/GitHub/CDP/tests/CdpInspectorApp.E2e";
+        }
+
+        Assert.True(System.IO.Directory.Exists(e2eDir), $"E2E directory not found at: {e2eDir}");
+
+        var files = System.IO.Directory.GetFiles(e2eDir, "*.flow.yaml", System.IO.SearchOption.AllDirectories);
+        Assert.NotEmpty(files);
+
+        foreach (var file in files)
+        {
+            var content = System.IO.File.ReadAllText(file);
+            var steps = TestStudioYamlParser.Parse(content, out var appId, out var description);
+            Assert.Equal("CdpInspectorApp", appId);
+            Assert.NotEmpty(description);
+            Assert.NotEmpty(steps);
+        }
+    }
 }
+

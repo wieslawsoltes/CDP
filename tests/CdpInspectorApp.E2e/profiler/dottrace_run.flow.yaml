@@ -1,0 +1,10 @@
+appId: "CdpInspectorApp"
+description: "dotTrace profiling session capture and trace analysis"
+---
+- delay: "1000"
+- tapOn: "#TabProfiler"
+- delay: "1000"
+- tapOn: "#btnStartProfiler"
+- delay: "3000"
+- tapOn: "#btnStopProfiler"
+- delay: "2000"

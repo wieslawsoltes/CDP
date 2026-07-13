@@ -32,6 +32,47 @@ Use the mode that matches the task. Do not force every task through the same sce
 - Do not reuse a static recording/replay script unless the user explicitly asks for that exact static flow.
 - Always report the exact verification evidence: commands run, endpoints used, step counts, pass/fail counts, generated report paths, frame counts, screenshots, or relevant runtime state.
 
+## E2E YAML Test Suite Requirements
+
+All new inspector features, tabs, or major code changes must be covered by structured E2E YAML test files inside `tests/CdpInspectorApp.E2e/`.
+
+### Directory Structure & Categorization
+The test suite is organized into subfolders matching the feature areas:
+- `tests/CdpInspectorApp.E2e/connection/` (connection flows)
+- `tests/CdpInspectorApp.E2e/simulation/` (preview simulation)
+- `tests/CdpInspectorApp.E2e/elements/` (visual tree & styles panel)
+- `tests/CdpInspectorApp.E2e/console/` (eval scripts & REPL)
+- `tests/CdpInspectorApp.E2e/sources/` (workspace files explorer)
+- `tests/CdpInspectorApp.E2e/network/` (outbound HTTP request capture)
+- `tests/CdpInspectorApp.E2e/performance/` (performance chart metrics)
+- `tests/CdpInspectorApp.E2e/profiler/` (profiling capture runs)
+- `tests/CdpInspectorApp.E2e/memory/` (memory control allocations)
+- `tests/CdpInspectorApp.E2e/recorder/` (test recorder & synchronizer)
+
+Each individual test case must be stored in its own separate `.flow.yaml` file (e.g. `connect.flow.yaml`).
+
+### YAML Flow Structure & Metadata Separator
+YAML files must be split into two documents using the standard `---` document separator:
+1. **Metadata Document**: Contains `appId: "CdpInspectorApp"`, `description`, `tags`, and optionally `env`.
+2. **Steps Sequence Document**: A list of sequential execution step mappings using action names as keys (e.g., `tapOn`, `delay`, `evalScript`, `assertTrue`).
+
+Example YAML test file:
+```yaml
+appId: "CdpInspectorApp"
+description: "Tests element view visual tree traversal"
+---
+- delay: "1000"
+- tapOn: "#TabElements"
+- delay: "1000"
+- assertTrue: "document.querySelector('#TabElements') != null"
+```
+
+### Replay & Verification Runner
+Verify all test suites using the `cdp-cli run` command pointing to the suite directory:
+```bash
+dotnet run --project src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj -- -p 9223 run tests/CdpInspectorApp.E2e/ --report --video
+```
+
 ## Live Dual-CDP Demo Workflow
 
 Use this flow when the user asks to demonstrate CDP in action with coding-agent control.

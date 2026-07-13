@@ -1,0 +1,9 @@
+appId: "CdpInspectorApp"
+description: "Connect to target sample application"
+---
+- delay: "1000"
+- tapOn: "#btnRefreshTargets"
+- delay: "2000"
+- tapOn: "#btnConnect"
+- delay: "2000"
+- assertTrue: "__raw_window.DataContext.Connection.IsConnected"

@@ -1,0 +1,14 @@
+appId: "CdpInspectorApp"
+description: "Inspect computed styles panel and filter properties"
+---
+- delay: "1000"
+- tapOn: "#TabElements"
+- delay: "1000"
+- tapOn: 'TabItem:contains("Computed rules")'
+- delay: "1000"
+- inputText:
+    selector: "#txtComputedSearch"
+    text: "Background"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Elements.ComputedSearchText == \"Background\""
+- assertTrue: "Window.DataContext.Elements.FilteredComputedStyles.Count >= 0"

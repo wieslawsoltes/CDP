@@ -1,0 +1,14 @@
+appId: "CdpInspectorApp"
+description: "Explore the workspace files explorer tree, perform workspace search, and check results"
+---
+- delay: "1000"
+- tapOn: "#TabSources"
+- delay: "1000"
+- assertVisible: "#treeWorkspaceFiles"
+- assertVisible: "#txtSearchQuery"
+- inputText:
+    selector: "#txtSearchQuery"
+    text: "flow"
+- tapOn: "#btnSearchWorkspace"
+- delay: "1000"
+- assertVisible: "#dgSearchResults"
