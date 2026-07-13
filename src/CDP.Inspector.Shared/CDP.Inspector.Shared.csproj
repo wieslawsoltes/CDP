@@ -31,6 +31,7 @@
     <ProjectReference Include="../CDP.Editor.Nodes/CDP.Editor.Nodes.csproj" />
     <ProjectReference Include="../CDP.Editor.Nodes.Msagl/CDP.Editor.Nodes.Msagl.csproj" />
     <ProjectReference Include="../CDP.Editor.Splits/CDP.Editor.Splits.csproj" />
+    <ProjectReference Include="../CDP.Inspector.Controls/CDP.Inspector.Controls.csproj" />
     <ProjectReference Include="../CDP.Profiling.Analysis/CDP.Profiling.Analysis.csproj" />
   </ItemGroup>
 
