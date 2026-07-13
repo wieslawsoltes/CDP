@@ -1,0 +1,17 @@
+appId: "CdpSampleApp"
+description: "Verify slider and progress bar synchronization on Home tab"
+---
+- assertVisible: "#sliderValue"
+- assertVisible: "#txtSliderVal"
+- assertVisible: "#progressVal"
+- assertTrue: "document.querySelector('#sliderValue').value == 50"
+- evalScript: "document.querySelector('#sliderValue').value = 75"
+- delay: 1000
+- assertTrue: "document.querySelector('#sliderValue').value == 75"
+- assertTrue: "document.querySelector('#progressVal').value == 75"
+- assertTrue: "document.querySelector('#txtSliderVal').textContent == 'Slider Value: 75'"
+- evalScript: "document.querySelector('#sliderValue').value = 25"
+- delay: 1000
+- assertTrue: "document.querySelector('#sliderValue').value == 25"
+- assertTrue: "document.querySelector('#progressVal').value == 25"
+- assertTrue: "document.querySelector('#txtSliderVal').textContent == 'Slider Value: 25'"

@@ -1,0 +1,14 @@
+appId: "CdpSampleApp"
+description: "Verify vertical scroll behavior in scroll container on Scroll tab"
+---
+- delay: "1000"
+- tapOn: "#tabScroll"
+- delay: "1000"
+- assertTrue: "document.querySelector('#scrollContainer') != null"
+- assertTrue: "Query('#scrollContainer').Offset.Y == 0"
+- scroll:
+    selector: "#scrollContainer"
+    direction: "down"
+    amount: "150"
+- delay: "1000"
+- assertTrue: "Query('#scrollContainer').Offset.Y > 0"

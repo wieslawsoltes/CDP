@@ -1,0 +1,13 @@
+appId: "CdpSampleApp"
+description: "Verify TextBox input on the Home tab"
+---
+- delay: "1000"
+- tapOn: "#txtInput"
+- delay: "500"
+- clearText: "#txtInput"
+- delay: "500"
+- inputText:
+    selector: "#txtInput"
+    text: "Hello CDP E2E!"
+- delay: "1000"
+- assertVisible: "#txtInput[Text='Hello CDP E2E!']"

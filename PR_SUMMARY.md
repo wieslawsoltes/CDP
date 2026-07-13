@@ -37,9 +37,15 @@ This pull request extends the Chrome DevTools Protocol (CDP) inspector testing f
 * Added a path prioritization rule to the resolver that favors directories containing "NetCore", successfully resolving dependencies in modern .NET environments.
 * Added corresponding unit tests in `ProfilingAnalysisTests.cs` to cover both fallback and SDK reflection-based dmw loading.
 
+### 6. CdpSampleApp E2E Test Suite & Code Generation
+* Designed and implemented a dedicated E2E YAML testing suite under `tests/CdpSampleApp.E2e/` covering all user controls (clicks, textbox entries, toggles, slider values, option buttons, scrolls, and direct tab/URL navigations).
+* Leveraged 6 subagents to parallelize writing these E2E YAML flow cases.
+* Compiled the YAML flows using `cdp-cli codegen` into standalone Playwright spec files (`tests/playwright/sample/`).
+* Extended the parser test suite in `TestStudioYamlParserTests.cs` to validate all sample app YAML configurations.
+
 ---
 
 ## Verification & Testing Proof
-* All 42 YAML flow files parse successfully and resolve nested sub-flows, verified by the parser unit tests.
-* **Unit Tests Status**: **444 tests passed successfully (0 failures)**.
+* All 42 inspector YAML flows and 9 sample YAML flows parse successfully and resolve nested sub-flows, verified by the parser unit tests.
+* **Unit Tests Status**: **453 tests passed successfully (0 failures)**.
 * Verification evidence, commands, and generated report templates are documented in `walkthrough.md`.

@@ -1,0 +1,11 @@
+appId: "CdpSampleApp"
+description: "Verify checkbox toggle and state binding on Home tab"
+---
+- assertVisible: "#chkToggle"
+- assertTrue: "document.querySelector('#chkToggle').isChecked == false"
+- tapOn: "#chkToggle"
+- delay: 1000
+- assertTrue: "document.querySelector('#chkToggle').isChecked == true"
+- tapOn: "#chkToggle"
+- delay: 1000
+- assertTrue: "document.querySelector('#chkToggle').isChecked == false"
