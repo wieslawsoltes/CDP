@@ -110,4 +110,26 @@ public partial class MemoryView : UserControl
             };
         }
     }
+
+    private void LstSnapshots_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.DataContext is MainWindowViewModel mainVM)
+        {
+            if (TopLevel.GetTopLevel(dg) != null)
+            {
+                mainVM.Memory.SelectedSnapshot = dg.SelectedItem as CdpInspectorApp.Models.MemorySnapshotModel;
+            }
+        }
+    }
+
+    private void DgDetachedControls_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.DataContext is MainWindowViewModel mainVM)
+        {
+            if (TopLevel.GetTopLevel(dg) != null)
+            {
+                mainVM.Memory.SelectedDetachedControl = dg.SelectedItem as CdpInspectorApp.Models.DetachedControlModel;
+            }
+        }
+    }
 }

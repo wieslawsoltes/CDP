@@ -29,13 +29,25 @@
             <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
                 <Grid RowDefinitions="Auto, *">
                     <TextBlock Text="HEAP SNAPSHOTS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
-                    <DataGrid Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.Snapshots}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.SelectedSnapshot, Mode=TwoWay}" x:DataType="models:MemorySnapshotModel"
+                    <DataGrid Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding Memory.Snapshots}" SelectedItem="{Binding Memory.SelectedSnapshot, Mode=OneWay}" SelectionChanged="LstSnapshots_SelectionChanged" x:DataType="vm:MainWindowViewModel"
                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="None" HeadersVisibility="None"
                               Background="Transparent" BorderThickness="0">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Snapshot" Binding="{Binding Name}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
-                            <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss'}" Width="80" Foreground="#9aa0a6" FontSize="10"/>
+                            <DataGridTemplateColumn Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:MemorySnapshotModel">
+                                        <TextBlock Text="{Binding Name}" Foreground="#e8eaed" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:MemorySnapshotModel">
+                                        <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center" Margin="5,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -109,7 +121,7 @@
                     <Grid IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
                                 <!-- Summary mode list -->
                                 <Grid IsVisible="{Binding !Memory.IsComparisonMode}">
-                                    <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.CurrentEntries}" x:DataType="models:ControlCountModel"
+                                    <DataGrid ItemsSource="{Binding Memory.CurrentEntries}" x:DataType="vm:MainWindowViewModel"
                                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                               Background="Transparent" BorderThickness="0">
@@ -127,15 +139,27 @@
                                             </ContextMenu>
                                         </DataGrid.ColumnHeaderContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Control Type / Constructor" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                                            <DataGridTextColumn Header="Live Instances Count" Binding="{Binding Count}" Width="150" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                                            <DataGridTemplateColumn Header="Control Type / Constructor" Width="*">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:ControlCountModel">
+                                                        <TextBlock Text="{Binding Type}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="Live Instances Count" Width="150">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:ControlCountModel">
+                                                        <TextBlock Text="{Binding Count}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
                                         </DataGrid.Columns>
                                     </DataGrid>
                                 </Grid>
 
                                 <!-- Comparison mode list -->
                                 <Grid IsVisible="{Binding Memory.IsComparisonMode}">
-                                    <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.ComparisonEntries}" x:DataType="models:MemoryComparisonModel"
+                                    <DataGrid ItemsSource="{Binding Memory.ComparisonEntries}" x:DataType="vm:MainWindowViewModel"
                                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                               Background="Transparent" BorderThickness="0">
@@ -153,9 +177,27 @@
                                             </ContextMenu>
                                         </DataGrid.ColumnHeaderContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Control Type / Constructor" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                                            <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineCount}" Width="100" Foreground="#9aa0a6" FontSize="12"/>
-                                            <DataGridTextColumn Header="Current" Binding="{Binding SnapshotCount}" Width="100" Foreground="#e8eaed" FontSize="12"/>
+                                            <DataGridTemplateColumn Header="Control Type / Constructor" Width="*">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:MemoryComparisonModel">
+                                                        <TextBlock Text="{Binding Type}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="Baseline" Width="100">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:MemoryComparisonModel">
+                                                        <TextBlock Text="{Binding BaselineCount}" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="Current" Width="100">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:MemoryComparisonModel">
+                                                        <TextBlock Text="{Binding SnapshotCount}" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
                                             <DataGridTemplateColumn Header="Delta" Width="100" SortMemberPath="Delta">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate x:DataType="models:MemoryComparisonModel">
@@ -181,9 +223,10 @@
 
         <!-- Detached Controls Panel -->
         <Grid Name="pnlDetachedControls" RowDefinitions="*, 4, *">
-            <DataGrid Grid.Row="0" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.DetachedControls}"
-                                          SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.SelectedDetachedControl, Mode=TwoWay}"
-                                          x:DataType="models:DetachedControlModel"
+            <DataGrid Name="dgDetachedControls" Grid.Row="0" ItemsSource="{Binding Memory.DetachedControls}"
+                                          SelectedItem="{Binding Memory.SelectedDetachedControl, Mode=OneWay}"
+                                          SelectionChanged="DgDetachedControls_SelectionChanged"
+                                          x:DataType="vm:MainWindowViewModel"
                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                           Background="Transparent" BorderThickness="0">
@@ -201,10 +244,34 @@
                                         </ContextMenu>
                                     </DataGrid.ColumnHeaderContextMenu>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Control Type" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
-                                        <DataGridTextColumn Header="Detached Duration" Binding="{Binding DetachedDurationMs, StringFormat='{}{0} ms'}" Width="150" Foreground="#f28b82" FontSize="12" FontWeight="Bold"/>
-                                        <DataGridTextColumn Header="DataContext VM" Binding="{Binding DataContextType}" Width="150" Foreground="#8ab4f8" FontSize="12"/>
+                                        <DataGridTemplateColumn Header="Control Type" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:DetachedControlModel">
+                                                    <TextBlock Text="{Binding Type}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Name" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:DetachedControlModel">
+                                                    <TextBlock Text="{Binding Name}" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Detached Duration" Width="150">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:DetachedControlModel">
+                                                    <TextBlock Text="{Binding DetachedDurationMs, StringFormat='{}{0} ms'}" Foreground="#f28b82" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="DataContext VM" Width="150">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:DetachedControlModel">
+                                                    <TextBlock Text="{Binding DataContextType}" Foreground="#8ab4f8" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                     </DataGrid.Columns>
                                 </DataGrid>
 
@@ -215,7 +282,8 @@
                                         <TextBlock Text="RETAINERS PATH (RETAINED BY)" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
                                     </Border>
                                     <DataGrid Name="treeRetainers" Grid.Row="1"
-                                              HierarchicalModel="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.HierarchicalRetainers}"
+                                              HierarchicalModel="{Binding Memory.HierarchicalRetainers}"
+                                              x:DataType="vm:MainWindowViewModel"
                                               HierarchicalRowsEnabled="True"
                                               HeadersVisibility="None"
                                               GridLinesVisibility="None"
@@ -247,7 +315,8 @@
                         <TextBlock Text="DOMINATOR TREE (RETAINED SIZES &amp; INSTANCES)" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
                     </Border>
                     <DataGrid Name="treeDominators" Grid.Row="1"
-                              HierarchicalModel="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.HierarchicalDominators}"
+                              HierarchicalModel="{Binding Memory.HierarchicalDominators}"
+                              x:DataType="vm:MainWindowViewModel"
                               HierarchicalRowsEnabled="True"
                               HeadersVisibility="Column"
                               GridLinesVisibility="Horizontal"
@@ -298,8 +367,8 @@
         <!-- Inspections Panel -->
         <Grid Name="pnlInspections" RowDefinitions="*">
             <Grid IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}" RowDefinitions="*">
-                <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.Inspections}"
-                          x:DataType="vm:MemoryInspectionModel"
+                <DataGrid ItemsSource="{Binding Memory.Inspections}"
+                          x:DataType="vm:MainWindowViewModel"
                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                           Background="Transparent" BorderThickness="0">
@@ -314,10 +383,34 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Issue" Binding="{Binding Title}" Width="200" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="280" Foreground="#e8eaed" FontSize="12"/>
-                        <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="80" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
-                        <DataGridTextColumn Header="Details / Recommendations" Binding="{Binding Details}" Width="*" Foreground="#9aa0a6" FontSize="11"/>
+                        <DataGridTemplateColumn Header="Issue" Width="200">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <TextBlock Text="{Binding Title}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Description" Width="280">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <TextBlock Text="{Binding Description}" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Count" Width="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <TextBlock Text="{Binding Count}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Details / Recommendations" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <TextBlock Text="{Binding Details}" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>

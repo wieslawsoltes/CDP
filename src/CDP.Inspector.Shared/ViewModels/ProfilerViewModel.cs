@@ -35,6 +35,20 @@ public class CallTreeNodeModel : ViewModelBase
     public double TotalTimePct { get; set; }
     public int HitCount { get; set; }
     public ObservableCollection<CallTreeNodeModel> Children { get; } = new();
+
+    private bool _isExpanded;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set => RaiseAndSetIfChanged(ref _isExpanded, value);
+    }
+
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => RaiseAndSetIfChanged(ref _isSelected, value);
+    }
 }
 
 public class ProfileMemoryStats : ViewModelBase
@@ -76,12 +90,12 @@ public class ProfileMemoryStats : ViewModelBase
     }
 }
 
-<<<<<<< HEAD
 public class ThreadGroup : ViewModelBase
 {
     private string _name = "";
     private int _id;
     private bool _isVisible = true;
+    private ProfilerViewModel? _parent;
 
     public string Name
     {
@@ -101,8 +115,15 @@ public class ThreadGroup : ViewModelBase
         set => RaiseAndSetIfChanged(ref _isVisible, value);
     }
 
+    public ProfilerViewModel? Parent
+    {
+        get => _parent;
+        set => RaiseAndSetIfChanged(ref _parent, value);
+    }
+
     public ObservableCollection<FlameBlock> Blocks { get; } = new();
-=======
+}
+
 public class ProfileCallItem : ViewModelBase
 {
     private string _methodName = "";
@@ -140,7 +161,6 @@ public class ProfileCallItem : ViewModelBase
         get => _hitCount;
         set => RaiseAndSetIfChanged(ref _hitCount, value);
     }
->>>>>>> subagent-Caller-Callee-developer-self-a8b313bc
 }
 
 public class ProfileSessionModel : ViewModelBase
@@ -190,6 +210,10 @@ public class ProfileSessionModel : ViewModelBase
 
     public ObservableCollection<CallTreeNodeModel> CallTreeRoots { get; } = new();
     public ObservableCollection<ThreadGroup> ThreadGroups { get; } = new();
+    public ObservableCollection<FlameBlock> Blocks { get; } = new();
+    public ObservableCollection<FlameBlock> MemoryBlocks { get; } = new();
+    public ObservableCollection<ProfileMethodStats> MethodStats { get; } = new();
+    public ObservableCollection<ProfileMemoryStats> MemoryStats { get; } = new();
     public string RawJson { get; set; } = "";
 
     // Keep raw/parsed V8 node info for caller/callee traversal
@@ -234,6 +258,11 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     
     private readonly ObservableCollection<ProfileSessionModel> _sessions = new();
     private ProfileSessionModel? _selectedSession;
+    
+    private readonly ObservableCollection<FlameBlock> _blocks = new();
+    private readonly ObservableCollection<FlameBlock> _memoryBlocks = new();
+    private readonly ObservableCollection<ProfileMethodStats> _methodStats = new();
+    private readonly ObservableCollection<ProfileMemoryStats> _memoryStats = new();
     
     private readonly ObservableCollection<CallTreeNodeModel> _callTreeRoots = new();
     private readonly ObservableCollection<ThreadGroup> _threadGroups = new();
@@ -375,6 +404,11 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         {
             if (RaiseAndSetIfChanged(ref _selectedMethod, value))
             {
+                ((RelayCommand)FindInFlameChartCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)ShowMethodInCallTreeCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)ShowMethodInCallerCalleeCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)SearchMethodCommand).RaiseCanExecuteChanged();
+
                 if (!_isUpdatingSelection)
                 {
                     _isUpdatingSelection = true;
@@ -446,6 +480,10 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
 
     public ObservableCollection<CallTreeNodeModel> CallTreeRoots => _callTreeRoots;
     public ObservableCollection<ThreadGroup> ThreadGroups => _threadGroups;
+    public ObservableCollection<FlameBlock> Blocks => _blocks;
+    public ObservableCollection<FlameBlock> MemoryBlocks => _memoryBlocks;
+    public ObservableCollection<ProfileMethodStats> MethodStats => _methodStats;
+    public ObservableCollection<ProfileMemoryStats> MemoryStats => _memoryStats;
 
     public ObservableCollection<ProfileCallItem> CallerMethods => _callerMethods;
     public ObservableCollection<ProfileCallItem> CalleeMethods => _calleeMethods;
@@ -456,8 +494,30 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         set => RaiseAndSetIfChanged(ref _selectedMethodHeader, value);
     }
 
+    private string _selectedEngine = "eventpipe";
+    private readonly string[] _availableEngines = new[] { "eventpipe", "simulated", "dottrace", "dotmemory" };
+
+    public string[] AvailableEngines => _availableEngines;
+
+    public string SelectedEngine
+    {
+        get => _selectedEngine;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedEngine, value))
+            {
+                _ = SetActiveProfilingEngineAsync(value);
+            }
+        }
+    }
+
     public Func<string, Task>? SaveFileCallback { get; set; }
     public Func<Task<string?>>? OpenFileCallback { get; set; }
+
+    public ICommand FindInFlameChartCommand { get; }
+    public ICommand ShowMethodInCallTreeCommand { get; }
+    public ICommand ShowMethodInCallerCalleeCommand { get; }
+    public ICommand SearchMethodCommand { get; }
 
     public ICommand StartProfilerCommand { get; }
     public ICommand StopProfilerCommand { get; }
@@ -468,11 +528,61 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
     public ICommand ResetViewCommand { get; }
     public ICommand NextSearchMatchCommand { get; }
     public ICommand PrevSearchMatchCommand { get; }
+    public ObservableCollection<string> ProfilerLogs { get; } = new();
+    public ICommand ClearLogsCommand { get; }
 
     public ProfilerViewModel(ICdpService cdpService)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
+
+        FindInFlameChartCommand = new RelayCommand(() =>
+        {
+            if (SelectedMethod == null) return;
+            var name = SelectedMethod.MethodName;
+            var block = _blocks.FirstOrDefault(b => b.Name == name || b.Name.Contains(name));
+            if (block != null)
+            {
+                SelectedBlock = block;
+            }
+            else
+            {
+                var memBlock = _memoryBlocks.FirstOrDefault(b => b.Name == name || b.Name.Contains(name));
+                if (memBlock != null)
+                {
+                    SelectedMemoryBlock = memBlock;
+                }
+            }
+        }, () => SelectedMethod != null);
+
+        ShowMethodInCallTreeCommand = new RelayCommand(() =>
+        {
+            if (SelectedMethod == null) return;
+            ActivatePane("CallTree");
+            foreach (var root in CallTreeRoots)
+            {
+                var path = new List<CallTreeNodeModel>();
+                if (FindNodePath(root, SelectedMethod.MethodName, path))
+                {
+                    foreach (var parent in path) parent.IsExpanded = true;
+                    path.Last().IsSelected = true;
+                    break;
+                }
+            }
+        }, () => SelectedMethod != null);
+
+        ShowMethodInCallerCalleeCommand = new RelayCommand(() =>
+        {
+            if (SelectedMethod == null) return;
+            ActivatePane("CallerCallee");
+            UpdateCallerCallee(SelectedMethod.MethodName, SelectedMethod.ModuleName);
+        }, () => SelectedMethod != null);
+
+        SearchMethodCommand = new RelayCommand(() =>
+        {
+            if (SelectedMethod == null) return;
+            SearchText = SelectedMethod.MethodName;
+        }, () => SelectedMethod != null);
 
         StartProfilerCommand = new RelayCommand(async () => await StartProfilerAsync(), () => _cdpService.IsConnected && !IsProfilingActive);
         StopProfilerCommand = new RelayCommand(async () => await StopProfilerAsync(), () => _cdpService.IsConnected && IsProfilingActive);
@@ -484,7 +594,25 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         ResetViewCommand = new RelayCommand(() => { ZoomScale = 1.0; OffsetX = 0.0; });
         NextSearchMatchCommand = new RelayCommand(NextSearchMatch, () => HasMatches);
         PrevSearchMatchCommand = new RelayCommand(PrevSearchMatch, () => HasMatches);
+        ClearLogsCommand = new RelayCommand(() => ProfilerLogs.Clear());
         ResetLayout();
+
+        if (_cdpService.IsConnected)
+        {
+            _ = LoadActiveProfilingEngineAsync();
+        }
+    }
+
+    public void LogProgress(string message)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            ProfilerLogs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+            if (ProfilerLogs.Count > 500)
+            {
+                ProfilerLogs.RemoveAt(0);
+            }
+        });
     }
 
     public void ResetLayout()
@@ -499,7 +627,20 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         right.AddTab("Caller / Callee", "SwapVertIcon", "CallerCallee");
         right.AddTab("Memory Allocations", "SaveIcon", "MemoryAllocations");
 
-        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.35 };
+        var mainSplit = new SplitContainerNode(Orientation.Horizontal, left, right)
+        {
+            SplitterRatio = 0.28
+        };
+
+        var bottom = new BoxNode();
+        bottom.AddTab("Profiler Log", "TerminalIcon", "ProfilerLog");
+
+        var rootSplit = new SplitContainerNode(Orientation.Vertical, mainSplit, bottom)
+        {
+            SplitterRatio = 0.82
+        };
+
+        LayoutRoot = rootSplit;
         SelectedPane = left;
     }
 
@@ -522,7 +663,11 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             foreach (var s in session.MethodStats) _methodStats.Add(s);
             foreach (var s in session.MemoryStats) _memoryStats.Add(s);
             foreach (var r in session.CallTreeRoots) _callTreeRoots.Add(r);
-            foreach (var tg in session.ThreadGroups) _threadGroups.Add(tg);
+            foreach (var tg in session.ThreadGroups)
+            {
+                tg.Parent = this;
+                _threadGroups.Add(tg);
+            }
 
             TotalDurationMs = session.TotalDurationMs;
             TotalAllocatedBytes = session.TotalAllocatedBytes;
@@ -557,6 +702,10 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 {
                     IsProfilingActive = false;
                 }
+                else
+                {
+                    _ = LoadActiveProfilingEngineAsync();
+                }
                 ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
             });
@@ -568,11 +717,13 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         if (!_cdpService.IsConnected) return;
         try
         {
+            LogProgress($"Initializing profiling engine: '{SelectedEngine}'...");
             StatusText = "Initializing Profiler...";
             await _cdpService.SendCommandAsync("Profiler.enable");
             await _cdpService.SendCommandAsync("Profiler.start");
             IsProfilingActive = true;
             StatusText = "Profiling CPU & Memory Activity...";
+            LogProgress("Profiling started. CPU & Memory activity is being recorded.");
             
             ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
             ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
@@ -580,6 +731,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             StatusText = $"Start profiler failed: {ex.Message}";
+            LogProgress($"Start profiler failed: {ex.Message}");
         }
     }
 
@@ -588,6 +740,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         if (!_cdpService.IsConnected) return;
         try
         {
+            LogProgress("Requesting to stop profiling session...");
             StatusText = "Stopping Profiler and fetching CPU & Memory profiles...";
             var res = await _cdpService.SendCommandAsync("Profiler.stop");
             IsProfilingActive = false;
@@ -597,18 +750,22 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
 
             if (res != null)
             {
+                LogProgress("Stop response received. Processing profile data...");
                 var jsonStr = res.ToJsonString();
                 LoadProfileFromJson(jsonStr);
                 StatusText = "Session profile successfully loaded and rendered!";
+                LogProgress("Session profile successfully loaded, parsed and rendered in UI.");
             }
             else
             {
                 StatusText = "Failed to retrieve profile data from stopping the session.";
+                LogProgress("Error: Stop response is empty.");
             }
         }
         catch (Exception ex)
         {
             StatusText = $"Stop profiler failed: {ex.Message}";
+            LogProgress($"Stop profiler failed: {ex.Message}");
             IsProfilingActive = false;
             ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
             ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();
@@ -623,17 +780,21 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             var filePath = await OpenFileCallback();
             if (!string.IsNullOrEmpty(filePath))
             {
+                LogProgress($"Importing profile file: '{System.IO.Path.GetFileName(filePath)}'...");
                 StatusText = $"Loading profile file: {System.IO.Path.GetFileName(filePath)}...";
                 
                 if (filePath.EndsWith(".cpuprofile", StringComparison.OrdinalIgnoreCase) ||
                     filePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 {
+                    LogProgress("Loading standard V8 CPU profile (.cpuprofile/.json)...");
                     string json = await System.IO.File.ReadAllTextAsync(filePath);
                     LoadProfileFromJson(json);
                     StatusText = "External CPU & Memory Profile loaded successfully!";
+                    LogProgress("External CPU & Memory profile loaded and rendered.");
                 }
                 else if (filePath.EndsWith(".dtp", StringComparison.OrdinalIgnoreCase))
                 {
+                    LogProgress("Loading dotTrace performance trace (.dtp) using DtpTraceAnalyzer...");
                     var cpuSession = DtpTraceAnalyzer.LoadTrace(filePath);
                     if (cpuSession != null)
                     {
@@ -686,10 +847,12 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                             SelectedSession = session;
                         });
                         StatusText = "dotTrace CPU Profile loaded successfully!";
+                        LogProgress($"Loaded dotTrace performance trace: '{cpuSession.Name}' ({cpuSession.MethodStats.Count} methods, {cpuSession.TotalSamplesCount} samples).");
                     }
                 }
                 else if (filePath.EndsWith(".dmw", StringComparison.OrdinalIgnoreCase))
                 {
+                    LogProgress("Loading dotMemory workspace (.dmw) using DmwSnapshotAnalyzer...");
                     var memSession = DmwSnapshotAnalyzer.LoadWorkspace(filePath);
                     if (memSession != null)
                     {
@@ -719,6 +882,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                             SelectedSession = session;
                         });
                         StatusText = "dotMemory workspace profile loaded successfully!";
+                        LogProgress($"Loaded dotMemory workspace snapshot: '{memSession.Name}' ({memSession.MemoryStats.Count} type allocations, {memSession.TotalAllocatedBytes} bytes).");
                     }
                 }
             }
@@ -726,6 +890,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             StatusText = $"Load profile failed: {ex.Message}";
+            LogProgress($"Load profile failed: {ex.Message}");
         }
     }
 
@@ -777,6 +942,139 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             if (root.ContainsKey("profile") && root["profile"] is JsonObject innerWrapper && innerWrapper.ContainsKey("profile"))
             {
                 wrapper = innerWrapper;
+            }
+
+            string? jetbrainsTracePath = null;
+            if (wrapper.ContainsKey("jetbrainsTracePath"))
+            {
+                jetbrainsTracePath = wrapper["jetbrainsTracePath"]?.GetValue<string>();
+            }
+            else if (root.ContainsKey("profile") && root["profile"] is JsonObject pObj && pObj.ContainsKey("jetbrainsTracePath"))
+            {
+                jetbrainsTracePath = pObj["jetbrainsTracePath"]?.GetValue<string>();
+            }
+
+            if (!string.IsNullOrEmpty(jetbrainsTracePath) && System.IO.File.Exists(jetbrainsTracePath))
+            {
+                LogProgress($"Found real dotTrace snapshot file at: {jetbrainsTracePath}");
+                DtpTraceAnalyzer.LastError = null;
+                var cpuSession = DtpTraceAnalyzer.LoadTrace(jetbrainsTracePath);
+                if (cpuSession != null)
+                {
+                    var jetbrainsSession = new ProfileSessionModel
+                    {
+                        Name = $"Profile {_sessionCounter++} (dotTrace)",
+                        Timestamp = DateTime.UtcNow,
+                        TotalDurationMs = cpuSession.TotalDurationMs,
+                        TotalSamplesCount = cpuSession.TotalSamplesCount,
+                        RawJson = json
+                    };
+
+                    foreach (var b in cpuSession.Blocks)
+                    {
+                        jetbrainsSession.Blocks.Add(new FlameBlock
+                        {
+                            Name = b.Name,
+                            Url = b.Url,
+                            StartTimeMs = b.StartTimeMs,
+                            EndTimeMs = b.EndTimeMs,
+                            Depth = b.Depth
+                        });
+                    }
+
+                    foreach (var s in cpuSession.MethodStats)
+                    {
+                        jetbrainsSession.MethodStats.Add(new ProfileMethodStats
+                        {
+                            MethodName = s.MethodName,
+                            ModuleName = s.ModuleName,
+                            SelfTimeMs = s.SelfTimeMs,
+                            SelfTimePct = s.SelfTimePct,
+                            TotalTimeMs = s.TotalTimeMs,
+                            TotalTimePct = s.TotalTimePct,
+                            HitCount = s.HitCount
+                        });
+                    }
+
+                    foreach (var rootNode in cpuSession.CallTreeRoots)
+                    {
+                        var mappedRoot = MapCallTreeNode(rootNode);
+                        if (mappedRoot != null)
+                        {
+                            jetbrainsSession.CallTreeRoots.Add(mappedRoot);
+                        }
+                    }
+
+                    var mainTg = new ThreadGroup { Name = "Main Thread", Id = 1 };
+                    foreach (var b in jetbrainsSession.Blocks) mainTg.Blocks.Add(b);
+                    jetbrainsSession.ThreadGroups.Add(mainTg);
+
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        Sessions.Add(jetbrainsSession);
+                        SelectedSession = jetbrainsSession;
+                    });
+                    LogProgress($"Successfully loaded and parsed dotTrace performance trace ({cpuSession.MethodStats.Count} methods, {cpuSession.TotalSamplesCount} samples).");
+                    return;
+                }
+                else
+                {
+                    var err = DtpTraceAnalyzer.LastError ?? "DtpTraceAnalyzer.LoadTrace returned null.";
+                    LogProgress($"Warning: Could not parse real dotTrace file via reflection SDK. Fallback to simulated profile. Detail: {err}");
+                }
+            }
+
+            string? jetbrainsMemorySnapshotPath = null;
+            if (wrapper.ContainsKey("jetbrainsMemorySnapshotPath"))
+            {
+                jetbrainsMemorySnapshotPath = wrapper["jetbrainsMemorySnapshotPath"]?.GetValue<string>();
+            }
+            else if (root.ContainsKey("profile") && root["profile"] is JsonObject pObj2 && pObj2.ContainsKey("jetbrainsMemorySnapshotPath"))
+            {
+                jetbrainsMemorySnapshotPath = pObj2["jetbrainsMemorySnapshotPath"]?.GetValue<string>();
+            }
+
+            if (!string.IsNullOrEmpty(jetbrainsMemorySnapshotPath) && System.IO.File.Exists(jetbrainsMemorySnapshotPath))
+            {
+                LogProgress($"Found real dotMemory snapshot file at: {jetbrainsMemorySnapshotPath}");
+                DmwSnapshotAnalyzer.LastError = null;
+                var memSession = DmwSnapshotAnalyzer.LoadWorkspace(jetbrainsMemorySnapshotPath);
+                if (memSession != null)
+                {
+                    var jetbrainsSession = new ProfileSessionModel
+                    {
+                        Name = $"Profile {_sessionCounter++} (dotMemory)",
+                        Timestamp = DateTime.UtcNow,
+                        TotalAllocatedBytes = memSession.TotalAllocatedBytes,
+                        TotalAllocationsCount = memSession.TotalAllocationsCount,
+                        RawJson = json
+                    };
+
+                    foreach (var s in memSession.MemoryStats)
+                    {
+                        jetbrainsSession.MemoryStats.Add(new ProfileMemoryStats
+                        {
+                            TypeName = s.TypeName,
+                            AllocatedBytes = s.AllocatedBytes,
+                            SizePct = s.SizePct,
+                            AllocationCount = s.AllocationCount,
+                            CountPct = s.CountPct
+                        });
+                    }
+
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        Sessions.Add(jetbrainsSession);
+                        SelectedSession = jetbrainsSession;
+                    });
+                    LogProgress($"Successfully loaded and parsed dotMemory workspace snapshot ({memSession.MemoryStats.Count} type allocations, {memSession.TotalAllocatedBytes} bytes).");
+                    return;
+                }
+                else
+                {
+                    var err = DmwSnapshotAnalyzer.LastError ?? "DmwSnapshotAnalyzer.LoadWorkspace returned null.";
+                    LogProgress($"Warning: Could not parse real dotMemory workspace via reflection SDK. Fallback to simulated profile. Detail: {err}");
+                }
             }
 
             var session = new ProfileSessionModel
@@ -906,6 +1204,8 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 session.TotalAllocationsCount = totalCount;
             }
 
+            LogProgress($"Successfully processed V8 profile ({session.TotalSamplesCount} samples, {session.TotalDurationMs:F2} ms).");
+
             Dispatcher.UIThread.Post(() =>
             {
                 Sessions.Add(session);
@@ -915,6 +1215,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             StatusText = $"Parse profile failed: {ex.Message}";
+            LogProgress($"Parse profile failed: {ex.Message}");
         }
     }
 
@@ -1267,7 +1568,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         return stack;
     }
 
-    private void UpdateCallerCallee(string? methodName, string? moduleName)
+    public void UpdateCallerCallee(string? methodName, string? moduleName)
     {
         _callerMethods.Clear();
         _calleeMethods.Clear();
@@ -1370,6 +1671,100 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 Percentage = totalSelectedMethodTime > 0 ? (entry.time / totalSelectedMethodTime) * 100.0 : 0.0,
                 HitCount = entry.hits
             });
+        }
+    }
+
+    private async Task LoadActiveProfilingEngineAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            var res = await _cdpService.SendCommandAsync("Profiler.getProfilingEngine");
+            if (res != null && res["engineName"] != null)
+            {
+                var engineName = res["engineName"]!.GetValue<string>();
+                _selectedEngine = engineName;
+                OnPropertyChanged(nameof(SelectedEngine));
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Failed to get profiling engine: {ex.Message}";
+        }
+    }
+
+    private async Task SetActiveProfilingEngineAsync(string engineName)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            LogProgress($"Switching profiling engine to: '{engineName}'...");
+            StatusText = $"Switching profiling engine to {engineName}...";
+            await _cdpService.SendCommandAsync("Profiler.setProfilingEngine", new JsonObject
+            {
+                ["engineName"] = engineName
+            });
+            StatusText = $"Profiling engine set to {engineName}.";
+            LogProgress($"Profiling engine successfully switched to: '{engineName}'.");
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Failed to set profiling engine to {engineName}: {ex.Message}";
+            LogProgress($"Failed to set profiling engine to '{engineName}': {ex.Message}");
+            // Try to revert locally to actual engine
+            _ = LoadActiveProfilingEngineAsync();
+        }
+    }
+
+    private bool FindNodePath(CallTreeNodeModel current, string name, List<CallTreeNodeModel> path)
+    {
+        path.Add(current);
+        if (current.Name == name || current.Name.Contains(name))
+        {
+            return true;
+        }
+
+        foreach (var child in current.Children)
+        {
+            if (FindNodePath(child, name, path))
+            {
+                return true;
+            }
+        }
+
+        path.RemoveAt(path.Count - 1);
+        return false;
+    }
+
+    private BoxNode? FindBoxWithViewName(SplitNode? node, string viewName)
+    {
+        if (node is BoxNode box)
+        {
+            if (box.Tabs.Any(t => t.SelectedViewName == viewName))
+            {
+                return box;
+            }
+        }
+        else if (node is SplitContainerNode container)
+        {
+            var res1 = FindBoxWithViewName(container.Child1, viewName);
+            if (res1 != null) return res1;
+            return FindBoxWithViewName(container.Child2, viewName);
+        }
+        return null;
+    }
+
+    public void ActivatePane(string viewName)
+    {
+        var box = FindBoxWithViewName(LayoutRoot, viewName);
+        if (box != null)
+        {
+            var tab = box.Tabs.FirstOrDefault(t => t.SelectedViewName == viewName);
+            if (tab != null)
+            {
+                box.ActiveTab = tab;
+            }
+            SelectedPane = box;
         }
     }
 

@@ -8,6 +8,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using CdpInspectorApp.ViewModels;
+using CDP.Editor.Splits.Models;
 
 namespace CdpInspectorApp.Controls;
 
@@ -181,6 +183,181 @@ public class FlameChart : Control
         InvalidateVisual();
     }
 
+    private List<RenderBlock> GetRenderBlocks(List<FlameBlock> visibleBlocks, double scaleX, double width, double blocksOffsetY)
+    {
+        var result = new List<RenderBlock>();
+        if (visibleBlocks.Count == 0) return result;
+
+        var byDepth = visibleBlocks.GroupBy(b => b.Depth);
+        foreach (var group in byDepth)
+        {
+            int depth = group.Key;
+            var sorted = group.OrderBy(b => b.StartTimeMs).ToList();
+
+            int i = 0;
+            while (i < sorted.Count)
+            {
+                var block = sorted[i];
+                double bx = block.StartTimeMs * scaleX * ZoomScale + OffsetX;
+                double bw = (block.EndTimeMs - block.StartTimeMs) * scaleX * ZoomScale;
+
+                if (bw >= 8.0)
+                {
+                    result.Add(new RenderBlock
+                    {
+                        IsConsolidated = false,
+                        StartTimeMs = block.StartTimeMs,
+                        EndTimeMs = block.EndTimeMs,
+                        Depth = depth,
+                        X = bx,
+                        Width = bw,
+                        Label = FormatBlockLabel(block, bw),
+                        ToolTipText = $"{block.Name}\nDuration: {FormatDuration(block.EndTimeMs - block.StartTimeMs)}\nSelf Time: {FormatDuration(block.SelfTimeMs)} ({block.SelfTimePct:F1}%)",
+                        Brush = GetBrushForMethod(block.Name, block.Url, IsDimmed(block)),
+                        SingleBlock = block,
+                        OriginalBlocks = new List<FlameBlock> { block }
+                    });
+                    i++;
+                }
+                else
+                {
+                    var consolidated = new List<FlameBlock> { block };
+                    double groupStartX = bx;
+                    double groupEndX = bx + bw;
+                    double groupStartTime = block.StartTimeMs;
+                    double groupEndTime = block.EndTimeMs;
+
+                    int j = i + 1;
+                    while (j < sorted.Count)
+                    {
+                        var nextBlock = sorted[j];
+                        double nbx = nextBlock.StartTimeMs * scaleX * ZoomScale + OffsetX;
+                        double nbw = (nextBlock.EndTimeMs - nextBlock.StartTimeMs) * scaleX * ZoomScale;
+
+                        if (nbw < 8.0 && (nbx - groupEndX) < 3.0)
+                        {
+                            consolidated.Add(nextBlock);
+                            groupEndX = Math.Max(groupEndX, nbx + nbw);
+                            groupEndTime = Math.Max(groupEndTime, nextBlock.EndTimeMs);
+                            j++;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    if (consolidated.Count == 1)
+                    {
+                        result.Add(new RenderBlock
+                        {
+                            IsConsolidated = false,
+                            StartTimeMs = block.StartTimeMs,
+                            EndTimeMs = block.EndTimeMs,
+                            Depth = depth,
+                            X = bx,
+                            Width = bw,
+                            Label = "",
+                            ToolTipText = $"{block.Name}\nDuration: {FormatDuration(block.EndTimeMs - block.StartTimeMs)}\nSelf Time: {FormatDuration(block.SelfTimeMs)} ({block.SelfTimePct:F1}%)",
+                            Brush = GetBrushForMethod(block.Name, block.Url, IsDimmed(block)),
+                            SingleBlock = block,
+                            OriginalBlocks = consolidated
+                        });
+                    }
+                    else
+                    {
+                        double groupWidth = groupEndX - groupStartX;
+                        var labelText = groupWidth > 35.0 ? $"[{consolidated.Count} calls]" : "";
+                        var tooltip = $"Consolidated Group ({consolidated.Count} calls)\nTotal Time: {FormatDuration(groupEndTime - groupStartTime)}\nCalls:\n" +
+                                      string.Join("\n", consolidated.Take(5).Select(c => $"- {c.Name} ({FormatDuration(c.EndTimeMs - c.StartTimeMs)})")) +
+                                      (consolidated.Count > 5 ? $"\n... and {consolidated.Count - 5} more" : "");
+
+                        result.Add(new RenderBlock
+                        {
+                            IsConsolidated = true,
+                            StartTimeMs = groupStartTime,
+                            EndTimeMs = groupEndTime,
+                            Depth = depth,
+                            X = groupStartX,
+                            Width = groupWidth,
+                            Label = labelText,
+                            ToolTipText = tooltip,
+                            Brush = _brushConsolidated,
+                            SingleBlock = null,
+                            OriginalBlocks = consolidated
+                        });
+                    }
+                    i = j;
+                }
+            }
+        }
+        return result;
+    }
+
+    private string FormatBlockLabel(FlameBlock block, double width)
+    {
+        double duration = block.EndTimeMs - block.StartTimeMs;
+        string durationStr = FormatDuration(duration);
+
+        if (width > 120.0)
+        {
+            return $"{block.Name} ({durationStr})";
+        }
+        else if (width > 60.0)
+        {
+            return block.Name;
+        }
+        else if (width > 30.0)
+        {
+            int maxChars = (int)(width / 6.0);
+            if (block.Name.Length > maxChars && maxChars > 3)
+            {
+                return block.Name.Substring(0, maxChars - 3) + "...";
+            }
+            return block.Name;
+        }
+        return "";
+    }
+
+    private string FormatDuration(double ms)
+    {
+        if (IsMemoryMode)
+        {
+            if (ms >= 1024.0 * 1024.0) return $"{(ms / 1024.0 / 1024.0):F2} MB";
+            if (ms >= 1024.0) return $"{(ms / 1024.0):F1} KB";
+            return $"{ms:F0} B";
+        }
+        else
+        {
+            if (ms >= 1000.0) return $"{(ms / 1000.0):F2} s";
+            return $"{ms:F2} ms";
+        }
+    }
+
+    private bool IsDimmed(FlameBlock block)
+    {
+        return !string.IsNullOrEmpty(SearchText) &&
+               !block.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static readonly IBrush _brushConsolidated = new SolidColorBrush(Color.FromRgb(106, 57, 142)); // Premium slate purple
+    private static readonly IPen _penConsolidatedBorder = new Pen(new SolidColorBrush(Color.FromRgb(138, 75, 185)), 1.0);
+    
+    private struct RenderBlock
+    {
+        public bool IsConsolidated;
+        public double StartTimeMs;
+        public double EndTimeMs;
+        public int Depth;
+        public double X;
+        public double Width;
+        public string Label;
+        public string ToolTipText;
+        public IBrush Brush;
+        public List<FlameBlock> OriginalBlocks;
+        public FlameBlock? SingleBlock;
+    }
+
     private static readonly IBrush _brushDefault = new SolidColorBrush(Color.FromRgb(100, 100, 100));
     private static readonly IBrush _brushRoot = new SolidColorBrush(Color.FromRgb(48, 57, 66));
     private static readonly IBrush _brushIdle = new SolidColorBrush(Color.FromRgb(32, 33, 36));
@@ -278,6 +455,9 @@ public class FlameChart : Control
         double height = Bounds.Height;
         if (width <= 0 || height <= 0 || Blocks == null) return;
 
+        // Draw transparent background over the entire bounds to ensure hit-testing works
+        context.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, width, height));
+
         var blocksList = Blocks.ToList();
         if (blocksList.Count == 0) return;
 
@@ -341,56 +521,60 @@ public class FlameChart : Control
             context.DrawLine(_penGrid, new Point(0, y), new Point(width, y));
         }
 
-        // 4. Draw Flame Blocks
-        foreach (var block in blocksList)
+        // 4. Draw Flame Blocks (with Level of Detail consolidation)
+        var renderBlocks = GetRenderBlocks(blocksList, scaleX, width, blocksOffsetY);
+        foreach (var rb in renderBlocks)
         {
-            double bx = block.StartTimeMs * scaleX * ZoomScale + OffsetX;
-            double bw = (block.EndTimeMs - block.StartTimeMs) * scaleX * ZoomScale;
-            if (bx + bw < 0 || bx > width) continue; // Viewport culling (horizontal)
-            if (bw < 0.2) continue; // Viewport culling (sub-pixel size check)
-
-            double by = blocksOffsetY + block.Depth * RowHeight + OffsetY;
+            double by = blocksOffsetY + rb.Depth * RowHeight + OffsetY;
             double bh = RowHeight - 1;
             if (by + bh < blocksOffsetY || by > height) continue; // Viewport culling (vertical)
 
-            bool matchesSearch = !string.IsNullOrEmpty(SearchText) &&
-                                 block.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+            var rect = new Rect(rb.X, by, rb.Width, bh);
 
-            bool isDimmed = !string.IsNullOrEmpty(SearchText) && !matchesSearch;
-            var fillBrush = GetBrushForMethod(block.Name, block.Url, isDimmed);
-            var rect = new Rect(bx, by, bw, bh);
-
-            context.DrawRectangle(fillBrush, null, rect);
-
-            // Highlight matches with a bright yellow border
-            if (matchesSearch)
+            // Draw consolidated or single block
+            if (rb.IsConsolidated)
             {
-                context.DrawRectangle(null, _penSearchBorder, rect);
+                context.DrawRectangle(rb.Brush, _penConsolidatedBorder, rect);
             }
-            // Highlight selected block with a blue border
-            if (SelectedBlock == block)
+            else
             {
-                context.DrawRectangle(null, _penSelectedBorder, rect);
-            }
-            else if (HoveredBlock == block)
-            {
-                context.DrawRectangle(null, _penHoveredBorder, rect);
+                context.DrawRectangle(rb.Brush, null, rect);
             }
 
-            // Draw function label if width is sufficient
-            if (bw > 25)
+            // Highlights
+            if (!rb.IsConsolidated && rb.SingleBlock != null)
+            {
+                var block = rb.SingleBlock;
+                bool matchesSearch = !string.IsNullOrEmpty(SearchText) &&
+                                     block.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+                if (matchesSearch)
+                {
+                    context.DrawRectangle(null, _penSearchBorder, rect);
+                }
+                if (SelectedBlock == block)
+                {
+                    context.DrawRectangle(null, _penSelectedBorder, rect);
+                }
+                else if (HoveredBlock == block)
+                {
+                    context.DrawRectangle(null, _penHoveredBorder, rect);
+                }
+            }
+
+            // Draw text label if width is sufficient
+            if (rb.Width > 20.0 && !string.IsNullOrEmpty(rb.Label))
             {
                 using (context.PushClip(rect))
                 {
                     var formattedText = new FormattedText(
-                        block.Name,
+                        rb.Label,
                         CultureInfo.InvariantCulture,
                         FlowDirection.LeftToRight,
                         Typeface.Default,
                         9.0,
                         _brushText
                     );
-                    context.DrawText(formattedText, new Point(bx + 4, by + 3));
+                    context.DrawText(formattedText, new Point(rb.X + 4, by + 3));
                 }
             }
         }
@@ -487,6 +671,191 @@ public class FlameChart : Control
                 e.Handled = true;
             }
         }
+        else if (pt.Properties.IsRightButtonPressed)
+        {
+            if (Blocks != null)
+            {
+                var blocksList = Blocks.ToList();
+                if (blocksList.Count > 0)
+                {
+                    double maxTime = blocksList.Max(b => b.EndTimeMs);
+                    if (maxTime > 0)
+                    {
+                        double scaleX = Bounds.Width / maxTime;
+                        double blocksOffsetY = RulerHeight + MinimapHeight;
+                        int depth = (int)((pt.Position.Y - blocksOffsetY - OffsetY) / RowHeight);
+
+                        if (pt.Position.Y >= blocksOffsetY)
+                        {
+                            var renderBlocks = GetRenderBlocks(blocksList, scaleX, Bounds.Width, blocksOffsetY);
+                            var clicked = renderBlocks.FirstOrDefault(rb => rb.Depth == depth && pt.Position.X >= rb.X && pt.Position.X <= rb.X + rb.Width);
+
+                            if (clicked.Width > 0)
+                            {
+                                ShowContextMenuForBlock(clicked, pt.Position);
+                                e.Handled = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void ShowContextMenuForBlock(RenderBlock rb, Point position)
+    {
+        var menu = new ContextMenu();
+
+        if (rb.IsConsolidated)
+        {
+            var headerItem = new MenuItem { Header = $"Consolidated Group ({rb.OriginalBlocks.Count} calls)", IsEnabled = false };
+            menu.Items.Add(headerItem);
+            menu.Items.Add(new Separator());
+
+            var miZoomInGroup = new MenuItem { Header = "Zoom / Scope to Group" };
+            miZoomInGroup.Click += (s, e) =>
+            {
+                double duration = rb.EndTimeMs - rb.StartTimeMs;
+                if (duration > 0 && Blocks != null)
+                {
+                    var blocksList = Blocks.ToList();
+                    double maxTime = blocksList.Max(b => b.EndTimeMs);
+                    if (maxTime > 0)
+                    {
+                        double scaleX = Bounds.Width / maxTime;
+                        double targetZoom = (Bounds.Width * 0.8) / (duration * scaleX);
+                        ZoomScale = Math.Max(1.0, Math.Min(1000.0, targetZoom));
+                        double blockCenterTime = rb.StartTimeMs + duration / 2.0;
+                        double blockCenterCanvas = blockCenterTime * scaleX * ZoomScale;
+                        OffsetX = Bounds.Width / 2.0 - blockCenterCanvas;
+                        InvalidateVisual();
+                    }
+                }
+            };
+            menu.Items.Add(miZoomInGroup);
+        }
+        else if (rb.SingleBlock != null)
+        {
+            var block = rb.SingleBlock;
+
+            // Search for this Method
+            var miSearch = new MenuItem { Header = $"Search for '{block.Name}'" };
+            miSearch.Click += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel mainVM)
+                {
+                    mainVM.Profiler.SearchText = block.Name;
+                }
+            };
+            menu.Items.Add(miSearch);
+
+            // Scope to Selection
+            var miScope = new MenuItem { Header = "Scope Timeline to Selection" };
+            miScope.Click += (s, e) =>
+            {
+                double duration = block.EndTimeMs - block.StartTimeMs;
+                if (duration > 0 && Blocks != null)
+                {
+                    var blocksList = Blocks.ToList();
+                    double maxTime = blocksList.Max(b => b.EndTimeMs);
+                    if (maxTime > 0)
+                    {
+                        double scaleX = Bounds.Width / maxTime;
+                        double targetZoom = (Bounds.Width * 0.8) / (duration * scaleX);
+                        ZoomScale = Math.Max(1.0, Math.Min(1000.0, targetZoom));
+                        double blockCenterTime = block.StartTimeMs + duration / 2.0;
+                        double blockCenterCanvas = blockCenterTime * scaleX * ZoomScale;
+                        OffsetX = Bounds.Width / 2.0 - blockCenterCanvas;
+                        InvalidateVisual();
+                    }
+                }
+            };
+            menu.Items.Add(miScope);
+
+            menu.Items.Add(new Separator());
+
+            // Show in Call Tree
+            var miCallTree = new MenuItem { Header = "Show in Call Tree" };
+            miCallTree.Click += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel mainVM)
+                {
+                    mainVM.Profiler.ActivatePane("CallTree");
+                    _ = FindAndSelectInCallTreeAsync(mainVM.Profiler, block.Name);
+                }
+            };
+            menu.Items.Add(miCallTree);
+
+            // Show in Bottom-Up
+            var miBottomUp = new MenuItem { Header = "Show in Bottom-Up" };
+            miBottomUp.Click += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel mainVM)
+                {
+                    mainVM.Profiler.ActivatePane("BottomUpCalls");
+                    var match = mainVM.Profiler.MethodStats.FirstOrDefault(m => m.MethodName == block.Name || m.MethodName.Contains(block.Name));
+                    if (match != null)
+                    {
+                        mainVM.Profiler.SelectedMethod = match;
+                    }
+                }
+            };
+            menu.Items.Add(miBottomUp);
+
+            // Show in Caller / Callee
+            var miCallerCallee = new MenuItem { Header = "Show in Caller / Callee" };
+            miCallerCallee.Click += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel mainVM)
+                {
+                    mainVM.Profiler.ActivatePane("CallerCallee");
+                    mainVM.Profiler.UpdateCallerCallee(block.Name, block.Url);
+                }
+            };
+            menu.Items.Add(miCallerCallee);
+        }
+
+        ContextMenu = menu;
+        menu.Open(this);
+    }
+
+    private static async Task FindAndSelectInCallTreeAsync(ProfilerViewModel profiler, string name)
+    {
+        foreach (var root in profiler.CallTreeRoots)
+        {
+            var path = new List<CallTreeNodeModel>();
+            if (FindNodePath(root, name, path))
+            {
+                foreach (var parent in path)
+                {
+                    parent.IsExpanded = true;
+                }
+                var target = path.Last();
+                target.IsSelected = true;
+                break;
+            }
+        }
+        await Task.CompletedTask;
+    }
+
+    private static bool FindNodePath(CallTreeNodeModel current, string name, List<CallTreeNodeModel> path)
+    {
+        path.Add(current);
+        if (current.Name == name || current.Name.Contains(name))
+        {
+            return true;
+        }
+
+        foreach (var child in current.Children)
+        {
+            if (FindNodePath(child, name, path))
+            {
+                return true;
+            }
+        }
+
+        path.RemoveAt(path.Count - 1);
+        return false;
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
@@ -529,20 +898,29 @@ public class FlameChart : Control
             if (maxTime <= 0) return;
 
             double scaleX = Bounds.Width / maxTime;
-
-            double timeMs = (currentPoint.X - OffsetX) / ZoomScale / scaleX;
             double blocksOffsetY = RulerHeight + MinimapHeight;
-            int depth = (int)((currentPoint.Y - blocksOffsetY - OffsetY) / RowHeight);
 
-            if (currentPoint.Y < blocksOffsetY)
+            // Generate RenderBlocks dynamically for hover check
+            var renderBlocks = GetRenderBlocks(blocksList, scaleX, Bounds.Width, blocksOffsetY);
+            double y = currentPoint.Y;
+            int depth = (int)((y - blocksOffsetY - OffsetY) / RowHeight);
+            if (y < blocksOffsetY) depth = -1;
+
+            var hover = renderBlocks.FirstOrDefault(rb => rb.Depth == depth && currentPoint.X >= rb.X && currentPoint.X <= rb.X + rb.Width);
+
+            if (hover.Width > 0 && !string.IsNullOrEmpty(hover.ToolTipText))
             {
-                depth = -1;
+                ToolTip.SetTip(this, hover.ToolTipText);
+            }
+            else
+            {
+                ToolTip.SetTip(this, null);
             }
 
-            var hover = blocksList.FirstOrDefault(b => b.Depth == depth && timeMs >= b.StartTimeMs && timeMs <= b.EndTimeMs);
-            if (hover != HoveredBlock)
+            var newHoverBlock = hover.IsConsolidated ? null : hover.SingleBlock;
+            if (newHoverBlock != HoveredBlock)
             {
-                HoveredBlock = hover;
+                HoveredBlock = newHoverBlock;
                 InvalidateVisual();
             }
         }
@@ -574,14 +952,14 @@ public class FlameChart : Control
                         if (maxTime > 0)
                         {
                             double scaleX = Bounds.Width / maxTime;
-                            double timeMs = (releasePos.X - OffsetX) / ZoomScale / scaleX;
                             double blocksOffsetY = RulerHeight + MinimapHeight;
                             int depth = (int)((releasePos.Y - blocksOffsetY - OffsetY) / RowHeight);
 
                             if (releasePos.Y >= blocksOffsetY)
                             {
-                                var block = blocksList.FirstOrDefault(b => b.Depth == depth && timeMs >= b.StartTimeMs && timeMs <= b.EndTimeMs);
-                                SelectedBlock = block;
+                                var renderBlocks = GetRenderBlocks(blocksList, scaleX, Bounds.Width, blocksOffsetY);
+                                var clicked = renderBlocks.FirstOrDefault(rb => rb.Depth == depth && releasePos.X >= rb.X && releasePos.X <= rb.X + rb.Width);
+                                SelectedBlock = clicked.IsConsolidated ? null : clicked.SingleBlock;
                             }
                             else
                             {
@@ -630,14 +1008,14 @@ public class FlameChart : Control
 
         double scaleX = Bounds.Width / maxTime;
 
-        // Current timeline position under the mouse cursor
-        double timeUnderMouse = (mousePos.X - OffsetX) / ZoomScale;
+        // Current timeline position in ms under the mouse cursor
+        double timeUnderMouse = (mousePos.X - OffsetX) / ZoomScale / scaleX;
 
         // Adjust ZoomScale
         ZoomScale = Math.Max(1.0, Math.Min(1000.0, ZoomScale * (delta > 0 ? 1.25 : 0.8)));
 
         // Adjust OffsetX to maintain center of zoom at mouse cursor
-        OffsetX = mousePos.X - (timeUnderMouse * ZoomScale);
+        OffsetX = mousePos.X - (timeUnderMouse * scaleX * ZoomScale);
 
         InvalidateVisual();
         e.Handled = true;

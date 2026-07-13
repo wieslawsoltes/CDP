@@ -10,6 +10,8 @@ namespace CDP.Profiling.Analysis;
 
 public static class DmwSnapshotAnalyzer
 {
+    public static string? LastError { get; set; }
+
     public static AnalyzedMemorySession? LoadWorkspace(string dmwPath)
     {
         if (!File.Exists(dmwPath)) return null;
@@ -53,17 +55,148 @@ public static class DmwSnapshotAnalyzer
         }
     }
 
+    private static bool IsValidFullyQualifiedTypeName(string str)
+    {
+        if (string.IsNullOrEmpty(str)) return false;
+        int dots = 0;
+        bool startSegment = true;
+        for (int i = 0; i < str.Length; i++)
+        {
+            char c = str[i];
+            if (c == '.')
+            {
+                if (startSegment) return false;
+                dots++;
+                startSegment = true;
+            }
+            else if (c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+            {
+                startSegment = false;
+            }
+            else if (c >= '0' && c <= '9')
+            {
+                if (startSegment) return false;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return dots > 0 && !startSegment;
+    }
+
+    private static List<string> GetJetBrainsSearchPaths()
+    {
+        var paths = new List<string>();
+        var envPath = Environment.GetEnvironmentVariable("JETBRAINS_PROFILER_PATH");
+        if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
+        {
+            paths.Add(envPath);
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            paths.Add("/Applications/Rider.app/Contents/plugins/dotTrace.dotMemory/DotFiles");
+            paths.Add("/Applications/Rider.app/Contents/tools/profiler");
+            paths.Add("/Applications/Rider.app/Contents/lib/ReSharperHost");
+            paths.Add("/Applications/Rider.app/Contents/lib/ReSharperHost/NetCore");
+            paths.Add("/Applications/dotMemory.app/Contents/MacOS");
+            paths.Add("/Applications/dotTrace.app/Contents/MacOS");
+
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            paths.Add(Path.Combine(home, "Applications/Rider.app/Contents/plugins/dotTrace.dotMemory/DotFiles"));
+            paths.Add(Path.Combine(home, "Applications/Rider.app/Contents/tools/profiler"));
+            paths.Add(Path.Combine(home, "Applications/Rider.app/Contents/lib/ReSharperHost"));
+            paths.Add(Path.Combine(home, "Applications/Rider.app/Contents/lib/ReSharperHost/NetCore"));
+
+            var toolboxDir = Path.Combine(home, "Library/Application Support/JetBrains/Toolbox/apps");
+            if (Directory.Exists(toolboxDir))
+            {
+                try
+                {
+                    foreach (var appDir in Directory.GetDirectories(toolboxDir, "*", SearchOption.AllDirectories))
+                    {
+                        if (appDir.EndsWith("DotFiles", StringComparison.OrdinalIgnoreCase) || 
+                            appDir.EndsWith("profiler", StringComparison.OrdinalIgnoreCase) ||
+                            appDir.EndsWith("ReSharperHost", StringComparison.OrdinalIgnoreCase))
+                        {
+                            paths.Add(appDir);
+                        }
+                    }
+                }
+                catch {}
+            }
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+            paths.Add(Path.Combine(programFiles, @"JetBrains\Rider\plugins\dotTrace.dotMemory\DotFiles"));
+            paths.Add(Path.Combine(programFiles, @"JetBrains\Rider\tools\profiler"));
+            paths.Add(Path.Combine(programFiles, @"JetBrains\Rider\lib\ReSharperHost"));
+            paths.Add(Path.Combine(programFiles, @"JetBrains\Rider\lib\ReSharperHost\NetCore"));
+            paths.Add(Path.Combine(programFiles, @"JetBrains\dotMemory\DotFiles"));
+            paths.Add(Path.Combine(programFiles, @"JetBrains\dotTrace\DotFiles"));
+
+            var toolboxDir = Path.Combine(localAppData, @"JetBrains\Toolbox\apps");
+            if (Directory.Exists(toolboxDir))
+            {
+                try
+                {
+                    foreach (var appDir in Directory.GetDirectories(toolboxDir, "*", SearchOption.AllDirectories))
+                    {
+                        if (appDir.EndsWith("DotFiles", StringComparison.OrdinalIgnoreCase) || 
+                            appDir.EndsWith("profiler", StringComparison.OrdinalIgnoreCase) ||
+                            appDir.EndsWith("ReSharperHost", StringComparison.OrdinalIgnoreCase))
+                        {
+                            paths.Add(appDir);
+                        }
+                    }
+                }
+                catch {}
+            }
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            paths.Add("/usr/share/jetbrains/rider/plugins/dotTrace.dotMemory/DotFiles");
+            paths.Add("/usr/share/jetbrains/rider/tools/profiler");
+            paths.Add("/usr/share/jetbrains/rider/lib/ReSharperHost");
+            paths.Add("/usr/share/jetbrains/rider/lib/ReSharperHost/NetCore");
+            paths.Add("/opt/jetbrains/rider/plugins/dotTrace.dotMemory/DotFiles");
+            paths.Add("/opt/jetbrains/rider/tools/profiler");
+            paths.Add("/opt/jetbrains/rider/lib/ReSharperHost");
+            paths.Add("/opt/jetbrains/rider/lib/ReSharperHost/NetCore");
+
+            var toolboxDir = Path.Combine(home, ".local/share/JetBrains/Toolbox/apps");
+            if (Directory.Exists(toolboxDir))
+            {
+                try
+                {
+                    foreach (var appDir in Directory.GetDirectories(toolboxDir, "*", SearchOption.AllDirectories))
+                    {
+                        if (appDir.EndsWith("DotFiles", StringComparison.OrdinalIgnoreCase) || 
+                            appDir.EndsWith("profiler", StringComparison.OrdinalIgnoreCase) ||
+                            appDir.EndsWith("ReSharperHost", StringComparison.OrdinalIgnoreCase))
+                        {
+                            paths.Add(appDir);
+                        }
+                    }
+                }
+                catch {}
+            }
+        }
+
+        return paths.Distinct().Where(Directory.Exists).ToList();
+    }
+
     private static bool TryLoadWithJetBrainsReflection(string unzippedDir, AnalyzedMemorySession session)
     {
-        // For security and portability, dynamic reflection resolver searches common installation directories
         try
         {
-            var searchPaths = new[]
-            {
-                "/Users/wieslawsoltes/Applications/Rider.app/Contents/plugins/dotTrace.dotMemory/DotFiles",
-                "/Users/wieslawsoltes/Applications/Rider.app/Contents/tools/profiler"
-            };
-
+            var searchPaths = GetJetBrainsSearchPaths();
             string? modelDll = null;
             foreach (var path in searchPaths)
             {
@@ -75,25 +208,31 @@ public static class DmwSnapshotAnalyzer
                 }
             }
 
-            if (modelDll == null) return false;
+            if (modelDll == null)
+            {
+                LastError = $"JetBrains dotMemory Model DLL (JetBrains.dotMemory.Model.dll) was not found in JetBrains search paths: {string.Join(", ", searchPaths)}";
+                return false;
+            }
 
-            // Setup assembly resolver
             var libDir = Path.GetDirectoryName(modelDll)!;
             AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
             {
                 var name = new AssemblyName(args.Name).Name + ".dll";
                 var full = Path.Combine(libDir, name);
                 if (File.Exists(full)) return Assembly.LoadFrom(full);
+                foreach (var path in searchPaths)
+                {
+                    full = Path.Combine(path, name);
+                    if (File.Exists(full)) return Assembly.LoadFrom(full);
+                }
                 return null;
             };
 
-            // Dynamically load prosector and extract snapshot info
-            // Since fully building the Armature Component Container may fail under custom environments,
-            // we catch any dependency errors and return false to cleanly fall back.
             return false;
         }
-        catch
+        catch (Exception ex)
         {
+            LastError = $"{ex.Message} at {ex.TargetSite}";
             return false;
         }
     }
@@ -103,7 +242,6 @@ public static class DmwSnapshotAnalyzer
         var dmsFiles = Directory.GetFiles(unzippedDir, "*.dms.0000", SearchOption.AllDirectories);
         if (dmsFiles.Length == 0)
         {
-            // If no DMS files found, try to locate any .dms file
             dmsFiles = Directory.GetFiles(unzippedDir, "*.dms", SearchOption.AllDirectories);
         }
 
@@ -121,7 +259,7 @@ public static class DmwSnapshotAnalyzer
                         int start = i;
                         while (i < bytes.Length && bytes[i] >= 32 && bytes[i] <= 126) i++;
                         string str = System.Text.Encoding.ASCII.GetString(bytes, start, i - start);
-                        if (str.Contains(".") && (str.Contains("Avalonia") || str.Contains("System") || str.Contains("CdpSampleApp") || str.Contains("Microsoft")))
+                        if (str.Contains(".") && (str.Contains("Avalonia") || str.Contains("System") || str.Contains("CdpSampleApp") || str.Contains("Microsoft") || IsValidFullyQualifiedTypeName(str)))
                         {
                             int dot = str.IndexOf('.');
                             if (dot > 0 && dot < str.Length - 1)
@@ -147,7 +285,7 @@ public static class DmwSnapshotAnalyzer
             
             foreach (var pair in typeCounts.OrderByDescending(p => p.Value))
             {
-                long bytes = pair.Value * 128; // Estimate average size 128 bytes per instance
+                long bytes = pair.Value * 128;
                 list.Add(new AnalyzedMemoryStat
                 {
                     TypeName = pair.Key,
@@ -165,33 +303,6 @@ public static class DmwSnapshotAnalyzer
                 item.SizePct = totalBytes > 0 ? (item.AllocatedBytes / (double)totalBytes) * 100.0 : 0;
                 item.CountPct = totalCount > 0 ? (item.AllocationCount / (double)totalCount) * 100.0 : 0;
                 session.MemoryStats.Add(item);
-            }
-        }
-        else
-        {
-            // Complete fallback to simulated counts if file scan is empty
-            session.TotalAllocatedBytes = 2500000;
-            session.TotalAllocationsCount = 2100;
-            
-            var fallbacks = new[]
-            {
-                ("Avalonia.Controls.TextBlock", 800, 64000),
-                ("Avalonia.Controls.Border", 500, 48000),
-                ("Avalonia.Controls.Button", 300, 36000),
-                ("CdpSampleApp.MainWindow", 1, 2048),
-                ("System.String", 400, 102400)
-            };
-
-            foreach (var f in fallbacks)
-            {
-                session.MemoryStats.Add(new AnalyzedMemoryStat
-                {
-                    TypeName = f.Item1,
-                    AllocationCount = f.Item2,
-                    AllocatedBytes = f.Item3,
-                    SizePct = (f.Item3 / 2500000.0) * 100.0,
-                    CountPct = (f.Item2 / 2100.0) * 100.0
-                });
             }
         }
     }

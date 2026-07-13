@@ -20,6 +20,15 @@
             <!-- Left panel (Sessions list & controls) -->
             <Grid Name="pnlSessionsList" RowDefinitions="Auto, *" Margin="0,0,10,0">
                 <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,10">
+                    <Grid ColumnDefinitions="Auto, *" Margin="2,0,2,4">
+                        <TextBlock Text="Profiling Engine:" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox Grid.Column="1" 
+                                  ItemsSource="{Binding Profiler.AvailableEngines}" 
+                                  SelectedItem="{Binding Profiler.SelectedEngine, Mode=TwoWay}"
+                                  IsEnabled="{Binding Profiler.IsProfilingActive, Converter={x:Static BoolConverters.Not}}"
+                                  HorizontalAlignment="Stretch"
+                                  Height="28"/>
+                    </Grid>
                     <Button Name="btnStartProfiler" Command="{Binding Profiler.StartProfilerCommand}" Content="Start CPU Profiler" Classes="accent" HorizontalAlignment="Stretch">
                         <Button.IsVisible>
                             <Binding Path="Profiler.IsProfilingActive" Converter="{x:Static BoolConverters.Not}"/>
@@ -33,13 +42,25 @@
                 <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
                     <Grid RowDefinitions="Auto, *">
                         <TextBlock Text="PROFILING RUNS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="10,5,0,8"/>
-                        <DataGrid Name="lstSessions" Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.Sessions}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.SelectedSession, Mode=TwoWay}" x:DataType="models:ProfileSessionModel"
+                        <DataGrid Name="lstSessions" Grid.Row="1" ItemsSource="{Binding Profiler.Sessions}" SelectedItem="{Binding Profiler.SelectedSession, Mode=OneWay}" SelectionChanged="LstSessions_SelectionChanged" x:DataType="vm:MainWindowViewModel"
                                   CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                   GridLinesVisibility="None" HeadersVisibility="None"
                                   Background="Transparent" BorderThickness="0">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Session" Binding="{Binding Name}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
-                                <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss'}" Width="80" Foreground="#9aa0a6" FontSize="10"/>
+                                <DataGridTemplateColumn Width="*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="models:ProfileSessionModel">
+                                            <TextBlock Text="{Binding Name}" Foreground="#e8eaed" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="80">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="models:ProfileSessionModel">
+                                            <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center" Margin="5,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
@@ -101,11 +122,11 @@
                                             </StackPanel>
                                             <Border Grid.Row="1" Background="#202124" BorderBrush="#3c4043" BorderThickness="1" ClipToBounds="True" Height="160">
                                                 <controls:FlameChart Blocks="{Binding Blocks}"
-                                                                     ZoomScale="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.ZoomScale, Mode=TwoWay}"
-                                                                     OffsetX="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.OffsetX, Mode=TwoWay}"
-                                                                     SearchText="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.SearchText}"
-                                                                     HoveredBlock="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.HoveredBlock, Mode=TwoWay}"
-                                                                     SelectedBlock="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.SelectedBlock, Mode=TwoWay}"
+                                                                     ZoomScale="{Binding Parent.ZoomScale, Mode=TwoWay}"
+                                                                     OffsetX="{Binding Parent.OffsetX, Mode=TwoWay}"
+                                                                     SearchText="{Binding Parent.SearchText}"
+                                                                     HoveredBlock="{Binding Parent.HoveredBlock, Mode=TwoWay}"
+                                                                     SelectedBlock="{Binding Parent.SelectedBlock, Mode=TwoWay}"
                                                                      HorizontalAlignment="Stretch"
                                                                      VerticalAlignment="Stretch"/>
                                             </Border>
@@ -140,12 +161,26 @@
 
             <!-- Bottom-Up Calls Panel -->
             <Border Name="pnlBottomUpCalls" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
-                <DataGrid Name="dgMethodStats" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.MethodStats}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.SelectedMethod, Mode=TwoWay}"
+                <DataGrid Name="dgMethodStats" ItemsSource="{Binding Profiler.MethodStats}" SelectedItem="{Binding Profiler.SelectedMethod, Mode=OneWay}" SelectionChanged="DgMethodStats_SelectionChanged" x:DataType="vm:MainWindowViewModel"
                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True"
                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                          Background="Transparent" BorderThickness="0" x:DataType="models:ProfileMethodStats">
+                          Background="Transparent" BorderThickness="0">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu x:DataType="vm:MainWindowViewModel">
+                            <MenuItem Header="Find in Flame Chart" Command="{Binding Profiler.FindInFlameChartCommand}"/>
+                            <MenuItem Header="Show in Call Tree" Command="{Binding Profiler.ShowMethodInCallTreeCommand}"/>
+                            <MenuItem Header="Show in Caller / Callee" Command="{Binding Profiler.ShowMethodInCallerCalleeCommand}"/>
+                            <MenuItem Header="Search for this Method" Command="{Binding Profiler.SearchMethodCommand}"/>
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Self Time (ms)" Binding="{Binding SelfTimeMs, StringFormat=\{0:F2\}}" Width="110" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
+                        <DataGridTemplateColumn Header="Self Time (ms)" Width="110">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMethodStats">
+                                    <TextBlock Text="{Binding SelfTimeMs, StringFormat=\{0:F2\}}" Foreground="#e8eaed" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="Self Time (%)" Width="110">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate x:DataType="models:ProfileMethodStats">
@@ -160,11 +195,41 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Total Time (ms)" Binding="{Binding TotalTimeMs, StringFormat=\{0:F2\}}" Width="115" Foreground="#e8eaed" FontSize="12"/>
-                        <DataGridTextColumn Header="Total Time (%)" Binding="{Binding TotalTimePct, StringFormat=\{0:F1\}%}" Width="110" Foreground="#9aa0a6" FontSize="12"/>
-                        <DataGridTextColumn Header="Samples" Binding="{Binding HitCount}" Width="80" Foreground="#e8eaed" FontSize="12"/>
-                        <DataGridTextColumn Header="Function / Method Name" Binding="{Binding MethodName}" Width="2*" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
-                        <DataGridTextColumn Header="Module / Script Path" Binding="{Binding ModuleName}" Width="3*" Foreground="#9aa0a6" FontSize="11"/>
+                        <DataGridTemplateColumn Header="Total Time (ms)" Width="115">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMethodStats">
+                                    <TextBlock Text="{Binding TotalTimeMs, StringFormat=\{0:F2\}}" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Total Time (%)" Width="110">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMethodStats">
+                                    <TextBlock Text="{Binding TotalTimePct, StringFormat=\{0:F1\}%}" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Samples" Width="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMethodStats">
+                                    <TextBlock Text="{Binding HitCount}" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Function / Method Name" Width="2*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMethodStats">
+                                    <TextBlock Text="{Binding MethodName}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Module / Script Path" Width="3*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMethodStats">
+                                    <TextBlock Text="{Binding ModuleName}" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
             </Border>
@@ -181,7 +246,13 @@
                     <TextBlock Grid.Column="5" Text="Samples" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,20,0"/>
                 </Grid>
 
-                <TreeView Grid.Row="1" ItemsSource="{Binding Profiler.SelectedSession.CallTreeRoots}" Background="Transparent" BorderThickness="0">
+                <TreeView Grid.Row="1" ItemsSource="{Binding Profiler.CallTreeRoots}" Background="Transparent" BorderThickness="0">
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem" x:DataType="models:CallTreeNodeModel">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                        </Style>
+                    </TreeView.Styles>
                     <TreeView.ItemTemplate>
                         <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="models:CallTreeNodeModel">
                             <Grid ColumnDefinitions="*, 90, 80, 90, 80, 80">
@@ -201,73 +272,178 @@
             </Grid>
 
             <!-- Caller / Callee Panel -->
-            <Grid Name="pnlCallerCallee" RowDefinitions="Auto, *" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
-                <!-- Header displaying the selected method -->
-                <Border Grid.Row="0" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <PathIcon Data="{StaticResource SwapVertIcon}" Width="14" Height="14" Foreground="#8ab4f8"/>
-                        <TextBlock Text="Selected Method: " Foreground="#9aa0a6" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding Profiler.SelectedMethodHeader}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
+            <Border Name="pnlCallerCallee" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
+                <Grid RowDefinitions="Auto, *">
+                    <!-- Header displaying the selected method -->
+                    <Border Grid.Row="0" Background="#292a2d" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource SwapVertIcon}" Width="14" Height="14" Foreground="#8ab4f8"/>
+                            <TextBlock Text="Selected Method: " Foreground="#9aa0a6" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Profiler.SelectedMethodHeader}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
-                <!-- Side-by-side lists of Callers and Callees -->
-                <Grid Grid.Row="1" ColumnDefinitions="*, 1, *">
-                    <!-- Left: Callers -->
-                    <Grid Grid.Column="0" RowDefinitions="Auto, *" Margin="8">
-                        <TextBlock Grid.Row="0" Text="CALLERS (Parent Functions)" Foreground="#ff5252" FontSize="11" FontWeight="Bold" Margin="4,0,0,6"/>
-                        <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
-                            <DataGrid Name="dgCallerMethods" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.CallerMethods}"
-                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
-                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                                      Background="Transparent" BorderThickness="0" x:DataType="models:ProfileCallItem">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Time (ms)" Binding="{Binding TimeMs, StringFormat=\{0:F2\}}" Width="90" Foreground="#e8eaed" FontSize="11"/>
-                                    <DataGridTextColumn Header="%" Binding="{Binding Percentage, StringFormat=\{0:F1\}%}" Width="60" Foreground="#ff5252" FontSize="11" FontWeight="Bold"/>
-                                    <DataGridTextColumn Header="Samples" Binding="{Binding HitCount}" Width="70" Foreground="#e8eaed" FontSize="11"/>
-                                    <DataGridTextColumn Header="Method" Binding="{Binding MethodName}" Width="*" Foreground="#ff5252" FontSize="11" FontWeight="Bold"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </Border>
-                    </Grid>
+                    <!-- Side-by-side lists of Callers and Callees -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*, 1, *">
+                        <!-- Left: Callers -->
+                        <Grid Grid.Column="0" RowDefinitions="Auto, *" Margin="8">
+                            <TextBlock Grid.Row="0" Text="CALLERS (Parent Functions)" Foreground="#ff5252" FontSize="11" FontWeight="Bold" Margin="4,0,0,6"/>
+                            <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+                                <DataGrid Name="dgCallerMethods" ItemsSource="{Binding Profiler.CallerMethods}" x:DataType="vm:MainWindowViewModel"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                          Background="Transparent" BorderThickness="0">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="Time (ms)" Width="90">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:ProfileCallItem">
+                                                    <TextBlock Text="{Binding TimeMs, StringFormat=\{0:F2\}}" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="%" Width="60">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:ProfileCallItem">
+                                                    <TextBlock Text="{Binding Percentage, StringFormat=\{0:F1\}%}" Foreground="#ff5252" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Samples" Width="70">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:ProfileCallItem">
+                                                    <TextBlock Text="{Binding HitCount}" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Method" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:ProfileCallItem">
+                                                    <TextBlock Text="{Binding MethodName}" Foreground="#ff5252" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
+                        </Grid>
 
-                    <!-- Divider -->
-                    <Border Grid.Column="1" Background="#3c4043"/>
+                        <!-- Divider -->
+                        <Border Grid.Column="1" Background="#3c4043"/>
 
-                    <!-- Right: Callees -->
-                    <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="8">
-                        <TextBlock Grid.Row="0" Text="CALLEES (Child Functions)" Foreground="#4caf50" FontSize="11" FontWeight="Bold" Margin="4,0,0,6"/>
-                        <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
-                            <DataGrid Name="dgCalleeMethods" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.CalleeMethods}"
-                                      CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
-                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                                      Background="Transparent" BorderThickness="0" x:DataType="models:ProfileCallItem">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Time (ms)" Binding="{Binding TimeMs, StringFormat=\{0:F2\}}" Width="90" Foreground="#e8eaed" FontSize="11"/>
-                                    <DataGridTextColumn Header="%" Binding="{Binding Percentage, StringFormat=\{0:F1\}%}" Width="60" Foreground="#4caf50" FontSize="11" FontWeight="Bold"/>
-                                    <DataGridTextColumn Header="Samples" Binding="{Binding HitCount}" Width="70" Foreground="#e8eaed" FontSize="11"/>
-                                    <DataGridTextColumn Header="Method" Binding="{Binding MethodName}" Width="*" Foreground="#4caf50" FontSize="11" FontWeight="Bold"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </Border>
+                        <!-- Right: Callees -->
+                        <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="8">
+                            <TextBlock Grid.Row="0" Text="CALLEES (Child Functions)" Foreground="#4caf50" FontSize="11" FontWeight="Bold" Margin="4,0,0,6"/>
+                            <Border Grid.Row="1" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
+                                <DataGrid Name="dgCalleeMethods" ItemsSource="{Binding Profiler.CalleeMethods}" x:DataType="vm:MainWindowViewModel"
+                                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                                          Background="Transparent" BorderThickness="0">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="Time (ms)" Width="90">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:ProfileCallItem">
+                                                    <TextBlock Text="{Binding TimeMs, StringFormat=\{0:F2\}}" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="%" Width="60">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:ProfileCallItem">
+                                                    <TextBlock Text="{Binding Percentage, StringFormat=\{0:F1\}%}" Foreground="#4caf50" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Samples" Width="70">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:ProfileCallItem">
+                                                    <TextBlock Text="{Binding HitCount}" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Method" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:ProfileCallItem">
+                                                    <TextBlock Text="{Binding MethodName}" Foreground="#4caf50" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
+                        </Grid>
                     </Grid>
                 </Grid>
-            </Grid>
+            </Border>
 
             <!-- Memory Allocations Panel -->
             <Border Name="pnlMemoryAllocations" Background="#202124" BorderBrush="#3c4043" BorderThickness="1">
-                <DataGrid Name="dgMemoryStats" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Profiler.MemoryStats}"
+                <DataGrid Name="dgMemoryStats" ItemsSource="{Binding Profiler.MemoryStats}" x:DataType="vm:MainWindowViewModel"
                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-                          Background="Transparent" BorderThickness="0" x:DataType="models:ProfileMemoryStats">
+                          Background="Transparent" BorderThickness="0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Allocated Bytes" Binding="{Binding AllocatedBytes}" Width="130" Foreground="#ffca28" FontSize="12" FontWeight="Bold"/>
-                        <DataGridTextColumn Header="Size (%)" Binding="{Binding SizePct, StringFormat=\{0:F1\}%}" Width="100" Foreground="#ffca28" FontSize="12" FontWeight="SemiBold"/>
-                        <DataGridTextColumn Header="Allocations" Binding="{Binding AllocationCount}" Width="100" Foreground="#e8eaed" FontSize="12"/>
-                        <DataGridTextColumn Header="Count (%)" Binding="{Binding CountPct, StringFormat=\{0:F1\}%}" Width="100" Foreground="#9aa0a6" FontSize="12"/>
-                        <DataGridTextColumn Header="Allocated Object Type Name" Binding="{Binding TypeName}" Width="*" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                        <DataGridTemplateColumn Header="Allocated Bytes" Width="130">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMemoryStats">
+                                    <TextBlock Text="{Binding AllocatedBytes}" Foreground="#ffca28" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Size (%)" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMemoryStats">
+                                    <TextBlock Text="{Binding SizePct, StringFormat=\{0:F1\}%}" Foreground="#ffca28" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Allocations" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMemoryStats">
+                                    <TextBlock Text="{Binding AllocationCount}" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Count (%)" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMemoryStats">
+                                    <TextBlock Text="{Binding CountPct, StringFormat=\{0:F1\}%}" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Allocated Object Type Name" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ProfileMemoryStats">
+                                    <TextBlock Text="{Binding TypeName}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
+            </Border>
+
+            <!-- Profiler Log Panel -->
+            <Border Name="pnlProfilerLog" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="1">
+                <Grid RowDefinitions="Auto, *">
+                    <Grid Grid.Row="0" Background="#252526" Height="26" ColumnDefinitions="*, Auto">
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="10,0,0,0">
+                            <PathIcon Data="{StaticResource TerminalIcon}" Width="11" Height="11" Foreground="#8ab4f8"/>
+                            <TextBlock Text="Profiler Execution Log" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Command="{Binding Profiler.ClearLogsCommand}" Height="20" Width="60" Margin="0,0,5,0" Padding="0" Background="Transparent" BorderThickness="0">
+                            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <PathIcon Data="{StaticResource DeleteIcon}" Width="10" Height="10" Foreground="#ff5252"/>
+                                <TextBlock Text="Clear" FontSize="10" Foreground="#ff5252" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <ListBox Name="lstProfilerLogs" Grid.Row="1" ItemsSource="{Binding Profiler.ProfilerLogs}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Text="{Binding}" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#a8ff60" Margin="4,2"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
             </Border>
         </Grid>
 
