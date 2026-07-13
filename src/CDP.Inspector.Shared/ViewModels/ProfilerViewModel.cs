@@ -1125,6 +1125,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 double maxDuration = 0;
                 int totalSamples = 0;
 
+                int threadIndex = 0;
                 foreach (var tNode in threadsArray)
                 {
                     if (tNode is JsonObject tObj)
@@ -1152,11 +1153,12 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                         tempProfile["timeDeltas"] = tObj["timeDeltas"]?.DeepClone();
 
                         var threadStats = new ObservableCollection<ProfileMethodStats>();
-                        ProcessV8Profile(session, tempProfile, tg.Blocks, threadStats, false, out double tDur, out int tSamples);
+                        ProcessV8Profile(session, tempProfile, tg.Blocks, threadStats, false, out double tDur, out int tSamples, threadIndex * 1000000);
 
                         session.ThreadGroups.Add(tg);
                         if (tDur > maxDuration) maxDuration = tDur;
                         totalSamples += tSamples;
+                        threadIndex++;
 
                         if (session.Blocks.Count == 0)
                         {
@@ -1366,7 +1368,8 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         ObservableCollection<ProfileMethodStats> targetStats,
         bool isMemoryMode,
         out double totalDuration,
-        out int samplesCount)
+        out int samplesCount,
+        int nodeIdOffset = 0)
     {
         totalDuration = 0;
         samplesCount = 0;
@@ -1383,7 +1386,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
         {
             if (n is JsonObject nObj)
             {
-                int id = nObj["id"]?.GetValue<int>() ?? 0;
+                int id = (nObj["id"]?.GetValue<int>() ?? 0) + nodeIdOffset;
                 int hitCount = nObj["hitCount"]?.GetValue<int>() ?? 0;
                 var cfObj = nObj["callFrame"] as JsonObject;
                 string funcName = cfObj?["functionName"]?.GetValue<string>() ?? "";
@@ -1401,7 +1404,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 {
                     foreach (var cId in children)
                     {
-                        node.Children.Add(cId?.GetValue<int>() ?? 0);
+                        node.Children.Add((cId?.GetValue<int>() ?? 0) + nodeIdOffset);
                     }
                 }
                 nodes.Add(node);
@@ -1409,7 +1412,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             }
         }
 
-        var samples = samplesArray.Select(s => s?.GetValue<int>() ?? 0).ToList();
+        var samples = samplesArray.Select(s => (s?.GetValue<int>() ?? 0) + nodeIdOffset).ToList();
         var timeDeltas = timeDeltasArray.Select(t => t?.GetValue<double>() ?? 0.0).ToList();
 
         samplesCount = samples.Count;
@@ -1425,10 +1428,47 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
 
         if (!isMemoryMode)
         {
-            session.CpuSamples = samples;
-            session.CpuTimeDeltas = timeDeltas;
-            session.CpuNodeMap = nodeMap;
-            session.CpuParentMap = parentMap;
+            if (session.CpuSamples == null)
+            {
+                session.CpuSamples = new List<int>(samples);
+            }
+            else
+            {
+                session.CpuSamples.AddRange(samples);
+            }
+
+            if (session.CpuTimeDeltas == null)
+            {
+                session.CpuTimeDeltas = new List<double>(timeDeltas);
+            }
+            else
+            {
+                session.CpuTimeDeltas.AddRange(timeDeltas);
+            }
+
+            if (session.CpuNodeMap == null)
+            {
+                session.CpuNodeMap = new Dictionary<int, Chrome.DevTools.Protocol.Domains.V8ProfileNode>(nodeMap);
+            }
+            else
+            {
+                foreach (var kv in nodeMap)
+                {
+                    session.CpuNodeMap[kv.Key] = kv.Value;
+                }
+            }
+
+            if (session.CpuParentMap == null)
+            {
+                session.CpuParentMap = new Dictionary<int, int>(parentMap);
+            }
+            else
+            {
+                foreach (var kv in parentMap)
+                {
+                    session.CpuParentMap[kv.Key] = kv.Value;
+                }
+            }
         }
 
         var newBlocks = new List<FlameBlock>();

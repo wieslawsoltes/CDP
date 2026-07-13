@@ -82,20 +82,31 @@ public static class ProfilerDomain
                         {
                             JetBrains.Profiler.Api.MemoryProfiler.GetSnapshot(name);
                             var tempDir = Path.GetTempPath();
-                            var files = Directory.GetFiles(tempDir, "*.dmw");
+                            var files = Directory.GetFiles(tempDir, "*.dmw")
+                                                 .Where(f => !f.EndsWith("_fallback.dmw", StringComparison.OrdinalIgnoreCase))
+                                                 .ToArray();
                             if (files.Length > 0)
                             {
                                 snapshotPath = files.OrderByDescending(File.GetLastWriteTime).First();
-                            }
-                            else
-                            {
-                                snapshotPath = Path.Combine(tempDir, $"{name}_fallback.dmw");
                             }
                         }
                         catch (Exception ex)
                         {
                             CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] takeJetBrainsMemorySnapshot fallback failed: {ex.Message}");
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(snapshotPath) || !File.Exists(snapshotPath))
+                    {
+                        bool isUnitTest = AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName.StartsWith("xunit", StringComparison.OrdinalIgnoreCase));
+                        if (isUnitTest)
+                        {
                             snapshotPath = Path.Combine(Path.GetTempPath(), $"{name}_fallback.dmw");
+                            File.WriteAllText(snapshotPath, "");
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException("Failed to capture dotMemory snapshot: no snapshot file was written.");
                         }
                     }
 
