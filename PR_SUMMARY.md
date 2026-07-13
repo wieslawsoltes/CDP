@@ -43,9 +43,14 @@ This pull request extends the Chrome DevTools Protocol (CDP) inspector testing f
 * Generated the corresponding Playwright spec files under `tests/playwright/sample/` (`gestures.flow.spec.js` and `asserts_keys.flow.spec.js`).
 * Updated `TestStudioYamlParserTests.cs` to verify all 11 flows parse successfully.
 
+### 7. Project Explorer Run Actions & Quick Run Panel
+* Added context menu run options `Run YAML Flow` (only on YAML files) and `Run Folder` (only on folders) in the workspace files list.
+* Designed a quick-access `Run Actions` toolbar panel above the Workspace Files list containing Run Selected (green play icon), Run All Suite (blue play icon), and Stop Run (red stop icon) buttons.
+* Implemented new unit tests in `SuiteExecutionTests.cs` covering all folder execution, single flow execution, and cancellation scenarios.
+
 ---
 
 ## Verification & Testing Proof
 * All 42 inspector YAML flows and 11 sample YAML flows parse successfully and resolve nested sub-flows, verified by the parser unit tests.
-* **Unit Tests Status**: **445 tests passed successfully (0 failures)**.
+* **Unit Tests Status**: **448 tests passed successfully (0 failures)**.
 * Verification evidence, commands, and generated report templates are documented in `walkthrough.md`.
