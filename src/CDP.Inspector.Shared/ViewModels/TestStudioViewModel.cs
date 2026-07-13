@@ -488,6 +488,34 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     {
                         IsSidebarCollapsed = false;
                     }
+                    ActivateSidebarTabInLayout(value);
+                }
+            }
+        }
+    }
+
+    private void ActivateSidebarTabInLayout(string tab)
+    {
+        string? viewName = tab switch
+        {
+            "explorer" => "Explorer",
+            "search" => "Search",
+            "toolbox" => "Toolbox",
+            "projects" => "Suites",
+            "settings" => "Settings",
+            _ => null
+        };
+
+        if (viewName != null)
+        {
+            var pane = FindBoxNodeByViewName(LayoutRoot, viewName);
+            if (pane != null)
+            {
+                var targetTab = pane.Tabs.FirstOrDefault(t => t.SelectedViewName == viewName);
+                if (targetTab != null)
+                {
+                    pane.ActiveTab = targetTab;
+                    SelectedPane = pane;
                 }
             }
         }
@@ -1030,7 +1058,66 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     public BoxNode? SelectedPane
     {
         get => _selectedPane;
-        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+        set
+        {
+            var old = _selectedPane;
+            if (RaiseAndSetIfChanged(ref _selectedPane, value))
+            {
+                if (old != null)
+                {
+                    old.PropertyChanged -= OnSelectedPanePropertyChanged;
+                }
+                if (value != null)
+                {
+                    value.PropertyChanged += OnSelectedPanePropertyChanged;
+                    UpdateActiveSidebarTabFromPane(value);
+                }
+            }
+        }
+    }
+
+    private void OnSelectedPanePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BoxNode.ActiveTab) || e.PropertyName == "SelectedViewName")
+        {
+            if (sender is BoxNode pane)
+            {
+                UpdateActiveSidebarTabFromPane(pane);
+            }
+        }
+    }
+
+    private void UpdateActiveSidebarTabFromPane(BoxNode pane)
+    {
+        if (pane.ActiveTab != null)
+        {
+            string viewName = pane.ActiveTab.SelectedViewName;
+            string? tab = viewName switch
+            {
+                "Explorer" => "explorer",
+                "Search" => "search",
+                "Toolbox" => "toolbox",
+                "Suites" => "projects",
+                "Settings" => "settings",
+                _ => null
+            };
+            if (tab != null && _activeSidebarTab != tab)
+            {
+                _activeSidebarTab = tab;
+                OnPropertyChanged(nameof(ActiveSidebarTab));
+                OnPropertyChanged(nameof(ActiveSidebarTabIndex));
+                OnPropertyChanged(nameof(IsExplorerTabActive));
+                OnPropertyChanged(nameof(IsSearchTabActive));
+                OnPropertyChanged(nameof(IsToolboxTabActive));
+                OnPropertyChanged(nameof(IsProjectsTabActive));
+                OnPropertyChanged(nameof(IsSettingsTabActive));
+                OnPropertyChanged(nameof(IsExplorerActive));
+                OnPropertyChanged(nameof(IsSearchActive));
+                OnPropertyChanged(nameof(IsToolboxActive));
+                OnPropertyChanged(nameof(IsProjectsActive));
+                OnPropertyChanged(nameof(IsSettingsActive));
+            }
+        }
     }
 
     public ObservableCollection<string> CommandSuggestions { get; } = new(FlowCommandCatalog.PublicCommands.Select(c => c.Name));
@@ -1343,7 +1430,11 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     public void ResetLayout()
     {
         var sidebarPane = new BoxNode();
-        sidebarPane.AddTab("Project Explorer", "FolderIcon", "ProjectSidebar");
+        sidebarPane.AddTab("Explorer", "FolderIcon", "Explorer");
+        sidebarPane.AddTab("Search", "SearchIcon", "Search");
+        sidebarPane.AddTab("Toolbox", "TerminalIcon", "Toolbox");
+        sidebarPane.AddTab("Suites", "DeveloperBoardIcon", "Suites");
+        sidebarPane.AddTab("Settings", "SettingsIcon", "Settings");
 
         var leftPane = new BoxNode();
         leftPane.AddTab("Steps List", "TableIcon", "StepsList");
@@ -1401,26 +1492,33 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
     private void ShowProjectSidebar()
     {
-        var sb = FindBoxNodeByViewName(LayoutRoot, "ProjectSidebar");
+        var sb = FindBoxNodeByViewName(LayoutRoot, "Explorer");
         if (sb != null) return;
 
         bool isCachedBoxInTree = _hiddenSidebarBoxNode != null && IsNodeInTree(LayoutRoot, _hiddenSidebarBoxNode);
 
         if (isCachedBoxInTree)
         {
-            var tab = new BoxTabNode
-            {
-                Title = "Project Explorer",
-                IconKey = "FolderIcon",
-                SelectedViewName = "ProjectSidebar"
-            };
-            _hiddenSidebarBoxNode!.Tabs.Insert(0, tab);
-            _hiddenSidebarBoxNode.ActiveTab = tab;
+            var tab1 = new BoxTabNode { Title = "Explorer", IconKey = "FolderIcon", SelectedViewName = "Explorer" };
+            var tab2 = new BoxTabNode { Title = "Search", IconKey = "SearchIcon", SelectedViewName = "Search" };
+            var tab3 = new BoxTabNode { Title = "Toolbox", IconKey = "TerminalIcon", SelectedViewName = "Toolbox" };
+            var tab4 = new BoxTabNode { Title = "Suites", IconKey = "DeveloperBoardIcon", SelectedViewName = "Suites" };
+            var tab5 = new BoxTabNode { Title = "Settings", IconKey = "SettingsIcon", SelectedViewName = "Settings" };
+            _hiddenSidebarBoxNode!.Tabs.Insert(0, tab5);
+            _hiddenSidebarBoxNode.Tabs.Insert(0, tab4);
+            _hiddenSidebarBoxNode.Tabs.Insert(0, tab3);
+            _hiddenSidebarBoxNode.Tabs.Insert(0, tab2);
+            _hiddenSidebarBoxNode.Tabs.Insert(0, tab1);
+            _hiddenSidebarBoxNode.ActiveTab = tab1;
         }
         else
         {
             var sidebarNode = new BoxNode();
-            sidebarNode.AddTab("Project Explorer", "FolderIcon", "ProjectSidebar");
+            sidebarNode.AddTab("Explorer", "FolderIcon", "Explorer");
+            sidebarNode.AddTab("Search", "SearchIcon", "Search");
+            sidebarNode.AddTab("Toolbox", "TerminalIcon", "Toolbox");
+            sidebarNode.AddTab("Suites", "DeveloperBoardIcon", "Suites");
+            sidebarNode.AddTab("Settings", "SettingsIcon", "Settings");
 
             if (LayoutRoot == null)
             {
@@ -1438,54 +1536,57 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
     private void HideProjectSidebar()
     {
-        var sb = FindBoxNodeByViewName(LayoutRoot, "ProjectSidebar");
+        var sb = FindBoxNodeByViewName(LayoutRoot, "Explorer");
         if (sb == null) return;
 
         _hiddenSidebarBoxNode = sb;
 
-        var tab = sb.Tabs.FirstOrDefault(t => t.SelectedViewName == "ProjectSidebar");
-        if (tab != null)
+        var tabsToRemove = sb.Tabs.Where(t => t.SelectedViewName == "Explorer" ||
+                                               t.SelectedViewName == "Search" ||
+                                               t.SelectedViewName == "Toolbox" ||
+                                               t.SelectedViewName == "Suites" ||
+                                               t.SelectedViewName == "Settings").ToList();
+
+        if (sb.Tabs.Count > tabsToRemove.Count)
         {
-            if (sb.Tabs.Count > 1)
+            foreach (var tab in tabsToRemove)
             {
                 sb.Tabs.Remove(tab);
-                if (sb.ActiveTab == tab)
-                {
-                    sb.ActiveTab = sb.Tabs.FirstOrDefault();
-                }
             }
-            else
+            sb.ActiveTab = sb.Tabs.FirstOrDefault();
+        }
+        else
+        {
+            if (sb == LayoutRoot)
             {
-                if (sb == LayoutRoot)
-                {
-                    LayoutRoot = null;
-                    SelectedPane = null;
-                }
-                else if (sb.Parent is SplitContainerNode parent)
-                {
-                    var sibling = parent.Child1 == sb ? parent.Child2 : parent.Child1;
-                    var grandparent = parent.Parent;
+                LayoutRoot = null;
+                SelectedPane = null;
+            }
+            else if (sb.Parent is SplitContainerNode parent)
+            {
+                var sibling = parent.Child1 == sb ? parent.Child2 : parent.Child1;
+                var grandparent = parent.Parent;
 
-                    if (parent == LayoutRoot)
+                if (parent == LayoutRoot)
+                {
+                    sibling.Parent = null;
+                    LayoutRoot = sibling;
+                }
+                else if (grandparent is SplitContainerNode gp)
+                {
+                    if (gp.Child1 == parent)
                     {
-                        sibling.Parent = null;
-                        LayoutRoot = sibling;
+                        gp.Child1 = sibling;
                     }
-                    else if (grandparent is SplitContainerNode gp)
+                    else
                     {
-                        if (gp.Child1 == parent)
-                        {
-                            gp.Child1 = sibling;
-                        }
-                        else
-                        {
-                            gp.Child2 = sibling;
-                        }
+                        gp.Child2 = sibling;
                     }
-                    if (SelectedPane == sb)
-                    {
-                        SelectedPane = sibling as BoxNode;
-                    }
+                    sibling.Parent = gp;
+                }
+                if (SelectedPane == sb)
+                {
+                    SelectedPane = sibling as BoxNode;
                 }
             }
         }

@@ -13,9 +13,36 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Tap on element #btnRefreshTargets', async () => {
+      const element_1 = page.locator('#btnRefreshTargets');
+      await element_1.tap();
+    });
+
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Tap on element #btnConnect', async () => {
+      const element_3 = page.locator('#btnConnect');
+      await element_3.tap();
+    });
+
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Assert True: __raw_window.DataContext.Connection.IsConnected', async () => {
+      const result = await page.evaluate('__raw_window.DataContext.Connection.IsConnected');
+      await expect(result).toBeTruthy();
+    });
+
     await test.step('Tap on element #TabMemory', async () => {
-      const element_0 = page.locator('#TabMemory');
-      await element_0.tap();
+      const element_6 = page.locator('#TabMemory');
+      await element_6.tap();
     });
 
     await test.step('Delay 500ms', async () => {
@@ -27,9 +54,40 @@ test.describe('CDP Recorded Tests', () => {
       await expect(result).toBeTruthy();
     });
 
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Tap on element #btnTakeSnapshot', async () => {
+      const element_10 = page.locator('#btnTakeSnapshot');
+      await element_10.tap();
+    });
+
+    await test.step('Delay 5000ms', async () => {
+      await page.waitForTimeout(5000);
+    });
+
+    await test.step('Tap on element #btnTakeSnapshot', async () => {
+      const element_12 = page.locator('#btnTakeSnapshot');
+      await element_12.tap();
+    });
+
+    await test.step('Delay 5000ms', async () => {
+      await page.waitForTimeout(5000);
+    });
+
+    await test.step('Tap on element #TabSnapshotOverview', async () => {
+      const element_14 = page.locator('#TabSnapshotOverview');
+      await element_14.tap();
+    });
+
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
     await test.step('Tap on element #btnCompareSnapshots', async () => {
-      const element_3 = page.locator('#btnCompareSnapshots');
-      await element_3.tap();
+      const element_16 = page.locator('#btnCompareSnapshots');
+      await element_16.tap();
     });
 
     await test.step('Delay 2000ms', async () => {

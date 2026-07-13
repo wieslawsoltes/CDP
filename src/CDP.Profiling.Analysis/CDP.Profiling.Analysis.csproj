@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <!-- System.IO.Compression and System.Text.Json are part of the shared framework, no PackageReference needed -->
+    <PackageReference Include="System.Security.Permissions" />
   </ItemGroup>
 
 </Project>

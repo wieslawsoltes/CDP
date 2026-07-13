@@ -235,49 +235,176 @@ public static class DmwSnapshotAnalyzer
             // Load assemblies
             var modelAssembly = Assembly.LoadFrom(modelDll);
             var interfaceAssembly = Assembly.LoadFrom(Path.Combine(libDir, "JetBrains.dotMemory.Model.Interface.dll"));
+            var sdkAssembly = Assembly.LoadFrom(Path.Combine(libDir, "JetBrains.dotMemory.Sdk.dll"));
 
             string jsonPath = Path.Combine(unzippedDir, "workspace.json");
             if (!File.Exists(jsonPath)) return false;
 
-            // Deserialize index using JsonWorkspaceIndexSerializer
-            var serializerType = modelAssembly.GetType("JetBrains.dotMemory.Model.Workspace.JsonWorkspaceIndexSerializer");
-            if (serializerType == null) return false;
+            var dotMemoryType = sdkAssembly.GetType("JetBrains.dotMemory.Sdk.DotMemory");
+            if (dotMemoryType == null) return false;
 
-            var serializerInstance = Activator.CreateInstance(serializerType);
-            var deserializeMethod = serializerType.GetMethod("DeserializeIndex", new[] { typeof(Stream) });
-            if (deserializeMethod == null) return false;
+            var openWorkspaceMethod = dotMemoryType.GetMethod("OpenWorkspace", BindingFlags.Public | BindingFlags.Static);
+            if (openWorkspaceMethod == null) return false;
 
-            using (var stream = File.OpenRead(jsonPath))
+            var ws = openWorkspaceMethod.Invoke(null, new object[] { jsonPath, null });
+            if (ws == null) return false;
+
+            var profilingSessionsProp = ws.GetType().GetProperty("ProfilingSessions");
+            var sessions = profilingSessionsProp?.GetValue(ws) as System.Collections.IEnumerable;
+            if (sessions == null) return false;
+
+            long totalBytes = 0;
+            int totalCount = 0;
+            var statsList = new List<AnalyzedMemoryStat>();
+
+            foreach (var s in sessions)
             {
-                var indexInstance = deserializeMethod.Invoke(serializerInstance, new object[] { stream });
-                if (indexInstance == null) return false;
-
-                // Read profiling sessions and snapshots
-                var profilingSessionsProp = indexInstance.GetType().GetProperty("ProfilingSessions");
-                var sessions = profilingSessionsProp?.GetValue(indexInstance) as System.Collections.IEnumerable;
-                if (sessions != null)
+                var procNameProp = s.GetType().GetProperty("ProcessName");
+                var procName = procNameProp?.GetValue(s) as string;
+                if (!string.IsNullOrEmpty(procName))
                 {
-                    foreach (var ps in sessions)
+                    session.Name = Path.GetFileName(procName);
+                }
+
+                var getSnapshotIdsMethod = s.GetType().GetMethod("GetSnapshotIds");
+                var ids = getSnapshotIdsMethod?.Invoke(s, null) as System.Collections.IEnumerable;
+                if (ids == null) continue;
+
+                foreach (object idObj in ids)
+                {
+                    var getSnapshotMethod = s.GetType().GetMethod("GetSnapshot", new[] { typeof(Guid) });
+                    var snapshotInstance = getSnapshotMethod?.Invoke(s, new object[] { idObj });
+                    if (snapshotInstance == null) continue;
+
+                    var nameProp = snapshotInstance.GetType().GetProperty("Name");
+                    var snapName = nameProp?.GetValue(snapshotInstance) as string;
+                    if (!string.IsNullOrEmpty(snapName))
                     {
-                        var procNameProp = ps.GetType().GetProperty("ProcessName");
-                        var procName = procNameProp?.GetValue(ps) as string;
-                        if (!string.IsNullOrEmpty(procName))
+                        session.Name += $" ({snapName})";
+                    }
+
+                    var getObjectsMethod = snapshotInstance.GetType().GetMethod("GetObjects", Type.EmptyTypes);
+                    var objectSetInstance = getObjectsMethod?.Invoke(snapshotInstance, null);
+                    if (objectSetInstance == null) continue;
+
+                    var getRuntimeTypesMethod = snapshotInstance.GetType().GetMethod("GetRuntimeTypes", new[] { typeof(string) });
+                    var runtimeTypesList = getRuntimeTypesMethod?.Invoke(snapshotInstance, new object[] { "*" }) as System.Collections.IEnumerable;
+                    if (runtimeTypesList == null) continue;
+
+                    foreach (var rt in runtimeTypesList)
+                    {
+                        var fullNameProp = rt.GetType().GetProperty("FullName");
+                        var fullName = fullNameProp?.GetValue(rt) as string;
+                        if (string.IsNullOrEmpty(fullName)) continue;
+
+                        var ofTypeMethod = objectSetInstance.GetType().GetMethod("OfType", new[] { rt.GetType() });
+                        var typedSetInstance = ofTypeMethod?.Invoke(objectSetInstance, new object[] { rt });
+                        if (typedSetInstance == null) continue;
+
+                        var typedCountProp = typedSetInstance.GetType().GetProperty("Count");
+                        long typedCount = Convert.ToInt64(typedCountProp?.GetValue(typedSetInstance) ?? 0L);
+                        if (typedCount <= 0) continue;
+
+                        // Sum size by enumerating
+                        long typedSize = 0;
+                        var getEnumeratorMethod = typedSetInstance.GetType().GetMethod("GetEnumerator");
+                        var enumerator = getEnumeratorMethod?.Invoke(typedSetInstance, null);
+                        if (enumerator != null)
                         {
-                            session.Name = procName;
+                            var moveNextMethod = enumerator.GetType().GetMethod("MoveNext");
+                            var currentProp = enumerator.GetType().GetProperty("Current");
+                            while (moveNextMethod != null && (bool)moveNextMethod.Invoke(enumerator, null)!)
+                            {
+                                var currentObj = currentProp?.GetValue(enumerator);
+                                if (currentObj != null)
+                                {
+                                    var sizeProp = currentObj.GetType().GetProperty("Size");
+                                    typedSize += Convert.ToInt64(sizeProp?.GetValue(currentObj) ?? 0L);
+                                }
+                            }
                         }
+
+                        statsList.Add(new AnalyzedMemoryStat
+                        {
+                            TypeName = fullName,
+                            AllocatedBytes = typedSize,
+                            AllocationCount = (int)typedCount
+                        });
+
+                        totalBytes += typedSize;
+                        totalCount += (int)typedCount;
                     }
                 }
             }
 
-            // Fallback type count reading to populate session details
-            LoadFallbackWorkspace(unzippedDir, session);
+            session.TotalAllocatedBytes = totalBytes;
+            session.TotalAllocationsCount = totalCount;
+            foreach (var item in statsList.OrderByDescending(s => s.AllocatedBytes))
+            {
+                item.SizePct = totalBytes > 0 ? (item.AllocatedBytes / (double)totalBytes) * 100.0 : 0;
+                item.CountPct = totalCount > 0 ? (item.AllocationCount / (double)totalCount) * 100.0 : 0;
+                session.MemoryStats.Add(item);
+            }
 
             return true;
         }
         catch (Exception ex)
         {
             LastError = $"{ex.Message} at {ex.TargetSite}";
-            return false;
+            try
+            {
+                var searchPaths = GetJetBrainsSearchPaths();
+                string? modelDll = null;
+                foreach (var path in searchPaths)
+                {
+                    var candidate = Path.Combine(path, "JetBrains.dotMemory.Model.dll");
+                    if (File.Exists(candidate))
+                    {
+                        modelDll = candidate;
+                        break;
+                    }
+                }
+                if (modelDll == null) return false;
+                
+                var libDir = Path.GetDirectoryName(modelDll)!;
+                var modelAssembly = Assembly.LoadFrom(modelDll);
+                
+                string jsonPath = Path.Combine(unzippedDir, "workspace.json");
+                var serializerType = modelAssembly.GetType("JetBrains.dotMemory.Model.Workspace.JsonWorkspaceIndexSerializer");
+                if (serializerType == null) return false;
+
+                var serializerInstance = Activator.CreateInstance(serializerType);
+                var deserializeMethod = serializerType.GetMethod("DeserializeIndex", new[] { typeof(Stream) });
+                if (deserializeMethod == null) return false;
+
+                using (var stream = File.OpenRead(jsonPath))
+                {
+                    var indexInstance = deserializeMethod.Invoke(serializerInstance, new object[] { stream });
+                    if (indexInstance == null) return false;
+
+                    var profilingSessionsProp = indexInstance.GetType().GetProperty("ProfilingSessions");
+                    var sessions = profilingSessionsProp?.GetValue(indexInstance) as System.Collections.IEnumerable;
+                    if (sessions != null)
+                    {
+                        foreach (var ps in sessions)
+                        {
+                            var procNameProp = ps.GetType().GetProperty("ProcessName");
+                            var procName = procNameProp?.GetValue(ps) as string;
+                            if (!string.IsNullOrEmpty(procName))
+                            {
+                                session.Name = procName;
+                            }
+                        }
+                    }
+                }
+
+                LoadFallbackWorkspace(unzippedDir, session);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 

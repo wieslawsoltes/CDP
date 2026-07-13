@@ -2,7 +2,7 @@ appId: "CdpSampleApp"
 description: "Verify double click, long press, clear text, and drag-and-drop gestures on Gestures tab"
 ---
 - delay: "1000"
-- tapOn: '#tabContainerTabItem:contains(\"Gestures\")'
+- tapOn: "#tabGestures"
 - delay: "1000"
 - assertTrue: "document.querySelector('#DoubleClickStatus').textContent == \"Not Double Clicked\""
 - doubleTapOn: "#btnDoubleClick"

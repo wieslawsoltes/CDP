@@ -1,5 +1,5 @@
 appId: "CdpInspectorApp"
-description: "dotMemory heap snapshot capture and garbage collection run"
+description: "Temporary memory profiling flow"
 ---
 - runFlow: "shared/connect_to_sample.yaml"
 - runFlow: "shared/navigate_to_memory.yaml"

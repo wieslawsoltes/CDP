@@ -306,7 +306,6 @@
                                     </DataGrid>
                                 </Grid>
                             </Grid>
-        </Grid>
         <!-- Dominator Tree Panel -->
         <Grid Name="pnlDominatorTree" RowDefinitions="*">
             <Border Classes="panel-card" ClipToBounds="True">
@@ -420,6 +419,7 @@
                 <TextBlock Text="No snapshot selected" Foreground="#9aa0a6" FontSize="13" HorizontalAlignment="Center"/>
                 <TextBlock Text="Take or select a snapshot to view automatic memory audit inspections." Foreground="#5f6368" FontSize="11" HorizontalAlignment="Center"/>
             </StackPanel>
+        </Grid>
         </Grid>
     </Grid>
 </UserControl>

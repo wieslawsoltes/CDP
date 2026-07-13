@@ -17,8 +17,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.waitForTimeout(1000);
     });
 
-    await test.step('Tap on element #tabContainerTabItem:has-text(\\"Gestures\\")', async () => {
-      const element_1 = page.locator('#tabContainerTabItem:has-text(\\"Gestures\\")');
+    await test.step('Tap on element #tabGestures', async () => {
+      const element_1 = page.locator('#tabGestures');
       await element_1.tap();
     });
 

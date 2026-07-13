@@ -803,7 +803,8 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                             Name = cpuSession.Name,
                             Timestamp = DateTime.Now,
                             TotalDurationMs = cpuSession.TotalDurationMs,
-                            TotalSamplesCount = cpuSession.TotalSamplesCount
+                            TotalSamplesCount = cpuSession.TotalSamplesCount,
+                            RawJson = System.Text.Json.JsonSerializer.Serialize(cpuSession, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })
                         };
 
                         foreach (var b in cpuSession.Blocks)
@@ -865,7 +866,8 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                             Name = memSession.Name,
                             Timestamp = DateTime.Now,
                             TotalAllocatedBytes = memSession.TotalAllocatedBytes,
-                            TotalAllocationsCount = memSession.TotalAllocationsCount
+                            TotalAllocationsCount = memSession.TotalAllocationsCount,
+                            RawJson = System.Text.Json.JsonSerializer.Serialize(memSession, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })
                         };
 
                         foreach (var s in memSession.MemoryStats)

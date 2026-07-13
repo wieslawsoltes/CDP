@@ -65,7 +65,11 @@ public partial class TestStudioView : UserControl
                 else if (viewName == "NodeEditor") cacheKey = "pnlNodeEditor";
                 else if (viewName == "YamlConfiguration") cacheKey = "pnlYamlConfiguration";
                 else if (viewName == "ExecutionLog") cacheKey = "pnlExecutionLog";
-                else if (viewName == "ProjectSidebar") cacheKey = "pnlProjectSidebar";
+                else if (viewName == "Explorer") cacheKey = "pnlExplorer";
+                else if (viewName == "Search") cacheKey = "pnlSearch";
+                else if (viewName == "Toolbox") cacheKey = "pnlToolbox";
+                else if (viewName == "Suites") cacheKey = "pnlSuites";
+                else if (viewName == "Settings") cacheKey = "pnlSettings";
 
                 if (_viewsCache.TryGetValue(cacheKey, out var view))
                 {
