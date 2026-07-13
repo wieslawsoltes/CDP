@@ -1185,7 +1185,7 @@ public class NewDomainTests
             return Task.CompletedTask;
         }
 
-        public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
+        public virtual Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
         {
             return Task.FromResult(new JsonObject());
         }
@@ -1942,6 +1942,169 @@ public class NewDomainTests
         Assert.Equal("System.Byte[]", vm.MemoryStats[0].TypeName);
         Assert.Equal(100680, vm.MemoryStats[0].AllocatedBytes);
         Assert.Equal(30, vm.MemoryStats[0].AllocationCount);
+    }
+
+    [AvaloniaFact]
+    public async Task TestProfilerViewModelProfilingEngineSelection()
+    {
+        var sentCommands = new System.Collections.Generic.List<(string Method, JsonObject? Params)>();
+        var mockCdpService = new MockCdpServiceWithEngineCallback(sentCommands);
+        mockCdpService.IsConnected = true;
+
+        var vm = new ProfilerViewModel(mockCdpService);
+        
+        // Wait for connection auto-init tasks to run
+        await Task.Delay(50);
+        
+        Assert.Contains(sentCommands, c => c.Method == "Profiler.getProfilingEngine");
+
+        // Now select a different engine
+        vm.SelectedEngine = "dottrace";
+        
+        await Task.Delay(50);
+
+        Assert.Contains(sentCommands, c => c.Method == "Profiler.setProfilingEngine" && c.Params?["engineName"]?.GetValue<string>() == "dottrace");
+    }
+
+    private class MockCdpServiceWithEngineCallback : MockInspectorCdpService
+    {
+        private readonly System.Collections.Generic.List<(string Method, JsonObject? Params)> _sentCommands;
+
+        public MockCdpServiceWithEngineCallback(System.Collections.Generic.List<(string Method, JsonObject? Params)> sentCommands)
+        {
+            _sentCommands = sentCommands;
+            IsConnected = true;
+        }
+
+        public override Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
+        {
+            _sentCommands.Add((method, parameters));
+            if (method == "Profiler.getProfilingEngine")
+            {
+                return Task.FromResult(new JsonObject
+                {
+                    ["engineName"] = "simulated"
+                });
+            }
+            return Task.FromResult(new JsonObject());
+        }
+    }
+
+    [Fact]
+    public void TestProfilerViewModelActivatePaneAndFindNodePath()
+    {
+        var mockCdpService = new MockInspectorCdpService();
+        var vm = new ProfilerViewModel(mockCdpService);
+
+        Assert.NotNull(vm.LayoutRoot);
+        vm.ActivatePane("CallTree");
+        Assert.NotNull(vm.SelectedPane);
+        Assert.Equal("CallTree", vm.SelectedPane.ActiveTab?.SelectedViewName);
+
+        var root = new CallTreeNodeModel { Name = "Root" };
+        var child1 = new CallTreeNodeModel { Name = "Child1" };
+        var child2 = new CallTreeNodeModel { Name = "SpecialMethod" };
+        root.Children.Add(child1);
+        child1.Children.Add(child2);
+
+        vm.CallTreeRoots.Add(root);
+
+        vm.SelectedMethod = new ProfileMethodStats { MethodName = "SpecialMethod" };
+        Assert.True(vm.ShowMethodInCallTreeCommand.CanExecute(null));
+        vm.ShowMethodInCallTreeCommand.Execute(null);
+
+        Assert.True(root.IsExpanded);
+        Assert.True(child1.IsExpanded);
+        Assert.True(child2.IsSelected);
+    }
+
+    [Fact]
+    public void TestProfilerViewModelLoadRealJetBrainsPathsFromJson()
+    {
+        var mockCdpService = new MockInspectorCdpService();
+        var vm = new ProfilerViewModel(mockCdpService);
+
+        var nestedJson = new JsonObject
+        {
+            ["profile"] = new JsonObject
+            {
+                ["jetbrainsTracePath"] = "/path/to/nonexistent/file.dtp"
+            }
+        }.ToJsonString();
+
+        vm.LoadProfileFromJson(nestedJson);
+        Assert.Empty(vm.Sessions);
+
+        var rootJson = new JsonObject
+        {
+            ["jetbrainsTracePath"] = "/path/to/nonexistent/file.dtp"
+        }.ToJsonString();
+
+        vm.LoadProfileFromJson(rootJson);
+        Assert.Empty(vm.Sessions);
+    }
+
+    [Fact]
+    public void TestProfilerViewModelLogProgress()
+    {
+        var mockCdpService = new MockInspectorCdpService();
+        var vm = new ProfilerViewModel(mockCdpService);
+
+        Assert.Empty(vm.ProfilerLogs);
+
+        vm.LogProgress("Test log message 1");
+        vm.LogProgress("Test log message 2");
+
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(2, vm.ProfilerLogs.Count);
+        Assert.Contains("Test log message 1", vm.ProfilerLogs[0]);
+        Assert.Contains("Test log message 2", vm.ProfilerLogs[1]);
+
+        vm.ClearLogsCommand.Execute(null);
+        Assert.Empty(vm.ProfilerLogs);
+    }
+
+    [Fact]
+    public void TestProfilerViewModelFallbackTraceLoader()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"fallback_test_{Guid.NewGuid()}.dtp");
+        var companionPath = tempPath + ".0001";
+        
+        try
+        {
+            File.WriteAllText(tempPath, "MFDTPF index file content");
+            
+            using (var fs = File.Create(companionPath))
+            using (var writer = new BinaryWriter(fs))
+            {
+                writer.Write((byte)1);
+                writer.Write((byte)2);
+                
+                byte[] methodBytes = System.Text.Encoding.Unicode.GetBytes("CdpSampleApp.MyClass.MyMethod()");
+                writer.Write(methodBytes);
+                
+                writer.Write((byte)0);
+                writer.Write((byte)0);
+                writer.Write((byte)0);
+                writer.Write((byte)0);
+                
+                byte[] dllBytes = System.Text.Encoding.Unicode.GetBytes("CdpSampleApp.dll");
+                writer.Write(dllBytes);
+            }
+            
+            var session = CDP.Profiling.Analysis.DtpTraceAnalyzer.LoadTrace(tempPath);
+            Assert.NotNull(session);
+            Assert.Contains(session.MethodStats, s => s.MethodName == "CdpSampleApp.MyClass.MyMethod()");
+            Assert.Contains(session.MethodStats, s => s.ModuleName == "CdpSampleApp");
+            Assert.NotEmpty(session.Blocks);
+            Assert.Equal("CdpSampleApp.MyClass.MyMethod()", session.Blocks[0].Name);
+        }
+        finally
+        {
+            try { File.Delete(tempPath); } catch {}
+            try { File.Delete(companionPath); } catch {}
+        }
     }
 
 

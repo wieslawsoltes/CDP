@@ -57,7 +57,7 @@ public class ProfilingAnalysisTests
     }
 
     [Fact]
-    public void TestLoadDtpWithFallback()
+    public void TestLoadDtpNoFakeFallback()
     {
         string tempDtp = Path.Combine(Path.GetTempPath(), $"test_{Guid.NewGuid()}.dtp");
         try
@@ -66,20 +66,8 @@ public class ProfilingAnalysisTests
             
             var session = DtpTraceAnalyzer.LoadTrace(tempDtp);
             
-            Assert.NotNull(session);
-            Assert.Equal(Path.GetFileNameWithoutExtension(tempDtp), session.Name);
-            Assert.True(session.TotalDurationMs > 0);
-            Assert.NotEmpty(session.Blocks);
-            Assert.NotEmpty(session.MethodStats);
-            Assert.NotEmpty(session.CallTreeRoots);
-
-            // Verify call tree hierarchy structure
-            var root = session.CallTreeRoots[0];
-            Assert.Equal("(root)", root.Name);
-            Assert.NotEmpty(root.Children);
-
-            var idle = root.Children.FirstOrDefault(c => c.Name == "(idle)");
-            Assert.NotNull(idle);
+            // Without a real JetBrains profiler dll and a real .dtp file, it must return null (no fake fallbacks)
+            Assert.Null(session);
         }
         finally
         {
