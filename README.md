@@ -559,7 +559,14 @@ cdp-cli run scratch/test_flow.yaml --auto-launch "dotnet run --project samples/C
 * `--auto-launch-args <args>`: Arguments to pass to the auto-launched process.
 * `--timeout <ms>`: Flow execution timeout in milliseconds (default: `30000`).
 
-##### 3. Print Visual/Accessibility Hierarchy
+##### 3. Playwright Code Generation
+Export YAML test flows to executable Playwright spec test files for automated headless execution inside CI/CD or local test runners:
+```bash
+# Convert a single YAML flow or a suite folder of flows into Playwright specs
+cdp-cli codegen tests/CdpInspectorApp.E2e/ --playwright-out tests/playwright/
+```
+
+##### 4. Print Visual/Accessibility Hierarchy
 Print the target application's tree hierarchy:
 ```bash
 # Dump the Accessibility (AX) Tree in clear text format

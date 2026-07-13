@@ -243,6 +243,68 @@ public class Program
         });
         rootCommand.AddCommand(runCommand);
 
+        // codegen command
+        var codegenTestPathArg = new Argument<string>("test-path", "Path to a YAML test flow file or directory containing a suite of YAML files");
+        var codegenOutDirOption = new Option<string>(new[] { "--playwright-out", "-p" }, () => "tests/playwright", "Directory to write generated Playwright tests");
+        var codegenCommand = new Command("codegen", "Generate Playwright tests from YAML test flows")
+        {
+            codegenTestPathArg, codegenOutDirOption
+        };
+        codegenCommand.SetHandler(async (context) =>
+        {
+            var testPath = context.ParseResult.GetValueForArgument(codegenTestPathArg);
+            var playwrightOut = context.ParseResult.GetValueForOption(codegenOutDirOption) ?? "tests/playwright";
+
+            try
+            {
+                var yamlFiles = new List<string>();
+                if (Directory.Exists(testPath))
+                {
+                    yamlFiles.AddRange(Directory.GetFiles(testPath, "*.flow.yaml", SearchOption.AllDirectories));
+                    yamlFiles.AddRange(Directory.GetFiles(testPath, "*.yaml", SearchOption.AllDirectories));
+                    yamlFiles = yamlFiles.Distinct().ToList();
+                }
+                else if (File.Exists(testPath))
+                {
+                    yamlFiles.Add(testPath);
+                }
+                else
+                {
+                    throw new FileNotFoundException($"The specified test path '{testPath}' was not found.");
+                }
+
+                if (yamlFiles.Count == 0)
+                {
+                    Console.WriteLine("No YAML flow files found.");
+                    return;
+                }
+
+                Directory.CreateDirectory(playwrightOut);
+                var generator = new PlaywrightGenerator();
+
+                foreach (var file in yamlFiles)
+                {
+                    var content = await File.ReadAllTextAsync(file);
+                    var steps = TestStudioStepConverter.ConvertYamlToRecordedSteps(content, new Dictionary<string, string>());
+                    if (steps == null || steps.Count == 0) continue;
+
+                    var code = generator.Generate(steps, "http://localhost:9222");
+                    var name = Path.GetFileNameWithoutExtension(file);
+                    var outFile = Path.Combine(playwrightOut, $"{name}.spec.js");
+                    await File.WriteAllTextAsync(outFile, code);
+                    Console.WriteLine($"Generated Playwright spec: {outFile}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Error.WriteLine($"Generation failed: {ex.Message}");
+                Console.ResetColor();
+                Environment.ExitCode = 1;
+            }
+        });
+        rootCommand.AddCommand(codegenCommand);
+
         // 3. hierarchy command
         var typeOption = new Option<string>("--type", () => "accessibility", "Hierarchy type: accessibility or visual");
         var formatOption = new Option<string>("--format", () => "text", "Output format: text or json");

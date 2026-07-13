@@ -1,0 +1,6 @@
+appId: "CdpInspectorApp"
+description: "Sub-flow: Navigate to Sources tab"
+---
+- tapOn: "#TabSources"
+- delay: "500"
+- assertTrue: "document.querySelector('#TabSources') != null"

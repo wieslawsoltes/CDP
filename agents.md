@@ -73,6 +73,24 @@ Verify all test suites using the `cdp-cli run` command pointing to the suite dir
 dotnet run --project src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj -- -p 9223 run tests/CdpInspectorApp.E2e/ --report --video
 ```
 
+### Reusable Sub-Flow Library
+To avoid redundant code and speed up authoring, common UI actions are structured as sub-flows inside `tests/CdpInspectorApp.E2e/shared/`. Invoke them in any main flow file via the `runFlow` action:
+```yaml
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_profiler.yaml"
+```
+
+### Playwright Code Generation & Headless CI
+E2E testing requires exporting YAML flows to executable Playwright scripts for automated headless execution inside CI/CD pipelines.
+1. **Generate Playwright Scripts**: Use the CLI `codegen` tool:
+   ```bash
+   dotnet run --project src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj -- codegen tests/CdpInspectorApp.E2e/ --playwright-out tests/playwright/
+   ```
+2. **Execute Headless Playwright Suite**:
+   ```bash
+   npx playwright test tests/playwright/ --headless
+   ```
+
 ## Live Dual-CDP Demo Workflow
 
 Use this flow when the user asks to demonstrate CDP in action with coding-agent control.
