@@ -333,6 +333,12 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         set => RaiseAndSetIfChanged(ref _isAssertPickerValueInputVisible, value);
     }
 
+    public bool IsSelectedWorkspaceItemFolder => SelectedWorkspaceItem?.IsFolder ?? false;
+    public bool IsSelectedWorkspaceItemYaml => SelectedWorkspaceItem != null && !SelectedWorkspaceItem.IsFolder && SelectedWorkspaceItem.Path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase);
+
+    public ICommand RunSelectedItemCommand { get; }
+    public ICommand StopRunCommand { get; }
+
     private object? _selectedWorkspaceNode;
 
     public object? SelectedWorkspaceNode
@@ -347,6 +353,9 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 {
                     SelectedWorkspaceItem = targetModel;
                 }
+                OnPropertyChanged(nameof(IsSelectedWorkspaceItemFolder));
+                OnPropertyChanged(nameof(IsSelectedWorkspaceItemYaml));
+                if (RunSelectedItemCommand is RelayCommand rs) rs.RaiseCanExecuteChanged();
             }
         }
     }
@@ -1207,6 +1216,8 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         RenameCommand = new RelayCommand<string>(name => RenameItem(name));
         DeleteCommand = new RelayCommand<string>(path => DeleteItem(path));
         RunSuiteCommand = new RelayCommand<string>(async path => await RunSuite(path), _ => !IsSuiteExecuting && !IsExecuting);
+        RunSelectedItemCommand = new RelayCommand(async () => await RunSelectedItemAsync(), () => !IsSuiteExecuting && !IsExecuting && SelectedWorkspaceItem != null && (SelectedWorkspaceItem.IsFolder || SelectedWorkspaceItem.Path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase)));
+        StopRunCommand = new RelayCommand(Stop, () => IsSuiteExecuting || IsExecuting);
         SaveYamlCommand = new RelayCommand(SaveYaml, () => !string.IsNullOrEmpty(CurrentFlowFilePath));
         GenerateAllCodeCommand = new RelayCommand(GenerateAllCode);
         BrowseCodeGenPuppeteerPathCommand = new RelayCommand(async () => await BrowsePathAsync(p => CodeGenPuppeteerPath = p));
@@ -1475,6 +1486,8 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             if (ReplayLastVideoCommand is RelayCommand<object> rlv) rlv.RaiseCanExecuteChanged();
             if (SaveYamlCommand is RelayCommand sy) sy.RaiseCanExecuteChanged();
             if (RunSuiteCommand is RelayCommand<string> rs) rs.RaiseCanExecuteChanged();
+            if (RunSelectedItemCommand is RelayCommand rsi) rsi.RaiseCanExecuteChanged();
+            if (StopRunCommand is RelayCommand sr) sr.RaiseCanExecuteChanged();
         });
     }
 
@@ -6599,6 +6612,40 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         {
             Log($"Error loading flow file '{path}': {ex.Message}");
             throw;
+        }
+    }
+
+    public async Task RunSelectedItemAsync()
+    {
+        var item = SelectedWorkspaceItem;
+        if (item == null) return;
+        if (item.IsFolder)
+        {
+            await RunSuite(item.Path);
+        }
+        else if (item.Path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            await RunSingleFlow(item.Path);
+        }
+    }
+
+    public async Task RunSingleFlow(string? filePath)
+    {
+        if (IsSuiteExecuting || IsExecuting) return;
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+        {
+            Log($"Error: File '{filePath}' does not exist.");
+            return;
+        }
+        try
+        {
+            Log($"Executing flow file: {Path.GetFileName(filePath)}");
+            LoadFlowFile(filePath);
+            await PlayAsync();
+        }
+        catch (Exception ex)
+        {
+            Log($"Flow execution failed: {ex.Message}");
         }
     }
 

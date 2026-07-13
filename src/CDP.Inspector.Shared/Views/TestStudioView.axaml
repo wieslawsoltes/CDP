@@ -204,11 +204,27 @@
                             <GridSplitter Grid.Row="1" Background="#2d2d2d" ResizeDirection="Rows" HorizontalAlignment="Stretch" Margin="0,2"/>
 
                             <!-- Workspace Files Section -->
-                            <Grid Grid.Row="2" RowDefinitions="Auto, Auto, *">
+                            <Grid Grid.Row="2" RowDefinitions="Auto, Auto, Auto, *">
                                 <Border Grid.Row="0" Background="#2d2d2d" Padding="6,3" CornerRadius="2" Margin="0,0,0,4">
                                     <TextBlock Text="WORKSPACE FILES" FontSize="9" FontWeight="Bold" Foreground="#9aa0a6"/>
                                 </Border>
-                                <TextBox Grid.Row="1" Text="{Binding Recorder.TestStudio.FileFilterText, Mode=TwoWay}" PlaceholderText="Filter files..." FontSize="11" Height="24" Padding="6,3" Margin="0,0,0,6">
+                                <Border Grid.Row="1" Background="#1e1e1e" Padding="6,4" CornerRadius="4" BorderBrush="#2d2d2d" BorderThickness="1" Margin="0,0,0,6">
+                                    <Grid ColumnDefinitions="*, Auto">
+                                        <TextBlock Text="Run Actions" FontSize="11" FontWeight="SemiBold" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                            <Button Name="btnRunSelected" Command="{Binding Recorder.TestStudio.RunSelectedItemCommand}" Classes="toolbar-btn" ToolTip.Tip="Run Selected" Width="24" Height="24" Padding="0">
+                                                <PathIcon Data="{StaticResource PlayIcon}" Width="12" Height="12" Foreground="#4caf50"/>
+                                            </Button>
+                                            <Button Name="btnRunSuite" Command="{Binding Recorder.TestStudio.RunSuiteCommand}" CommandParameter="{x:Null}" Classes="toolbar-btn" ToolTip.Tip="Run All Suite" Width="24" Height="24" Padding="0">
+                                                <PathIcon Data="{StaticResource PlayIcon}" Width="12" Height="12" Foreground="#2196f3"/>
+                                            </Button>
+                                            <Button Name="btnStopRun" Command="{Binding Recorder.TestStudio.StopRunCommand}" Classes="toolbar-btn" ToolTip.Tip="Stop Run" Width="24" Height="24" Padding="0">
+                                                <PathIcon Data="{StaticResource StopIcon}" Width="12" Height="12" Foreground="#ff5252"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <TextBox Grid.Row="2" Text="{Binding Recorder.TestStudio.FileFilterText, Mode=TwoWay}" PlaceholderText="Filter files..." FontSize="11" Height="24" Padding="6,3" Margin="0,0,0,6">
                                     <TextBox.InnerLeftContent>
                                         <PathIcon Data="{StaticResource SearchIcon}" Width="10" Height="10" Foreground="#9aa0a6" Margin="6,0,0,0"/>
                                     </TextBox.InnerLeftContent>
@@ -218,7 +234,7 @@
                                         </Button>
                                     </TextBox.InnerRightContent>
                                 </TextBox>
-                                <DataGrid Name="treeWorkspace" Grid.Row="2"
+                                <DataGrid Name="treeWorkspace" Grid.Row="3"
                                           HierarchicalModel="{Binding Recorder.TestStudio.HierarchicalWorkspace}"
                                           SelectedItem="{Binding Recorder.TestStudio.SelectedWorkspaceNode, Mode=TwoWay}"
                                           CanUserReorderRows="False"
@@ -228,6 +244,9 @@
                                           HeadersVisibility="{Binding Recorder.TestStudio.HeadersVisibility}">
                                     <DataGrid.ContextMenu>
                                         <ContextMenu x:DataType="vm:MainWindowViewModel">
+                                            <MenuItem Header="Run YAML Flow" Command="{Binding Recorder.TestStudio.RunSelectedItemCommand}" IsVisible="{Binding Recorder.TestStudio.IsSelectedWorkspaceItemYaml}"/>
+                                            <MenuItem Header="Run Folder" Command="{Binding Recorder.TestStudio.RunSelectedItemCommand}" IsVisible="{Binding Recorder.TestStudio.IsSelectedWorkspaceItemFolder}"/>
+                                            <Separator IsVisible="{Binding Recorder.TestStudio.SelectedWorkspaceItem, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                                             <MenuItem Header="Create File" Command="{Binding Recorder.TestStudio.CreateFileCommand}"/>
                                             <MenuItem Header="Create Folder" Command="{Binding Recorder.TestStudio.CreateFolderCommand}"/>
                                             <MenuItem Header="Rename" Command="{Binding Recorder.TestStudio.RenameCommand}"/>
