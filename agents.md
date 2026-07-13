@@ -26,7 +26,8 @@ CdpInspectorApp
 Use the mode that matches the task. Do not force every task through the same scenario.
 
 - For code changes that affect CDP, inspector behavior, recording, replay, visual tree traversal, or sample interactions, create a task-specific verifier with explicit assertions.
-- For normal feature work, `scratch/ControlApp` may be used as a dynamic test harness, but the scenario must be custom to the change being verified.
+- **Mandatory E2E Preview Simulation**: For all implemented code changes, performing a preview-based E2E recording and replay verification (simulating user interactions via the preview canvas `#imgScreenshot` inside the inspector and replaying them with 0 failures) is **strictly mandatory**.
+- For normal feature work, `scratch/ControlApp` or `scratch/InteractiveDemo` may be used as a dynamic test harness, but the scenario must be custom to the change being verified.
 - For live demos or requests that explicitly say not to use `scratch/ControlApp`, launch the real apps and drive them directly through their CDP ports.
 - Do not reuse a static recording/replay script unless the user explicitly asks for that exact static flow.
 - Always report the exact verification evidence: commands run, endpoints used, step counts, pass/fail counts, generated report paths, frame counts, screenshots, or relevant runtime state.
