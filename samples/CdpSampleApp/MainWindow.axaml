@@ -68,6 +68,51 @@
                     <Button Name="btnGoBack" Command="{Binding GoBackCommand}" Content="Back to Home" Width="120" Margin="0,20,0,0"/>
                 </StackPanel>
             </TabItem>
+            
+            <!-- 4. Gestures Page -->
+            <TabItem Header="Gestures" Name="tabGestures" AutomationProperties.AutomationId="tabContainerTabItem">
+                <ScrollViewer Margin="10">
+                    <StackPanel Spacing="15">
+                        <TextBlock Text="Gesture Testing" FontSize="18" FontWeight="Bold" Foreground="#8ab4f8"/>
+                        
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Name="btnDoubleClick" Content="Double Click Me" DoubleTapped="BtnDoubleClick_DoubleTapped" Width="150"/>
+                            <TextBlock Name="DoubleClickStatus" Text="{Binding DoubleClickStatus}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Name="btnLongPress" Content="Long Press Me" PointerPressed="BtnLongPress_PointerPressed" PointerReleased="BtnLongPress_PointerReleased" Width="150"/>
+                            <TextBlock Name="LongPressStatus" Text="{Binding LongPressStatus}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        
+                        <TextBox Name="txtClearTarget" Text="{Binding ClearTargetText, Mode=TwoWay}" PlaceholderText="Clear target text..." Width="300" HorizontalAlignment="Left"/>
+                        
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Border Name="borderDragSource" Background="Gray" Width="120" Height="60" CornerRadius="4" PointerPressed="BorderDragSource_PointerPressed">
+                                    <TextBlock Text="Drag Source" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
+                                </Border>
+                                <Border Name="borderDropTarget" Background="DarkGray" Width="120" Height="60" CornerRadius="4" PointerReleased="BorderDropTarget_PointerReleased">
+                                    <TextBlock Text="Drop Target" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"/>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Name="DragDropStatus" Text="{Binding DragDropStatus}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- 5. Asserts & Keys Page -->
+            <TabItem Header="Asserts &amp; Keys" Name="tabAssertsAndKeys" AutomationProperties.AutomationId="tabContainerTabItem">
+                <ScrollViewer Margin="10">
+                    <StackPanel Spacing="15">
+                        <TextBlock Text="Asserts &amp; Keys Testing" FontSize="18" FontWeight="Bold" Foreground="#8ab4f8"/>
+                        <TextBox Name="txtKeyInput" KeyDown="TxtKeyInput_KeyDown" PlaceholderText="Press keys here..." Width="300" HorizontalAlignment="Left"/>
+                        <Button Name="btnToggleVisibility" Command="{Binding ToggleVisibilityCommand}" Content="Toggle Visibility" Width="150"/>
+                        <TextBlock Name="txtVisibilityTarget" IsVisible="{Binding IsVisibleTarget}" Text="Visibility Target Text" FontSize="16" FontWeight="SemiBold" Foreground="#4caf50"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </Grid>
 </Window>

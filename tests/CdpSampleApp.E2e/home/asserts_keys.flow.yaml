@@ -1,0 +1,17 @@
+appId: "CdpSampleApp"
+description: "Verify visibility assertions and keyboard input on Asserts & Keys tab"
+---
+- delay: "1000"
+- tapOn: "#tabAssertsAndKeys"
+- delay: "1000"
+- assertVisible: "#txtVisibilityTarget"
+- tapOn: "#btnToggleVisibility"
+- delay: "1000"
+- assertNotVisible: "#txtVisibilityTarget"
+- tapOn: "#txtKeyInput"
+- delay: "500"
+- pressKey:
+    selector: "#txtKeyInput"
+    value: "Enter"
+- delay: "1000"
+- assertTrue: "Window.DataContext.LastPressedKey == \"Enter\""

@@ -1,0 +1,21 @@
+appId: "CdpSampleApp"
+description: "Verify double click, long press, clear text, and drag-and-drop gestures on Gestures tab"
+---
+- delay: "1000"
+- tapOn: '#tabContainerTabItem:contains(\"Gestures\")'
+- delay: "1000"
+- assertTrue: "document.querySelector('#DoubleClickStatus').textContent == \"Not Double Clicked\""
+- doubleTapOn: "#btnDoubleClick"
+- delay: "1000"
+- assertTrue: "document.querySelector('#DoubleClickStatus').textContent != \"Not Double Clicked\""
+- longPressOn: "#btnLongPress"
+- delay: "1000"
+- assertTrue: "document.querySelector('#LongPressStatus').textContent != \"Not Long Pressed\""
+- clearText: "#txtClearTarget"
+- delay: "1000"
+- assertTrue: "document.querySelector('#txtClearTarget').value == \"\""
+- dragAndDrop:
+    selector: "#borderDragSource"
+    targetSelector: "#borderDropTarget"
+- delay: "1000"
+- assertTrue: "document.querySelector('#DragDropStatus').textContent == \"Dropped Successfully!\""

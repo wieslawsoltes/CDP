@@ -603,6 +603,7 @@ description: ""E2E Flow""
 
         var files = System.IO.Directory.GetFiles(e2eDir, "*.flow.yaml", System.IO.SearchOption.AllDirectories);
         Assert.NotEmpty(files);
+        Assert.Equal(11, files.Length);
 
         foreach (var file in files)
         {

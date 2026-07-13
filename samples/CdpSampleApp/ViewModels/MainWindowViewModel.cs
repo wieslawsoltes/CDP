@@ -34,6 +34,37 @@ public partial class MainWindowViewModel : ReactiveObject
     [Reactive]
     private string _selectedOption = "Option 1";
 
+    [Reactive]
+    private int _doubleClickedCount = 0;
+
+    [Reactive]
+    private string _doubleClickStatus = "Not Double Clicked";
+
+    [Reactive]
+    private int _longPressedCount = 0;
+
+    [Reactive]
+    private string _longPressStatus = "Not Long Pressed";
+
+    [Reactive]
+    private string _clearTargetText = "Clear me";
+
+    [Reactive]
+    private string _dragDropStatus = "No Drag Drop";
+
+    [Reactive]
+    private bool _isVisibleTarget = true;
+
+    [Reactive]
+    private string _lastPressedKey = "";
+
+    [ReactiveCommand]
+    private void ToggleVisibility()
+    {
+        IsVisibleTarget = !IsVisibleTarget;
+    }
+
+
     [ReactiveCommand]
     private void Click()
     {

@@ -13,3 +13,5 @@ This document tracks all features and user interaction scenarios in the target a
 | **Scroll Page** | Vertical scroll in container | `scroll/vertical_scroll.flow.yaml` | Active |
 | **Navigation** | Switching tabs via TabControl | `navigation/tab_switch.flow.yaml` | Active |
 | | Navigation via direct URL and going back | `navigation/url_navigation.flow.yaml` | Active |
+| **Gestures Page** | Double click, long press, clear, drag & drop | `home/gestures.flow.yaml` | Active |
+| **Asserts & Keys Page** | Key presses, visibility assertions, toggles | `home/asserts_keys.flow.yaml` | Active |
