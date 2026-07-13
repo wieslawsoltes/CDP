@@ -1,0 +1,12 @@
+appId: "CdpInspectorApp"
+description: "Verify that searching and filtering by method name updates the Profiler SearchText correctly"
+---
+- delay: "1000"
+- tapOn: "#TabProfiler"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Profiler.SearchText == null"
+- inputText:
+    selector: "#txtProfilerSearch"
+    text: "Main"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Profiler.SearchText == \"Main\""

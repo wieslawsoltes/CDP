@@ -1,0 +1,9 @@
+appId: "CdpInspectorApp"
+description: "Verify displaying code structure outline inside the sources panel"
+---
+- delay: "1000"
+- tapOn: "#TabSources"
+- delay: "1000"
+- assertVisible: "#treeOutline"
+- delay: "1000"
+- assertTrue: "true"

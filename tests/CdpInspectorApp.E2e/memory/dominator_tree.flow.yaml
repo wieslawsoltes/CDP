@@ -1,0 +1,11 @@
+appId: "CdpInspectorApp"
+description: "Inspect memory dominator tree for heap objects"
+---
+- delay: "1000"
+- tapOn: "#TabMemory"
+- delay: "1000"
+- tapOn: "#btnTakeSnapshot"
+- delay: "3000"
+- tapOn: "#TabDominatorTree"
+- delay: "2000"
+- assertTrue: "Window.DataContext.Memory.HierarchicalDominators != null"

@@ -33,7 +33,7 @@
                         </StackPanel>
                     </StackPanel>
                     
-                    <TextBox Grid.Column="1" Text="{Binding Console.FilterQuery, Mode=TwoWay}" PlaceholderText="Filter log entries..." Height="28" Margin="10,0" VerticalContentAlignment="Center"/>
+                    <TextBox Name="btnConsoleFilter" Grid.Column="1" Text="{Binding Console.FilterQuery, Mode=TwoWay}" PlaceholderText="Filter log entries..." Height="28" Margin="10,0" VerticalContentAlignment="Center"/>
                     <TextBlock Grid.Column="2" Text="C# &amp; Traces logs" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11"/>
                 </Grid>
 

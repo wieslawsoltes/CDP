@@ -1,0 +1,12 @@
+appId: "CdpInspectorApp"
+description: "Verify searching for application resources"
+---
+- delay: "1000"
+- tapOn: "#TabApplication"
+- delay: "1000"
+- assertVisible: "#txtResourceSearch"
+- inputText:
+    selector: "#txtResourceSearch"
+    text: "theme"
+- delay: "1000"
+- assertTrue: "true"

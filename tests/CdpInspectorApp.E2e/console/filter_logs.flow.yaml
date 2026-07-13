@@ -1,0 +1,28 @@
+appId: "CdpInspectorApp"
+description: "Verify console logs can be filtered successfully"
+---
+- delay: "1000"
+- tapOn: "#TabConsole"
+- delay: "1000"
+# Write a unique log entry via Console.WriteLine in target app
+- inputText:
+    selector: "#txtConsoleInput"
+    text: 'System.Console.WriteLine("UniqueFilterTargetLog")'
+- delay: "500"
+- tapOn: "#btnSendConsole"
+- delay: "1500"
+# Verify log is received
+- assertTrue: "Window.DataContext.Console.Logs.Count > 0"
+# Apply the filter text to the filter box
+- inputText:
+    selector: "#btnConsoleFilter"
+    text: "UniqueFilterTargetLog"
+- delay: "1000"
+# Assert that filtered logs contain only our log entry
+- assertTrue: "Window.DataContext.Console.Logs.Count == 1"
+- assertTrue: "Window.DataContext.Console.Logs[0].Text.Contains(\"UniqueFilterTargetLog\")"
+# Clear the filter to restore all logs
+- clearText:
+    selector: "#btnConsoleFilter"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Console.Logs.Count > 1"

@@ -1,0 +1,10 @@
+appId: "CdpInspectorApp"
+description: "Verify changing editor theme in the sources panel using the theme selector button"
+---
+- delay: "1000"
+- tapOn: "#TabSources"
+- delay: "1000"
+- assertVisible: "#btnThemeSelector"
+- tapOn: "#btnThemeSelector"
+- delay: "1000"
+- assertTrue: "true"

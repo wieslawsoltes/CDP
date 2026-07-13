@@ -24,6 +24,8 @@
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
+            <TextBlock Text="Filter:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="12" Margin="10,0,0,0"/>
+            <TextBox Name="txtNetworkFilter" Text="{Binding Network.FilterText, Mode=TwoWay}" PlaceholderText="Filter URLs..." Width="150" Height="28" VerticalContentAlignment="Center" Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed"/>
             <TextBlock Text="Captures outbound HTTP requests from HttpClient instances" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11" Margin="10,0,0,0"/>
         </StackPanel>
 

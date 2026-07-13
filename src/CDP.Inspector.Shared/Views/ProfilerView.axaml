@@ -72,10 +72,10 @@
                 <!-- 1. Toolbar -->
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
                     <!-- Panning and Zooming controls -->
-                    <Button Command="{Binding Profiler.ZoomInCommand}" ToolTip.Tip="Zoom In (or Mouse Wheel Up)">
+                    <Button Name="btnProfilerZoomIn" Command="{Binding Profiler.ZoomInCommand}" ToolTip.Tip="Zoom In (or Mouse Wheel Up)">
                         <PathIcon Data="{StaticResource ZoomFitIcon}" Width="12" Height="12"/>
                     </Button>
-                    <Button Command="{Binding Profiler.ZoomOutCommand}" ToolTip.Tip="Zoom Out (or Mouse Wheel Down)">
+                    <Button Name="btnProfilerZoomOut" Command="{Binding Profiler.ZoomOutCommand}" ToolTip.Tip="Zoom Out (or Mouse Wheel Down)">
                         <PathIcon Data="{StaticResource SubtractIcon}" Width="12" Height="12"/>
                     </Button>
                     <Button Command="{Binding Profiler.ResetViewCommand}" ToolTip.Tip="Reset View Size">
@@ -85,7 +85,7 @@
                     <Separator Width="1" Height="20" Background="#3c4043" VerticalAlignment="Center"/>
 
                     <!-- Search box -->
-                    <TextBox PlaceholderText="Search methods..." Width="200" VerticalAlignment="Center" Text="{Binding Profiler.SearchText, Mode=TwoWay}"/>
+                    <TextBox Name="txtProfilerSearch" PlaceholderText="Search methods..." Width="200" VerticalAlignment="Center" Text="{Binding Profiler.SearchText, Mode=TwoWay}"/>
 
                     <!-- Search match navigation controls -->
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" IsVisible="{Binding Profiler.HasMatches}">

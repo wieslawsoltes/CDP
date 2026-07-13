@@ -1,0 +1,18 @@
+appId: "CdpInspectorApp"
+description: "Verify that network request details show query and post payload parameters"
+---
+- delay: "1000"
+- tapOn: "#TabNetwork"
+- delay: "1000"
+- assertVisible: "#lstNetworkRequests"
+- evalScript: 'var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext; var model = new CdpInspectorApp.Models.NetworkRequestModel { RequestId = "req-test-payload", Url = "http://example.com/api?user=john_doe&action=login", Method = "POST", Type = "XHR", Status = "200 OK", Time = "12 ms" }; model.ParsePostParameters("client=desktop&version=1.0"); vm.Network.NetworkRequests.Add(model); vm.Network.SelectedRequest = model;'
+- delay: "1000"
+- tapOn: "TextBlock:contains('Payload')"
+- delay: "1000"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.SelectedRequest.HasPayload"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.SelectedRequest.QueryParameters.Count == 2"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.SelectedRequest.QueryParameters[0].Key == \"user\""
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.SelectedRequest.QueryParameters[0].Value == \"john_doe\""
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.SelectedRequest.PostParameters.Count == 2"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.SelectedRequest.PostParameters[0].Key == \"client\""
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.SelectedRequest.PostParameters[0].Value == \"desktop\""

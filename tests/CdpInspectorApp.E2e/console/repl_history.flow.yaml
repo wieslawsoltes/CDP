@@ -1,0 +1,55 @@
+appId: "CdpInspectorApp"
+description: "Verify REPL command history navigation using Up and Down arrows"
+---
+- delay: "1000"
+- tapOn: "#TabConsole"
+- delay: "1000"
+- inputText:
+    selector: "#txtConsoleInput"
+    text: "10 + 20"
+- delay: "500"
+- tapOn: "#btnSendConsole"
+- delay: "500"
+- inputText:
+    selector: "#txtConsoleInput"
+    text: "30 + 40"
+- delay: "500"
+- tapOn: "#btnSendConsole"
+- delay: "500"
+- inputText:
+    selector: "#txtConsoleInput"
+    text: "50 + 60"
+- delay: "500"
+- tapOn: "#btnSendConsole"
+- delay: "500"
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == \"\""
+- pressKey:
+    selector: "#txtConsoleInput"
+    value: "Up"
+- delay: "500"
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == \"50 + 60\""
+- pressKey:
+    selector: "#txtConsoleInput"
+    value: "Up"
+- delay: "500"
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == \"30 + 40\""
+- pressKey:
+    selector: "#txtConsoleInput"
+    value: "Up"
+- delay: "500"
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == \"10 + 20\""
+- pressKey:
+    selector: "#txtConsoleInput"
+    value: "Down"
+- delay: "500"
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == \"30 + 40\""
+- pressKey:
+    selector: "#txtConsoleInput"
+    value: "Down"
+- delay: "500"
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == \"50 + 60\""
+- pressKey:
+    selector: "#txtConsoleInput"
+    value: "Down"
+- delay: "500"
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == \"\""

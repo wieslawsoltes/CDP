@@ -66,6 +66,21 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
     public ICommand AddMockRuleCommand { get; }
     public ICommand RemoveMockRuleCommand { get; }
 
+    private string _filterText = "";
+
+    public string FilterText
+    {
+        get => _filterText;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _filterText, value))
+            {
+                OnPropertyChanged(nameof(FilteredNetworkRequests));
+                OnPropertyChanged(nameof(FilteredRequestsCount));
+            }
+        }
+    }
+
     public string ActiveFilter
     {
         get => _activeFilter;
@@ -74,6 +89,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
             if (RaiseAndSetIfChanged(ref _activeFilter, value))
             {
                 OnPropertyChanged(nameof(FilteredNetworkRequests));
+                OnPropertyChanged(nameof(FilteredRequestsCount));
             }
         }
     }
@@ -82,12 +98,19 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
     {
         get
         {
-            if (string.IsNullOrEmpty(ActiveFilter) || ActiveFilter == "All")
+            var requests = NetworkRequests.AsEnumerable();
+
+            if (!string.IsNullOrEmpty(FilterText))
             {
-                return NetworkRequests;
+                requests = requests.Where(r => r.Url.Contains(FilterText, StringComparison.OrdinalIgnoreCase));
             }
 
-            return NetworkRequests.Where(r =>
+            if (string.IsNullOrEmpty(ActiveFilter) || ActiveFilter == "All")
+            {
+                return requests;
+            }
+
+            return requests.Where(r =>
             {
                 string type = r.Type.ToLowerInvariant();
                 return ActiveFilter switch
@@ -102,6 +125,8 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
             });
         }
     }
+
+    public int FilteredRequestsCount => FilteredNetworkRequests.Count();
 
     public ThrottlingProfile? SelectedProfile
     {
@@ -178,7 +203,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         AddMockRuleCommand = new RelayCommand(AddMockRule);
         RemoveMockRuleCommand = new RelayCommand<MockRuleModel>(RemoveMockRule);
 
-        _networkRequests.CollectionChanged += (s, e) => OnPropertyChanged(nameof(FilteredNetworkRequests));
+        _networkRequests.CollectionChanged += (s, e) => { OnPropertyChanged(nameof(FilteredNetworkRequests)); OnPropertyChanged(nameof(FilteredRequestsCount)); };
         ResetLayout();
     }
 
