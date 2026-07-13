@@ -6,19 +6,81 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
-using CdpInspectorApp.ViewModels;
 
 namespace CdpInspectorApp.Controls;
 
 public class PreviewHighlightOverlay : Control
 {
-    public static readonly StyledProperty<SimulationViewModel?> SimulationProperty =
-        AvaloniaProperty.Register<PreviewHighlightOverlay, SimulationViewModel?>(nameof(Simulation));
+    public static readonly StyledProperty<double> DeviceWidthProperty =
+        AvaloniaProperty.Register<PreviewHighlightOverlay, double>(nameof(DeviceWidth), 0.0);
 
-    public SimulationViewModel? Simulation
+    public static readonly StyledProperty<double> DeviceHeightProperty =
+        AvaloniaProperty.Register<PreviewHighlightOverlay, double>(nameof(DeviceHeight), 0.0);
+
+    public static readonly StyledProperty<bool> IsHighlightOverlayVisibleProperty =
+        AvaloniaProperty.Register<PreviewHighlightOverlay, bool>(nameof(IsHighlightOverlayVisible), false);
+
+    public static readonly StyledProperty<JsonObject?> HighlightBoxModelProperty =
+        AvaloniaProperty.Register<PreviewHighlightOverlay, JsonObject?>(nameof(HighlightBoxModel), null);
+
+    public static readonly StyledProperty<string?> HighlightElementTypeProperty =
+        AvaloniaProperty.Register<PreviewHighlightOverlay, string?>(nameof(HighlightElementType), null);
+
+    public static readonly StyledProperty<string?> HighlightAxRoleProperty =
+        AvaloniaProperty.Register<PreviewHighlightOverlay, string?>(nameof(HighlightAxRole), null);
+
+    public static readonly StyledProperty<string?> HighlightAxNameProperty =
+        AvaloniaProperty.Register<PreviewHighlightOverlay, string?>(nameof(HighlightAxName), null);
+
+    public static readonly StyledProperty<ReplayIndicatorInfo?> ActiveReplayIndicatorProperty =
+        AvaloniaProperty.Register<PreviewHighlightOverlay, ReplayIndicatorInfo?>(nameof(ActiveReplayIndicator), null);
+
+    public double DeviceWidth
     {
-        get => GetValue(SimulationProperty);
-        set => SetValue(SimulationProperty, value);
+        get => GetValue(DeviceWidthProperty);
+        set => SetValue(DeviceWidthProperty, value);
+    }
+
+    public double DeviceHeight
+    {
+        get => GetValue(DeviceHeightProperty);
+        set => SetValue(DeviceHeightProperty, value);
+    }
+
+    public bool IsHighlightOverlayVisible
+    {
+        get => GetValue(IsHighlightOverlayVisibleProperty);
+        set => SetValue(IsHighlightOverlayVisibleProperty, value);
+    }
+
+    public JsonObject? HighlightBoxModel
+    {
+        get => GetValue(HighlightBoxModelProperty);
+        set => SetValue(HighlightBoxModelProperty, value);
+    }
+
+    public string? HighlightElementType
+    {
+        get => GetValue(HighlightElementTypeProperty);
+        set => SetValue(HighlightElementTypeProperty, value);
+    }
+
+    public string? HighlightAxRole
+    {
+        get => GetValue(HighlightAxRoleProperty);
+        set => SetValue(HighlightAxRoleProperty, value);
+    }
+
+    public string? HighlightAxName
+    {
+        get => GetValue(HighlightAxNameProperty);
+        set => SetValue(HighlightAxNameProperty, value);
+    }
+
+    public ReplayIndicatorInfo? ActiveReplayIndicator
+    {
+        get => GetValue(ActiveReplayIndicatorProperty);
+        set => SetValue(ActiveReplayIndicatorProperty, value);
     }
 
     private readonly DispatcherTimer _animationTimer;
@@ -43,84 +105,46 @@ public class PreviewHighlightOverlay : Control
 
     static PreviewHighlightOverlay()
     {
-        SimulationProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.OnSimulationChanged(e));
+        ActiveReplayIndicatorProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.OnActiveReplayIndicatorChanged(e));
+        HighlightBoxModelProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.InvalidateVisual());
+        IsHighlightOverlayVisibleProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.InvalidateVisual());
+        DeviceWidthProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.InvalidateVisual());
+        DeviceHeightProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.InvalidateVisual());
+        HighlightElementTypeProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.InvalidateVisual());
+        HighlightAxRoleProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.InvalidateVisual());
+        HighlightAxNameProperty.Changed.AddClassHandler<PreviewHighlightOverlay>((x, e) => x.InvalidateVisual());
     }
 
-    private void OnSimulationChanged(AvaloniaPropertyChangedEventArgs e)
+    private void OnActiveReplayIndicatorChanged(AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.OldValue is SimulationViewModel oldSim)
+        var indicator = ActiveReplayIndicator;
+        if (indicator != null && 
+            (indicator.Action == "tapOn" || 
+             indicator.Action == "doubleTapOn" || 
+             indicator.Action == "longPressOn"))
         {
-            oldSim.PropertyChanged -= OnSimulationPropertyChanged;
+            _animationProgress = 0.0;
+            if (!_animationTimer.IsEnabled)
+            {
+                _animationTimer.Start();
+            }
         }
-        if (e.NewValue is SimulationViewModel newSim)
+        else
         {
-            newSim.PropertyChanged += OnSimulationPropertyChanged;
+            if (_animationTimer.IsEnabled)
+            {
+                _animationTimer.Stop();
+            }
         }
         InvalidateVisual();
-    }
-
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-        if (Simulation != null)
-        {
-            Simulation.PropertyChanged -= OnSimulationPropertyChanged;
-            Simulation.PropertyChanged += OnSimulationPropertyChanged;
-        }
-    }
-
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-        if (Simulation != null)
-        {
-            Simulation.PropertyChanged -= OnSimulationPropertyChanged;
-        }
-    }
-
-    private void OnSimulationPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(SimulationViewModel.HighlightBoxModel) ||
-            e.PropertyName == nameof(SimulationViewModel.IsHighlightOverlayVisible) ||
-            e.PropertyName == nameof(SimulationViewModel.DeviceWidth) ||
-            e.PropertyName == nameof(SimulationViewModel.DeviceHeight))
-        {
-            InvalidateVisual();
-        }
-        else if (e.PropertyName == nameof(SimulationViewModel.ActiveReplayIndicator))
-        {
-            var sim = Simulation;
-            if (sim?.ActiveReplayIndicator != null && 
-                (sim.ActiveReplayIndicator.Action == "tapOn" || 
-                 sim.ActiveReplayIndicator.Action == "doubleTapOn" || 
-                 sim.ActiveReplayIndicator.Action == "longPressOn"))
-            {
-                _animationProgress = 0.0;
-                if (!_animationTimer.IsEnabled)
-                {
-                    _animationTimer.Start();
-                }
-            }
-            else
-            {
-                if (_animationTimer.IsEnabled)
-                {
-                    _animationTimer.Stop();
-                }
-            }
-            InvalidateVisual();
-        }
     }
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
 
-        var sim = Simulation;
-        if (sim == null) return;
-
-        double deviceWidth = sim.DeviceWidth;
-        double deviceHeight = sim.DeviceHeight;
+        double deviceWidth = DeviceWidth;
+        double deviceHeight = DeviceHeight;
         if (deviceWidth <= 0 || deviceHeight <= 0) return;
 
         double localWidth = Bounds.Width;
@@ -131,9 +155,9 @@ public class PreviewHighlightOverlay : Control
         double scaleY = localHeight / deviceHeight;
 
         // 1. Hover/Inspector Highlights
-        if (sim.IsHighlightOverlayVisible && sim.HighlightBoxModel != null)
+        if (IsHighlightOverlayVisible && HighlightBoxModel != null)
         {
-            var model = sim.HighlightBoxModel;
+            var model = HighlightBoxModel;
             var contentQuad = model["content"] as JsonArray;
             var paddingQuad = model["padding"] as JsonArray;
             var borderQuad = model["border"] as JsonArray;
@@ -200,18 +224,18 @@ public class PreviewHighlightOverlay : Control
                 double w = model["width"]?.GetValue<double>() ?? (borderRect.Value.Width / scaleX);
                 double h = model["height"]?.GetValue<double>() ?? (borderRect.Value.Height / scaleY);
 
-                string label = $"{sim.HighlightElementType} | {w:0}x{h:0}";
-                if (!string.IsNullOrEmpty(sim.HighlightAxRole) && sim.HighlightAxRole != "None" && sim.HighlightAxRole != "Custom")
+                string label = $"{HighlightElementType} | {w:0}x{h:0}";
+                if (!string.IsNullOrEmpty(HighlightAxRole) && HighlightAxRole != "None" && HighlightAxRole != "Custom")
                 {
-                    label += $" | Role: {sim.HighlightAxRole.ToLowerInvariant()}";
-                    if (!string.IsNullOrEmpty(sim.HighlightAxName) && sim.HighlightAxName != "None")
+                    label += $" | Role: {HighlightAxRole.ToLowerInvariant()}";
+                    if (!string.IsNullOrEmpty(HighlightAxName) && HighlightAxName != "None")
                     {
-                        label += $" Name: \"{sim.HighlightAxName}\"";
+                        label += $" Name: \"{HighlightAxName}\"";
                     }
                 }
-                else if (!string.IsNullOrEmpty(sim.HighlightAxName) && sim.HighlightAxName != "None")
+                else if (!string.IsNullOrEmpty(HighlightAxName) && HighlightAxName != "None")
                 {
-                    label += $" | Name: \"{sim.HighlightAxName}\"";
+                    label += $" | Name: \"{HighlightAxName}\"";
                 }
 
                 var text = new FormattedText(
@@ -247,7 +271,7 @@ public class PreviewHighlightOverlay : Control
         }
 
         // 2. Active Replay Indicators
-        var indicator = sim.ActiveReplayIndicator;
+        var indicator = ActiveReplayIndicator;
         if (indicator != null)
         {
             Point MapPoint(double rawX, double rawY)
@@ -268,8 +292,8 @@ public class PreviewHighlightOverlay : Control
                 // Translucent outer pulsing ring
                 double maxPulseRadius = 24.0;
                 double pulseRadius = 8.0 + (maxPulseRadius - 8.0) * _animationProgress;
-                byte ringAlpha = (byte)(255 * (1.0 - _animationProgress));
-                var ringPen = new Pen(new SolidColorBrush(Color.FromArgb(ringAlpha, 186, 104, 200)), 2.0);
+                double ringAlpha = 255.0 * (1.0 - _animationProgress);
+                var ringPen = new Pen(new SolidColorBrush(Color.FromArgb((byte)ringAlpha, 186, 104, 200)), 2.0);
                 context.DrawGeometry(null, ringPen, new EllipseGeometry(new Rect(p.X - pulseRadius, p.Y - pulseRadius, pulseRadius * 2, pulseRadius * 2)));
             }
 

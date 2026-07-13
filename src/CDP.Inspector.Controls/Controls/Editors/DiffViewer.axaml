@@ -1,18 +1,16 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
-             xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              x:Class="CdpInspectorApp.Controls.DiffViewer"
-             x:DataType="vm:DiffViewModel"
-             x:CompileBindings="True">
+             Name="thisControl">
     <Grid Name="RootGrid">
         <!-- Side by Side Layout -->
-        <Grid ColumnDefinitions="*, 4, *" IsVisible="{Binding !IsInlineMode}">
+        <Grid ColumnDefinitions="*, 4, *" IsVisible="{Binding !IsInlineMode, ElementName=thisControl}">
             <ae:TextEditor Name="LeftEditor" Grid.Column="0" IsReadOnly="True" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#202124" Foreground="#e8eaed" FontFamily="Courier New,Consolas,Monospace" FontSize="12"/>
             <GridSplitter Grid.Column="1" Background="#3c4043" ResizeDirection="Columns"/>
             <ae:TextEditor Name="RightEditor" Grid.Column="2" IsReadOnly="True" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#202124" Foreground="#e8eaed" FontFamily="Courier New,Consolas,Monospace" FontSize="12"/>
         </Grid>
         <!-- Inline Layout -->
-        <ae:TextEditor Name="InlineEditor" IsVisible="{Binding IsInlineMode}" IsReadOnly="True" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#202124" Foreground="#e8eaed" FontFamily="Courier New,Consolas,Monospace" FontSize="12"/>
+        <ae:TextEditor Name="InlineEditor" IsVisible="{Binding IsInlineMode, ElementName=thisControl}" IsReadOnly="True" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#202124" Foreground="#e8eaed" FontFamily="Courier New,Consolas,Monospace" FontSize="12"/>
     </Grid>
 </UserControl>

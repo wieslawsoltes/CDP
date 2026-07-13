@@ -8,8 +8,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using CdpInspectorApp.ViewModels;
-using CDP.Editor.Splits.Models;
+using Avalonia.Interactivity;
 
 namespace CdpInspectorApp.Controls;
 
@@ -51,6 +50,15 @@ public class FlameChart : Control
 
     public static readonly StyledProperty<double> OffsetYProperty =
         AvaloniaProperty.Register<FlameChart, double>(nameof(OffsetY), 0.0);
+
+    public static readonly RoutedEvent<FlameChartActionRoutedEventArgs> ActionRequestedEvent =
+        RoutedEvent.Register<FlameChart, FlameChartActionRoutedEventArgs>(nameof(ActionRequested), RoutingStrategies.Bubble);
+
+    public event EventHandler<FlameChartActionRoutedEventArgs>? ActionRequested
+    {
+        add => AddHandler(ActionRequestedEvent, value);
+        remove => RemoveHandler(ActionRequestedEvent, value);
+    }
 
     public IEnumerable<FlameBlock>? Blocks
     {
@@ -742,10 +750,7 @@ public class FlameChart : Control
             var miSearch = new MenuItem { Header = $"Search for '{block.Name}'" };
             miSearch.Click += (s, e) =>
             {
-                if (DataContext is MainWindowViewModel mainVM)
-                {
-                    mainVM.Profiler.SearchText = block.Name;
-                }
+                RaiseEvent(new FlameChartActionRoutedEventArgs(ActionRequestedEvent, FlameChartActionType.Search, block.Name));
             };
             menu.Items.Add(miSearch);
 
@@ -778,11 +783,7 @@ public class FlameChart : Control
             var miCallTree = new MenuItem { Header = "Show in Call Tree" };
             miCallTree.Click += (s, e) =>
             {
-                if (DataContext is MainWindowViewModel mainVM)
-                {
-                    mainVM.Profiler.ActivatePane("CallTree");
-                    _ = FindAndSelectInCallTreeAsync(mainVM.Profiler, block.Name);
-                }
+                RaiseEvent(new FlameChartActionRoutedEventArgs(ActionRequestedEvent, FlameChartActionType.ShowInCallTree, block.Name));
             };
             menu.Items.Add(miCallTree);
 
@@ -790,15 +791,7 @@ public class FlameChart : Control
             var miBottomUp = new MenuItem { Header = "Show in Bottom-Up" };
             miBottomUp.Click += (s, e) =>
             {
-                if (DataContext is MainWindowViewModel mainVM)
-                {
-                    mainVM.Profiler.ActivatePane("BottomUpCalls");
-                    var match = mainVM.Profiler.MethodStats.FirstOrDefault(m => m.MethodName == block.Name || m.MethodName.Contains(block.Name));
-                    if (match != null)
-                    {
-                        mainVM.Profiler.SelectedMethod = match;
-                    }
-                }
+                RaiseEvent(new FlameChartActionRoutedEventArgs(ActionRequestedEvent, FlameChartActionType.ShowInBottomUp, block.Name));
             };
             menu.Items.Add(miBottomUp);
 
@@ -806,56 +799,13 @@ public class FlameChart : Control
             var miCallerCallee = new MenuItem { Header = "Show in Caller / Callee" };
             miCallerCallee.Click += (s, e) =>
             {
-                if (DataContext is MainWindowViewModel mainVM)
-                {
-                    mainVM.Profiler.ActivatePane("CallerCallee");
-                    mainVM.Profiler.UpdateCallerCallee(block.Name, block.Url);
-                }
+                RaiseEvent(new FlameChartActionRoutedEventArgs(ActionRequestedEvent, FlameChartActionType.ShowInCallerCallee, block.Name, block.Url));
             };
             menu.Items.Add(miCallerCallee);
         }
 
         ContextMenu = menu;
         menu.Open(this);
-    }
-
-    private static async Task FindAndSelectInCallTreeAsync(ProfilerViewModel profiler, string name)
-    {
-        foreach (var root in profiler.CallTreeRoots)
-        {
-            var path = new List<CallTreeNodeModel>();
-            if (FindNodePath(root, name, path))
-            {
-                foreach (var parent in path)
-                {
-                    parent.IsExpanded = true;
-                }
-                var target = path.Last();
-                target.IsSelected = true;
-                break;
-            }
-        }
-        await Task.CompletedTask;
-    }
-
-    private static bool FindNodePath(CallTreeNodeModel current, string name, List<CallTreeNodeModel> path)
-    {
-        path.Add(current);
-        if (current.Name == name || current.Name.Contains(name))
-        {
-            return true;
-        }
-
-        foreach (var child in current.Children)
-        {
-            if (FindNodePath(child, name, path))
-            {
-                return true;
-            }
-        }
-
-        path.RemoveAt(path.Count - 1);
-        return false;
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
@@ -1128,5 +1078,28 @@ public class FlameChart : Control
                 e.Handled = true;
             }
         }
+    }
+}
+
+public enum FlameChartActionType
+{
+    Search,
+    ShowInCallTree,
+    ShowInBottomUp,
+    ShowInCallerCallee
+}
+
+public class FlameChartActionRoutedEventArgs : RoutedEventArgs
+{
+    public FlameChartActionType ActionType { get; }
+    public string MethodName { get; }
+    public string? Url { get; }
+
+    public FlameChartActionRoutedEventArgs(RoutedEvent routedEvent, FlameChartActionType actionType, string methodName, string? url = null)
+        : base(routedEvent)
+    {
+        ActionType = actionType;
+        MethodName = methodName;
+        Url = url;
     }
 }
