@@ -850,7 +850,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     public ICommand BrowseAutoLaunchPathCommand { get; }
     public ICommand BrowseExecutableCommand { get; }
 
-    public CdpInspectorApp.Services.AssertionInferenceEngine AssertionEngine { get; } = new();
+    public AssertionInferenceEngine AssertionEngine { get; } = new();
 
     public string OutputDirectory
     {
