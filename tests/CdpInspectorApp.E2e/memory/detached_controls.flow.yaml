@@ -1,0 +1,11 @@
+appId: "CdpInspectorApp"
+description: "Inspect detached visual controls and filter by detached only"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_memory.yaml"
+- delay: "1000"
+- tapOn: "#btnTakeSnapshot"
+- delay: "5000"
+- tapOn: "#TabDetachedControls"
+- delay: "1500"
+- assertTrue: "__raw_window.DataContext.Memory.DetachedControls != null"

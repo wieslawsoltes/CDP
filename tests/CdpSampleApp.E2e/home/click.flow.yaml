@@ -1,0 +1,8 @@
+appId: "CdpSampleApp"
+description: "Click btnClickMe button and verify status text updates"
+---
+- delay: "1000"
+- assertTrue: "document.querySelector('#txtStatus').textContent == \"Not Clicked\""
+- tapOn: "#btnClickMe"
+- delay: "1000"
+- assertTrue: "document.querySelector('#txtStatus').textContent == \"Clicked 1 times!\""

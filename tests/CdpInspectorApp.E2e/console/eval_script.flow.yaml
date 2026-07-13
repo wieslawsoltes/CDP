@@ -1,0 +1,11 @@
+appId: "CdpInspectorApp"
+description: "Evaluate C# script in the console panel"
+---
+- runFlow: "shared/navigate_to_console.yaml"
+- inputText:
+    selector: "#txtConsoleInput"
+    text: "Window.Title"
+- delay: "1000"
+- tapOn: "#btnSendConsole"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory.Count > 0"

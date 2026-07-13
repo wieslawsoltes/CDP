@@ -910,6 +910,7 @@ public class BiDiSession
         if (_webSocket == null || _webSocket.State != WebSocketState.Open) return;
         string jsonStr = node.ToJsonString(new JsonSerializerOptions 
         { 
+            MaxDepth = 256,
             NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, 
             TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() 
         });

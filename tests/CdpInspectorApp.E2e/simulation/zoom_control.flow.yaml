@@ -1,0 +1,13 @@
+appId: "CdpInspectorApp"
+description: "Verify that Zoom In and Zoom Out controls adjust the node editor zoom level correctly"
+---
+- delay: "1000"
+- tapOn: "#TabScratch"
+- delay: "1000"
+- assertTrue: "__raw_window.DataContext.Scratch.Zoom == 1.0"
+- tapOn: "#btnZoomIn"
+- delay: "1000"
+- assertTrue: "__raw_window.DataContext.Scratch.Zoom > 1.1 && __raw_window.DataContext.Scratch.Zoom < 1.3"
+- tapOn: "#btnZoomOut"
+- delay: "1000"
+- assertTrue: "__raw_window.DataContext.Scratch.Zoom > 0.9 && __raw_window.DataContext.Scratch.Zoom < 1.0"

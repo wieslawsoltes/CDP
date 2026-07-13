@@ -522,7 +522,7 @@ public class CdpSession : IDisposable
     private async Task SendJsonAsync(JsonObject node)
     {
         EventSentForTesting?.Invoke(node);
-        string jsonStr = node.ToJsonString(new JsonSerializerOptions { NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() });
+        string jsonStr = node.ToJsonString(new JsonSerializerOptions { MaxDepth = 256, NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() });
         if (!jsonStr.Contains("screencastFrame") && !jsonStr.Contains("data:image"))
         {
             CdpServer.OriginalOut.WriteLine($"[CDP SERVER OUTGOING] {jsonStr}");

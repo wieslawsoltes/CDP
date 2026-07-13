@@ -1,0 +1,13 @@
+appId: "CdpInspectorApp"
+description: "Verify searching for files inside the sources panel"
+---
+- runFlow: "shared/navigate_to_sources.yaml"
+- assertVisible: "#txtSourcesSearch"
+- inputText:
+    selector: "#txtSourcesSearch"
+    text: "flow"
+- tapOn: "#btnSearchWorkspace"
+- delay: "2000"
+- assertVisible: "#dgSearchResults"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Sources.SearchQuery == \"flow\""
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Sources.SearchResults != null"

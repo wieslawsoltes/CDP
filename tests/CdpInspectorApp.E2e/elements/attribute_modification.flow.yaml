@@ -1,0 +1,37 @@
+appId: "CdpInspectorApp"
+description: "Select visual tree node and add/delete attributes"
+---
+- runFlow: "shared/navigate_to_elements.yaml"
+- tapOn: "#TabDomTree"
+- delay: "1000"
+- tapOn: "#chkVisualTree"
+- delay: "1000"
+- inputText:
+    selector: "#txtSearch"
+    text: "MainWindow"
+- delay: "1000"
+- tapOn: "#btnSearch"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Elements.SelectedNodeNode != null"
+- delay: "1000"
+- tapOn: 'TabItem:contains("Attributes")'
+- delay: "1000"
+- inputText:
+    selector: "#txtAttrName"
+    text: "test-attr"
+- delay: "1000"
+- inputText:
+    selector: "#txtAttrValue"
+    text: "test-value"
+- delay: "1000"
+- tapOn: "#btnApplyAttr"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Elements.Attributes.Count > 0"
+- delay: "1000"
+- inputText:
+    selector: "#txtAttrName"
+    text: "test-attr"
+- delay: "1000"
+- tapOn: "#btnDeleteAttr"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Elements.AttributeNameInputText == \"\""

@@ -1,0 +1,7 @@
+appId: "CdpSampleApp"
+description: "Click btnSendHttp button and verify HTTP request output status"
+---
+- delay: "1000"
+- tapOn: "#btnSendHttp"
+- delay: "3000"
+- assertTrue: "document.querySelector('#txtStatus').textContent.indexOf(\"HTTP\") >= 0"

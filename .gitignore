@@ -404,3 +404,5 @@ FodyWeavers.xsd
 /.agents
 /docs/.vitepress/cache
 /docs/.vitepress/dist
+!/tests/CdpInspectorApp.E2e/
+!/tests/CdpSampleApp.E2e/

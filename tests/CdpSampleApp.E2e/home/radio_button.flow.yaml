@@ -1,0 +1,13 @@
+appId: "CdpSampleApp"
+description: "Verify selecting and toggling radio buttons on the Home tab"
+---
+- delay: "1000"
+- tapOn: "#rbOption2"
+- delay: "1000"
+- assertTrue: "document.querySelector('#rbOption2').isChecked"
+- assertTrue: "!document.querySelector('#rbOption1').isChecked"
+- delay: "1000"
+- tapOn: "#rbOption1"
+- delay: "1000"
+- assertTrue: "document.querySelector('#rbOption1').isChecked"
+- assertTrue: "!document.querySelector('#rbOption2').isChecked"

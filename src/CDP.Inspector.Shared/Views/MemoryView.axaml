@@ -29,13 +29,25 @@
             <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">
                 <Grid RowDefinitions="Auto, *">
                     <TextBlock Text="HEAP SNAPSHOTS" Classes="panel-header" FontSize="11" Foreground="#9aa0a6" Margin="0,5,0,8"/>
-                    <DataGrid Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.Snapshots}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.SelectedSnapshot, Mode=TwoWay}" x:DataType="models:MemorySnapshotModel"
+                    <DataGrid Name="lstSnapshots" Grid.Row="1" ItemsSource="{Binding Memory.Snapshots}" SelectedItem="{Binding Memory.SelectedSnapshot, Mode=OneWay}" SelectionChanged="LstSnapshots_SelectionChanged" x:DataType="vm:MainWindowViewModel"
                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                               GridLinesVisibility="None" HeadersVisibility="None"
                               Background="Transparent" BorderThickness="0">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Snapshot" Binding="{Binding Name}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="Bold"/>
-                            <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat='HH:mm:ss'}" Width="80" Foreground="#9aa0a6" FontSize="10"/>
+                            <DataGridTemplateColumn Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:MemorySnapshotModel">
+                                        <TextBlock Text="{Binding Name}" Foreground="#e8eaed" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:MemorySnapshotModel">
+                                        <TextBlock Text="{Binding Timestamp, StringFormat='HH:mm:ss'}" Foreground="#9aa0a6" FontSize="10" VerticalAlignment="Center" Margin="5,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -43,13 +55,13 @@
         </Grid>
 
         <!-- Right panel (Snapshot details) -->
-        <Grid Name="pnlSnapshotOverview" RowDefinitions="Auto, Auto, *">
+        <Grid Name="pnlSnapshotOverview" RowDefinitions="Auto, Auto, Auto, *">
             <!-- Details Header toolbar -->
             <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,10">
                 <TextBlock Text="{Binding Memory.SelectedSnapshot.Name, FallbackValue='Select or Take a Snapshot'}" Classes="panel-header" FontSize="16" VerticalAlignment="Center"/>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <CheckBox Content="Comparison mode" IsChecked="{Binding Memory.IsComparisonMode, Mode=TwoWay}" FontSize="12" VerticalAlignment="Center"/>
+                    <CheckBox Name="btnCompareSnapshots" Content="Comparison mode" IsChecked="{Binding Memory.IsComparisonMode, Mode=TwoWay}" FontSize="12" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding Memory.IsComparisonMode}">
                         <TextBlock Text="Baseline:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
                         <ComboBox ItemsSource="{Binding Memory.ComparisonBaselines}" SelectedItem="{Binding Memory.SelectedBaseline, Mode=TwoWay}" Height="28">
@@ -71,13 +83,45 @@
                 </Border>
             </StackPanel>
  
+            <!-- Memory Generations Distribution Chart -->
+            <StackPanel Grid.Row="2" Spacing="5" Margin="0,0,0,15" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid ColumnDefinitions="*, Auto">
+                    <TextBlock Text="Memory Generations Distribution" Classes="panel-header" FontSize="12"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="8" Height="8" CornerRadius="4" Background="#4caf50" VerticalAlignment="Center"/>
+                            <TextBlock Text="Gen 0" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="8" Height="8" CornerRadius="4" Background="#2196f3" VerticalAlignment="Center"/>
+                            <TextBlock Text="Gen 1" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="8" Height="8" CornerRadius="4" Background="#ffeb3b" VerticalAlignment="Center"/>
+                            <TextBlock Text="Gen 2" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Border Width="8" Height="8" CornerRadius="4" Background="#ff9800" VerticalAlignment="Center"/>
+                            <TextBlock Text="LOH" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+                <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="5" Padding="8,10">
+                    <controls:GenerationsBarChart Height="24"
+                                                   Gen0Size="{Binding Memory.Gen0Size}"
+                                                   Gen1Size="{Binding Memory.Gen1Size}"
+                                                   Gen2Size="{Binding Memory.Gen2Size}"
+                                                   LohSize="{Binding Memory.LohSize}"/>
+                </Border>
+            </StackPanel>
+
             <!-- Table content -->
-            <Border Grid.Row="2" Classes="panel-card" ClipToBounds="True">
+            <Border Grid.Row="3" Classes="panel-card" ClipToBounds="True">
                 <Grid>
                     <Grid IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
                                 <!-- Summary mode list -->
                                 <Grid IsVisible="{Binding !Memory.IsComparisonMode}">
-                                    <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.CurrentEntries}" x:DataType="models:ControlCountModel"
+                                    <DataGrid ItemsSource="{Binding Memory.CurrentEntries}" x:DataType="vm:MainWindowViewModel"
                                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                               Background="Transparent" BorderThickness="0">
@@ -95,15 +139,27 @@
                                             </ContextMenu>
                                         </DataGrid.ColumnHeaderContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Control Type / Constructor" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                                            <DataGridTextColumn Header="Live Instances Count" Binding="{Binding Count}" Width="150" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold"/>
+                                            <DataGridTemplateColumn Header="Control Type / Constructor" Width="*">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:ControlCountModel">
+                                                        <TextBlock Text="{Binding Type}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="Live Instances Count" Width="150">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:ControlCountModel">
+                                                        <TextBlock Text="{Binding Count}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
                                         </DataGrid.Columns>
                                     </DataGrid>
                                 </Grid>
 
                                 <!-- Comparison mode list -->
                                 <Grid IsVisible="{Binding Memory.IsComparisonMode}">
-                                    <DataGrid ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.ComparisonEntries}" x:DataType="models:MemoryComparisonModel"
+                                    <DataGrid ItemsSource="{Binding Memory.ComparisonEntries}" x:DataType="vm:MainWindowViewModel"
                                               CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                               GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                               Background="Transparent" BorderThickness="0">
@@ -121,9 +177,27 @@
                                             </ContextMenu>
                                         </DataGrid.ColumnHeaderContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Control Type / Constructor" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                                            <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineCount}" Width="100" Foreground="#9aa0a6" FontSize="12"/>
-                                            <DataGridTextColumn Header="Current" Binding="{Binding SnapshotCount}" Width="100" Foreground="#e8eaed" FontSize="12"/>
+                                            <DataGridTemplateColumn Header="Control Type / Constructor" Width="*">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:MemoryComparisonModel">
+                                                        <TextBlock Text="{Binding Type}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="Baseline" Width="100">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:MemoryComparisonModel">
+                                                        <TextBlock Text="{Binding BaselineCount}" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="Current" Width="100">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate x:DataType="models:MemoryComparisonModel">
+                                                        <TextBlock Text="{Binding SnapshotCount}" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
                                             <DataGridTemplateColumn Header="Delta" Width="100" SortMemberPath="Delta">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate x:DataType="models:MemoryComparisonModel">
@@ -149,9 +223,10 @@
 
         <!-- Detached Controls Panel -->
         <Grid Name="pnlDetachedControls" RowDefinitions="*, 4, *">
-            <DataGrid Grid.Row="0" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.DetachedControls}"
-                                          SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.SelectedDetachedControl, Mode=TwoWay}"
-                                          x:DataType="models:DetachedControlModel"
+            <DataGrid Name="dgDetachedControls" Grid.Row="0" ItemsSource="{Binding Memory.DetachedControls}"
+                                          SelectedItem="{Binding Memory.SelectedDetachedControl, Mode=OneWay}"
+                                          SelectionChanged="DgDetachedControls_SelectionChanged"
+                                          x:DataType="vm:MainWindowViewModel"
                                           CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
                                           GridLinesVisibility="Horizontal" HeadersVisibility="Column"
                                           Background="Transparent" BorderThickness="0">
@@ -169,10 +244,34 @@
                                         </ContextMenu>
                                     </DataGrid.ColumnHeaderContextMenu>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Control Type" Binding="{Binding Type}" Width="*" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold"/>
-                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" Foreground="#9aa0a6" FontSize="12"/>
-                                        <DataGridTextColumn Header="Detached Duration" Binding="{Binding DetachedDurationMs, StringFormat='{}{0} ms'}" Width="150" Foreground="#f28b82" FontSize="12" FontWeight="Bold"/>
-                                        <DataGridTextColumn Header="DataContext VM" Binding="{Binding DataContextType}" Width="150" Foreground="#8ab4f8" FontSize="12"/>
+                                        <DataGridTemplateColumn Header="Control Type" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:DetachedControlModel">
+                                                    <TextBlock Text="{Binding Type}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Name" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:DetachedControlModel">
+                                                    <TextBlock Text="{Binding Name}" Foreground="#9aa0a6" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Detached Duration" Width="150">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:DetachedControlModel">
+                                                    <TextBlock Text="{Binding DetachedDurationMs, StringFormat='{}{0} ms'}" Foreground="#f28b82" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="DataContext VM" Width="150">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate x:DataType="models:DetachedControlModel">
+                                                    <TextBlock Text="{Binding DataContextType}" Foreground="#8ab4f8" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                     </DataGrid.Columns>
                                 </DataGrid>
 
@@ -183,7 +282,8 @@
                                         <TextBlock Text="RETAINERS PATH (RETAINED BY)" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
                                     </Border>
                                     <DataGrid Name="treeRetainers" Grid.Row="1"
-                                              HierarchicalModel="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Memory.HierarchicalRetainers}"
+                                              HierarchicalModel="{Binding Memory.HierarchicalRetainers}"
+                                              x:DataType="vm:MainWindowViewModel"
                                               HierarchicalRowsEnabled="True"
                                               HeadersVisibility="None"
                                               GridLinesVisibility="None"
@@ -206,6 +306,120 @@
                                     </DataGrid>
                                 </Grid>
                             </Grid>
+        <!-- Dominator Tree Panel -->
+        <Grid Name="pnlDominatorTree" RowDefinitions="*">
+            <Border Classes="panel-card" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <Border Grid.Row="0" Background="#202124" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,4">
+                        <TextBlock Text="DOMINATOR TREE (RETAINED SIZES &amp; INSTANCES)" Foreground="#9aa0a6" FontSize="11" FontWeight="Bold"/>
+                    </Border>
+                    <DataGrid Name="treeDominators" Grid.Row="1"
+                              HierarchicalModel="{Binding Memory.HierarchicalDominators}"
+                              x:DataType="vm:MainWindowViewModel"
+                              HierarchicalRowsEnabled="True"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              Background="Transparent"
+                              BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridHierarchicalColumn Header="Control Type / Category" Width="*">
+                                <DataGridHierarchicalColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,2">
+                                            <TextBlock Text="{Binding ((models:DominatorNodeModel)Item).TypeName}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridHierarchicalColumn.CellTemplate>
+                            </DataGridHierarchicalColumn>
+                            <DataGridTemplateColumn Header="Retained Size" Width="120" SortMemberPath="Item.RetainedSize">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <TextBlock Text="{Binding ((models:DominatorNodeModel)Item).RetainedSize, StringFormat='{}{0} B'}"
+                                                   Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" Margin="10,0" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Retained %" Width="100" SortMemberPath="Item.RetainedPct">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <TextBlock Text="{Binding ((models:DominatorNodeModel)Item).RetainedPct, StringFormat='{}{0:F2} %'}"
+                                                   Foreground="#34a853" FontSize="12" Margin="10,0" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Count" Width="100" SortMemberPath="Item.InstanceCount">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <TextBlock Text="{Binding ((models:DominatorNodeModel)Item).InstanceCount}"
+                                                   Foreground="#f28b82" FontSize="12" Margin="10,0" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Inspections Panel -->
+        <Grid Name="pnlInspections" RowDefinitions="*">
+            <Grid IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}" RowDefinitions="*">
+                <DataGrid ItemsSource="{Binding Memory.Inspections}"
+                          x:DataType="vm:MainWindowViewModel"
+                          CanUserReorderRows="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                          Background="Transparent" BorderThickness="0">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Severity" Width="100" SortMemberPath="Severity">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Margin="5,0,0,0" VerticalAlignment="Center">
+                                        <PathIcon Data="{StaticResource WarningIcon}" Width="12" Height="12" Foreground="{Binding SeverityColor}"/>
+                                        <TextBlock Text="{Binding Severity}" Foreground="{Binding SeverityColor}" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Issue" Width="200">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <TextBlock Text="{Binding Title}" Foreground="#e8eaed" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Description" Width="280">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <TextBlock Text="{Binding Description}" Foreground="#e8eaed" FontSize="12" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Count" Width="80">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <TextBlock Text="{Binding Count}" Foreground="#8ab4f8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Details / Recommendations" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="vm:MemoryInspectionModel">
+                                    <TextBlock Text="{Binding Details}" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="5,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+
+            <!-- Empty state -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNull}}">
+                <TextBlock Text="No snapshot selected" Foreground="#9aa0a6" FontSize="13" HorizontalAlignment="Center"/>
+                <TextBlock Text="Take or select a snapshot to view automatic memory audit inspections." Foreground="#5f6368" FontSize="11" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
         </Grid>
     </Grid>
 </UserControl>

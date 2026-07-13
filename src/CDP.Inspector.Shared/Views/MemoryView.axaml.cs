@@ -63,12 +63,16 @@ public partial class MemoryView : UserControl
         var pnl1 = this.FindControl<Control>("pnlSnapshotsList");
         var pnl2 = this.FindControl<Control>("pnlSnapshotOverview");
         var pnl3 = this.FindControl<Control>("pnlDetachedControls");
+        var pnl4 = this.FindControl<Control>("pnlDominatorTree");
+        var pnl5 = this.FindControl<Control>("pnlInspections");
         var hiddenPanel = this.FindControl<Panel>("HiddenPanel");
         if (hiddenPanel != null)
         {
             if (pnl1 != null) { hiddenPanel.Children.Remove(pnl1); _viewsCache["SnapshotsList"] = pnl1; }
             if (pnl2 != null) { hiddenPanel.Children.Remove(pnl2); _viewsCache["SnapshotOverview"] = pnl2; }
             if (pnl3 != null) { hiddenPanel.Children.Remove(pnl3); _viewsCache["DetachedControls"] = pnl3; }
+            if (pnl4 != null) { hiddenPanel.Children.Remove(pnl4); _viewsCache["DominatorTree"] = pnl4; }
+            if (pnl5 != null) { hiddenPanel.Children.Remove(pnl5); _viewsCache["InspectionsPanel"] = pnl5; }
         }
 
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
@@ -104,6 +108,28 @@ public partial class MemoryView : UserControl
                     }
                 }
             };
+        }
+    }
+
+    private void LstSnapshots_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.DataContext is MainWindowViewModel mainVM)
+        {
+            if (TopLevel.GetTopLevel(dg) != null)
+            {
+                mainVM.Memory.SelectedSnapshot = dg.SelectedItem as CdpInspectorApp.Models.MemorySnapshotModel;
+            }
+        }
+    }
+
+    private void DgDetachedControls_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.DataContext is MainWindowViewModel mainVM)
+        {
+            if (TopLevel.GetTopLevel(dg) != null)
+            {
+                mainVM.Memory.SelectedDetachedControl = dg.SelectedItem as CdpInspectorApp.Models.DetachedControlModel;
+            }
         }
     }
 }

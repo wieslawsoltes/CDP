@@ -11,7 +11,7 @@
     <Grid RowDefinitions="Auto, Auto, *" Margin="10">
         <!-- Top Toolbar -->
         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
-            <Button Name="btnClearNetwork" Command="{Binding Network.ClearNetworkCommand}" Content="Clear Network Log"/>
+            <Button Name="btnNetworkClear" Command="{Binding Network.ClearNetworkCommand}" Content="Clear Network Log"/>
             <TextBlock Text="Throttling:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="12" Margin="10,0,0,0"/>
             <ComboBox Name="cmbThrottling"
                       ItemsSource="{Binding Network.ThrottlingProfiles}"
@@ -24,6 +24,8 @@
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
+            <TextBlock Text="Filter:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="12" Margin="10,0,0,0"/>
+            <TextBox Name="txtNetworkFilter" Text="{Binding Network.FilterText, Mode=TwoWay}" PlaceholderText="Filter URLs..." Width="150" Height="28" VerticalContentAlignment="Center" Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed"/>
             <TextBlock Text="Captures outbound HTTP requests from HttpClient instances" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="11" Margin="10,0,0,0"/>
         </StackPanel>
 

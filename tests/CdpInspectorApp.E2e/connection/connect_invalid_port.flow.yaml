@@ -1,0 +1,13 @@
+appId: "CdpInspectorApp"
+description: "Verify that connecting to an invalid port fails gracefully"
+---
+- delay: "1000"
+- clearText: "#txtTargetPort"
+- delay: "1000"
+- inputText:
+    selector: "#txtTargetPort"
+    text: "9999"
+- delay: "1000"
+- tapOn: "#btnConnect"
+- delay: "2000"
+- assertTrue: "!__raw_window.DataContext.Connection.IsConnected"

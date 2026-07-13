@@ -218,4 +218,218 @@ public static class TestStudioStepConverter
 
         return testStudioSteps.Select(step => ToRecordedStep(step, combinedEnv)).ToList();
     }
+
+    public static List<RecordedStep> ConvertYamlToRecordedSteps(string yaml, string filePath, Dictionary<string, string>? activeEnv)
+    {
+        var testStudioSteps = TestStudioYamlParser.Parse(yaml, out _, out _, out _, out var flowEnv);
+        
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrEmpty(filePath))
+        {
+            visited.Add(System.IO.Path.GetFullPath(filePath));
+        }
+
+        var combinedEnv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (activeEnv != null)
+        {
+            foreach (var kv in activeEnv) combinedEnv[kv.Key] = kv.Value;
+        }
+        if (flowEnv != null)
+        {
+            foreach (var kv in flowEnv) combinedEnv[kv.Key] = kv.Value;
+        }
+
+        var sysEnv = Environment.GetEnvironmentVariables();
+        foreach (System.Collections.DictionaryEntry entry in sysEnv)
+        {
+            string key = entry.Key?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(key) && !combinedEnv.ContainsKey(key))
+            {
+                combinedEnv[key] = entry.Value?.ToString() ?? "";
+            }
+        }
+
+        var expandedSteps = ExpandSteps(testStudioSteps, filePath, visited, combinedEnv);
+
+        return expandedSteps.Select(step => ToRecordedStep(step, combinedEnv)).ToList();
+    }
+
+    private static TestStudioStep InterpolateStep(TestStudioStep step, Dictionary<string, string> env)
+    {
+        var cloned = new TestStudioStep
+        {
+            Action = step.Action,
+            Selector = Interpolate(step.Selector, env),
+            Value = Interpolate(step.Value, env),
+            StartLine = step.StartLine,
+            EndLine = step.EndLine,
+            WhileConditionType = step.WhileConditionType,
+            WhileConditionValue = Interpolate(step.WhileConditionValue, env)
+        };
+
+        if (step.Parameters != null)
+        {
+            cloned.Parameters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in step.Parameters)
+            {
+                if (kv.Value is string strVal)
+                {
+                    cloned.Parameters[kv.Key] = Interpolate(strVal, env);
+                }
+                else
+                {
+                    cloned.Parameters[kv.Key] = kv.Value;
+                }
+            }
+        }
+
+        if (step.NestedSteps != null)
+        {
+            cloned.NestedSteps = step.NestedSteps.Select(s => InterpolateStep(s, env)).ToList();
+        }
+
+        return cloned;
+    }
+
+    private static List<TestStudioStep> ExpandSteps(List<TestStudioStep> steps, string currentFilePath, HashSet<string> visitedFiles, Dictionary<string, string> currentEnv)
+    {
+        var expanded = new List<TestStudioStep>();
+        foreach (var step in steps)
+        {
+            if (step.Action == "runFlow")
+            {
+                if (step.NestedSteps != null && step.NestedSteps.Count > 0)
+                {
+                    expanded.AddRange(ExpandSteps(step.NestedSteps, currentFilePath, visitedFiles, currentEnv));
+                    continue;
+                }
+
+                string? flowPath = null;
+                if (step.Parameters != null && step.Parameters.TryGetValue("file", out var fObj) && fObj is string fStr)
+                {
+                    flowPath = fStr;
+                }
+                if (string.IsNullOrEmpty(flowPath))
+                {
+                    flowPath = step.Value?.Trim();
+                }
+
+                if (string.IsNullOrEmpty(flowPath)) continue;
+
+                string resolvedPath = ResolveFlowPath(flowPath, currentFilePath);
+                if (string.IsNullOrEmpty(resolvedPath) || !System.IO.File.Exists(resolvedPath))
+                {
+                    expanded.Add(InterpolateStep(step, currentEnv));
+                    continue;
+                }
+
+                if (visitedFiles.Contains(resolvedPath))
+                {
+                    throw new InvalidOperationException($"Circular dependency detected: {resolvedPath}");
+                }
+
+                visitedFiles.Add(resolvedPath);
+                try
+                {
+                    string subYaml = System.IO.File.ReadAllText(resolvedPath);
+                    var subSteps = TestStudioYamlParser.Parse(subYaml, out _, out _, out _, out var subFlowEnv);
+
+                    var mergedEnv = new Dictionary<string, string>(currentEnv, StringComparer.OrdinalIgnoreCase);
+                    if (step.Parameters != null)
+                    {
+                        foreach (var kv in step.Parameters)
+                        {
+                            if (kv.Value != null)
+                            {
+                                mergedEnv[kv.Key] = Interpolate(kv.Value.ToString() ?? "", currentEnv);
+                            }
+                        }
+                    }
+                    if (subFlowEnv != null)
+                    {
+                        foreach (var kv in subFlowEnv)
+                        {
+                            mergedEnv[kv.Key] = kv.Value;
+                        }
+                    }
+
+                    expanded.AddRange(ExpandSteps(subSteps, resolvedPath, visitedFiles, mergedEnv));
+                }
+                finally
+                {
+                    visitedFiles.Remove(resolvedPath);
+                }
+            }
+            else if ((step.Action == "repeat" || step.Action == "retry") && step.NestedSteps != null && step.NestedSteps.Count > 0)
+            {
+                var clonedStep = new TestStudioStep
+                {
+                    Action = step.Action,
+                    Selector = Interpolate(step.Selector, currentEnv),
+                    Value = Interpolate(step.Value, currentEnv),
+                    StartLine = step.StartLine,
+                    EndLine = step.EndLine,
+                    WhileConditionType = step.WhileConditionType,
+                    WhileConditionValue = Interpolate(step.WhileConditionValue, currentEnv),
+                    Parameters = step.Parameters != null ? new Dictionary<string, object>(step.Parameters, StringComparer.OrdinalIgnoreCase) : null,
+                    NestedSteps = ExpandSteps(step.NestedSteps, currentFilePath, visitedFiles, currentEnv)
+                };
+                expanded.Add(clonedStep);
+            }
+            else
+            {
+                expanded.Add(InterpolateStep(step, currentEnv));
+            }
+        }
+        return expanded;
+    }
+
+    private static string ResolveFlowPath(string flowPath, string currentFilePath)
+    {
+        if (string.IsNullOrEmpty(flowPath)) return "";
+        string normalizedFlowPath = flowPath.Replace('\\', System.IO.Path.DirectorySeparatorChar).Replace('/', System.IO.Path.DirectorySeparatorChar);
+
+        // 1. Relative to currentFilePath
+        if (!string.IsNullOrEmpty(currentFilePath))
+        {
+            var dir = System.IO.Path.GetDirectoryName(currentFilePath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                var relativePath = System.IO.Path.Combine(dir, normalizedFlowPath);
+                if (System.IO.File.Exists(relativePath)) return System.IO.Path.GetFullPath(relativePath);
+            }
+        }
+
+        // 2. Climb up parent directories of currentFilePath
+        if (!string.IsNullOrEmpty(currentFilePath))
+        {
+            var dir = System.IO.Path.GetDirectoryName(currentFilePath);
+            while (!string.IsNullOrEmpty(dir))
+            {
+                var checkPath = System.IO.Path.Combine(dir, normalizedFlowPath);
+                if (System.IO.File.Exists(checkPath)) return System.IO.Path.GetFullPath(checkPath);
+                var parent = System.IO.Path.GetDirectoryName(dir);
+                if (parent == dir || string.IsNullOrEmpty(parent)) break;
+                dir = parent;
+            }
+        }
+
+        // 3. Relative to CWD
+        var cwd = System.IO.Directory.GetCurrentDirectory();
+        var cwdPath = System.IO.Path.Combine(cwd, normalizedFlowPath);
+        if (System.IO.File.Exists(cwdPath)) return System.IO.Path.GetFullPath(cwdPath);
+
+        // 4. Climb up parent directories of CWD
+        var checkCwd = cwd;
+        while (!string.IsNullOrEmpty(checkCwd))
+        {
+            var checkPath = System.IO.Path.Combine(checkCwd, normalizedFlowPath);
+            if (System.IO.File.Exists(checkPath)) return System.IO.Path.GetFullPath(checkPath);
+            var parent = System.IO.Path.GetDirectoryName(checkCwd);
+            if (parent == checkCwd || string.IsNullOrEmpty(parent)) break;
+            checkCwd = parent;
+        }
+
+        return "";
+    }
 }

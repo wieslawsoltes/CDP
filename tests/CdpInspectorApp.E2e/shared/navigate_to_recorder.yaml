@@ -1,0 +1,6 @@
+appId: "CdpInspectorApp"
+description: "Sub-flow: Navigate to Recorder tab"
+---
+- tapOn: "#TabRecorder"
+- delay: "500"
+- assertTrue: "document.querySelector('#TabRecorder') != null"

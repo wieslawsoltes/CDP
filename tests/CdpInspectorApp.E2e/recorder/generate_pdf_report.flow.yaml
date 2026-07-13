@@ -1,0 +1,20 @@
+appId: "CdpInspectorApp"
+description: "E2E Test Flow for CdpInspectorApp PDF Report Generation and View"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_recorder.yaml"
+- evalScript: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled = true'
+- delay: "500"
+- assertTrue: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled == true'
+- evalScript: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.YamlCode = "appId: \"CdpSampleApp\"\ndescription: \"PDF Report Verification\"\n---\n- delay: 1000\n- delay: 1000\n"'
+- delay: "500"
+- tapOn: "#btnTestStudioApplyYaml"
+- delay: "1000"
+- assertTrue: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps.Count == 2'
+- tapOn: "#btnTestStudioPlay"
+- delay: "4000"
+- assertFalse: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsExecuting == true'
+- assertTrue: '!string.IsNullOrEmpty(((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.LastPdfReportPath)'
+- assertTrue: 'System.IO.File.Exists(((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.LastPdfReportPath)'
+- tapOn: "#btnViewPdfReport"
+- delay: "1000"

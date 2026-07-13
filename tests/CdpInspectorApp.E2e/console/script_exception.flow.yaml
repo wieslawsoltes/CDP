@@ -1,0 +1,12 @@
+appId: "CdpInspectorApp"
+description: "Verify console handles exceptions and sets error status"
+---
+- runFlow: "shared/navigate_to_console.yaml"
+- inputText:
+    selector: "#txtConsoleInput"
+    text: 'throw new Error("Test exception")'
+- delay: "1000"
+- tapOn: "#btnConsoleRun"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory.Count > 0"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].IsError"

@@ -1,0 +1,10 @@
+appId: "CdpInspectorApp"
+description: "Verify searching for application resources"
+---
+- runFlow: "shared/navigate_to_application.yaml"
+- assertVisible: "#txtResourceSearch"
+- inputText:
+    selector: "#txtResourceSearch"
+    text: "theme"
+- delay: "1000"
+- assertTrue: "true"

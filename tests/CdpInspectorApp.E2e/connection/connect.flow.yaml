@@ -1,0 +1,4 @@
+appId: "CdpInspectorApp"
+description: "Connect to target sample application"
+---
+- runFlow: "shared/connect_to_sample.yaml"

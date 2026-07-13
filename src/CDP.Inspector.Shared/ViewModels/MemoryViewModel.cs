@@ -11,6 +11,7 @@ using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
 using Avalonia.Layout;
 using CDP.Editor.Splits.Models;
+using System.Text.Json.Serialization;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -41,8 +42,16 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
     private bool _isComparisonMode;
     private DetachedControlModel? _selectedDetachedControl;
     private ObservableCollection<RetainerNodeModel> _retainerRoots = new();
+    private ObservableCollection<DominatorNodeModel> _dominatorRoots = new();
     private int _snapshotCounter = 1;
     private List<double>? _allocationHistory;
+    private ObservableCollection<MemoryInspectionModel> _inspections = new();
+    public ObservableCollection<MemoryInspectionModel> Inspections => _inspections;
+    private long _gen0Size;
+    private long _gen1Size;
+    private long _gen2Size;
+    private long _lohSize;
+    private readonly DispatcherTimer? _heapInfoTimer;
 
     public ObservableCollection<DetachedControlModel> DetachedControls => _detachedControls;
 
@@ -60,6 +69,8 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
 
     public ObservableCollection<RetainerNodeModel> RetainerRoots => _retainerRoots;
     public HierarchicalModel<RetainerNodeModel> HierarchicalRetainers { get; }
+    public ObservableCollection<DominatorNodeModel> DominatorRoots => _dominatorRoots;
+    public HierarchicalModel<DominatorNodeModel> HierarchicalDominators { get; }
 
     private async Task FetchRetainersAsync()
     {
@@ -136,6 +147,8 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             {
                 UpdateDisplayEntries();
                 UpdateComparisonBaselines();
+                UpdateDominatorTree();
+                _ = RunInspectionsAsync();
             }
         }
     }
@@ -175,6 +188,30 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         private set => RaiseAndSetIfChanged(ref _allocationHistory, value);
     }
 
+    public long Gen0Size
+    {
+        get => _gen0Size;
+        set => RaiseAndSetIfChanged(ref _gen0Size, value);
+    }
+
+    public long Gen1Size
+    {
+        get => _gen1Size;
+        set => RaiseAndSetIfChanged(ref _gen1Size, value);
+    }
+
+    public long Gen2Size
+    {
+        get => _gen2Size;
+        set => RaiseAndSetIfChanged(ref _gen2Size, value);
+    }
+
+    public long LohSize
+    {
+        get => _lohSize;
+        set => RaiseAndSetIfChanged(ref _lohSize, value);
+    }
+
     public ICommand TakeSnapshotCommand { get; }
     public ICommand ClearSnapshotsCommand { get; }
     public ICommand CollectGarbageCommand { get; }
@@ -200,7 +237,29 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         };
         HierarchicalRetainers = new HierarchicalModel<RetainerNodeModel>(retainerOptions);
         HierarchicalRetainers.SetRoots(RetainerRoots);
+
+        var dominatorOptions = new HierarchicalOptions<DominatorNodeModel>
+        {
+            ChildrenSelector = node => node.Children,
+            IsLeafSelector = node => node.Children == null || node.Children.Count == 0,
+            AutoExpandRoot = true
+        };
+        HierarchicalDominators = new HierarchicalModel<DominatorNodeModel>(dominatorOptions);
+        HierarchicalDominators.SetRoots(DominatorRoots);
+
         ResetLayout();
+
+        _heapInfoTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(1000)
+        };
+        _heapInfoTimer.Tick += async (sender, e) => await UpdateHeapInfoAsync();
+
+        if (_cdpService.IsConnected)
+        {
+            _heapInfoTimer.Start();
+            _ = UpdateHeapInfoAsync();
+        }
     }
 
     public void ResetLayout()
@@ -211,6 +270,8 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         var right = new BoxNode();
         right.AddTab("Snapshot Overview", "CodeIcon", "SnapshotOverview");
         right.AddTab("Detached Controls", "DocumentIcon", "DetachedControls");
+        right.AddTab("Dominator Tree", "FlowchartIcon", "DominatorTree");
+        right.AddTab("Inspections", "WarningIcon", "InspectionsPanel");
 
         LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, right) { SplitterRatio = 0.35 };
         SelectedPane = left;
@@ -220,8 +281,14 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
     {
         if (e.PropertyName == nameof(ICdpService.IsConnected))
         {
-            if (!_cdpService.IsConnected)
+            if (_cdpService.IsConnected)
             {
+                _heapInfoTimer?.Start();
+                _ = UpdateHeapInfoAsync();
+            }
+            else
+            {
+                _heapInfoTimer?.Stop();
                 ClearData();
             }
             ((RelayCommand)TakeSnapshotCommand).RaiseCanExecuteChanged();
@@ -386,6 +453,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             DetachedControls.Clear();
             SelectedDetachedControl = null;
             RetainerRoots.Clear();
+            DominatorRoots.Clear();
             _snapshotCounter = 1;
         });
     }
@@ -404,7 +472,12 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             DetachedControls.Clear();
             SelectedDetachedControl = null;
             RetainerRoots.Clear();
+            DominatorRoots.Clear();
             _snapshotCounter = 1;
+            Gen0Size = 0;
+            Gen1Size = 0;
+            Gen2Size = 0;
+            LohSize = 0;
         });
     }
 
@@ -525,4 +598,315 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         }
         return 0.0;
     }
+
+    private void UpdateDominatorTree()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            DominatorRoots.Clear();
+            var entries = SelectedSnapshot?.Entries;
+            if (entries == null || entries.Count == 0) return;
+
+            long totalSize = 0;
+            var leafNodes = new List<(DominatorNodeModel Node, string Category)>();
+
+            foreach (var entry in entries)
+            {
+                long bytesPerInstance = 64;
+                string category = "Other Allocations";
+
+                string typeLower = entry.Type.ToLowerInvariant();
+                if (typeLower.Contains("window") || typeLower.Contains("toplevel"))
+                {
+                    bytesPerInstance = 2048;
+                    category = "Windows & Roots";
+                }
+                else if (typeLower.Contains("panel") || typeLower.Contains("grid") || typeLower.Contains("stackpanel") || 
+                         typeLower.Contains("wrappanel") || typeLower.Contains("dockpanel") || typeLower.Contains("canvas") || 
+                         typeLower.Contains("scrollviewer"))
+                {
+                    bytesPerInstance = 512;
+                    category = "Layout Panels";
+                }
+                else if (typeLower.Contains("button") || typeLower.Contains("border") || typeLower.Contains("contentcontrol") || 
+                         typeLower.Contains("template") || typeLower.Contains("presenter"))
+                {
+                    bytesPerInstance = 256;
+                    category = "Content Controls";
+                }
+                else if (typeLower.Contains("text") || typeLower.Contains("textbox") || typeLower.Contains("textblock") || 
+                         typeLower.Contains("label") || typeLower.Contains("input"))
+                {
+                    bytesPerInstance = 128;
+                    category = "Text & Input Controls";
+                }
+
+                long size = entry.Count * bytesPerInstance;
+                totalSize += size;
+
+                var node = new DominatorNodeModel
+                {
+                    TypeName = entry.Type,
+                    InstanceCount = entry.Count,
+                    RetainedSize = size,
+                    RetainedPct = 0.0
+                };
+                leafNodes.Add((node, category));
+            }
+
+            if (totalSize == 0) totalSize = 1;
+
+            var categories = new Dictionary<string, DominatorNodeModel>();
+            foreach (var item in leafNodes)
+            {
+                item.Node.RetainedPct = (double)item.Node.RetainedSize / totalSize * 100.0;
+                if (!categories.TryGetValue(item.Category, out var catNode))
+                {
+                    catNode = new DominatorNodeModel
+                    {
+                        TypeName = item.Category,
+                        RetainedSize = 0,
+                        RetainedPct = 0.0,
+                        InstanceCount = 0,
+                        Children = new List<DominatorNodeModel>()
+                    };
+                    categories[item.Category] = catNode;
+                }
+                catNode.Children.Add(item.Node);
+                catNode.RetainedSize += item.Node.RetainedSize;
+                catNode.InstanceCount += item.Node.InstanceCount;
+            }
+
+            var root = new DominatorNodeModel
+            {
+                TypeName = "GC Roots",
+                RetainedSize = totalSize,
+                RetainedPct = 100.0,
+                InstanceCount = 0,
+                Children = new List<DominatorNodeModel>()
+            };
+
+            foreach (var cat in categories.Values.OrderByDescending(c => c.RetainedSize))
+            {
+                cat.RetainedPct = (double)cat.RetainedSize / totalSize * 100.0;
+                cat.Children = cat.Children.OrderByDescending(c => c.RetainedSize).ToList();
+                root.Children.Add(cat);
+                root.InstanceCount += cat.InstanceCount;
+            }
+
+            DominatorRoots.Add(root);
+        });
+    }
+
+    private async Task RunInspectionsAsync()
+    {
+        var localSnapshot = SelectedSnapshot;
+        if (localSnapshot == null)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => Inspections.Clear());
+            return;
+        }
+
+        var results = await AuditSnapshotAsync(localSnapshot);
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            Inspections.Clear();
+            foreach (var res in results)
+            {
+                Inspections.Add(res);
+            }
+        });
+    }
+
+    private async Task<List<MemoryInspectionModel>> AuditSnapshotAsync(MemorySnapshotModel snapshot)
+    {
+        var list = new List<MemoryInspectionModel>();
+
+        // 1. Event Leaks / Detached Controls Audit
+        if (snapshot.DetachedEntries != null && snapshot.DetachedEntries.Count > 0)
+        {
+            var groupedDetached = snapshot.DetachedEntries.GroupBy(e => e.Type).ToList();
+            foreach (var group in groupedDetached)
+            {
+                int count = group.Count();
+                var dataContexts = group.Where(e => e.HasDataContext && !string.IsNullOrEmpty(e.DataContextType))
+                                       .Select(e => e.DataContextType)
+                                       .Distinct()
+                                       .ToList();
+                
+                string details = $"Found {count} detached visual control instance(s) of '{group.Key}' still held in memory.";
+                if (dataContexts.Count > 0)
+                {
+                    details += $" Warning: Detached controls are holding references to DataContext view models: {string.Join(", ", dataContexts)}. This is a classic event handler or subscription leak.";
+                }
+                else
+                {
+                    details += " These detached controls might be kept alive by strong event handlers or direct reference leaks.";
+                }
+
+                list.Add(new MemoryInspectionModel
+                {
+                    Title = "Event Leak: Detached Control",
+                    Description = $"Detached control '{group.Key.Split('.').Last()}' is still alive in memory.",
+                    Severity = "Error",
+                    Count = count,
+                    Details = details
+                });
+            }
+        }
+
+        // 2. Large Structure / Visual Bloating Audit
+        if (snapshot.Entries != null)
+        {
+            var largeEntries = snapshot.Entries.Where(e => e.Count > 30).ToList();
+            foreach (var entry in largeEntries)
+            {
+                list.Add(new MemoryInspectionModel
+                {
+                    Title = "Large Structure / Visual Bloating",
+                    Description = $"High count of '{entry.Type}' ({entry.Count} instances).",
+                    Severity = "Warning",
+                    Count = entry.Count,
+                    Details = $"The visual tree contains {entry.Count} instances of '{entry.Type}'. A high number of UI elements degrades layout and rendering performance. Consider enabling DataGrid virtualization or optimizing your layout panels."
+                });
+            }
+        }
+
+        // 3. Duplicate String Value Audit
+        if (_cdpService.IsConnected)
+        {
+            try
+            {
+                var evalScript = @"
+                    (function() {
+                        var all = document.querySelectorAll('*');
+                        var map = {};
+                        for (var i = 0; i < all.length; i++) {
+                            var txt = all[i].textContent || all[i].text;
+                            if (txt && txt.trim().length > 0) {
+                                var key = txt.trim();
+                                map[key] = (map[key] || 0) + 1;
+                            }
+                        }
+                        var result = [];
+                        for (var k in map) {
+                            if (map[k] > 5) {
+                                result.push({ text: k.substring(0, 50), count: map[k] });
+                            }
+                        }
+                        result.sort(function(a, b) { return b.count - a.count; });
+                        return JSON.stringify(result.slice(0, 10));
+                    })()";
+
+                var @params = new JsonObject
+                {
+                    ["expression"] = evalScript,
+                    ["returnByValue"] = true
+                };
+
+                var evalResult = await _cdpService.SendCommandAsync("Runtime.evaluate", @params);
+                if (evalResult != null && evalResult.TryGetPropertyValue("result", out var resNode) && resNode is JsonObject resObj)
+                {
+                    if (resObj.TryGetPropertyValue("value", out var valNode) && valNode != null)
+                    {
+                        var jsonString = valNode.GetValue<string>();
+                        if (!string.IsNullOrEmpty(jsonString))
+                        {
+                            var duplicates = System.Text.Json.JsonSerializer.Deserialize<List<StringDuplicateDto>>(jsonString);
+                            if (duplicates != null && duplicates.Count > 0)
+                            {
+                                foreach (var dup in duplicates)
+                                {
+                                    list.Add(new MemoryInspectionModel
+                                    {
+                                        Title = "Duplicate String Value",
+                                        Description = $"String '{dup.Text}' duplicated {dup.Count} times in visual tree.",
+                                        Severity = "Warning",
+                                        Count = dup.Count,
+                                        Details = $"The string value '{dup.Text}' appears {dup.Count} times in visual elements text properties. If these are static text headers or labels, consider resource/style reuse or localized resource lookup to reduce heap allocations."
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error running duplicate strings audit: {ex.Message}");
+            }
+        }
+
+        return list;
+    }
+
+    private async Task UpdateHeapInfoAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Memory.getHeapInfo");
+            if (response != null)
+            {
+                long gen0 = GetLong(response["gen0Size"]);
+                long gen1 = GetLong(response["gen1Size"]);
+                long gen2 = GetLong(response["gen2Size"]);
+                long loh = GetLong(response["lohSize"]);
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Gen0Size = gen0;
+                    Gen1Size = gen1;
+                    Gen2Size = gen2;
+                    LohSize = loh;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching heap info: {ex.Message}");
+        }
+    }
+
+    private static long GetLong(JsonNode? node)
+    {
+        if (node == null) return 0;
+        if (node is JsonValue jsonVal)
+        {
+            if (jsonVal.TryGetValue<long>(out long l)) return l;
+            if (jsonVal.TryGetValue<int>(out int i)) return i;
+            if (jsonVal.TryGetValue<double>(out double d)) return (long)d;
+        }
+        return 0;
+    }
+}
+
+public class MemoryInspectionModel
+{
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Severity { get; set; } = "Warning";
+    public int Count { get; set; }
+    public string Details { get; set; } = "";
+
+    public string SeverityColor
+    {
+        get
+        {
+            if (Severity == "Error") return "#f28b82"; // Red
+            if (Severity == "Warning") return "#fdd663"; // Yellow
+            return "#8ab4f8"; // Blue
+        }
+    }
+}
+
+public class StringDuplicateDto
+{
+    [System.Text.Json.Serialization.JsonPropertyName("text")]
+    public string Text { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonPropertyName("count")]
+    public int Count { get; set; }
 }

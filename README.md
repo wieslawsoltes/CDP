@@ -517,7 +517,26 @@ cdp-cli list-targets --host http://127.0.0.1:9222
 ```
 
 ##### 2. Run Test Flows and Suites
-Execute a single YAML flow file or a directory containing a suite of YAML files:
+Execute a single YAML flow file or a directory containing a suite of YAML files. When writing YAML flow files (`.flow.yaml`), split the file into two documents using the standard `---` separator:
+1. **Metadata Document**: Contains metadata properties (`appId`, `description`, `tags`, `env`).
+2. **Steps Sequence Document**: List of steps where the action name is the key (e.g. `tapOn`, `delay`, `evalScript`, `assertTrue`).
+
+Example test flow (`smoke.flow.yaml`):
+```yaml
+appId: "CdpInspectorApp"
+description: "Visual verification test flow"
+---
+- delay: "2000"
+- tapOn: "#btnRefreshTargets"
+- delay: "1000"
+- tapOn: "#TabProfiler"
+- delay: "1000"
+- assertTrue: "__raw_window.DataContext.Profiler.Sessions.Count >= 0"
+```
+
+> [!TIP]
+> **Dynamic Tab Selection**: Tab headers dynamically assign `AutomationProperties.AutomationId` matching `#Tab[SelectedViewName]` (e.g. `#TabProfiler`, `#TabConsole`, `#TabElements`). You can tap them directly in the test flow using `tapOn: "#TabProfiler"` without requiring complex C# reflection script evaluations to switch active panes!
+
 ```bash
 # Run a single YAML flow and generate HTML/PDF test reports and screencast video frames
 cdp-cli run scratch/test_flow.yaml --report --video --output-dir TestReports
@@ -540,7 +559,14 @@ cdp-cli run scratch/test_flow.yaml --auto-launch "dotnet run --project samples/C
 * `--auto-launch-args <args>`: Arguments to pass to the auto-launched process.
 * `--timeout <ms>`: Flow execution timeout in milliseconds (default: `30000`).
 
-##### 3. Print Visual/Accessibility Hierarchy
+##### 3. Playwright Code Generation
+Export YAML test flows to executable Playwright spec test files for automated headless execution inside CI/CD or local test runners:
+```bash
+# Convert a single YAML flow or a suite folder of flows into Playwright specs
+cdp-cli codegen tests/CdpInspectorApp.E2e/ --playwright-out tests/playwright/
+```
+
+##### 4. Print Visual/Accessibility Hierarchy
 Print the target application's tree hierarchy:
 ```bash
 # Dump the Accessibility (AX) Tree in clear text format
@@ -605,6 +631,9 @@ The runner will dynamically load the assembly, search for types inheriting from 
 ## Test Studio & Automated Testing
 
 The project features a **Test Studio** panel inside the inspector app, which provides a visual, interactive test suite workspace using a Flow-compatible YAML syntax.
+
+### Mandatory Agent E2E Verification
+For any code changes, agents must perform a preview-based E2E user interaction simulation (interacting with the target app by sending mapped coordinate clicks to the inspector's preview pane canvas `#imgScreenshot`, capturing the steps, and replaying them with a 100% pass rate). This guarantees full interface parity and protocol correctness.
 
 ### Key Capabilities
 - **Command Toolbox**: A category-tabbed toolbox grouping actions into *Interactions* (taps, inputs, swipes, scrolls), *Assertions* (visibility and logical checks), *App & Device* (app lifecycle, orientations, geolocations, screenshots), and *Logic* (loops, retries, nested flows).

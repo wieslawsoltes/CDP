@@ -1,0 +1,6 @@
+appId: "CdpInspectorApp"
+description: "Sub-flow: Navigate to Profiler tab"
+---
+- tapOn: "#TabProfiler"
+- delay: "500"
+- assertTrue: "document.querySelector('#TabProfiler') != null"

@@ -1,0 +1,11 @@
+appId: "CdpInspectorApp"
+description: "Verify that Zoom In and Zoom Out controls in the Profiler Flame Chart adjust the ZoomScale level correctly"
+---
+- runFlow: "shared/navigate_to_profiler.yaml"
+- assertTrue: "Window.DataContext.Profiler.ZoomScale == 1.0"
+- tapOn: "#btnProfilerZoomIn"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Profiler.ZoomScale > 1.4 && Window.DataContext.Profiler.ZoomScale < 1.6"
+- tapOn: "#btnProfilerZoomOut"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Profiler.ZoomScale > 0.9 && Window.DataContext.Profiler.ZoomScale < 1.1"

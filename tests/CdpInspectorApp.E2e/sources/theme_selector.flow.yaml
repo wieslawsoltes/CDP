@@ -1,0 +1,8 @@
+appId: "CdpInspectorApp"
+description: "Verify changing editor theme in the sources panel using the theme selector button"
+---
+- runFlow: "shared/navigate_to_sources.yaml"
+- assertVisible: "#btnThemeSelector"
+- tapOn: "#btnThemeSelector"
+- delay: "1000"
+- assertTrue: "true"

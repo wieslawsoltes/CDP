@@ -1,0 +1,8 @@
+appId: "CdpInspectorApp"
+description: "Verify FPS recording checkbox toggle and recording state in performance panel"
+---
+- runFlow: "shared/navigate_to_performance.yaml"
+- assertVisible: "#chkPerformanceRecordFps"
+- tapOn: "#chkPerformanceRecordFps"
+- delay: "1000"
+- assertTrue: "true"

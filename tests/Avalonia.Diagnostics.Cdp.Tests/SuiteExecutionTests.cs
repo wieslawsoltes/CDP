@@ -369,4 +369,75 @@ public class SuiteExecutionTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public async Task Test_RunSelectedItemCommand_ForFolder()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var flow1 = Path.Combine(tempDir, "flow1.yaml");
+            File.WriteAllText(flow1, "appId: \"\"\ndescription: \"Flow 1\"\n---\n- delay: 10\n");
+
+            var folderItem = new WorkspaceItemModel { Path = tempDir, IsFolder = true, Name = "testFolder" };
+            vm.SelectedWorkspaceItem = folderItem;
+
+            Assert.True(vm.IsSelectedWorkspaceItemFolder);
+            Assert.False(vm.IsSelectedWorkspaceItemYaml);
+            Assert.True(vm.RunSelectedItemCommand.CanExecute(null));
+
+            await vm.RunSelectedItemAsync();
+
+            Assert.Equal(1, vm.SuitePassCount);
+            Assert.Equal(0, vm.SuiteFailCount);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task Test_RunSelectedItemCommand_ForYaml()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var flow1 = Path.Combine(tempDir, "flow1.yaml");
+            File.WriteAllText(flow1, "appId: \"\"\ndescription: \"Flow 1\"\n---\n- delay: 10\n");
+
+            var fileItem = new WorkspaceItemModel { Path = flow1, IsFolder = false, Name = "flow1.yaml" };
+            vm.SelectedWorkspaceItem = fileItem;
+
+            Assert.False(vm.IsSelectedWorkspaceItemFolder);
+            Assert.True(vm.IsSelectedWorkspaceItemYaml);
+            Assert.True(vm.RunSelectedItemCommand.CanExecute(null));
+
+            await vm.RunSelectedItemAsync();
+
+            Assert.Equal(0, vm.SuitePassCount); // single flow doesn't count towards suite pass count
+            Assert.Single(vm.Steps); // check loaded steps
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Test_StopRunCommand_CancelsExecution()
+    {
+        var vm = new TestStudioViewModel(new DummyCdpService());
+        Assert.False(vm.StopRunCommand.CanExecute(null));
+
+        vm.IsSuiteExecuting = true;
+        Assert.True(vm.StopRunCommand.CanExecute(null));
+
+        vm.StopRunCommand.Execute(null);
+        Assert.False(vm.IsSuiteExecuting);
+    }
 }

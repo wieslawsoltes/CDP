@@ -291,6 +291,17 @@ Verify roles and properties for controls such as `Button`, `CheckBox`, `Slider`,
 
 Agents can drive headless inspections, action dispatches, and YAML test flow replay using the `cdp-cli` tool (`Chrome.DevTools.Cli`).
 
+### Dynamic Tab Header Selector Contract
+The split layout container dynamically assigns `AutomationProperties.AutomationId` to each tab header. You do NOT need to execute raw C# reflection script evaluations to switch tabs. Instead, simply tap on the tab header selector directly:
+- Format: `#Tab[SelectedViewName]`
+- Examples: `#TabProfiler`, `#TabConsole`, `#TabElements`, `#TabNetwork`, `#TabPerformance`, `#TabRecorder`
+
+For example, to switch to the Profiler tab, click it directly:
+```yaml
+- tapOn: "#TabProfiler"
+- delay: "1000"
+```
+
 ### Connection Setup & Scanning
 Discover target UUIDs or verify active servers:
 ```bash
@@ -329,6 +340,23 @@ Execute test flow script sequences and collect validation artifacts:
 ```bash
 # Execute and generate HTML, PDF reports & screencast images
 cdp-cli run scratch/test_flow.yaml --report --video --output-dir TestReports
+```
+
+When writing `.flow.yaml` files, split the file into two documents using the `---` document separator:
+1. **Metadata Document**: Contains `appId`, `description`, `tags`, and `env`.
+2. **Steps Sequence Document**: List of steps maps the action name as the key (e.g. `tapOn`, `delay`, `evalScript`, `assertTrue`).
+
+Example:
+```yaml
+appId: "CdpInspectorApp"
+description: "Smoke test flow"
+---
+- delay: "2000"
+- tapOn: "#btnRefreshTargets"
+- delay: "1000"
+- tapOn: "#TabProfiler"
+- delay: "1000"
+- assertTrue: "__raw_window.DataContext.Profiler.Sessions.Count >= 0"
 ```
 
 When validating execution:

@@ -1,0 +1,11 @@
+appId: "CdpInspectorApp"
+description: "Verify that clicking the clear button clears the logged network requests"
+---
+- runFlow: "shared/navigate_to_network.yaml"
+- assertVisible: "#btnNetworkClear"
+- evalScript: 'var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext; var model = new CdpInspectorApp.Models.NetworkRequestModel { RequestId = "req-to-clear", Url = "http://example.com/clear", Method = "POST" }; vm.Network.NetworkRequests.Add(model);'
+- delay: "1000"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.NetworkRequests.Count > 0"
+- tapOn: "#btnNetworkClear"
+- delay: "1000"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Network.NetworkRequests.Count == 0"

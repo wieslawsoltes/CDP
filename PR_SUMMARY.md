@@ -1,80 +1,56 @@
-# PR Summary: Implement In-App CPU & Memory Profiler with Synchronized Flame Charts
+# PR Description: E2E Interactive User Preview-Based Recording & Replay Simulation with Playwright Codegen
 
-This PR adds native dual CPU & Memory profiling capabilities directly inside the CDP server and builds a state-of-the-art interactive Profiling Visualizer inside the DevTools Inspector app (`CdpInspectorApp`) featuring multi-session history, synchronized stacked CPU/Memory flame charts, and custom telemetry data grids.
-
----
-
-## 🚀 Key Features
-
-### 1. In-Process EventPipe CPU & Memory Profiling (CDP Server)
-- **Dual Profiling:** Integrates CLR `EventPipeSession` targeting sample profiling (`Microsoft-DotNETCore-SampleProfiler`) and runtime event tracing (`Microsoft-Windows-DotNETRuntime` keywords `0x80000002019L` which includes GC allocations and sampling).
-- **Memory Allocation Stacks:** Captures live GC allocation ticks (`GC/AllocationTick` events). Resolves full stack traces, allocated object class type names (`TypeName`), and allocation sizes in bytes (`AllocationAmount`).
-- **JIT Rundown Symbols:** Integrates the CLR rundown provider (`Microsoft-Windows-DotNETRuntimeRundown` keywords `0x2058`). This logs symbol loads for all methods JIT-compiled *prior* to starting the profiler session, eliminating `"Unknown"` frames and ensuring detailed, readable call stacks.
-- **V8 Profile Converter:** Translates hierarchical CLR call stacks (from sample ticks and GC allocation events) into V8 `.cpuprofile` format. The memory allocation profile uses allocation size (in bytes) for timeline spacing and widths.
-- **Dual-Profile Response:** The `Profiler.stop` command now returns a dual profile payload containing CPU profile, Memory profile, and aggregated memory allocations lists.
-
-### 2. High-Performance Dual-Flame Chart Visualizer (Inspector App)
-- **Synchronized Stacked Timelines:** Stacks CPU timeline and Memory Allocation timeline vertically. Both timelines automatically synchronize panning and zoom scales in real-time.
-- **Bytes-Aware Ruler:** Renders timeline ruler ticks in bytes (`B`, `KB`, `MB`) for the memory chart. Recalculates intervals dynamically based on scale ranges.
-- **Interactive Minimap Overview:** Renders a micro-scale representation of the entire trace timeline at the top. Shows a highlighted visible range window with handles, dims background non-visible zones, and supports clicking/dragging on the minimap to jump or pan the main flame chart.
-- **Keyboard Tree Navigation:** Support full keyboard shortcuts when focused:
-  - `A` / `D` or `LeftArrow` / `RightArrow` to pan or walk chronologically across sibling calls.
-  - `W` / `S` or `UpArrow` / `DownArrow` to zoom or traverse caller/callee stack depths vertically.
-- **Search Match Cycling:** Added `Prev` and `Next` matching cycle buttons and index indicators (e.g., `"2 of 15"`) next to the search textbox in the toolbar. Selecting matches automatically pans/centers the flame chart on the target frame.
-- **Interactive Time Ruler:** Renders a styled timeline ruler at the top with major/minor tick marks and labels (`ms` / `s`) that dynamically recalculate and adapt based on the current zoom level.
-- **Selection Lock:** Clicking any block highlights it with a blue border and locks method details in the status bar, preventing them from shifting as the cursor moves off.
-- **Standard Warm HSL Flame Colors:** Colors blocks using a standard flame graph HSL warm coloring scheme (hues from 12 to 52 for red, orange, and yellow) based on deterministic method name hashing. Adjacent nodes in stack frames receive distinct but unified warm shades. Idle, root, and native functions are styled in distinct dark and neutral gray shades.
-- **Dual-Axis Panning:** Left-click drag pans the timeline horizontally (X-axis) and vertically (Y-axis) in sync. Allows panning up and down through deep call stack layers. Includes vertical culling and boundaries.
-- **Chronological Consolidation:** Renders continuous horizontal blocks representing stack depths by grouping adjacent duplicate calls in a single chronological pass.
-- **Centered Zoom & Pan:** Allows developers to left-click drag to pan and mouse wheel to zoom dynamically centered on the cursor position.
-- **Search Highlighting:** Dims unrelated stack frames and outlines matches with bright borders when querying function names in the toolbar.
-- **Dynamic Details:** Hovering or selecting any frame renders details (Method Name, Module, Self Time, Total Time, percentages) in the status bar.
-
-### 3. Session History & Multi-Run Sidebar
-- **Runs Sidebar:** Exposes a left sidebar panel to list captured profiling sessions. Automatically adds a new run item (e.g., `"Profile 1"`, `"Profile 2"`) on stop.
-- **Instant Switching:** Clicking on any profile run updates all charts and stats tables instantly.
-- **Separate Export:** Adds an "Export Profile" button to save the currently selected session JSON without blocking the workspace during live recording captures.
-
-### 4. Details Analysis Tab Grids
-- **Bottom-Up Calls (CPU):** Computes Self Time, Total Time, percentages, and sample hit counts aggregated by function key (Function Name + Script URL) in a sortable `DataGrid`.
-- **Memory Allocations (New!):** Aggregates GC allocation events by Class Type Name, showing:
-  - Total Allocated Bytes
-  - Size % (Percentage of overall session allocations)
-  - Allocation Counts
-  - Count %
-  - Exposes this data in a sortable DataGrid tab.
+## Summary of Changes
+This pull request extends the Chrome DevTools Protocol (CDP) inspector testing framework by introducing structured, feature-categorized E2E YAML test suites, a reusable sub-flow library, a CLI Playwright test generator, and mandatory visual-preview simulated test requirements.
 
 ---
 
-## 🛠️ Changes Implemented
+## Key Achievements
 
-### CDP Server & Protocols
-- **[Directory.Packages.props](file:///Users/wieslawsoltes/GitHub/CDP/Directory.Packages.props)**: Added package versions for client diagnostics and tracing.
-- **[Chrome.DevTools.Protocol.csproj](file:///Users/wieslawsoltes/GitHub/CDP/src/Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj)**: Package dependencies referenced.
-- **[ProfileConverter.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Chrome.DevTools.Protocol/Domains/ProfileConverter.cs)**: Implemented converter from Firefox/DotNET trace stacks to V8 CPU profiles.
-- **[ProfilerDomain.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/Chrome.DevTools.Protocol/Domains/ProfilerDomain.cs)**: Enabled GC event keywords (`0x80000002019L` including GCAllocationSampling). Parses both CPU samples and CLR memory allocation events. Added robust support for both `GCAllocationTickTraceData` (standard Tick events) and `AllocationSampled` (EventID 303, raw payload parsed manually via BitConverter) to guarantee full compatibility on macOS/Linux. Fixed stop-command check to correctly read nested samples array from the dual profile structure instead of falling back to mock profiles. Increased EventPipe copy wait timeout to 15s.
+### 1. Interactive Preview Simulation Architecture
+* Configured E2E test verification scripts to simulate real user actions by directing click and text input events through the inspector's preview pane (`#imgScreenshot` inside the Simulation tab) instead of direct backend protocol endpoints.
+* Dynamically maps target element coordinate spaces in the sample viewport to the corresponding preview screenshot coordinates.
 
-### DevTools Inspector Shared Controls
-- **[FlameChart.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Controls/FlameChart.cs)**: Custom Avalonia rendering control overriding `Render` with viewport culling, standard warm HSL flame coloring cache, text clipping, and dual-axis pan/zoom pointer events. Added local `OffsetY` scrolling bounds. Subscribed to `INotifyCollectionChanged` events to update rendering immediately on collection changes. Optimized drawing performance 100x via static brush caching and sub-pixel culling (skipping blocks `< 0.2` pixels).
-- **[ProfilerViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/ProfilerViewModel.cs)**: Added `ProfileSessionModel`, `ProfileMemoryStats` collections, multiple session history list management, CPU & memory dual V8 profile parsing, and export commands.
-- **[ProfilerView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/ProfilerView.axaml)** & **[ProfilerView.axaml.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/ProfilerView.axaml.cs)**: Added runs sidebar list, vertically stacked CPU and Memory flame charts (sharing panning/zoom scales), and a "Memory Allocations" stats tab.
-- **[PerformanceView.axaml](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/PerformanceView.axaml)**, **[PerformanceView.axaml.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/Views/PerformanceView.axaml.cs)** & **[PerformanceViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/PerformanceViewModel.cs)**: Added quick action buttons and save picker hooks to initiate/stop CPU profiling.
-- **[MainWindowViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/ViewModels/MainWindowViewModel.cs)** & **[MainView.axaml.cs](file:///Users/wieslawsoltes/GitHub/CDP/src/CDP.Inspector.Shared/MainView.axaml.cs)**: Registered `"Profiler"` pane and icon mapping to support the split-dock toolbar layout.
+### 2. Comprehensive 42-Case YAML E2E Test Suite
+* Added 42 E2E YAML test files organized by feature categories:
+  * `connection/` (failed ports check, reconnects)
+  * `simulation/` (canvas zoom)
+  * `elements/` (DOM tree inspect, style adjustments)
+  * `console/` (C# script evaluations, history)
+  * `sources/` (workspace search outline, files explorer)
+  * `network/` (payload queries, headers inspection, clear history)
+  * `performance/` (FPS metrics collection)
+  * `profiler/` (dotTrace profiles save/load and flame charts)
+  * `memory/` (dotMemory allocations analysis)
+  * `recorder/` (Test Studio execution, HTML/PDF report generators)
 
-- **[MainWindow.axaml](file:///Users/wieslawsoltes/GitHub/CDP/samples/CdpSampleApp/MainWindow.axaml)** & **[MainWindowViewModel.cs](file:///Users/wieslawsoltes/GitHub/CDP/samples/CdpSampleApp/ViewModels/MainWindowViewModel.cs)**: Cleaned up buttons layout to use a flexible `WrapPanel` and prevent potential clipping. Added missing System.Collections.Generic namespace import.
+### 3. Reusable Sub-Flow Library
+* Introduced a library of common subscripts under `tests/CdpInspectorApp.E2e/shared/` (`connect_to_sample.yaml`, `navigate_to_profiler.yaml`, `navigate_to_memory.yaml`, etc.) invoked via the `runFlow` keyword to eliminate code duplication across the E2E suite.
+
+### 4. Playwright Code Generation CLI (`cdp-cli codegen`)
+* Added a new `codegen` command to the inspector CLI runner to compile YAML test flows into standard, executable Playwright spec test files under `tests/playwright/`.
+* Allows running generated test scripts headlessly (`npx playwright test tests/playwright/ --headless`) inside local development environments and CI/CD pipelines.
+
+### 5. dotMemory SDK Reflection Load Path & Path Prioritization
+* Implemented the dotMemory SDK reflection load path using the JetBrains `JsonWorkspaceIndexSerializer` class when dotMemory/Rider installations are present.
+* Resolved a critical assembly resolution ordering bug where .NET Framework versions of assemblies (like `Newtonsoft.Json.dll`) from the ReSharper host folder were resolved before their NetCore equivalents, causing a type load exception (`ReflectionPermission`).
+* Added a path prioritization rule to the resolver that favors directories containing "NetCore", successfully resolving dependencies in modern .NET environments.
+* Added corresponding unit tests in `ProfilingAnalysisTests.cs` to cover both fallback and SDK reflection-based dmw loading.
+
+### 6. CdpSampleApp E2E Test Suite & Code Generation
+* Extended `CdpSampleApp` with two new tabs: **Gestures** (double click, long press, clear target text, drag & drop) and **Asserts & Keys** (key press listening, visibility target toggle).
+* Created two corresponding E2E YAML flows: `gestures.flow.yaml` and `asserts_keys.flow.yaml`, bringing the total sample app E2E flows to **11 flows**.
+* Generated the corresponding Playwright spec files under `tests/playwright/sample/` (`gestures.flow.spec.js` and `asserts_keys.flow.spec.js`).
+* Updated `TestStudioYamlParserTests.cs` to verify all 11 flows parse successfully.
+
+### 7. Project Explorer Run Actions & Quick Run Panel
+* Added context menu run options `Run YAML Flow` (only on YAML files) and `Run Folder` (only on folders) in the workspace files list.
+* Designed a quick-access `Run Actions` toolbar panel above the Workspace Files list containing Run Selected (green play icon), Run All Suite (blue play icon), and Stop Run (red stop icon) buttons.
+* Implemented new unit tests in `SuiteExecutionTests.cs` covering all folder execution, single flow execution, and cancellation scenarios.
 
 ---
 
-## 🧪 Verification & Testing
-- Added **[ProfileConverterTests.cs](file:///Users/wieslawsoltes/GitHub/CDP/tests/Avalonia.Diagnostics.Cdp.Tests/ProfileConverterTests.cs)** verifying translation of mock stack prefixes and HitCount trie resolution.
-- Added `TestProfilerAllocationSampledManualParsing` and `TestProfilerViewModelLoadDualProfile` to **[NewDomainTests.cs](file:///Users/wieslawsoltes/GitHub/CDP/tests/Avalonia.Diagnostics.Cdp.Tests/NewDomainTests.cs)** to assert manual byte layout decoding and dual profile VM parsing respectively.
-- Executed `dotnet test` solution-wide, passing all 380 tests cleanly.
-
----
-
-## 🚀 Pull Request Review Feedback Addressed
-All unresolved comments and suggestions from automated reviews have been successfully addressed:
-- **Avoid stopping inactive profiler states (P1):** Added immediate return guard in `ProfilerState.Stop()` when inactive to prevent server hang from infinite duration loops. (Commit: `5937f6c`)
-- **Split flame blocks when ancestors change (P2):** Modified `ProcessV8Profile` to terminate and finalize all descendant blocks when an ancestor changes, preventing overlaps. (Commit: `def4ca6`)
-- **Sum deltas without overflowing int (P2):** Parsed `timeDeltas` list as `double` to prevent integer overflow exception on large traces. (Commit: `def4ca6`)
-- **Rebuild search matches after switching runs (P2):** Switched profiling runs sidebar items now correctly refreshes active search results in `ProfilerViewModel.OnSessionSelected()`. (Commit: `8cb2f89`)
+## Verification & Testing Proof
+* All 42 inspector YAML flows and 11 sample YAML flows parse successfully and resolve nested sub-flows, verified by the parser unit tests.
+* **Unit Tests Status**: **448 tests passed successfully (0 failures)**.
+* Verification evidence, commands, and generated report templates are documented in `walkthrough.md`.

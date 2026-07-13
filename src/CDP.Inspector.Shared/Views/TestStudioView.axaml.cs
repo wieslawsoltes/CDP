@@ -65,7 +65,11 @@ public partial class TestStudioView : UserControl
                 else if (viewName == "NodeEditor") cacheKey = "pnlNodeEditor";
                 else if (viewName == "YamlConfiguration") cacheKey = "pnlYamlConfiguration";
                 else if (viewName == "ExecutionLog") cacheKey = "pnlExecutionLog";
-                else if (viewName == "ProjectSidebar") cacheKey = "pnlProjectSidebar";
+                else if (viewName == "Explorer") cacheKey = "pnlExplorer";
+                else if (viewName == "Search") cacheKey = "pnlSearch";
+                else if (viewName == "Toolbox") cacheKey = "pnlToolbox";
+                else if (viewName == "Suites") cacheKey = "pnlSuites";
+                else if (viewName == "Settings") cacheKey = "pnlSettings";
 
                 if (_viewsCache.TryGetValue(cacheKey, out var view))
                 {
@@ -468,6 +472,65 @@ public partial class TestStudioView : UserControl
                     vm.Recorder.TestStudio.InsertCommandStep(cmd, "", "", insertIndex);
                 }
             });
+        }
+
+        var lstOpenEditors = this.FindControl<ListBox>("lstOpenEditors");
+        if (lstOpenEditors != null)
+        {
+            lstOpenEditors.PointerPressed += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    var visual = e.Source as Visual;
+                    while (visual != null)
+                    {
+                        if (visual is ListBoxItem listItem && listItem.DataContext is OpenEditorModel oe)
+                        {
+                            try
+                            {
+                                vm.Recorder.TestStudio.LoadFlowFile(oe.FilePath);
+                            }
+                            catch (System.Exception ex)
+                            {
+                                vm.Recorder.TestStudio.Log($"Error loading flow file: {ex.Message}");
+                            }
+                            break;
+                        }
+                        visual = visual.GetVisualParent();
+                    }
+                }
+            };
+        }
+
+        if (treeWorkspace != null)
+        {
+            treeWorkspace.PointerPressed += (s, e) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    var visual = e.Source as Visual;
+                    while (visual != null)
+                    {
+                        if (visual is DataGridRow row && row.DataContext is HierarchicalNode<WorkspaceItemModel> node)
+                        {
+                            var item = node.Item;
+                            if (item != null && !item.IsFolder)
+                            {
+                                try
+                                {
+                                    vm.Recorder.TestStudio.LoadFlowFile(item.Path);
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    vm.Recorder.TestStudio.Log($"Error loading flow file: {ex.Message}");
+                                }
+                            }
+                            break;
+                        }
+                        visual = visual.GetVisualParent();
+                    }
+                }
+            };
         }
     }
 

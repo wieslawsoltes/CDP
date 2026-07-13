@@ -1373,4 +1373,46 @@ public class ViewsLayoutTests
         mainVm.NavigateToView("Elements");
         Assert.Equal("Elements", rightPane.ActiveTab.SelectedViewName);
     }
+
+    [Fact]
+    public void Test_Sidebar_Tab_Index_And_Environment_Selection()
+    {
+        var mockService = new MemoryViewModelTests.MockCdpService();
+        var mainVm = new MainWindowViewModel(mockService);
+        var testStudioVm = mainVm.Recorder.TestStudio;
+
+        // Verify default tab
+        Assert.Equal("explorer", testStudioVm.ActiveSidebarTab);
+        Assert.Equal(0, testStudioVm.ActiveSidebarTabIndex);
+        Assert.True(testStudioVm.IsExplorerActive);
+        Assert.True(testStudioVm.IsExplorerTabActive);
+
+        // Switch by setting ActiveSidebarTab
+        testStudioVm.ActiveSidebarTab = "search";
+        Assert.Equal(1, testStudioVm.ActiveSidebarTabIndex);
+        Assert.True(testStudioVm.IsSearchActive);
+        Assert.True(testStudioVm.IsSearchTabActive);
+
+        // Switch by setting ActiveSidebarTabIndex
+        testStudioVm.ActiveSidebarTabIndex = 2;
+        Assert.Equal("toolbox", testStudioVm.ActiveSidebarTab);
+        Assert.True(testStudioVm.IsToolboxActive);
+        Assert.True(testStudioVm.IsToolboxTabActive);
+
+        testStudioVm.ActiveSidebarTabIndex = 3;
+        Assert.Equal("projects", testStudioVm.ActiveSidebarTab);
+        Assert.True(testStudioVm.IsProjectsActive);
+        Assert.True(testStudioVm.IsProjectsTabActive);
+
+        testStudioVm.ActiveSidebarTabIndex = 4;
+        Assert.Equal("settings", testStudioVm.ActiveSidebarTab);
+        Assert.True(testStudioVm.IsSettingsActive);
+        Assert.True(testStudioVm.IsSettingsTabActive);
+
+        // Verify ManageEnvironments sets tab to settings
+        testStudioVm.ActiveSidebarTab = "explorer";
+        testStudioVm.ManageEnvironmentsCommand.Execute(null);
+        Assert.Equal("settings", testStudioVm.ActiveSidebarTab);
+        Assert.Equal(4, testStudioVm.ActiveSidebarTabIndex);
+    }
 }

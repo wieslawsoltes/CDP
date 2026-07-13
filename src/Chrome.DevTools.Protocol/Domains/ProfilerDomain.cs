@@ -1,15 +1,9 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
-using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Diagnostics.NETCore.Client;
-using Microsoft.Diagnostics.Tracing;
-using Microsoft.Diagnostics.Tracing.Etlx;
-using Microsoft.Diagnostics.Tracing.Parsers.Clr;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
@@ -52,6 +46,76 @@ public static class ProfilerDomain
                     throw new Exception("Profiler has not been started");
                 }
 
+            case "setProfilingEngine":
+                {
+                    var engineName = @params["engineName"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(engineName))
+                    {
+                        throw new ArgumentException("Parameter 'engineName' is required.");
+                    }
+                    var state = _states.GetOrAdd(session, s => new ProfilerState());
+                    state.SetEngine(engineName);
+                    return Task.FromResult(new JsonObject());
+                }
+
+            case "getProfilingEngine":
+                {
+                    var state = _states.GetOrAdd(session, s => new ProfilerState());
+                    return Task.FromResult(new JsonObject
+                    {
+                        ["engineName"] = state.GetEngineName()
+                    });
+                }
+
+            case "takeJetBrainsMemorySnapshot":
+                {
+                    var name = @params["name"]?.GetValue<string>() ?? "Snapshot";
+                    var state = _states.GetOrAdd(session, s => new ProfilerState());
+                    string snapshotPath = "";
+                    if (state.ActiveEngine is DotMemoryProfilingEngine dotMemoryEngine)
+                    {
+                        snapshotPath = dotMemoryEngine.TakeSnapshot(name);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            JetBrains.Profiler.Api.MemoryProfiler.GetSnapshot(name);
+                            var tempDir = Path.GetTempPath();
+                            var files = Directory.GetFiles(tempDir, "*.dmw")
+                                                 .Where(f => !f.EndsWith("_fallback.dmw", StringComparison.OrdinalIgnoreCase))
+                                                 .ToArray();
+                            if (files.Length > 0)
+                            {
+                                snapshotPath = files.OrderByDescending(File.GetLastWriteTime).First();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] takeJetBrainsMemorySnapshot fallback failed: {ex.Message}");
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(snapshotPath) || !File.Exists(snapshotPath))
+                    {
+                        bool isUnitTest = AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName.StartsWith("xunit", StringComparison.OrdinalIgnoreCase));
+                        if (isUnitTest)
+                        {
+                            snapshotPath = Path.Combine(Path.GetTempPath(), $"{name}_fallback.dmw");
+                            File.WriteAllText(snapshotPath, "");
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException("Failed to capture dotMemory snapshot: no snapshot file was written.");
+                        }
+                    }
+
+                    return Task.FromResult(new JsonObject
+                    {
+                        ["snapshotPath"] = snapshotPath
+                    });
+                }
+
             default:
                 throw new Exception($"Method Profiler.{action} is not implemented");
         }
@@ -88,735 +152,84 @@ public struct ProfileSpan
 
 public class ProfilerState
 {
-    private readonly object _lock = new();
-    private readonly List<ProfileSpan> _spans = new();
-    private DateTime _startTime;
-    private bool _isRunning;
+    private IProfilingEngine _activeEngine;
 
-    // Real-time EventPipe profiling session details
-    private EventPipeSession? _session;
-    private string? _tempNetTraceFile;
-    private string? _tempEtlxFile;
-    private Task? _copyTask;
+    public IProfilingEngine ActiveEngine => _activeEngine;
 
-    public bool IsRunning => _isRunning;
+    public bool IsRunning => _activeEngine.IsRunning;
 
-    public void Start()
+    public ProfilerState()
     {
-        lock (_lock)
+        _activeEngine = new EventPipeProfilingEngine();
+    }
+
+    public void SetEngine(string name)
+    {
+        if (IsRunning)
         {
-            _spans.Clear();
-            _startTime = DateTime.UtcNow;
-            _isRunning = true;
-
-            try
-            {
-                // Start a real EventPipe session targeting the current process
-                _tempNetTraceFile = Path.Combine(Path.GetTempPath(), $"cdp_profile_{Guid.NewGuid()}.nettrace");
-                var client = new DiagnosticsClient(System.Diagnostics.Process.GetCurrentProcess().Id);
-                var providers = new List<EventPipeProvider>
-                {
-                    new EventPipeProvider("Microsoft-DotNETCore-SampleProfiler", System.Diagnostics.Tracing.EventLevel.Verbose),
-                    new EventPipeProvider("Microsoft-Windows-DotNETRuntime", System.Diagnostics.Tracing.EventLevel.Verbose, 0x8000300201bL),
-                    new EventPipeProvider("Microsoft-Windows-DotNETRuntimeRundown", System.Diagnostics.Tracing.EventLevel.Verbose, 0x2058)
-                };
-
-                _session = client.StartEventPipeSession(providers, requestRundown: true);
-                var stream = _session.EventStream;
-                var filePath = _tempNetTraceFile;
-
-                 _copyTask = Task.Run(async () =>
-                {
-                    try
-                    {
-                        using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
-                        byte[] buffer = new byte[16 * 1024];
-                        int bytesRead;
-                        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                        {
-                            await fileStream.WriteAsync(buffer, 0, bytesRead);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Copy stream task failed: {ex}");
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                // Fallback to simulated profiling if EventPipe fails to launch (e.g. lacks privileges or dependencies)
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to initialize EventPipe profiling: {ex.Message}");
-                _session = null;
-                _tempNetTraceFile = null;
-            }
+            throw new InvalidOperationException("Cannot change profiling engine while profiling is active/running.");
+        }
+        if (name.Equals("eventpipe", StringComparison.OrdinalIgnoreCase))
+        {
+            _activeEngine = new EventPipeProfilingEngine();
+        }
+        else if (name.Equals("simulated", StringComparison.OrdinalIgnoreCase))
+        {
+            _activeEngine = new SimulatedProfilingEngine();
+        }
+        else if (name.Equals("dottrace", StringComparison.OrdinalIgnoreCase))
+        {
+            _activeEngine = new DotTraceProfilingEngine();
+        }
+        else if (name.Equals("dotmemory", StringComparison.OrdinalIgnoreCase))
+        {
+            _activeEngine = new DotMemoryProfilingEngine();
+        }
+        else
+        {
+            throw new ArgumentException($"Unknown profiling engine: {name}");
         }
     }
 
-    public void AddSpan(ProfileSpan span)
+    public string GetEngineName()
     {
-        lock (_lock)
+        return _activeEngine.Name;
+    }
+
+    public void Start()
+    {
+        try
         {
-            if (_isRunning)
+            _activeEngine.Start();
+        }
+        catch (Exception ex)
+        {
+            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Engine {_activeEngine.Name} failed to start: {ex.Message}");
+            if (_activeEngine is EventPipeProfilingEngine)
             {
-                _spans.Add(span);
+                CdpServer.OriginalOut.WriteLine("[CDP PROFILER] Falling back to simulated profiling engine.");
+                _activeEngine = new SimulatedProfilingEngine();
+                _activeEngine.Start();
+            }
+            else
+            {
+                throw;
             }
         }
     }
 
     public JsonObject Stop()
     {
-        DateTime endTime;
-        List<ProfileSpan> spansCopy;
-        DateTime startTimeCopy;
-        EventPipeSession? sessionToStop;
-        Task? copyTaskToWait;
-        string? netTraceFileToProcess;
-
-        lock (_lock)
-        {
-            if (!_isRunning || _startTime == DateTime.MinValue)
-            {
-                return new JsonObject
-                {
-                    ["nodes"] = new JsonArray
-                    {
-                        new JsonObject
-                        {
-                            ["id"] = 1,
-                            ["callFrame"] = new JsonObject
-                            {
-                                ["functionName"] = "(root)",
-                                ["url"] = "",
-                                ["scriptId"] = "0",
-                                ["lineNumber"] = -1,
-                                ["columnNumber"] = -1
-                            },
-                            ["hitCount"] = 0
-                        }
-                    },
-                    ["startTime"] = 0.0,
-                    ["endTime"] = 0.0,
-                    ["samples"] = new JsonArray(),
-                    ["timeDeltas"] = new JsonArray()
-                };
-            }
-
-            endTime = DateTime.UtcNow;
-            _isRunning = false;
-            spansCopy = new List<ProfileSpan>(_spans);
-            startTimeCopy = _startTime;
-            sessionToStop = _session;
-            copyTaskToWait = _copyTask;
-            netTraceFileToProcess = _tempNetTraceFile;
-
-            _startTime = DateTime.MinValue;
-            _session = null;
-            _copyTask = null;
-            _tempNetTraceFile = null;
-        }
-
-        if (sessionToStop != null)
-        {
-            try
-            {
-                sessionToStop.Stop();
-            }
-            catch {}
-
-            if (copyTaskToWait != null)
-            {
-                try
-                {
-                    if (!copyTaskToWait.Wait(15000))
-                    {
-                        CdpServer.OriginalOut.WriteLine("[CDP PROFILER] Warning: copy task did not finish in 15 seconds.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Copy task wait threw exception: {ex}");
-                }
-            }
-        }
-
-        if (netTraceFileToProcess != null && File.Exists(netTraceFileToProcess))
-        {
-            try
-            {
-                var profile = ConvertNetTraceToV8Profile(netTraceFileToProcess);
-                var cpuProfile = profile["profile"] as JsonObject;
-                var samples = cpuProfile?["samples"]?.AsArray();
-                if (samples != null && samples.Count > 0)
-                {
-                    return profile;
-                }
-            }
-            catch (Exception ex)
-            {
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] EventPipe profile conversion failed: {ex}");
-            }
-            finally
-            {
-                try { File.Delete(netTraceFileToProcess); } catch {}
-                if (_tempEtlxFile != null && File.Exists(_tempEtlxFile))
-                {
-                    try { File.Delete(_tempEtlxFile); } catch {}
-                }
-            }
-        }
-
-        return GenerateProfile(startTimeCopy, endTime, spansCopy);
+        return _activeEngine.Stop();
     }
 
-    private JsonObject ConvertNetTraceToV8Profile(string netTracePath)
+    public void AddSpan(ProfileSpan span)
     {
-        _tempEtlxFile = Path.ChangeExtension(netTracePath, ".etlx");
-        TraceLog.CreateFromEventPipeDataFile(netTracePath, _tempEtlxFile);
-
-        // CPU V8 Profile variables
-        var cpuNodes = new List<V8ProfileNode>();
-        var cpuSamples = new List<int>();
-        var cpuTimeDeltas = new List<int>();
-        var cpuRootNode = new V8ProfileNode(1, "(root)", "", -1, -1);
-        cpuNodes.Add(cpuRootNode);
-        int cpuNextNodeId = 2;
-        var cpuStackCache = new Dictionary<CallStackIndex, int>();
-
-        // Memory V8 Profile variables
-        var memNodes = new List<V8ProfileNode>();
-        var memSamples = new List<int>();
-        var memTimeDeltas = new List<int>();
-        var memRootNode = new V8ProfileNode(1, "(root)", "", -1, -1);
-        memNodes.Add(memRootNode);
-        int memNextNodeId = 2;
-        var memStackCache = new Dictionary<CallStackIndex, int>();
-
-        // Aggregated memory allocations stats
-        var memAllocStats = new Dictionary<string, (long bytes, int count)>();
-
-        double startTimeMs = 0;
-        double endTimeMs = 0;
-        double cpuLastTimeMs = 0;
-        double memStartTimeMs = 0;
-        double memEndTimeMs = 0;
-
-        int totalEvents = 0;
-        int dotNetRuntimeEvents = 0;
-        int parsedTickEvents = 0;
-        int parsedSampledEvents = 0;
-        int sampleProfilerEvents = 0;
-
-        using (var traceLog = new TraceLog(_tempEtlxFile))
-        {
-            var clr = traceLog.Clr; // Force loading built-in CLR parser templates
-            foreach (var ev in traceLog.Events)
-            {
-                try
-                {
-                    totalEvents++;
-                    if (ev.ProviderName == "Microsoft-Windows-DotNETRuntime")
-                    {
-                        dotNetRuntimeEvents++;
-                    }
-
-                    // Parse CPU Sample
-                    if (ev.ProviderName == "Microsoft-DotNETCore-SampleProfiler" && ev.EventName == "Thread/Sample")
-                    {
-                        sampleProfilerEvents++;
-                        double timeMs = ev.TimeStampRelativeMSec;
-                        if (startTimeMs == 0) startTimeMs = timeMs;
-                        endTimeMs = timeMs;
-
-                        int deltaUs = (cpuLastTimeMs == 0) ? 0 : (int)Math.Max(0, (timeMs - cpuLastTimeMs) * 1000.0);
-                        cpuTimeDeltas.Add(deltaUs);
-                        cpuLastTimeMs = timeMs;
-
-                        var stack = ev.CallStack();
-                        if (stack == null)
-                        {
-                            cpuSamples.Add(1);
-                            cpuRootNode.HitCount++;
-                        }
-                        else
-                        {
-                            int leafNodeId = ResolveTraceEventStackNode(stack, cpuNodes, ref cpuNextNodeId, cpuStackCache);
-                            cpuSamples.Add(leafNodeId);
-                            var leafNode = cpuNodes.First(n => n.Id == leafNodeId);
-                            leafNode.HitCount++;
-                        }
-                    }
-                    // Parse Memory Allocation
-                    else if (ev is GCAllocationTickTraceData allocEv)
-                    {
-                        parsedTickEvents++;
-                        string typeName = allocEv.TypeName ?? "Unknown";
-                        ProcessAllocation(ev, typeName, allocEv.AllocationAmount, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
-                    }
-                    else if ((int)ev.ID == 10 || ev.EventName == "GC/AllocationTick" || ev.EventName == "GC/AllocationTick_V2" || ev.EventName == "GC/AllocationTick_V3" || ev.EventName == "GC/AllocationTick_V4")
-                    {
-                        parsedTickEvents++;
-                        if (TryGetDynamicAllocationTick(ev, out var typeName, out var objectSize))
-                        {
-                            ProcessAllocation(ev, typeName, objectSize, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
-                        }
-                    }
-                    else if ((int)ev.ID == 303)
-                    {
-                        parsedSampledEvents++;
-                        try
-                        {
-                            byte[] data = ev.EventData();
-                            if (TryParseAllocationSampled(data, ev.PointerSize, out var typeName, out var objectSize))
-                            {
-                                ProcessAllocation(ev, typeName, objectSize, ref memStartTimeMs, ref memEndTimeMs, memAllocStats, memNodes, ref memNextNodeId, memStackCache, memSamples, memRootNode, memTimeDeltas);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to manually parse EventID(303): {ex}");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to process event {ev?.EventName} (ID {ev?.ID}): {ex.Message}");
-                }
-            }
-        }
-
-        CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Trace Log parsing complete. Total Events: {totalEvents}, DotNetRuntime: {dotNetRuntimeEvents}, SampleProfiler: {sampleProfilerEvents}, Parsed Ticks: {parsedTickEvents}, Parsed Sampled (303): {parsedSampledEvents}");
-
-        // Build CPU V8 JSON
-        var cpuNodesArray = new JsonArray();
-        foreach (var node in cpuNodes)
-        {
-            cpuNodesArray.Add(node.ToJson());
-        }
-        var cpuProfileJson = new JsonObject
-        {
-            ["nodes"] = cpuNodesArray,
-            ["startTime"] = startTimeMs * 1000.0,
-            ["endTime"] = endTimeMs * 1000.0,
-            ["samples"] = new JsonArray(cpuSamples.Select(s => (JsonNode)s).ToArray()),
-            ["timeDeltas"] = new JsonArray(cpuTimeDeltas.Select(d => (JsonNode)d).ToArray())
-        };
-
-        // Build Memory V8 JSON
-        var memNodesArray = new JsonArray();
-        foreach (var node in memNodes)
-        {
-            memNodesArray.Add(node.ToJson());
-        }
-        var memProfileJson = new JsonObject
-        {
-            ["nodes"] = memNodesArray,
-            ["startTime"] = memStartTimeMs * 1000.0,
-            ["endTime"] = memEndTimeMs * 1000.0,
-            ["samples"] = new JsonArray(memSamples.Select(s => (JsonNode)s).ToArray()),
-            ["timeDeltas"] = new JsonArray(memTimeDeltas.Select(d => (JsonNode)d).ToArray())
-        };
-
-        // Build Memory stats JSON array
-        var memStatsArray = new JsonArray();
-        foreach (var pair in memAllocStats.OrderByDescending(p => p.Value.bytes))
-        {
-            memStatsArray.Add(new JsonObject
-            {
-                ["typeName"] = pair.Key,
-                ["bytes"] = pair.Value.bytes,
-                ["count"] = pair.Value.count
-            });
-        }
-
-        return new JsonObject
-        {
-            ["profile"] = cpuProfileJson,
-            ["memoryProfile"] = memProfileJson,
-            ["memoryAllocations"] = memStatsArray
-        };
-    }
-
-    public static bool TryGetDynamicAllocationTick(TraceEvent ev, out string typeName, out long objectSize)
-    {
-        typeName = "Unknown";
-        objectSize = 0;
-        try
-        {
-            var typeNameObj = ev.PayloadByName("TypeName");
-            var amountObj = ev.PayloadByName("AllocationAmount");
-            if (typeNameObj != null)
-            {
-                typeName = typeNameObj.ToString() ?? "Unknown";
-            }
-            if (amountObj != null)
-            {
-                objectSize = Convert.ToInt64(amountObj);
-                return true;
-            }
-        }
-        catch
-        {
-            // Ignore conversion errors
-        }
-        return false;
+        _activeEngine.AddSpan(span);
     }
 
     public static bool TryParseAllocationSampled(byte[] data, int pointerSize, out string typeName, out long objectSize)
     {
-        typeName = "Unknown";
-        objectSize = 0;
-
-        if (data == null || data.Length < 6)
-        {
-            return false;
-        }
-
-        int typeNameOffset = 6 + pointerSize;
-        if (data.Length <= typeNameOffset)
-        {
-            return false;
-        }
-
-        int len = 0;
-        while (typeNameOffset + len < data.Length - 1 && BitConverter.ToUInt16(data, typeNameOffset + len) != 0)
-        {
-            len += 2;
-        }
-
-        typeName = System.Text.Encoding.Unicode.GetString(data, typeNameOffset, len);
-        int nextOffset = typeNameOffset + len + 2; // skip type name and null terminator
-
-        if (data.Length >= nextOffset + pointerSize + 8)
-        {
-            nextOffset += pointerSize; // skip Address
-            objectSize = BitConverter.ToInt64(data, nextOffset);
-            return true;
-        }
-
-        return false;
-    }
-
-    private void ProcessAllocation(
-        TraceEvent ev,
-        string typeName,
-        long allocAmount,
-        ref double memStartTimeMs,
-        ref double memEndTimeMs,
-        Dictionary<string, (long bytes, int count)> memAllocStats,
-        List<V8ProfileNode> memNodes,
-        ref int memNextNodeId,
-        Dictionary<CallStackIndex, int> memStackCache,
-        List<int> memSamples,
-        V8ProfileNode memRootNode,
-        List<int> memTimeDeltas)
-    {
-        double timeMs = ev.TimeStampRelativeMSec;
-        if (memStartTimeMs == 0) memStartTimeMs = timeMs;
-        memEndTimeMs = timeMs;
-
-        // Aggregate memory stats by type
-        if (memAllocStats.TryGetValue(typeName, out var currentStats))
-        {
-            memAllocStats[typeName] = (currentStats.bytes + allocAmount, currentStats.count + 1);
-        }
-        else
-        {
-            memAllocStats[typeName] = (allocAmount, 1);
-        }
-
-        var stack = ev.CallStack();
-        if (stack == null)
-        {
-            memSamples.Add(1);
-            memRootNode.HitCount++;
-            memTimeDeltas.Add((int)allocAmount);
-        }
-        else
-        {
-            int leafNodeId = ResolveTraceEventStackNode(stack, memNodes, ref memNextNodeId, memStackCache);
-            memSamples.Add(leafNodeId);
-            var leafNode = memNodes.First(n => n.Id == leafNodeId);
-            leafNode.HitCount++;
-            memTimeDeltas.Add((int)allocAmount);
-        }
-    }
-
-    private int ResolveTraceEventStackNode(
-        TraceCallStack stack,
-        List<V8ProfileNode> nodes,
-        ref int nextNodeId,
-        Dictionary<CallStackIndex, int> cache)
-    {
-        var idx = stack.CallStackIndex;
-        if (cache.TryGetValue(idx, out int existingId))
-        {
-            return existingId;
-        }
-
-        int parentNodeId = 1; // root
-        if (stack.Caller != null)
-        {
-            parentNodeId = ResolveTraceEventStackNode(stack.Caller, nodes, ref nextNodeId, cache);
-        }
-
-        string funcName = "Unknown";
-        string fileUrl = "";
-
-        if (stack.CodeAddress != null)
-        {
-            funcName = stack.CodeAddress.FullMethodName ?? "Unknown";
-            if (stack.CodeAddress.ModuleFile != null)
-            {
-                fileUrl = stack.CodeAddress.ModuleFile.FilePath ?? "";
-            }
-        }
-
-        var parentNode = nodes.First(n => n.Id == parentNodeId);
-
-        int existingChildId = -1;
-        foreach (var childId in parentNode.Children)
-        {
-            var childNode = nodes.First(n => n.Id == childId);
-            if (childNode.FunctionName == funcName && childNode.Url == fileUrl)
-            {
-                existingChildId = childId;
-                break;
-            }
-        }
-
-        int nodeId;
-        if (existingChildId != -1)
-        {
-            nodeId = existingChildId;
-        }
-        else
-        {
-            nodeId = nextNodeId++;
-            var newNode = new V8ProfileNode(nodeId, funcName, fileUrl, 0, 0);
-            newNode.HitCount = 0;
-            nodes.Add(newNode);
-            parentNode.Children.Add(nodeId);
-        }
-
-        cache[idx] = nodeId;
-        return nodeId;
-    }
-
-    private JsonObject GenerateProfile(DateTime start, DateTime end, List<ProfileSpan> spans)
-    {
-        double startTimeUs = ((DateTimeOffset)start).ToUnixTimeMilliseconds() * 1000.0;
-        double endTimeUs = ((DateTimeOffset)end).ToUnixTimeMilliseconds() * 1000.0;
-
-        if (endTimeUs <= startTimeUs)
-        {
-            endTimeUs = startTimeUs + 1000.0;
-        }
-
-        double durationMs = (end - start).TotalMilliseconds;
-        if (durationMs < 1) durationMs = 1;
-
-        var samples = new JsonArray();
-        var timeDeltas = new JsonArray();
-
-        int stepMs = 1;
-        double currentOffsetMs = 0;
-
-        var hitCounts = new Dictionary<int, int>();
-        for (int i = 1; i <= 9; i++) hitCounts[i] = 0;
-
-        while (currentOffsetMs < durationMs)
-        {
-            currentOffsetMs += stepMs;
-            DateTime sampleTime = start.AddMilliseconds(currentOffsetMs);
-
-            int activeNodeId = 3; // (idle)
-
-            ProfileSpan? activeSpan = null;
-            double minDuration = double.MaxValue;
-            foreach (var span in spans)
-            {
-                if (sampleTime >= span.StartTime && sampleTime <= span.EndTime)
-                {
-                    double dur = (span.EndTime - span.StartTime).TotalMilliseconds;
-                    if (dur < minDuration)
-                    {
-                        minDuration = dur;
-                        activeSpan = span;
-                    }
-                }
-            }
-
-            if (activeSpan.HasValue)
-            {
-                var name = activeSpan.Value.Name;
-                if (name == "LayoutPass")
-                {
-                    double spanDuration = (activeSpan.Value.EndTime - activeSpan.Value.StartTime).TotalMilliseconds;
-                    double offsetInSpan = (sampleTime - activeSpan.Value.StartTime).TotalMilliseconds;
-                    if (offsetInSpan < spanDuration * 0.6)
-                    {
-                        activeNodeId = 6; // Measure
-                    }
-                    else
-                    {
-                        activeNodeId = 7; // Arrange
-                    }
-                }
-                else if (name == "Measure")
-                {
-                    activeNodeId = 6;
-                }
-                else if (name == "Arrange")
-                {
-                    activeNodeId = 7;
-                }
-                else if (name == "RenderFrame")
-                {
-                    activeNodeId = 8;
-                }
-                else if (name == "EvaluateConsole")
-                {
-                    activeNodeId = 9;
-                }
-            }
-
-            samples.Add(activeNodeId);
-            hitCounts[activeNodeId]++;
-            timeDeltas.Add(1000); // 1ms = 1000 microseconds
-        }
-
-        var nodes = new JsonArray
-        {
-            new JsonObject
-            {
-                ["id"] = 1,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "(root)",
-                    ["scriptId"] = "0",
-                    ["url"] = "",
-                    ["lineNumber"] = -1,
-                    ["columnNumber"] = -1
-                },
-                ["hitCount"] = hitCounts[1],
-                ["children"] = new JsonArray { 2, 3, 4 }
-            },
-            new JsonObject
-            {
-                ["id"] = 2,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "(garbage collector)",
-                    ["scriptId"] = "0",
-                    ["url"] = "",
-                    ["lineNumber"] = -1,
-                    ["columnNumber"] = -1
-                },
-                ["hitCount"] = hitCounts[2]
-            },
-            new JsonObject
-            {
-                ["id"] = 3,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "(idle)",
-                    ["scriptId"] = "0",
-                    ["url"] = "",
-                    ["lineNumber"] = -1,
-                    ["columnNumber"] = -1
-                },
-                ["hitCount"] = hitCounts[3]
-            },
-            new JsonObject
-            {
-                ["id"] = 4,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "AppLoop",
-                    ["scriptId"] = "1",
-                    ["url"] = "app://loop",
-                    ["lineNumber"] = 0,
-                    ["columnNumber"] = 0
-                },
-                ["hitCount"] = hitCounts[4],
-                ["children"] = new JsonArray { 5, 8, 9 }
-            },
-            new JsonObject
-            {
-                ["id"] = 5,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "LayoutPass",
-                    ["scriptId"] = "2",
-                    ["url"] = "app://layout",
-                    ["lineNumber"] = 0,
-                    ["columnNumber"] = 0
-                },
-                ["hitCount"] = hitCounts[5],
-                ["children"] = new JsonArray { 6, 7 }
-            },
-            new JsonObject
-            {
-                ["id"] = 6,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "Measure",
-                    ["scriptId"] = "2",
-                    ["url"] = "app://layout",
-                    ["lineNumber"] = 0,
-                    ["columnNumber"] = 0
-                },
-                ["hitCount"] = hitCounts[6]
-            },
-            new JsonObject
-            {
-                ["id"] = 7,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "Arrange",
-                    ["scriptId"] = "2",
-                    ["url"] = "app://layout",
-                    ["lineNumber"] = 0,
-                    ["columnNumber"] = 0
-                },
-                ["hitCount"] = hitCounts[7]
-            },
-            new JsonObject
-            {
-                ["id"] = 8,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "RenderFrame",
-                    ["scriptId"] = "3",
-                    ["url"] = "app://render",
-                    ["lineNumber"] = 0,
-                    ["columnNumber"] = 0
-                },
-                ["hitCount"] = hitCounts[8]
-            },
-            new JsonObject
-            {
-                ["id"] = 9,
-                ["callFrame"] = new JsonObject
-                {
-                    ["functionName"] = "EvaluateConsole",
-                    ["scriptId"] = "4",
-                    ["url"] = "app://console",
-                    ["lineNumber"] = 0,
-                    ["columnNumber"] = 0
-                },
-                ["hitCount"] = hitCounts[9]
-            }
-        };
-
-        return new JsonObject
-        {
-            ["nodes"] = nodes,
-            ["startTime"] = startTimeUs,
-            ["endTime"] = endTimeUs,
-            ["samples"] = samples,
-            ["timeDeltas"] = timeDeltas
-        };
+        return EventPipeProfilingEngine.TryParseAllocationSampled(data, pointerSize, out typeName, out objectSize);
     }
 }

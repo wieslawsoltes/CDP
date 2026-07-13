@@ -18,7 +18,7 @@ public class McpCliTests
     {
         var tools = Program.GetMcpToolsList();
         Assert.NotNull(tools);
-        Assert.Equal(7, tools.Count);
+        Assert.Equal(10, tools.Count);
 
         var toolNames = new List<string>();
         foreach (var tool in tools)
@@ -33,6 +33,9 @@ public class McpCliTests
         Assert.Contains("input_text", toolNames);
         Assert.Contains("clear_text", toolNames);
         Assert.Contains("scroll", toolNames);
+        Assert.Contains("profile_start", toolNames);
+        Assert.Contains("profile_stop", toolNames);
+        Assert.Contains("profile_take_snapshot", toolNames);
     }
 
     private class MockCdpService : ICdpService
@@ -48,10 +51,16 @@ public class McpCliTests
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<CdpEventEventArgs>? EventReceived;
 
+        public Func<string, JsonObject?, JsonObject>? SendCommandCallback { get; set; }
+
         public Task ConnectAsync(string host, TargetItem target) => Task.CompletedTask;
         public Task DisconnectAsync() => Task.CompletedTask;
         public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
-        public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null) => Task.FromResult(new JsonObject());
+        public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
+        {
+            var result = SendCommandCallback?.Invoke(method, parameters) ?? new JsonObject();
+            return Task.FromResult(result);
+        }
     }
 
     [Fact]
@@ -111,12 +120,157 @@ public class McpCliTests
             Assert.NotNull(result);
             var tools = result["tools"] as JsonArray;
             Assert.NotNull(tools);
-            Assert.Equal(7, tools.Count);
+            Assert.Equal(10, tools.Count);
         }
         finally
         {
             Console.SetOut(originalOut);
         }
+    }
+
+    [Fact]
+    public async Task TestExecuteProfileStart_NoEngine()
+    {
+        var mockCdp = new MockCdpService();
+        var target = new TargetItem("Test", "ws://127.0.0.1:9222/devtools/page/test", "test");
+        var args = new JsonObject();
+
+        var methodsCalled = new List<string>();
+        mockCdp.SendCommandCallback = (method, parameters) =>
+        {
+            methodsCalled.Add(method);
+            return new JsonObject();
+        };
+
+        var response = await Program.ExecuteMcpToolAsync(mockCdp, "http://127.0.0.1:9222", target, "profile_start", args);
+        
+        Assert.Single(methodsCalled);
+        Assert.Equal("Profiler.start", methodsCalled[0]);
+        
+        var contentArray = response["content"] as JsonArray;
+        Assert.NotNull(contentArray);
+        Assert.Single(contentArray);
+        Assert.Equal("text", contentArray[0]?["type"]?.GetValue<string>());
+        Assert.Contains("success", contentArray[0]?["text"]?.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task TestExecuteProfileStart_WithEngine()
+    {
+        var mockCdp = new MockCdpService();
+        var target = new TargetItem("Test", "ws://127.0.0.1:9222/devtools/page/test", "test");
+        var args = new JsonObject
+        {
+            ["engineName"] = "eventpipe"
+        };
+
+        var methodsCalled = new List<string>();
+        JsonObject? setProfilingEngineParams = null;
+        mockCdp.SendCommandCallback = (method, parameters) =>
+        {
+            methodsCalled.Add(method);
+            if (method == "Profiler.setProfilingEngine")
+            {
+                setProfilingEngineParams = parameters;
+            }
+            return new JsonObject();
+        };
+
+        var response = await Program.ExecuteMcpToolAsync(mockCdp, "http://127.0.0.1:9222", target, "profile_start", args);
+        
+        Assert.Equal(2, methodsCalled.Count);
+        Assert.Equal("Profiler.setProfilingEngine", methodsCalled[0]);
+        Assert.Equal("Profiler.start", methodsCalled[1]);
+        Assert.NotNull(setProfilingEngineParams);
+        Assert.Equal("eventpipe", setProfilingEngineParams["engineName"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task TestExecuteProfileStop()
+    {
+        var mockCdp = new MockCdpService();
+        var target = new TargetItem("Test", "ws://127.0.0.1:9222/devtools/page/test", "test");
+        var args = new JsonObject();
+
+        mockCdp.SendCommandCallback = (method, parameters) =>
+        {
+            Assert.Equal("Profiler.stop", method);
+            return new JsonObject
+            {
+                ["profile"] = new JsonObject
+                {
+                    ["nodes"] = new JsonArray()
+                }
+            };
+        };
+
+        var response = await Program.ExecuteMcpToolAsync(mockCdp, "http://127.0.0.1:9222", target, "profile_stop", args);
+        
+        var contentArray = response["content"] as JsonArray;
+        Assert.NotNull(contentArray);
+        Assert.Single(contentArray);
+        Assert.Equal("text", contentArray[0]?["type"]?.GetValue<string>());
+        
+        var textContent = contentArray[0]?["text"]?.GetValue<string>();
+        Assert.NotNull(textContent);
+        Assert.Contains("profile", textContent);
+    }
+
+    [Fact]
+    public async Task TestExecuteProfileTakeSnapshot()
+    {
+        var mockCdp = new MockCdpService();
+        var target = new TargetItem("Test", "ws://127.0.0.1:9222/devtools/page/test", "test");
+        var args = new JsonObject
+        {
+            ["name"] = "MySnapshot"
+        };
+
+        JsonObject? takeSnapshotParams = null;
+        mockCdp.SendCommandCallback = (method, parameters) =>
+        {
+            Assert.Equal("Profiler.takeJetBrainsMemorySnapshot", method);
+            takeSnapshotParams = parameters;
+            return new JsonObject
+            {
+                ["snapshotPath"] = "/tmp/MySnapshot.dmw"
+            };
+        };
+
+        var response = await Program.ExecuteMcpToolAsync(mockCdp, "http://127.0.0.1:9222", target, "profile_take_snapshot", args);
+        
+        Assert.NotNull(takeSnapshotParams);
+        Assert.Equal("MySnapshot", takeSnapshotParams["name"]?.GetValue<string>());
+
+        var contentArray = response["content"] as JsonArray;
+        Assert.NotNull(contentArray);
+        Assert.Single(contentArray);
+        Assert.Equal("text", contentArray[0]?["type"]?.GetValue<string>());
+        Assert.Contains("/tmp/MySnapshot.dmw", contentArray[0]?["text"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task TestExecuteProfileTakeSnapshot_DefaultName()
+    {
+        var mockCdp = new MockCdpService();
+        var target = new TargetItem("Test", "ws://127.0.0.1:9222/devtools/page/test", "test");
+        var args = new JsonObject();
+
+        JsonObject? takeSnapshotParams = null;
+        mockCdp.SendCommandCallback = (method, parameters) =>
+        {
+            Assert.Equal("Profiler.takeJetBrainsMemorySnapshot", method);
+            takeSnapshotParams = parameters;
+            return new JsonObject
+            {
+                ["snapshotPath"] = "/tmp/Snapshot.dmw"
+            };
+        };
+
+        await Program.ExecuteMcpToolAsync(mockCdp, "http://127.0.0.1:9222", target, "profile_take_snapshot", args);
+        
+        Assert.NotNull(takeSnapshotParams);
+        Assert.Equal("Snapshot", takeSnapshotParams["name"]?.GetValue<string>());
     }
 
     [Fact]

@@ -1,0 +1,11 @@
+appId: "CdpInspectorApp"
+description: "Inspect memory dominator tree for heap objects"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_memory.yaml"
+- delay: "1000"
+- tapOn: "#btnTakeSnapshot"
+- delay: "5000"
+- tapOn: "#TabDominatorTree"
+- delay: "2000"
+- assertTrue: "__raw_window.DataContext.Memory.HierarchicalDominators != null"

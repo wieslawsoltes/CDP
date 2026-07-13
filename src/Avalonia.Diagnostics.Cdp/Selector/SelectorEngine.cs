@@ -764,7 +764,8 @@ public static class SelectorEngine
             {
                 if (visual is Control control)
                 {
-                    if (control.Name != id) baseMatch = false;
+                    string? automationId = control.GetValue(AutomationProperties.AutomationIdProperty) as string;
+                    if (control.Name != id && automationId != id) baseMatch = false;
                 }
                 else
                 {

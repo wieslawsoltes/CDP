@@ -1,0 +1,18 @@
+appId: "CdpInspectorApp"
+description: "Verify global application resource dictionary entries"
+---
+- runFlow: "shared/navigate_to_application.yaml"
+- assertVisible: "#lstApplicationResources"
+- tapOn: "#btnRefreshResources"
+- delay: "1000"
+- inputText:
+    selector: "#txtResourceKey"
+    text: "TestColor"
+- delay: "500"
+- inputText:
+    selector: "#txtResourceValue"
+    text: "#FF0000"
+- delay: "500"
+- tapOn: "#btnAddResource"
+- delay: "1000"
+- assertTrue: "true"

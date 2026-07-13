@@ -638,11 +638,11 @@ public class WorkspaceSidebarTests
         var rootContainer = (SplitContainerNode)vm.LayoutRoot;
         Assert.True(rootContainer.Child1 is BoxNode);
         var sidebarBox = (BoxNode)rootContainer.Child1;
-        Assert.Equal("ProjectSidebar", sidebarBox.Tabs[0].SelectedViewName);
+        Assert.Equal("Explorer", sidebarBox.Tabs[0].SelectedViewName);
 
         // Co-dock another tab into the sidebar box
         var extraTab = sidebarBox.AddTab("Extra Tab", "InfoIcon", "ExtraView");
-        Assert.Equal(2, sidebarBox.Tabs.Count);
+        Assert.Equal(6, sidebarBox.Tabs.Count);
 
         // Collapse sidebar
         vm.IsSidebarCollapsed = true;
@@ -655,9 +655,9 @@ public class WorkspaceSidebarTests
         // Expand sidebar
         vm.IsSidebarCollapsed = false;
 
-        // The sidebar tab should be restored to the same box node at index 0
-        Assert.Equal(2, sidebarBox.Tabs.Count);
-        Assert.Equal("ProjectSidebar", sidebarBox.Tabs[0].SelectedViewName);
-        Assert.Equal("ExtraView", sidebarBox.Tabs[1].SelectedViewName);
+        // The sidebar tabs should be restored to the same box node
+        Assert.Equal(6, sidebarBox.Tabs.Count);
+        Assert.Equal("Explorer", sidebarBox.Tabs[0].SelectedViewName);
+        Assert.Equal("ExtraView", sidebarBox.Tabs[5].SelectedViewName);
     }
 }

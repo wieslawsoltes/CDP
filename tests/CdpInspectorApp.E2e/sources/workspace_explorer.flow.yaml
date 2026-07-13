@@ -1,0 +1,12 @@
+appId: "CdpInspectorApp"
+description: "Explore the workspace files explorer tree, perform workspace search, and check results"
+---
+- runFlow: "shared/navigate_to_sources.yaml"
+- assertVisible: "#treeWorkspaceFiles"
+- assertVisible: "#txtSourcesSearch"
+- inputText:
+    selector: "#txtSourcesSearch"
+    text: "flow"
+- tapOn: "#btnSearchWorkspace"
+- delay: "1000"
+- assertVisible: "#dgSearchResults"

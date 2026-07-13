@@ -15,6 +15,8 @@ namespace CdpInspectorApp.Views;
 public partial class ProfilerView : UserControl
 {
     private readonly System.Collections.Generic.Dictionary<string, Control> _viewsCache = new();
+    private System.Collections.Specialized.NotifyCollectionChangedEventHandler? _collectionChangedHandler;
+
 
     private Control GetOrCreateViewInstance(string viewName, CDP.Editor.Splits.Controls.SuperSplitBox? targetBox = null)
     {
@@ -58,7 +60,7 @@ public partial class ProfilerView : UserControl
 
     public Button BtnStartProfiler => btnStartProfiler;
     public Button BtnStopProfiler => btnStopProfiler;
-    public Button BtnLoadProfile => btnLoadProfile;
+    public Button BtnLoadProfile => btnLoadTrace;
     public DataGrid DgMethodStats => dgMethodStats;
 
     public ProfilerView()
@@ -70,6 +72,9 @@ public partial class ProfilerView : UserControl
         var pnl2 = this.FindControl<Control>("pnlFlameCharts");
         var pnl3 = this.FindControl<Control>("pnlBottomUpCalls");
         var pnl4 = this.FindControl<Control>("pnlMemoryAllocations");
+        var pnl5 = this.FindControl<Control>("pnlCallTree");
+        var pnl6 = this.FindControl<Control>("pnlCallerCallee");
+        var pnl7 = this.FindControl<Control>("pnlProfilerLog");
         var hiddenPanel = this.FindControl<Panel>("HiddenPanel");
         if (hiddenPanel != null)
         {
@@ -77,6 +82,9 @@ public partial class ProfilerView : UserControl
             if (pnl2 != null) { hiddenPanel.Children.Remove(pnl2); _viewsCache["FlameCharts"] = pnl2; }
             if (pnl3 != null) { hiddenPanel.Children.Remove(pnl3); _viewsCache["BottomUpCalls"] = pnl3; }
             if (pnl4 != null) { hiddenPanel.Children.Remove(pnl4); _viewsCache["MemoryAllocations"] = pnl4; }
+            if (pnl5 != null) { hiddenPanel.Children.Remove(pnl5); _viewsCache["CallTree"] = pnl5; }
+            if (pnl6 != null) { hiddenPanel.Children.Remove(pnl6); _viewsCache["CallerCallee"] = pnl6; }
+            if (pnl7 != null) { hiddenPanel.Children.Remove(pnl7); _viewsCache["ProfilerLog"] = pnl7; }
         }
 
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
@@ -85,8 +93,35 @@ public partial class ProfilerView : UserControl
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+
+        if (_collectionChangedHandler != null)
+        {
+            // Unsubscribe from previous if needed, but since VM property is bound to window lifetime we can also just clear
+            _collectionChangedHandler = null;
+        }
+
         if (DataContext is MainWindowViewModel mainVM)
         {
+            _collectionChangedHandler = (s, ev) =>
+            {
+                if (ev.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        var lst = this.FindControl<ListBox>("lstProfilerLogs");
+                        if (lst != null && lst.Items.Count > 0)
+                        {
+                            var last = lst.Items[lst.Items.Count - 1];
+                            if (last != null)
+                            {
+                                lst.ScrollIntoView(last);
+                            }
+                        }
+                    });
+                }
+            };
+            mainVM.Profiler.ProfilerLogs.CollectionChanged += _collectionChangedHandler;
+
             mainVM.Profiler.SaveFileCallback = async (json) =>
             {
                 var topLevel = TopLevel.GetTopLevel(this);
@@ -120,25 +155,57 @@ public partial class ProfilerView : UserControl
                 {
                     var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
                     {
-                        Title = "Load CPU Profile",
+                        Title = "Load Profiling Session File",
                         AllowMultiple = false,
                         FileTypeFilter = new[]
                         {
+                            new FilePickerFileType("Profiling Files")
+                            {
+                                Patterns = new[] { "*.cpuprofile", "*.json", "*.dtp", "*.dmw" }
+                            },
                             new FilePickerFileType("V8 CPU Profile")
                             {
                                 Patterns = new[] { "*.cpuprofile" }
+                            },
+                            new FilePickerFileType("dotTrace Performance Trace")
+                            {
+                                Patterns = new[] { "*.dtp" }
+                            },
+                            new FilePickerFileType("dotMemory Workspace")
+                            {
+                                Patterns = new[] { "*.dmw" }
                             }
                         }
                     });
                     if (files != null && files.Count > 0)
                     {
-                        using var stream = await files[0].OpenReadAsync();
-                        using var reader = new StreamReader(stream);
-                        return await reader.ReadToEndAsync();
+                        return files[0].TryGetLocalPath();
                     }
                 }
                 return null;
             };
+        }
+    }
+
+    private void LstSessions_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.DataContext is MainWindowViewModel mainVM)
+        {
+            if (TopLevel.GetTopLevel(dg) != null)
+            {
+                mainVM.Profiler.SelectedSession = dg.SelectedItem as ProfileSessionModel;
+            }
+        }
+    }
+
+    private void DgMethodStats_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid dg && dg.DataContext is MainWindowViewModel mainVM)
+        {
+            if (TopLevel.GetTopLevel(dg) != null)
+            {
+                mainVM.Profiler.SelectedMethod = dg.SelectedItem as ProfileMethodStats;
+            }
         }
     }
 }

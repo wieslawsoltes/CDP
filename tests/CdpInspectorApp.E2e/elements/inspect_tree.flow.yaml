@@ -1,0 +1,15 @@
+appId: "CdpInspectorApp"
+description: "Visual tree navigation and DOM node inspection"
+---
+- runFlow: "shared/navigate_to_elements.yaml"
+- tapOn: "#TabDomTree"
+- delay: "1000"
+- tapOn: "#chkVisualTree"
+- delay: "1000"
+- inputText:
+    selector: "#txtSearch"
+    text: "MainWindow"
+- delay: "1000"
+- tapOn: "#btnSearch"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Elements.SelectedNodeNode != null"

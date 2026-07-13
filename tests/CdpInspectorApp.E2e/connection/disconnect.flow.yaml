@@ -1,0 +1,7 @@
+appId: "CdpInspectorApp"
+description: "Connect to target sample application and then disconnect"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- tapOn: "#btnDisconnect"
+- delay: "2000"
+- assertTrue: "!__raw_window.DataContext.Connection.IsConnected"

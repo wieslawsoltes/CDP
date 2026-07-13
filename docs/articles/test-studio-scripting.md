@@ -59,7 +59,7 @@ Any subsequent step can reference this variable inside parameter values, selecto
 
 # Step 2: Use the variable in a text input step
 - type: inputText
-  selector: "#txtSearchQuery"
+  selector: "#txtSourcesSearch"
   value: "Found ${context.activeItemCount} items"
 
 # Step 3: Use the variable to target a specific index dynamically
