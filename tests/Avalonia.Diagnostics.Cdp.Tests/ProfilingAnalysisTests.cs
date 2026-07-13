@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 using Xunit;
 using CDP.Profiling.Analysis;
 
@@ -72,6 +73,81 @@ public class ProfilingAnalysisTests
         finally
         {
             try { File.Delete(tempDtp); } catch {}
+        }
+    }
+
+    [Fact]
+    public void TestDmwLoadWithReflection()
+    {
+        // 1. Create a dummy .dmw zip file
+        string tempZip = Path.Combine(Path.GetTempPath(), $"test_ref_{Guid.NewGuid()}.dmw");
+        string tempSourceDir = Path.Combine(Path.GetTempPath(), $"src_ref_{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempSourceDir);
+
+        try
+        {
+            string jsonContent = @"{
+                ""Version"": ""2.0"",
+                ""ProductName"": ""dotMemory"",
+                ""ProductVersion"": ""2026.1.0.0"",
+                ""ProfilingSessions"": [
+                    {
+                        ""Id"": ""00000000-0000-0000-0000-000000000000"",
+                        ""ProcessName"": ""Reflected Session"",
+                        ""CommandLine"": """",
+                        ""ProcessId"": 1234,
+                        ""StreamingStoragePath"": ""storage"",
+                        ""Snapshots"": []
+                    }
+                ],
+                ""sessions"": [
+                    {
+                        ""name"": ""Reflected Session""
+                    }
+                ]
+            }";
+            File.WriteAllText(Path.Combine(tempSourceDir, "workspace.json"), jsonContent);
+            File.WriteAllText(Path.Combine(tempSourceDir, "000.dms.0000"), "dummy");
+
+            System.IO.Compression.ZipFile.CreateFromDirectory(tempSourceDir, tempZip);
+
+            var method = typeof(DmwSnapshotAnalyzer).GetMethod("TryLoadWithJetBrainsReflection", 
+                BindingFlags.NonPublic | BindingFlags.Static);
+            
+            Assert.NotNull(method);
+
+            var session = new AnalyzedMemorySession();
+            var success = (bool)method.Invoke(null, new object[] { tempSourceDir, session });
+
+            string? modelDll = null;
+            var searchPaths = new[]
+            {
+                "/Users/wieslawsoltes/Applications/Rider.app/Contents/plugins/dotTrace.dotMemory/DotFiles",
+                "/Applications/Rider.app/Contents/plugins/dotTrace.dotMemory/DotFiles"
+            };
+            foreach (var path in searchPaths)
+            {
+                if (File.Exists(Path.Combine(path, "JetBrains.dotMemory.Model.dll")))
+                {
+                    modelDll = Path.Combine(path, "JetBrains.dotMemory.Model.dll");
+                    break;
+                }
+            }
+
+            if (modelDll != null)
+            {
+                Assert.True(success, "TryLoadWithJetBrainsReflection should succeed when SDK is present");
+                Assert.Equal("Reflected Session", session.Name);
+            }
+            else
+            {
+                Assert.False(success);
+            }
+        }
+        finally
+        {
+            try { File.Delete(tempZip); } catch {}
+            try { Directory.Delete(tempSourceDir, true); } catch {}
         }
     }
 }

@@ -215,12 +215,16 @@ public static class DmwSnapshotAnalyzer
             }
 
             var libDir = Path.GetDirectoryName(modelDll)!;
+            var sortedSearchPaths = searchPaths
+                .OrderByDescending(p => p.Contains("NetCore", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
             AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
             {
                 var name = new AssemblyName(args.Name).Name + ".dll";
                 var full = Path.Combine(libDir, name);
                 if (File.Exists(full)) return Assembly.LoadFrom(full);
-                foreach (var path in searchPaths)
+                foreach (var path in sortedSearchPaths)
                 {
                     full = Path.Combine(path, name);
                     if (File.Exists(full)) return Assembly.LoadFrom(full);
@@ -228,7 +232,47 @@ public static class DmwSnapshotAnalyzer
                 return null;
             };
 
-            return false;
+            // Load assemblies
+            var modelAssembly = Assembly.LoadFrom(modelDll);
+            var interfaceAssembly = Assembly.LoadFrom(Path.Combine(libDir, "JetBrains.dotMemory.Model.Interface.dll"));
+
+            string jsonPath = Path.Combine(unzippedDir, "workspace.json");
+            if (!File.Exists(jsonPath)) return false;
+
+            // Deserialize index using JsonWorkspaceIndexSerializer
+            var serializerType = modelAssembly.GetType("JetBrains.dotMemory.Model.Workspace.JsonWorkspaceIndexSerializer");
+            if (serializerType == null) return false;
+
+            var serializerInstance = Activator.CreateInstance(serializerType);
+            var deserializeMethod = serializerType.GetMethod("DeserializeIndex", new[] { typeof(Stream) });
+            if (deserializeMethod == null) return false;
+
+            using (var stream = File.OpenRead(jsonPath))
+            {
+                var indexInstance = deserializeMethod.Invoke(serializerInstance, new object[] { stream });
+                if (indexInstance == null) return false;
+
+                // Read profiling sessions and snapshots
+                var profilingSessionsProp = indexInstance.GetType().GetProperty("ProfilingSessions");
+                var sessions = profilingSessionsProp?.GetValue(indexInstance) as System.Collections.IEnumerable;
+                if (sessions != null)
+                {
+                    foreach (var ps in sessions)
+                    {
+                        var procNameProp = ps.GetType().GetProperty("ProcessName");
+                        var procName = procNameProp?.GetValue(ps) as string;
+                        if (!string.IsNullOrEmpty(procName))
+                        {
+                            session.Name = procName;
+                        }
+                    }
+                }
+            }
+
+            // Fallback type count reading to populate session details
+            LoadFallbackWorkspace(unzippedDir, session);
+
+            return true;
         }
         catch (Exception ex)
         {
