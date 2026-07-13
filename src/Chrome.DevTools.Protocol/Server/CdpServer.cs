@@ -626,7 +626,7 @@ public static class CdpServer
 
     private static void SendJsonResponse(HttpListenerResponse response, JsonNode json)
     {
-        var bytes = Encoding.UTF8.GetBytes(json.ToJsonString(new JsonSerializerOptions { WriteIndented = true, NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() }));
+        var bytes = Encoding.UTF8.GetBytes(json.ToJsonString(new JsonSerializerOptions { MaxDepth = 256, WriteIndented = true, NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() }));
         response.Headers.Add("Access-Control-Allow-Origin", "*");
         response.ContentType = "application/json; charset=utf-8";
         response.ContentLength64 = bytes.Length;

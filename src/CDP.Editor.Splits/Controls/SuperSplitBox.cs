@@ -488,8 +488,8 @@ public class SuperSplitBox : ContentControl
                 _btnScrollLeft.IsVisible = false;
                 _btnScrollRight.IsVisible = false;
                 _singleTabHeaderPanel.IsVisible = true;
-
                 var tab = boxNode.Tabs[0];
+                AutomationProperties.SetAutomationId(_singleTabHeaderPanel, "Tab" + tab.SelectedViewName);
                 _singleTabTitle.Text = tab.Title;
 
                 if (Application.Current != null && Application.Current.TryFindResource(tab.IconKey, out var resource) && resource is Geometry geom)
@@ -536,6 +536,7 @@ public class SuperSplitBox : ContentControl
                     Cursor = new Cursor(StandardCursorType.Hand)
                 };
 
+                AutomationProperties.SetAutomationId(tabBorder, "Tab" + tab.SelectedViewName);
                 AutomationProperties.SetName(tabBorder, tab.Title + " Tab");
                 AutomationProperties.SetHelpText(tabBorder, tab.Title + " Tab");
 
