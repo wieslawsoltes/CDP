@@ -48,6 +48,8 @@ public class DotMemoryProfilingEngine : IProfilingEngine
             }
             catch (Exception ex)
             {
+                _isRunning = false;
+                _startTime = DateTime.MinValue;
                 CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to start dotMemory profiling: {ex.Message}");
                 throw;
             }

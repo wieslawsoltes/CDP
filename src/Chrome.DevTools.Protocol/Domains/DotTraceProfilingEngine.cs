@@ -46,6 +46,8 @@ public class DotTraceProfilingEngine : IProfilingEngine
             }
             catch (Exception ex)
             {
+                _isRunning = false;
+                _startTime = DateTime.MinValue;
                 CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to start dotTrace profiling: {ex.Message}");
                 throw;
             }

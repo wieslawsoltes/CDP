@@ -228,7 +228,6 @@ public static class TestStudioStepConverter
         {
             visited.Add(System.IO.Path.GetFullPath(filePath));
         }
-        var expandedSteps = ExpandSteps(testStudioSteps, filePath, visited);
 
         var combinedEnv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (activeEnv != null)
@@ -250,10 +249,49 @@ public static class TestStudioStepConverter
             }
         }
 
+        var expandedSteps = ExpandSteps(testStudioSteps, filePath, visited, combinedEnv);
+
         return expandedSteps.Select(step => ToRecordedStep(step, combinedEnv)).ToList();
     }
 
-    private static List<TestStudioStep> ExpandSteps(List<TestStudioStep> steps, string currentFilePath, HashSet<string> visitedFiles)
+    private static TestStudioStep InterpolateStep(TestStudioStep step, Dictionary<string, string> env)
+    {
+        var cloned = new TestStudioStep
+        {
+            Action = step.Action,
+            Selector = Interpolate(step.Selector, env),
+            Value = Interpolate(step.Value, env),
+            StartLine = step.StartLine,
+            EndLine = step.EndLine,
+            WhileConditionType = step.WhileConditionType,
+            WhileConditionValue = Interpolate(step.WhileConditionValue, env)
+        };
+
+        if (step.Parameters != null)
+        {
+            cloned.Parameters = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in step.Parameters)
+            {
+                if (kv.Value is string strVal)
+                {
+                    cloned.Parameters[kv.Key] = Interpolate(strVal, env);
+                }
+                else
+                {
+                    cloned.Parameters[kv.Key] = kv.Value;
+                }
+            }
+        }
+
+        if (step.NestedSteps != null)
+        {
+            cloned.NestedSteps = step.NestedSteps.Select(s => InterpolateStep(s, env)).ToList();
+        }
+
+        return cloned;
+    }
+
+    private static List<TestStudioStep> ExpandSteps(List<TestStudioStep> steps, string currentFilePath, HashSet<string> visitedFiles, Dictionary<string, string> currentEnv)
     {
         var expanded = new List<TestStudioStep>();
         foreach (var step in steps)
@@ -262,7 +300,7 @@ public static class TestStudioStepConverter
             {
                 if (step.NestedSteps != null && step.NestedSteps.Count > 0)
                 {
-                    expanded.AddRange(ExpandSteps(step.NestedSteps, currentFilePath, visitedFiles));
+                    expanded.AddRange(ExpandSteps(step.NestedSteps, currentFilePath, visitedFiles, currentEnv));
                     continue;
                 }
 
@@ -281,7 +319,7 @@ public static class TestStudioStepConverter
                 string resolvedPath = ResolveFlowPath(flowPath, currentFilePath);
                 if (string.IsNullOrEmpty(resolvedPath) || !System.IO.File.Exists(resolvedPath))
                 {
-                    expanded.Add(step);
+                    expanded.Add(InterpolateStep(step, currentEnv));
                     continue;
                 }
 
@@ -294,8 +332,28 @@ public static class TestStudioStepConverter
                 try
                 {
                     string subYaml = System.IO.File.ReadAllText(resolvedPath);
-                    var subSteps = TestStudioYamlParser.Parse(subYaml, out _, out _, out _, out _);
-                    expanded.AddRange(ExpandSteps(subSteps, resolvedPath, visitedFiles));
+                    var subSteps = TestStudioYamlParser.Parse(subYaml, out _, out _, out _, out var subFlowEnv);
+
+                    var mergedEnv = new Dictionary<string, string>(currentEnv, StringComparer.OrdinalIgnoreCase);
+                    if (step.Parameters != null)
+                    {
+                        foreach (var kv in step.Parameters)
+                        {
+                            if (kv.Value != null)
+                            {
+                                mergedEnv[kv.Key] = Interpolate(kv.Value.ToString() ?? "", currentEnv);
+                            }
+                        }
+                    }
+                    if (subFlowEnv != null)
+                    {
+                        foreach (var kv in subFlowEnv)
+                        {
+                            mergedEnv[kv.Key] = kv.Value;
+                        }
+                    }
+
+                    expanded.AddRange(ExpandSteps(subSteps, resolvedPath, visitedFiles, mergedEnv));
                 }
                 finally
                 {
@@ -307,20 +365,20 @@ public static class TestStudioStepConverter
                 var clonedStep = new TestStudioStep
                 {
                     Action = step.Action,
-                    Selector = step.Selector,
-                    Value = step.Value,
+                    Selector = Interpolate(step.Selector, currentEnv),
+                    Value = Interpolate(step.Value, currentEnv),
                     StartLine = step.StartLine,
                     EndLine = step.EndLine,
                     WhileConditionType = step.WhileConditionType,
-                    WhileConditionValue = step.WhileConditionValue,
-                    Parameters = step.Parameters,
-                    NestedSteps = ExpandSteps(step.NestedSteps, currentFilePath, visitedFiles)
+                    WhileConditionValue = Interpolate(step.WhileConditionValue, currentEnv),
+                    Parameters = step.Parameters != null ? new Dictionary<string, object>(step.Parameters, StringComparer.OrdinalIgnoreCase) : null,
+                    NestedSteps = ExpandSteps(step.NestedSteps, currentFilePath, visitedFiles, currentEnv)
                 };
                 expanded.Add(clonedStep);
             }
             else
             {
-                expanded.Add(step);
+                expanded.Add(InterpolateStep(step, currentEnv));
             }
         }
         return expanded;
