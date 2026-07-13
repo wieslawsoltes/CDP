@@ -60,7 +60,7 @@ public partial class ProfilerView : UserControl
 
     public Button BtnStartProfiler => btnStartProfiler;
     public Button BtnStopProfiler => btnStopProfiler;
-    public Button BtnLoadProfile => btnLoadProfile;
+    public Button BtnLoadProfile => btnLoadTrace;
     public DataGrid DgMethodStats => dgMethodStats;
 
     public ProfilerView()

@@ -5,9 +5,9 @@ description: "Explore the workspace files explorer tree, perform workspace searc
 - tapOn: "#TabSources"
 - delay: "1000"
 - assertVisible: "#treeWorkspaceFiles"
-- assertVisible: "#txtSearchQuery"
+- assertVisible: "#txtSourcesSearch"
 - inputText:
-    selector: "#txtSearchQuery"
+    selector: "#txtSourcesSearch"
     text: "flow"
 - tapOn: "#btnSearchWorkspace"
 - delay: "1000"

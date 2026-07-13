@@ -35,8 +35,8 @@
                         </Button.IsVisible>
                     </Button>
                     <Button Name="btnStopProfiler" Command="{Binding Profiler.StopProfilerCommand}" Content="Stop CPU Profiler" Background="#c62828" Foreground="White" BorderBrush="#c62828" HorizontalAlignment="Stretch" IsVisible="{Binding Profiler.IsProfilingActive}"/>
-                    <Button Name="btnLoadProfile" Command="{Binding Profiler.LoadProfileCommand}" Content="Load Profile" HorizontalAlignment="Stretch" Background="#2e7d32" Foreground="White" BorderBrush="#2e7d32"/>
-                    <Button Name="btnExportProfile" Command="{Binding Profiler.ExportProfileCommand}" Content="Export Profile" HorizontalAlignment="Stretch" IsEnabled="{Binding Profiler.SelectedSession, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                    <Button Name="btnLoadTrace" Command="{Binding Profiler.LoadProfileCommand}" Content="Load Profile" HorizontalAlignment="Stretch" Background="#2e7d32" Foreground="White" BorderBrush="#2e7d32"/>
+                    <Button Name="btnSaveTrace" Command="{Binding Profiler.ExportProfileCommand}" Content="Export Profile" HorizontalAlignment="Stretch" IsEnabled="{Binding Profiler.SelectedSession, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                 </StackPanel>
                 
                 <Border Grid.Row="1" Classes="panel-card" ClipToBounds="True">

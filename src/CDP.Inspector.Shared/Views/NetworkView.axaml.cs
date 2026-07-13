@@ -50,7 +50,7 @@ public partial class NetworkView : UserControl
         }
     }
 
-    public Button BtnClearNetwork => btnClearNetwork;
+    public Button BtnClearNetwork => btnNetworkClear;
     public DataGrid LstNetworkRequests => lstNetworkRequests;
     public TextBlock LblNetUrl => lblNetUrl;
     public TextBox TxtNetReqHeaders => txtNetReqHeaders;

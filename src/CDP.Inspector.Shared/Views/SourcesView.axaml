@@ -52,7 +52,7 @@
 
                     <!-- Query Input and Search button -->
                     <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
-                        <TextBox Name="txtSearchQuery"
+                        <TextBox Name="txtSourcesSearch"
                                  Text="{Binding Sources.SearchQuery, Mode=TwoWay}"
                                  PlaceholderText="Search files..."
                                  Height="28"

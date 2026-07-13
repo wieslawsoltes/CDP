@@ -1,0 +1,21 @@
+appId: "CdpInspectorApp"
+description: "E2E Test Flow for CdpInspectorApp HTML Report Generation and View"
+---
+- delay: "2000"
+- tapOn: "#TabRecorder"
+- delay: "1000"
+- evalScript: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled = true'
+- delay: "500"
+- assertTrue: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled == true'
+- evalScript: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.YamlCode = "appId: \"CdpSampleApp\"\ndescription: \"HTML Report Verification\"\n---\n- delay: 1000\n- delay: 1000\n"'
+- delay: "500"
+- tapOn: "#btnTestStudioApplyYaml"
+- delay: "1000"
+- assertTrue: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps.Count == 2'
+- tapOn: "#btnTestStudioPlay"
+- delay: "4000"
+- assertFalse: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsExecuting == true'
+- assertTrue: '!string.IsNullOrEmpty(((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.LastReportPath)'
+- assertTrue: 'System.IO.File.Exists(((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.LastReportPath)'
+- tapOn: "#btnViewHtmlReport"
+- delay: "1000"

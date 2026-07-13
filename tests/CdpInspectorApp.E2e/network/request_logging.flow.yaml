@@ -5,7 +5,7 @@ description: "Verify network request log viewing, throttling options, and mockin
 - tapOn: "#TabNetwork"
 - delay: "1000"
 - assertVisible: "#lstNetworkRequests"
-- assertVisible: "#btnClearNetwork"
+- assertVisible: "#btnNetworkClear"
 - assertVisible: "#cmbThrottling"
 - tapOn: "#TabMockingRules"
 - delay: "1000"

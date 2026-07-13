@@ -11,7 +11,7 @@
     <Grid RowDefinitions="Auto, Auto, *" Margin="10">
         <!-- Top Toolbar -->
         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
-            <Button Name="btnClearNetwork" Command="{Binding Network.ClearNetworkCommand}" Content="Clear Network Log"/>
+            <Button Name="btnNetworkClear" Command="{Binding Network.ClearNetworkCommand}" Content="Clear Network Log"/>
             <TextBlock Text="Throttling:" Foreground="#9aa0a6" VerticalAlignment="Center" FontSize="12" Margin="10,0,0,0"/>
             <ComboBox Name="cmbThrottling"
                       ItemsSource="{Binding Network.ThrottlingProfiles}"

@@ -61,7 +61,7 @@
                 <TextBlock Text="{Binding Memory.SelectedSnapshot.Name, FallbackValue='Select or Take a Snapshot'}" Classes="panel-header" FontSize="16" VerticalAlignment="Center"/>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding Memory.SelectedSnapshot, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <CheckBox Content="Comparison mode" IsChecked="{Binding Memory.IsComparisonMode, Mode=TwoWay}" FontSize="12" VerticalAlignment="Center"/>
+                    <CheckBox Name="btnCompareSnapshots" Content="Comparison mode" IsChecked="{Binding Memory.IsComparisonMode, Mode=TwoWay}" FontSize="12" VerticalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding Memory.IsComparisonMode}">
                         <TextBlock Text="Baseline:" VerticalAlignment="Center" Foreground="#9aa0a6" FontSize="11"/>
                         <ComboBox ItemsSource="{Binding Memory.ComparisonBaselines}" SelectedItem="{Binding Memory.SelectedBaseline, Mode=TwoWay}" Height="28">
