@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify that the network request log can be filtered using the search filter text box"
 ---
-- delay: "1000"
-- tapOn: "#TabNetwork"
-- delay: "1000"
+- runFlow: "shared/navigate_to_network.yaml"
 - assertVisible: "#txtNetworkFilter"
 - assertVisible: "#lstNetworkRequests"
 - evalScript: 'var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext; vm.Network.NetworkRequests.Clear(); vm.Network.NetworkRequests.Add(new CdpInspectorApp.Models.NetworkRequestModel { RequestId = "req-1", Url = "http://example.com/api/users", Method = "GET", Type = "XHR" }); vm.Network.NetworkRequests.Add(new CdpInspectorApp.Models.NetworkRequestModel { RequestId = "req-2", Url = "http://example.com/static/style.css", Method = "GET", Type = "Stylesheet" });'

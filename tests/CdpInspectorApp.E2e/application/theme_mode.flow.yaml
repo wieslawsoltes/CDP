@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify application theme switching"
 ---
-- delay: "1000"
-- tapOn: "#TabApplication"
-- delay: "1000"
+- runFlow: "shared/navigate_to_application.yaml"
 - assertVisible: "#btnToggleTheme"
 - tapOn: "#btnToggleTheme"
 - delay: "1000"

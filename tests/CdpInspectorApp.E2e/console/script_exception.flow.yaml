@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify console handles exceptions and sets error status"
 ---
-- delay: "1000"
-- tapOn: "#TabConsole"
-- delay: "1000"
+- runFlow: "shared/navigate_to_console.yaml"
 - inputText:
     selector: "#txtConsoleInput"
     text: 'throw new Error("Test exception")'

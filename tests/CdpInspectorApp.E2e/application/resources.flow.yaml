@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify global application resource dictionary entries"
 ---
-- delay: "1000"
-- tapOn: "#TabApplication"
-- delay: "1000"
+- runFlow: "shared/navigate_to_application.yaml"
 - assertVisible: "#lstApplicationResources"
 - tapOn: "#btnRefreshResources"
 - delay: "1000"

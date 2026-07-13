@@ -1,12 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Connect to target sample application and then disconnect"
 ---
-- delay: "1000"
-- tapOn: "#btnRefreshTargets"
-- delay: "2000"
-- tapOn: "#btnConnect"
-- delay: "2000"
-- assertTrue: "__raw_window.DataContext.Connection.IsConnected"
+- runFlow: "shared/connect_to_sample.yaml"
 - tapOn: "#btnDisconnect"
 - delay: "2000"
 - assertTrue: "!__raw_window.DataContext.Connection.IsConnected"

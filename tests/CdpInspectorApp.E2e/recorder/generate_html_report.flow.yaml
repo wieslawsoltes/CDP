@@ -1,9 +1,8 @@
 appId: "CdpInspectorApp"
 description: "E2E Test Flow for CdpInspectorApp HTML Report Generation and View"
 ---
-- delay: "2000"
-- tapOn: "#TabRecorder"
-- delay: "1000"
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_recorder.yaml"
 - evalScript: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled = true'
 - delay: "500"
 - assertTrue: '((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled == true'

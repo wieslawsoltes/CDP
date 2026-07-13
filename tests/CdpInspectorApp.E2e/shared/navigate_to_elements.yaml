@@ -1,0 +1,6 @@
+appId: "CdpInspectorApp"
+description: "Sub-flow: Navigate to Elements tab"
+---
+- tapOn: "#TabElements"
+- delay: "500"
+- assertTrue: "document.querySelector('#TabElements') != null"

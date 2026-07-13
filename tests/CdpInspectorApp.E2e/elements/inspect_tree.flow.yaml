@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Visual tree navigation and DOM node inspection"
 ---
-- delay: "1000"
-- tapOn: "#TabElements"
-- delay: "1000"
+- runFlow: "shared/navigate_to_elements.yaml"
 - tapOn: "#TabDomTree"
 - delay: "1000"
 - tapOn: "#chkVisualTree"

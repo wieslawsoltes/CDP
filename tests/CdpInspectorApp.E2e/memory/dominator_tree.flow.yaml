@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Inspect memory dominator tree for heap objects"
 ---
-- delay: "1000"
-- tapOn: "#TabMemory"
-- delay: "1000"
+- runFlow: "shared/navigate_to_memory.yaml"
 - tapOn: "#btnTakeSnapshot"
 - delay: "3000"
 - tapOn: "#TabDominatorTree"

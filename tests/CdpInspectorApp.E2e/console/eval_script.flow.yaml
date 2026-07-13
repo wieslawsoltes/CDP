@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Evaluate C# script in the console panel"
 ---
-- delay: "1000"
-- tapOn: "#TabConsole"
-- delay: "1000"
+- runFlow: "shared/navigate_to_console.yaml"
 - inputText:
     selector: "#txtConsoleInput"
     text: "Window.Title"

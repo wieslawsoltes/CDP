@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify REPL command history navigation using Up and Down arrows"
 ---
-- delay: "1000"
-- tapOn: "#TabConsole"
-- delay: "1000"
+- runFlow: "shared/navigate_to_console.yaml"
 - inputText:
     selector: "#txtConsoleInput"
     text: "10 + 20"

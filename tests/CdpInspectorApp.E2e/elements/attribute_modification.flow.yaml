@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Select visual tree node and add/delete attributes"
 ---
-- delay: "1000"
-- tapOn: "#TabElements"
-- delay: "1000"
+- runFlow: "shared/navigate_to_elements.yaml"
 - tapOn: "#TabDomTree"
 - delay: "1000"
 - tapOn: "#chkVisualTree"

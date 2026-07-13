@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify that selecting a network request displays its request and response headers"
 ---
-- delay: "1000"
-- tapOn: "#TabNetwork"
-- delay: "1000"
+- runFlow: "shared/navigate_to_network.yaml"
 - assertVisible: "#lstNetworkRequests"
 - evalScript: 'var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext; var model = new CdpInspectorApp.Models.NetworkRequestModel { RequestId = "req-test-headers", Url = "http://example.com/test-headers", Method = "GET", RequestHeaders = "User-Agent: CdpTestAgent\nAccept: text/plain", ResponseHeaders = "Content-Type: text/plain\nServer: CdpTestServer", Status = "200", Time = "25 ms" }; vm.Network.NetworkRequests.Add(model); vm.Network.SelectedRequest = model;'
 - delay: "1000"

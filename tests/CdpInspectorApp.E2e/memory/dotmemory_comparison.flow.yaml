@@ -1,8 +1,6 @@
 appId: "CdpInspectorApp"
 description: "Compare memory heap snapshots"
 ---
-- delay: "1000"
-- tapOn: "#TabMemory"
-- delay: "1500"
+- runFlow: "shared/navigate_to_memory.yaml"
 - tapOn: "#btnCompareSnapshots"
 - delay: "2000"

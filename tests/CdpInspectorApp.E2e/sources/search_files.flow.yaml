@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify searching for files inside the sources panel"
 ---
-- delay: "1000"
-- tapOn: "#TabSources"
-- delay: "1000"
+- runFlow: "shared/navigate_to_sources.yaml"
 - assertVisible: "#txtSourcesSearch"
 - inputText:
     selector: "#txtSourcesSearch"

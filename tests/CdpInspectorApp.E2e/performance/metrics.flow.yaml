@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify performance monitor metrics and CPU profiler control"
 ---
-- delay: "1000"
-- tapOn: "#TabPerformance"
-- delay: "1000"
+- runFlow: "shared/navigate_to_performance.yaml"
 - assertVisible: "#PerformanceChartPanel"
 - tapOn: "#btnRefreshMetrics"
 - delay: "1000"

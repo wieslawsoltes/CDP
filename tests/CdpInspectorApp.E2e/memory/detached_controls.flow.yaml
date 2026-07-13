@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Inspect detached visual controls and filter by detached only"
 ---
-- delay: "1000"
-- tapOn: "#TabMemory"
-- delay: "1000"
+- runFlow: "shared/navigate_to_memory.yaml"
 - tapOn: "#btnTakeSnapshot"
 - delay: "3000"
 - tapOn: "#TabDetachedControls"

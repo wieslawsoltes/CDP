@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify searching for application resources"
 ---
-- delay: "1000"
-- tapOn: "#TabApplication"
-- delay: "1000"
+- runFlow: "shared/navigate_to_application.yaml"
 - assertVisible: "#txtResourceSearch"
 - inputText:
     selector: "#txtResourceSearch"

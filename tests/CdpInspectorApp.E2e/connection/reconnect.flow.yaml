@@ -1,12 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify that the inspector can connect, disconnect, and then connect again successfully"
 ---
-- delay: "1000"
-- tapOn: "#btnRefreshTargets"
-- delay: "2000"
-- tapOn: "#btnConnect"
-- delay: "2000"
-- assertTrue: "__raw_window.DataContext.Connection.IsConnected"
+- runFlow: "shared/connect_to_sample.yaml"
 - tapOn: "#btnDisconnect"
 - delay: "2000"
 - assertTrue: "!__raw_window.DataContext.Connection.IsConnected"

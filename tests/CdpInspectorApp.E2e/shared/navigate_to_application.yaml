@@ -1,0 +1,6 @@
+appId: "CdpInspectorApp"
+description: "Sub-flow: Navigate to Application tab"
+---
+- tapOn: "#TabApplication"
+- delay: "500"
+- assertTrue: "document.querySelector('#TabApplication') != null"

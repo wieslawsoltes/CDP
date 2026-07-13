@@ -1,0 +1,6 @@
+appId: "CdpInspectorApp"
+description: "Sub-flow: Navigate to Performance tab"
+---
+- tapOn: "#TabPerformance"
+- delay: "500"
+- assertTrue: "document.querySelector('#TabPerformance') != null"

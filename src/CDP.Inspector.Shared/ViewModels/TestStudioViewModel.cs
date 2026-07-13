@@ -6748,6 +6748,24 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             }
         }
 
+        // 1.5. Try climbing up parent directories of currentFlowPath
+        if (resolvedPath == null && !string.IsNullOrEmpty(currentFlowPath))
+        {
+            var dir = Path.GetDirectoryName(currentFlowPath);
+            while (resolvedPath == null && !string.IsNullOrEmpty(dir))
+            {
+                var checkPath = Path.Combine(dir, normalizedFlowPath);
+                if (File.Exists(checkPath))
+                {
+                    resolvedPath = Path.GetFullPath(checkPath);
+                    break;
+                }
+                var parent = Path.GetDirectoryName(dir);
+                if (parent == dir || string.IsNullOrEmpty(parent)) break;
+                dir = parent;
+            }
+        }
+
         // 2. Try relative to WorkspaceRootPath
         if (resolvedPath == null && !string.IsNullOrEmpty(WorkspaceRootPath))
         {
@@ -6755,6 +6773,24 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             if (File.Exists(workspacePath))
             {
                 resolvedPath = Path.GetFullPath(workspacePath);
+            }
+        }
+
+        // 2.5. Try climbing up parent directories of WorkspaceRootPath
+        if (resolvedPath == null && !string.IsNullOrEmpty(WorkspaceRootPath))
+        {
+            var dir = WorkspaceRootPath;
+            while (resolvedPath == null && !string.IsNullOrEmpty(dir))
+            {
+                var checkPath = Path.Combine(dir, normalizedFlowPath);
+                if (File.Exists(checkPath))
+                {
+                    resolvedPath = Path.GetFullPath(checkPath);
+                    break;
+                }
+                var parent = Path.GetDirectoryName(dir);
+                if (parent == dir || string.IsNullOrEmpty(parent)) break;
+                dir = parent;
             }
         }
 

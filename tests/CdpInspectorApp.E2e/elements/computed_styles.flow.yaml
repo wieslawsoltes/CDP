@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Inspect computed styles panel and filter properties"
 ---
-- delay: "1000"
-- tapOn: "#TabElements"
-- delay: "1000"
+- runFlow: "shared/navigate_to_elements.yaml"
 - tapOn: 'TabItem:contains("Computed rules")'
 - delay: "1000"
 - inputText:

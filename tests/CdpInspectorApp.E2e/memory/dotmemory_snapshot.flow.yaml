@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "dotMemory heap snapshot capture and garbage collection run"
 ---
-- delay: "1000"
-- tapOn: "#TabMemory"
-- delay: "1000"
+- runFlow: "shared/navigate_to_memory.yaml"
 - tapOn: "#btnRunGC"
 - delay: "2000"
 - tapOn: "#btnTakeSnapshot"

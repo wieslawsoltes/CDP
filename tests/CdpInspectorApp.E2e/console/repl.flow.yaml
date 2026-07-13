@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Evaluate script expressions in REPL and verify printed results"
 ---
-- delay: "1000"
-- tapOn: "#TabConsole"
-- delay: "1000"
+- runFlow: "shared/navigate_to_console.yaml"
 - inputText:
     selector: "#txtConsoleInput"
     text: "40 + 2"

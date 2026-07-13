@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Save and load dotTrace profile files"
 ---
-- delay: "1000"
-- tapOn: "#TabProfiler"
-- delay: "1500"
+- runFlow: "shared/navigate_to_profiler.yaml"
 - tapOn: "#btnSaveTrace"
 - delay: "2000"
 - tapOn: "#btnLoadTrace"

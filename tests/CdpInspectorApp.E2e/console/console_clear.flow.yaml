@@ -1,9 +1,8 @@
 appId: "CdpInspectorApp"
 description: "Verify console logs can be cleared successfully"
 ---
+- runFlow: "shared/navigate_to_console.yaml"
 - delay: "1000"
-- tapOn: "#TabConsole"
-- delay: "2000"
 - tapOn: "#btnConsoleClear"
 - delay: "1000"
 - assertTrue: "Window.DataContext.Console.Logs.Count == 0"

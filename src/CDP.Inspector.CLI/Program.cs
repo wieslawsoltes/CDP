@@ -172,6 +172,7 @@ public class Program
                 if (Directory.Exists(testPath))
                 {
                     Console.WriteLine($"Running test suite in directory: {testPath}");
+                    testStudio.WorkspaceRootPath = Path.GetFullPath(testPath);
                     await testStudio.RunSuite(testPath);
                     Console.WriteLine($"--- Suite Execution Summary ---");
                     Console.WriteLine($"Passed Flows: {testStudio.SuitePassCount}");

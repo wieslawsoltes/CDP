@@ -1,9 +1,7 @@
 appId: "CdpInspectorApp"
 description: "Verify network request log viewing, throttling options, and mocking rules"
 ---
-- delay: "1000"
-- tapOn: "#TabNetwork"
-- delay: "1000"
+- runFlow: "shared/navigate_to_network.yaml"
 - assertVisible: "#lstNetworkRequests"
 - assertVisible: "#btnNetworkClear"
 - assertVisible: "#cmbThrottling"
