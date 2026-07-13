@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              x:Class="CdpInspectorApp.Views.SimulationView"
              x:DataType="vm:MainWindowViewModel"
@@ -78,7 +78,17 @@
                 <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Margin="15" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Grid>
                         <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Width="{Binding Simulation.DeviceWidth}" Height="{Binding Simulation.DeviceHeight}" Stretch="Uniform"/>
-                        <controls:PreviewHighlightOverlay Simulation="{Binding Simulation}" Width="{Binding Simulation.DeviceWidth}" Height="{Binding Simulation.DeviceHeight}" IsHitTestVisible="False"/>
+                        <controls:PreviewHighlightOverlay DeviceWidth="{Binding Simulation.DeviceWidth}"
+                                                          DeviceHeight="{Binding Simulation.DeviceHeight}"
+                                                          IsHighlightOverlayVisible="{Binding Simulation.IsHighlightOverlayVisible}"
+                                                          HighlightBoxModel="{Binding Simulation.HighlightBoxModel}"
+                                                          HighlightElementType="{Binding Simulation.HighlightElementType}"
+                                                          HighlightAxRole="{Binding Simulation.HighlightAxRole}"
+                                                          HighlightAxName="{Binding Simulation.HighlightAxName}"
+                                                          ActiveReplayIndicator="{Binding Simulation.ActiveReplayIndicator}"
+                                                          Width="{Binding Simulation.DeviceWidth}"
+                                                          Height="{Binding Simulation.DeviceHeight}"
+                                                          IsHitTestVisible="False"/>
                     </Grid>
                 </Border>
             </ScrollViewer>

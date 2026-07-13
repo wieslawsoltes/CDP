@@ -88,6 +88,7 @@ public partial class ProfilerView : UserControl
         }
 
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
+        AddHandler(FlameChart.ActionRequestedEvent, OnFlameChartActionRequested);
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -207,5 +208,73 @@ public partial class ProfilerView : UserControl
                 mainVM.Profiler.SelectedMethod = dg.SelectedItem as ProfileMethodStats;
             }
         }
+    }
+
+    private void OnFlameChartActionRequested(object? sender, FlameChartActionRoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel mainVM)
+        {
+            switch (e.ActionType)
+            {
+                case FlameChartActionType.Search:
+                    mainVM.Profiler.SearchText = e.MethodName;
+                    break;
+                case FlameChartActionType.ShowInCallTree:
+                    mainVM.Profiler.ActivatePane("CallTree");
+                    _ = FindAndSelectInCallTreeAsync(mainVM.Profiler, e.MethodName);
+                    break;
+                case FlameChartActionType.ShowInBottomUp:
+                    mainVM.Profiler.ActivatePane("BottomUpCalls");
+                    var match = mainVM.Profiler.MethodStats.FirstOrDefault(m => m.MethodName == e.MethodName || m.MethodName.Contains(e.MethodName));
+                    if (match != null)
+                    {
+                        mainVM.Profiler.SelectedMethod = match;
+                    }
+                    break;
+                case FlameChartActionType.ShowInCallerCallee:
+                    mainVM.Profiler.ActivatePane("CallerCallee");
+                    mainVM.Profiler.UpdateCallerCallee(e.MethodName, e.Url);
+                    break;
+            }
+        }
+    }
+
+    private static async Task FindAndSelectInCallTreeAsync(ProfilerViewModel profiler, string name)
+    {
+        foreach (var root in profiler.CallTreeRoots)
+        {
+            var path = new System.Collections.Generic.List<CallTreeNodeModel>();
+            if (FindNodePath(root, name, path))
+            {
+                foreach (var parent in path)
+                {
+                    parent.IsExpanded = true;
+                }
+                var target = path.Last();
+                target.IsSelected = true;
+                break;
+            }
+        }
+        await Task.CompletedTask;
+    }
+
+    private static bool FindNodePath(CallTreeNodeModel current, string name, System.Collections.Generic.List<CallTreeNodeModel> path)
+    {
+        path.Add(current);
+        if (current.Name == name || current.Name.Contains(name))
+        {
+            return true;
+        }
+
+        foreach (var child in current.Children)
+        {
+            if (FindNodePath(child, name, path))
+            {
+                return true;
+            }
+        }
+
+        path.RemoveAt(path.Count - 1);
+        return false;
     }
 }

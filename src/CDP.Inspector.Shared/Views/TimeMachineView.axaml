@@ -3,7 +3,7 @@
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:views="clr-namespace:CdpInspectorApp.Views"
              xmlns:proto="clr-namespace:Chrome.DevTools.Protocol;assembly=Chrome.DevTools.Protocol"
-             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls"
              xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.TimeMachineView"
              x:DataType="vm:MainWindowViewModel"

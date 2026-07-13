@@ -3,7 +3,7 @@
              xmlns:models="clr-namespace:CdpInspectorApp.Models"
              xmlns:services="clr-namespace:CdpInspectorApp.Services"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
-             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls"
              xmlns:dgdd="clr-namespace:Avalonia.Controls.DataGridDragDrop;assembly=Avalonia.Controls.DataGrid"
              xmlns:map="using:XamlPlayground.Editor.Minimap"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
