@@ -20,6 +20,7 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 | **Chrome.DevTools.Automation.Selenium** | Selenium E2E Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.Selenium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Selenium/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.Selenium.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Selenium/) |
 | **Chrome.DevTools.Automation.Headless** | Headless E2E Automation Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Automation.Headless.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Headless/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Automation.Headless.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Automation.Headless/) |
 | **Chrome.DevTools.Inspector.Shared** | Shared UI Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.Shared.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Shared/) |
+| **Chrome.DevTools.Inspector.Controls** | Custom Templated Controls Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Inspector.Controls.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Controls/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Inspector.Controls.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Inspector.Controls/) |
 | **Chrome.DevTools.Editor.Minimap** | Standalone Minimap & Inline Editor | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Minimap.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Minimap/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Minimap.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Minimap/) |
 | **Chrome.DevTools.Editor.Nodes** | Standalone Graph Node Editor | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Nodes.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Nodes.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes/) |
 | **Chrome.DevTools.Editor.Nodes.Msagl** | MSAGL Layout Provider | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Editor.Nodes.Msagl.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes.Msagl/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Editor.Nodes.Msagl.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Editor.Nodes.Msagl/) |
@@ -172,6 +173,67 @@ foreach (var win in windows)
     Console.WriteLine($"Found Window: {win.Title} ({win.Id})");
 }
 ```
+
+### Standalone Custom Controls Support
+
+If you want to use the standalone custom controls (such as the Accordion, FlameChart, CpuPieChart, DiffViewer, etc.) in your own Avalonia applications without any Chrome DevTools Protocol or network server dependencies, install `Chrome.DevTools.Inspector.Controls` instead:
+
+```bash
+dotnet add package Chrome.DevTools.Inspector.Controls --prerelease
+```
+
+Include the controls' generic styling resources inside your `App.axaml` or `Styles.axaml` styles list:
+```xml
+<StyleInclude Source="avares://CDP.Inspector.Controls/Themes/Generic.axaml" />
+```
+
+Use any of the controls in your XAML views:
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls">
+    <controls:Accordion>
+        <controls:AccordionItem Header="Section 1">
+            <TextBlock Text="Content 1" />
+        </controls:AccordionItem>
+    </controls:Accordion>
+</UserControl>
+```
+
+#### Available Controls
+
+##### Accordion & AccordionItem
+A hierarchical collapsible accordion container control that supports expanded/collapsed states with smooth arrow rotations.
+
+##### FlameChart
+A high-performance interactive flame chart visualization control for profiling call stacks. Supports zoom-to-pointer, horizontal panning, hovered/selected method highlighting, search overlays, and custom context menu action routed events.
+
+##### CpuPieChart
+A clean circular pie chart visualization control that renders percentage allocations (e.g. CPU self-time/total-time breakdowns) using rich concentric visual arcs.
+
+##### DiffViewer
+A side-by-side and inline visual text differences viewer control built on top of `AvaloniaEdit`. Integrates TextMate tokenizing for syntax highlighting and colored diff decorations.
+
+##### EditableComboBox
+An interactive drop-down list control featuring an editable text entry field overlay with autocomplete suggestions, light dismiss popups, and dropdown toggle synchronization.
+
+##### PreviewHighlightOverlay
+A canvas control that maps device-independent coordinate boxes and overlays highlight bounding boxes (margin, border, padding, content) and touch/swipe action replay animations on target viewports.
+
+##### MetricMeterCard
+A visually premium, grid-aligned card control for displaying live diagnostic metrics, values, and sparkline trends.
+
+##### RadialGauge
+A circular dial/gauge visualization control that draws current value pointer tracks, ranges, and target levels.
+
+##### RequestTimingBar & WaterfallBar
+Specialized bar rendering controls for displaying network request timing waterfall timelines (DNS resolution, SSL handshakes, send/receive latency, etc.).
+
+##### LogLevelBadge & PulsingStatusBadge
+State-based badge controls with pulsing glow animations, colors, and text headers indicating log levels or active connection status.
+
+##### FloatingSplitWindow
+A container control managing dockable window panels, float overlays, and split sizing.
 
 ### Standalone Minimap & Editor Support
 

@@ -1,6 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:CdpInspectorApp.Controls">
+        xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls">
     <Styles.Resources>
         <StreamGeometry x:Key="HistoryIcon">M12 4.5C16.1421 4.5 19.5 7.85786 19.5 12C19.5 16.1421 16.1421 19.5 12 19.5C7.85786 19.5 4.5 16.1421 4.5 12C4.5 11.6236 4.52772 11.2538 4.58123 10.8923C4.64845 10.4382 4.31609 10 3.85708 10C3.48623 10 3.161 10.2562 3.10471 10.6228C3.03576 11.0718 3 11.5317 3 12C3 16.9706 7.02944 21 12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C9.69494 3 7.59227 3.86656 6 5.29168V4.25C6 3.83579 5.66421 3.5 5.25 3.5C4.83579 3.5 4.5 3.83579 4.5 4.25V7.25C4.5 7.66421 4.83579 8 5.25 8H8.25C8.66421 8 9 7.66421 9 7.25C9 6.83579 8.66421 6.5 8.25 6.5H6.90093C8.23907 5.25883 10.0309 4.5 12 4.5ZM12.5 7.75C12.5 7.33579 12.1642 7 11.75 7C11.3358 7 11 7.33579 11 7.75V12.25C11 12.6642 11.3358 13 11.75 13H14.75C15.1642 13 15.5 12.6642 15.5 12.25C15.5 11.8358 15.1642 11.5 14.75 11.5H12.5V7.75Z</StreamGeometry>
         <StreamGeometry x:Key="FolderAddIcon">M3.5 6.25V8H8.12868C8.32759 8 8.51836 7.92098 8.65901 7.78033L10.1893 6.25L8.65901 4.71967C8.51836 4.57902 8.32759 4.5 8.12868 4.5H5.25C4.2835 4.5 3.5 5.2835 3.5 6.25ZM2 6.25C2 4.45507 3.45507 3 5.25 3H8.12868C8.72542 3 9.29771 3.23705 9.71967 3.65901L11.5607 5.5H18.75C20.5449 5.5 22 6.95507 22 8.75V12.8096C21.5557 12.3832 21.051 12.0194 20.5 11.7322V8.75C20.5 7.7835 19.7165 7 18.75 7H11.5607L9.71967 8.84099C9.29771 9.26295 8.72542 9.5 8.12868 9.5H3.5V17.75C3.5 18.7165 4.2835 19.5 5.25 19.5H11.3135C11.4858 20.0335 11.7253 20.5368 12.0218 21H5.25C3.45507 21 2 19.5449 2 17.75V6.25ZM23 17.5C23 14.4624 20.5376 12 17.5 12C14.4624 12 12 14.4624 12 17.5C12 20.5376 14.4624 23 17.5 23C20.5376 23 23 20.5376 23 17.5ZM18.0006 18L18.0011 20.5035C18.0011 20.7797 17.7773 21.0035 17.5011 21.0035C17.225 21.0035 17.0011 20.7797 17.0011 20.5035L17.0006 18H14.4956C14.2197 18 13.9961 17.7762 13.9961 17.5C13.9961 17.2239 14.2197 17 14.4956 17H17.0005L17 14.4993C17 14.2231 17.2239 13.9993 17.5 13.9993C17.7761 13.9993 18 14.2231 18 14.4993L18.0005 17H20.4966C20.7725 17 20.9961 17.2239 20.9961 17.5C20.9961 17.7762 20.7725 18 20.4966 18H18.0006Z</StreamGeometry>
@@ -60,6 +60,7 @@
     </Styles.Resources>
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <StyleInclude Source="avares://CDP.Editor.Minimap/Themes/Generic.axaml" />
+    <StyleInclude Source="avares://CDP.Inspector.Controls/Themes/Generic.axaml" />
 
     <!-- TabControl Panels styling matching Chrome DevTools tabs bar -->
     <Style Selector="TabControl">
@@ -224,204 +225,7 @@
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
     </Style>
-
-    <!-- Accordion Styling -->
-    <Style Selector="controls|Accordion">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderBrush" Value="#3c4043"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="4"/>
-        <Setter Property="ClipToBounds" Value="True"/>
-        <Setter Property="Template">
-            <ControlTemplate>
-                <Border Background="{TemplateBinding Background}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        CornerRadius="{TemplateBinding CornerRadius}">
-                    <ItemsPresenter ItemsPanel="{TemplateBinding ItemsPanel}"/>
-                </Border>
-            </ControlTemplate>
-        </Setter>
-    </Style>
-
-    <!-- AccordionItem Styling -->
-    <Style Selector="controls|AccordionItem">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderBrush" Value="#3c4043"/>
-        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-        <Setter Property="Template">
-            <ControlTemplate>
-                <Border Background="{TemplateBinding Background}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}">
-                    <Grid RowDefinitions="Auto, *">
-                        <!-- Header Toggle Button -->
-                        <ToggleButton Name="PART_HeaderButton"
-                                      Grid.Row="0"
-                                      IsChecked="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=IsExpanded, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch"
-                                      HorizontalContentAlignment="Stretch"
-                                      Background="#2d2d2d"
-                                      BorderBrush="Transparent"
-                                      BorderThickness="0"
-                                      Padding="8,6"
-                                      CornerRadius="0">
-                            <ToggleButton.Styles>
-                                <Style Selector="ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                                    <Setter Property="Background" Value="#35363a"/>
-                                    <Setter Property="BorderBrush" Value="Transparent"/>
-                                </Style>
-                                <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
-                                    <Setter Property="Background" Value="#252526"/>
-                                    <Setter Property="BorderBrush" Value="Transparent"/>
-                                    <Setter Property="Foreground" Value="#8ab4f8"/>
-                                </Style>
-                                <Style Selector="ToggleButton TextBlock">
-                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                    <Setter Property="FontSize" Value="11"/>
-                                    <Setter Property="Foreground" Value="#e8eaed"/>
-                                </Style>
-                                <Style Selector="ToggleButton:checked TextBlock">
-                                    <Setter Property="Foreground" Value="#8ab4f8"/>
-                                </Style>
-                            </ToggleButton.Styles>
-                            <Grid ColumnDefinitions="*, Auto">
-                                <ContentPresenter Grid.Column="0"
-                                                  Content="{TemplateBinding Header}"
-                                                  ContentTemplate="{TemplateBinding HeaderTemplate}"
-                                                  VerticalAlignment="Center"/>
-                                <PathIcon Grid.Column="1"
-                                          Data="{StaticResource ChevronDownIcon}"
-                                          Width="10"
-                                          Height="10"
-                                          Foreground="#9aa0a6"
-                                          VerticalAlignment="Center">
-                                    <PathIcon.Transitions>
-                                        <Transitions>
-                                            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
-                                        </Transitions>
-                                    </PathIcon.Transitions>
-                                </PathIcon>
-                            </Grid>
-                        </ToggleButton>
-                        
-                        <!-- Content Border -->
-                        <Border Grid.Row="1"
-                                Name="PART_ContentBorder"
-                                Background="#202124"
-                                IsVisible="{TemplateBinding IsExpanded}">
-                            <ContentPresenter Content="{TemplateBinding Content}"
-                                              ContentTemplate="{TemplateBinding ContentTemplate}"
-                                              Padding="8,4,8,8"/>
-                        </Border>
-                    </Grid>
-                </Border>
-            </ControlTemplate>
-        </Setter>
-    </Style>
-
-    <Style Selector="controls|AccordionItem /template/ PathIcon">
-        <Setter Property="RenderTransform" Value="rotate(0deg)"/>
-    </Style>
-    <Style Selector="controls|AccordionItem[IsExpanded=true] /template/ PathIcon">
-        <Setter Property="RenderTransform" Value="rotate(180deg)"/>
-        <Setter Property="Foreground" Value="#8ab4f8"/>
-    </Style>
-
-    <!-- Remove border on the very last AccordionItem -->
-    <Style Selector="controls|Accordion > controls|AccordionItem:nth-last-child(1)">
-        <Setter Property="BorderThickness" Value="0"/>
-    </Style>
-
-    <!-- EditableComboBox Styling -->
-    <Style Selector="controls|EditableComboBox">
-        <Setter Property="Background" Value="#2d2d2d"/>
-        <Setter Property="BorderBrush" Value="#3c4043"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="4"/>
-        <Setter Property="Padding" Value="8,4"/>
-        <Setter Property="Foreground" Value="White"/>
-        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
-        <Setter Property="Template">
-            <ControlTemplate>
-                <Grid Name="PART_RootGrid" ColumnDefinitions="*,Auto">
-                    <!-- Dropdown Toggle Button under the text box for full clickability -->
-                    <ToggleButton Name="PART_ToggleButton"
-                                  Grid.Column="0"
-                                  Grid.ColumnSpan="2"
-                                  Background="{TemplateBinding Background}"
-                                  BorderBrush="{TemplateBinding BorderBrush}"
-                                  BorderThickness="{TemplateBinding BorderThickness}"
-                                  CornerRadius="{TemplateBinding CornerRadius}"
-                                  IsChecked="{Binding $parent[controls:EditableComboBox].IsDropDownOpen, Mode=TwoWay}"
-                                  HorizontalAlignment="Stretch"
-                                  VerticalAlignment="Stretch"
-                                  HorizontalContentAlignment="Right"
-                                  Padding="0,0,10,0"
-                                  ClickMode="Release"
-                                  ZIndex="0">
-                        <ToggleButton.Template>
-                            <ControlTemplate>
-                                <Border Name="templateRoot"
-                                        Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        CornerRadius="{TemplateBinding CornerRadius}">
-                                    <Grid HorizontalAlignment="Right" VerticalAlignment="Center" Width="30">
-                                        <PathIcon Data="{StaticResource ChevronDownIcon}"
-                                                  Width="8"
-                                                  Height="8"
-                                                  Foreground="#9aa0a6"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Border>
-                            </ControlTemplate>
-                        </ToggleButton.Template>
-                    </ToggleButton>
-
-                    <!-- Editable TextBox overlay on the left -->
-                    <TextBox Name="PART_EditableTextBox"
-                             Grid.Column="0"
-                             Text="{Binding $parent[controls:EditableComboBox].Text, Mode=TwoWay}"
-                             Watermark="{TemplateBinding PlaceholderText}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Foreground="{TemplateBinding Foreground}"
-                             Padding="{TemplateBinding Padding}"
-                             VerticalAlignment="Center"
-                             HorizontalAlignment="Stretch"
-                             Margin="2,2,30,2"
-                             ZIndex="1"/>
-
-                    <!-- Popup list -->
-                    <Popup Name="PART_Popup"
-                           Grid.Column="0"
-                           IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}"
-                           PlacementTarget="{Binding ElementName=PART_ToggleButton}"
-                           Placement="Bottom"
-                           IsLightDismissEnabled="True">
-                        <Border Background="#2a2a2b"
-                                BorderBrush="#3c4043"
-                                BorderThickness="1"
-                                CornerRadius="4"
-                                MinWidth="{Binding ElementName=PART_ToggleButton, Path=Bounds.Width}"
-                                Margin="0,4,0,4">
-                            <ScrollViewer MaxHeight="300">
-                                <ItemsPresenter Name="PART_ItemsPresenter"
-                                                ItemsPanel="{TemplateBinding ItemsPanel}"/>
-                            </ScrollViewer>
-                        </Border>
-                    </Popup>
-                </Grid>
-            </ControlTemplate>
-        </Setter>
-    </Style>
-
-    <Style Selector="controls|EditableComboBox:focus-within /template/ ToggleButton#PART_ToggleButton">
-        <Setter Property="BorderBrush" Value="#8ab4f8"/>
-    </Style>
+    <!-- Custom controls are styled via Generic.axaml stylesheet include -->
 
     <!-- AutoCompleteBox Vertical Alignment Fixes -->
     <Style Selector="AutoCompleteBox">

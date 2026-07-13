@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls"
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              x:Class="CdpInspectorApp.Views.DiffView"
              x:DataType="vm:MainWindowViewModel"

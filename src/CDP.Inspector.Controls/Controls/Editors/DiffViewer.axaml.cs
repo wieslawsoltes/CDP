@@ -12,19 +12,41 @@ using AvaloniaEdit.Rendering;
 using AvaloniaEdit.TextMate;
 using TextMateSharp.Grammars;
 using CdpInspectorApp.Services;
-using CdpInspectorApp.ViewModels;
 
 namespace CdpInspectorApp.Controls;
 
 public partial class DiffViewer : UserControl
 {
     private bool _isSyncingScroll;
-    private DiffViewModel? _viewModel;
 
     private readonly RegistryOptions _registryOptions = new(ThemeName.DarkPlus);
     private TextMate.Installation? _leftTextMate;
     private TextMate.Installation? _rightTextMate;
     private TextMate.Installation? _inlineTextMate;
+
+    public static readonly StyledProperty<List<DiffLine>?> DiffLinesProperty =
+        AvaloniaProperty.Register<DiffViewer, List<DiffLine>?>(nameof(DiffLines));
+
+    public static readonly StyledProperty<bool> IsInlineModeProperty =
+        AvaloniaProperty.Register<DiffViewer, bool>(nameof(IsInlineMode));
+
+    public List<DiffLine>? DiffLines
+    {
+        get => GetValue(DiffLinesProperty);
+        set => SetValue(DiffLinesProperty, value);
+    }
+
+    public bool IsInlineMode
+    {
+        get => GetValue(IsInlineModeProperty);
+        set => SetValue(IsInlineModeProperty, value);
+    }
+
+    static DiffViewer()
+    {
+        DiffLinesProperty.Changed.AddClassHandler<DiffViewer>((x, e) => x.RefreshEditors());
+        IsInlineModeProperty.Changed.AddClassHandler<DiffViewer>((x, e) => x.RefreshEditors());
+    }
 
     public DiffViewer()
     {
@@ -52,36 +74,9 @@ public partial class DiffViewer : UserControl
         RightEditor.AddHandler(ScrollViewer.ScrollChangedEvent, OnRightScrollChanged);
     }
 
-    protected override void OnDataContextChanged(EventArgs e)
-    {
-        base.OnDataContextChanged(e);
-
-        if (_viewModel != null)
-        {
-            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        }
-
-        _viewModel = DataContext as DiffViewModel;
-
-        if (_viewModel != null)
-        {
-            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-            RefreshEditors();
-        }
-    }
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(DiffViewModel.DiffLines) ||
-            e.PropertyName == nameof(DiffViewModel.IsInlineMode))
-        {
-            RefreshEditors();
-        }
-    }
-
     private void OnLeftScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        if (_isSyncingScroll || _viewModel == null || _viewModel.IsInlineMode) return;
+        if (_isSyncingScroll || IsInlineMode) return;
         _isSyncingScroll = true;
         try
         {
@@ -96,7 +91,7 @@ public partial class DiffViewer : UserControl
 
     private void OnRightScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        if (_isSyncingScroll || _viewModel == null || _viewModel.IsInlineMode) return;
+        if (_isSyncingScroll || IsInlineMode) return;
         _isSyncingScroll = true;
         try
         {
@@ -111,11 +106,9 @@ public partial class DiffViewer : UserControl
 
     private void RefreshEditors()
     {
-        if (_viewModel == null) return;
+        var diffLines = DiffLines ?? new List<DiffLine>();
 
-        var diffLines = _viewModel.DiffLines ?? new List<DiffLine>();
-
-        if (_viewModel.IsInlineMode)
+        if (IsInlineMode)
         {
             var inlineBuilder = new StringBuilder();
 
@@ -254,8 +247,7 @@ public class DiffColorizingTransformer : DocumentColorizingTransformer
                             element =>
                             {
                                 element.TextRunProperties.SetBackgroundBrush(wordBrush);
-                              // We can also adjust foreground to ensure readable contrast
-                          });
+                            });
                     }
                 }
             }

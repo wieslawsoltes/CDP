@@ -3,7 +3,7 @@
              xmlns:vm="clr-namespace:CdpInspectorApp.ViewModels"
              xmlns:models="clr-namespace:CdpInspectorApp.Models;assembly=CDP.Inspector.Shared"
              xmlns:tree="clr-namespace:Avalonia.Controls.DataGridHierarchical;assembly=Avalonia.Controls.DataGrid"
-             xmlns:controls="clr-namespace:CdpInspectorApp.Controls"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls"
              xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpInspectorApp.Views.MemoryView"
              x:DataType="vm:MainWindowViewModel"
