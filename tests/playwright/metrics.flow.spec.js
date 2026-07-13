@@ -13,23 +13,26 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Tap on element #TabPerformance', async () => {
+      const element_0 = page.locator('#TabPerformance');
+      await element_0.tap();
+    });
+
+    await test.step('Delay 500ms', async () => {
+      await page.waitForTimeout(500);
+    });
+
+    await test.step('Assert True: document.querySelector(\'#TabPerformance\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#TabPerformance\') != null');
+      await expect(result).toBeTruthy();
+    });
 
     await test.step('Assert element #PerformanceChartPanel is visible', async () => {
       await expect(page.locator('#PerformanceChartPanel')).toBeVisible();
     });
 
     await test.step('Tap on element #btnRefreshMetrics', async () => {
-      const element_2 = page.locator('#btnRefreshMetrics');
-      await element_2.tap();
-    });
-
-    await test.step('Delay 1000ms', async () => {
-      await page.waitForTimeout(1000);
-    });
-
-    await test.step('Tap on element #btnCollectGarbage', async () => {
-      const element_4 = page.locator('#btnCollectGarbage');
+      const element_4 = page.locator('#btnRefreshMetrics');
       await element_4.tap();
     });
 
@@ -37,9 +40,18 @@ test.describe('CDP Recorded Tests', () => {
       await page.waitForTimeout(1000);
     });
 
-    await test.step('Tap on element #btnStartProfiler', async () => {
-      const element_6 = page.locator('#btnStartProfiler');
+    await test.step('Tap on element #btnCollectGarbage', async () => {
+      const element_6 = page.locator('#btnCollectGarbage');
       await element_6.tap();
+    });
+
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Tap on element #btnStartProfiler', async () => {
+      const element_8 = page.locator('#btnStartProfiler');
+      await element_8.tap();
     });
 
     await test.step('Delay 2000ms', async () => {
@@ -47,8 +59,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnStopProfiler', async () => {
-      const element_8 = page.locator('#btnStopProfiler');
-      await element_8.tap();
+      const element_10 = page.locator('#btnStopProfiler');
+      await element_10.tap();
     });
 
     await test.step('Delay 1000ms', async () => {

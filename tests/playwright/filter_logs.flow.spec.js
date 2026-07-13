@@ -13,11 +13,23 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Tap on element #TabConsole', async () => {
+      const element_0 = page.locator('#TabConsole');
+      await element_0.tap();
+    });
+
+    await test.step('Delay 500ms', async () => {
+      await page.waitForTimeout(500);
+    });
+
+    await test.step('Assert True: document.querySelector(\'#TabConsole\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#TabConsole\') != null');
+      await expect(result).toBeTruthy();
+    });
 
     await test.step('Type text in element #txtConsoleInput', async () => {
-      const element_1 = page.locator('#txtConsoleInput');
-      await element_1.fill('System.Console.WriteLine("UniqueFilterTargetLog")');
+      const element_3 = page.locator('#txtConsoleInput');
+      await element_3.fill('System.Console.WriteLine("UniqueFilterTargetLog")');
     });
 
     await test.step('Delay 500ms', async () => {
@@ -25,8 +37,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnSendConsole', async () => {
-      const element_3 = page.locator('#btnSendConsole');
-      await element_3.tap();
+      const element_5 = page.locator('#btnSendConsole');
+      await element_5.tap();
     });
 
     await test.step('Delay 1500ms', async () => {
@@ -39,8 +51,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Type text in element #btnConsoleFilter', async () => {
-      const element_6 = page.locator('#btnConsoleFilter');
-      await element_6.fill('UniqueFilterTargetLog');
+      const element_8 = page.locator('#btnConsoleFilter');
+      await element_8.fill('UniqueFilterTargetLog');
     });
 
     await test.step('Delay 1000ms', async () => {
@@ -58,8 +70,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Clear text in element #btnConsoleFilter', async () => {
-      const element_10 = page.locator('#btnConsoleFilter');
-      await element_10.clear();
+      const element_12 = page.locator('#btnConsoleFilter');
+      await element_12.clear();
     });
 
     await test.step('Delay 1000ms', async () => {

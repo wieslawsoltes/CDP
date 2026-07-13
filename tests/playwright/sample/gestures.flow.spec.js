@@ -17,8 +17,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.waitForTimeout(1000);
     });
 
-    await test.step('Tap on element #tabGestures', async () => {
-      const element_1 = page.locator('#tabGestures');
+    await test.step('Tap on element #tabContainerTabItem:has-text(\\"Gestures\\")', async () => {
+      const element_1 = page.locator('#tabContainerTabItem:has-text(\\"Gestures\\")');
       await element_1.tap();
     });
 
@@ -26,8 +26,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.waitForTimeout(1000);
     });
 
-    await test.step('Assert True: Window.DataContext.DoubleClickStatus == "Not Double Clicked"', async () => {
-      const result = await page.evaluate('Window.DataContext.DoubleClickStatus == "Not Double Clicked"');
+    await test.step('Assert True: document.querySelector(\'#DoubleClickStatus\').textContent == "Not Double Clicked"', async () => {
+      const result = await page.evaluate('document.querySelector(\'#DoubleClickStatus\').textContent == "Not Double Clicked"');
       await expect(result).toBeTruthy();
     });
 
@@ -40,8 +40,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.waitForTimeout(1000);
     });
 
-    await test.step('Assert True: Window.DataContext.DoubleClickedCount == 1', async () => {
-      const result = await page.evaluate('Window.DataContext.DoubleClickedCount == 1');
+    await test.step('Assert True: document.querySelector(\'#DoubleClickStatus\').textContent != "Not Double Clicked"', async () => {
+      const result = await page.evaluate('document.querySelector(\'#DoubleClickStatus\').textContent != "Not Double Clicked"');
       await expect(result).toBeTruthy();
     });
 
@@ -54,8 +54,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.waitForTimeout(1000);
     });
 
-    await test.step('Assert True: Window.DataContext.LongPressedCount == 1', async () => {
-      const result = await page.evaluate('Window.DataContext.LongPressedCount == 1');
+    await test.step('Assert True: document.querySelector(\'#LongPressStatus\').textContent != "Not Long Pressed"', async () => {
+      const result = await page.evaluate('document.querySelector(\'#LongPressStatus\').textContent != "Not Long Pressed"');
       await expect(result).toBeTruthy();
     });
 
@@ -68,8 +68,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.waitForTimeout(1000);
     });
 
-    await test.step('Assert True: Window.DataContext.ClearTargetText == ""', async () => {
-      const result = await page.evaluate('Window.DataContext.ClearTargetText == ""');
+    await test.step('Assert True: document.querySelector(\'#txtClearTarget\').value == ""', async () => {
+      const result = await page.evaluate('document.querySelector(\'#txtClearTarget\').value == ""');
       await expect(result).toBeTruthy();
     });
 
@@ -83,8 +83,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.waitForTimeout(1000);
     });
 
-    await test.step('Assert True: Window.DataContext.DragDropStatus == "Dropped Successfully!"', async () => {
-      const result = await page.evaluate('Window.DataContext.DragDropStatus == "Dropped Successfully!"');
+    await test.step('Assert True: document.querySelector(\'#DragDropStatus\').textContent == "Dropped Successfully!"', async () => {
+      const result = await page.evaluate('document.querySelector(\'#DragDropStatus\').textContent == "Dropped Successfully!"');
       await expect(result).toBeTruthy();
     });
 

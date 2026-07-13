@@ -205,9 +205,25 @@ public static class DtpTraceAnalyzer
             var readerCtor = readerType.GetConstructor(new[] { storageInterfaceType ?? storage.GetType() });
             var readerInstance = readerCtor.Invoke(new object[] { storage });
 
-            var lifetimeType = lifetimesAssembly.GetType("JetBrains.Lifetimes.Lifetime");
-            var lifetimeDefineMethod = lifetimeType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+            var lifetimesClassType = lifetimesAssembly.GetType("JetBrains.Lifetimes.Lifetimes") ?? lifetimesAssembly.GetType("JetBrains.Lifetimes.Lifetime");
+            if (lifetimesClassType == null)
+            {
+                throw new InvalidOperationException("Could not find JetBrains.Lifetimes.Lifetimes or JetBrains.Lifetimes.Lifetime type.");
+            }
+
+            var lifetimeDefineMethod = lifetimesClassType.GetMethods(BindingFlags.Public | BindingFlags.Static)
                 .FirstOrDefault(m => m.Name == "Define" && m.GetParameters().Length >= 1 && m.GetParameters()[0].ParameterType.FullName == "JetBrains.Lifetimes.Lifetime");
+            
+            if (lifetimeDefineMethod == null)
+            {
+                lifetimeDefineMethod = lifetimesClassType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                    .FirstOrDefault(m => m.Name == "Define");
+            }
+
+            if (lifetimeDefineMethod == null)
+            {
+                throw new InvalidOperationException("Could not find Lifetime Define method on JetBrains.Lifetimes class.");
+            }
             
             var parsCount = lifetimeDefineMethod.GetParameters().Length;
             var defineArgs = new object[parsCount];

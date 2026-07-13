@@ -154,6 +154,10 @@ public class ProfilerState
 
     public void SetEngine(string name)
     {
+        if (IsRunning)
+        {
+            throw new InvalidOperationException("Cannot change profiling engine while profiling is active/running.");
+        }
         if (name.Equals("eventpipe", StringComparison.OrdinalIgnoreCase))
         {
             _activeEngine = new EventPipeProfilingEngine();

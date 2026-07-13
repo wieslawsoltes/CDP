@@ -13,11 +13,23 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Tap on element #TabMemory', async () => {
+      const element_0 = page.locator('#TabMemory');
+      await element_0.tap();
+    });
+
+    await test.step('Delay 500ms', async () => {
+      await page.waitForTimeout(500);
+    });
+
+    await test.step('Assert True: document.querySelector(\'#TabMemory\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#TabMemory\') != null');
+      await expect(result).toBeTruthy();
+    });
 
     await test.step('Tap on element #btnRunGC', async () => {
-      const element_1 = page.locator('#btnRunGC');
-      await element_1.tap();
+      const element_3 = page.locator('#btnRunGC');
+      await element_3.tap();
     });
 
     await test.step('Delay 2000ms', async () => {
@@ -25,8 +37,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnTakeSnapshot', async () => {
-      const element_3 = page.locator('#btnTakeSnapshot');
-      await element_3.tap();
+      const element_5 = page.locator('#btnTakeSnapshot');
+      await element_5.tap();
     });
 
     await test.step('Delay 3000ms', async () => {

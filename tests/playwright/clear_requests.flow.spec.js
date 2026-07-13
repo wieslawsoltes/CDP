@@ -13,13 +13,27 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Tap on element #TabNetwork', async () => {
+      const element_0 = page.locator('#TabNetwork');
+      await element_0.tap();
+    });
+
+    await test.step('Delay 500ms', async () => {
+      await page.waitForTimeout(500);
+    });
+
+    await test.step('Assert True: document.querySelector(\'#TabNetwork\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#TabNetwork\') != null');
+      await expect(result).toBeTruthy();
+    });
 
     await test.step('Assert element #btnNetworkClear is visible', async () => {
       await expect(page.locator('#btnNetworkClear')).toBeVisible();
     });
 
-    // Warning: Unsupported step type 'evalScript'
+    await test.step('Evaluate Script: var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext; var model = new CdpInspectorApp.Models.NetworkRequestModel { RequestId = "req-to-clear", Url = "http://example.com/clear", Method = "POST" }; vm.Network.NetworkRequests.Add(model);', async () => {
+      await page.evaluate('var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext; var model = new CdpInspectorApp.Models.NetworkRequestModel { RequestId = "req-to-clear", Url = "http://example.com/clear", Method = "POST" }; vm.Network.NetworkRequests.Add(model);');
+    });
 
     await test.step('Delay 1000ms', async () => {
       await page.waitForTimeout(1000);
@@ -31,8 +45,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnNetworkClear', async () => {
-      const element_5 = page.locator('#btnNetworkClear');
-      await element_5.tap();
+      const element_7 = page.locator('#btnNetworkClear');
+      await element_7.tap();
     });
 
     await test.step('Delay 1000ms', async () => {

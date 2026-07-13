@@ -13,7 +13,19 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Tap on element #TabProfiler', async () => {
+      const element_0 = page.locator('#TabProfiler');
+      await element_0.tap();
+    });
+
+    await test.step('Delay 500ms', async () => {
+      await page.waitForTimeout(500);
+    });
+
+    await test.step('Assert True: document.querySelector(\'#TabProfiler\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#TabProfiler\') != null');
+      await expect(result).toBeTruthy();
+    });
 
     await test.step('Assert True: Window.DataContext.Profiler.ZoomScale == 1.0', async () => {
       const result = await page.evaluate('Window.DataContext.Profiler.ZoomScale == 1.0');
@@ -21,8 +33,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnProfilerZoomIn', async () => {
-      const element_2 = page.locator('#btnProfilerZoomIn');
-      await element_2.tap();
+      const element_4 = page.locator('#btnProfilerZoomIn');
+      await element_4.tap();
     });
 
     await test.step('Delay 1000ms', async () => {
@@ -35,8 +47,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnProfilerZoomOut', async () => {
-      const element_5 = page.locator('#btnProfilerZoomOut');
-      await element_5.tap();
+      const element_7 = page.locator('#btnProfilerZoomOut');
+      await element_7.tap();
     });
 
     await test.step('Delay 1000ms', async () => {

@@ -13,13 +13,50 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Tap on element #btnRefreshTargets', async () => {
+      const element_1 = page.locator('#btnRefreshTargets');
+      await element_1.tap();
+    });
+
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Tap on element #btnConnect', async () => {
+      const element_3 = page.locator('#btnConnect');
+      await element_3.tap();
+    });
+
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Assert True: __raw_window.DataContext.Connection.IsConnected', async () => {
+      const result = await page.evaluate('__raw_window.DataContext.Connection.IsConnected');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Tap on element #TabRecorder', async () => {
+      const element_6 = page.locator('#TabRecorder');
+      await element_6.tap();
+    });
+
+    await test.step('Delay 500ms', async () => {
+      await page.waitForTimeout(500);
+    });
+
+    await test.step('Assert True: document.querySelector(\'#TabRecorder\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#TabRecorder\') != null');
+      await expect(result).toBeTruthy();
+    });
 
     await test.step('Tap on element #chkTestStudioRecordVideo', async () => {
-      const element_2 = page.locator('#chkTestStudioRecordVideo');
-      await element_2.tap();
+      const element_9 = page.locator('#chkTestStudioRecordVideo');
+      await element_9.tap();
     });
 
     await test.step('Delay 500ms', async () => {
@@ -32,8 +69,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #chkTestStudioGenerateReports', async () => {
-      const element_5 = page.locator('#chkTestStudioGenerateReports');
-      await element_5.tap();
+      const element_12 = page.locator('#chkTestStudioGenerateReports');
+      await element_12.tap();
     });
 
     await test.step('Delay 500ms', async () => {
@@ -46,8 +83,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #chkTestStudioRecordVideo', async () => {
-      const element_8 = page.locator('#chkTestStudioRecordVideo');
-      await element_8.tap();
+      const element_15 = page.locator('#chkTestStudioRecordVideo');
+      await element_15.tap();
     });
 
     await test.step('Delay 500ms', async () => {
@@ -60,8 +97,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #chkTestStudioGenerateReports', async () => {
-      const element_11 = page.locator('#chkTestStudioGenerateReports');
-      await element_11.tap();
+      const element_18 = page.locator('#chkTestStudioGenerateReports');
+      await element_18.tap();
     });
 
     await test.step('Delay 500ms', async () => {
@@ -74,8 +111,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnTestStudioToggleRecord', async () => {
-      const element_14 = page.locator('#btnTestStudioToggleRecord');
-      await element_14.tap();
+      const element_21 = page.locator('#btnTestStudioToggleRecord');
+      await element_21.tap();
     });
 
     await test.step('Delay 1000ms', async () => {
@@ -88,8 +125,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnTestStudioToggleRecord', async () => {
-      const element_17 = page.locator('#btnTestStudioToggleRecord');
-      await element_17.tap();
+      const element_24 = page.locator('#btnTestStudioToggleRecord');
+      await element_24.tap();
     });
 
     await test.step('Delay 1000ms', async () => {

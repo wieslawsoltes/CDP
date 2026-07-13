@@ -231,6 +231,12 @@ public class PlaywrightGenerator : ICodeGenerator
                 sb.AppendLine($"      await expect(result).toBeFalsy();");
                 sb.AppendLine("    });");
             }
+            else if (step.Type == "evalScript" || step.Type == "runScript")
+            {
+                sb.AppendLine($"    await test.step('Evaluate Script: {EscapeJsString(step.Value)}', async () => {{");
+                sb.AppendLine($"      await page.evaluate('{EscapeJsString(step.Value)}');");
+                sb.AppendLine("    });");
+            }
             else
             {
                 sb.AppendLine($"    // Warning: Unsupported step type '{step.Type}'");

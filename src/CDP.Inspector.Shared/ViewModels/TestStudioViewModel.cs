@@ -476,10 +476,13 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                     OnPropertyChanged(nameof(IsSearchTabActive));
                     OnPropertyChanged(nameof(IsToolboxTabActive));
                     OnPropertyChanged(nameof(IsProjectsTabActive));
+                    OnPropertyChanged(nameof(IsSettingsTabActive));
                     OnPropertyChanged(nameof(IsExplorerActive));
                     OnPropertyChanged(nameof(IsSearchActive));
                     OnPropertyChanged(nameof(IsToolboxActive));
                     OnPropertyChanged(nameof(IsProjectsActive));
+                    OnPropertyChanged(nameof(IsSettingsActive));
+                    OnPropertyChanged(nameof(ActiveSidebarTabIndex));
 
                     if (IsSidebarCollapsed)
                     {
@@ -490,15 +493,43 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public int ActiveSidebarTabIndex
+    {
+        get => ActiveSidebarTab switch
+        {
+            "explorer" => 0,
+            "search" => 1,
+            "toolbox" => 2,
+            "projects" => 3,
+            "settings" => 4,
+            _ => 0
+        };
+        set
+        {
+            string tab = value switch
+            {
+                0 => "explorer",
+                1 => "search",
+                2 => "toolbox",
+                3 => "projects",
+                4 => "settings",
+                _ => "explorer"
+            };
+            ActiveSidebarTab = tab;
+        }
+    }
+
     public bool IsExplorerTabActive => ActiveSidebarTab == "explorer";
     public bool IsSearchTabActive => ActiveSidebarTab == "search";
     public bool IsToolboxTabActive => ActiveSidebarTab == "toolbox";
     public bool IsProjectsTabActive => ActiveSidebarTab == "projects";
+    public bool IsSettingsTabActive => ActiveSidebarTab == "settings";
 
     public bool IsExplorerActive => ActiveSidebarTab == "explorer";
     public bool IsSearchActive => ActiveSidebarTab == "search";
     public bool IsToolboxActive => ActiveSidebarTab == "toolbox";
     public bool IsProjectsActive => ActiveSidebarTab == "projects";
+    public bool IsSettingsActive => ActiveSidebarTab == "settings";
 
     public string FileFilterText
     {
@@ -6992,7 +7023,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
     private void ManageEnvironments()
     {
-        IsManageEnvironmentsVisible = true;
+        ActiveSidebarTab = "settings";
     }
 
     private void CreateEnvironment()

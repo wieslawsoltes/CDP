@@ -286,7 +286,7 @@ public class Program
                 foreach (var file in yamlFiles)
                 {
                     var content = await File.ReadAllTextAsync(file);
-                    var steps = TestStudioStepConverter.ConvertYamlToRecordedSteps(content, new Dictionary<string, string>());
+                    var steps = TestStudioStepConverter.ConvertYamlToRecordedSteps(content, file, new Dictionary<string, string>());
                     if (steps == null || steps.Count == 0) continue;
 
                     var code = generator.Generate(steps, "http://localhost:9222");

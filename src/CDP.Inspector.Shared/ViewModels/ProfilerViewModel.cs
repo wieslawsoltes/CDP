@@ -818,6 +818,10 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                             });
                         }
 
+                        var tg = new ThreadGroup { Name = "Main Thread", Id = 1 };
+                        foreach (var b in session.Blocks) tg.Blocks.Add(b);
+                        session.ThreadGroups.Add(tg);
+
                         foreach (var s in cpuSession.MethodStats)
                         {
                             session.MethodStats.Add(new ProfileMethodStats
@@ -954,73 +958,86 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 jetbrainsTracePath = pObj["jetbrainsTracePath"]?.GetValue<string>();
             }
 
-            if (!string.IsNullOrEmpty(jetbrainsTracePath) && System.IO.File.Exists(jetbrainsTracePath))
+            if (!string.IsNullOrEmpty(jetbrainsTracePath))
             {
-                LogProgress($"Found real dotTrace snapshot file at: {jetbrainsTracePath}");
-                DtpTraceAnalyzer.LastError = null;
-                var cpuSession = DtpTraceAnalyzer.LoadTrace(jetbrainsTracePath);
-                if (cpuSession != null)
+                if (System.IO.File.Exists(jetbrainsTracePath))
                 {
-                    var jetbrainsSession = new ProfileSessionModel
+                    LogProgress($"Found real dotTrace snapshot file at: {jetbrainsTracePath}");
+                    DtpTraceAnalyzer.LastError = null;
+                    var cpuSession = DtpTraceAnalyzer.LoadTrace(jetbrainsTracePath);
+                    if (cpuSession != null)
                     {
-                        Name = $"Profile {_sessionCounter++} (dotTrace)",
-                        Timestamp = DateTime.UtcNow,
-                        TotalDurationMs = cpuSession.TotalDurationMs,
-                        TotalSamplesCount = cpuSession.TotalSamplesCount,
-                        RawJson = json
-                    };
-
-                    foreach (var b in cpuSession.Blocks)
-                    {
-                        jetbrainsSession.Blocks.Add(new FlameBlock
+                        var jetbrainsSession = new ProfileSessionModel
                         {
-                            Name = b.Name,
-                            Url = b.Url,
-                            StartTimeMs = b.StartTimeMs,
-                            EndTimeMs = b.EndTimeMs,
-                            Depth = b.Depth
-                        });
-                    }
+                            Name = $"Profile {_sessionCounter++} (dotTrace)",
+                            Timestamp = DateTime.UtcNow,
+                            TotalDurationMs = cpuSession.TotalDurationMs,
+                            TotalSamplesCount = cpuSession.TotalSamplesCount,
+                            RawJson = json
+                        };
 
-                    foreach (var s in cpuSession.MethodStats)
-                    {
-                        jetbrainsSession.MethodStats.Add(new ProfileMethodStats
+                        foreach (var b in cpuSession.Blocks)
                         {
-                            MethodName = s.MethodName,
-                            ModuleName = s.ModuleName,
-                            SelfTimeMs = s.SelfTimeMs,
-                            SelfTimePct = s.SelfTimePct,
-                            TotalTimeMs = s.TotalTimeMs,
-                            TotalTimePct = s.TotalTimePct,
-                            HitCount = s.HitCount
-                        });
-                    }
-
-                    foreach (var rootNode in cpuSession.CallTreeRoots)
-                    {
-                        var mappedRoot = MapCallTreeNode(rootNode);
-                        if (mappedRoot != null)
-                        {
-                            jetbrainsSession.CallTreeRoots.Add(mappedRoot);
+                            jetbrainsSession.Blocks.Add(new FlameBlock
+                            {
+                                Name = b.Name,
+                                Url = b.Url,
+                                StartTimeMs = b.StartTimeMs,
+                                EndTimeMs = b.EndTimeMs,
+                                Depth = b.Depth
+                            });
                         }
+
+                        foreach (var s in cpuSession.MethodStats)
+                        {
+                            jetbrainsSession.MethodStats.Add(new ProfileMethodStats
+                            {
+                                MethodName = s.MethodName,
+                                ModuleName = s.ModuleName,
+                                SelfTimeMs = s.SelfTimeMs,
+                                SelfTimePct = s.SelfTimePct,
+                                TotalTimeMs = s.TotalTimeMs,
+                                TotalTimePct = s.TotalTimePct,
+                                HitCount = s.HitCount
+                            });
+                        }
+
+                        foreach (var rootNode in cpuSession.CallTreeRoots)
+                        {
+                            var mappedRoot = MapCallTreeNode(rootNode);
+                            if (mappedRoot != null)
+                            {
+                                jetbrainsSession.CallTreeRoots.Add(mappedRoot);
+                            }
+                        }
+
+                        var mainTg = new ThreadGroup { Name = "Main Thread", Id = 1 };
+                        foreach (var b in jetbrainsSession.Blocks) mainTg.Blocks.Add(b);
+                        jetbrainsSession.ThreadGroups.Add(mainTg);
+
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            Sessions.Add(jetbrainsSession);
+                            SelectedSession = jetbrainsSession;
+                        });
+                        LogProgress($"Successfully loaded and parsed dotTrace performance trace ({cpuSession.MethodStats.Count} methods, {cpuSession.TotalSamplesCount} samples).");
+                        return;
                     }
-
-                    var mainTg = new ThreadGroup { Name = "Main Thread", Id = 1 };
-                    foreach (var b in jetbrainsSession.Blocks) mainTg.Blocks.Add(b);
-                    jetbrainsSession.ThreadGroups.Add(mainTg);
-
-                    Dispatcher.UIThread.Post(() =>
+                    else
                     {
-                        Sessions.Add(jetbrainsSession);
-                        SelectedSession = jetbrainsSession;
-                    });
-                    LogProgress($"Successfully loaded and parsed dotTrace performance trace ({cpuSession.MethodStats.Count} methods, {cpuSession.TotalSamplesCount} samples).");
-                    return;
+                        var err = DtpTraceAnalyzer.LastError ?? "DtpTraceAnalyzer.LoadTrace returned null.";
+                        LogProgress($"Warning: Could not parse real dotTrace file via reflection SDK. Fallback to simulated profile. Detail: {err}");
+                    }
                 }
                 else
                 {
-                    var err = DtpTraceAnalyzer.LastError ?? "DtpTraceAnalyzer.LoadTrace returned null.";
-                    LogProgress($"Warning: Could not parse real dotTrace file via reflection SDK. Fallback to simulated profile. Detail: {err}");
+                    bool hasEmbeddedProfile = wrapper.ContainsKey("nodes") || 
+                                              (root.ContainsKey("profile") && root["profile"] is JsonObject pObj && pObj.ContainsKey("nodes"));
+                    if (!hasEmbeddedProfile)
+                    {
+                        throw new FileNotFoundException($"The dotTrace performance trace file '{jetbrainsTracePath}' was not found, and no embedded V8 profile is present in the imported JSON.");
+                    }
+                    LogProgress($"dotTrace file '{jetbrainsTracePath}' not found. Falling back to embedded V8 profile.");
                 }
             }
 
@@ -1034,46 +1051,58 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                 jetbrainsMemorySnapshotPath = pObj2["jetbrainsMemorySnapshotPath"]?.GetValue<string>();
             }
 
-            if (!string.IsNullOrEmpty(jetbrainsMemorySnapshotPath) && System.IO.File.Exists(jetbrainsMemorySnapshotPath))
+            if (!string.IsNullOrEmpty(jetbrainsMemorySnapshotPath))
             {
-                LogProgress($"Found real dotMemory snapshot file at: {jetbrainsMemorySnapshotPath}");
-                DmwSnapshotAnalyzer.LastError = null;
-                var memSession = DmwSnapshotAnalyzer.LoadWorkspace(jetbrainsMemorySnapshotPath);
-                if (memSession != null)
+                if (System.IO.File.Exists(jetbrainsMemorySnapshotPath))
                 {
-                    var jetbrainsSession = new ProfileSessionModel
+                    LogProgress($"Found real dotMemory snapshot file at: {jetbrainsMemorySnapshotPath}");
+                    DmwSnapshotAnalyzer.LastError = null;
+                    var memSession = DmwSnapshotAnalyzer.LoadWorkspace(jetbrainsMemorySnapshotPath);
+                    if (memSession != null)
                     {
-                        Name = $"Profile {_sessionCounter++} (dotMemory)",
-                        Timestamp = DateTime.UtcNow,
-                        TotalAllocatedBytes = memSession.TotalAllocatedBytes,
-                        TotalAllocationsCount = memSession.TotalAllocationsCount,
-                        RawJson = json
-                    };
-
-                    foreach (var s in memSession.MemoryStats)
-                    {
-                        jetbrainsSession.MemoryStats.Add(new ProfileMemoryStats
+                        var jetbrainsSession = new ProfileSessionModel
                         {
-                            TypeName = s.TypeName,
-                            AllocatedBytes = s.AllocatedBytes,
-                            SizePct = s.SizePct,
-                            AllocationCount = s.AllocationCount,
-                            CountPct = s.CountPct
-                        });
-                    }
+                            Name = $"Profile {_sessionCounter++} (dotMemory)",
+                            Timestamp = DateTime.UtcNow,
+                            TotalAllocatedBytes = memSession.TotalAllocatedBytes,
+                            TotalAllocationsCount = memSession.TotalAllocationsCount,
+                            RawJson = json
+                        };
 
-                    Dispatcher.UIThread.Post(() =>
+                        foreach (var s in memSession.MemoryStats)
+                        {
+                            jetbrainsSession.MemoryStats.Add(new ProfileMemoryStats
+                            {
+                                TypeName = s.TypeName,
+                                AllocatedBytes = s.AllocatedBytes,
+                                SizePct = s.SizePct,
+                                AllocationCount = s.AllocationCount,
+                                CountPct = s.CountPct
+                            });
+                        }
+
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            Sessions.Add(jetbrainsSession);
+                            SelectedSession = jetbrainsSession;
+                        });
+                        LogProgress($"Successfully loaded and parsed dotMemory workspace snapshot ({memSession.MemoryStats.Count} type allocations, {memSession.TotalAllocatedBytes} bytes).");
+                        return;
+                    }
+                    else
                     {
-                        Sessions.Add(jetbrainsSession);
-                        SelectedSession = jetbrainsSession;
-                    });
-                    LogProgress($"Successfully loaded and parsed dotMemory workspace snapshot ({memSession.MemoryStats.Count} type allocations, {memSession.TotalAllocatedBytes} bytes).");
-                    return;
+                        var err = DmwSnapshotAnalyzer.LastError ?? "DmwSnapshotAnalyzer.LoadWorkspace returned null.";
+                        LogProgress($"Warning: Could not parse real dotMemory workspace via reflection SDK. Fallback to simulated profile. Detail: {err}");
+                    }
                 }
                 else
                 {
-                    var err = DmwSnapshotAnalyzer.LastError ?? "DmwSnapshotAnalyzer.LoadWorkspace returned null.";
-                    LogProgress($"Warning: Could not parse real dotMemory workspace via reflection SDK. Fallback to simulated profile. Detail: {err}");
+                    bool hasEmbeddedMemory = wrapper.ContainsKey("memoryProfile") || wrapper.ContainsKey("memoryAllocations");
+                    if (!hasEmbeddedMemory)
+                    {
+                        throw new FileNotFoundException($"The dotMemory workspace file '{jetbrainsMemorySnapshotPath}' was not found, and no embedded memory profile is present in the imported JSON.");
+                    }
+                    LogProgress($"dotMemory file '{jetbrainsMemorySnapshotPath}' not found. Falling back to embedded memory profile.");
                 }
             }
 
@@ -1120,7 +1149,8 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                         tempProfile["samples"] = tObj["samples"]?.DeepClone();
                         tempProfile["timeDeltas"] = tObj["timeDeltas"]?.DeepClone();
 
-                        ProcessV8Profile(session, tempProfile, tg.Blocks, new ObservableCollection<ProfileMethodStats>(), false, out double tDur, out int tSamples);
+                        var threadStats = new ObservableCollection<ProfileMethodStats>();
+                        ProcessV8Profile(session, tempProfile, tg.Blocks, threadStats, false, out double tDur, out int tSamples);
 
                         session.ThreadGroups.Add(tg);
                         if (tDur > maxDuration) maxDuration = tDur;
@@ -1129,9 +1159,34 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
                         if (session.Blocks.Count == 0)
                         {
                             foreach (var b in tg.Blocks) session.Blocks.Add(b);
-                            ProcessV8Profile(session, tempProfile, new ObservableCollection<FlameBlock>(), session.MethodStats, false, out _, out _);
+                        }
+
+                        // Accumulate threadStats into session.MethodStats
+                        foreach (var tStat in threadStats)
+                        {
+                            var existing = session.MethodStats.FirstOrDefault(s => 
+                                string.Equals(s.MethodName, tStat.MethodName, StringComparison.OrdinalIgnoreCase) && 
+                                string.Equals(s.ModuleName, tStat.ModuleName, StringComparison.OrdinalIgnoreCase));
+                            if (existing != null)
+                            {
+                                existing.SelfTimeMs += tStat.SelfTimeMs;
+                                existing.TotalTimeMs += tStat.TotalTimeMs;
+                                existing.HitCount += tStat.HitCount;
+                            }
+                            else
+                            {
+                                session.MethodStats.Add(tStat);
+                            }
                         }
                     }
+                }
+
+                // Recalculate percentages for session.MethodStats based on total accumulated time
+                double totalCpuTimeAcrossThreads = session.MethodStats.Sum(s => s.SelfTimeMs);
+                foreach (var s in session.MethodStats)
+                {
+                    s.SelfTimePct = totalCpuTimeAcrossThreads > 0 ? (s.SelfTimeMs / totalCpuTimeAcrossThreads) * 100.0 : 0.0;
+                    s.TotalTimePct = totalCpuTimeAcrossThreads > 0 ? (s.TotalTimeMs / totalCpuTimeAcrossThreads) * 100.0 : 0.0;
                 }
 
                 session.TotalDurationMs = maxDuration;
@@ -1234,7 +1289,12 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             }
         }
 
-        var statsMap = session.MethodStats.ToDictionary(s => s.MethodName, s => s);
+        var statsMap = new Dictionary<string, ProfileMethodStats>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in session.MethodStats)
+        {
+            string key = $"{s.MethodName}@{s.ModuleName}";
+            statsMap[key] = s;
+        }
 
         CallTreeNodeModel? BuildNode(int nodeId, HashSet<int> visited)
         {
@@ -1244,6 +1304,8 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
 
             var cfObj = nObj["callFrame"] as JsonObject;
             string funcName = cfObj?["functionName"]?.GetValue<string>() ?? "";
+            string url = cfObj?["url"]?.GetValue<string>() ?? "";
+            string key = $"{funcName}@{url}";
             
             double selfTime = 0;
             double selfPct = 0;
@@ -1251,7 +1313,7 @@ public class ProfilerViewModel : ViewModelBase, IStateProvider
             double totalPct = 0;
             int hitCount = nObj["hitCount"]?.GetValue<int>() ?? 0;
 
-            if (statsMap.TryGetValue(funcName, out var stats))
+            if (statsMap.TryGetValue(key, out var stats))
             {
                 selfTime = stats.SelfTimeMs;
                 selfPct = stats.SelfTimePct;

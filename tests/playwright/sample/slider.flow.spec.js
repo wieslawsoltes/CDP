@@ -30,7 +30,9 @@ test.describe('CDP Recorded Tests', () => {
       await expect(result).toBeTruthy();
     });
 
-    // Warning: Unsupported step type 'evalScript'
+    await test.step('Evaluate Script: document.querySelector(\'#sliderValue\').value = 75', async () => {
+      await page.evaluate('document.querySelector(\'#sliderValue\').value = 75');
+    });
 
     await test.step('Delay 1000ms', async () => {
       await page.waitForTimeout(1000);
@@ -51,7 +53,9 @@ test.describe('CDP Recorded Tests', () => {
       await expect(result).toBeTruthy();
     });
 
-    // Warning: Unsupported step type 'evalScript'
+    await test.step('Evaluate Script: document.querySelector(\'#sliderValue\').value = 25', async () => {
+      await page.evaluate('document.querySelector(\'#sliderValue\').value = 25');
+    });
 
     await test.step('Delay 1000ms', async () => {
       await page.waitForTimeout(1000);

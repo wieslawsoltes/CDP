@@ -13,11 +13,50 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Tap on element #btnRefreshTargets', async () => {
+      const element_1 = page.locator('#btnRefreshTargets');
+      await element_1.tap();
+    });
 
-    // Warning: Unsupported step type 'evalScript'
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Tap on element #btnConnect', async () => {
+      const element_3 = page.locator('#btnConnect');
+      await element_3.tap();
+    });
+
+    await test.step('Delay 1000ms', async () => {
+      await page.waitForTimeout(1000);
+    });
+
+    await test.step('Assert True: __raw_window.DataContext.Connection.IsConnected', async () => {
+      const result = await page.evaluate('__raw_window.DataContext.Connection.IsConnected');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Tap on element #TabRecorder', async () => {
+      const element_6 = page.locator('#TabRecorder');
+      await element_6.tap();
+    });
+
+    await test.step('Delay 500ms', async () => {
+      await page.waitForTimeout(500);
+    });
+
+    await test.step('Assert True: document.querySelector(\'#TabRecorder\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#TabRecorder\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Evaluate Script: ((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled = true', async () => {
+      await page.evaluate('((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled = true');
+    });
 
     await test.step('Delay 500ms', async () => {
       await page.waitForTimeout(500);
@@ -28,15 +67,17 @@ test.describe('CDP Recorded Tests', () => {
       await expect(result).toBeTruthy();
     });
 
-    // Warning: Unsupported step type 'evalScript'
+    await test.step('Evaluate Script: ((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.YamlCode = "appId: \\"CdpSampleApp\\"\\ndescription: \\"PDF Report Verification\\"\\n---\\n- delay: 1000\\n- delay: 1000\\n"', async () => {
+      await page.evaluate('((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.YamlCode = "appId: \\"CdpSampleApp\\"\\ndescription: \\"PDF Report Verification\\"\\n---\\n- delay: 1000\\n- delay: 1000\\n"');
+    });
 
     await test.step('Delay 500ms', async () => {
       await page.waitForTimeout(500);
     });
 
     await test.step('Tap on element #btnTestStudioApplyYaml', async () => {
-      const element_7 = page.locator('#btnTestStudioApplyYaml');
-      await element_7.tap();
+      const element_14 = page.locator('#btnTestStudioApplyYaml');
+      await element_14.tap();
     });
 
     await test.step('Delay 1000ms', async () => {
@@ -49,8 +90,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnTestStudioPlay', async () => {
-      const element_10 = page.locator('#btnTestStudioPlay');
-      await element_10.tap();
+      const element_17 = page.locator('#btnTestStudioPlay');
+      await element_17.tap();
     });
 
     await test.step('Delay 4000ms', async () => {
@@ -73,8 +114,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnViewPdfReport', async () => {
-      const element_15 = page.locator('#btnViewPdfReport');
-      await element_15.tap();
+      const element_22 = page.locator('#btnViewPdfReport');
+      await element_22.tap();
     });
 
     await test.step('Delay 1000ms', async () => {

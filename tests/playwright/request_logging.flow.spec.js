@@ -13,7 +13,19 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    // Warning: Unsupported step type 'runFlow'
+    await test.step('Tap on element #TabNetwork', async () => {
+      const element_0 = page.locator('#TabNetwork');
+      await element_0.tap();
+    });
+
+    await test.step('Delay 500ms', async () => {
+      await page.waitForTimeout(500);
+    });
+
+    await test.step('Assert True: document.querySelector(\'#TabNetwork\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#TabNetwork\') != null');
+      await expect(result).toBeTruthy();
+    });
 
     await test.step('Assert element #lstNetworkRequests is visible', async () => {
       await expect(page.locator('#lstNetworkRequests')).toBeVisible();
@@ -28,8 +40,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #TabMockingRules', async () => {
-      const element_4 = page.locator('#TabMockingRules');
-      await element_4.tap();
+      const element_6 = page.locator('#TabMockingRules');
+      await element_6.tap();
     });
 
     await test.step('Delay 1000ms', async () => {
@@ -41,8 +53,8 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Tap on element #btnAddMockRule', async () => {
-      const element_7 = page.locator('#btnAddMockRule');
-      await element_7.tap();
+      const element_9 = page.locator('#btnAddMockRule');
+      await element_9.tap();
     });
 
     await test.step('Delay 1000ms', async () => {
