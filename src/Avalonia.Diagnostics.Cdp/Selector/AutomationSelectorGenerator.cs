@@ -36,7 +36,7 @@ public class AutomationSelectorGenerator : ISelectorGenerator
             targetPart += $":contains(\"{escaped}\")";
         }
 
-        Visual? current = useLogicalTree ? SelectorEngine.GetLogicalParent(visual) : visual.GetVisualParent();
+        Visual? current = CdpVisualTreeHelper.GetParent(visual, useLogicalTree);
         var pathParts = new List<string> { targetPart };
         while (current != null)
         {
@@ -51,10 +51,10 @@ public class AutomationSelectorGenerator : ISelectorGenerator
             }
             
             string part = current.GetType().Name;
-            var parent = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            var parent = CdpVisualTreeHelper.GetParent(current, useLogicalTree);
             if (parent != null)
             {
-                var siblings = (useLogicalTree ? SelectorEngine.GetLogicalChildren(parent) : parent.GetVisualChildren()).ToList();
+                var siblings = CdpVisualTreeHelper.GetChildren(parent, useLogicalTree).ToList();
                 int sameTypeCount = 0;
                 foreach (var sib in siblings)
                 {
@@ -71,7 +71,7 @@ public class AutomationSelectorGenerator : ISelectorGenerator
             }
 
             pathParts.Insert(0, part);
-            current = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            current = CdpVisualTreeHelper.GetParent(current, useLogicalTree);
         }
 
         return _fallback.GenerateSelector(visual, useLogicalTree);

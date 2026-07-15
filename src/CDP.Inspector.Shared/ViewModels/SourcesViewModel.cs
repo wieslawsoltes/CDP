@@ -40,6 +40,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private bool _searchCaseSensitive = false;
     private string _breakpointCondition = "";
     private ObservableCollection<SearchResultModel> _searchResults = new();
+    private bool _isMarkdownPreviewMode;
+    private bool _isDocumentPreviewMode;
+    private bool _isSaving = false;
+    private string? _pendingSaveContent = null;
+    private string? _pendingSavePath = null;
 
     private int? _pendingScrollLine;
     private bool _isDebuggerPaused;
@@ -129,6 +134,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     public bool IsFileSelected => SelectedFile != null && !SelectedFile.IsDirectory;
 
+    public string? SelectedFilePath => SelectedFile?.Path;
+
     public System.Windows.Input.ICommand SaveFileCommand { get; }
 
     public ObservableCollection<WorkspaceFileNode> WorkspaceFiles => _workspaceFiles;
@@ -144,6 +151,51 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         get => _selectedFileContent;
         set => RaiseAndSetIfChanged(ref _selectedFileContent, value);
     }
+
+    public bool IsMarkdownFile => SelectedFileName != null && SelectedFileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+
+    private static readonly string[] DocumentExtensions = { ".docx", ".rtf", ".pptx", ".xlsx" };
+
+    public bool IsDocumentFile
+    {
+        get
+        {
+            if (SelectedFileName == null) return false;
+            var ext = System.IO.Path.GetExtension(SelectedFileName);
+            foreach (var de in DocumentExtensions)
+            {
+                if (ext.Equals(de, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+    }
+
+    public bool IsDocumentPreviewMode
+    {
+        get => _isDocumentPreviewMode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isDocumentPreviewMode, value))
+            {
+                OnPropertyChanged(nameof(IsSourceEditorVisible));
+            }
+        }
+    }
+
+    public bool IsMarkdownPreviewMode
+    {
+        get => _isMarkdownPreviewMode;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isMarkdownPreviewMode, value))
+            {
+                OnPropertyChanged(nameof(SelectedFileContent));
+                OnPropertyChanged(nameof(IsSourceEditorVisible));
+            }
+        }
+    }
+
+    public bool IsSourceEditorVisible => !IsMarkdownPreviewMode && !IsDocumentPreviewMode;
 
     public WorkspaceFileNode? SelectedFile
     {
@@ -167,6 +219,18 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     }
                 }
                 OnPropertyChanged(nameof(IsFileSelected));
+                OnPropertyChanged(nameof(SelectedFilePath));
+                OnPropertyChanged(nameof(IsMarkdownFile));
+                OnPropertyChanged(nameof(IsDocumentFile));
+                if (!IsMarkdownFile)
+                {
+                    IsMarkdownPreviewMode = false;
+                }
+                else
+                {
+                    IsMarkdownPreviewMode = true;
+                }
+                IsDocumentPreviewMode = IsDocumentFile;
                 ((RelayCommand<string>)SaveFileCommand).RaiseCanExecuteChanged();
                 if (ToggleBreakpointCommand != null)
                 {
@@ -638,22 +702,55 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             return;
         }
 
+        string filePath = SelectedFile.Path;
+
+        if (_isSaving)
+        {
+            _pendingSaveContent = content;
+            _pendingSavePath = filePath;
+            return;
+        }
+
+        _isSaving = true;
+
         try
         {
-            var p = new JsonObject 
-            { 
-                ["path"] = SelectedFile.Path,
-                ["content"] = content
-            };
-            var response = await _cdpService.SendCommandAsync("Sources.setFileContent", p);
-            if (response != null && response["success"]?.GetValue<bool>() == true)
+            while (true)
             {
-                SelectedFileContent = content;
+                var p = new JsonObject 
+                { 
+                    ["path"] = filePath,
+                    ["content"] = content
+                };
+                var response = await _cdpService.SendCommandAsync("Sources.setFileContent", p);
+                if (response != null && response["success"]?.GetValue<bool>() == true)
+                {
+                    if (SelectedFile != null && SelectedFile.Path == filePath)
+                    {
+                        SelectedFileContent = content;
+                    }
+                }
+
+                if (_pendingSaveContent != null && _pendingSavePath != null)
+                {
+                    content = _pendingSaveContent;
+                    filePath = _pendingSavePath;
+                    _pendingSaveContent = null;
+                    _pendingSavePath = null;
+                }
+                else
+                {
+                    break;
+                }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Save file failed: {ex.Message}");
+        }
+        finally
+        {
+            _isSaving = false;
         }
     }
 
@@ -680,6 +777,14 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             SelectedFileContent = $"Error loading content: {ex.Message}";
+        }
+    }
+
+    public async Task RefreshSelectedFileContentAsync()
+    {
+        if (SelectedFile != null && !SelectedFile.IsDirectory)
+        {
+            await LoadFileContentAsync();
         }
     }
 

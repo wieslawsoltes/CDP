@@ -20,7 +20,6 @@ public partial class EventsView : UserControl
         else if (control.Parent is SuperSplitBox splitBox)
         {
             splitBox.InnerContent = null;
-            splitBox.UpdateLayout();
         }
     }
 

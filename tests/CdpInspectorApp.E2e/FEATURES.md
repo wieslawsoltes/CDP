@@ -46,3 +46,12 @@ This document matches every major inspector feature and sub-feature to its corre
 | | Test Studio replay | `recorder/test_studio.flow.yaml` | Active |
 | | Generate HTML report | `recorder/generate_html_report.flow.yaml` | Active |
 | | Generate PDF report | `recorder/generate_pdf_report.flow.yaml` | Active |
+| **XAML Engine** | Namespace & Type Registry | `XamlEngine/TypeSystem/RegisterNamespace.flow.yaml` | Active |
+| | AST Parser Spacing Fidelity | `XamlEngine/Parser/ParseValidXaml.flow.yaml` | Active |
+| | Error Diagnostics Recovery | `XamlEngine/ErrorRecovery/UnclosedXmlTag.flow.yaml` | Active |
+| | XML Element Mutations | `XamlEngine/Mutation/SetExistingAttribute.flow.yaml` | Active |
+| | Custom LSP Autocomplete | `XamlEngine/Lsp/LspGetCompletions.flow.yaml` | Active |
+| | Framework Adapter Navigation | `XamlEngine/Adapters/AvaloniaAdapterTraverse.flow.yaml` | Active |
+| | Live Subtree Hot-Reload | `XamlEngine/HotReload/StylingHotReload.flow.yaml` | Active |
+| | Cross-Feature Composition | `XamlEngine/CrossFeature/MutationAstWhitespace.flow.yaml` | Active |
+| | Real-world Visual Designer | `XamlEngine/RealWorld/VisualDesignerEdit.flow.yaml` | Active |

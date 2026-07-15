@@ -34,6 +34,7 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+    <ProjectReference Include="../Xaml.Compiler/Xaml.Compiler.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">

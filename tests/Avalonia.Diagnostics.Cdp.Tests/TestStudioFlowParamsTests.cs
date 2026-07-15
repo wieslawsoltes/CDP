@@ -123,6 +123,25 @@ public class TestStudioFlowParamsTests
     }
 
     [Fact]
+    public void TestEvalScriptParsing()
+    {
+        var yaml = @"
+- evalScript:
+    value: |
+      var rect = document.querySelector(""#mdVisualEditor"").getBoundingClientRect();
+      return rect.left + 15;
+    assignTo: ""checkboxX""
+";
+        var steps = Chrome.DevTools.Protocol.TestStudioYamlParser.Parse(yaml, out _, out _);
+        Assert.Single(steps);
+        var step = steps[0];
+        Assert.Equal("evalScript", step.Action);
+        Assert.NotNull(step.Value);
+        Assert.Contains("getBoundingClientRect", step.Value);
+        Assert.Equal("checkboxX", step.Parameters["assignTo"]?.ToString());
+    }
+
+    [Fact]
     public async Task TestPathResolutionAndSubflowExecution()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());

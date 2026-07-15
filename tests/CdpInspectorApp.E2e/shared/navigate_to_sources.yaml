@@ -4,3 +4,19 @@ description: "Sub-flow: Navigate to Sources tab"
 - tapOn: "#TabSources"
 - delay: "500"
 - assertTrue: "document.querySelector('#TabSources') != null"
+- evalScript: |
+    var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;
+    var box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesFiles");
+    if (box != null) {
+        var tab = null;
+        for (var i = 0; i < box.Tabs.Count; i++) {
+            if (box.Tabs[i].SelectedViewName == "SourcesFiles") {
+                tab = box.Tabs[i];
+                break;
+            }
+        }
+        if (tab != null) {
+            box.ActiveTab = tab;
+        }
+    }
+- delay: "200"

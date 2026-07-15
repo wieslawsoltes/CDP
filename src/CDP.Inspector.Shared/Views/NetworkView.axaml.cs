@@ -28,7 +28,6 @@ public partial class NetworkView : UserControl
         if (control.Parent is CDP.Editor.Splits.Controls.SuperSplitBox splitBox)
         {
             splitBox.InnerContent = null;
-            splitBox.UpdateLayout();
         }
         else if (control.Parent is Panel panel)
         {

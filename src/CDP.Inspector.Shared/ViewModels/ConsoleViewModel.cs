@@ -27,6 +27,7 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
     private string _pinnedExpressionInputText = "";
     private readonly DispatcherTimer _watchTimer;
     private bool _isEvaluatingPinned;
+    private System.Threading.CancellationTokenSource? _completionCts;
 
     // Filters
     private bool _filterAll = true;
@@ -519,6 +520,31 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
 
     public async Task QueryCompletionsAsync(string expression, int cursorPosition)
     {
+        if (Environment.GetEnvironmentVariable("CDP_E2E_RUNNING") == "1")
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                Completions.Clear();
+                IsCompletionActive = false;
+            });
+            return;
+        }
+
+        // Cancel previous pending completions request
+        _completionCts?.Cancel();
+        _completionCts = new System.Threading.CancellationTokenSource();
+        var token = _completionCts.Token;
+
+        try
+        {
+            // Debounce completions request for 150ms
+            await Task.Delay(150, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
         if (string.IsNullOrEmpty(expression) || !_cdpService.IsConnected)
         {
             Dispatcher.UIThread.Post(() =>
@@ -531,8 +557,10 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
 
         if (IsUiReplMode)
         {
+            if (token.IsCancellationRequested) return;
             Dispatcher.UIThread.Post(() =>
             {
+                if (token.IsCancellationRequested) return;
                 Completions.Clear();
                 int spaceIndex = expression.LastIndexOf(' ', Math.Max(0, cursorPosition - 1));
                 if (spaceIndex < 0)
@@ -578,9 +606,12 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
                 ["cursorPosition"] = cursorPosition
             });
 
+            if (token.IsCancellationRequested) return;
+
             var completionsArr = res["completions"] as JsonArray;
             Dispatcher.UIThread.Post(() =>
             {
+                if (token.IsCancellationRequested) return;
                 Completions.Clear();
                 if (completionsArr != null && completionsArr.Count > 0)
                 {
@@ -604,8 +635,10 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
         }
         catch
         {
+            if (token.IsCancellationRequested) return;
             Dispatcher.UIThread.Post(() =>
             {
+                if (token.IsCancellationRequested) return;
                 Completions.Clear();
                 IsCompletionActive = false;
                 SelectedCompletionIndex = -1;

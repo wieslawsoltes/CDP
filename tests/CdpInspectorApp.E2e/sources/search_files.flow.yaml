@@ -1,13 +1,32 @@
 appId: "CdpInspectorApp"
 description: "Verify searching for files inside the sources panel"
 ---
+- delay: "500"
 - runFlow: "shared/navigate_to_sources.yaml"
+- assertVisible: "#treeWorkspaceFiles"
+- delay: "300"
+- evalScript: |
+    var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;
+    var box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesSearch");
+    if (box != null) {
+        var tab = null;
+        for (var i = 0; i < box.Tabs.Count; i++) {
+            if (box.Tabs[i].SelectedViewName == "SourcesSearch") {
+                tab = box.Tabs[i];
+                break;
+            }
+        }
+        if (tab != null) {
+            box.ActiveTab = tab;
+        }
+    }
+- delay: "300"
 - assertVisible: "#txtSourcesSearch"
 - inputText:
     selector: "#txtSourcesSearch"
     text: "flow"
 - tapOn: "#btnSearchWorkspace"
-- delay: "2000"
+- delay: "500"
 - assertVisible: "#dgSearchResults"
 - assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Sources.SearchQuery == \"flow\""
 - assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Sources.SearchResults != null"

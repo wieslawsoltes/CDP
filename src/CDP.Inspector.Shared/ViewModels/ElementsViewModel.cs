@@ -367,16 +367,16 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
     }
 
-    public IEnumerable<CssPropertyModel> FilteredComputedStyles
+    public IReadOnlyList<CssPropertyModel> FilteredComputedStyles
     {
         get
         {
             if (string.IsNullOrWhiteSpace(ComputedSearchText))
             {
-                return ComputedStyles;
+                return ComputedStyles.ToList();
             }
             return ComputedStyles.Where(p => (p.Name != null && p.Name.Contains(ComputedSearchText, StringComparison.OrdinalIgnoreCase))
-                                          || (p.Value != null && p.Value.Contains(ComputedSearchText, StringComparison.OrdinalIgnoreCase)));
+                                          || (p.Value != null && p.Value.Contains(ComputedSearchText, StringComparison.OrdinalIgnoreCase))).ToList();
         }
     }
 

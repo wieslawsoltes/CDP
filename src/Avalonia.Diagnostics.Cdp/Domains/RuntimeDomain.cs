@@ -1709,6 +1709,15 @@ public static class RuntimeDomain
     [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script property evaluation")]
     private static Engine EnsureEngineInitialized(CdpSession session, int contextId, Visual? selectedNode)
     {
+        if (session.Window == null || !session.Window.IsVisible)
+        {
+            var mainWin = CdpServer.GetWindows().FirstOrDefault().Window;
+            if (mainWin != null)
+            {
+                session.Window = mainWin;
+            }
+        }
+
         var targetSession = session.CurrentTargetSession;
         string targetId = targetSession != null ? targetSession.TargetId : (session.Target?.Id ?? "");
         string key = $"{session.GetHashCode()}_{targetId}_{contextId}";
@@ -1734,13 +1743,16 @@ public static class RuntimeDomain
 
         var control = selectedNode as Avalonia.Controls.Control;
         var dataContext = control?.DataContext;
+        System.Console.WriteLine($"[CDP ENGINE INIT DIAGNOSTIC] selectedNode={selectedNode?.GetType().FullName ?? "null"}, session.Window={session.Window?.GetType().FullName ?? "null"}");
         var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
+        System.Console.WriteLine($"[CDP ENGINE INIT DIAGNOSTIC] windowObj={windowObj?.GetType().FullName ?? "null"}");
 
         engine.SetValue("SelectedNode", selectedNode);
         engine.SetValue("Control", control);
         engine.SetValue("DataContext", dataContext);
         engine.SetValue("ViewModel", dataContext);
         engine.SetValue("__raw_window", windowObj);
+        engine.SetValue("Window", windowObj);
         engine.SetValue("__log", new Action<string>(msg => Console.WriteLine("[JS LOG] " + msg)));
         engine.SetValue("getJintCaller", new Func<Jint.Native.JsValue>(() => {
             var callStackField = typeof(Engine).GetField("CallStack", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -1793,6 +1805,26 @@ public static class RuntimeDomain
         var rawDoc = new CdpRuntimeDocument(session);
         engine.SetValue("__raw_document", rawDoc);
         
+        engine.SetValue("__getProperty", new Func<object, string, object?>((obj, propName) => {
+            if (obj == null) return null;
+            if (obj is Jint.Native.JsValue jsVal)
+            {
+                obj = jsVal.ToObject();
+            }
+            if (obj is JintObjectWrapper wrapper)
+            {
+                obj = wrapper.Value.ToObject();
+            }
+            if (obj == null) return null;
+            var type = obj.GetType();
+            System.Console.WriteLine($"[CDP GETPROPERTY DEBUG] obj={obj}, type={type.FullName}, propName={propName}");
+            var prop = type.GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Static);
+            if (prop != null) return prop.GetValue(obj);
+            var field = type.GetField(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Static);
+            if (field != null) return field.GetValue(obj);
+            return null;
+        }));
+
         engine.SetValue("Print", new Action<object?>(Console.WriteLine));
         engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
@@ -2051,7 +2083,7 @@ public static class RuntimeDomain
                         }
                     });
                 }
-                if (typeof globalThis.Window === 'undefined' || typeof globalThis.Window.prototype === 'undefined') {
+                if (true) {
                     class WindowClass {
                         static [Symbol.hasInstance](instance) {
                             var inst = globalThis.__raw_window;
@@ -2068,7 +2100,7 @@ public static class RuntimeDomain
                             }
                             var WindowInstance = globalThis.__raw_window;
                             if (WindowInstance) {
-                                var val = WindowInstance[prop];
+                                var val = globalThis.__getProperty(WindowInstance, prop);
                                 if (typeof val === 'function') {
                                      return val.bind(WindowInstance);
                                 }
@@ -4022,9 +4054,7 @@ public sealed class CdpRuntimeElement
             {
                 return null;
             }
-            var parent = _session.UseLogicalTree
-                ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalParent(_visual)
-                : _visual.GetVisualParent();
+            var parent = CdpVisualTreeHelper.GetParent(_visual, _session.UseLogicalTree);
             return parent != null ? new CdpRuntimeElement(_session, parent) : null;
         }
     }
@@ -4050,9 +4080,9 @@ public sealed class CdpRuntimeElement
     {
         get
         {
-            var parent = _visual.GetVisualParent();
+            var parent = CdpVisualTreeHelper.GetParent(_visual, _session.UseLogicalTree);
             if (parent == null) return null;
-            var childrenList = parent.GetVisualChildren().ToList();
+            var childrenList = CdpVisualTreeHelper.GetChildren(parent, _session.UseLogicalTree).ToList();
             int idx = childrenList.IndexOf(_visual);
             if (idx >= 0 && idx < childrenList.Count - 1)
             {
@@ -4065,9 +4095,9 @@ public sealed class CdpRuntimeElement
     {
         get
         {
-            var parent = _visual.GetVisualParent();
+            var parent = CdpVisualTreeHelper.GetParent(_visual, _session.UseLogicalTree);
             if (parent == null) return null;
-            var childrenList = parent.GetVisualChildren().ToList();
+            var childrenList = CdpVisualTreeHelper.GetChildren(parent, _session.UseLogicalTree).ToList();
             int idx = childrenList.IndexOf(_visual);
             if (idx > 0)
             {
@@ -4287,9 +4317,7 @@ public sealed class CdpRuntimeElement
 
     private IEnumerable<Visual> GetSearchChildren()
     {
-        return _session.UseLogicalTree
-            ? Avalonia.Diagnostics.Cdp.SelectorEngine.GetLogicalChildren(_visual)
-            : _visual.GetVisualChildren();
+        return CdpVisualTreeHelper.GetChildren(_visual, _session.UseLogicalTree);
     }
 
     public override string ToString()
@@ -4321,11 +4349,27 @@ public static class ScriptPreprocessor
 
 public static class AutocompleteEngine
 {
+    private static List<MetadataReference>? _cachedReferences;
+    private static readonly object _cacheLock = new();
+
     public static async Task<List<CompletionItem>> GetCompletionsAsync(string scriptText, int cursorPosition, string concreteType = "Avalonia.Visual")
     {
         var header = $"using System; using System.Collections.Generic; using System.Linq; using Avalonia; using Avalonia.Controls; using Avalonia.Layout; using Avalonia.Input; {concreteType} SelectedNode = null; {concreteType} _0 = null; object DataContext = null; ";
         var fullText = header + scriptText;
         int adjustedCursor = cursorPosition + header.Length;
+
+        List<MetadataReference> references;
+        lock (_cacheLock)
+        {
+            if (_cachedReferences == null)
+            {
+                _cachedReferences = AppDomain.CurrentDomain.GetAssemblies()
+                    .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+                    .Select(a => (MetadataReference)MetadataReference.CreateFromFile(a.Location))
+                    .ToList();
+            }
+            references = _cachedReferences;
+        }
 
         var workspace = new AdhocWorkspace();
         var projectId = ProjectId.CreateNewId();
@@ -4333,9 +4377,7 @@ public static class AutocompleteEngine
 
         var solution = workspace.CurrentSolution
             .AddProject(projectId, "ReplProject", "ReplProject", LanguageNames.CSharp)
-            .AddMetadataReferences(projectId, AppDomain.CurrentDomain.GetAssemblies()
-                .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-                .Select(a => MetadataReference.CreateFromFile(a.Location)))
+            .AddMetadataReferences(projectId, references)
             .AddDocument(documentId, "ReplScript.cs", fullText);
 
         var document = solution.GetDocument(documentId);

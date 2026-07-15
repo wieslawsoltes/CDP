@@ -152,7 +152,7 @@
                 </ListBox.ItemTemplate>
             </ListBox>
             
-            <Grid ColumnDefinitions="Auto, *, Auto, Auto">
+            <Grid Grid.Row="1" ColumnDefinitions="Auto, *, Auto, Auto">
                 <TextBlock Text="❯" Foreground="#8ab4f8" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" Margin="5,0,8,0"/>
                 <TextBox Grid.Column="1" Name="txtConsoleInput" Text="{Binding Console.ConsoleInputText, Mode=TwoWay}" PlaceholderText="{Binding Console.ConsolePlaceholderText}" Height="28" VerticalContentAlignment="Center"/>
                 <Popup Grid.Column="1" IsOpen="{Binding Console.IsCompletionActive, Mode=TwoWay}" PlacementTarget="{Binding ElementName=txtConsoleInput}" Placement="Top" IsLightDismissEnabled="True">

@@ -29,7 +29,6 @@ public partial class ConsoleView : UserControl
         else if (control.Parent is SuperSplitBox splitBox)
         {
             splitBox.InnerContent = null;
-            splitBox.UpdateLayout();
         }
     }
 

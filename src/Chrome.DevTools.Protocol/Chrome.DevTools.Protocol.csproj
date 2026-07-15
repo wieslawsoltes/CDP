@@ -30,6 +30,12 @@
     <Using Include="Chrome.DevTools.Protocol" />
   </ItemGroup>
 
-  
+  <ItemGroup>
+    <ProjectReference Include="../Xaml.Compiler/Xaml.Compiler.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Mutation/INodeMap.cs" />
+  </ItemGroup>
 
 </Project>
