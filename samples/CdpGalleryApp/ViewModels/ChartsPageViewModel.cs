@@ -4,6 +4,22 @@ namespace CdpGalleryApp.ViewModels;
 
 public class ChartsPageViewModel : ViewModelBase
 {
+    private readonly double[] _timelineHistory;
+
+    public System.Collections.Generic.IEnumerable<double> TimelineHistory => _timelineHistory;
+
+    public ChartsPageViewModel()
+    {
+        _timelineHistory = new double[]
+        {
+            12.0, 15.0, 14.0, 18.0, 25.0, 32.0, 28.0, 30.0, 45.0, 60.0,
+            55.0, 40.0, 38.0, 35.0, 42.0, 50.0, 48.0, 44.0, 39.0, 35.0,
+            30.0, 25.0, 22.0, 28.0, 34.0, 40.0, 48.0, 55.0, 62.0, 75.0,
+            80.0, 72.0, 65.0, 58.0, 50.0, 45.0, 42.0, 38.0, 35.0, 30.0,
+            28.0, 25.0, 27.0, 32.0, 38.0, 45.0, 50.0, 55.0, 60.0, 65.0
+        };
+    }
+
     private double _cpuScripting = 30.0;
     private double _cpuRendering = 20.0;
     private double _cpuLayout = 15.0;
