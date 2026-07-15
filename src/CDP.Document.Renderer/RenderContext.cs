@@ -16,4 +16,7 @@ public class RenderContext
 
     /// <summary>Global character offset for the end of selection (-1 = no selection).</summary>
     public int SelectionEnd { get; set; } = -1;
+
+    /// <summary>Visible viewport boundary in layout coordinates.</summary>
+    public SkiaSharp.SKRect Viewport { get; set; } = SkiaSharp.SKRect.Empty;
 }

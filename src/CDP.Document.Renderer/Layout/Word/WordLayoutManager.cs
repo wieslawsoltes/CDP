@@ -421,6 +421,11 @@ public class PageLayoutBlock : IDocumentLayoutBlock
 
     public void Render(SKCanvas canvas, RenderContext context)
     {
+        if (context.Viewport != SKRect.Empty && !Bounds.IntersectsWith(context.Viewport))
+        {
+            return;
+        }
+
         // 1. Draw Page Background and shadow
         using var bgPaint = new SKPaint { Color = SKColors.White, Style = SKPaintStyle.Fill };
         canvas.DrawRect(Bounds, bgPaint);

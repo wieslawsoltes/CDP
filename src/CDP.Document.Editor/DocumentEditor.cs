@@ -279,7 +279,8 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                 DrawCaret = _caretVisible && IsFocused && !IsReadOnly,
                 CaretOffset = _caretOffset,
                 SelectionStart = _selectionStart,
-                SelectionEnd = _selectionEnd
+                SelectionEnd = _selectionEnd,
+                Viewport = new SKRect((float)_scrollOffsetX, (float)_scrollOffsetY, (float)(_scrollOffsetX + bounds.Width), (float)(_scrollOffsetY + bounds.Height))
             };
 
             _renderer.Render(canvas, renderContext);

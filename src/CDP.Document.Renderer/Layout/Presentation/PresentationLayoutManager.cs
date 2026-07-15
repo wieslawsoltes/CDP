@@ -65,6 +65,11 @@ public class SlideLayoutBlock : IDocumentLayoutBlock
 
     public void Render(SKCanvas canvas, RenderContext context)
     {
+        if (context.Viewport != SKRect.Empty && !Bounds.IntersectsWith(context.Viewport))
+        {
+            return;
+        }
+
         // Draw slide background
         SKColor bgColor = SKColors.White;
         if (!string.IsNullOrEmpty(BackgroundColor) && SKColor.TryParse(BackgroundColor, out var parsedBg))

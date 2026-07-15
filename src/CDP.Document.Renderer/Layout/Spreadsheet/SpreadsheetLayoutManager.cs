@@ -139,6 +139,10 @@ public class WorksheetLayoutBlock : IDocumentLayoutBlock
         // Render cells
         foreach (var cell in Cells)
         {
+            if (context.Viewport != SKRect.Empty && !cell.Bounds.IntersectsWith(context.Viewport))
+            {
+                continue;
+            }
             cell.Render(canvas, context);
         }
 

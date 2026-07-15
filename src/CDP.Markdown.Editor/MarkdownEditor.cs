@@ -1211,7 +1211,7 @@ public class MarkdownEditor : Control, ILogicalScrollable
             canvas.Translate(0, -(float)_scrollOffsetY);
 
             // Render Markdown document
-            var renderContext = new RenderContext(_resources, new SKRect(0, 0, width, height))
+            var renderContext = new RenderContext(_resources, new SKRect(0, (float)_scrollOffsetY, width, (float)(_scrollOffsetY + height)))
             {
                 OnImageLoaded = () => Dispatcher.UIThread.Post(InvalidateVisual)
             };
