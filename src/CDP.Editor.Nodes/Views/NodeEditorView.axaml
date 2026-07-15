@@ -149,7 +149,7 @@
                                      <!-- Input Pins -->
                                      <ItemsControl ItemsSource="{Binding Inputs}" Grid.RowSpan="2" HorizontalAlignment="Left" VerticalAlignment="Stretch" Focusable="False">
                                          <ItemsControl.Styles>
-                                             <Style Selector="ItemsControl > ContentPresenter" x:DataType="vm:PinViewModel">
+                                             <Style Selector="ContentPresenter" x:DataType="vm:PinViewModel">
                                                  <Setter Property="Canvas.Top" Value="{Binding Top}"/>
                                              </Style>
                                          </ItemsControl.Styles>
@@ -168,7 +168,7 @@
                                      <!-- Output Pins -->
                                      <ItemsControl ItemsSource="{Binding Outputs}" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Stretch" Focusable="False">
                                          <ItemsControl.Styles>
-                                             <Style Selector="ItemsControl > ContentPresenter" x:DataType="vm:PinViewModel">
+                                             <Style Selector="ContentPresenter" x:DataType="vm:PinViewModel">
                                                  <Setter Property="Canvas.Top" Value="{Binding Top}"/>
                                              </Style>
                                          </ItemsControl.Styles>
