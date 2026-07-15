@@ -118,14 +118,15 @@
                                 <Grid RowDefinitions="Auto, *">
                                     <!-- Title Bar -->
                                     <Border Grid.Row="0" Background="{Binding TitleBackground, FallbackValue='#35363a'}" CornerRadius="5,5,0,0" Padding="6,2" Classes="title-bar">
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="{Binding Name}"
+                                        <Grid ColumnDefinitions="Auto, *, Auto">
+                                            <PathIcon Grid.Column="0" Data="{Binding Icon}" Width="10" Height="10" Foreground="#8ab4f8" Margin="0,0,4,0" IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}"
                                                        FontSize="10"
                                                        FontWeight="Bold"
                                                        Foreground="#e8eaed"
                                                        VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="1"
+                                            <Button Grid.Column="2"
                                                     Command="{Binding $parent[UserControl].((vm:NodeEditorViewModel)DataContext).DeleteNodeCommand}"
                                                     CommandParameter="{Binding}"
                                                     Background="Transparent"
