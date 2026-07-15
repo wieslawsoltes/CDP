@@ -158,14 +158,6 @@ namespace Avalonia.Diagnostics.Cdp.Adapters
                 {
                     panel.Children.Remove(ctrl);
                 }
-                else if (parent is ContentControl contentControl)
-                {
-                    if (contentControl.Content == ctrl) contentControl.Content = null;
-                }
-                else if (parent is Decorator decorator)
-                {
-                    if (decorator.Child == ctrl) decorator.Child = null;
-                }
                 else if (parent is HeaderedContentControl headeredControl)
                 {
                     if (headeredControl.Content == ctrl) headeredControl.Content = null;
@@ -174,6 +166,14 @@ namespace Avalonia.Diagnostics.Cdp.Adapters
                 else if (parent is HeaderedItemsControl headeredItemsControl)
                 {
                     if (headeredItemsControl.Header == ctrl) headeredItemsControl.Header = null;
+                }
+                else if (parent is ContentControl contentControl)
+                {
+                    if (contentControl.Content == ctrl) contentControl.Content = null;
+                }
+                else if (parent is Decorator decorator)
+                {
+                    if (decorator.Child == ctrl) decorator.Child = null;
                 }
                 else if (ctrl.Parent == null && ctrl.GetVisualParent() is Panel visualPanel)
                 {
@@ -206,22 +206,6 @@ namespace Avalonia.Diagnostics.Cdp.Adapters
                         return true;
                     }
                 }
-                else if (parent is ContentControl contentControl)
-                {
-                    if (contentControl.Content == oldCtrl)
-                    {
-                        contentControl.Content = newCtrl;
-                        return true;
-                    }
-                }
-                else if (parent is Decorator decorator)
-                {
-                    if (decorator.Child == oldCtrl)
-                    {
-                        decorator.Child = newCtrl;
-                        return true;
-                    }
-                }
                 else if (parent is HeaderedContentControl headeredControl)
                 {
                     if (headeredControl.Content == oldCtrl)
@@ -240,6 +224,22 @@ namespace Avalonia.Diagnostics.Cdp.Adapters
                     if (headeredItemsControl.Header == oldCtrl)
                     {
                         headeredItemsControl.Header = newCtrl;
+                        return true;
+                    }
+                }
+                else if (parent is ContentControl contentControl)
+                {
+                    if (contentControl.Content == oldCtrl)
+                    {
+                        contentControl.Content = newCtrl;
+                        return true;
+                    }
+                }
+                else if (parent is Decorator decorator)
+                {
+                    if (decorator.Child == oldCtrl)
+                    {
+                        decorator.Child = newCtrl;
                         return true;
                     }
                 }

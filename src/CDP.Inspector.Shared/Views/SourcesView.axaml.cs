@@ -172,7 +172,7 @@ public partial class SourcesView : UserControl
                     var toggle = BtnToggleMarkdownMode;
                     var editor = txtSourceContent;
                     var text = mdVisual.Text;
-                    if (toggle != null && toggle.IsChecked == true && editor != null && !string.IsNullOrEmpty(text))
+                    if (toggle != null && toggle.IsChecked == true && editor != null && text != null)
                     {
                         if (editor.Text != text)
                         {
@@ -573,7 +573,7 @@ public partial class SourcesView : UserControl
 
     private bool IsWordChar(char c)
     {
-        return char.IsLetterOrDigit(c) || c == '_' || c == '.' || c == ':';
+        return char.IsLetterOrDigit(c) || c == '_';
     }
 
     private void TxtSourceContent_PointerMoved(object? sender, PointerEventArgs e)

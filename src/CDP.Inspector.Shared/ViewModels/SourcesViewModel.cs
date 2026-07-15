@@ -204,6 +204,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             if (RaiseAndSetIfChanged(ref _selectedFile, value))
             {
+                SelectedFileName = value?.Name ?? "Select a file from workspace";
                 _ = LoadFileContentAsync();
 
                 if (value == null)

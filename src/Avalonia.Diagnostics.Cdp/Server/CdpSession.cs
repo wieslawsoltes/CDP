@@ -26,12 +26,21 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
 
     private WeakReference<TopLevel>? _activeWindowOverride;
 
+    private class ActiveSessionNodeMapWrapper : INodeMap
+    {
+        private readonly CdpSession _session;
+        public ActiveSessionNodeMapWrapper(CdpSession session) => _session = session;
+        public bool TryGetId(object node, out int id) => ((INodeMap)_session.NodeMap).TryGetId(node, out id);
+        public void UpdateNodeMapping(int id, object newNode) => ((INodeMap)_session.NodeMap).UpdateNodeMapping(id, newNode);
+    }
+
     public CdpSession(WebSocket webSocket, TopLevel? window) 
         : base(webSocket, window != null ? CdpServer.GetOrCreateTarget(window) : null)
     {
         _window = window;
         CdpServer.EnsureInitialized();
-        MutationEngine = new LosslessXamlMutationEngine(new AvaloniaUiFrameworkAdapter(NodeMap), NodeMap, (file, diags) => SendDiagnostics(file, diags));
+        var wrapper = new ActiveSessionNodeMapWrapper(this);
+        MutationEngine = new LosslessXamlMutationEngine(new AvaloniaUiFrameworkAdapter(wrapper), wrapper, (file, diags) => SendDiagnostics(file, diags));
     }
 
     private void SendDiagnostics(string file, System.Collections.Generic.List<Xaml.Compiler.Ast.Diagnostic> diags)

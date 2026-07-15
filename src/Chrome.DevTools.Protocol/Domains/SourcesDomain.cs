@@ -96,7 +96,7 @@ public static class SourcesDomain
         foreach (var file in Directory.GetFiles(dir))
         {
             string ext = Path.GetExtension(file).ToLowerInvariant();
-            if (ext == ".cs" || ext == ".axaml" || ext == ".xaml" || ext == ".json" || ext == ".md" || ext == ".xml" || ext == ".csproj")
+            if (ext == ".cs" || ext == ".axaml" || ext == ".xaml" || ext == ".json" || ext == ".md" || ext == ".xml" || ext == ".csproj" || ext == ".docx" || ext == ".rtf" || ext == ".pptx" || ext == ".xlsx")
             {
                 string fileRelPath = string.IsNullOrEmpty(relativePath) 
                     ? Path.GetFileName(file) 
@@ -131,7 +131,7 @@ public static class SourcesDomain
         foreach (var file in Directory.GetFiles(dir))
         {
             string ext = Path.GetExtension(file).ToLowerInvariant();
-            if (ext == ".cs" || ext == ".axaml" || ext == ".xaml" || ext == ".json" || ext == ".md" || ext == ".xml" || ext == ".csproj")
+            if (ext == ".cs" || ext == ".axaml" || ext == ".xaml" || ext == ".json" || ext == ".md" || ext == ".xml" || ext == ".csproj" || ext == ".rtf")
             {
                 string fileRelPath = string.IsNullOrEmpty(relativePath) 
                     ? Path.GetFileName(file) 

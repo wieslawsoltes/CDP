@@ -889,7 +889,7 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
             else
             {
                 var marginValue = FormattableString.Invariant(
-                    $"{SelectedMarginTop},{SelectedMarginRight},{SelectedMarginBottom},{SelectedMarginLeft}");
+                    $"{SelectedMarginLeft},{SelectedMarginTop},{SelectedMarginRight},{SelectedMarginBottom}");
                 await _cdpService.SendCommandAsync("DOM.setAttributeValue", new JsonObject
                 {
                     ["nodeId"] = SelectedNodeId,
@@ -937,7 +937,7 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
         var tasks = SelectedElements.Select(async element =>
         {
             var marginValue = FormattableString.Invariant(
-                $"{SelectedMarginTop},{SelectedMarginRight},{SelectedMarginBottom},{SelectedMarginLeft}");
+                $"{SelectedMarginLeft},{SelectedMarginTop},{SelectedMarginRight},{SelectedMarginBottom}");
             try
             {
                 await _cdpService.SendCommandAsync("DOM.setAttributeValue", new JsonObject
@@ -963,7 +963,7 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
         var tasks = SelectedElements.Select(async element =>
         {
             var paddingValue = FormattableString.Invariant(
-                $"{SelectedPaddingTop},{SelectedPaddingRight},{SelectedPaddingBottom},{SelectedPaddingLeft}");
+                $"{SelectedPaddingLeft},{SelectedPaddingTop},{SelectedPaddingRight},{SelectedPaddingBottom}");
             try
             {
                 await _cdpService.SendCommandAsync("DOM.setAttributeValue", new JsonObject
