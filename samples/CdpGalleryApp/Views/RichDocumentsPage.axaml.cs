@@ -6,9 +6,12 @@ namespace CdpGalleryApp.Views;
 
 public partial class RichDocumentsPage : UserControl
 {
+    private bool _isInitialized;
+
     public RichDocumentsPage()
     {
         InitializeComponent();
+        _isInitialized = true;
     }
 
     private async void BtnLoadCustom_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -88,6 +91,8 @@ public partial class RichDocumentsPage : UserControl
 
     private void ComboFontSize_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (!_isInitialized) return;
+
         if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item && double.TryParse(item.Content?.ToString(), out double size))
         {
             var editor = this.FindControl<CDP.Document.Editor.DocumentEditor>("DocEditor");

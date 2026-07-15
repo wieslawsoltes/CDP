@@ -55,7 +55,8 @@
                              IsPaneOpen="True"
                              IsSettingsVisible="True"
                              Background="#121212"
-                             SelectionChanged="OnSelectionChanged">
+                             SelectionChanged="OnSelectionChanged"
+                             Content="{Binding CurrentPage}">
         
         <!-- Search Box inside Pane Header -->
         <controls:NavigationView.PaneHeader>
@@ -89,8 +90,5 @@
                 </Grid>
             </Border>
         </controls:NavigationView.PaneFooter>
-
-        <!-- Content Viewport -->
-        <ContentControl Content="{Binding CurrentPage}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
     </controls:NavigationView>
 </Window>
