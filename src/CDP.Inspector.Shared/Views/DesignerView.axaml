@@ -1,0 +1,511 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:CdpInspectorApp.ViewModels"
+             xmlns:wysiwyg="clr-namespace:CDP.Inspector.Wysiwyg.Controls;assembly=CDP.Inspector.Wysiwyg"
+             x:Class="CdpInspectorApp.Views.DesignerView"
+             x:DataType="vm:MainWindowViewModel"
+             x:CompileBindings="True">
+    <Grid ColumnDefinitions="220,*,280">
+        <!-- Left: Toolbox Panel -->
+        <Border Grid.Column="0"
+                BorderBrush="#333333"
+                BorderThickness="0,0,1,0"
+                Background="#1e1e1e">
+            <Grid RowDefinitions="Auto,*">
+                <!-- Toolbox Header -->
+                <Border Grid.Row="0" Padding="10,8" Background="#252526">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <PathIcon Grid.Column="0"
+                                  Data="{StaticResource AppsIcon}"
+                                  Width="14" Height="14"
+                                  Foreground="#e0e0e0"
+                                  Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="1"
+                                   Text="Toolbox"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="#e0e0e0"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <!-- Toolbox Items -->
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl Name="lstToolboxItems"
+                                  ItemsSource="{Binding Designer.ToolboxItems}"
+                                  Margin="4">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ToolboxItemViewModel">
+                                <Border Padding="8,5"
+                                        Margin="1"
+                                        CornerRadius="3"
+                                        Background="#2d2d30"
+                                        Cursor="Hand">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <PathIcon Data="{StaticResource AppsIcon}"
+                                                  Width="12" Height="12"
+                                                  Foreground="#64b5f6"
+                                                  Margin="0,0,8,0"
+                                                  VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="11"
+                                                       Foreground="#e0e0e0" />
+                                            <TextBlock Text="{Binding Category}"
+                                                       FontSize="9"
+                                                       Foreground="#808080" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- Center: Design Canvas -->
+        <Border Grid.Column="1"
+                Background="#1a1a2e"
+                ClipToBounds="True">
+            <Grid>
+                <!-- Toolbar -->
+                <Border VerticalAlignment="Top"
+                        Padding="8,4"
+                        Background="#252526"
+                        ZIndex="10">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <ToggleButton Name="btnToggleDesignMode"
+                                      IsChecked="{Binding Designer.IsDesignModeActive}"
+                                      Padding="6,4">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Data="{StaticResource DesignIcon}"
+                                          Width="14" Height="14" />
+                                <TextBlock Text="Design Mode"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <Button Name="btnDesignerDeleteElement"
+                                Command="{Binding Designer.DeleteElementCommand}"
+                                Padding="6,4"
+                                ToolTip.Tip="Delete selected element">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Data="{StaticResource DeleteIcon}"
+                                          Width="12" Height="12"
+                                          Foreground="#ff5252" />
+                                <TextBlock Text="Delete"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Text="{Binding Designer.SelectedElementSelector}"
+                                   FontSize="10"
+                                   Foreground="#808080"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Preview placeholder when Design Mode is off -->
+                <TextBlock Text="Connect to a target and enable Design Mode to begin editing"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="13"
+                           Foreground="#555555"
+                           IsVisible="{Binding !Designer.IsDesignModeActive}" />
+
+                <!-- Design Canvas and Overlay when Design Mode is Active -->
+                <ScrollViewer Margin="0,35,0,30"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              IsVisible="{Binding Designer.IsDesignModeActive}">
+                    <Border Background="#292a2d"
+                            BorderBrush="#3c4043"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Margin="15"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                        <Grid>
+                            <Image Name="imgDesignerScreenshot"
+                                   Source="{Binding Simulation.ScreenshotImage}"
+                                   Width="{Binding Simulation.DeviceWidth}"
+                                   Height="{Binding Simulation.DeviceHeight}"
+                                   Stretch="Uniform" />
+                            <wysiwyg:DesignerOverlay Name="designerOverlay"
+                                                     SelectedBounds="{Binding Designer.SelectedBounds}"
+                                                     MultiSelectedBounds="{Binding Designer.MultiSelectedBounds}"
+                                                     MarginThickness="{Binding Designer.SelectedMarginThickness}"
+                                                     PaddingThickness="{Binding Designer.SelectedPaddingThickness}"
+                                                     IsOverlayVisible="{Binding Designer.IsOverlayVisible}"
+                                                     StackPanelOrientation="{Binding Designer.StackPanelOrientation}"
+                                                     SelectedElementBadge="{Binding Designer.SelectedElementBadge}"
+                                                     Width="{Binding Simulation.DeviceWidth}"
+                                                     Height="{Binding Simulation.DeviceHeight}"/>
+                        </Grid>
+                    </Border>
+                </ScrollViewer>
+
+                <!-- Breadcrumb Parent Trail -->
+                <Border VerticalAlignment="Bottom"
+                        Background="#252526"
+                        BorderBrush="#333333"
+                        BorderThickness="0,1,0,0"
+                        Height="30"
+                        Padding="10,0"
+                        ZIndex="10"
+                        IsVisible="{Binding Designer.IsDesignModeActive}">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl Name="lstBreadcrumbs"
+                                      ItemsSource="{Binding Designer.Breadcrumbs}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BreadcrumbItemViewModel">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <Button Classes="link"
+                                                Content="{Binding Name}"
+                                                Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Designer.SelectElementCommand}"
+                                                CommandParameter="{Binding Selector}"
+                                                FontSize="11"
+                                                Foreground="#4fc3f7"
+                                                Padding="2" />
+                                        <TextBlock Text=">"
+                                                   FontSize="11"
+                                                   Foreground="#888888"
+                                                   VerticalAlignment="Center"
+                                                   Margin="2,0" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Right: Properties Panel -->
+        <Border Grid.Column="2"
+                BorderBrush="#333333"
+                BorderThickness="1,0,0,0"
+                Background="#1e1e1e">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="10" Spacing="12">
+                    <!-- Section: Layout -->
+                    <TextBlock Text="Layout"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#4fc3f7" />
+
+                    <!-- Horizontal Alignment -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Horizontal Alignment" FontSize="10" Foreground="#aaaaaa" />
+                        <StackPanel Name="pnlHorizontalAlignment" Orientation="Horizontal" Spacing="2">
+                            <Button Name="btnAlignLeft"
+                                    Content="Left"
+                                    Command="{Binding Designer.ApplyAlignmentCommand}"
+                                    CommandParameter="H:Left"
+                                    Padding="6,3"
+                                    FontSize="10" />
+                            <Button Name="btnAlignCenter"
+                                    Content="Center"
+                                    Command="{Binding Designer.ApplyAlignmentCommand}"
+                                    CommandParameter="H:Center"
+                                    Padding="6,3"
+                                    FontSize="10" />
+                            <Button Name="btnAlignRight"
+                                    Content="Right"
+                                    Command="{Binding Designer.ApplyAlignmentCommand}"
+                                    CommandParameter="H:Right"
+                                    Padding="6,3"
+                                    FontSize="10" />
+                            <Button Name="btnAlignHStretch"
+                                    Content="Stretch"
+                                    Command="{Binding Designer.ApplyAlignmentCommand}"
+                                    CommandParameter="H:Stretch"
+                                    Padding="6,3"
+                                    FontSize="10" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Vertical Alignment -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Vertical Alignment" FontSize="10" Foreground="#aaaaaa" />
+                        <StackPanel Name="pnlVerticalAlignment" Orientation="Horizontal" Spacing="2">
+                            <Button Name="btnAlignTop"
+                                    Content="Top"
+                                    Command="{Binding Designer.ApplyAlignmentCommand}"
+                                    CommandParameter="V:Top"
+                                    Padding="6,3"
+                                    FontSize="10" />
+                            <Button Name="btnAlignVCenter"
+                                    Content="Center"
+                                    Command="{Binding Designer.ApplyAlignmentCommand}"
+                                    CommandParameter="V:Center"
+                                    Padding="6,3"
+                                    FontSize="10" />
+                            <Button Name="btnAlignBottom"
+                                    Content="Bottom"
+                                    Command="{Binding Designer.ApplyAlignmentCommand}"
+                                    CommandParameter="V:Bottom"
+                                    Padding="6,3"
+                                    FontSize="10" />
+                            <Button Name="btnAlignVStretch"
+                                    Content="Stretch"
+                                    Command="{Binding Designer.ApplyAlignmentCommand}"
+                                    CommandParameter="V:Stretch"
+                                    Padding="6,3"
+                                    FontSize="10" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Separator Background="#333333" />
+
+                    <!-- Section: Size -->
+                    <TextBlock Text="Size"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#4fc3f7" />
+                    <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Width" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudWidth"
+                                           Value="{Binding Designer.SelectedElementWidth}"
+                                           Minimum="0"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="2">
+                            <TextBlock Text="Height" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudHeight"
+                                           Value="{Binding Designer.SelectedElementHeight}"
+                                           Minimum="0"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <Button Grid.Row="1" Grid.ColumnSpan="3"
+                                Name="btnApplySize"
+                                Content="Apply Size"
+                                Command="{Binding Designer.ApplySizeCommand}"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,6,0,0"
+                                FontSize="10" />
+                    </Grid>
+
+                    <Separator Background="#333333" />
+
+                    <!-- Section: Margin -->
+                    <TextBlock Text="Margin"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#4caf50" />
+                    <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,8,Auto,Auto">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Left" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudMarginLeft"
+                                           Value="{Binding Designer.SelectedMarginLeft}"
+                                           Minimum="-1000"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
+                            <TextBlock Text="Top" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudMarginTop"
+                                           Value="{Binding Designer.SelectedMarginTop}"
+                                           Minimum="-1000"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Right" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudMarginRight"
+                                           Value="{Binding Designer.SelectedMarginRight}"
+                                           Minimum="-1000"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="2" Spacing="2">
+                            <TextBlock Text="Bottom" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudMarginBottom"
+                                           Value="{Binding Designer.SelectedMarginBottom}"
+                                           Minimum="-1000"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <Button Grid.Row="3" Grid.ColumnSpan="3"
+                                Name="btnApplyMargin"
+                                Content="Apply Margin"
+                                Command="{Binding Designer.ApplyMarginCommand}"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,6,0,0"
+                                FontSize="10" />
+                    </Grid>
+
+                    <Separator Background="#333333" />
+
+                    <!-- Section: Padding -->
+                    <TextBlock Text="Padding"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#ff9800" />
+                    <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,8,Auto,Auto">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Left" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudPaddingLeft"
+                                           Value="{Binding Designer.SelectedPaddingLeft}"
+                                           Minimum="0"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
+                            <TextBlock Text="Top" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudPaddingTop"
+                                           Value="{Binding Designer.SelectedPaddingTop}"
+                                           Minimum="0"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Right" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudPaddingRight"
+                                           Value="{Binding Designer.SelectedPaddingRight}"
+                                           Minimum="0"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="2" Spacing="2">
+                            <TextBlock Text="Bottom" FontSize="10" Foreground="#aaaaaa" />
+                            <NumericUpDown Name="nudPaddingBottom"
+                                           Value="{Binding Designer.SelectedPaddingBottom}"
+                                           Minimum="0"
+                                           Maximum="10000"
+                                           Increment="1"
+                                           FormatString="F0"
+                                           FontSize="11" />
+                        </StackPanel>
+                        <Button Grid.Row="3" Grid.ColumnSpan="3"
+                                Name="btnApplyPadding"
+                                Content="Apply Padding"
+                                Command="{Binding Designer.ApplyPaddingCommand}"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,6,0,0"
+                                FontSize="10" />
+                    </Grid>
+
+                    <Separator Background="#333333" />
+
+                    <!-- Section: Container Editors -->
+                    <TextBlock Text="Container Editor"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#4fc3f7"
+                               IsVisible="{Binding Designer.IsOverlayVisible}" />
+
+                    <!-- Grid Attachment Editor -->
+                    <StackPanel Spacing="6" IsVisible="{Binding Designer.ShowGridAttachmentEditor}">
+                        <TextBlock Text="Grid Attachment" FontSize="11" FontWeight="SemiBold" Foreground="#aaaaaa" />
+                        <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,8,Auto,Auto">
+                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                <TextBlock Text="Grid.Row" FontSize="10" Foreground="#aaaaaa" />
+                                <NumericUpDown Value="{Binding Designer.GridRow}"
+                                               Minimum="0" Maximum="100" Increment="1" FormatString="F0" FontSize="11" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
+                                <TextBlock Text="Grid.Column" FontSize="10" Foreground="#aaaaaa" />
+                                <NumericUpDown Value="{Binding Designer.GridColumn}"
+                                               Minimum="0" Maximum="100" Increment="1" FormatString="F0" FontSize="11" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
+                                <TextBlock Text="Grid.RowSpan" FontSize="10" Foreground="#aaaaaa" />
+                                <NumericUpDown Value="{Binding Designer.GridRowSpan}"
+                                               Minimum="1" Maximum="100" Increment="1" FormatString="F0" FontSize="11" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="2" Spacing="2">
+                                <TextBlock Text="Grid.ColumnSpan" FontSize="10" Foreground="#aaaaaa" />
+                                <NumericUpDown Value="{Binding Designer.GridColumnSpan}"
+                                               Minimum="1" Maximum="100" Increment="1" FormatString="F0" FontSize="11" />
+                            </StackPanel>
+                            <Button Grid.Row="3" Grid.ColumnSpan="3"
+                                    Content="Apply Grid Placement"
+                                    Command="{Binding Designer.ApplyGridAttachmentCommand}"
+                                    HorizontalAlignment="Stretch" Margin="0,6,0,0" FontSize="10" />
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Grid Definitions Editor -->
+                    <StackPanel Spacing="6" IsVisible="{Binding Designer.ShowGridDefinitionsEditor}">
+                        <TextBlock Text="Grid Definitions" FontSize="11" FontWeight="SemiBold" Foreground="#aaaaaa" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Row Definitions (e.g. Auto,*,2*)" FontSize="10" Foreground="#aaaaaa" />
+                            <TextBox Text="{Binding Designer.RowDefinitions, Mode=TwoWay}" FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4" Margin="0,4,0,0">
+                            <TextBlock Text="Column Definitions (e.g. Auto,*,2*)" FontSize="10" Foreground="#aaaaaa" />
+                            <TextBox Text="{Binding Designer.ColumnDefinitions, Mode=TwoWay}" FontSize="11" />
+                        </StackPanel>
+                        <Button Content="Apply Definitions"
+                                Command="{Binding Designer.ApplyGridDefinitionsCommand}"
+                                HorizontalAlignment="Stretch" Margin="0,6,0,0" FontSize="10" />
+                    </StackPanel>
+
+                    <!-- StackPanel Editor -->
+                    <StackPanel Spacing="6" IsVisible="{Binding Designer.ShowStackPanelReorderEditor}">
+                        <TextBlock Text="StackPanel Child Order" FontSize="11" FontWeight="SemiBold" Foreground="#aaaaaa" />
+                        <Grid ColumnDefinitions="*,6,*">
+                            <Button Grid.Column="0"
+                                    Content="Move Up"
+                                    Command="{Binding Designer.MoveChildUpCommand}"
+                                    HorizontalAlignment="Stretch" FontSize="11" />
+                            <Button Grid.Column="2"
+                                    Content="Move Down"
+                                    Command="{Binding Designer.MoveChildDownCommand}"
+                                    HorizontalAlignment="Stretch" FontSize="11" />
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Canvas Editor -->
+                    <StackPanel Spacing="6" IsVisible="{Binding Designer.ShowCanvasAttachmentEditor}">
+                        <TextBlock Text="Canvas Attachment" FontSize="11" FontWeight="SemiBold" Foreground="#aaaaaa" />
+                        <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2">
+                                <TextBlock Text="Canvas.Left" FontSize="10" Foreground="#aaaaaa" />
+                                <NumericUpDown Value="{Binding Designer.CanvasLeft}"
+                                               Minimum="-10000" Maximum="10000" Increment="1" FormatString="F0" FontSize="11" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="2">
+                                <TextBlock Text="Canvas.Top" FontSize="10" Foreground="#aaaaaa" />
+                                <NumericUpDown Value="{Binding Designer.CanvasTop}"
+                                               Minimum="-10000" Maximum="10000" Increment="1" FormatString="F0" FontSize="11" />
+                            </StackPanel>
+                            <Button Grid.Row="1" Grid.ColumnSpan="3"
+                                    Content="Apply Canvas Position"
+                                    Command="{Binding Designer.ApplyCanvasAttachmentCommand}"
+                                    HorizontalAlignment="Stretch" Margin="0,6,0,0" FontSize="10" />
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>
