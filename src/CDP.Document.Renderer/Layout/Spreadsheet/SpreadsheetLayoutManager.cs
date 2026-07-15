@@ -263,7 +263,7 @@ public class CellLayoutBlock : IDocumentLayoutBlock
             }
         }
 
-        if (string.IsNullOrEmpty(cellNode.DisplayText)) return;
+        if (string.IsNullOrEmpty(cellNode.DisplayText) && context.EditingCellNode != Node) return;
 
         using var textPaint = new SKPaint
         {
@@ -287,7 +287,39 @@ public class CellLayoutBlock : IDocumentLayoutBlock
 
         canvas.Save();
         canvas.ClipRect(Bounds);
-        canvas.DrawText(cellNode.DisplayText, Bounds.Left + 3, Bounds.Top + 14, textPaint);
+        
+        string txt = cellNode.DisplayText ?? string.Empty;
+        canvas.DrawText(txt, Bounds.Left + 3, Bounds.Top + 14, textPaint);
+
+        // Draw selection and caret if this cell is being edited
+        if (context.EditingCellNode == Node)
+        {
+            // 1. Draw Selection
+            if (context.SelectionStart != -1 && context.SelectionEnd != -1 && context.SelectionStart != context.SelectionEnd)
+            {
+                int selStart = Math.Min(context.SelectionStart, context.SelectionEnd);
+                int selEnd = Math.Max(context.SelectionStart, context.SelectionEnd);
+                
+                selStart = Math.Clamp(selStart, 0, txt.Length);
+                selEnd = Math.Clamp(selEnd, 0, txt.Length);
+                
+                float x1 = Bounds.Left + 3 + textPaint.MeasureText(txt.Substring(0, selStart));
+                float x2 = Bounds.Left + 3 + textPaint.MeasureText(txt.Substring(0, selEnd));
+                
+                using var selPaint = new SKPaint { Color = new SKColor(0, 120, 215, 80), Style = SKPaintStyle.Fill };
+                canvas.DrawRect(new SKRect(x1, Bounds.Top + 2, x2, Bounds.Bottom - 2), selPaint);
+            }
+            
+            // 2. Draw Caret
+            if (context.DrawCaret)
+            {
+                int caret = Math.Clamp(context.CaretOffset, 0, txt.Length);
+                float x = Bounds.Left + 3 + textPaint.MeasureText(txt.Substring(0, caret));
+                using var caretPaint = new SKPaint { Color = SKColors.Black, Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+                canvas.DrawLine(x, Bounds.Top + 2, x, Bounds.Bottom - 2, caretPaint);
+            }
+        }
+
         canvas.Restore();
     }
 

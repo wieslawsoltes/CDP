@@ -19,4 +19,10 @@ public class RenderContext
 
     /// <summary>Visible viewport boundary in layout coordinates.</summary>
     public SkiaSharp.SKRect Viewport { get; set; } = SkiaSharp.SKRect.Empty;
+
+    /// <summary>Node of the cell currently being edited.</summary>
+    public object? EditingCellNode { get; set; }
+
+    /// <summary>Node of the shape currently being edited.</summary>
+    public object? EditingShapeNode { get; set; }
 }

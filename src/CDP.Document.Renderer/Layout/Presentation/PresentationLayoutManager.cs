@@ -253,22 +253,61 @@ public class ShapeLayoutBlock : IDocumentLayoutBlock
             canvas.DrawRect(Bounds, strokePaint);
         }
 
-        // Draw text content if available
-        if (!string.IsNullOrEmpty(shapeNode.Text))
+        // Draw text content if available or if being edited
+        if (!string.IsNullOrEmpty(shapeNode.Text) || context.EditingShapeNode == Node)
         {
             using var textPaint = new SKPaint
             {
-                Color = SKColors.Black,
-                TextSize = 11,
+                Color = !string.IsNullOrEmpty(shapeNode.Color) && SKColor.TryParse(shapeNode.Color, out var clr) ? clr : SKColors.Black,
+                TextSize = shapeNode.FontSize.HasValue ? (float)shapeNode.FontSize.Value : 11f,
                 IsAntialias = true,
                 TextAlign = SKTextAlign.Center
             };
+
+            var weight = (shapeNode.Bold ?? false) ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal;
+            var slant = (shapeNode.Italic ?? false) ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright;
+            textPaint.Typeface = SKTypeface.FromFamilyName("Arial", weight, SKFontStyleWidth.Normal, slant);
 
             // Center the text vertically and horizontally
             float textY = Bounds.MidY + textPaint.TextSize / 3;
             canvas.Save();
             canvas.ClipRect(Bounds);
-            canvas.DrawText(shapeNode.Text, Bounds.MidX, textY, textPaint);
+            
+            string txt = shapeNode.Text ?? "";
+            canvas.DrawText(txt, Bounds.MidX, textY, textPaint);
+
+            // Draw selection and caret if this shape is being edited
+            if (context.EditingShapeNode == Node)
+            {
+                float textWidth = textPaint.MeasureText(txt);
+                float startX = Bounds.MidX - textWidth / 2;
+                
+                // 1. Draw Selection
+                if (context.SelectionStart != -1 && context.SelectionEnd != -1 && context.SelectionStart != context.SelectionEnd)
+                {
+                    int selStart = Math.Min(context.SelectionStart, context.SelectionEnd);
+                    int selEnd = Math.Max(context.SelectionStart, context.SelectionEnd);
+                    
+                    selStart = Math.Clamp(selStart, 0, txt.Length);
+                    selEnd = Math.Clamp(selEnd, 0, txt.Length);
+                    
+                    float x1 = startX + textPaint.MeasureText(txt.Substring(0, selStart));
+                    float x2 = startX + textPaint.MeasureText(txt.Substring(0, selEnd));
+                    
+                    using var selPaint = new SKPaint { Color = new SKColor(0, 120, 215, 80), Style = SKPaintStyle.Fill };
+                    canvas.DrawRect(new SKRect(x1, Bounds.MidY - textPaint.TextSize / 2, x2, Bounds.MidY + textPaint.TextSize / 2), selPaint);
+                }
+                
+                // 2. Draw Caret
+                if (context.DrawCaret)
+                {
+                    int caret = Math.Clamp(context.CaretOffset, 0, txt.Length);
+                    float x = startX + textPaint.MeasureText(txt.Substring(0, caret));
+                    using var caretPaint = new SKPaint { Color = SKColors.Black, Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+                    canvas.DrawLine(x, Bounds.MidY - textPaint.TextSize / 2, x, Bounds.MidY + textPaint.TextSize / 2, caretPaint);
+                }
+            }
+
             canvas.Restore();
         }
 
