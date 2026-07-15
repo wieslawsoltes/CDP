@@ -117,6 +117,10 @@ public class ShapeNode : DocumentNode
     public string? ShapeType { get; set; }
     public string? Text { get; set; }
     public string? ImageSource { get; set; }
+    public bool? Bold { get; set; }
+    public bool? Italic { get; set; }
+    public double? FontSize { get; set; }
+    public string? Color { get; set; }
 }
 
 public class GroupNode : DocumentNode
