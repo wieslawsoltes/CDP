@@ -1,0 +1,166 @@
+appId: "CdpInspectorApp"
+description: "Verify popup, dropdown, context menu, and flyout visual tree traversal via Console"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- delay: "500"
+- runFlow: "shared/navigate_to_console.yaml"
+- delay: "500"
+
+# 1. Switch sample app to Popups & Windows tab (index 5) by setting tabContainer.selectedIndex
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#tabContainer').selectedIndex = 5\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1000"
+
+# 2. Open ComboBox using proxy property assignment (which calls __setProperty under the hood)
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#comboPopup').IsDropDownOpen = true; 'Opened'\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+
+# Check if ComboBox items are found in the DOM (this verifies CdpVisualTreeHelper.GetChildren works!)
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#comboItem2') != null\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'true'"
+
+# 3. Refresh DOM tree in inspector and assert comboItem2 exists in inspector's Elements tree
+- evalScript: "Window.DataContext.Elements.RefreshDomTreeAsync();"
+- delay: "1500"
+- evalScript: |
+    var res = (function() {
+        function find(nodes) {
+            for (var i = 0; i < nodes.Count; i++) {
+                var n = nodes[i];
+                for (var j = 0; j < n.AttributesList.Count; j++) {
+                    var a = n.AttributesList[j];
+                    if ((a.Name === 'id' || a.Name === 'Name') && a.Value === 'comboItem2') return true;
+                }
+                if (find(n.Children)) return true;
+            }
+            return false;
+        }
+        return find(Window.DataContext.Elements.RootNodes);
+    })();
+    Print("FIND comboItem2 RESULT: " + res);
+    Window.DataContext.Console.ConsoleInputText = res ? "true" : "false";
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == 'true'"
+
+# 4. Select ComboBoxItem index 1 ("Popup Option 2")
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#comboPopup').selectedIndex = 1; 'Selected'\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+
+# Check if selection was applied
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#comboPopup').__raw_node.SelectedItem.Content\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'Popup Option 2'"
+
+# 5. Open ContextMenu and verify items are traversed via CdpVisualTreeHelper
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"var btn = document.querySelector('#btnContextMenu').__raw_node; btn.ContextMenu.Open(btn); 'Opened'\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+
+# Assert context menu item exists in inspector's Elements tree after refresh
+- evalScript: "Window.DataContext.Elements.RefreshDomTreeAsync();"
+- delay: "1500"
+- evalScript: |
+    var res = (function() {
+        function find(nodes) {
+            for (var i = 0; i < nodes.Count; i++) {
+                var n = nodes[i];
+                for (var j = 0; j < n.AttributesList.Count; j++) {
+                    var a = n.AttributesList[j];
+                    if ((a.Name === 'id' || a.Name === 'Name') && a.Value === 'menuItem1') return true;
+                }
+                if (find(n.Children)) return true;
+            }
+            return false;
+        }
+        return find(Window.DataContext.Elements.RootNodes);
+    })();
+    Print("FIND menuItem1 RESULT: " + res);
+    Window.DataContext.Console.ConsoleInputText = res ? "true" : "false";
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == 'true'"
+
+# Open ContextMenu again to be sure
+- evalScript: |
+    Window.DataContext.Console.ConsoleInputText = "var btn = document.querySelector('#btnContextMenu').__raw_node; btn.ContextMenu.Open(btn); 'Opened'";
+    Window.DataContext.Console.EvaluateAsync();
+- delay: "1500"
+
+# Click MenuItem via direct public method call on MainWindow using ContextMenu children lookup
+- evalScript: |
+    Window.DataContext.Console.ConsoleInputText = "var btn = document.querySelector('#btnContextMenu').__raw_node; var cm = btn.ContextMenu; var item = __getChildren(cm)[0]; Window.MenuItem_Click(item, null); 'Clicked'";
+    Window.DataContext.Console.EvaluateAsync();
+- delay: "1500"
+
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#txtPopupStatus').__raw_node.Text\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 2].Result == 'Clicked'"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'Selected Menu: Menu Item 1'"
+
+# 6. Open Flyout and verify contents
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"var btn = document.querySelector('#btnFlyout').__raw_node; btn.Flyout.Show(btn); 'Opened'\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+
+# Assert flyout button exists in inspector's Elements tree after refresh
+- evalScript: "Window.DataContext.Elements.RefreshDomTreeAsync();"
+- delay: "1500"
+- evalScript: |
+    var res = (function() {
+        function find(nodes) {
+            for (var i = 0; i < nodes.Count; i++) {
+                var n = nodes[i];
+                for (var j = 0; j < n.AttributesList.Count; j++) {
+                    var a = n.AttributesList[j];
+                    if ((a.Name === 'id' || a.Name === 'Name') && a.Value === 'btnInsideFlyout') return true;
+                }
+                if (find(n.Children)) return true;
+            }
+            return false;
+        }
+        return find(Window.DataContext.Elements.RootNodes);
+    })();
+    Print("FIND btnInsideFlyout RESULT: " + res);
+    Window.DataContext.Console.ConsoleInputText = res ? "true" : "false";
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == 'true'"
+
+# Open Flyout again to make sure it is open
+- evalScript: |
+    Window.DataContext.Console.ConsoleInputText = "var btn = document.querySelector('#btnFlyout').__raw_node; btn.Flyout.Show(btn); 'Opened'";
+    Window.DataContext.Console.EvaluateAsync();
+- delay: "1500"
+
+# Click button inside flyout using direct content children lookup
+- evalScript: |
+    Window.DataContext.Console.ConsoleInputText = "var btn = document.querySelector('#btnFlyout').__raw_node; var panel = btn.Flyout.Content; var item = __getChildren(panel)[1]; Window.BtnInsideFlyout_Click(item, null); 'Clicked'";
+    Window.DataContext.Console.EvaluateAsync();
+- delay: "1500"
+
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#txtPopupStatus').__raw_node.Text\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 2].Result == 'Clicked'"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'Clicked Inside Flyout!'"
+
+# 7. Open Second Window and verify it appears in the DOM tree
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#tabContainer').selectedIndex = 0\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1000"
+
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#btnOpenSecond').__raw_node.Command.Execute(null); 'Opened'\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+
+# Assert the second window is listed under the root nodes
+- evalScript: "Window.DataContext.Elements.RefreshDomTreeAsync();"
+- delay: "1500"
+- evalScript: |
+    var res = (function() {
+        function find(nodes) {
+            for (var i = 0; i < nodes.Count; i++) {
+                var n = nodes[i];
+                for (var j = 0; j < n.AttributesList.Count; j++) {
+                    var a = n.AttributesList[j];
+                    if (a.Name === 'type' && a.Value === 'Avalonia.Controls.Window') return true;
+                }
+                if (find(n.Children)) return true;
+            }
+            return false;
+        }
+        return find(Window.DataContext.Elements.RootNodes);
+    })();
+    Print("FIND Window RESULT: " + res);
+    Window.DataContext.Console.ConsoleInputText = res ? "true" : "false";
+- assertTrue: "Window.DataContext.Console.ConsoleInputText == 'true'"

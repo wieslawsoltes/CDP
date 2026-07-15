@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0;net10.0-windows;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <!-- Conditional compile items per target to avoid cross-compilation errors -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
+    <Compile Remove="UnoTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows'">
+    <Compile Remove="WpfTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows10.0.19041.0'">
+    <Compile Remove="WinUiTests.cs" />
+  </ItemGroup>
+
+  <!-- target: net10.0 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Uno.WinUI" />
+    <ProjectReference Include="..\..\src\Uno.Diagnostics.Cdp\Uno.Diagnostics.Cdp.csproj" />
+  </ItemGroup>
+
+  <!-- target: net10.0-windows -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <ProjectReference Include="..\..\src\Wpf.Diagnostics.Cdp\Wpf.Diagnostics.Cdp.csproj" />
+  </ItemGroup>
+
+  <!-- target: net10.0-windows10.0.19041.0 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.241114003" />
+    <ProjectReference Include="..\..\src\WinUI.Diagnostics.Cdp\WinUI.Diagnostics.Cdp.csproj" />
+  </ItemGroup>
+
+</Project>

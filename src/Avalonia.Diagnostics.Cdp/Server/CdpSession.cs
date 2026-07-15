@@ -12,6 +12,8 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.LogicalTree;
 using Chrome.DevTools.Protocol;
+using Xaml.Compiler.Mutation;
+using Avalonia.Diagnostics.Cdp.Adapters;
 
 namespace Avalonia.Diagnostics.Cdp;
 
@@ -29,6 +31,42 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     {
         _window = window;
         CdpServer.EnsureInitialized();
+        MutationEngine = new LosslessXamlMutationEngine(new AvaloniaUiFrameworkAdapter(NodeMap), NodeMap, (file, diags) => SendDiagnostics(file, diags));
+    }
+
+    private void SendDiagnostics(string file, System.Collections.Generic.List<Xaml.Compiler.Ast.Diagnostic> diags)
+    {
+        var diagArray = new JsonArray();
+        foreach (var diag in diags)
+        {
+            diagArray.Add(new JsonObject
+            {
+                ["code"] = diag.Code,
+                ["message"] = diag.Message,
+                ["severity"] = diag.Severity.ToString(),
+                ["range"] = new JsonObject
+                {
+                    ["start"] = new JsonObject
+                    {
+                        ["offset"] = diag.Span.Start.Offset,
+                        ["line"] = diag.Span.Start.Line,
+                        ["column"] = diag.Span.Start.Column
+                    },
+                    ["end"] = new JsonObject
+                    {
+                        ["offset"] = diag.Span.End.Offset,
+                        ["line"] = diag.Span.End.Line,
+                        ["column"] = diag.Span.End.Column
+                    }
+                }
+            });
+        }
+
+        _ = SendEventAsync("XamlLsp.diagnosticsUpdated", new JsonObject
+        {
+            ["file"] = file,
+            ["diagnostics"] = diagArray
+        });
     }
 
     public new CdpTargetSession? CurrentTargetSession => base.CurrentTargetSession as CdpTargetSession;

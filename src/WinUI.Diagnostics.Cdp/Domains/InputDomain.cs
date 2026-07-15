@@ -73,30 +73,107 @@ public static class InputDomain
         var window = session.Window;
         await window.DispatcherQueue.InvokeAsync(() =>
         {
-            if (window.Content == null) return;
+            var windows = CdpServer.GetWindows().ToList();
+            var mainWin = windows.FirstOrDefault().Window;
+            if (mainWin == null || mainWin.Content == null) return;
 
-            var elements = VisualTreeHelper.FindElementsInHostCoordinates(new Point(x, y), window.Content);
-            var hit = elements.FirstOrDefault();
-            if (hit == null) return;
+            // 1. Build the list of active visual roots (front-to-back: popups, secondary windows, then main window)
+            var rootsToSearch = new List<(UIElement Root, Window Window)>();
 
-            if (type == "mousePressed")
+            // Collect popups
+            var popupRoots = new List<(UIElement Root, Window Window)>();
+            foreach (var t in windows)
             {
-                if (hit is Control ctrl)
+                var win = t.Window;
+                if (win != null && win.Content != null && win.Content.XamlRoot != null)
                 {
-                    ctrl.Focus(FocusState.Pointer);
+                    var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
+                    if (popups != null)
+                    {
+                        foreach (var popup in popups)
+                        {
+                            if (popup != null && popup.Child is UIElement popupChild)
+                            {
+                                popupRoots.Add((popupChild, win));
+                            }
+                        }
+                    }
+                }
+            }
+            // Reverse popups to be front-to-back
+            popupRoots.Reverse();
+            foreach (var p in popupRoots)
+            {
+                rootsToSearch.Add((p.Root, p.Window));
+            }
+
+            // Secondary windows
+            var secondaryWindows = windows.Skip(1).Select(x => x.Window).ToList();
+            secondaryWindows.Reverse();
+            foreach (var win in secondaryWindows)
+            {
+                if (win != null && win.Content != null)
+                {
+                    rootsToSearch.Add((win.Content, win));
+                }
+            }
+
+            // Main window
+            rootsToSearch.Add((mainWin.Content, mainWin));
+
+            // Traverse front-to-back to find the hit target
+            foreach (var item in rootsToSearch)
+            {
+                var root = item.Root;
+                var rootWindow = item.Window;
+
+                Point localPoint;
+                if (root == rootWindow.Content)
+                {
+                    localPoint = CdpVisualTreeHelper.TranslatePointToWindow(mainWin.Content, new Point(x, y), rootWindow);
+                }
+                else
+                {
+                    // Root is a popup child. Translate from main window to rootWindow.Content, and then to popup child.
+                    var ptInWindow = CdpVisualTreeHelper.TranslatePointToWindow(mainWin.Content, new Point(x, y), rootWindow);
+                    localPoint = rootWindow.Content.TransformToVisual(root).TransformPoint(ptInWindow);
                 }
 
-                if (hit is Button buttonControl)
+                // Check bounds
+                if (root is FrameworkElement fe)
                 {
-                    var peer = new ButtonAutomationPeer(buttonControl);
-                    var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
-                    invokeProvider?.Invoke();
+                    if (localPoint.X < 0 || localPoint.X > fe.ActualWidth || localPoint.Y < 0 || localPoint.Y > fe.ActualHeight)
+                    {
+                        continue;
+                    }
                 }
-                else if (hit is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase baseButton)
+
+                // Run FindElementsInHostCoordinates
+                var elements = VisualTreeHelper.FindElementsInHostCoordinates(localPoint, root);
+                var hit = elements.FirstOrDefault();
+                if (hit != null)
                 {
-                    // Generic button invoke fallback
-                    var method = baseButton.GetType().GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                    method?.Invoke(baseButton, null);
+                    if (type == "mousePressed")
+                    {
+                        if (hit is Control ctrl)
+                        {
+                            ctrl.Focus(FocusState.Pointer);
+                        }
+
+                        if (hit is Button buttonControl)
+                        {
+                            var peer = new ButtonAutomationPeer(buttonControl);
+                            var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
+                            invokeProvider?.Invoke();
+                        }
+                        else if (hit is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase baseButton)
+                        {
+                            // Generic button invoke fallback
+                            var method = baseButton.GetType().GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                            method?.Invoke(baseButton, null);
+                        }
+                    }
+                    break; // Found the hit target, stop searching other roots
                 }
             }
         });

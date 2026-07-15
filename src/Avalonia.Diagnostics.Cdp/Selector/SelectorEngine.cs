@@ -176,7 +176,7 @@ public static class SelectorEngine
 
         if (recursive)
         {
-            foreach (var child in visual.GetVisualChildren())
+            foreach (var child in CdpVisualTreeHelper.GetChildren(visual, false))
             {
                 if (VisualContainsText(child, text, true)) return true;
             }
@@ -193,7 +193,7 @@ public static class SelectorEngine
             if (!string.IsNullOrEmpty(txt)) return txt;
         }
 
-        foreach (var child in visual.GetVisualChildren())
+        foreach (var child in CdpVisualTreeHelper.GetChildren(visual, false))
         {
             var txt = GetVisualTextContent(child);
             if (!string.IsNullOrEmpty(txt)) return txt;
@@ -537,7 +537,7 @@ public static class SelectorEngine
             return current;
         }
 
-        var children = useLogicalTree ? GetLogicalChildren(current) : current.GetVisualChildren();
+        var children = CdpVisualTreeHelper.GetChildren(current, useLogicalTree);
         foreach (var child in children)
         {
             var result = QuerySelectorInternal(child, selector, useLogicalTree);
@@ -554,7 +554,7 @@ public static class SelectorEngine
             results.Add(current);
         }
 
-        var children = useLogicalTree ? GetLogicalChildren(current) : current.GetVisualChildren();
+        var children = CdpVisualTreeHelper.GetChildren(current, useLogicalTree);
         foreach (var child in children)
         {
             QuerySelectorAllInternal(child, selector, results, useLogicalTree);
@@ -589,20 +589,20 @@ public static class SelectorEngine
 
         if (combinator == ">")
         {
-            var parent = useLogicalTree ? GetLogicalParent(visual) : visual.GetVisualParent();
+            var parent = CdpVisualTreeHelper.GetParent(visual, useLogicalTree);
             if (parent == null) return false;
             return MatchesTokens(parent, tokens, tokenIndex - 2, useLogicalTree);
         }
         else if (combinator == " ")
         {
-            var parent = useLogicalTree ? GetLogicalParent(visual) : visual.GetVisualParent();
+            var parent = CdpVisualTreeHelper.GetParent(visual, useLogicalTree);
             while (parent != null)
             {
                 if (MatchesTokens(parent, tokens, tokenIndex - 2, useLogicalTree))
                 {
                     return true;
                 }
-                parent = useLogicalTree ? GetLogicalParent(parent) : parent.GetVisualParent();
+                parent = CdpVisualTreeHelper.GetParent(parent, useLogicalTree);
             }
             return false;
         }
@@ -624,11 +624,11 @@ public static class SelectorEngine
                 string indexStr = selector.Substring(start, end - start).Trim();
                 if (int.TryParse(indexStr, out int targetIndex))
                 {
-                    var parent = useLogicalTree ? GetLogicalParent(visual) : visual.GetVisualParent();
+                    var parent = CdpVisualTreeHelper.GetParent(visual, useLogicalTree);
                     int actualIndex = 1;
                     if (parent != null)
                     {
-                        var siblings = (useLogicalTree ? GetLogicalChildren(parent) : parent.GetVisualChildren()).ToList();
+                        var siblings = CdpVisualTreeHelper.GetChildren(parent, useLogicalTree).ToList();
                         actualIndex = siblings.IndexOf(visual) + 1;
                     }
                     if (actualIndex != targetIndex)

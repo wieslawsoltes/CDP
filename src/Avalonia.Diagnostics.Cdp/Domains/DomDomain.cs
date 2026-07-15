@@ -276,7 +276,14 @@ public static class DomDomain
                     var visual = session.NodeMap.GetVisual(nodeId);
                     if (visual is Control control)
                     {
-                        ApplyAttributeValue(control, name, value);
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(control))
+                        {
+                            await session.MutationEngine.SetAttributeAsync(control, name, value);
+                        }
+                        else
+                        {
+                            ApplyAttributeValue(control, name, value);
+                        }
                     }
                     return new JsonObject();
                 }
@@ -288,13 +295,20 @@ public static class DomDomain
                     var visual = session.NodeMap.GetVisual(nodeId);
                     if (visual is Control control)
                     {
-                        if (name.Equals("class", StringComparison.OrdinalIgnoreCase))
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(control))
                         {
-                            control.Classes.Clear();
+                            await session.MutationEngine.RemoveAttributeAsync(control, name);
                         }
-                        else if (name.Equals("name", StringComparison.OrdinalIgnoreCase) || name.Equals("id", StringComparison.OrdinalIgnoreCase))
+                        else
                         {
-                            control.Name = null;
+                            if (name.Equals("class", StringComparison.OrdinalIgnoreCase))
+                            {
+                                control.Classes.Clear();
+                            }
+                            else if (name.Equals("name", StringComparison.OrdinalIgnoreCase) || name.Equals("id", StringComparison.OrdinalIgnoreCase))
+                            {
+                                control.Name = null;
+                            }
                         }
                     }
                     return new JsonObject();
@@ -303,39 +317,46 @@ public static class DomDomain
             case "removeNode":
                 {
                     int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual is Control control)
                     {
-                        var visual = session.NodeMap.GetVisual(nodeId);
-                        if (visual is Control control)
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(control))
                         {
-                            var parent = control.Parent;
-                            if (parent is Panel panel)
-                            {
-                                panel.Children.Remove(control);
-                            }
-                            else if (parent is HeaderedContentControl headeredControl)
-                            {
-                                if (headeredControl.Content == control) headeredControl.Content = null;
-                                else if (headeredControl.Header == control) headeredControl.Header = null;
-                            }
-                            else if (parent is ContentControl contentControl)
-                            {
-                                if (contentControl.Content == control) contentControl.Content = null;
-                            }
-                            else if (parent is HeaderedItemsControl headeredItemsControl)
-                            {
-                                if (headeredItemsControl.Header == control) headeredItemsControl.Header = null;
-                            }
-                            else if (parent is Decorator decorator)
-                            {
-                                if (decorator.Child == control) decorator.Child = null;
-                            }
-                            else if (control.Parent == null && visual.GetVisualParent() is Panel visualPanel)
-                            {
-                                visualPanel.Children.Remove(control);
-                            }
+                            await session.MutationEngine.RemoveNodeAsync(control);
                         }
-                    });
+                        else
+                        {
+                            await Dispatcher.UIThread.InvokeAsync(() =>
+                            {
+                                var parent = control.Parent;
+                                if (parent is Panel panel)
+                                {
+                                    panel.Children.Remove(control);
+                                }
+                                else if (parent is HeaderedContentControl headeredControl)
+                                {
+                                    if (headeredControl.Content == control) headeredControl.Content = null;
+                                    else if (headeredControl.Header == control) headeredControl.Header = null;
+                                }
+                                else if (parent is ContentControl contentControl)
+                                {
+                                    if (contentControl.Content == control) contentControl.Content = null;
+                                }
+                                else if (parent is HeaderedItemsControl headeredItemsControl)
+                                {
+                                    if (headeredItemsControl.Header == control) headeredItemsControl.Header = null;
+                                }
+                                else if (parent is Decorator decorator)
+                                {
+                                    if (decorator.Child == control) decorator.Child = null;
+                                }
+                                else if (control.Parent == null && visual.GetVisualParent() is Panel visualPanel)
+                                {
+                                    visualPanel.Children.Remove(control);
+                                }
+                            });
+                        }
+                    }
                     return new JsonObject();
                 }
 
@@ -502,6 +523,16 @@ public static class DomDomain
 
             case "setOuterHTML":
                 {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string outerHtml = @params["outerHTML"]?.GetValue<string>() ?? "";
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual is Control control)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(control))
+                        {
+                            await session.MutationEngine.SetOuterHtmlAsync(control, outerHtml);
+                        }
+                    }
                     return new JsonObject();
                 }
 
@@ -791,7 +822,7 @@ public static class DomDomain
         else
         {
             var origin = new Point(0, 0);
-            var translated = visual?.TranslatePoint(origin, window);
+            var translated = visual != null ? CdpVisualTreeHelper.TranslatePointToWindow(visual, origin, window) : (Point?)null;
             if (translated.HasValue)
             {
                 x = translated.Value.X;
@@ -820,14 +851,19 @@ public static class DomDomain
             w = session.Window.Bounds.Width;
             h = session.Window.Bounds.Height;
         }
+        else if (visual is Control control && !control.IsVisible)
+        {
+            w = 0;
+            h = 0;
+        }
         else
         {
             var origin = new Point(0, 0);
-            var translated = visual.TranslatePoint(origin, session.Window);
-            if (translated.HasValue)
+            var translated = CdpVisualTreeHelper.TranslatePointToWindow(visual, origin, session.Window);
+            if (translated != null)
             {
-                x = translated.Value.X;
-                y = translated.Value.Y;
+                x = translated.X;
+                y = translated.Y;
             }
             else
             {
@@ -988,31 +1024,12 @@ public static class DomDomain
 
     private static IEnumerable<Visual> GetChildren(Visual visual, CdpSession session)
     {
-        if (session.UseLogicalTree && visual is ILogical logical)
-        {
-            return CdpSession.GetLogicalVisualChildren(logical);
-        }
-        return visual.GetVisualChildren().Where(c => !(c is HighlightAdorner));
+        return CdpVisualTreeHelper.GetChildren(visual, session.UseLogicalTree).Where(c => !(c is HighlightAdorner));
     }
 
     private static Visual? GetParent(Visual visual, CdpSession session)
     {
-        if (session.UseLogicalTree)
-        {
-            var current = (visual as ILogical)?.LogicalParent;
-            while (current != null)
-            {
-                if (current is Visual v && 
-                    (v is not StyledElement se || se.TemplatedParent == null) &&
-                    (v.GetVisualParent() is not Avalonia.Controls.Presenters.ContentPresenter cp || cp.Content == v))
-                {
-                    return v;
-                }
-                current = current.LogicalParent;
-            }
-            return null;
-        }
-        return visual.GetVisualParent();
+        return CdpVisualTreeHelper.GetParent(visual, session.UseLogicalTree);
     }
 
     public static JsonArray BuildAttributes(Visual visual)

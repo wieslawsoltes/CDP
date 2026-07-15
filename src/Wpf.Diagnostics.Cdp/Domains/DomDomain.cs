@@ -393,12 +393,9 @@ public static class DomDomain
 
     private static IEnumerable<Visual> GetChildren(Visual visual, CdpSession session)
     {
-        if (session.UseLogicalTree)
-        {
-            return CdpSession.GetLogicalVisualChildren(visual);
-        }
-        return visual.GetVisualChildren();
+        return CdpVisualTreeHelper.GetChildren(visual, session.UseLogicalTree);
     }
+
 
     private static JsonArray BuildAttributes(Visual visual)
     {

@@ -113,6 +113,55 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+
+            <!-- 6. Popups & Windows Page -->
+            <TabItem Header="Popups &amp; Windows" Name="tabPopups" AutomationProperties.AutomationId="tabPopups">
+                <ScrollViewer Margin="10">
+                    <StackPanel Spacing="20">
+                        <TextBlock Text="Popups, Dropdowns &amp; Context Menus" FontSize="18" FontWeight="Bold" Foreground="#8ab4f8"/>
+                        
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="ComboBox Dropdown:" FontSize="12" FontWeight="SemiBold"/>
+                            <ComboBox Name="comboPopup" Width="220" PlaceholderText="Select an option">
+                                <ComboBoxItem Name="comboItem1" Content="Popup Option 1"/>
+                                <ComboBoxItem Name="comboItem2" Content="Popup Option 2"/>
+                                <ComboBoxItem Name="comboItem3" Content="Popup Option 3"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="ContextMenu (Right Click):" FontSize="12" FontWeight="SemiBold"/>
+                            <Button Name="btnContextMenu" Content="Right Click Me for Menu" Width="220">
+                                <Button.ContextMenu>
+                                    <ContextMenu Name="contextMenu">
+                                        <MenuItem Name="menuItem1" Header="Menu Item 1" Click="MenuItem_Click"/>
+                                        <MenuItem Name="menuItem2" Header="Menu Item 2" Click="MenuItem_Click"/>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                        </StackPanel>
+
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Button Flyout:" FontSize="12" FontWeight="SemiBold"/>
+                            <Button Name="btnFlyout" Content="Click Me for Flyout" Width="220">
+                                <Button.Flyout>
+                                    <Flyout>
+                                        <StackPanel Spacing="10" Margin="10">
+                                            <TextBlock Text="Flyout content!" FontWeight="SemiBold"/>
+                                            <Button Name="btnInsideFlyout" Content="Click Inside Flyout" Click="BtnInsideFlyout_Click"/>
+                                        </StackPanel>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                        </StackPanel>
+
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Popup Status:" FontSize="12" FontWeight="SemiBold"/>
+                            <TextBlock Name="txtPopupStatus" Text="No interaction yet" FontSize="14" Foreground="#4caf50" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </Grid>
 </Window>

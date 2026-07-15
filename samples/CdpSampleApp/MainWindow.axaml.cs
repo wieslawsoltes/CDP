@@ -119,4 +119,30 @@ public partial class MainWindow : Window
     {
         OnKeyDown(sender, e);
     }
+
+    public void MenuItem_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is MenuItem menuItem)
+        {
+            var txtStatus = this.FindControl<TextBlock>("txtPopupStatus");
+            if (txtStatus != null)
+            {
+                txtStatus.Text = $"Selected Menu: {menuItem.Header}";
+            }
+        }
+    }
+
+    public void BtnInsideFlyout_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var txtStatus = this.FindControl<TextBlock>("txtPopupStatus");
+        if (txtStatus != null)
+        {
+            txtStatus.Text = "Clicked Inside Flyout!";
+        }
+        var flyout = this.FindControl<Button>("btnFlyout")?.Flyout;
+        if (flyout != null)
+        {
+            flyout.Hide();
+        }
+    }
 }

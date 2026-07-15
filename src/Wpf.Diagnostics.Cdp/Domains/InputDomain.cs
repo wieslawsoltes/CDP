@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 
@@ -69,7 +72,77 @@ public static class InputDomain
         var window = session.Window;
         await window.Dispatcher.InvokeAsync(() =>
         {
-            var hit = HitTestElement(window, new Point(x, y));
+            var position = new Point(x, y);
+            Visual hitRoot = window;
+
+            try
+            {
+                var screenPoint = window.PointToScreen(position);
+                var roots = new List<Visual>();
+
+                var firstWindowTuple = CdpServer.GetWindows().FirstOrDefault();
+                var mainWin = firstWindowTuple.Window;
+                if (mainWin != null)
+                {
+                    roots.Add(mainWin);
+
+                    // other active windows
+                    foreach (var winInfo in CdpServer.GetWindows())
+                    {
+                        var win = winInfo.Window;
+                        if (win != null && win != mainWin && win.IsVisible)
+                        {
+                            roots.Add(win);
+                        }
+                    }
+
+                    // open popup contents
+                    var openPopups = new List<Popup>();
+                    var visited = new HashSet<Visual>();
+                    foreach (var winInfo in CdpServer.GetWindows())
+                    {
+                        if (winInfo.Window != null)
+                        {
+                            CdpVisualTreeHelper.FindOpenPopups(winInfo.Window, openPopups, visited);
+                        }
+                    }
+                    foreach (var popup in openPopups)
+                    {
+                        var content = CdpVisualTreeHelper.GetPopupContent(popup);
+                        if (content != null && !roots.Contains(content))
+                        {
+                            roots.Add(content);
+                        }
+                    }
+                }
+                else
+                {
+                    roots.Add(window);
+                }
+
+                for (int i = roots.Count - 1; i >= 0; i--)
+                {
+                    var root = roots[i];
+                    if (root is UIElement uiRoot && uiRoot.IsVisible)
+                    {
+                        try
+                        {
+                            var localPoint = uiRoot.PointFromScreen(screenPoint);
+                            if (localPoint.X >= 0 && localPoint.X <= uiRoot.RenderSize.Width &&
+                                localPoint.Y >= 0 && localPoint.Y <= uiRoot.RenderSize.Height)
+                            {
+                                hitRoot = uiRoot;
+                                position = localPoint;
+                                break;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+
+            var hit = HitTestElement(hitRoot, position);
             if (hit == null) return;
 
             var mouseDevice = InputManager.Current.PrimaryMouseDevice;
@@ -133,10 +206,10 @@ public static class InputDomain
         };
     }
 
-    private static Visual? HitTestElement(Window window, Point point)
+    private static Visual? HitTestElement(Visual root, Point point)
     {
         Visual? hit = null;
-        VisualTreeHelper.HitTest(window, null, new HitTestResultCallback(result =>
+        VisualTreeHelper.HitTest(root, null, new HitTestResultCallback(result =>
         {
             hit = result.VisualHit as Visual;
             return HitTestResultBehavior.Stop;

@@ -137,6 +137,7 @@ public static class CdpServer
         CdpDomainRegistry.Register("Debugger", (s, a, p) => Domains.DebuggerDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("WebMCP", (s, a, p) => Domains.WebMcpDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("Mvvm", (s, a, p) => Domains.MvvmDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("XamlLsp", (s, a, p) => Domains.XamlLspDomain.HandleAsync((CdpSession)s, a, p));
 
         Window.WindowOpenedEvent.AddClassHandler<Window>((w, e) =>
         {
