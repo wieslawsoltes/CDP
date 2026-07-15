@@ -167,11 +167,12 @@
                                            IsDarkTheme="True"
                                            VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
                     </ScrollViewer>
-                    <doc:DocumentEditor Name="docVisualEditor"
-                                        FilePath="{Binding Sources.SelectedFilePath}"
-                                        IsVisible="{Binding Sources.IsDocumentPreviewMode}"
-                                        IsReadOnly="True"
-                                        VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
+                    <ScrollViewer IsVisible="{Binding Sources.IsDocumentPreviewMode}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                        <doc:DocumentEditor Name="docVisualEditor"
+                                            FilePath="{Binding Sources.SelectedFilePath}"
+                                            IsReadOnly="True"
+                                            VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
+                    </ScrollViewer>
                 </Grid>
             </Grid>
             <!-- Right Debugger Panel -->

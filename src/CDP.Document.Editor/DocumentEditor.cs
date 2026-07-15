@@ -162,10 +162,11 @@ public class DocumentEditor : Avalonia.Controls.Control
     {
         var docBounds = _renderer.DocumentBounds;
         if (docBounds.IsEmpty) return new Size(400, 300);
-        return new Size(
-            Math.Min(docBounds.Width, availableSize.Width),
-            Math.Min(docBounds.Height, availableSize.Height)
-        );
+        
+        double width = double.IsInfinity(availableSize.Width) ? docBounds.Width : Math.Min(docBounds.Width, availableSize.Width);
+        double height = double.IsInfinity(availableSize.Height) ? docBounds.Height : Math.Min(docBounds.Height, availableSize.Height);
+        
+        return new Size(width, height);
     }
 
     public override void Render(DrawingContext context)

@@ -23,7 +23,9 @@
         <Grid Grid.Row="1" Margin="12" RowDefinitions="Auto, *">
             <TextBlock Grid.Row="0" Text="{Binding FilePath, StringFormat='Active File: {0}'}" FontSize="10" Foreground="#9aa0a6" Margin="0,0,0,8"/>
             <Border Grid.Row="1" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4">
-                <de:DocumentEditor FilePath="{Binding FilePath}" IsReadOnly="False" ClipToBounds="True"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <de:DocumentEditor FilePath="{Binding FilePath}" IsReadOnly="False" ClipToBounds="True"/>
+                </ScrollViewer>
             </Border>
         </Grid>
     </Grid>
