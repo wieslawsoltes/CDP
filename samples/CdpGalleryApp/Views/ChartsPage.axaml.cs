@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Controls.Templates;
 using CDP.Editor.Splits.Controls;
 using CdpGalleryApp.ViewModels;
 using CdpInspectorApp.Controls;
@@ -36,6 +38,7 @@ public partial class ChartsPage : UserControl
             "Memory" => CreateMemoryView(),
             "Timeline" => CreateTimelineView(),
             "Flame" => CreateFlameView(),
+            "Network" => CreateNetworkView(),
             _ => new Border
             {
                 Background = Brush.Parse("#1e1e1e"),
@@ -178,6 +181,152 @@ public partial class ChartsPage : UserControl
         chart.Bind(FlameChart.BlocksProperty, new Binding("FlameBlocks"));
 
         return WrapInCard("Call Tree Profile (Flame Chart)", chart);
+    }
+
+    private Control CreateNetworkView()
+    {
+        var mainDock = new DockPanel();
+
+        // Create Header Row
+        var headerGrid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*, 80, 80, 80, 80, 150"),
+            Height = 24,
+            Background = Brush.Parse("#1a1a1a")
+        };
+        headerGrid.Children.Add(CreateHeaderCell("Name / URL", 0));
+        headerGrid.Children.Add(CreateHeaderCell("Method", 1));
+        headerGrid.Children.Add(CreateHeaderCell("Status", 2));
+        headerGrid.Children.Add(CreateHeaderCell("Type", 3));
+        headerGrid.Children.Add(CreateHeaderCell("Time", 4));
+        headerGrid.Children.Add(CreateHeaderCell("Waterfall", 5));
+        
+        DockPanel.SetDock(headerGrid, Dock.Top);
+        mainDock.Children.Add(headerGrid);
+
+        // Scrollable ItemsControl
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+
+        var items = new ItemsControl();
+        items.Bind(ItemsControl.ItemsSourceProperty, new Binding("NetworkRequests"));
+
+        items.ItemTemplate = new FuncDataTemplate<ChartsPageViewModel.MockRequestModel>((data, namescope) =>
+        {
+            var grid = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("*, 80, 80, 80, 80, 150"),
+                Height = 28
+            };
+
+            // Border bottom line
+            var border = new Border
+            {
+                BorderBrush = Brush.Parse("#2d2d2d"),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Height = 28
+            };
+
+            var urlTb = new TextBlock
+            {
+                FontSize = 11,
+                Foreground = Brush.Parse("#e8eaed"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0)
+            };
+            urlTb.Bind(TextBlock.TextProperty, new Binding("Url"));
+            grid.Children.Add(urlTb);
+            Grid.SetColumn(urlTb, 0);
+
+            var methodTb = new TextBlock
+            {
+                FontSize = 11,
+                Foreground = Brush.Parse("#fdd663"),
+                FontWeight = FontWeight.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            methodTb.Bind(TextBlock.TextProperty, new Binding("Method"));
+            grid.Children.Add(methodTb);
+            Grid.SetColumn(methodTb, 1);
+
+            var statusTb = new TextBlock
+            {
+                FontSize = 11,
+                Foreground = Brush.Parse("#81c995"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            statusTb.Bind(TextBlock.TextProperty, new Binding("Status"));
+            grid.Children.Add(statusTb);
+            Grid.SetColumn(statusTb, 2);
+
+            var typeTb = new TextBlock
+            {
+                FontSize = 11,
+                Foreground = Brush.Parse("#9aa0a6"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            typeTb.Bind(TextBlock.TextProperty, new Binding("Type"));
+            grid.Children.Add(typeTb);
+            Grid.SetColumn(typeTb, 3);
+
+            var timeTb = new TextBlock
+            {
+                FontSize = 11,
+                Foreground = Brush.Parse("#8ab4f8"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            timeTb.Bind(TextBlock.TextProperty, new Binding("Time"));
+            grid.Children.Add(timeTb);
+            Grid.SetColumn(timeTb, 4);
+
+            var waterfallContainer = new Grid
+            {
+                Width = 120,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+
+            var waterfallBar = new WaterfallBar
+            {
+                Height = 6,
+                Width = 120,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            waterfallBar.Bind(WaterfallBar.StartOffsetPercentProperty, new Binding("StartOffsetPercent"));
+            waterfallBar.Bind(WaterfallBar.TtfbPercentProperty, new Binding("TtfbPercent"));
+            waterfallBar.Bind(WaterfallBar.DownloadPercentProperty, new Binding("DownloadPercent"));
+
+            waterfallContainer.Children.Add(waterfallBar);
+            grid.Children.Add(waterfallContainer);
+            Grid.SetColumn(waterfallContainer, 5);
+
+            border.Child = grid;
+            return border;
+        });
+
+        scroll.Content = items;
+        mainDock.Children.Add(scroll);
+
+        return WrapInCard("Network Waterfall (Waterfall Chart)", mainDock);
+    }
+
+    private Control CreateHeaderCell(string text, int column)
+    {
+        var tb = new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            FontWeight = FontWeight.Bold,
+            Foreground = Brush.Parse("#9aa0a6"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(column == 0 ? 6 : 0, 0, 0, 0)
+        };
+        Grid.SetColumn(tb, column);
+        return tb;
     }
 
     private StackPanel CreateSlider(string labelFormat, string valuePath, double min, double max)

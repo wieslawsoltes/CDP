@@ -46,20 +46,29 @@ public class ChartsPageViewModel : ViewModelBase
         // Initialize Flame Chart mock data
         InitializeFlameBlocks();
 
+        // Initialize Network Waterfall mock data
+        InitializeNetworkRequests();
+
         // Initialize SuperSplit layout tree mapping each chart type to a BoxNode
         var panelCpu = new BoxNode("CPU", "CPU Profiling (Pie Chart)", "TimerIcon");
         var panelMem = new BoxNode("Memory", "Memory generations (Bar Chart)", "DeveloperBoardIcon");
         var panelTime = new BoxNode("Timeline", "History over time (Line Chart)", "HistoryIcon");
         var panelFlame = new BoxNode("Flame", "Call Tree Profile (Flame Chart)", "FlowchartIcon");
+        var panelNet = new BoxNode("Network", "Network Waterfall (Waterfall Chart)", "GlobeIcon");
 
         var leftSplit = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, panelCpu, panelMem)
         {
             SplitterRatio = 0.5
         };
 
-        var rightSplit = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, panelTime, panelFlame)
+        var rightRightSplit = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, panelFlame, panelNet)
         {
             SplitterRatio = 0.5
+        };
+
+        var rightSplit = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, panelTime, rightRightSplit)
+        {
+            SplitterRatio = 0.33
         };
 
         _splitRoot = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, leftSplit, rightSplit)
@@ -206,5 +215,37 @@ public class ChartsPageViewModel : ViewModelBase
     {
         get => _lohSize / (1024.0 * 1024.0);
         set => LohSize = (long)(value * 1024.0 * 1024.0);
+    }
+    public class MockRequestModel
+    {
+        public string Url { get; set; } = string.Empty;
+        public string Method { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Time { get; set; } = string.Empty;
+        public double StartOffsetPercent { get; set; }
+        public double TtfbPercent { get; set; }
+        public double DownloadPercent { get; set; }
+    }
+
+    private IEnumerable<MockRequestModel>? _networkRequests;
+
+    public IEnumerable<MockRequestModel>? NetworkRequests
+    {
+        get => _networkRequests;
+        set => RaiseAndSetIfChanged(ref _networkRequests, value);
+    }
+
+    private void InitializeNetworkRequests()
+    {
+        _networkRequests = new List<MockRequestModel>
+        {
+            new MockRequestModel { Url = "index.html", Method = "GET", Status = "200", Type = "document", Time = "120 ms", StartOffsetPercent = 0.0, TtfbPercent = 0.05, DownloadPercent = 0.05 },
+            new MockRequestModel { Url = "styles.css", Method = "GET", Status = "200", Type = "stylesheet", Time = "85 ms", StartOffsetPercent = 0.10, TtfbPercent = 0.03, DownloadPercent = 0.04 },
+            new MockRequestModel { Url = "bundle.js", Method = "GET", Status = "200", Type = "script", Time = "240 ms", StartOffsetPercent = 0.12, TtfbPercent = 0.07, DownloadPercent = 0.13 },
+            new MockRequestModel { Url = "logo.svg", Method = "GET", Status = "200", Type = "image", Time = "95 ms", StartOffsetPercent = 0.15, TtfbPercent = 0.04, DownloadPercent = 0.04 },
+            new MockRequestModel { Url = "api/data", Method = "POST", Status = "201", Type = "fetch", Time = "310 ms", StartOffsetPercent = 0.35, TtfbPercent = 0.18, DownloadPercent = 0.08 },
+            new MockRequestModel { Url = "analytics.js", Method = "GET", Status = "304", Type = "script", Time = "45 ms", StartOffsetPercent = 0.50, TtfbPercent = 0.03, DownloadPercent = 0.01 }
+        };
     }
 }

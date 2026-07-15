@@ -84,6 +84,7 @@ public class MarkdownEditor : Control, ILogicalScrollable
     private MarkdownDocument? _document;
     private readonly DocumentLayout _documentLayout = new();
     private readonly RenderResources _resources = new();
+    private double _lastLayoutWidth = -1;
     private readonly SkiaTextMeasurer _measurer;
 
     // Cached bitmap buffers for rendering
@@ -289,33 +290,49 @@ public class MarkdownEditor : Control, ILogicalScrollable
         }
     }
 
-    private void ParseAndLayout(double? width = null, bool fromMeasurePass = false)
+    private void ParseAndLayout()
     {
-        _caretIndex = Math.Clamp(_caretIndex, 0, _internalText.Length);
-        _selectionStart = Math.Clamp(_selectionStart, 0, _internalText.Length);
-        _selectionEnd = Math.Clamp(_selectionEnd, 0, _internalText.Length);
-        _selectionAnchor = Math.Clamp(_selectionAnchor, 0, _internalText.Length);
+        ParseAndLayout(null, false, true);
+    }
 
-        _document = MarkdownParser.Parse(_internalText);
-        _documentLayout.LoadDocument(_document);
+    private void ParseAndLayout(double? width, bool fromMeasurePass = false, bool forceReparse = false)
+    {
+        var actualWidth = width ?? Bounds.Width;
+        if (actualWidth <= 0) actualWidth = 800;
 
-        var actualWidth = (float)(width ?? Bounds.Width);
-        if (actualWidth <= 0) actualWidth = 800f; // fallback default width
+        bool widthChanged = Math.Abs(_lastLayoutWidth - actualWidth) > 0.01;
 
-        var layoutContext = new LayoutContext(
-            maxWidth: actualWidth,
-            measurer: _measurer,
-            resources: _resources,
-            startY: 0f,
-            markdownText: _internalText
-        );
-        _documentLayout.Layout(layoutContext);
-        ScrollInvalidated?.Invoke(this, EventArgs.Empty);
-        if (!fromMeasurePass)
+        if (forceReparse || _document == null || widthChanged)
         {
-            InvalidateMeasure();
+            _lastLayoutWidth = actualWidth;
+
+            _caretIndex = Math.Clamp(_caretIndex, 0, _internalText.Length);
+            _selectionStart = Math.Clamp(_selectionStart, 0, _internalText.Length);
+            _selectionEnd = Math.Clamp(_selectionEnd, 0, _internalText.Length);
+            _selectionAnchor = Math.Clamp(_selectionAnchor, 0, _internalText.Length);
+
+            if (forceReparse || _document == null)
+            {
+                _document = MarkdownParser.Parse(_internalText);
+                _documentLayout.LoadDocument(_document);
+            }
+
+            var layoutContext = new LayoutContext(
+                maxWidth: (float)actualWidth,
+                measurer: _measurer,
+                resources: _resources,
+                startY: 0f,
+                markdownText: _internalText
+            );
+            _documentLayout.Layout(layoutContext);
+            ScrollInvalidated?.Invoke(this, EventArgs.Empty);
+
+            if (!fromMeasurePass)
+            {
+                InvalidateMeasure();
+            }
+            InvalidateVisual();
         }
-        InvalidateVisual();
     }
 
     protected override Size MeasureOverride(Size availableSize)
