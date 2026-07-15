@@ -111,13 +111,13 @@ public partial class DesignerView : UserControl
 
             if (Designer.ShowCanvasAttachmentEditor)
             {
-                Designer.CanvasLeft = Snap(_initialCanvasLeft + dx);
-                Designer.CanvasTop = Snap(_initialCanvasTop + dy);
+                Designer.CanvasLeft = Snap(_initialCanvasLeft + (newX - _dragStartBounds.X));
+                Designer.CanvasTop = Snap(_initialCanvasTop + (newY - _dragStartBounds.Y));
             }
             else
             {
-                Designer.SelectedMarginLeft = Snap(_initialMarginLeft + dx);
-                Designer.SelectedMarginTop = Snap(_initialMarginTop + dy);
+                Designer.SelectedMarginLeft = Snap(_initialMarginLeft + (newX - _dragStartBounds.X));
+                Designer.SelectedMarginTop = Snap(_initialMarginTop + (newY - _dragStartBounds.Y));
             }
         }
         else
@@ -168,6 +168,17 @@ public partial class DesignerView : UserControl
             if (newW > 0 && newH > 0)
             {
                 newBounds = new Rect(newX, newY, newW, newH);
+
+                if (Designer.ShowCanvasAttachmentEditor)
+                {
+                    Designer.CanvasLeft = Snap(_initialCanvasLeft + (newX - _dragStartBounds.X));
+                    Designer.CanvasTop = Snap(_initialCanvasTop + (newY - _dragStartBounds.Y));
+                }
+                else
+                {
+                    Designer.SelectedMarginLeft = Snap(_initialMarginLeft + (newX - _dragStartBounds.X));
+                    Designer.SelectedMarginTop = Snap(_initialMarginTop + (newY - _dragStartBounds.Y));
+                }
             }
         }
 

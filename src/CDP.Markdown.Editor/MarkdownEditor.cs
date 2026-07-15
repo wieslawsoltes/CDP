@@ -272,6 +272,7 @@ public class MarkdownEditor : Control, ILogicalScrollable
 
     private void OnTextPropertyChanged(AvaloniaPropertyChangedEventArgs args)
     {
+        Flush();
         var newText = args.GetNewValue<string>() ?? string.Empty;
         if (newText != _internalText)
         {
