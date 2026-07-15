@@ -27,11 +27,25 @@
     <Project Path="src/CDP.Automation.Selenium/CDP.Automation.Selenium.csproj" />
     <Project Path="src/CDP.Automation.Headless/CDP.Automation.Headless.csproj" />
     <Project Path="src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj" />
+    <Project Path="src/CDP.Xaml.LanguageServer/CDP.Xaml.LanguageServer.csproj" />
+    <Project Path="src/CDP.CSharp.LanguageServer/CDP.CSharp.LanguageServer.csproj" />
+    <Project Path="src/Xaml.Compiler/Xaml.Compiler.csproj" />
+    <Project Path="src/CDP.Markdown.Parser/CDP.Markdown.Parser.csproj" />
+    <Project Path="src/CDP.Markdown.Renderer/CDP.Markdown.Renderer.csproj" />
+    <Project Path="src/CDP.Markdown.Editor/CDP.Markdown.Editor.csproj" />
+    <Project Path="src/CDP.Document.Parser/CDP.Document.Parser.csproj" />
+    <Project Path="src/CDP.Inspector.Wysiwyg/CDP.Inspector.Wysiwyg.csproj" />
+    <Project Path="src/CDP.Document.Renderer/CDP.Document.Renderer.csproj" />
+    <Project Path="src/CDP.Document.Editor/CDP.Document.Editor.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj" />
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Benchmarks/Avalonia.Diagnostics.Cdp.Benchmarks.csproj" />
     <Project Path="tests/CDP.Selenium.Tests/CDP.Selenium.Tests.csproj" />
     <Project Path="tests/CDP.Appium.Tests/CDP.Appium.Tests.csproj" />
+    <Project Path="tests/Xaml.Compiler.Tests/Xaml.Compiler.Tests.csproj" />
+    <Project Path="tests/CDP.Markdown.Tests/CDP.Markdown.Tests.csproj" />
+    <Project Path="tests/CDP.Document.Tests/CDP.Document.Tests.csproj" />
+    <Project Path="tests/CDP.Diagnostics.IntegrationTests/CDP.Diagnostics.IntegrationTests.csproj" />
   </Folder>
 </Solution>
