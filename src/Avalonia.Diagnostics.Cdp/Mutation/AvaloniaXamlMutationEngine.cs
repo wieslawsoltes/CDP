@@ -213,6 +213,10 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MutationEngine] SetOuterHtmlAsync live UI update failed: {ex.Message}");
+            }
         });
 
         return success;
