@@ -1,0 +1,36 @@
+appId: "CdpInspectorApp"
+description: "Verify Markdown Mode Toggling between raw editor and visual WYSIWYG editor"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_sources.yaml"
+- assertVisible: "#treeWorkspaceFiles"
+- evalScript: |
+    var vm = Window.DataContext;
+    var markdownFile = null;
+    var files = vm.Sources.WorkspaceFiles;
+    for (var i = 0; i < files.Count; i++) {
+        var f = files[i];
+        if (!f.IsDirectory && f.Name.indexOf(".md") !== -1) {
+            markdownFile = f;
+            break;
+        }
+    }
+    if (markdownFile != null) {
+        vm.Sources.SelectedFile = markdownFile;
+    }
+- delay: "500"
+- evalScript: |
+    var vm = Window.DataContext;
+    vm.Sources.SelectedFileContent = "# Markdown Title\nThis is a markdown document.";
+- delay: "300"
+- assertVisible: "#btnToggleMarkdownMode"
+- assertVisible: "#mdVisualEditor"
+- assertNotVisible: "#txtSourceContent"
+- tapOn: "#btnToggleMarkdownMode"
+- delay: "300"
+- assertVisible: "#txtSourceContent"
+- assertNotVisible: "#mdVisualEditor"
+- tapOn: "#btnToggleMarkdownMode"
+- delay: "300"
+- assertVisible: "#mdVisualEditor"
+- assertNotVisible: "#txtSourceContent"

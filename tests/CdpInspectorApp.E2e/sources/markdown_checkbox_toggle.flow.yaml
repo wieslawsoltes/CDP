@@ -1,0 +1,41 @@
+appId: "CdpInspectorApp"
+description: "Verify interactive GFM checklist checkbox toggling in visual editor mode"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_sources.yaml"
+- assertVisible: "#treeWorkspaceFiles"
+- evalScript: |
+    var vm = Window.DataContext;
+    var markdownFile = null;
+    var files = vm.Sources.WorkspaceFiles;
+    for (var i = 0; i < files.Count; i++) {
+        var f = files[i];
+        if (!f.IsDirectory && f.Name.indexOf(".md") !== -1) {
+            markdownFile = f;
+            break;
+        }
+    }
+    if (markdownFile != null) {
+        vm.Sources.SelectedFile = markdownFile;
+    }
+- delay: "500"
+- evalScript: |
+    var vm = Window.DataContext;
+    vm.Sources.SelectedFileContent = "- [ ] Task item to check\n- [x] Already checked item";
+- delay: "300"
+- assertVisible: "#mdVisualEditor"
+- evalScript:
+    value: |
+      var rect = document.querySelector("#mdVisualEditor").getBoundingClientRect();
+      return rect.left + 15;
+    assignTo: "checkboxX"
+- evalScript:
+    value: |
+      var rect = document.querySelector("#mdVisualEditor").getBoundingClientRect();
+      return rect.top + 12;
+    assignTo: "checkboxY"
+- tapOn:
+    x: "${checkboxX}"
+    y: "${checkboxY}"
+- delay: "500"
+- assertTrue: "Window.DataContext.Sources.SelectedFileContent.indexOf('- [x] Task item to check') !== -1"

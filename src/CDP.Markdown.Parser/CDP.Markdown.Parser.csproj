@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Chrome.DevTools.Markdown.Parser</PackageId>
+    <Title>Chrome.DevTools.Markdown.Parser</Title>
+    <Description>GFM-compatible Markdown parser with custom AST and round-trip serializer.</Description>
+    <PackageTags>markdown;parser;gfm;cdp;ast</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" />
+  </ItemGroup>
+
+</Project>
