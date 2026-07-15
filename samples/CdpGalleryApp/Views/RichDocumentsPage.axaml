@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:de="clr-namespace:CDP.Document.Editor;assembly=CDP.Document.Editor"
+             x:Class="CdpGalleryApp.Views.RichDocumentsPage"
+             x:DataType="vm:RichDocumentsPageViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto, *">
+        <!-- Toolbar with Document Switcher Buttons -->
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Rich Documents" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8" Margin="0,0,10,0"/>
+
+                <Button Content="Word (DOCX)" Command="{Binding LoadDocx}" Background="#252526" BorderBrush="#3c4043"/>
+                <Button Content="Excel (XLSX)" Command="{Binding LoadXlsx}" Background="#252526" BorderBrush="#3c4043"/>
+                <Button Content="PowerPoint (PPTX)" Command="{Binding LoadPptx}" Background="#252526" BorderBrush="#3c4043"/>
+                <Button Content="RTF" Command="{Binding LoadRtf}" Background="#252526" BorderBrush="#3c4043"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Document Viewer Editor Grid -->
+        <Grid Grid.Row="1" Margin="12" RowDefinitions="Auto, *">
+            <TextBlock Grid.Row="0" Text="{Binding FilePath, StringFormat='Active File: {0}'}" FontSize="10" Foreground="#9aa0a6" Margin="0,0,0,8"/>
+            <Border Grid.Row="1" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4">
+                <de:DocumentEditor FilePath="{Binding FilePath}" IsReadOnly="False" ClipToBounds="True"/>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

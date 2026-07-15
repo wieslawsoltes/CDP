@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:me="clr-namespace:CDP.Markdown.Editor;assembly=CDP.Markdown.Editor"
+             x:Class="CdpGalleryApp.Views.MarkdownPage"
+             x:DataType="vm:MarkdownPageViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto, *">
+        <!-- Toolbar Options -->
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                <TextBlock Text="Markdown Editor" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
+                
+                <Separator Width="1" Height="16" Background="#3c4043"/>
+                
+                <CheckBox Content="Read Only" IsChecked="{Binding IsReadOnly}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Workspace split -->
+        <Grid Grid.Row="1" ColumnDefinitions="*, 4, *">
+            <!-- Left Side: Source Editor -->
+            <Grid Grid.Column="0" RowDefinitions="Auto, *" Margin="12">
+                <TextBlock Grid.Row="0" Text="Raw Markdown Source" FontSize="11" Foreground="#9aa0a6" Margin="0,0,0,6"/>
+                <TextBox Grid.Row="1"
+                         Text="{Binding Text, Mode=TwoWay}"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         FontFamily="Courier New"
+                         FontSize="12"
+                         Foreground="#e8eaed"
+                         Background="#161616"
+                         BorderBrush="#2d2d2d"
+                         BorderThickness="1"
+                         CornerRadius="4"
+                         IsReadOnly="{Binding IsReadOnly}"
+                         TextWrapping="Wrap"
+                         PlaceholderText="Enter your markdown here..."/>
+            </Grid>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Background="#2d2d2d" ResizeDirection="Columns"/>
+
+            <!-- Right Side: Live Render Preview -->
+            <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="12">
+                <TextBlock Grid.Row="0" Text="Live Skia Render Preview" FontSize="11" Foreground="#9aa0a6" Margin="0,0,0,6"/>
+                <Border Grid.Row="1" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4" Padding="8">
+                    <me:MarkdownEditor Text="{Binding Text}" IsReadOnly="True" ClipToBounds="True"/>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

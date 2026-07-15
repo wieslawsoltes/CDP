@@ -1,0 +1,12 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CdpGalleryApp.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.v2.xaml" />
+        <StyleInclude Source="avares://CDP.FluentNavigation/Themes/Generic.axaml"/>
+        <StyleInclude Source="avares://CDP.Inspector.Controls/Themes/Generic.axaml"/>
+    </Application.Styles>
+</Application>

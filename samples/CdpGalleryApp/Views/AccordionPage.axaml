@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls"
+             x:Class="CdpGalleryApp.Views.AccordionPage"
+             x:DataType="vm:AccordionPageViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto, *">
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Accordion Options" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
+                <Separator Width="1" Height="16" Background="#3c4043"/>
+                <TextBlock Text="Expand collapsible groups. Exclusive mode collapses other items automatically." FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" Margin="16" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="16" MaxWidth="600" HorizontalAlignment="Left">
+                <TextBlock Text="Exclusive Accordion Demo" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
+                
+                <!-- Custom Accordion Control -->
+                <Border Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" Padding="4">
+                    <controls:Accordion IsExclusive="True">
+                        <controls:AccordionItem Header="1. General Customizations" IsExpanded="True">
+                            <StackPanel Spacing="12" Margin="12,8">
+                                <TextBlock Text="Configure general gallery features:" FontSize="11" Foreground="#9aa0a6"/>
+                                <CheckBox Content="Enable real-time synchronization" IsChecked="True"/>
+                                <CheckBox Content="Show debug trace overlays"/>
+                                <CheckBox Content="Send diagnostic reports"/>
+                            </StackPanel>
+                        </controls:AccordionItem>
+
+                        <controls:AccordionItem Header="2. Appearance &amp; Layout Settings">
+                            <StackPanel Spacing="12" Margin="12,8">
+                                <TextBlock Text="Change theme variants:" FontSize="11" Foreground="#9aa0a6"/>
+                                <RadioButton Content="Dark Mode (Default Premium)" IsChecked="True"/>
+                                <RadioButton Content="Light Mode"/>
+                                <RadioButton Content="High Contrast Mode"/>
+                            </StackPanel>
+                        </controls:AccordionItem>
+
+                        <controls:AccordionItem Header="3. Advanced CDP Protocols">
+                            <StackPanel Spacing="12" Margin="12,8">
+                                <TextBlock Text="Configure low-level Chrome DevTools Protocol targets:" FontSize="11" Foreground="#9aa0a6"/>
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <TextBlock Text="Target Port: " FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1" Text="9224" IsReadOnly="True" FontSize="11" Margin="8,0,0,0" Width="80" HorizontalAlignment="Left"/>
+                                </Grid>
+                                <TextBlock Text="This gallery app exposes page nodes and controls to the CDP server, enabling full automated E2E test flows." FontSize="10" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </controls:AccordionItem>
+                    </controls:Accordion>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

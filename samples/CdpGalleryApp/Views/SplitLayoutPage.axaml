@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
+             x:Class="CdpGalleryApp.Views.SplitLayoutPage"
+             x:DataType="vm:SplitLayoutPageViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto, *">
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Split Layout (SuperSplit)" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
+                <Separator Width="1" Height="16" Background="#3c4043"/>
+                <TextBlock Text="Dock panels, split dynamically, and resize dividers." FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Background="#121212" Padding="8">
+            <Border Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6">
+                <!-- SuperSplit Container -->
+                <splits:SuperSplit Name="SplitControl" Root="{Binding SplitRoot}"/>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>
