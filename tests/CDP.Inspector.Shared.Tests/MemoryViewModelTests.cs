@@ -41,7 +41,7 @@ public class MemoryViewModelTests
         public Task ConnectAsync(string host, TargetItem target) => Task.CompletedTask;
         public Task DisconnectAsync() => Task.CompletedTask;
 
-        public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
+        public virtual Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
         {
             return Task.FromResult(new JsonObject());
         }

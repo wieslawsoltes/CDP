@@ -445,7 +445,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests
             string xaml = @"<Window xmlns=""https://github.com/avaloniaui""
         xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
         xmlns:hl=""clr-namespace:Avalonia.Diagnostics.Cdp;assembly=Avalonia.Diagnostics.Cdp"">
-    <hl:Hi
+    <hl:Hi />
 </Window>";
             await File.WriteAllTextAsync(tempFile, xaml);
 
