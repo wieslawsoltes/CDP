@@ -37,6 +37,15 @@ public class MarkdownEditor : Control
         set => SetValue(IsReadOnlyProperty, value);
     }
 
+    public static readonly StyledProperty<bool> IsDarkThemeProperty =
+        AvaloniaProperty.Register<MarkdownEditor, bool>(nameof(IsDarkTheme), true);
+
+    public bool IsDarkTheme
+    {
+        get => GetValue(IsDarkThemeProperty);
+        set => SetValue(IsDarkThemeProperty, value);
+    }
+
     private string _internalText = string.Empty;
     private MarkdownDocument? _document;
     private readonly DocumentLayout _documentLayout = new();
@@ -116,6 +125,7 @@ public class MarkdownEditor : Control
     {
         FocusableProperty.OverrideDefaultValue<MarkdownEditor>(true);
         AffectsRender<MarkdownEditor>(TextProperty);
+        AffectsRender<MarkdownEditor>(IsDarkThemeProperty);
     }
 
     public MarkdownEditor()
@@ -261,6 +271,14 @@ public class MarkdownEditor : Control
         );
         _documentLayout.Layout(layoutContext);
         InvalidateVisual();
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        var width = availableSize.Width;
+        if (double.IsInfinity(width)) width = 800;
+        ParseAndLayout(width);
+        return new Size(width, _documentLayout.Bounds.Height);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -1067,6 +1085,7 @@ public class MarkdownEditor : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
+        _resources.UpdateTheme(IsDarkTheme);
         var bounds = Bounds;
         int width = (int)Math.Max(1, bounds.Width);
         int height = (int)Math.Max(1, bounds.Height);

@@ -188,6 +188,53 @@ public class RenderResources : IDisposable
             Color = new SKColor(36, 41, 46),
             IsAntialias = true
         };
+        UpdateTheme(false);
+    }
+
+    public void UpdateTheme(bool isDark)
+    {
+        if (isDark)
+        {
+            TextPaint.Color = new SKColor(232, 234, 237); // Light gray text
+            CodeTextPaint.Color = new SKColor(255, 110, 145); // Lighter pink
+            LinkTextPaint.Color = new SKColor(138, 180, 248); // Light blue link
+            HeadingBorderPaint.Color = new SKColor(60, 64, 67); // Dark gray border
+            ThematicBreakPaint.Color = new SKColor(60, 64, 67);
+            CheckboxBorderPaint.Color = new SKColor(154, 160, 166);
+            CheckboxFillPaint.Color = new SKColor(138, 180, 248);
+            CheckboxCheckPaint.Color = new SKColor(32, 33, 36); // Dark color for check
+            BulletPaint.Color = new SKColor(232, 234, 237);
+            BulletOpenPaint.Color = BulletPaint.Color;
+            QuoteBarPaint.Color = new SKColor(95, 99, 104);
+            ImagePlaceholderBorderPaint.Color = new SKColor(95, 99, 104);
+            CodeBackgroundPaint.Color = new SKColor(30, 30, 30); // Very dark gray background for code
+            CodeKeywordPaint.Color = new SKColor(255, 117, 117); // Lighter red keyword
+            CodeCommentPaint.Color = new SKColor(154, 160, 166); // Light gray comment
+            CodeStringPaint.Color = new SKColor(168, 218, 220); // Light teal string
+            CodeNumberPaint.Color = new SKColor(241, 196, 15); // Light yellow number
+            CodePlainPaint.Color = new SKColor(232, 234, 237); // Light text in code block
+        }
+        else
+        {
+            TextPaint.Color = SKColors.Black;
+            CodeTextPaint.Color = new SKColor(199, 37, 78);
+            LinkTextPaint.Color = new SKColor(3, 102, 214);
+            HeadingBorderPaint.Color = new SKColor(225, 228, 232);
+            ThematicBreakPaint.Color = new SKColor(225, 228, 232);
+            CheckboxBorderPaint.Color = new SKColor(100, 100, 100);
+            CheckboxFillPaint.Color = new SKColor(3, 102, 214);
+            CheckboxCheckPaint.Color = SKColors.White;
+            BulletPaint.Color = SKColors.Black;
+            BulletOpenPaint.Color = BulletPaint.Color;
+            QuoteBarPaint.Color = new SKColor(223, 226, 229);
+            ImagePlaceholderBorderPaint.Color = new SKColor(209, 213, 218);
+            CodeBackgroundPaint.Color = new SKColor(246, 248, 250);
+            CodeKeywordPaint.Color = new SKColor(215, 58, 73);
+            CodeCommentPaint.Color = new SKColor(106, 115, 125);
+            CodeStringPaint.Color = new SKColor(3, 47, 98);
+            CodeNumberPaint.Color = new SKColor(0, 92, 197);
+            CodePlainPaint.Color = new SKColor(36, 41, 46);
+        }
     }
 
     public SKFont GetHeadingFont(int level)
