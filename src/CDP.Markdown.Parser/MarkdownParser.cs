@@ -148,7 +148,7 @@ public static class MarkdownParser
         if (tc.Parent is Markdig.Extensions.Tables.TableRow tr && tr.Parent is Markdig.Extensions.Tables.Table t)
         {
             int cellIndex = tr.IndexOf(tc);
-            if (cellIndex >= 0 && cellIndex < t.ColumnDefinitions.Count)
+            if (t.ColumnDefinitions != null && cellIndex >= 0 && cellIndex < t.ColumnDefinitions.Count)
             {
                 var align = t.ColumnDefinitions[cellIndex].Alignment;
                 cell.Alignment = align switch
@@ -158,6 +158,10 @@ public static class MarkdownParser
                     Markdig.Extensions.Tables.TableColumnAlign.Right => AST.TableCellAlignment.Right,
                     _ => AST.TableCellAlignment.None
                 };
+            }
+            else
+            {
+                cell.Alignment = AST.TableCellAlignment.None;
             }
         }
         return cell;
