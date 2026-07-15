@@ -1199,6 +1199,53 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                         wRun.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Text(run.Text));
                         wPara.AppendChild(wRun);
                     }
+                    else if (inline is ImageInline img)
+                    {
+                        string? relationshipId = null;
+                        if (img.Source != null && img.Source.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                var parts = img.Source.Split(',');
+                                if (parts.Length > 1)
+                                {
+                                    var header = parts[0];
+                                    var base64 = parts[1];
+                                    var contentType = header.Split(';')[0].Split(':')[1];
+                                    
+                                    PartTypeInfo type = ImagePartType.Png;
+                                    if (contentType.Contains("jpeg") || contentType.Contains("jpg")) type = ImagePartType.Jpeg;
+                                    else if (contentType.Contains("gif")) type = ImagePartType.Gif;
+                                    else if (contentType.Contains("bmp")) type = ImagePartType.Bmp;
+                                    else if (contentType.Contains("tiff")) type = ImagePartType.Tiff;
+
+                                    byte[] bytes = Convert.FromBase64String(base64);
+                                    var imagePart = wordDoc.MainDocumentPart.AddImagePart(type);
+                                    using (var partStream = imagePart.GetStream())
+                                    {
+                                        partStream.Write(bytes, 0, bytes.Length);
+                                    }
+                                    relationshipId = wordDoc.MainDocumentPart.GetIdOfPart(imagePart);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Failed to write image part: {ex.Message}");
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(img.Source))
+                        {
+                            relationshipId = img.Source;
+                        }
+
+                        if (!string.IsNullOrEmpty(relationshipId))
+                        {
+                            var wRun = new DocumentFormat.OpenXml.Wordprocessing.Run();
+                            var drawing = CreateDrawing(relationshipId, img.AltText ?? "Image");
+                            wRun.AppendChild(drawing);
+                            wPara.AppendChild(wRun);
+                        }
+                    }
                     else if (inline is LineBreakInline)
                     {
                         wPara.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Break()));
@@ -1237,6 +1284,35 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             }
         }
         wordDoc.MainDocumentPart.Document.Save();
+    }
+
+    private static DocumentFormat.OpenXml.Wordprocessing.Drawing CreateDrawing(string relationshipId, string altText, long widthCx = 952500, long heightCx = 952500)
+    {
+        return new DocumentFormat.OpenXml.Wordprocessing.Drawing(
+            new DocumentFormat.OpenXml.Drawing.Wordprocessing.Inline(
+                new DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent { Cx = widthCx, Cy = heightCx },
+                new DocumentFormat.OpenXml.Drawing.Wordprocessing.EffectExtent { LeftEdge = 0L, TopEdge = 0L, RightEdge = 0L, BottomEdge = 0L },
+                new DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties { Id = (DocumentFormat.OpenXml.UInt32Value)1U, Name = altText ?? "Image" },
+                new DocumentFormat.OpenXml.Drawing.Wordprocessing.NonVisualGraphicFrameDrawingProperties(
+                    new DocumentFormat.OpenXml.Drawing.GraphicFrameLocks { NoChangeAspect = true }),
+                new DocumentFormat.OpenXml.Drawing.Graphic(
+                    new DocumentFormat.OpenXml.Drawing.GraphicData(
+                        new DocumentFormat.OpenXml.Drawing.Pictures.Picture(
+                            new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureProperties(
+                                new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualDrawingProperties { Id = (DocumentFormat.OpenXml.UInt32Value)2U, Name = altText ?? "Image" },
+                                new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureDrawingProperties()),
+                            new DocumentFormat.OpenXml.Drawing.Pictures.BlipFill(
+                                new DocumentFormat.OpenXml.Drawing.Blip { Embed = relationshipId, CompressionState = DocumentFormat.OpenXml.Drawing.BlipCompressionValues.Print },
+                                new DocumentFormat.OpenXml.Drawing.Stretch(new DocumentFormat.OpenXml.Drawing.FillRectangle())),
+                            new DocumentFormat.OpenXml.Drawing.Pictures.ShapeProperties(
+                                new DocumentFormat.OpenXml.Drawing.Transform2D(
+                                    new DocumentFormat.OpenXml.Drawing.Offset { X = 0L, Y = 0L },
+                                    new DocumentFormat.OpenXml.Drawing.Extents { Cx = widthCx, Cy = heightCx }),
+                                new DocumentFormat.OpenXml.Drawing.PresetGeometry { Preset = DocumentFormat.OpenXml.Drawing.ShapeTypeValues.Rectangle }))
+                    ) { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" }
+                )
+            ) { DistanceFromTop = 0U, DistanceFromBottom = 0U, DistanceFromLeft = 0U, DistanceFromRight = 0U }
+        );
     }
 
     private static void SerializeToXlsx(Parser.AST.SpreadsheetDocument doc, string filePath)

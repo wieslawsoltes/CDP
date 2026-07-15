@@ -35,27 +35,35 @@
                                   Margin="4">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ToolboxItemViewModel">
-                                <Border Padding="8,5"
-                                        Margin="1"
-                                        CornerRadius="3"
-                                        Background="#2d2d30"
-                                        Cursor="Hand">
-                                    <Grid ColumnDefinitions="Auto,*">
-                                        <PathIcon Data="{StaticResource AppsIcon}"
-                                                  Width="12" Height="12"
-                                                  Foreground="#64b5f6"
-                                                  Margin="0,0,8,0"
-                                                  VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontSize="11"
-                                                       Foreground="#e0e0e0" />
-                                            <TextBlock Text="{Binding Category}"
-                                                       FontSize="9"
-                                                       Foreground="#808080" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
+                                <Button Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Designer.DropElementCommand}"
+                                        CommandParameter="{Binding DefaultXaml}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="0"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch">
+                                    <Border Padding="8,5"
+                                            Margin="1"
+                                            CornerRadius="3"
+                                            Background="#2d2d30"
+                                            Cursor="Hand">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <PathIcon Data="{StaticResource AppsIcon}"
+                                                      Width="12" Height="12"
+                                                      Foreground="#64b5f6"
+                                                      Margin="0,0,8,0"
+                                                      VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="11"
+                                                           Foreground="#e0e0e0" />
+                                                <TextBlock Text="{Binding Category}"
+                                                           FontSize="9"
+                                                           Foreground="#808080" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

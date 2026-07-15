@@ -290,10 +290,10 @@ namespace CDP.Xaml.LanguageServer
                                 if (prop.IsAttached && (string.IsNullOrEmpty(propPrefix) || prop.Name.StartsWith(propPrefix, StringComparison.OrdinalIgnoreCase)))
                                 {
                                     completions.Add(new CompletionItem(
-                                        $"{ownerType.Name}.{prop.Name}",
+                                        prop.Name,
                                         "Property",
                                         prop.PropertyType?.Name ?? "",
-                                        $"{ownerType.Name}.{prop.Name}=\"$1\"",
+                                        $"{prop.Name}=\"$1\"",
                                         $"Attached property {prop.Name} of type {prop.PropertyType?.Name}."
                                     ));
                                 }

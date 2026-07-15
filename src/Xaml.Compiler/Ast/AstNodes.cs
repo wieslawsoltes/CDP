@@ -307,6 +307,7 @@ namespace Xaml.Compiler.Ast
             {
                 sb.Append(QuoteChar);
                 var valueStr = ValueNode.ToFullString();
+                valueStr = valueStr.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
                 if (QuoteChar == '"')
                 {
                     valueStr = valueStr.Replace("\"", "&quot;");

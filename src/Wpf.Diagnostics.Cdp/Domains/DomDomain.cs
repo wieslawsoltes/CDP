@@ -213,6 +213,81 @@ public static class DomDomain
                     return new JsonObject { ["outerHTML"] = html };
                 }
 
+            case "setAttributeValue":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    string value = @params["value"]?.GetValue<string>() ?? "";
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual != null)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                        {
+                            await session.MutationEngine.SetAttributeAsync(visual, name, value);
+                        }
+                        else
+                        {
+                            var adapter = new Adapters.WpfUiFrameworkAdapter(session.NodeMap);
+                            await adapter.ApplyAttributeLiveAsync(visual, name, value);
+                        }
+                    }
+                    return new JsonObject();
+                }
+
+            case "removeAttribute":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual != null)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                        {
+                            await session.MutationEngine.RemoveAttributeAsync(visual, name);
+                        }
+                        else
+                        {
+                            var adapter = new Adapters.WpfUiFrameworkAdapter(session.NodeMap);
+                            await adapter.RemoveAttributeLiveAsync(visual, name);
+                        }
+                    }
+                    return new JsonObject();
+                }
+
+            case "removeNode":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual != null)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                        {
+                            await session.MutationEngine.RemoveNodeAsync(visual);
+                        }
+                        else
+                        {
+                            var adapter = new Adapters.WpfUiFrameworkAdapter(session.NodeMap);
+                            await adapter.RemoveNodeLiveAsync(visual);
+                        }
+                    }
+                    return new JsonObject();
+                }
+
+            case "setOuterHTML":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string outerHtml = @params["outerHTML"]?.GetValue<string>() ?? "";
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual != null)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                        {
+                            await session.MutationEngine.SetOuterHtmlAsync(visual, outerHtml);
+                        }
+                    }
+                    return new JsonObject();
+                }
+
             default:
                 throw new Exception($"Method DOM.{action} is not implemented");
         }

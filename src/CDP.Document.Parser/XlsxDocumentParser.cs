@@ -228,6 +228,11 @@ public class XlsxDocumentParser : IDocumentParser
 
     private static string GetCellValue(Cell cell, string[]? sharedStrings)
     {
+        if (cell.DataType != null && cell.DataType.Value == CellValues.InlineString)
+        {
+            return cell.InlineString?.Text?.Text ?? cell.InlineString?.InnerText ?? cell.CellValue?.Text ?? string.Empty;
+        }
+
         var val = cell.CellValue?.Text;
         if (val == null) return string.Empty;
 

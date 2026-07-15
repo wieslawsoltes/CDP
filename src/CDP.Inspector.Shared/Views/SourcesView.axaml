@@ -169,7 +169,7 @@
                     </ScrollViewer>
                     <ScrollViewer IsVisible="{Binding Sources.IsDocumentPreviewMode}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                         <doc:DocumentEditor Name="docVisualEditor"
-                                            FilePath="{Binding Sources.SelectedFilePath}"
+                                            FilePath="{Binding Sources.LocalPreviewFilePath}"
                                             IsReadOnly="True"
                                             VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
                     </ScrollViewer>

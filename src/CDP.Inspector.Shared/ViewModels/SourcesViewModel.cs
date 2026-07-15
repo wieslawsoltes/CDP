@@ -45,6 +45,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private bool _isSaving = false;
     private string? _pendingSaveContent = null;
     private string? _pendingSavePath = null;
+    private string? _localPreviewFilePath = null;
+    private bool _isLoadingContent = false;
 
     private int? _pendingScrollLine;
     private bool _isDebuggerPaused;
@@ -154,6 +156,23 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     public bool IsMarkdownFile => SelectedFileName != null && SelectedFileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
 
+    public bool IsBinaryDocumentFile => SelectedFileName != null && (
+        SelectedFileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ||
+        SelectedFileName.EndsWith(".pptx", StringComparison.OrdinalIgnoreCase) ||
+        SelectedFileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
+
+    public string? LocalPreviewFilePath
+    {
+        get => _localPreviewFilePath;
+        set => RaiseAndSetIfChanged(ref _localPreviewFilePath, value);
+    }
+
+    public bool IsLoadingContent
+    {
+        get => _isLoadingContent;
+        set => RaiseAndSetIfChanged(ref _isLoadingContent, value);
+    }
+
     private static readonly string[] DocumentExtensions = { ".docx", ".rtf", ".pptx", ".xlsx" };
 
     public bool IsDocumentFile
@@ -204,6 +223,19 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             if (RaiseAndSetIfChanged(ref _selectedFile, value))
             {
+                if (_localPreviewFilePath != null)
+                {
+                    try
+                    {
+                        if (System.IO.File.Exists(_localPreviewFilePath))
+                        {
+                            System.IO.File.Delete(_localPreviewFilePath);
+                        }
+                    }
+                    catch { }
+                    LocalPreviewFilePath = null;
+                }
+
                 SelectedFileName = value?.Name ?? "Select a file from workspace";
                 _ = LoadFileContentAsync();
 
@@ -762,8 +794,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             return;
         }
 
+        IsLoadingContent = true;
         SelectedFileName = SelectedFile.Name;
         SelectedFileContent = "Loading content...";
+        LocalPreviewFilePath = null;
 
         try
         {
@@ -772,12 +806,30 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (response != null)
             {
                 string content = response["content"]?.GetValue<string>() ?? "";
-                SelectedFileContent = content;
+                bool base64Encoded = response["base64Encoded"]?.GetValue<bool>() ?? false;
+
+                if (base64Encoded || IsBinaryDocumentFile)
+                {
+                    byte[] bytes = Convert.FromBase64String(content);
+                    string ext = System.IO.Path.GetExtension(SelectedFileName);
+                    string tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"cdp_preview_{Guid.NewGuid()}{ext}");
+                    await System.IO.File.WriteAllBytesAsync(tempFile, bytes);
+                    LocalPreviewFilePath = tempFile;
+                    SelectedFileContent = $"(Binary file loaded to {tempFile})";
+                }
+                else
+                {
+                    SelectedFileContent = content;
+                }
             }
         }
         catch (Exception ex)
         {
             SelectedFileContent = $"Error loading content: {ex.Message}";
+        }
+        finally
+        {
+            IsLoadingContent = false;
         }
     }
 

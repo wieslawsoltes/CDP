@@ -174,6 +174,10 @@ public partial class SourcesView : UserControl
                     var text = mdVisual.Text;
                     if (toggle != null && toggle.IsChecked == true && editor != null && text != null)
                     {
+                        if (DataContext is MainWindowViewModel vm && vm.Sources.IsLoadingContent)
+                        {
+                            return;
+                        }
                         if (editor.Text != text)
                         {
                             editor.Text = text;
@@ -399,6 +403,11 @@ public partial class SourcesView : UserControl
     {
         if (DataContext is MainWindowViewModel vm)
         {
+            if (vm.Sources.IsBinaryDocumentFile)
+            {
+                return;
+            }
+
             string editorText;
             var mdVisual = MdVisualEditor;
             var toggle = BtnToggleMarkdownMode;
