@@ -1,12 +1,36 @@
 using System;
+using System.Collections.Generic;
+using CDP.Editor.Splits.Models;
+using CdpInspectorApp.Controls;
 
 namespace CdpGalleryApp.ViewModels;
 
 public class ChartsPageViewModel : ViewModelBase
 {
     private readonly double[] _timelineHistory;
+    private SplitNode? _splitRoot;
+    private BoxNode? _selectedPane;
+    private IEnumerable<FlameBlock>? _flameBlocks;
 
-    public System.Collections.Generic.IEnumerable<double> TimelineHistory => _timelineHistory;
+    public IEnumerable<double> TimelineHistory => _timelineHistory;
+
+    public SplitNode? SplitRoot
+    {
+        get => _splitRoot;
+        set => RaiseAndSetIfChanged(ref _splitRoot, value);
+    }
+
+    public BoxNode? SelectedPane
+    {
+        get => _selectedPane;
+        set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
+    public IEnumerable<FlameBlock>? FlameBlocks
+    {
+        get => _flameBlocks;
+        set => RaiseAndSetIfChanged(ref _flameBlocks, value);
+    }
 
     public ChartsPageViewModel()
     {
@@ -17,6 +41,56 @@ public class ChartsPageViewModel : ViewModelBase
             30.0, 25.0, 22.0, 28.0, 34.0, 40.0, 48.0, 55.0, 62.0, 75.0,
             80.0, 72.0, 65.0, 58.0, 50.0, 45.0, 42.0, 38.0, 35.0, 30.0,
             28.0, 25.0, 27.0, 32.0, 38.0, 45.0, 50.0, 55.0, 60.0, 65.0
+        };
+
+        // Initialize Flame Chart mock data
+        InitializeFlameBlocks();
+
+        // Initialize SuperSplit layout tree mapping each chart type to a BoxNode
+        var panelCpu = new BoxNode("CPU", "CPU Profiling (Pie Chart)", "TimerIcon");
+        var panelMem = new BoxNode("Memory", "Memory generations (Bar Chart)", "DeveloperBoardIcon");
+        var panelTime = new BoxNode("Timeline", "History over time (Line Chart)", "HistoryIcon");
+        var panelFlame = new BoxNode("Flame", "Call Tree Profile (Flame Chart)", "FlowchartIcon");
+
+        var leftSplit = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, panelCpu, panelMem)
+        {
+            SplitterRatio = 0.5
+        };
+
+        var rightSplit = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, panelTime, panelFlame)
+        {
+            SplitterRatio = 0.5
+        };
+
+        _splitRoot = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, leftSplit, rightSplit)
+        {
+            SplitterRatio = 0.5
+        };
+
+        _selectedPane = panelCpu;
+    }
+
+    private void InitializeFlameBlocks()
+    {
+        _flameBlocks = new List<FlameBlock>
+        {
+            // Depth 0
+            new FlameBlock { Name = "Main", Url = "program.cs:10", StartTimeMs = 0, EndTimeMs = 100, Depth = 0, SelfTimeMs = 0, SelfTimePct = 0, TotalTimeMs = 100, TotalTimePct = 100 },
+            
+            // Depth 1
+            new FlameBlock { Name = "Run", Url = "runner.cs:22", StartTimeMs = 0, EndTimeMs = 60, Depth = 1, SelfTimeMs = 0, SelfTimePct = 0, TotalTimeMs = 60, TotalTimePct = 60 },
+            new FlameBlock { Name = "Cleanup", Url = "cleanup.cs:12", StartTimeMs = 60, EndTimeMs = 100, Depth = 1, SelfTimeMs = 25, SelfTimePct = 62.5, TotalTimeMs = 40, TotalTimePct = 40 },
+            
+            // Depth 2
+            new FlameBlock { Name = "Parse", Url = "parser.cs:55", StartTimeMs = 0, EndTimeMs = 30, Depth = 2, SelfTimeMs = 0, SelfTimePct = 0, TotalTimeMs = 30, TotalTimePct = 30 },
+            new FlameBlock { Name = "Execute", Url = "executor.cs:8", StartTimeMs = 30, EndTimeMs = 60, Depth = 2, SelfTimeMs = 15, SelfTimePct = 50, TotalTimeMs = 30, TotalTimePct = 30 },
+            new FlameBlock { Name = "Dispose", Url = "dispose.cs:5", StartTimeMs = 65, EndTimeMs = 80, Depth = 2, SelfTimeMs = 15, SelfTimePct = 100, TotalTimeMs = 15, TotalTimePct = 15 },
+            
+            // Depth 3
+            new FlameBlock { Name = "Tokenize", Url = "lexer.cs:40", StartTimeMs = 0, EndTimeMs = 15, Depth = 3, SelfTimeMs = 15, SelfTimePct = 100, TotalTimeMs = 15, TotalTimePct = 15 },
+            new FlameBlock { Name = "BuildAST", Url = "ast.cs:105", StartTimeMs = 15, EndTimeMs = 30, Depth = 3, SelfTimeMs = 15, SelfTimePct = 100, TotalTimeMs = 15, TotalTimePct = 15 },
+            new FlameBlock { Name = "ResolveReferences", Url = "binder.cs:64", StartTimeMs = 35, EndTimeMs = 50, Depth = 3, SelfTimeMs = 15, SelfTimePct = 100, TotalTimeMs = 15, TotalTimePct = 15 },
+            new FlameBlock { Name = "WriteOutput", Url = "writer.cs:98", StartTimeMs = 50, EndTimeMs = 60, Depth = 3, SelfTimeMs = 10, SelfTimePct = 100, TotalTimeMs = 10, TotalTimePct = 10 }
         };
     }
 

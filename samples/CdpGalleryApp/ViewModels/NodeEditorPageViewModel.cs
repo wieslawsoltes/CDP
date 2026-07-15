@@ -1,11 +1,382 @@
 using System;
+using System.Collections.ObjectModel;
+using System.Windows.Input;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Threading;
 using CDP.Editor.Nodes.ViewModels;
 
 namespace CdpGalleryApp.ViewModels;
 
+public class LogicPinViewModel : PinViewModel
+{
+    private bool _value;
+    public bool Value
+    {
+        get => _value;
+        set => RaiseAndSetIfChanged(ref _value, value);
+    }
+}
+
+public abstract class LogicNodeViewModel : NodeViewModel
+{
+    public abstract void UpdateLogic();
+}
+
+public class SwitchNodeViewModel : LogicNodeViewModel
+{
+    public SwitchNodeViewModel()
+    {
+        Name = "Switch";
+        Width = 130;
+        Height = 75;
+        Background = Brush.Parse("#1a237e");
+        TitleBackground = Brush.Parse("#283593");
+
+        Outputs.Add(new LogicPinViewModel { Name = "Out", Kind = PinKind.Output, Owner = this, Index = 0 });
+
+        var toggle = new ToggleButton
+        {
+            Content = "OFF",
+            Width = 70,
+            Height = 28,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = Brush.Parse("#2d2d2d"),
+            Foreground = Brush.Parse("#e8eaed")
+        };
+        toggle.Click += (s, e) =>
+        {
+            bool isChecked = toggle.IsChecked ?? false;
+            toggle.Content = isChecked ? "ON" : "OFF";
+            toggle.Background = isChecked ? Brush.Parse("#4caf50") : Brush.Parse("#2d2d2d");
+        };
+        Content = toggle;
+    }
+
+    public override void UpdateLogic()
+    {
+        var isChecked = (Content as ToggleButton)?.IsChecked ?? false;
+        if (Outputs.Count > 0 && Outputs[0] is LogicPinViewModel outPin)
+        {
+            outPin.Value = isChecked;
+        }
+    }
+}
+
+public class ClockNodeViewModel : LogicNodeViewModel
+{
+    private int _tickCount = 0;
+
+    public ClockNodeViewModel()
+    {
+        Name = "Clock";
+        Width = 130;
+        Height = 75;
+        Background = Brush.Parse("#4a148c");
+        TitleBackground = Brush.Parse("#6a1b9a");
+
+        Outputs.Add(new LogicPinViewModel { Name = "CLK", Kind = PinKind.Output, Owner = this, Index = 0 });
+
+        var tb = new TextBlock
+        {
+            Text = "CLK: 0",
+            FontWeight = FontWeight.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brush.Parse("#ffd54f")
+        };
+        Content = tb;
+    }
+
+    public override void UpdateLogic()
+    {
+        _tickCount++;
+        if (_tickCount >= 5) // Toggle state every 5 ticks (500ms)
+        {
+            _tickCount = 0;
+            if (Outputs.Count > 0 && Outputs[0] is LogicPinViewModel outPin)
+            {
+                outPin.Value = !outPin.Value;
+                if (Content is TextBlock tb)
+                {
+                    tb.Text = $"CLK: {(outPin.Value ? "1" : "0")}";
+                }
+            }
+        }
+    }
+}
+
+public class AndGateNodeViewModel : LogicNodeViewModel
+{
+    public AndGateNodeViewModel()
+    {
+        Name = "AND Gate";
+        Width = 130;
+        Height = 85;
+        Background = Brush.Parse("#2e7d32");
+        TitleBackground = Brush.Parse("#1b5e20");
+
+        Inputs.Add(new LogicPinViewModel { Name = "A", Kind = PinKind.Input, Owner = this, Index = 0 });
+        Inputs.Add(new LogicPinViewModel { Name = "B", Kind = PinKind.Input, Owner = this, Index = 1 });
+        Outputs.Add(new LogicPinViewModel { Name = "Out", Kind = PinKind.Output, Owner = this, Index = 0 });
+
+        Content = new TextBlock
+        {
+            Text = "AND",
+            FontWeight = FontWeight.Bold,
+            FontSize = 14,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brush.Parse("#e8eaed")
+        };
+    }
+
+    public override void UpdateLogic()
+    {
+        if (Inputs.Count >= 2 && Outputs.Count >= 1 &&
+            Inputs[0] is LogicPinViewModel inA &&
+            Inputs[1] is LogicPinViewModel inB &&
+            Outputs[0] is LogicPinViewModel outPin)
+        {
+            outPin.Value = inA.Value && inB.Value;
+        }
+    }
+}
+
+public class OrGateNodeViewModel : LogicNodeViewModel
+{
+    public OrGateNodeViewModel()
+    {
+        Name = "OR Gate";
+        Width = 130;
+        Height = 85;
+        Background = Brush.Parse("#c62828");
+        TitleBackground = Brush.Parse("#b71c1c");
+
+        Inputs.Add(new LogicPinViewModel { Name = "A", Kind = PinKind.Input, Owner = this, Index = 0 });
+        Inputs.Add(new LogicPinViewModel { Name = "B", Kind = PinKind.Input, Owner = this, Index = 1 });
+        Outputs.Add(new LogicPinViewModel { Name = "Out", Kind = PinKind.Output, Owner = this, Index = 0 });
+
+        Content = new TextBlock
+        {
+            Text = "OR",
+            FontWeight = FontWeight.Bold,
+            FontSize = 14,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brush.Parse("#e8eaed")
+        };
+    }
+
+    public override void UpdateLogic()
+    {
+        if (Inputs.Count >= 2 && Outputs.Count >= 1 &&
+            Inputs[0] is LogicPinViewModel inA &&
+            Inputs[1] is LogicPinViewModel inB &&
+            Outputs[0] is LogicPinViewModel outPin)
+        {
+            outPin.Value = inA.Value || inB.Value;
+        }
+    }
+}
+
+public class NotGateNodeViewModel : LogicNodeViewModel
+{
+    public NotGateNodeViewModel()
+    {
+        Name = "NOT Gate";
+        Width = 130;
+        Height = 75;
+        Background = Brush.Parse("#ef6c00");
+        TitleBackground = Brush.Parse("#e65100");
+
+        Inputs.Add(new LogicPinViewModel { Name = "In", Kind = PinKind.Input, Owner = this, Index = 0 });
+        Outputs.Add(new LogicPinViewModel { Name = "Out", Kind = PinKind.Output, Owner = this, Index = 0 });
+
+        Content = new TextBlock
+        {
+            Text = "NOT",
+            FontWeight = FontWeight.Bold,
+            FontSize = 14,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brush.Parse("#e8eaed")
+        };
+    }
+
+    public override void UpdateLogic()
+    {
+        if (Inputs.Count >= 1 && Outputs.Count >= 1 &&
+            Inputs[0] is LogicPinViewModel inPin &&
+            Outputs[0] is LogicPinViewModel outPin)
+        {
+            outPin.Value = !inPin.Value;
+        }
+    }
+}
+
+public class DFlipFlopNodeViewModel : LogicNodeViewModel
+{
+    private bool _prevClk = false;
+    private bool _q = false;
+
+    public DFlipFlopNodeViewModel()
+    {
+        Name = "D Flip-Flop";
+        Width = 140;
+        Height = 95;
+        Background = Brush.Parse("#00838f");
+        TitleBackground = Brush.Parse("#006064");
+
+        Inputs.Add(new LogicPinViewModel { Name = "D", Kind = PinKind.Input, Owner = this, Index = 0 });
+        Inputs.Add(new LogicPinViewModel { Name = "CLK", Kind = PinKind.Input, Owner = this, Index = 1 });
+        Outputs.Add(new LogicPinViewModel { Name = "Q", Kind = PinKind.Output, Owner = this, Index = 0 });
+        Outputs.Add(new LogicPinViewModel { Name = "Q'", Kind = PinKind.Output, Owner = this, Index = 1 });
+
+        Content = new TextBlock
+        {
+            Text = "D-FF\nQ: 0  Q': 1",
+            FontWeight = FontWeight.Bold,
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brush.Parse("#e8eaed")
+        };
+    }
+
+    public override void UpdateLogic()
+    {
+        if (Inputs.Count >= 2 && Outputs.Count >= 2 &&
+            Inputs[0] is LogicPinViewModel inD &&
+            Inputs[1] is LogicPinViewModel inClk &&
+            Outputs[0] is LogicPinViewModel outQ &&
+            Outputs[1] is LogicPinViewModel outQBar)
+        {
+            bool clk = inClk.Value;
+            if (!_prevClk && clk) // Rising Edge
+            {
+                _q = inD.Value;
+            }
+            _prevClk = clk;
+
+            outQ.Value = _q;
+            outQBar.Value = !_q;
+
+            if (Content is TextBlock tb)
+            {
+                tb.Text = $"D-FF\nQ: {(_q ? "1" : "0")}  Q': {(!_q ? "1" : "0")}";
+            }
+        }
+    }
+}
+
+public class JkFlipFlopNodeViewModel : LogicNodeViewModel
+{
+    private bool _prevClk = false;
+    private bool _q = false;
+
+    public JkFlipFlopNodeViewModel()
+    {
+        Name = "JK Flip-Flop";
+        Width = 145;
+        Height = 105;
+        Background = Brush.Parse("#37474f");
+        TitleBackground = Brush.Parse("#263238");
+
+        Inputs.Add(new LogicPinViewModel { Name = "J", Kind = PinKind.Input, Owner = this, Index = 0 });
+        Inputs.Add(new LogicPinViewModel { Name = "K", Kind = PinKind.Input, Owner = this, Index = 1 });
+        Inputs.Add(new LogicPinViewModel { Name = "CLK", Kind = PinKind.Input, Owner = this, Index = 2 });
+        Outputs.Add(new LogicPinViewModel { Name = "Q", Kind = PinKind.Output, Owner = this, Index = 0 });
+        Outputs.Add(new LogicPinViewModel { Name = "Q'", Kind = PinKind.Output, Owner = this, Index = 1 });
+
+        Content = new TextBlock
+        {
+            Text = "JK-FF\nQ: 0  Q': 1",
+            FontWeight = FontWeight.Bold,
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brush.Parse("#e8eaed")
+        };
+    }
+
+    public override void UpdateLogic()
+    {
+        if (Inputs.Count >= 3 && Outputs.Count >= 2 &&
+            Inputs[0] is LogicPinViewModel inJ &&
+            Inputs[1] is LogicPinViewModel inK &&
+            Inputs[2] is LogicPinViewModel inClk &&
+            Outputs[0] is LogicPinViewModel outQ &&
+            Outputs[1] is LogicPinViewModel outQBar)
+        {
+            bool clk = inClk.Value;
+            if (!_prevClk && clk) // Rising Edge
+            {
+                bool j = inJ.Value;
+                bool k = inK.Value;
+                if (j && k) _q = !_q;
+                else if (j) _q = true;
+                else if (k) _q = false;
+            }
+            _prevClk = clk;
+
+            outQ.Value = _q;
+            outQBar.Value = !_q;
+
+            if (Content is TextBlock tb)
+            {
+                tb.Text = $"JK-FF\nQ: {(_q ? "1" : "0")}  Q': {(!_q ? "1" : "0")}";
+            }
+        }
+    }
+}
+
+public class LedNodeViewModel : LogicNodeViewModel
+{
+    public LedNodeViewModel()
+    {
+        Name = "LED Output";
+        Width = 120;
+        Height = 75;
+        Background = Brush.Parse("#4e342e");
+        TitleBackground = Brush.Parse("#3e2723");
+
+        Inputs.Add(new LogicPinViewModel { Name = "In", Kind = PinKind.Input, Owner = this, Index = 0 });
+
+        var ledBulb = new Border
+        {
+            Width = 32,
+            Height = 32,
+            CornerRadius = new CornerRadius(16),
+            Background = Brush.Parse("#3c4043"),
+            BorderBrush = Brush.Parse("#5f6368"),
+            BorderThickness = new Thickness(2),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Content = ledBulb;
+    }
+
+    public override void UpdateLogic()
+    {
+        if (Inputs.Count >= 1 && Inputs[0] is LogicPinViewModel inPin && Content is Border led)
+        {
+            bool val = inPin.Value;
+            led.Background = val ? Brush.Parse("#ff1744") : Brush.Parse("#3c4043");
+            led.BorderBrush = val ? Brush.Parse("#ff8a80") : Brush.Parse("#5f6368");
+        }
+    }
+}
+
 public class NodeEditorPageViewModel : ViewModelBase
 {
     private NodeEditorViewModel _nodeEditorVm;
+    private DispatcherTimer _timer;
+    private bool _isRunning = true;
 
     public NodeEditorViewModel NodeEditorVm
     {
@@ -13,44 +384,128 @@ public class NodeEditorPageViewModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _nodeEditorVm, value);
     }
 
+    public bool IsRunning
+    {
+        get => _isRunning;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isRunning, value))
+            {
+                if (value) _timer.Start();
+                else _timer.Stop();
+            }
+        }
+    }
+
+    public ICommand ToggleRunCommand { get; }
+    public ICommand StepCommand { get; }
+    public ICommand ClearCommand { get; }
+    public ICommand AddLogicNodeCommand { get; }
+
     public NodeEditorPageViewModel()
     {
         _nodeEditorVm = new NodeEditorViewModel();
 
-        // 1. Add Source Node
-        var node1 = new NodeViewModel
-        {
-            Name = "Source Node",
-            Icon = "M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2M13 9V3.5L18.5 9H13M6 20V4H12V10H18V20H6",
-            X = 80,
-            Y = 120,
-            Width = 160,
-            Height = 100
-        };
-        node1.Inputs.Add(new PinViewModel { Name = "Data In", Kind = PinKind.Input, Owner = node1, Index = 0 });
-        node1.Outputs.Add(new PinViewModel { Name = "Data Out", Kind = PinKind.Output, Owner = node1, Index = 0 });
-        _nodeEditorVm.Nodes.Add(node1);
+        // Register default creator handler to generate Switch logic nodes when user requests a new node
+        _nodeEditorVm.CreateNodeHandler = () => new SwitchNodeViewModel();
 
-        // 2. Add Process Node
-        var node2 = new NodeViewModel
-        {
-            Name = "Process Node",
-            Icon = "M12.0122 2.25C12.7462 2.25846 13.4773 2.34326 14.1937 2.50304C14.5064 2.57279 14.7403 2.83351 14.7758 3.15196L14.946 4.67881C15.0231 5.37986 15.615 5.91084 16.3206 5.91158C16.5103 5.91188 16.6979 5.87238 16.8732 5.79483L18.2738 5.17956C18.5651 5.05159 18.9055 5.12136 19.1229 5.35362C20.1351 6.43464 20.8889 7.73115 21.3277 9.14558C21.4223 9.45058 21.3134 9.78203 21.0564 9.9715L19.8149 10.8866C19.4607 11.1468 19.2516 11.56 19.2516 11.9995C19.2516 12.4389 19.4607 12.8521 19.8157 13.1129L21.0582 14.0283C21.3153 14.2177 21.4243 14.5492 21.3297 14.8543C20.8911 16.2685 20.1377 17.5649 19.1261 18.6461C18.9089 18.8783 18.5688 18.9483 18.2775 18.8206L16.8712 18.2045C16.4688 18.0284 16.0068 18.0542 15.6265 18.274C15.2463 18.4937 14.9933 18.8812 14.945 19.3177L14.7759 20.8444C14.741 21.1592 14.5122 21.4182 14.204 21.4915C12.7556 21.8361 11.2465 21.8361 9.79803 21.4915C9.48991 21.4182 9.26105 21.1592 9.22618 20.8444L9.22618 20.8444L9.05736 19.32C9.00777 18.8843 8.75434 18.498 8.37442 18.279C7.99451 18.06 7.5332 18.0343 7.1322 18.2094L5.72557 18.8256C5.43422 18.9533 5.09403 18.8833 4.87678 18.6509C3.86462 17.5685 3.11119 16.2705 2.6732 14.8548C2.57886 14.5499 2.68786 14.2186 2.94485 14.0293L4.18818 13.1133C4.54232 12.8531 4.75147 12.4399 4.75147 12.0005C4.75147 11.561 4.54232 11.1478 4.18771 10.8873L2.94516 9.97285C2.6878 9.78345 2.5787 9.45178 2.67337 9.14658C3.11212 7.73215 3.86594 6.43564 4.87813 5.35462C5.09559 5.12236 5.43594 5.05259 5.72724 5.18056L7.12762 5.79572C7.53056 5.97256 7.9938 5.94585 8.37577 5.72269C8.75609 5.50209 9.00929 5.11422 9.05817 4.67764L9.22824 3.15196C9.26376 2.83335 9.49786 2.57254 9.8108 2.50294C10.5281 2.34342 11.26 2.25865 12.0122 2.25ZM12.0124 3.7499C11.5583 3.75524 11.1056 3.79443 10.6578 3.86702L10.5489 4.84418C10.4471 5.75368 9.92003 6.56102 9.13042 7.01903C8.33597 7.48317 7.36736 7.53903 6.52458 7.16917L5.62629 6.77456C5.05436 7.46873 4.59914 8.25135 4.27852 9.09168L5.07632 9.67879C5.81513 10.2216 6.25147 11.0837 6.25147 12.0005C6.25147 12.9172 5.81513 13.7793 5.0771 14.3215L4.27805 14.9102C4.59839 15.752 5.05368 16.5361 5.626 17.2316L6.53113 16.8351C7.36923 16.4692 8.33124 16.5227 9.12353 16.9794C9.91581 17.4361 10.4443 18.2417 10.548 19.1526L10.657 20.1365C11.5466 20.2878 12.4555 20.2878 13.3451 20.1365L13.4541 19.1527C13.5549 18.2421 14.0828 17.4337 14.876 16.9753C15.6692 16.5168 16.6332 16.463 17.4728 16.8305L18.3772 17.2267C18.949 16.5323 19.4041 15.7495 19.7247 14.909L18.9267 14.3211C18.1879 13.7783 17.7516 12.9162 17.7516 11.9995C17.7516 11.0827 18.1879 10.2206 18.9258 9.67847L19.7227 9.09109C19.4021 8.25061 18.9468 7.46784 18.3748 6.77356L17.4783 7.16737C17.113 7.32901 16.7178 7.4122 16.3187 7.41158C14.849 7.41004 13.6155 6.30355 13.4551 4.84383L13.3462 3.8667C12.9007 3.7942 12.4526 3.75512 12.0124 3.7499ZM11.9997 8.24995C14.0708 8.24995 15.7497 9.92888 15.7497 12C15.7497 14.071 14.0708 15.75 11.9997 15.75C9.92863 15.75 8.2497 14.071 8.2497 12C8.2497 9.92888 9.92863 8.24995 11.9997 8.24995ZM11.9997 9.74995C10.7571 9.74995 9.7497 10.7573 9.7497 12C9.7497 13.2426 10.7571 14.25 11.9997 14.25C13.2423 14.25 14.2497 13.2426 14.2497 12C14.2497 10.7573 13.2423 9.74995 11.9997 9.74995Z",
-            X = 320,
-            Y = 180,
-            Width = 160,
-            Height = 100
-        };
-        node2.Inputs.Add(new PinViewModel { Name = "Input A", Kind = PinKind.Input, Owner = node2, Index = 0 });
-        node2.Outputs.Add(new PinViewModel { Name = "Result Out", Kind = PinKind.Output, Owner = node2, Index = 0 });
-        _nodeEditorVm.Nodes.Add(node2);
+        // Spawn default logic circuit (Switch -> AND -> LED)
+        var toggle1 = new SwitchNodeViewModel { X = 50, Y = 100 };
+        var toggle2 = new SwitchNodeViewModel { X = 50, Y = 220 };
+        var andGate = new AndGateNodeViewModel { X = 240, Y = 150 };
+        var ledOut = new LedNodeViewModel { X = 430, Y = 155 };
 
-        // 3. Connect them via a Bezier connection
-        var connection = new ConnectionViewModel
+        _nodeEditorVm.Nodes.Add(toggle1);
+        _nodeEditorVm.Nodes.Add(toggle2);
+        _nodeEditorVm.Nodes.Add(andGate);
+        _nodeEditorVm.Nodes.Add(ledOut);
+
+        _nodeEditorVm.Connections.Add(new ConnectionViewModel { FromPin = toggle1.Outputs[0], ToPin = andGate.Inputs[0] });
+        _nodeEditorVm.Connections.Add(new ConnectionViewModel { FromPin = toggle2.Outputs[0], ToPin = andGate.Inputs[1] });
+        _nodeEditorVm.Connections.Add(new ConnectionViewModel { FromPin = andGate.Outputs[0], ToPin = ledOut.Inputs[0] });
+
+        // Commands
+        ToggleRunCommand = new RelayCommand(() => IsRunning = !IsRunning);
+        StepCommand = new RelayCommand(RunSimulationStep);
+        ClearCommand = new RelayCommand(ClearCircuit);
+        AddLogicNodeCommand = new RelayCommand<string>(ExecuteAddLogicNode);
+
+        // Simulation Loop Timer (every 100ms)
+        _timer = new DispatcherTimer
         {
-            FromPin = node1.Outputs[0],
-            ToPin = node2.Inputs[0]
+            Interval = TimeSpan.FromMilliseconds(100)
         };
-        _nodeEditorVm.Connections.Add(connection);
+        _timer.Tick += (s, e) => RunSimulationStep();
+        _timer.Start();
+    }
+
+    private void RunSimulationStep()
+    {
+        // 1. Propagate connection values
+        foreach (var conn in NodeEditorVm.Connections)
+        {
+            if (conn.FromPin is LogicPinViewModel fromPin && conn.ToPin is LogicPinViewModel toPin)
+            {
+                toPin.Value = fromPin.Value;
+            }
+        }
+
+        // 2. Execute logic tick of each node
+        foreach (var node in NodeEditorVm.Nodes)
+        {
+            if (node is LogicNodeViewModel logicNode)
+            {
+                logicNode.UpdateLogic();
+            }
+        }
+    }
+
+    private void ClearCircuit()
+    {
+        NodeEditorVm.Connections.Clear();
+        NodeEditorVm.Nodes.Clear();
+    }
+
+    private void ExecuteAddLogicNode(string? type)
+    {
+        if (string.IsNullOrEmpty(type)) return;
+
+        LogicNodeViewModel node = type switch
+        {
+            "Switch" => new SwitchNodeViewModel(),
+            "Clock" => new ClockNodeViewModel(),
+            "AND" => new AndGateNodeViewModel(),
+            "OR" => new OrGateNodeViewModel(),
+            "NOT" => new NotGateNodeViewModel(),
+            "DFF" => new DFlipFlopNodeViewModel(),
+            "JKFF" => new JkFlipFlopNodeViewModel(),
+            "LED" => new LedNodeViewModel(),
+            _ => new SwitchNodeViewModel()
+        };
+
+        // Offset spawn positions sequentially to prevent overlapping
+        int count = NodeEditorVm.Nodes.Count;
+        node.X = 120 + (count % 4) * 80;
+        node.Y = 100 + (count % 4) * 60;
+
+        NodeEditorVm.Nodes.Add(node);
+    }
+
+    private class RelayCommand : ICommand
+    {
+        private readonly Action _execute;
+        public RelayCommand(Action execute) => _execute = execute;
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => _execute();
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+    }
+
+    private class RelayCommand<T> : ICommand
+    {
+        private readonly Action<T?> _execute;
+        public RelayCommand(Action<T?> execute) => _execute = execute;
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => _execute((T?)parameter);
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
     }
 }

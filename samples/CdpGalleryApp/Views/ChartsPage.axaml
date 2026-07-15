@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
-             xmlns:charts="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
              x:Class="CdpGalleryApp.Views.ChartsPage"
              x:DataType="vm:ChartsPageViewModel"
              x:CompileBindings="True">
@@ -9,117 +9,17 @@
     <Grid RowDefinitions="Auto, *">
         <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
             <StackPanel Orientation="Horizontal" Spacing="10">
-                <TextBlock Text="Performance Charts" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
+                <TextBlock Text="Performance Charts Showcase" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
                 <Separator Width="1" Height="16" Background="#3c4043"/>
-                <TextBlock Text="Interactive sliders update properties to dynamically redraw Skia-rendered charts." FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                <TextBlock Text="Charts are docked dynamically in a SuperSplit layout. Drag tabs to re-organize, or split layout using right-click context options." FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="1" Margin="16">
-            <Grid ColumnDefinitions="*, *" RowDefinitions="Auto, Auto, Auto" Margin="0,0,0,20">
-                
-                <!-- CPU Pie Chart Panel -->
-                <Border Grid.Row="0" Grid.Column="0" Margin="0,0,12,12" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" Padding="16">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="CPU Profiling Metrics (Pie Chart)" FontWeight="SemiBold" FontSize="12" Foreground="#8ab4f8"/>
-                        
-                        <Border Background="#121212" CornerRadius="4" Padding="10" Height="220">
-                            <!-- Custom Pie Chart -->
-                            <charts:CpuPieChart CpuScripting="{Binding CpuScripting}"
-                                               CpuRendering="{Binding CpuRendering}"
-                                               CpuLayout="{Binding CpuLayout}"
-                                               CpuSystem="{Binding CpuSystem}"
-                                               CpuIdle="{Binding CpuIdle}"/>
-                        </Border>
-                    </StackPanel>
-                </Border>
-
-                <!-- CPU Sliders Control Panel -->
-                <Border Grid.Row="0" Grid.Column="1" Margin="0,0,0,12" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" Padding="16">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="Adjust CPU Values" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
-                        
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding CpuScripting, StringFormat='Scripting: {0:F0}%'}" FontSize="11" Foreground="#ffd54f"/>
-                            <Slider Minimum="0" Maximum="100" Value="{Binding CpuScripting, Mode=TwoWay}"/>
-                        </StackPanel>
-                        
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding CpuRendering, StringFormat='Rendering: {0:F0}%'}" FontSize="11" Foreground="#64b5f6"/>
-                            <Slider Minimum="0" Maximum="100" Value="{Binding CpuRendering, Mode=TwoWay}"/>
-                        </StackPanel>
-
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding CpuLayout, StringFormat='Layout: {0:F0}%'}" FontSize="11" Foreground="#81c784"/>
-                            <Slider Minimum="0" Maximum="100" Value="{Binding CpuLayout, Mode=TwoWay}"/>
-                        </StackPanel>
-
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding CpuSystem, StringFormat='System: {0:F0}%'}" FontSize="11" Foreground="#e57373"/>
-                            <Slider Minimum="0" Maximum="100" Value="{Binding CpuSystem, Mode=TwoWay}"/>
-                        </StackPanel>
-
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding CpuIdle, StringFormat='Idle: {0:F0}%'}" FontSize="11" Foreground="#90a4ae"/>
-                            <Slider Minimum="0" Maximum="100" Value="{Binding CpuIdle, Mode=TwoWay}"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-
-                <!-- Memory Generations Bar Chart Panel -->
-                <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,12,0,0" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" Padding="16">
-                    <Grid ColumnDefinitions="*, *">
-                        <StackPanel Grid.Column="0" Spacing="12" Margin="0,0,16,0">
-                            <TextBlock Text="GC Memory Allocations (Bar Chart)" FontWeight="SemiBold" FontSize="12" Foreground="#8ab4f8"/>
-                            <TextBlock Text="Hover over sections to see precise tooltips." FontSize="10" Foreground="#9aa0a6"/>
-                            
-                            <Border Background="#121212" CornerRadius="4" Padding="12" VerticalAlignment="Center">
-                                <!-- Custom Generations Bar Chart -->
-                                <charts:GenerationsBarChart Gen0Size="{Binding Gen0Size}"
-                                                           Gen1Size="{Binding Gen1Size}"
-                                                           Gen2Size="{Binding Gen2Size}"
-                                                           LohSize="{Binding LohSize}"
-                                                           Height="40"
-                                                           VerticalAlignment="Center"/>
-                            </Border>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1" Spacing="10">
-                            <TextBlock Text="Adjust Memory Allocations (MB)" FontWeight="SemiBold" FontSize="12" Foreground="#e8eaed"/>
-                            
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding Gen0SizeMb, StringFormat='Gen 0: {0:F1} MB'}" FontSize="11" Foreground="#4caf50"/>
-                                <Slider Minimum="0.1" Maximum="200" Value="{Binding Gen0SizeMb, Mode=TwoWay}"/>
-                            </StackPanel>
-                            
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding Gen1SizeMb, StringFormat='Gen 1: {0:F1} MB'}" FontSize="11" Foreground="#2196f3"/>
-                                <Slider Minimum="0.1" Maximum="200" Value="{Binding Gen1SizeMb, Mode=TwoWay}"/>
-                            </StackPanel>
-
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding Gen2SizeMb, StringFormat='Gen 2: {0:F1} MB'}" FontSize="11" Foreground="#ffeb3b"/>
-                                <Slider Minimum="0.1" Maximum="500" Value="{Binding Gen2SizeMb, Mode=TwoWay}"/>
-                            </StackPanel>
-
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding LohSizeMb, StringFormat='LOH Size: {0:F1} MB'}" FontSize="11" Foreground="#ff9800"/>
-                                <Slider Minimum="0.1" Maximum="500" Value="{Binding LohSizeMb, Mode=TwoWay}"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- Timeline Chart Panel -->
-                <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,16,0,0" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" Padding="16">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="Performance Metric History over Time (Timeline Chart)" FontWeight="SemiBold" FontSize="12" Foreground="#8ab4f8"/>
-                        <Border Background="#121212" CornerRadius="4" Padding="12" Height="150">
-                            <charts:TimelineChart History="{Binding TimelineHistory}" FillColor="#208ab4f8" StrokeColor="#8ab4f8" Unit="ms" MaxDisplayValue="100"/>
-                        </Border>
-                    </StackPanel>
-                </Border>
-            </Grid>
-        </ScrollViewer>
+        <Border Grid.Row="1" Background="#121212" Padding="8">
+            <Border Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+                <!-- Dynamic SuperSplit Container for Charts -->
+                <splits:SuperSplit Name="SplitControl" Root="{Binding SplitRoot}" SelectedNode="{Binding SelectedPane, Mode=TwoWay}"/>
+            </Border>
+        </Border>
     </Grid>
 </UserControl>
