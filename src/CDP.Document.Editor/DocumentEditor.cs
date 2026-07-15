@@ -307,7 +307,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             _cachedWriteableBitmap?.Dispose();
             _cachedWriteableBitmap = new WriteableBitmap(
                 new PixelSize(pixelWidth, pixelHeight),
-                new Vector(96 * scaling, 96 * scaling),
+                new Vector(96, 96),
                 Avalonia.Platform.PixelFormat.Bgra8888,
                 AlphaFormat.Premul);
         }

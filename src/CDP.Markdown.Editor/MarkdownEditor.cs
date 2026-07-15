@@ -1178,7 +1178,7 @@ public class MarkdownEditor : Control, ILogicalScrollable
             _cachedWriteableBitmap?.Dispose();
             _cachedWriteableBitmap = new WriteableBitmap(
                 new PixelSize(pixelWidth, pixelHeight),
-                new Vector(96 * scaling, 96 * scaling),
+                new Vector(96, 96),
                 PixelFormat.Bgra8888,
                 AlphaFormat.Premul);
         }
