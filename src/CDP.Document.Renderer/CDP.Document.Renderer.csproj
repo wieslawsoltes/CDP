@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Document.Renderer</PackageId>
+    <Title>Chrome.DevTools.Document.Renderer</Title>
+    <Description>SkiaSharp-based document renderer for DOCX, RTF, PPTX, and XLSX ASTs.</Description>
+    <PackageTags>avalonia;cdp;document;renderer;skia</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CDP.Document.Parser\CDP.Document.Parser.csproj" />
+  </ItemGroup>
+
+</Project>

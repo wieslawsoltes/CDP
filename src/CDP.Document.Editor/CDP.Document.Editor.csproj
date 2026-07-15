@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Document.Editor</PackageId>
+    <Title>Chrome.DevTools.Document.Editor</Title>
+    <Description>Interactive rich document editor canvas for Avalonia applications (DOCX, RTF, PPTX, XLSX).</Description>
+    <PackageTags>avalonia;cdp;document;editor;docx;pptx;xlsx;rtf</PackageTags>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CDP.Document.Parser\CDP.Document.Parser.csproj" />
+    <ProjectReference Include="..\CDP.Document.Renderer\CDP.Document.Renderer.csproj" />
+  </ItemGroup>
+
+</Project>
