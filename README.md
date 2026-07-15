@@ -235,6 +235,36 @@ State-based badge controls with pulsing glow animations, colors, and text header
 ##### FloatingSplitWindow
 A container control managing dockable window panels, float overlays, and split sizing.
 
+### Standalone Fluent Navigation Control Support
+
+If you want to use the Fluent Navigation View control (such as the NavigationView, NavigationViewItem, etc.) in your own Avalonia applications, install `Chrome.DevTools.FluentNavigation`:
+
+```bash
+dotnet add package Chrome.DevTools.FluentNavigation --prerelease
+```
+
+Include the navigation styles inside your `App.axaml` or `Styles.axaml` styles list:
+```xml
+<StyleInclude Source="avares://CDP.FluentNavigation/Themes/Generic.axaml" />
+```
+
+Use the `NavigationView` in your XAML views:
+```xml
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:CDP.FluentNavigation;assembly=CDP.FluentNavigation">
+    <controls:NavigationView Header="My Application" IsSettingsVisible="True" PaneDisplayMode="Compact">
+        <controls:NavigationView.MenuItems>
+            <controls:NavigationViewItem Content="Home" Icon="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+            <controls:NavigationViewItem Content="Document" Icon="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+        </controls:NavigationView.MenuItems>
+        <Border Background="#1e1e1e" CornerRadius="8" Margin="12">
+            <TextBlock Text="Welcome to the Home Screen!" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+    </controls:NavigationView>
+</UserControl>
+```
+
 ### Standalone Minimap & Editor Support
 
 If you only need the standalone `MinimapTextEditor` control, the code annotation inline layers, or visual gutter margins for your `AvaloniaEdit` editors without any Chrome DevTools Protocol or network server dependencies, install `Chrome.DevTools.Editor.Minimap` instead:
