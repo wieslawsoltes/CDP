@@ -148,6 +148,11 @@
 
                                      <!-- Input Pins -->
                                      <ItemsControl ItemsSource="{Binding Inputs}" Grid.RowSpan="2" HorizontalAlignment="Left" VerticalAlignment="Stretch" Focusable="False">
+                                         <ItemsControl.Styles>
+                                             <Style Selector="ItemsControl > ContentPresenter" x:DataType="vm:PinViewModel">
+                                                 <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                                             </Style>
+                                         </ItemsControl.Styles>
                                          <ItemsControl.ItemsPanel>
                                              <ItemsPanelTemplate>
                                                  <Canvas Width="0" VerticalAlignment="Stretch"/>
@@ -155,13 +160,18 @@
                                          </ItemsControl.ItemsPanel>
                                          <ItemsControl.ItemTemplate>
                                              <DataTemplate x:DataType="vm:PinViewModel">
-                                                 <Ellipse Name="InputPin" Classes="input-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" Margin="-5,0,0,0" ToolTip.Tip="{Binding Name}" Canvas.Top="{Binding Top}"/>
+                                                 <Ellipse Name="InputPin" Classes="input-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" Margin="-5,0,0,0" ToolTip.Tip="{Binding Name}"/>
                                              </DataTemplate>
                                          </ItemsControl.ItemTemplate>
                                      </ItemsControl>
 
                                      <!-- Output Pins -->
                                      <ItemsControl ItemsSource="{Binding Outputs}" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Stretch" Focusable="False">
+                                         <ItemsControl.Styles>
+                                             <Style Selector="ItemsControl > ContentPresenter" x:DataType="vm:PinViewModel">
+                                                 <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                                             </Style>
+                                         </ItemsControl.Styles>
                                          <ItemsControl.ItemsPanel>
                                              <ItemsPanelTemplate>
                                                  <Canvas Width="0" VerticalAlignment="Stretch"/>
@@ -169,7 +179,7 @@
                                          </ItemsControl.ItemsPanel>
                                          <ItemsControl.ItemTemplate>
                                              <DataTemplate x:DataType="vm:PinViewModel">
-                                                 <Ellipse Name="OutputPin" Classes="output-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" Margin="-5,0,0,0" ToolTip.Tip="{Binding Name}" Canvas.Top="{Binding Top}"/>
+                                                 <Ellipse Name="OutputPin" Classes="output-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" Margin="-5,0,0,0" ToolTip.Tip="{Binding Name}"/>
                                              </DataTemplate>
                                          </ItemsControl.ItemTemplate>
                                      </ItemsControl>

@@ -53,7 +53,7 @@
             <!-- Left Panel: Toolbox -->
             <Border Grid.Column="0" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="0,0,1,0" Padding="12">
                 <ScrollViewer>
-                    <StackPanel Spacing="10">
+                    <StackPanel Name="ToolboxPanel" Spacing="10">
                         <TextBlock Text="LOGIC ELEMENTS" FontSize="11" FontWeight="Bold" Foreground="#9aa0a6" Margin="0,0,0,6"/>
                         
                         <!-- Toggle Switch -->
@@ -135,7 +135,7 @@
             <!-- Right Panel: Editor Canvas -->
             <Border Grid.Column="1" Background="#121212" Padding="8">
                 <Border Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
-                    <nodes:NodeEditorView DataContext="{Binding NodeEditorVm}"/>
+                    <nodes:NodeEditorView Name="LogicNodeEditor" DataContext="{Binding NodeEditorVm}"/>
                 </Border>
             </Border>
         </Grid>

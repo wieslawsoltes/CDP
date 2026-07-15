@@ -428,7 +428,7 @@ public class NodeEditorPageViewModel : ViewModelBase
         ToggleRunCommand = new RelayCommand(() => IsRunning = !IsRunning);
         StepCommand = new RelayCommand(RunSimulationStep);
         ClearCommand = new RelayCommand(ClearCircuit);
-        AddLogicNodeCommand = new RelayCommand<string>(ExecuteAddLogicNode);
+        AddLogicNodeCommand = new RelayCommand<object>(ExecuteAddLogicNode);
 
         // Simulation Loop Timer (every 100ms)
         _timer = new DispatcherTimer
@@ -466,8 +466,39 @@ public class NodeEditorPageViewModel : ViewModelBase
         NodeEditorVm.Nodes.Clear();
     }
 
-    private void ExecuteAddLogicNode(string? type)
+    public class AddNodeParameters
     {
+        public string Type { get; }
+        public double X { get; }
+        public double Y { get; }
+
+        public AddNodeParameters(string type, double x, double y)
+        {
+            Type = type;
+            X = x;
+            Y = y;
+        }
+    }
+
+    private void ExecuteAddLogicNode(object? parameter)
+    {
+        if (parameter == null) return;
+
+        string? type = null;
+        double? x = null;
+        double? y = null;
+
+        if (parameter is string typeStr)
+        {
+            type = typeStr;
+        }
+        else if (parameter is AddNodeParameters p)
+        {
+            type = p.Type;
+            x = p.X;
+            y = p.Y;
+        }
+
         if (string.IsNullOrEmpty(type)) return;
 
         LogicNodeViewModel node = type switch
@@ -483,10 +514,18 @@ public class NodeEditorPageViewModel : ViewModelBase
             _ => new SwitchNodeViewModel()
         };
 
-        // Offset spawn positions sequentially to prevent overlapping
-        int count = NodeEditorVm.Nodes.Count;
-        node.X = 120 + (count % 4) * 80;
-        node.Y = 100 + (count % 4) * 60;
+        if (x.HasValue && y.HasValue)
+        {
+            node.X = x.Value;
+            node.Y = y.Value;
+        }
+        else
+        {
+            // Offset spawn positions sequentially to prevent overlapping
+            int count = NodeEditorVm.Nodes.Count;
+            node.X = 120 + (count % 4) * 80;
+            node.Y = 100 + (count % 4) * 60;
+        }
 
         NodeEditorVm.Nodes.Add(node);
     }
