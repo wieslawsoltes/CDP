@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/samples/">
     <Project Path="samples/CdpSampleApp/CdpSampleApp.csproj" />
+    <Project Path="samples/CdpGalleryApp/CdpGalleryApp.csproj" />
     <Project Path="samples/CdpInspectorApp/CdpInspectorApp.csproj" />
     <Project Path="samples/CdpInspectorApp.Browser/CdpInspectorApp.Browser.csproj" />
     <Project Path="samples/CDP.HeadlessRunner/CDP.HeadlessRunner.csproj" />
@@ -20,6 +21,7 @@
     <Project Path="src/CDP.Editor.Splits/CDP.Editor.Splits.csproj" />
     <Project Path="src/CDP.Inspector.Shared/CDP.Inspector.Shared.csproj" />
     <Project Path="src/CDP.Inspector.Controls/CDP.Inspector.Controls.csproj" />
+    <Project Path="src/CDP.FluentNavigation/CDP.FluentNavigation.csproj" />
     <Project Path="src/CDP.Profiling.Analysis/CDP.Profiling.Analysis.csproj" />
     <Project Path="src/CDP.DiagnosticTools/CDP.DiagnosticTools.csproj" />
     <Project Path="src/CDP.Automation.OS/CDP.Automation.OS.csproj" />
@@ -47,5 +49,14 @@
     <Project Path="tests/CDP.Markdown.Tests/CDP.Markdown.Tests.csproj" />
     <Project Path="tests/CDP.Document.Tests/CDP.Document.Tests.csproj" />
     <Project Path="tests/CDP.Diagnostics.IntegrationTests/CDP.Diagnostics.IntegrationTests.csproj" />
+    <Project Path="tests/CDP.FluentNavigation.Tests/CDP.FluentNavigation.Tests.csproj" />
+    <Project Path="tests/CDP.Editor.Splits.Tests/CDP.Editor.Splits.Tests.csproj" />
+    <Project Path="tests/CDP.Editor.Nodes.Tests/CDP.Editor.Nodes.Tests.csproj" />
+    <Project Path="tests/CDP.Inspector.Controls.Tests/CDP.Inspector.Controls.Tests.csproj" />
+    <Project Path="tests/Chrome.DevTools.Protocol.Tests/Chrome.DevTools.Protocol.Tests.csproj" />
+    <Project Path="tests/CDP.Inspector.Shared.Tests/CDP.Inspector.Shared.Tests.csproj" />
+    <Project Path="tests/CDP.Inspector.CLI.Tests/CDP.Inspector.CLI.Tests.csproj" />
+    <Project Path="tests/CDP.Automation.OS.Tests/CDP.Automation.OS.Tests.csproj" />
+    <Project Path="tests/CDP.Xaml.LanguageServer.Tests/CDP.Xaml.LanguageServer.Tests.csproj" />
   </Folder>
 </Solution>
