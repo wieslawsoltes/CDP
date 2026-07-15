@@ -125,6 +125,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
     // Sheet cell editing
     private GridCellNode? _editingCellNode;
+    private ShapeNode? _editingShapeNode;
 
     // Presentation shape drag/resize
     private ShapeNode? _selectedShapeNode;
@@ -171,6 +172,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         _undoStack.Clear();
         _redoStack.Clear();
         _editingCellNode = null;
+        _editingShapeNode = null;
         _selectedShapeNode = null;
         _selectedShapeBlock = null;
         _isDraggingShape = false;
@@ -280,7 +282,9 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                 CaretOffset = _caretOffset,
                 SelectionStart = _selectionStart,
                 SelectionEnd = _selectionEnd,
-                Viewport = new SKRect((float)_scrollOffsetX, (float)_scrollOffsetY, (float)(_scrollOffsetX + bounds.Width), (float)(_scrollOffsetY + bounds.Height))
+                Viewport = new SKRect((float)_scrollOffsetX, (float)_scrollOffsetY, (float)(_scrollOffsetX + bounds.Width), (float)(_scrollOffsetY + bounds.Height)),
+                EditingCellNode = _editingCellNode,
+                EditingShapeNode = _editingShapeNode
             };
 
             _renderer.Render(canvas, renderContext);
@@ -367,9 +371,129 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             return;
         }
 
+        // 1. If currently editing a cell, check if click is inside it to position caret
+        if (_editingCellNode != null)
+        {
+            if (_renderer.LayoutBlock is SpreadsheetDocumentLayoutBlock spreadBlock)
+            {
+                CellLayoutBlock? editedCellBlock = null;
+                foreach (var ws in spreadBlock.Worksheets)
+                {
+                    foreach (var cell in ws.Cells)
+                    {
+                        if (cell.Node == _editingCellNode)
+                        {
+                            editedCellBlock = cell;
+                            break;
+                        }
+                    }
+                }
+
+                if (editedCellBlock != null && editedCellBlock.Bounds.Contains(skPoint))
+                {
+                    using var paint = new SKPaint
+                    {
+                        TextSize = _editingCellNode.FontSize.HasValue ? (float)_editingCellNode.FontSize.Value : 11f
+                    };
+                    int hit = HitTestText(_editingCellNode.DisplayText, editedCellBlock.Bounds.Left + 3, skPoint.X, paint);
+                    _caretOffset = hit;
+                    _selectionAnchor = hit;
+                    _selectionStart = -1;
+                    _selectionEnd = -1;
+                    _isDragging = true;
+                    ResetCaretBlink();
+                    InvalidateVisual();
+                    e.Handled = true;
+                    return;
+                }
+            }
+            _editingCellNode = null;
+        }
+
+        // 2. If currently editing a shape, check if click is inside it to position caret
+        if (_editingShapeNode != null)
+        {
+            if (_renderer.LayoutBlock is PresentationDocumentLayoutBlock presBlock)
+            {
+                ShapeLayoutBlock? editedShapeBlock = null;
+                foreach (var slide in presBlock.Slides)
+                {
+                    foreach (var shape in slide.Shapes)
+                    {
+                        if (shape.Node == _editingShapeNode)
+                        {
+                            editedShapeBlock = shape;
+                            break;
+                        }
+                    }
+                }
+
+                if (editedShapeBlock != null && editedShapeBlock.Bounds.Contains(skPoint))
+                {
+                    using var paint = new SKPaint
+                    {
+                        TextSize = _editingShapeNode.FontSize.HasValue ? (float)_editingShapeNode.FontSize.Value : 11f
+                    };
+                    float textWidth = paint.MeasureText(_editingShapeNode.Text ?? "");
+                    float startX = editedShapeBlock.Bounds.MidX - textWidth / 2;
+
+                    int hit = HitTestText(_editingShapeNode.Text ?? "", startX, skPoint.X, paint);
+                    _caretOffset = hit;
+                    _selectionAnchor = hit;
+                    _selectionStart = -1;
+                    _selectionEnd = -1;
+                    _isDragging = true;
+                    ResetCaretBlink();
+                    InvalidateVisual();
+                    e.Handled = true;
+                    return;
+                }
+            }
+            _editingShapeNode = null;
+        }
+
+        // 3. Double click handlers
+        if (e.ClickCount == 2)
+        {
+            if (_document is Parser.AST.SpreadsheetDocument)
+            {
+                var cellBlock = FindCellBlockAt(skPoint);
+                if (cellBlock != null)
+                {
+                    _editingCellNode = cellBlock.Node as GridCellNode;
+                    if (_editingCellNode != null)
+                    {
+                        _caretOffset = _editingCellNode.DisplayText.Length;
+                        ClearSelection();
+                        ResetCaretBlink();
+                        InvalidateVisual();
+                    }
+                    e.Handled = true;
+                    return;
+                }
+            }
+            else if (_document is Parser.AST.PresentationDocument)
+            {
+                var shapeBlock = FindShapeBlockAt(skPoint);
+                if (shapeBlock != null)
+                {
+                    _editingShapeNode = shapeBlock.Node as ShapeNode;
+                    if (_editingShapeNode != null)
+                    {
+                        _caretOffset = (_editingShapeNode.Text ?? "").Length;
+                        ClearSelection();
+                        ResetCaretBlink();
+                        InvalidateVisual();
+                    }
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
+        // 4. Default single click handlers for shapes and text
         if (_document is Parser.AST.PresentationDocument)
         {
-            // If a shape is selected, check if we clicked on one of the handles
             if (_selectedShapeBlock != null)
             {
                 float handleSize = 8f;
@@ -411,26 +535,6 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                 _selectedShapeNode = null;
                 InvalidateVisual();
             }
-        }
-        else if (e.ClickCount == 2 && _document is Parser.AST.SpreadsheetDocument)
-        {
-            var cellBlock = FindCellBlockAt(skPoint);
-            if (cellBlock != null)
-            {
-                _editingCellNode = cellBlock.Node as GridCellNode;
-                if (_editingCellNode != null)
-                {
-                    _caretOffset = _editingCellNode.DisplayText.Length;
-                    ResetCaretBlink();
-                    InvalidateVisual();
-                }
-                e.Handled = true;
-                return;
-            }
-        }
-        else
-        {
-            _editingCellNode = null;
         }
 
         int hitOffset = _renderer.HitTest(skPoint);
@@ -532,6 +636,86 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
         if (!_isDragging) return;
 
+        if (_editingCellNode != null)
+        {
+            if (_renderer.LayoutBlock is SpreadsheetDocumentLayoutBlock spreadBlock)
+            {
+                CellLayoutBlock? editedCellBlock = null;
+                foreach (var ws in spreadBlock.Worksheets)
+                {
+                    foreach (var cell in ws.Cells)
+                    {
+                        if (cell.Node == _editingCellNode)
+                        {
+                            editedCellBlock = cell;
+                            break;
+                        }
+                    }
+                }
+
+                if (editedCellBlock != null)
+                {
+                    using var paint = new SKPaint
+                    {
+                        TextSize = _editingCellNode.FontSize.HasValue ? (float)_editingCellNode.FontSize.Value : 11f
+                    };
+                    int hit = HitTestText(_editingCellNode.DisplayText, editedCellBlock.Bounds.Left + 3, skPoint.X, paint);
+                    _caretOffset = hit;
+                    _selectionStart = Math.Min(_selectionAnchor, hit);
+                    _selectionEnd = Math.Max(_selectionAnchor, hit);
+                    if (_selectionStart == _selectionEnd)
+                    {
+                        _selectionStart = -1;
+                        _selectionEnd = -1;
+                    }
+                    InvalidateVisual();
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+        else if (_editingShapeNode != null)
+        {
+            if (_renderer.LayoutBlock is PresentationDocumentLayoutBlock presBlock)
+            {
+                ShapeLayoutBlock? editedShapeBlock = null;
+                foreach (var slide in presBlock.Slides)
+                {
+                    foreach (var shape in slide.Shapes)
+                    {
+                        if (shape.Node == _editingShapeNode)
+                        {
+                            editedShapeBlock = shape;
+                            break;
+                        }
+                    }
+                }
+
+                if (editedShapeBlock != null)
+                {
+                    using var paint = new SKPaint
+                    {
+                        TextSize = _editingShapeNode.FontSize.HasValue ? (float)_editingShapeNode.FontSize.Value : 11f
+                    };
+                    float textWidth = paint.MeasureText(_editingShapeNode.Text ?? "");
+                    float startX = editedShapeBlock.Bounds.MidX - textWidth / 2;
+
+                    int hit = HitTestText(_editingShapeNode.Text ?? "", startX, skPoint.X, paint);
+                    _caretOffset = hit;
+                    _selectionStart = Math.Min(_selectionAnchor, hit);
+                    _selectionEnd = Math.Max(_selectionAnchor, hit);
+                    if (_selectionStart == _selectionEnd)
+                    {
+                        _selectionStart = -1;
+                        _selectionEnd = -1;
+                    }
+                    InvalidateVisual();
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
         int hitOffset = _renderer.HitTest(skPoint);
         if (hitOffset >= 0)
         {
@@ -610,7 +794,33 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         if (_editingCellNode != null)
         {
             PushUndoState();
-            UpdateEditingCellText(_editingCellNode.DisplayText.Insert(_caretOffset, e.Text));
+            string currentText = _editingCellNode.DisplayText;
+            if (_selectionStart >= 0 && _selectionEnd > _selectionStart)
+            {
+                currentText = currentText.Remove(_selectionStart, _selectionEnd - _selectionStart);
+                _caretOffset = _selectionStart;
+                ClearSelection();
+            }
+            UpdateEditingCellText(currentText.Insert(_caretOffset, e.Text));
+            _caretOffset += e.Text.Length;
+            PerformLayout();
+            InvalidateVisual();
+            ScheduleAutoSave();
+            e.Handled = true;
+            return;
+        }
+
+        if (_editingShapeNode != null)
+        {
+            PushUndoState();
+            string currentText = _editingShapeNode.Text ?? "";
+            if (_selectionStart >= 0 && _selectionEnd > _selectionStart)
+            {
+                currentText = currentText.Remove(_selectionStart, _selectionEnd - _selectionStart);
+                _caretOffset = _selectionStart;
+                ClearSelection();
+            }
+            _editingShapeNode.Text = currentText.Insert(_caretOffset, e.Text);
             _caretOffset += e.Text.Length;
             PerformLayout();
             InvalidateVisual();
@@ -670,21 +880,43 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
         if (_editingCellNode != null)
         {
-            if (e.Key == Key.Back && _caretOffset > 0)
+            if (e.Key == Key.Back)
             {
                 PushUndoState();
-                UpdateEditingCellText(_editingCellNode.DisplayText.Remove(_caretOffset - 1, 1));
-                _caretOffset--;
+                string currentText = _editingCellNode.DisplayText;
+                if (_selectionStart >= 0 && _selectionEnd > _selectionStart)
+                {
+                    currentText = currentText.Remove(_selectionStart, _selectionEnd - _selectionStart);
+                    _caretOffset = _selectionStart;
+                    ClearSelection();
+                }
+                else if (_caretOffset > 0)
+                {
+                    currentText = currentText.Remove(_caretOffset - 1, 1);
+                    _caretOffset--;
+                }
+                UpdateEditingCellText(currentText);
                 PerformLayout();
                 InvalidateVisual();
                 ScheduleAutoSave();
                 e.Handled = true;
                 return;
             }
-            else if (e.Key == Key.Delete && _caretOffset < _editingCellNode.DisplayText.Length)
+            else if (e.Key == Key.Delete)
             {
                 PushUndoState();
-                UpdateEditingCellText(_editingCellNode.DisplayText.Remove(_caretOffset, 1));
+                string currentText = _editingCellNode.DisplayText;
+                if (_selectionStart >= 0 && _selectionEnd > _selectionStart)
+                {
+                    currentText = currentText.Remove(_selectionStart, _selectionEnd - _selectionStart);
+                    _caretOffset = _selectionStart;
+                    ClearSelection();
+                }
+                else if (_caretOffset < currentText.Length)
+                {
+                    currentText = currentText.Remove(_caretOffset, 1);
+                }
+                UpdateEditingCellText(currentText);
                 PerformLayout();
                 InvalidateVisual();
                 ScheduleAutoSave();
@@ -694,20 +926,95 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             else if (e.Key == Key.Enter || e.Key == Key.Escape)
             {
                 _editingCellNode = null;
+                ClearSelection();
                 InvalidateVisual();
                 e.Handled = true;
                 return;
             }
-            else if (e.Key == Key.Left && _caretOffset > 0)
+            else if (e.Key == Key.Left)
             {
-                _caretOffset--;
+                if (_caretOffset > 0) _caretOffset--;
+                ClearSelection();
                 InvalidateVisual();
                 e.Handled = true;
                 return;
             }
-            else if (e.Key == Key.Right && _caretOffset < _editingCellNode.DisplayText.Length)
+            else if (e.Key == Key.Right)
             {
-                _caretOffset++;
+                if (_caretOffset < _editingCellNode.DisplayText.Length) _caretOffset++;
+                ClearSelection();
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (_editingShapeNode != null)
+        {
+            if (e.Key == Key.Back)
+            {
+                PushUndoState();
+                string currentText = _editingShapeNode.Text ?? "";
+                if (_selectionStart >= 0 && _selectionEnd > _selectionStart)
+                {
+                    currentText = currentText.Remove(_selectionStart, _selectionEnd - _selectionStart);
+                    _caretOffset = _selectionStart;
+                    ClearSelection();
+                }
+                else if (_caretOffset > 0)
+                {
+                    currentText = currentText.Remove(_caretOffset - 1, 1);
+                    _caretOffset--;
+                }
+                _editingShapeNode.Text = currentText;
+                PerformLayout();
+                InvalidateVisual();
+                ScheduleAutoSave();
+                e.Handled = true;
+                return;
+            }
+            else if (e.Key == Key.Delete)
+            {
+                PushUndoState();
+                string currentText = _editingShapeNode.Text ?? "";
+                if (_selectionStart >= 0 && _selectionEnd > _selectionStart)
+                {
+                    currentText = currentText.Remove(_selectionStart, _selectionEnd - _selectionStart);
+                    _caretOffset = _selectionStart;
+                    ClearSelection();
+                }
+                else if (_caretOffset < currentText.Length)
+                {
+                    currentText = currentText.Remove(_caretOffset, 1);
+                }
+                _editingShapeNode.Text = currentText;
+                PerformLayout();
+                InvalidateVisual();
+                ScheduleAutoSave();
+                e.Handled = true;
+                return;
+            }
+            else if (e.Key == Key.Enter || e.Key == Key.Escape)
+            {
+                _editingShapeNode = null;
+                ClearSelection();
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
+            else if (e.Key == Key.Left)
+            {
+                if (_caretOffset > 0) _caretOffset--;
+                ClearSelection();
+                InvalidateVisual();
+                e.Handled = true;
+                return;
+            }
+            else if (e.Key == Key.Right)
+            {
+                string currentText = _editingShapeNode.Text ?? "";
+                if (_caretOffset < currentText.Length) _caretOffset++;
+                ClearSelection();
                 InvalidateVisual();
                 e.Handled = true;
                 return;
@@ -1374,6 +1681,10 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         var workbookPart = spreadsheetDoc.WorkbookPart;
         if (workbookPart == null) return;
 
+        var stylesheet = workbookPart.WorkbookStylesPart?.Stylesheet;
+        List<DocumentFormat.OpenXml.Spreadsheet.Font>? fontList = stylesheet?.Fonts?.Elements<DocumentFormat.OpenXml.Spreadsheet.Font>().ToList();
+        List<CellFormat>? cellFormatList = stylesheet?.CellFormats?.Elements<CellFormat>().ToList();
+
         foreach (var wsNode in doc.Children.OfType<WorksheetNode>())
         {
             var sheet = workbookPart.Workbook.Sheets?.Cast<Sheet>().FirstOrDefault(s => s.Name == wsNode.Name);
@@ -1412,6 +1723,75 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                         wCell.DataType = CellValues.InlineString;
                         wCell.InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(cellNode.DisplayText));
                         wCell.CellValue = null;
+                    }
+
+                    // Save cell formatting
+                    if (stylesheet != null && (cellNode.Bold || cellNode.Italic || cellNode.FontSize.HasValue || !string.IsNullOrEmpty(cellNode.Color)))
+                    {
+                        int fontId = 0;
+                        bool found = false;
+                        if (fontList != null && stylesheet.Fonts != null)
+                        {
+                            for (int f = 0; f < fontList.Count; f++)
+                            {
+                                var font = fontList[f];
+                                bool isBold = font.Bold != null && (font.Bold.Val == null || font.Bold.Val.Value);
+                                bool isItalic = font.Italic != null && (font.Italic.Val == null || font.Italic.Val.Value);
+                                double? size = font.FontSize?.Val?.Value;
+                                string? color = font.Color?.Rgb?.Value;
+                                
+                                if (isBold == cellNode.Bold &&
+                                    isItalic == cellNode.Italic &&
+                                    (!cellNode.FontSize.HasValue || size == cellNode.FontSize.Value) &&
+                                    (string.IsNullOrEmpty(cellNode.Color) || color == cellNode.Color.Replace("#", "")))
+                                {
+                                    fontId = f;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!found)
+                            {
+                                var newFont = new DocumentFormat.OpenXml.Spreadsheet.Font();
+                                if (cellNode.Bold) newFont.Bold = new DocumentFormat.OpenXml.Spreadsheet.Bold();
+                                if (cellNode.Italic) newFont.Italic = new DocumentFormat.OpenXml.Spreadsheet.Italic();
+                                if (cellNode.FontSize.HasValue) newFont.FontSize = new DocumentFormat.OpenXml.Spreadsheet.FontSize { Val = cellNode.FontSize.Value };
+                                if (!string.IsNullOrEmpty(cellNode.Color)) newFont.Color = new DocumentFormat.OpenXml.Spreadsheet.Color { Rgb = cellNode.Color.Replace("#", "") };
+                                
+                                stylesheet.Fonts.AppendChild(newFont);
+                                stylesheet.Fonts.Count = (uint)stylesheet.Fonts.ChildElements.Count;
+                                fontList.Add(newFont);
+                                fontId = fontList.Count - 1;
+                            }
+                        }
+                        
+                        int formatId = 0;
+                        bool formatFound = false;
+                        if (cellFormatList != null && stylesheet.CellFormats != null)
+                        {
+                            for (int cf = 0; cf < cellFormatList.Count; cf++)
+                            {
+                                var format = cellFormatList[cf];
+                                if (format.FontId?.Value == (uint)fontId)
+                                {
+                                    formatId = cf;
+                                    formatFound = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!formatFound)
+                            {
+                                var newFormat = new CellFormat { FontId = (uint)fontId, ApplyFont = true };
+                                stylesheet.CellFormats.AppendChild(newFormat);
+                                stylesheet.CellFormats.Count = (uint)stylesheet.CellFormats.ChildElements.Count;
+                                cellFormatList.Add(newFormat);
+                                formatId = cellFormatList.Count - 1;
+                            }
+                        }
+                        
+                        wCell.StyleIndex = (uint)formatId;
                     }
                 }
             }
@@ -1458,6 +1838,28 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                     if (textPara != null)
                     {
                         textPara.Text = shapeNode.Text;
+
+                        var runProps = textPara.Parent?.Elements<DocumentFormat.OpenXml.Drawing.RunProperties>().FirstOrDefault();
+                        if (runProps == null)
+                        {
+                            runProps = new DocumentFormat.OpenXml.Drawing.RunProperties();
+                            textPara.Parent?.InsertBefore(runProps, textPara);
+                        }
+
+                        if (shapeNode.Bold.HasValue) runProps.Bold = shapeNode.Bold.Value;
+                        if (shapeNode.Italic.HasValue) runProps.Italic = shapeNode.Italic.Value;
+                        if (shapeNode.FontSize.HasValue) runProps.FontSize = (int)(shapeNode.FontSize.Value * 100);
+                        if (!string.IsNullOrEmpty(shapeNode.Color))
+                        {
+                            var solidFill = runProps.Elements<DocumentFormat.OpenXml.Drawing.SolidFill>().FirstOrDefault();
+                            if (solidFill == null)
+                            {
+                                solidFill = new DocumentFormat.OpenXml.Drawing.SolidFill();
+                                runProps.AppendChild(solidFill);
+                            }
+                            solidFill.RemoveAllChildren();
+                            solidFill.AppendChild(new DocumentFormat.OpenXml.Drawing.RgbColorModelHex { Val = shapeNode.Color.Replace("#", "") });
+                        }
                     }
                 }
 
@@ -1485,5 +1887,225 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             col = col / 26 - 1;
         }
         return label;
+    }
+
+    private int HitTestText(string text, double startX, double clickX, SKPaint paint)
+    {
+        float currentX = (float)startX;
+        for (int i = 0; i < text.Length; i++)
+        {
+            float w = paint.MeasureText(text.Substring(i, 1));
+            if (clickX >= currentX && clickX <= currentX + w)
+            {
+                if (clickX > currentX + w / 2)
+                {
+                    return i + 1;
+                }
+                return i;
+            }
+            currentX += w;
+        }
+        return text.Length;
+    }
+
+    public void ToggleBold()
+    {
+        ApplyFormatting(
+            (run) => run.Bold = !run.Bold,
+            (cell) => cell.Bold = !cell.Bold,
+            (shape) => shape.Bold = !(shape.Bold ?? false)
+        );
+    }
+
+    public void ToggleItalic()
+    {
+        ApplyFormatting(
+            (run) => run.Italic = !run.Italic,
+            (cell) => cell.Italic = !cell.Italic,
+            (shape) => shape.Italic = !(shape.Italic ?? false)
+        );
+    }
+
+    public void ToggleUnderline()
+    {
+        ApplyFormatting(
+            (run) => run.Underline = !run.Underline,
+            (cell) => { },
+            (shape) => { }
+        );
+    }
+
+    public void SetFontSize(double size)
+    {
+        ApplyFormatting(
+            (run) => run.FontSize = size,
+            (cell) => cell.FontSize = size,
+            (shape) => shape.FontSize = size
+        );
+    }
+
+    public void SetFontColor(string hexColor)
+    {
+        ApplyFormatting(
+            (run) => run.Color = hexColor,
+            (cell) => cell.Color = hexColor,
+            (shape) => shape.Color = hexColor
+        );
+    }
+
+    private void ApplyFormatting(Action<TextRun> applyToRun, Action<GridCellNode> applyToCell, Action<ShapeNode> applyToShape)
+    {
+        PushUndoState();
+        if (_document is WordDocument wordDoc)
+        {
+            if (_selectionStart >= 0 && _selectionEnd > _selectionStart)
+            {
+                FormatRange(wordDoc, _selectionStart, _selectionEnd, applyToRun);
+            }
+            else
+            {
+                var run = FindTextRunAtOffset(wordDoc, _caretOffset);
+                if (run != null)
+                {
+                    applyToRun(run);
+                }
+            }
+        }
+        else if (_document is Parser.AST.SpreadsheetDocument)
+        {
+            if (_editingCellNode != null)
+            {
+                applyToCell(_editingCellNode);
+            }
+        }
+        else if (_document is Parser.AST.PresentationDocument)
+        {
+            if (_editingShapeNode != null)
+            {
+                applyToShape(_editingShapeNode);
+            }
+            else if (_selectedShapeNode != null)
+            {
+                applyToShape(_selectedShapeNode);
+            }
+        }
+        
+        PerformLayout();
+        InvalidateVisual();
+        ScheduleAutoSave();
+    }
+
+    private void FormatRange(WordDocument wordDoc, int start, int end, Action<TextRun> applyToRun)
+    {
+        if (start >= end) return;
+
+        int globalOffset = 0;
+        foreach (var child in wordDoc.Children)
+        {
+            if (child is ParagraphBlock para)
+            {
+                var originalInlines = para.Children.ToList();
+                para.Children.Clear();
+
+                foreach (var inline in originalInlines)
+                {
+                    if (inline is TextRun run)
+                    {
+                        int runStart = globalOffset;
+                        int runEnd = globalOffset + run.Text.Length;
+
+                        int overlapStart = Math.Max(start, runStart);
+                        int overlapEnd = Math.Min(end, runEnd);
+
+                        if (overlapStart < overlapEnd)
+                        {
+                            int localStart = overlapStart - runStart;
+                            int localEnd = overlapEnd - runStart;
+
+                            if (localStart > 0)
+                            {
+                                var beforeRun = new TextRun
+                                {
+                                    Text = run.Text.Substring(0, localStart),
+                                    FontSize = run.FontSize,
+                                    Bold = run.Bold,
+                                    Italic = run.Italic,
+                                    Underline = run.Underline,
+                                    Color = run.Color
+                                };
+                                para.AddChild(beforeRun);
+                            }
+
+                            var midRun = new TextRun
+                            {
+                                Text = run.Text.Substring(localStart, localEnd - localStart),
+                                FontSize = run.FontSize,
+                                Bold = run.Bold,
+                                Italic = run.Italic,
+                                Underline = run.Underline,
+                                Color = run.Color
+                            };
+                            applyToRun(midRun);
+                            para.AddChild(midRun);
+
+                            if (localEnd < run.Text.Length)
+                            {
+                                var afterRun = new TextRun
+                                {
+                                    Text = run.Text.Substring(localEnd),
+                                    FontSize = run.FontSize,
+                                    Bold = run.Bold,
+                                    Italic = run.Italic,
+                                    Underline = run.Underline,
+                                    Color = run.Color
+                                };
+                                para.AddChild(afterRun);
+                            }
+                        }
+                        else
+                        {
+                            para.AddChild(run);
+                        }
+                        globalOffset = runEnd;
+                    }
+                    else
+                    {
+                        para.AddChild(inline);
+                        if (inline is LineBreakInline)
+                        {
+                            globalOffset++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private TextRun? FindTextRunAtOffset(WordDocument wordDoc, int offset)
+    {
+        int globalOffset = 0;
+        foreach (var child in wordDoc.Children)
+        {
+            if (child is ParagraphBlock para)
+            {
+                foreach (var inline in para.Children)
+                {
+                    if (inline is TextRun run)
+                    {
+                        int runEnd = globalOffset + run.Text.Length;
+                        if (offset >= globalOffset && offset <= runEnd)
+                        {
+                            return run;
+                        }
+                        globalOffset = runEnd;
+                    }
+                    else if (inline is LineBreakInline)
+                    {
+                        globalOffset++;
+                    }
+                }
+            }
+        }
+        return null;
     }
 }
