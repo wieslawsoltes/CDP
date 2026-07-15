@@ -213,13 +213,28 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[MutationEngine] SetOuterHtmlAsync live UI update failed: {ex.Message}");
-            }
         });
 
         return success;
+    }
+
+    public async Task<string?> GetOuterHtmlAsync(object target)
+    {
+        if (target is not Control control) return null;
+
+        var (xamlRoot, filePath) = FindXamlRoot(control);
+        if (xamlRoot == null || filePath == null) return null;
+
+        try
+        {
+            var doc = XDocument.Load(filePath, LoadOptions.PreserveWhitespace);
+            var targetEl = LocateXmlElementInDoc(doc, control, xamlRoot);
+            return targetEl?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string GetXamlStringForLoader(XElement parsedElement, XElement targetElement)
