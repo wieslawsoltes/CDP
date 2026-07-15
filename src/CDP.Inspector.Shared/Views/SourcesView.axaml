@@ -160,11 +160,13 @@
                     <map:MinimapTextEditor Name="txtSourceContent"
                                            IsVisible="{Binding Sources.IsSourceEditorVisible}"
                                            FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#e8eaed" Background="Transparent" BorderThickness="0" ShowLineNumbers="True" IsReadOnly="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
-                    <md:MarkdownEditor Name="mdVisualEditor"
-                                       Text="{Binding Sources.SelectedFileContent, Mode=TwoWay}"
-                                       IsVisible="{Binding Sources.IsMarkdownPreviewMode}"
-                                       IsReadOnly="{Binding !Sources.IsFileSelected}"
-                                       VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
+                    <ScrollViewer IsVisible="{Binding Sources.IsMarkdownPreviewMode}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <md:MarkdownEditor Name="mdVisualEditor"
+                                           Text="{Binding Sources.SelectedFileContent, Mode=TwoWay}"
+                                           IsReadOnly="{Binding !Sources.IsFileSelected}"
+                                           IsDarkTheme="True"
+                                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
+                    </ScrollViewer>
                     <doc:DocumentEditor Name="docVisualEditor"
                                         FilePath="{Binding Sources.SelectedFilePath}"
                                         IsVisible="{Binding Sources.IsDocumentPreviewMode}"

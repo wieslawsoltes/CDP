@@ -46,7 +46,9 @@
             <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="12">
                 <TextBlock Grid.Row="0" Text="Live Skia Render Preview" FontSize="11" Foreground="#9aa0a6" Margin="0,0,0,6"/>
                 <Border Grid.Row="1" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4" Padding="8">
-                    <me:MarkdownEditor Text="{Binding Text}" IsReadOnly="True" ClipToBounds="True"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <me:MarkdownEditor Text="{Binding Text}" IsReadOnly="True" IsDarkTheme="True" ClipToBounds="True"/>
+                    </ScrollViewer>
                 </Border>
             </Grid>
         </Grid>
