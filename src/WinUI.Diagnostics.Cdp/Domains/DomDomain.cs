@@ -212,7 +212,15 @@ public static class DomDomain
                     {
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
-                    string html = GetOuterHtml(visual, session);
+                    string? html = null;
+                    if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                    {
+                        html = await session.MutationEngine.GetOuterHtmlAsync(visual);
+                    }
+                    if (string.IsNullOrEmpty(html))
+                    {
+                        html = GetOuterHtml(visual, session);
+                    }
                     return new JsonObject { ["outerHTML"] = html };
                 }
 

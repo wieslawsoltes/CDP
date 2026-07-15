@@ -9,4 +9,5 @@ public interface IMutationEngine
     Task<bool> RemoveAttributeAsync(object target, string name);
     Task<bool> RemoveNodeAsync(object target);
     Task<bool> SetOuterHtmlAsync(object target, string outerHtml);
+    Task<string?> GetOuterHtmlAsync(object target);
 }

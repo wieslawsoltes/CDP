@@ -130,12 +130,12 @@ public static class InputDomain
                 Point localPoint;
                 if (root == rootWindow.Content)
                 {
-                    localPoint = CdpVisualTreeHelper.TranslatePointToWindow(mainWin.Content, new Point(x, y), rootWindow);
+                    localPoint = CdpVisualTreeHelper.TranslatePointToWindow(window.Content, new Point(x, y), rootWindow);
                 }
                 else
                 {
-                    // Root is a popup child. Translate from main window to rootWindow.Content, and then to popup child.
-                    var ptInWindow = CdpVisualTreeHelper.TranslatePointToWindow(mainWin.Content, new Point(x, y), rootWindow);
+                    // Root is a popup child. Translate from active target window content to rootWindow.Content, and then to popup child.
+                    var ptInWindow = CdpVisualTreeHelper.TranslatePointToWindow(window.Content, new Point(x, y), rootWindow);
                     localPoint = rootWindow.Content.TransformToVisual(root).TransformPoint(ptInWindow);
                 }
 

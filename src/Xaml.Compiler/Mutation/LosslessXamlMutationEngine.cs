@@ -316,6 +316,32 @@ namespace Xaml.Compiler.Mutation
             }
         }
 
+        public async Task<string?> GetOuterHtmlAsync(object target)
+        {
+            if (!_adapter.IsControl(target)) return null;
+            var (_, filePath) = FindXamlRoot(target);
+            if (filePath == null) return null;
+            var sem = GetFileSemaphore(filePath);
+            await sem.WaitAsync();
+            try
+            {
+                var (control, _, doc) = await ResolveContextAsync(target);
+                if (doc == null || control == null) return null;
+
+                var (xamlRoot, _) = FindXamlRoot(control);
+                if (xamlRoot == null) return null;
+
+                var astElement = LocateAstElement(doc, control, xamlRoot);
+                if (astElement == null) return null;
+
+                return astElement.ToFullString();
+            }
+            finally
+            {
+                sem.Release();
+            }
+        }
+
         private async Task<(object? control, string? filePath, XamlDocumentSyntax? doc)> ResolveContextAsync(object target)
         {
             if (!_adapter.IsControl(target)) return (null, null, null);
