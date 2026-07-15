@@ -184,4 +184,18 @@ public class ParserTests
         // The two serialized outputs should match perfectly
         Assert.Equal(serialized, serialized2);
     }
+
+    [Fact]
+    public void TestHtmlBlockParsing()
+    {
+        var markdown = "<div class=\"test\">\n  <img src=\"test.png\" />\n</div>";
+        var doc = MarkdownParser.Parse(markdown);
+
+        Assert.NotNull(doc);
+        Assert.Single(doc.Children);
+
+        var html = Assert.IsType<HtmlBlock>(doc.Children[0]);
+        Assert.Contains("<div class=\"test\">", html.Html);
+        Assert.Contains("<img src=\"test.png\" />", html.Html);
+    }
 }

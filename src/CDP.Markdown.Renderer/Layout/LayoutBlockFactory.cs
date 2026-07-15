@@ -18,6 +18,7 @@ public static class LayoutBlockFactory
             ThematicBreakBlock thematicBreak => new ThematicBreakLayoutBlock(thematicBreak),
             TableBlock table => new TableLayoutBlock(table),
             TableRowBlock row => new TableRowLayoutBlock(row),
+            HtmlBlock html => new HtmlLayoutBlock(html),
             _ => throw new NotSupportedException($"Markdown Block type '{block.GetType().Name}' is not supported.")
         };
     }
