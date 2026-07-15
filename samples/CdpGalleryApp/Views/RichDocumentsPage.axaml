@@ -16,6 +16,9 @@
                 <Button Content="Excel (XLSX)" Command="{Binding LoadXlsx}" Background="#252526" BorderBrush="#3c4043"/>
                 <Button Content="PowerPoint (PPTX)" Command="{Binding LoadPptx}" Background="#252526" BorderBrush="#3c4043"/>
                 <Button Content="RTF" Command="{Binding LoadRtf}" Background="#252526" BorderBrush="#3c4043"/>
+                
+                <Separator Width="1" Height="16" Background="#3c4043"/>
+                <Button Content="Load Custom File..." Click="BtnLoadCustom_Click" Background="#1a73e8" Foreground="White" FontWeight="Bold"/>
             </StackPanel>
         </Border>
 
