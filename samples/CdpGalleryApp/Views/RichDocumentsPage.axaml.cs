@@ -67,4 +67,40 @@ public partial class RichDocumentsPage : UserControl
     {
         AvaloniaXamlLoader.Load(this);
     }
+
+    private void BtnBold_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var editor = this.FindControl<CDP.Document.Editor.DocumentEditor>("DocEditor");
+        editor?.ToggleBold();
+    }
+
+    private void BtnItalic_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var editor = this.FindControl<CDP.Document.Editor.DocumentEditor>("DocEditor");
+        editor?.ToggleItalic();
+    }
+
+    private void BtnUnderline_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var editor = this.FindControl<CDP.Document.Editor.DocumentEditor>("DocEditor");
+        editor?.ToggleUnderline();
+    }
+
+    private void ComboFontSize_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item && double.TryParse(item.Content?.ToString(), out double size))
+        {
+            var editor = this.FindControl<CDP.Document.Editor.DocumentEditor>("DocEditor");
+            editor?.SetFontSize(size);
+        }
+    }
+
+    private void BtnColor_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string hexColor)
+        {
+            var editor = this.FindControl<CDP.Document.Editor.DocumentEditor>("DocEditor");
+            editor?.SetFontColor(hexColor);
+        }
+    }
 }
