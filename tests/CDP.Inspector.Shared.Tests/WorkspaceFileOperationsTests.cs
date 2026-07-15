@@ -465,7 +465,7 @@ public class WorkspaceFileOperationsTests
     {
         var mockService = new DummyCdpServiceWithFileContent("{\\rtf1\\ansi This is RTF content}", false);
         var vm = new SourcesViewModel(mockService);
-        var fileNode = new WorkspaceFileNode("test_doc.rtf", "/path/to/test_doc.rtf", false);
+        var fileNode = new WorkspaceFileNode { Name = "test_doc.rtf", Path = "/path/to/test_doc.rtf", IsDirectory = false };
         
         vm.SelectedFile = fileNode;
 
