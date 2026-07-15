@@ -256,6 +256,18 @@ public class DocumentEditor : Avalonia.Controls.Control
         context.DrawImage(_cachedWriteableBitmap, new Rect(0, 0, width, height));
     }
 
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _caretTimer?.Stop();
+        _saveDebounceTimer?.Dispose();
+        _saveDebounceTimer = null;
+        _cachedBitmap?.Dispose();
+        _cachedBitmap = null;
+        _cachedWriteableBitmap?.Dispose();
+        _cachedWriteableBitmap = null;
+    }
+
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
