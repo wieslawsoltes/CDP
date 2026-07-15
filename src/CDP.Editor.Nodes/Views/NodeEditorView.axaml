@@ -147,9 +147,9 @@
                                     <ContentPresenter Grid.Row="1" Content="{Binding Content}" Margin="6" IsVisible="{Binding Content, Converter={x:Static ObjectConverters.IsNotNull}}"/>
 
                                      <!-- Input Pins -->
-                                     <ItemsControl ItemsSource="{Binding Inputs}" Grid.RowSpan="2" HorizontalAlignment="Left" VerticalAlignment="Stretch" Focusable="False">
+                                     <ItemsControl ItemsSource="{Binding Inputs}" Classes="pins-list" Grid.RowSpan="2" HorizontalAlignment="Left" VerticalAlignment="Stretch" Focusable="False" ClipToBounds="False">
                                          <ItemsControl.Styles>
-                                             <Style Selector="ContentPresenter" x:DataType="vm:PinViewModel">
+                                             <Style Selector="ItemsControl.pins-list > ContentPresenter" x:DataType="vm:PinViewModel">
                                                  <Setter Property="Canvas.Top" Value="{Binding Top}"/>
                                              </Style>
                                          </ItemsControl.Styles>
@@ -166,9 +166,9 @@
                                      </ItemsControl>
 
                                      <!-- Output Pins -->
-                                     <ItemsControl ItemsSource="{Binding Outputs}" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Stretch" Focusable="False">
+                                     <ItemsControl ItemsSource="{Binding Outputs}" Classes="pins-list" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Stretch" Focusable="False" ClipToBounds="False">
                                          <ItemsControl.Styles>
-                                             <Style Selector="ContentPresenter" x:DataType="vm:PinViewModel">
+                                             <Style Selector="ItemsControl.pins-list > ContentPresenter" x:DataType="vm:PinViewModel">
                                                  <Setter Property="Canvas.Top" Value="{Binding Top}"/>
                                              </Style>
                                          </ItemsControl.Styles>
