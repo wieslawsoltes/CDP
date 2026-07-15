@@ -2044,7 +2044,7 @@ public class NewDomainTests
         Assert.Empty(vm.Sessions);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestProfilerViewModelLogProgress()
     {
         var mockCdpService = new MockInspectorCdpService();
