@@ -1220,16 +1220,35 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
                 childHtmls.Add(childHtml);
             }
 
-            var temp = childHtmls[index];
-            childHtmls[index] = childHtmls[targetIndex];
-            childHtmls[targetIndex] = temp;
+            int currentPos = 0;
+            var childRanges = new List<(int Start, int Length)>();
+            for (int i = 0; i < children.Count; i++)
+            {
+                var childHtml = childHtmls[i];
+                var idxOf = parentHtml.IndexOf(childHtml, currentPos);
+                if (idxOf == -1)
+                {
+                    idxOf = parentHtml.IndexOf(childHtml);
+                }
+                if (idxOf == -1)
+                {
+                    return;
+                }
+                childRanges.Add((idxOf, childHtml.Length));
+                currentPos = idxOf + childHtml.Length;
+            }
 
-            var firstGt = parentHtml.IndexOf('>');
-            if (firstGt == -1) return;
-            var openingTag = parentHtml.Substring(0, firstGt + 1);
-            var closingTag = $"</{parentNode.NodeName}>";
+            int firstIdx = Math.Min(index, targetIndex);
+            int secondIdx = Math.Max(index, targetIndex);
 
-            var newParentHtml = openingTag + string.Concat(childHtmls) + closingTag;
+            var r1 = childRanges[firstIdx];
+            var r2 = childRanges[secondIdx];
+
+            var part1 = parentHtml.Substring(0, r1.Start);
+            var part2 = parentHtml.Substring(r1.Start + r1.Length, r2.Start - (r1.Start + r1.Length));
+            var part3 = parentHtml.Substring(r2.Start + r2.Length);
+
+            var newParentHtml = part1 + childHtmls[secondIdx] + part2 + childHtmls[firstIdx] + part3;
 
             await _cdpService.SendCommandAsync("DOM.setOuterHTML", new JsonObject
             {

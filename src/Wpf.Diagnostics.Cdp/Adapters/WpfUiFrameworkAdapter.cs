@@ -164,6 +164,14 @@ namespace Wpf.Diagnostics.Cdp.Adapters
                         panel.Children.Remove(uiElement);
                     }
                 }
+                else if (parent is HeaderedContentControl headeredControl && headeredControl.Header == control)
+                {
+                    headeredControl.Header = null;
+                }
+                else if (parent is HeaderedItemsControl headeredItems && headeredItems.Header == control)
+                {
+                    headeredItems.Header = null;
+                }
                 else if (parent is ContentControl contentControl)
                 {
                     if (contentControl.Content == control) contentControl.Content = null;

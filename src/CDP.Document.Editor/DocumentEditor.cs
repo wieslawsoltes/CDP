@@ -1401,15 +1401,17 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                     if (cellNode.Formula != null)
                     {
                         wCell.CellFormula = new CellFormula(cellNode.Formula);
+                        wCell.DataType = null;
+                        wCell.InlineString = null;
+                        wCell.CellValue = new CellValue(cellNode.DisplayText);
                     }
                     else
                     {
                         wCell.CellFormula = null;
+                        wCell.DataType = CellValues.InlineString;
+                        wCell.InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(cellNode.DisplayText));
+                        wCell.CellValue = null;
                     }
-
-                    wCell.DataType = CellValues.InlineString;
-                    wCell.InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(cellNode.DisplayText));
-                    wCell.CellValue = null;
                 }
             }
             worksheetPart.Worksheet.Save();

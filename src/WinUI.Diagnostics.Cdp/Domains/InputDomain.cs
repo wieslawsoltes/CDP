@@ -108,7 +108,7 @@ public static class InputDomain
             }
 
             // Secondary windows
-            var secondaryWindows = windows.Skip(1).Select(x => x.Window).ToList();
+            var secondaryWindows = windows.Select(x => x.Window).Where(win => win != null && win != mainWin).ToList();
             secondaryWindows.Reverse();
             foreach (var win in secondaryWindows)
             {
