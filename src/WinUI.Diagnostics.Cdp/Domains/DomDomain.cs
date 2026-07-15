@@ -190,6 +190,25 @@ public static class DomDomain
                     return new JsonObject { ["model"] = model };
                 }
 
+             case "getNodeForLocation":
+                {
+                    double x = @params["x"]?.GetValue<double>() ?? 0;
+                    double y = @params["y"]?.GetValue<double>() ?? 0;
+                    var pt = new Point(x, y);
+                    UIElement? hit = null;
+                    if (session.Window?.Content != null)
+                    {
+                        var hits = VisualTreeHelper.FindElementsInHostCoordinates(pt, session.Window.Content);
+                        hit = hits?.FirstOrDefault();
+                    }
+                    if (hit != null && session.UseLogicalTree)
+                    {
+                        hit = session.FindLogicalNode(hit);
+                    }
+                    int hitId = hit != null ? session.NodeMap.GetOrAdd(hit) : 0;
+                    return new JsonObject { ["nodeId"] = hitId };
+                }
+
             case "focus":
                 {
                     int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;

@@ -433,4 +433,60 @@ public class WorkspaceFileOperationsTests
             try { Directory.Delete(tempDir, true); } catch {}
         }
     }
+
+    private class DummyCdpServiceWithFileContent : MemoryViewModelTests.MockCdpService
+    {
+        private readonly string _content;
+        private readonly bool _base64Encoded;
+
+        public DummyCdpServiceWithFileContent(string content, bool base64Encoded)
+        {
+            _content = content;
+            _base64Encoded = base64Encoded;
+            IsConnected = true;
+        }
+
+        public override Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
+        {
+            if (method == "Sources.getFileContent")
+            {
+                return Task.FromResult(new JsonObject
+                {
+                    ["content"] = _content,
+                    ["base64Encoded"] = _base64Encoded
+                });
+            }
+            return Task.FromResult(new JsonObject());
+        }
+    }
+
+    [Fact]
+    public async Task Test_SourcesViewModel_LoadRtfFile_MaterializesToTempFile()
+    {
+        var mockService = new DummyCdpServiceWithFileContent("{\\rtf1\\ansi This is RTF content}", false);
+        var vm = new SourcesViewModel(mockService);
+        var fileNode = new WorkspaceFileNode("test_doc.rtf", "/path/to/test_doc.rtf", false);
+        
+        vm.SelectedFile = fileNode;
+
+        for (int i = 0; i < 50; i++)
+        {
+            if (!vm.IsLoadingContent) break;
+            await Task.Delay(10);
+        }
+
+        Assert.Equal("test_doc.rtf", vm.SelectedFileName);
+        Assert.NotNull(vm.LocalPreviewFilePath);
+        Assert.True(File.Exists(vm.LocalPreviewFilePath));
+        Assert.EndsWith(".rtf", vm.LocalPreviewFilePath, StringComparison.OrdinalIgnoreCase);
+
+        var fileText = await File.ReadAllTextAsync(vm.LocalPreviewFilePath);
+        Assert.Equal("{\\rtf1\\ansi This is RTF content}", fileText);
+
+        try
+        {
+            File.Delete(vm.LocalPreviewFilePath);
+        }
+        catch {}
+    }
 }

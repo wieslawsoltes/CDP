@@ -808,7 +808,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 string content = response["content"]?.GetValue<string>() ?? "";
                 bool base64Encoded = response["base64Encoded"]?.GetValue<bool>() ?? false;
 
-                if (base64Encoded || IsBinaryDocumentFile)
+                if (base64Encoded)
                 {
                     byte[] bytes = Convert.FromBase64String(content);
                     string ext = System.IO.Path.GetExtension(SelectedFileName);
@@ -816,6 +816,14 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     await System.IO.File.WriteAllBytesAsync(tempFile, bytes);
                     LocalPreviewFilePath = tempFile;
                     SelectedFileContent = $"(Binary file loaded to {tempFile})";
+                }
+                else if (SelectedFileName != null && SelectedFileName.EndsWith(".rtf", StringComparison.OrdinalIgnoreCase))
+                {
+                    string ext = System.IO.Path.GetExtension(SelectedFileName);
+                    string tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"cdp_preview_{Guid.NewGuid()}{ext}");
+                    await System.IO.File.WriteAllTextAsync(tempFile, content);
+                    LocalPreviewFilePath = tempFile;
+                    SelectedFileContent = $"(Document file loaded to {tempFile})";
                 }
                 else
                 {

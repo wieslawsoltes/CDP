@@ -435,6 +435,42 @@ namespace Avalonia.Diagnostics.Cdp.Tests
                 if (File.Exists(tempFile)) File.Delete(tempFile);
             }
         }
+
+        [Fact]
+        public async Task TestCompletions_PrefixedElement_StripsPrefixAndReturnsCompletions()
+        {
+            string repoRoot = FindRepoRoot();
+            string tempFile = Path.Combine(repoRoot, "TempPrefixedElement.axaml");
+            
+            string xaml = @"<Window xmlns=""https://github.com/avaloniaui""
+        xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
+        xmlns:hl=""clr-namespace:Avalonia.Diagnostics.Cdp;assembly=Avalonia.Diagnostics.Cdp"">
+    <hl:Hi
+</Window>";
+            await File.WriteAllTextAsync(tempFile, xaml);
+
+            try
+            {
+                var @params = new JsonObject
+                {
+                    ["file"] = tempFile,
+                    ["line"] = 4,
+                    ["column"] = 11
+                };
+                
+                var result = await XamlLspDomain.HandleAsync(null!, "getCompletions", @params);
+                Assert.NotNull(result);
+                var completions = result["completions"] as JsonArray;
+                Assert.NotNull(completions);
+                
+                var labels = completions.Select(c => c?["label"]?.GetValue<string>() ?? "").ToList();
+                Assert.Contains("HighlightAdorner", labels);
+            }
+            finally
+            {
+                if (File.Exists(tempFile)) File.Delete(tempFile);
+            }
+        }
     }
 }
 

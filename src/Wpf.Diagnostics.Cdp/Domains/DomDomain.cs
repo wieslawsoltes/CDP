@@ -190,6 +190,36 @@ public static class DomDomain
                     return new JsonObject { ["model"] = model };
                 }
 
+             case "getNodeForLocation":
+                {
+                    int x = @params["x"]?.GetValue<int>() ?? 0;
+                    int y = @params["y"]?.GetValue<int>() ?? 0;
+                    DependencyObject? hitObj = session.Window?.InputHitTest(new Point(x, y)) as DependencyObject;
+                    Visual? hit = null;
+                    while (hitObj != null)
+                    {
+                        if (hitObj is Visual v)
+                        {
+                            hit = v;
+                            break;
+                        }
+                        if (hitObj is FrameworkContentElement fce)
+                        {
+                            hitObj = fce.Parent;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    if (hit != null && session.UseLogicalTree)
+                    {
+                        hit = session.FindLogicalNode(hit);
+                    }
+                    int hitId = hit != null ? session.NodeMap.GetOrAdd(hit) : 0;
+                    return new JsonObject { ["nodeId"] = hitId };
+                }
+
             case "focus":
                 {
                     int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;

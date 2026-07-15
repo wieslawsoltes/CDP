@@ -132,6 +132,10 @@ namespace Avalonia.Diagnostics.Cdp.Domains
             }
 
             string prefix = GetCurrentPrefix(fileText, line, column);
+            if (prefix.Contains(':'))
+            {
+                prefix = prefix.Substring(prefix.IndexOf(':') + 1);
+            }
 
             bool insideTagStart = IsInsideTagStart(fileText, line, column);
 
