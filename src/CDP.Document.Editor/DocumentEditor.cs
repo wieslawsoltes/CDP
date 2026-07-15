@@ -143,6 +143,11 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     {
         FilePathProperty.Changed.AddClassHandler<DocumentEditor>((editor, args) =>
         {
+            var oldPath = args.GetOldValue<string?>();
+            if (editor._saveDebounceTimer != null && !string.IsNullOrEmpty(oldPath))
+            {
+                editor.FlushToPath(oldPath);
+            }
             editor.OnFilePathChanged(args.GetNewValue<string?>());
         });
     }
@@ -163,6 +168,15 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
     private void OnFilePathChanged(string? path)
     {
+        _undoStack.Clear();
+        _redoStack.Clear();
+        _editingCellNode = null;
+        _selectedShapeNode = null;
+        _selectedShapeBlock = null;
+        _isDraggingShape = false;
+        _isResizingShape = false;
+        _resizeHandleIndex = -1;
+
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
             _document = null;
@@ -572,6 +586,21 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         }
     }
 
+    private void UpdateEditingCellText(string newText)
+    {
+        if (_editingCellNode == null) return;
+        _editingCellNode.DisplayText = newText;
+        _editingCellNode.Value = newText;
+        if (newText.StartsWith("="))
+        {
+            _editingCellNode.Formula = newText.Substring(1);
+        }
+        else
+        {
+            _editingCellNode.Formula = null;
+        }
+    }
+
     protected override void OnTextInput(TextInputEventArgs e)
     {
         base.OnTextInput(e);
@@ -580,8 +609,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         if (_editingCellNode != null)
         {
             PushUndoState();
-            _editingCellNode.DisplayText = _editingCellNode.DisplayText.Insert(_caretOffset, e.Text);
-            _editingCellNode.Value = _editingCellNode.DisplayText;
+            UpdateEditingCellText(_editingCellNode.DisplayText.Insert(_caretOffset, e.Text));
             _caretOffset += e.Text.Length;
             PerformLayout();
             InvalidateVisual();
@@ -644,8 +672,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             if (e.Key == Key.Back && _caretOffset > 0)
             {
                 PushUndoState();
-                _editingCellNode.DisplayText = _editingCellNode.DisplayText.Remove(_caretOffset - 1, 1);
-                _editingCellNode.Value = _editingCellNode.DisplayText;
+                UpdateEditingCellText(_editingCellNode.DisplayText.Remove(_caretOffset - 1, 1));
                 _caretOffset--;
                 PerformLayout();
                 InvalidateVisual();
@@ -656,8 +683,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             else if (e.Key == Key.Delete && _caretOffset < _editingCellNode.DisplayText.Length)
             {
                 PushUndoState();
-                _editingCellNode.DisplayText = _editingCellNode.DisplayText.Remove(_caretOffset, 1);
-                _editingCellNode.Value = _editingCellNode.DisplayText;
+                UpdateEditingCellText(_editingCellNode.DisplayText.Remove(_caretOffset, 1));
                 PerformLayout();
                 InvalidateVisual();
                 ScheduleAutoSave();
@@ -900,36 +926,48 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         }, null, SaveDebounceMs, Timeout.Infinite);
     }
 
-    private void SaveDocument()
+    private void SaveDocumentToPath(string path)
     {
-        if (_document == null || string.IsNullOrEmpty(FilePath)) return;
-        if (!File.Exists(FilePath)) return;
+        if (_document == null || string.IsNullOrEmpty(path)) return;
+        if (!File.Exists(path)) return;
 
         try
         {
-            string ext = Path.GetExtension(FilePath).ToLowerInvariant().TrimStart('.');
+            string ext = Path.GetExtension(path).ToLowerInvariant().TrimStart('.');
             if (ext == "rtf" && _document is WordDocument rtfDoc)
             {
                 string rtf = SerializeToRtf(rtfDoc);
-                File.WriteAllText(FilePath, rtf);
+                File.WriteAllText(path, rtf);
             }
             else if (ext == "docx" && _document is WordDocument wordDoc)
             {
-                SerializeToDocx(wordDoc, FilePath);
+                SerializeToDocx(wordDoc, path);
             }
             else if (ext == "xlsx" && _document is Parser.AST.SpreadsheetDocument spreadDoc)
             {
-                SerializeToXlsx(spreadDoc, FilePath);
+                SerializeToXlsx(spreadDoc, path);
             }
             else if (ext == "pptx" && _document is Parser.AST.PresentationDocument presDoc)
             {
-                SerializeToPptx(presDoc, FilePath);
+                SerializeToPptx(presDoc, path);
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[DocumentEditor] Save failed: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[DocumentEditor] Save to '{path}' failed: {ex.Message}");
         }
+    }
+
+    private void SaveDocument()
+    {
+        SaveDocumentToPath(FilePath ?? "");
+    }
+
+    private void FlushToPath(string path)
+    {
+        _saveDebounceTimer?.Dispose();
+        _saveDebounceTimer = null;
+        SaveDocumentToPath(path);
     }
 
     /// <summary>
@@ -1408,13 +1446,6 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
             foreach (var sp in shapes)
             {
-                var ph = sp.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties?.PlaceholderShape;
-                if (ph != null && ph.Type != null &&
-                    (ph.Type.Value == PlaceholderValues.Title || ph.Type.Value == PlaceholderValues.CenteredTitle))
-                {
-                    continue;
-                }
-
                 if (shapeIdx >= shapeNodes.Count) break;
                 var shapeNode = shapeNodes[shapeIdx++];
 

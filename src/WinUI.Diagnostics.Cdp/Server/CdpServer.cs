@@ -91,6 +91,16 @@ public static class DispatcherQueueExtensions
 public static class CdpServer
 {
     private static readonly ConcurrentDictionary<Window, WinUiCdpTarget> _targets = new();
+    private static Window? _primaryWindow;
+
+    public static Window? GetPrimaryWindow()
+    {
+        if (_primaryWindow != null && _targets.ContainsKey(_primaryWindow))
+        {
+            return _primaryWindow;
+        }
+        return _targets.Keys.FirstOrDefault();
+    }
 
     public static int Port => Chrome.DevTools.Protocol.CdpServer.Port;
     public static System.IO.TextWriter OriginalOut => Chrome.DevTools.Protocol.CdpServer.OriginalOut;
@@ -167,6 +177,10 @@ public static class CdpServer
 
     public static string Register(Window window, string title)
     {
+        if (_primaryWindow == null)
+        {
+            _primaryWindow = window;
+        }
         var target = _targets.GetOrAdd(window, w =>
         {
             var t = new WinUiCdpTarget(w, Guid.NewGuid().ToString(), title);
@@ -184,11 +198,19 @@ public static class CdpServer
         if (_targets.TryRemove(window, out var target))
         {
             Chrome.DevTools.Protocol.CdpServer.Unregister(target);
+            if (_primaryWindow == window)
+            {
+                _primaryWindow = _targets.Keys.FirstOrDefault();
+            }
         }
     }
 
     public static WinUiCdpTarget GetOrCreateTarget(Window window)
     {
+        if (_primaryWindow == null)
+        {
+            _primaryWindow = window;
+        }
         return _targets.GetOrAdd(window, w =>
         {
             var target = new WinUiCdpTarget(w, Guid.NewGuid().ToString(), "WinUI/Uno Window");

@@ -80,8 +80,7 @@ public static class InputDomain
                 var screenPoint = window.PointToScreen(position);
                 var roots = new List<Visual>();
 
-                var firstWindowTuple = CdpServer.GetWindows().FirstOrDefault();
-                var mainWin = firstWindowTuple.Window;
+                var mainWin = CdpServer.GetPrimaryWindow();
                 if (mainWin != null)
                 {
                     roots.Add(mainWin);

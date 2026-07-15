@@ -281,6 +281,9 @@ public class MarkdownEditor : Control, ILogicalScrollable
             _selectionEnd = Math.Clamp(_selectionEnd, 0, _internalText.Length);
             _selectionAnchor = Math.Clamp(_selectionAnchor, 0, _internalText.Length);
             
+            _undoStack.Clear();
+            _redoStack.Clear();
+
             ParseAndLayout();
         }
     }

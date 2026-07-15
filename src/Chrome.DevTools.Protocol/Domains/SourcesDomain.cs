@@ -31,8 +31,26 @@ public static class SourcesDomain
                     }
                     if (File.Exists(fullPath))
                     {
-                        string content = await File.ReadAllTextAsync(fullPath);
-                        return new JsonObject { ["content"] = content };
+                        string ext = Path.GetExtension(fullPath).ToLowerInvariant();
+                        bool isBinary = ext == ".docx" || ext == ".pptx" || ext == ".xlsx" || 
+                                        ext == ".png" || ext == ".jpg" || ext == ".jpeg" || 
+                                        ext == ".gif" || ext == ".pdf" || ext == ".zip";
+                        
+                        if (isBinary)
+                        {
+                            byte[] bytes = await File.ReadAllBytesAsync(fullPath);
+                            string base64 = Convert.ToBase64String(bytes);
+                            return new JsonObject 
+                            { 
+                                ["content"] = base64,
+                                ["base64Encoded"] = true
+                            };
+                        }
+                        else
+                        {
+                            string content = await File.ReadAllTextAsync(fullPath);
+                            return new JsonObject { ["content"] = content };
+                        }
                     }
                     throw new Exception($"File {relPath} not found.");
                 }

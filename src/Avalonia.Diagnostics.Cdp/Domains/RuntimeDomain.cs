@@ -1711,7 +1711,7 @@ public static class RuntimeDomain
     {
         if (session.Window == null || !session.Window.IsVisible)
         {
-            var mainWin = CdpServer.GetWindows().FirstOrDefault().Window;
+            var mainWin = CdpServer.GetPrimaryWindow();
             if (mainWin != null)
             {
                 session.Window = mainWin;

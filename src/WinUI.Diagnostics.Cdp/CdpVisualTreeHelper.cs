@@ -38,8 +38,7 @@ public static class CdpVisualTreeHelper
         }
 
         var windows = CdpServer.GetWindows().ToList();
-        var firstWindowTuple = windows.FirstOrDefault();
-        var mainWin = firstWindowTuple.Window;
+        var mainWin = CdpServer.GetPrimaryWindow();
 
         if (mainWin != null && mainWin.Content != null && visual == mainWin.Content)
         {
@@ -80,8 +79,7 @@ public static class CdpVisualTreeHelper
     public static UIElement? GetParent(UIElement visual, bool useLogicalTree)
     {
         var windows = CdpServer.GetWindows().ToList();
-        var firstWindowTuple = windows.FirstOrDefault();
-        var mainWin = firstWindowTuple.Window;
+        var mainWin = CdpServer.GetPrimaryWindow();
 
         if (mainWin != null && mainWin.Content != null)
         {

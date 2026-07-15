@@ -565,7 +565,8 @@ namespace Xaml.Compiler.Mutation
                     if (localName.EndsWith(".Child", StringComparison.OrdinalIgnoreCase) ||
                         localName.EndsWith(".Children", StringComparison.OrdinalIgnoreCase) ||
                         localName.EndsWith(".Content", StringComparison.OrdinalIgnoreCase) ||
-                        localName.EndsWith(".Items", StringComparison.OrdinalIgnoreCase))
+                        localName.EndsWith(".Items", StringComparison.OrdinalIgnoreCase) ||
+                        localName.EndsWith(".Header", StringComparison.OrdinalIgnoreCase))
                     {
                         CollectLogicalXmlElements(child, results);
                     }

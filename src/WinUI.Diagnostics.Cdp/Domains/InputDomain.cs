@@ -74,7 +74,7 @@ public static class InputDomain
         await window.DispatcherQueue.InvokeAsync(() =>
         {
             var windows = CdpServer.GetWindows().ToList();
-            var mainWin = windows.FirstOrDefault().Window;
+            var mainWin = CdpServer.GetPrimaryWindow();
             if (mainWin == null || mainWin.Content == null) return;
 
             // 1. Build the list of active visual roots (front-to-back: popups, secondary windows, then main window)

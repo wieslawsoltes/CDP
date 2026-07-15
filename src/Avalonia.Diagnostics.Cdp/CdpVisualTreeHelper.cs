@@ -25,10 +25,9 @@ public static class CdpVisualTreeHelper
         }
 
         // Anchor secondary windows and open popups to the main window
-        var firstWindowTuple = CdpServer.GetWindows().FirstOrDefault();
-        if (firstWindowTuple.Window != null && visual == firstWindowTuple.Window)
+        var mainWin = CdpServer.GetPrimaryWindow();
+        if (mainWin != null && visual == mainWin)
         {
-            var mainWin = firstWindowTuple.Window;
             
             // 1. Append other active Windows as children
             foreach (var target in CdpServer.GetWindows())
@@ -65,8 +64,7 @@ public static class CdpVisualTreeHelper
 
     public static Visual? GetParent(Visual visual, bool useLogicalTree)
     {
-        var firstWindowTuple = CdpServer.GetWindows().FirstOrDefault();
-        var mainWin = firstWindowTuple.Window;
+        var mainWin = CdpServer.GetPrimaryWindow();
 
         // Check if this visual is the content of an open popup
         var popup = FindPopupForRoot(visual);
