@@ -50,15 +50,15 @@ public class MarkdownEditor : Control, ILogicalScrollable
     private double _scrollOffsetY;
 
     // ILogicalScrollable implementation
-    public bool CanHorizontallyScroll { get; set; }
-    public bool CanVerticallyScroll { get; set; }
+    public bool CanHorizontallyScroll { get; set; } = false;
+    public bool CanVerticallyScroll { get; set; } = true;
     public bool IsLogicalScrollEnabled => true;
     public Size ScrollSize => new(16, 16);
     public Size PageScrollSize => new(80, 80);
     public event EventHandler? ScrollInvalidated;
 
-    public Size Extent => _documentLayout.Bounds.Height == 0 ? new Size(0, 0) : new Size(Bounds.Width, _documentLayout.Bounds.Height);
-    public Size Viewport => Bounds.Size;
+    public Size Extent => _documentLayout.Bounds.Height == 0 ? new Size(0, 0) : new Size(Viewport.Width, _documentLayout.Bounds.Height);
+    public Size Viewport => (Parent as Avalonia.Visual)?.Bounds.Size ?? Bounds.Size;
 
     public Vector Offset
     {
@@ -164,6 +164,8 @@ public class MarkdownEditor : Control, ILogicalScrollable
 
     public MarkdownEditor()
     {
+        CanVerticallyScroll = true;
+        CanHorizontallyScroll = false;
         _measurer = new SkiaTextMeasurer(_resources);
 
         // Blinking caret timer
@@ -283,7 +285,7 @@ public class MarkdownEditor : Control, ILogicalScrollable
         }
     }
 
-    private void ParseAndLayout(double? width = null)
+    private void ParseAndLayout(double? width = null, bool fromMeasurePass = false)
     {
         _caretIndex = Math.Clamp(_caretIndex, 0, _internalText.Length);
         _selectionStart = Math.Clamp(_selectionStart, 0, _internalText.Length);
@@ -305,14 +307,17 @@ public class MarkdownEditor : Control, ILogicalScrollable
         );
         _documentLayout.Layout(layoutContext);
         ScrollInvalidated?.Invoke(this, EventArgs.Empty);
-        InvalidateMeasure();
+        if (!fromMeasurePass)
+        {
+            InvalidateMeasure();
+        }
         InvalidateVisual();
     }
 
     protected override Size MeasureOverride(Size availableSize)
     {
         double width = double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width;
-        ParseAndLayout(width);
+        ParseAndLayout(width, fromMeasurePass: true);
         double height = double.IsInfinity(availableSize.Height) ? _documentLayout.Bounds.Height : availableSize.Height;
         return new Size(width, height);
     }
@@ -1246,7 +1251,9 @@ public class MarkdownEditor : Control, ILogicalScrollable
         }
 
         // 3. Draw WriteableBitmap to DrawingContext
-        context.DrawImage(_cachedWriteableBitmap, new Rect(0, 0, width, height));
+        double logicalWidth = (double)pixelWidth / scaling;
+        double logicalHeight = (double)pixelHeight / scaling;
+        context.DrawImage(_cachedWriteableBitmap, new Rect(0, 0, logicalWidth, logicalHeight));
     }
 
     private class SkiaTextMeasurer : ITextMeasurer

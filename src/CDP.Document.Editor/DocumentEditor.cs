@@ -71,29 +71,44 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     private const int SaveDebounceMs = 500;
 
     // Scroll offset
+    private double _scrollOffsetX;
     private double _scrollOffsetY;
 
     // ILogicalScrollable implementation
-    public bool CanHorizontallyScroll { get; set; }
-    public bool CanVerticallyScroll { get; set; }
+    public bool CanHorizontallyScroll { get; set; } = true;
+    public bool CanVerticallyScroll { get; set; } = true;
     public bool IsLogicalScrollEnabled => true;
     public Size ScrollSize => new(16, 16);
     public Size PageScrollSize => new(80, 80);
     public event EventHandler? ScrollInvalidated;
 
     public Size Extent => _renderer.DocumentBounds.IsEmpty ? new Size(0, 0) : new Size(_renderer.DocumentBounds.Width, _renderer.DocumentBounds.Height);
-    public Size Viewport => Bounds.Size;
+    public Size Viewport => (Parent as Avalonia.Visual)?.Bounds.Size ?? Bounds.Size;
 
     public Vector Offset
     {
-        get => new Vector(0, _scrollOffsetY);
+        get => new Vector(_scrollOffsetX, _scrollOffsetY);
         set
         {
+            var maxScrollX = Math.Max(0, Extent.Width - Viewport.Width);
             var maxScrollY = Math.Max(0, Extent.Height - Viewport.Height);
+            double targetX = Math.Clamp(value.X, 0, maxScrollX);
             double targetY = Math.Clamp(value.Y, 0, maxScrollY);
+
+            bool changed = false;
+            if (Math.Abs(_scrollOffsetX - targetX) > 0.001)
+            {
+                _scrollOffsetX = targetX;
+                changed = true;
+            }
             if (Math.Abs(_scrollOffsetY - targetY) > 0.001)
             {
                 _scrollOffsetY = targetY;
+                changed = true;
+            }
+
+            if (changed)
+            {
                 ScrollInvalidated?.Invoke(this, EventArgs.Empty);
                 InvalidateVisual();
             }
@@ -223,9 +238,6 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             return;
         }
 
-        int width = (int)bounds.Width;
-        int height = (int)bounds.Height;
-
         double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
         float scale = (float)scaling;
         int pixelWidth = (int)Math.Max(1, Math.Round(bounds.Width * scaling));
@@ -246,7 +258,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
             canvas.Save();
             canvas.Scale(scale);
-            canvas.Translate(0, -(float)_scrollOffsetY);
+            canvas.Translate(-(float)_scrollOffsetX, -(float)_scrollOffsetY);
 
             var renderContext = new Renderer.RenderContext
             {
@@ -306,7 +318,9 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             }
         }
 
-        context.DrawImage(_cachedWriteableBitmap, new Rect(0, 0, width, height));
+        double logicalWidth = (double)pixelWidth / scaling;
+        double logicalHeight = (double)pixelHeight / scaling;
+        context.DrawImage(_cachedWriteableBitmap, new Rect(0, 0, logicalWidth, logicalHeight));
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -327,7 +341,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         Focus();
 
         var pos = e.GetPosition(this);
-        var skPoint = new SKPoint((float)pos.X, (float)(pos.Y + _scrollOffsetY));
+        var skPoint = new SKPoint((float)(pos.X + _scrollOffsetX), (float)(pos.Y + _scrollOffsetY));
 
         var properties = e.GetCurrentPoint(this).Properties;
         if (properties.IsMiddleButtonPressed || properties.IsRightButtonPressed)
@@ -423,7 +437,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     {
         base.OnPointerMoved(e);
         var pos = e.GetPosition(this);
-        var skPoint = new SKPoint((float)pos.X, (float)(pos.Y + _scrollOffsetY));
+        var skPoint = new SKPoint((float)(pos.X + _scrollOffsetX), (float)(pos.Y + _scrollOffsetY));
 
         if (_isPanning)
         {
