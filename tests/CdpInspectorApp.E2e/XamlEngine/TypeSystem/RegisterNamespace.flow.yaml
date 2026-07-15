@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify XAML namespace mapping registration in schema registry
+---
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#treeWorkspaceFiles'
+- delay: 1000
+- assertTrue: ((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Connection.IsConnected

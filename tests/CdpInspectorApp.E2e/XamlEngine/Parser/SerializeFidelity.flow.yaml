@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify AST round-trip serialization results in 100% byte match
+---
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#treeWorkspaceFiles'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

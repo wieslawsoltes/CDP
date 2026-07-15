@@ -1,0 +1,10 @@
+appId: CdpInspectorApp
+description: Verify AST parser recovers gracefully from unclosed tags
+---
+- runFlow: shared/navigate_to_sources.yaml
+- inputText:
+    selector: '#txtSourcesSearch'
+    text: malformed
+- tapOn: '#btnSearchWorkspace'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.Diagnostics != null

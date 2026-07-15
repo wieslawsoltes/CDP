@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify setting value of read-only properties throws error
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

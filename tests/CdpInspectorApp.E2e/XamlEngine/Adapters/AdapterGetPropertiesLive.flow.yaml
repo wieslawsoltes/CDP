@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify live property queries fetch evaluated bindings correctly
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

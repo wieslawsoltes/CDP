@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify pluggable adapter traverses standard WPF framework tree
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

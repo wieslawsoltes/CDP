@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify pluggable adapter traverses Avalonia logical and visual tree
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode.TypeName.Contains('Avalonia')

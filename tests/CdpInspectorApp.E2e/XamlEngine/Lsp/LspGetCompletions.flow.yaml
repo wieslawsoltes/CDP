@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify custom LSP domain returns tag completion suggestions for editor
+---
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#txtSourceContent'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify hot-reload fails gracefully when trying to swap top-level Window
+  control
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

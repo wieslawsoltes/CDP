@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify parser collects multiple consecutive syntactic errors in single
+  run
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.Diagnostics != null

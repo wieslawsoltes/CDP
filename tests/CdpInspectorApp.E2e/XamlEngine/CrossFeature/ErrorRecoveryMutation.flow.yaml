@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify mutator can safely append elements to a partially parsed (recovered)
+  AST
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

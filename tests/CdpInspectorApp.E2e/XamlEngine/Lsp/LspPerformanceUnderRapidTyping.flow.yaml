@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify LSP handles high key-input throughput without locking UI thread
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

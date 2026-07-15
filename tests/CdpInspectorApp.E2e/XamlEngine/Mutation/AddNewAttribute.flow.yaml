@@ -1,0 +1,16 @@
+appId: CdpInspectorApp
+description: Verify mutation engine inserts new attribute with exact whitespaces
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- inputText:
+    selector: '#txtAttrName'
+    text: Tag
+- inputText:
+    selector: '#txtAttrValue'
+    text: test
+- tapOn: '#btnApplyAttr'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode.Attributes.Any(a => a.Name
+    == 'Tag' && a.Value == 'test')

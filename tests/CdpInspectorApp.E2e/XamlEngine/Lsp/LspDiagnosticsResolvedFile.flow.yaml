@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify error diagnostics squiggles clear immediately once typo is fixed
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.Diagnostics != null

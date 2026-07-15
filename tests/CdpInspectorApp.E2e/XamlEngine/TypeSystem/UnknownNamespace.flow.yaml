@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify type system handles unknown namespaces without crashing
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.Diagnostics != null

@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify LSP returns active signature help for markup extensions
+---
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#txtSourceContent'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

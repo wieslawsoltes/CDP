@@ -1,0 +1,16 @@
+appId: CdpInspectorApp
+description: Verify mutation engine modifies values of existing attributes in AST
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- inputText:
+    selector: '#txtAttrName'
+    text: Width
+- inputText:
+    selector: '#txtAttrValue'
+    text: '500'
+- tapOn: '#btnApplyAttr'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode.Attributes.Any(a => a.Name
+    == 'Width' && a.Value == '500')

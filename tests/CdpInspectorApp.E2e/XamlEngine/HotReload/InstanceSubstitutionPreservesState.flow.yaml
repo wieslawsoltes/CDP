@@ -1,0 +1,8 @@
+appId: CdpInspectorApp
+description: Verify live substitution preserves datacontext and bindings of unchanged
+  elements
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode != null

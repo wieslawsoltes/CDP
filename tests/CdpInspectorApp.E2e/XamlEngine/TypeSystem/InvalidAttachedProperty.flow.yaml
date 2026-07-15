@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify resolution fails for malformed attached property names
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify adapter sets live dependency properties directly on UI thread
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

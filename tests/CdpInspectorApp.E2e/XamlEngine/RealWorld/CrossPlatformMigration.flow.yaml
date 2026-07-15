@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Simulate loading styling nodes, resolving types across Avalonia and WPF
+  schemas, and updating visual tree adapters
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

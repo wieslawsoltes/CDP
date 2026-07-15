@@ -1,0 +1,8 @@
+appId: CdpInspectorApp
+description: Verify type system resolves default content properties
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode.Properties.Any(p => p.Name
+    == 'Content')
