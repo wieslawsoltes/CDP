@@ -217,4 +217,55 @@ public class EnhancementsTests
         var redoneRun = redoneDoc.Children.OfType<ParagraphBlock>().First().Children.OfType<TextRun>().First();
         Assert.Equal("Modified Text", redoneRun.Text);
     }
+
+    [Fact]
+    public void TestDocumentFormattingAndSelection()
+    {
+        // 1. Verify shape node formatting property persistence
+        var shape = new ShapeNode
+        {
+            Bold = true,
+            Italic = false,
+            FontSize = 14,
+            Color = "#FF0000"
+        };
+        Assert.True(shape.Bold);
+        Assert.False(shape.Italic);
+        Assert.Equal(14, shape.FontSize);
+        Assert.Equal("#FF0000", shape.Color);
+
+        // 2. Setup editor instance for testing cell and shape text formatting API
+        var editor = new DocumentEditor { IsReadOnly = false };
+        var presDoc = new PresentationDocument();
+        var slide = new SlideNode();
+        var shapeNode = new ShapeNode { Text = "Test Shape Text", X = 10, Y = 10, Width = 100, Height = 100 };
+        slide.AddChild(shapeNode);
+        presDoc.AddChild(slide);
+
+        var docField = typeof(DocumentEditor).GetField("_document", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(docField);
+        docField.SetValue(editor, presDoc);
+
+        // Set active editing shape
+        var editingShapeField = typeof(DocumentEditor).GetField("_editingShapeNode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(editingShapeField);
+        editingShapeField.SetValue(editor, shapeNode);
+
+        // Test formatting APIs
+        editor.ToggleBold();
+        Assert.True(shapeNode.Bold);
+        editor.ToggleItalic();
+        Assert.True(shapeNode.Italic);
+        editor.SetFontSize(16);
+        Assert.Equal(16, shapeNode.FontSize);
+        editor.SetFontColor("#0000FF");
+        Assert.Equal("#0000FF", shapeNode.Color);
+
+        // Test caret hit-testing helper via reflection
+        var hitTestTextMethod = typeof(DocumentEditor).GetMethod("HitTestText", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(hitTestTextMethod);
+        using var paint = new SKPaint { TextSize = 12 };
+        int caretOffset = (int)hitTestTextMethod.Invoke(editor, new object[] { "Hello", 0.0, 15.0, paint })!;
+        Assert.True(caretOffset >= 0);
+    }
 }
