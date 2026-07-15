@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -27,7 +28,7 @@ namespace CDP.Document.Editor;
 /// Parses the document from a file path, renders it using SkiaSharp onto a bitmap, and supports
 /// pointer-based cursor placement, text selection via drag, and keyboard text input.
 /// </summary>
-public class DocumentEditor : Avalonia.Controls.Control
+public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 {
     public static readonly StyledProperty<string?> FilePathProperty =
         AvaloniaProperty.Register<DocumentEditor, string?>(nameof(FilePath));
@@ -71,6 +72,37 @@ public class DocumentEditor : Avalonia.Controls.Control
 
     // Scroll offset
     private double _scrollOffsetY;
+
+    // ILogicalScrollable implementation
+    public bool CanHorizontallyScroll { get; set; }
+    public bool CanVerticallyScroll { get; set; }
+    public bool IsLogicalScrollEnabled => true;
+    public Size ScrollSize => new(16, 16);
+    public Size PageScrollSize => new(80, 80);
+    public event EventHandler? ScrollInvalidated;
+
+    public Size Extent => _renderer.DocumentBounds.IsEmpty ? new Size(0, 0) : new Size(_renderer.DocumentBounds.Width, _renderer.DocumentBounds.Height);
+    public Size Viewport => Bounds.Size;
+
+    public Vector Offset
+    {
+        get => new Vector(0, _scrollOffsetY);
+        set
+        {
+            var maxScrollY = Math.Max(0, Extent.Height - Viewport.Height);
+            double targetY = Math.Clamp(value.Y, 0, maxScrollY);
+            if (Math.Abs(_scrollOffsetY - targetY) > 0.001)
+            {
+                _scrollOffsetY = targetY;
+                ScrollInvalidated?.Invoke(this, EventArgs.Empty);
+                InvalidateVisual();
+            }
+        }
+    }
+
+    public bool BringIntoView(Avalonia.Controls.Control target, Rect targetRect) => false;
+    public Avalonia.Controls.Control? GetControlInDirection(NavigationDirection direction, Avalonia.Controls.Control? from) => null;
+    public void RaiseScrollInvalidated(EventArgs e) => ScrollInvalidated?.Invoke(this, e);
 
     // Undo/Redo Stacks
     private readonly Stack<DocumentRoot> _undoStack = new();
@@ -156,6 +188,8 @@ public class DocumentEditor : Avalonia.Controls.Control
         _renderer.Layout(_document);
         _cachedBitmap?.Dispose();
         _cachedBitmap = null;
+        ScrollInvalidated?.Invoke(this, EventArgs.Empty);
+        InvalidateMeasure();
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -163,8 +197,8 @@ public class DocumentEditor : Avalonia.Controls.Control
         var docBounds = _renderer.DocumentBounds;
         if (docBounds.IsEmpty) return new Size(400, 300);
         
-        double width = double.IsInfinity(availableSize.Width) ? docBounds.Width : Math.Min(docBounds.Width, availableSize.Width);
-        double height = double.IsInfinity(availableSize.Height) ? docBounds.Height : Math.Min(docBounds.Height, availableSize.Height);
+        double width = double.IsInfinity(availableSize.Width) ? docBounds.Width : availableSize.Width;
+        double height = double.IsInfinity(availableSize.Height) ? docBounds.Height : availableSize.Height;
         
         return new Size(width, height);
     }
@@ -191,13 +225,17 @@ public class DocumentEditor : Avalonia.Controls.Control
 
         int width = (int)bounds.Width;
         int height = (int)bounds.Height;
-        if (width <= 0 || height <= 0) return;
+
+        double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+        float scale = (float)scaling;
+        int pixelWidth = (int)Math.Max(1, Math.Round(bounds.Width * scaling));
+        int pixelHeight = (int)Math.Max(1, Math.Round(bounds.Height * scaling));
 
         // Render to SkiaSharp bitmap
-        if (_cachedBitmap == null || _cachedBitmap.Width != width || _cachedBitmap.Height != height)
+        if (_cachedBitmap == null || _cachedBitmap.Width != pixelWidth || _cachedBitmap.Height != pixelHeight)
         {
             _cachedBitmap?.Dispose();
-            _cachedBitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
+            _cachedBitmap = new SKBitmap(pixelWidth, pixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
             _cachedWriteableBitmap?.Dispose();
             _cachedWriteableBitmap = null;
         }
@@ -207,6 +245,7 @@ public class DocumentEditor : Avalonia.Controls.Control
             canvas.Clear(new SKColor(40, 40, 40)); // Dark background
 
             canvas.Save();
+            canvas.Scale(scale);
             canvas.Translate(0, -(float)_scrollOffsetY);
 
             var renderContext = new Renderer.RenderContext
@@ -237,10 +276,14 @@ public class DocumentEditor : Avalonia.Controls.Control
         }
 
         // Copy SKBitmap to Avalonia WriteableBitmap
-        if (_cachedWriteableBitmap == null || _cachedWriteableBitmap.PixelSize.Width != width || _cachedWriteableBitmap.PixelSize.Height != height)
+        if (_cachedWriteableBitmap == null || _cachedWriteableBitmap.PixelSize.Width != pixelWidth || _cachedWriteableBitmap.PixelSize.Height != pixelHeight)
         {
             _cachedWriteableBitmap?.Dispose();
-            _cachedWriteableBitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96, 96), Avalonia.Platform.PixelFormat.Bgra8888, AlphaFormat.Premul);
+            _cachedWriteableBitmap = new WriteableBitmap(
+                new PixelSize(pixelWidth, pixelHeight),
+                new Vector(96 * scaling, 96 * scaling),
+                Avalonia.Platform.PixelFormat.Bgra8888,
+                AlphaFormat.Premul);
         }
 
         using (var fb = _cachedWriteableBitmap.Lock())
@@ -249,8 +292,17 @@ public class DocumentEditor : Avalonia.Controls.Control
             {
                 var srcPtr = _cachedBitmap.GetPixels();
                 var dstPtr = fb.Address;
-                int rowBytes = width * 4;
-                Buffer.MemoryCopy(srcPtr.ToPointer(), dstPtr.ToPointer(), (long)rowBytes * height, (long)rowBytes * height);
+                var srcRowBytes = _cachedBitmap.RowBytes;
+                var dstRowBytes = fb.RowBytes;
+                var rowSize = Math.Min(srcRowBytes, dstRowBytes);
+                for (int y = 0; y < pixelHeight; y++)
+                {
+                    Buffer.MemoryCopy(
+                        (void*)(srcPtr + y * srcRowBytes),
+                        (void*)(dstPtr + y * dstRowBytes),
+                        rowSize,
+                        rowSize);
+                }
             }
         }
 
@@ -481,21 +533,29 @@ public class DocumentEditor : Avalonia.Controls.Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
-        _scrollOffsetY -= e.Delta.Y * 40;
-        _scrollOffsetY = Math.Max(0, _scrollOffsetY);
+        
+        if (Parent is Visual && VisualRoot != null)
+        {
+            var parent = Parent;
+            while (parent != null)
+            {
+                if (parent is ScrollViewer)
+                {
+                    return; // Let it bubble
+                }
+                parent = parent.Parent;
+            }
+        }
 
         double maxScroll = _renderer.DocumentBounds.Height - Bounds.Height;
         if (maxScroll > 0)
         {
-            _scrollOffsetY = Math.Min(_scrollOffsetY, maxScroll);
+            _scrollOffsetY -= e.Delta.Y * 40;
+            _scrollOffsetY = Math.Clamp(_scrollOffsetY, 0, maxScroll);
+            ScrollInvalidated?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            e.Handled = true;
         }
-        else
-        {
-            _scrollOffsetY = 0;
-        }
-
-        InvalidateVisual();
-        e.Handled = true;
     }
 
     protected override void OnTextInput(TextInputEventArgs e)

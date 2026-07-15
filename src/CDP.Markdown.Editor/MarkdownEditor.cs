@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -17,7 +18,7 @@ using CDP.Markdown.Renderer.Rendering;
 
 namespace CDP.Markdown.Editor;
 
-public class MarkdownEditor : Control
+public class MarkdownEditor : Control, ILogicalScrollable
 {
     public static readonly StyledProperty<string> TextProperty =
         AvaloniaProperty.Register<MarkdownEditor, string>(nameof(Text), string.Empty, defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
@@ -45,6 +46,39 @@ public class MarkdownEditor : Control
         get => GetValue(IsDarkThemeProperty);
         set => SetValue(IsDarkThemeProperty, value);
     }
+
+    private double _scrollOffsetY;
+
+    // ILogicalScrollable implementation
+    public bool CanHorizontallyScroll { get; set; }
+    public bool CanVerticallyScroll { get; set; }
+    public bool IsLogicalScrollEnabled => true;
+    public Size ScrollSize => new(16, 16);
+    public Size PageScrollSize => new(80, 80);
+    public event EventHandler? ScrollInvalidated;
+
+    public Size Extent => _documentLayout.Bounds.Height == 0 ? new Size(0, 0) : new Size(Bounds.Width, _documentLayout.Bounds.Height);
+    public Size Viewport => Bounds.Size;
+
+    public Vector Offset
+    {
+        get => new Vector(0, _scrollOffsetY);
+        set
+        {
+            var maxScrollY = Math.Max(0, Extent.Height - Viewport.Height);
+            double targetY = Math.Clamp(value.Y, 0, maxScrollY);
+            if (Math.Abs(_scrollOffsetY - targetY) > 0.001)
+            {
+                _scrollOffsetY = targetY;
+                ScrollInvalidated?.Invoke(this, EventArgs.Empty);
+                InvalidateVisual();
+            }
+        }
+    }
+
+    public bool BringIntoView(Control target, Rect targetRect) => false;
+    public Control? GetControlInDirection(NavigationDirection direction, Control? from) => null;
+    public void RaiseScrollInvalidated(EventArgs e) => ScrollInvalidated?.Invoke(this, e);
 
     private string _internalText = string.Empty;
     private MarkdownDocument? _document;
@@ -124,7 +158,7 @@ public class MarkdownEditor : Control
     static MarkdownEditor()
     {
         FocusableProperty.OverrideDefaultValue<MarkdownEditor>(true);
-        AffectsRender<MarkdownEditor>(TextProperty);
+        AffectsMeasure<MarkdownEditor>(TextProperty);
         AffectsRender<MarkdownEditor>(IsDarkThemeProperty);
     }
 
@@ -270,15 +304,17 @@ public class MarkdownEditor : Control
             markdownText: _internalText
         );
         _documentLayout.Layout(layoutContext);
+        ScrollInvalidated?.Invoke(this, EventArgs.Empty);
+        InvalidateMeasure();
         InvalidateVisual();
     }
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        var width = availableSize.Width;
-        if (double.IsInfinity(width)) width = 800;
+        double width = double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width;
         ParseAndLayout(width);
-        return new Size(width, _documentLayout.Bounds.Height);
+        double height = double.IsInfinity(availableSize.Height) ? _documentLayout.Bounds.Height : availableSize.Height;
+        return new Size(width, height);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -309,7 +345,7 @@ public class MarkdownEditor : Control
             _isDragging = true;
             Focus();
 
-            var localPoint = new SKPoint((float)point.Position.X, (float)point.Position.Y);
+            var localPoint = new SKPoint((float)point.Position.X, (float)(point.Position.Y + _scrollOffsetY));
             
             // Check checkbox clicks first
             bool checkboxToggled = false;
@@ -434,7 +470,7 @@ public class MarkdownEditor : Control
         if (_isDragging)
         {
             var point = e.GetCurrentPoint(this);
-            var localPoint = new SKPoint((float)point.Position.X, (float)point.Position.Y);
+            var localPoint = new SKPoint((float)point.Position.X, (float)(point.Position.Y + _scrollOffsetY));
             
             int currentIndex = _documentLayout.HitTest(localPoint);
             _caretIndex = currentIndex;
@@ -462,6 +498,34 @@ public class MarkdownEditor : Control
     {
         base.OnPointerCaptureLost(e);
         _isDragging = false;
+    }
+
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        
+        if (Parent is Visual && VisualRoot != null)
+        {
+            var parent = Parent;
+            while (parent != null)
+            {
+                if (parent is ScrollViewer)
+                {
+                    return; // Let it bubble
+                }
+                parent = parent.Parent;
+            }
+        }
+
+        double maxScroll = _documentLayout.Bounds.Height - Bounds.Height;
+        if (maxScroll > 0)
+        {
+            _scrollOffsetY -= e.Delta.Y * 40;
+            _scrollOffsetY = Math.Clamp(_scrollOffsetY, 0, maxScroll);
+            ScrollInvalidated?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            e.Handled = true;
+        }
     }
 
     protected override void OnTextInput(TextInputEventArgs e)
@@ -1090,18 +1154,23 @@ public class MarkdownEditor : Control
         int width = (int)Math.Max(1, bounds.Width);
         int height = (int)Math.Max(1, bounds.Height);
 
-        if (_cachedBitmap == null || _cachedBitmap.Width != width || _cachedBitmap.Height != height)
+        double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+        float scale = (float)scaling;
+        int pixelWidth = (int)Math.Max(1, Math.Round(bounds.Width * scaling));
+        int pixelHeight = (int)Math.Max(1, Math.Round(bounds.Height * scaling));
+
+        if (_cachedBitmap == null || _cachedBitmap.Width != pixelWidth || _cachedBitmap.Height != pixelHeight)
         {
             _cachedBitmap?.Dispose();
-            _cachedBitmap = new SKBitmap(width, height);
+            _cachedBitmap = new SKBitmap(pixelWidth, pixelHeight);
         }
 
-        if (_cachedWriteableBitmap == null || _cachedWriteableBitmap.Size.Width != width || _cachedWriteableBitmap.Size.Height != height)
+        if (_cachedWriteableBitmap == null || _cachedWriteableBitmap.PixelSize.Width != pixelWidth || _cachedWriteableBitmap.PixelSize.Height != pixelHeight)
         {
             _cachedWriteableBitmap?.Dispose();
             _cachedWriteableBitmap = new WriteableBitmap(
-                new PixelSize(width, height),
-                new Vector(96, 96),
+                new PixelSize(pixelWidth, pixelHeight),
+                new Vector(96 * scaling, 96 * scaling),
                 PixelFormat.Bgra8888,
                 AlphaFormat.Premul);
         }
@@ -1110,6 +1179,10 @@ public class MarkdownEditor : Control
         using (var canvas = new SKCanvas(_cachedBitmap))
         {
             canvas.Clear(SKColors.Transparent);
+
+            canvas.Save();
+            canvas.Scale(scale);
+            canvas.Translate(0, -(float)_scrollOffsetY);
 
             // Render Markdown document
             var renderContext = new RenderContext(_resources, new SKRect(0, 0, width, height))
@@ -1147,6 +1220,8 @@ public class MarkdownEditor : Control
                 };
                 canvas.DrawLine(caretRect.Left, caretRect.Top, caretRect.Left, caretRect.Bottom, caretPaint);
             }
+
+            canvas.Restore();
         }
 
         // 2. Copy pixels to WriteableBitmap
@@ -1159,7 +1234,7 @@ public class MarkdownEditor : Control
             var rowSize = Math.Min(srcRowBytes, dstRowBytes);
             unsafe
             {
-                for (int y = 0; y < height; y++)
+                for (int y = 0; y < pixelHeight; y++)
                 {
                     Buffer.MemoryCopy(
                         (void*)(srcPtr + y * srcRowBytes),
