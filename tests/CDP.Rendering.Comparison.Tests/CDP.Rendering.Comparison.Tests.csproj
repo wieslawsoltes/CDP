@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CDP.Document.Parser\CDP.Document.Parser.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Document.Renderer\CDP.Document.Renderer.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Markdown.Parser\CDP.Markdown.Parser.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Markdown.Renderer\CDP.Markdown.Renderer.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Html.Parser\CDP.Html.Parser.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Css.Parser\CDP.Css.Parser.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Html.Renderer\CDP.Html.Renderer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

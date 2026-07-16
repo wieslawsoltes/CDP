@@ -64,5 +64,6 @@
     <Project Path="tests/CDP.Inspector.CLI.Tests/CDP.Inspector.CLI.Tests.csproj" />
     <Project Path="tests/CDP.Automation.OS.Tests/CDP.Automation.OS.Tests.csproj" />
     <Project Path="tests/CDP.Xaml.LanguageServer.Tests/CDP.Xaml.LanguageServer.Tests.csproj" />
+    <Project Path="tests/CDP.Rendering.Comparison.Tests/CDP.Rendering.Comparison.Tests.csproj" />
   </Folder>
 </Solution>

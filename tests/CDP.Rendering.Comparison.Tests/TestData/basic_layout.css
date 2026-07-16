@@ -1,0 +1,34 @@
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f0f0f0;
+  margin: 20px;
+}
+.container {
+  background-color: white;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  max-width: 600px;
+}
+h1 {
+  color: #333;
+}
+.intro {
+  font-size: 16px;
+  color: #666;
+}
+.box {
+  display: inline-block;
+  width: 100px;
+  height: 100px;
+  margin: 10px;
+  color: white;
+  text-align: center;
+  line-height: 100px;
+}
+.red {
+  background-color: #ff5252;
+}
+.blue {
+  background-color: #2196f3;
+}
