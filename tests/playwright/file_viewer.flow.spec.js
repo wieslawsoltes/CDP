@@ -27,6 +27,14 @@ test.describe('CDP Recorded Tests', () => {
       await expect(result).toBeTruthy();
     });
 
+    await test.step('Evaluate Script: var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;\nvar box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesFiles");\nif (box != null) {\n    var tab = null;\n    for (var i = 0; i < box.Tabs.Count; i++) {\n        if (box.Tabs[i].SelectedViewName == "SourcesFiles") {\n            tab = box.Tabs[i];\n            break;\n        }\n    }\n    if (tab != null) {\n        box.ActiveTab = tab;\n    }\n}\n', async () => {
+      await page.evaluate('var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;\nvar box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesFiles");\nif (box != null) {\n    var tab = null;\n    for (var i = 0; i < box.Tabs.Count; i++) {\n        if (box.Tabs[i].SelectedViewName == "SourcesFiles") {\n            tab = box.Tabs[i];\n            break;\n        }\n    }\n    if (tab != null) {\n        box.ActiveTab = tab;\n    }\n}\n');
+    });
+
+    await test.step('Delay 200ms', async () => {
+      await page.waitForTimeout(200);
+    });
+
     await test.step('Assert element #treeWorkspaceFiles is visible', async () => {
       await expect(page.locator('#treeWorkspaceFiles')).toBeVisible();
     });
@@ -35,8 +43,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.evaluate('var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext; var firstFile = vm.Sources.WorkspaceFiles.FirstOrDefault(f => !f.IsDirectory); if (firstFile != null) { vm.Sources.SelectedFile = firstFile; }');
     });
 
-    await test.step('Delay 1000ms', async () => {
-      await page.waitForTimeout(1000);
+    await test.step('Delay 300ms', async () => {
+      await page.waitForTimeout(300);
     });
 
     await test.step('Assert element #pnlCodeViewer is visible', async () => {

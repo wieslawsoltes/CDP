@@ -13,8 +13,8 @@ test.describe('CDP Recorded Tests', () => {
       await page.goto('http://localhost:9222/');
     });
 
-    await test.step('Delay 1000ms', async () => {
-      await page.waitForTimeout(1000);
+    await test.step('Delay 300ms', async () => {
+      await page.waitForTimeout(300);
     });
 
     await test.step('Tap on element #btnRefreshTargets', async () => {
@@ -22,8 +22,8 @@ test.describe('CDP Recorded Tests', () => {
       await element_1.tap();
     });
 
-    await test.step('Delay 1000ms', async () => {
-      await page.waitForTimeout(1000);
+    await test.step('Delay 300ms', async () => {
+      await page.waitForTimeout(300);
     });
 
     await test.step('Tap on element #btnConnect', async () => {
@@ -31,8 +31,8 @@ test.describe('CDP Recorded Tests', () => {
       await element_3.tap();
     });
 
-    await test.step('Delay 1000ms', async () => {
-      await page.waitForTimeout(1000);
+    await test.step('Delay 1500ms', async () => {
+      await page.waitForTimeout(1500);
     });
 
     await test.step('Assert True: __raw_window.DataContext.Connection.IsConnected', async () => {

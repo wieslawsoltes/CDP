@@ -27,8 +27,24 @@ test.describe('CDP Recorded Tests', () => {
       await expect(result).toBeTruthy();
     });
 
+    await test.step('Evaluate Script: var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;\nvar box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesFiles");\nif (box != null) {\n    var tab = null;\n    for (var i = 0; i < box.Tabs.Count; i++) {\n        if (box.Tabs[i].SelectedViewName == "SourcesFiles") {\n            tab = box.Tabs[i];\n            break;\n        }\n    }\n    if (tab != null) {\n        box.ActiveTab = tab;\n    }\n}\n', async () => {
+      await page.evaluate('var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;\nvar box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesFiles");\nif (box != null) {\n    var tab = null;\n    for (var i = 0; i < box.Tabs.Count; i++) {\n        if (box.Tabs[i].SelectedViewName == "SourcesFiles") {\n            tab = box.Tabs[i];\n            break;\n        }\n    }\n    if (tab != null) {\n        box.ActiveTab = tab;\n    }\n}\n');
+    });
+
+    await test.step('Delay 200ms', async () => {
+      await page.waitForTimeout(200);
+    });
+
     await test.step('Assert element #treeWorkspaceFiles is visible', async () => {
       await expect(page.locator('#treeWorkspaceFiles')).toBeVisible();
+    });
+
+    await test.step('Evaluate Script: var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;\nvar box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesSearch");\nif (box != null) {\n    var tab = null;\n    for (var i = 0; i < box.Tabs.Count; i++) {\n        if (box.Tabs[i].SelectedViewName == "SourcesSearch") {\n            tab = box.Tabs[i];\n            break;\n        }\n    }\n    if (tab != null) {\n        box.ActiveTab = tab;\n    }\n}\n', async () => {
+      await page.evaluate('var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;\nvar box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesSearch");\nif (box != null) {\n    var tab = null;\n    for (var i = 0; i < box.Tabs.Count; i++) {\n        if (box.Tabs[i].SelectedViewName == "SourcesSearch") {\n            tab = box.Tabs[i];\n            break;\n        }\n    }\n    if (tab != null) {\n        box.ActiveTab = tab;\n    }\n}\n');
+    });
+
+    await test.step('Delay 300ms', async () => {
+      await page.waitForTimeout(300);
     });
 
     await test.step('Assert element #txtSourcesSearch is visible', async () => {
@@ -36,17 +52,17 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Type text in element #txtSourcesSearch', async () => {
-      const element_5 = page.locator('#txtSourcesSearch');
-      await element_5.fill('flow');
+      const element_9 = page.locator('#txtSourcesSearch');
+      await element_9.fill('flow');
     });
 
     await test.step('Tap on element #btnSearchWorkspace', async () => {
-      const element_6 = page.locator('#btnSearchWorkspace');
-      await element_6.tap();
+      const element_10 = page.locator('#btnSearchWorkspace');
+      await element_10.tap();
     });
 
-    await test.step('Delay 1000ms', async () => {
-      await page.waitForTimeout(1000);
+    await test.step('Delay 400ms', async () => {
+      await page.waitForTimeout(400);
     });
 
     await test.step('Assert element #dgSearchResults is visible', async () => {

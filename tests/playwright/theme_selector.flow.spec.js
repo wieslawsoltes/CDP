@@ -27,17 +27,25 @@ test.describe('CDP Recorded Tests', () => {
       await expect(result).toBeTruthy();
     });
 
+    await test.step('Evaluate Script: var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;\nvar box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesFiles");\nif (box != null) {\n    var tab = null;\n    for (var i = 0; i < box.Tabs.Count; i++) {\n        if (box.Tabs[i].SelectedViewName == "SourcesFiles") {\n            tab = box.Tabs[i];\n            break;\n        }\n    }\n    if (tab != null) {\n        box.ActiveTab = tab;\n    }\n}\n', async () => {
+      await page.evaluate('var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;\nvar box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesFiles");\nif (box != null) {\n    var tab = null;\n    for (var i = 0; i < box.Tabs.Count; i++) {\n        if (box.Tabs[i].SelectedViewName == "SourcesFiles") {\n            tab = box.Tabs[i];\n            break;\n        }\n    }\n    if (tab != null) {\n        box.ActiveTab = tab;\n    }\n}\n');
+    });
+
+    await test.step('Delay 200ms', async () => {
+      await page.waitForTimeout(200);
+    });
+
     await test.step('Assert element #btnThemeSelector is visible', async () => {
       await expect(page.locator('#btnThemeSelector')).toBeVisible();
     });
 
     await test.step('Tap on element #btnThemeSelector', async () => {
-      const element_4 = page.locator('#btnThemeSelector');
-      await element_4.tap();
+      const element_6 = page.locator('#btnThemeSelector');
+      await element_6.tap();
     });
 
-    await test.step('Delay 1000ms', async () => {
-      await page.waitForTimeout(1000);
+    await test.step('Delay 200ms', async () => {
+      await page.waitForTimeout(200);
     });
 
     await test.step('Assert True: true', async () => {
