@@ -17,56 +17,28 @@ namespace CDP.Document.Tests;
 
 public class AutosaveFlushStressTests
 {
-    private VisualTreeAttachmentEventArgs CreateDummyEventArgs()
+    private void CleanupEditorTimer(DocumentEditor editor)
     {
-        Type? presentationSourceType = null;
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        var timerField = typeof(DocumentEditor).GetField("_saveDebounceTimer", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (timerField != null)
         {
-            try
-            {
-                foreach (var type in assembly.GetTypes())
-                {
-                    if (typeof(Avalonia.Rendering.IPresentationSource).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract)
-                    {
-                        presentationSourceType = type;
-                        break;
-                    }
-                }
-            }
-            catch {}
-            if (presentationSourceType != null) break;
+            var timer = (Timer?)timerField.GetValue(editor);
+            timer?.Dispose();
+            timerField.SetValue(editor, null);
         }
-        Assert.NotNull(presentationSourceType);
-
-        var dummySource = (Avalonia.Rendering.IPresentationSource)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(presentationSourceType);
-        var dummyVisual = (Avalonia.Visual)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Avalonia.Controls.Border));
-
-        var sourceType = dummySource.GetType();
-        while (sourceType != null)
+        var versionField = typeof(DocumentEditor).GetField("_saveVersion", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (versionField != null)
         {
-            foreach (var field in sourceType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
-            {
-                if (typeof(Avalonia.Visual).IsAssignableFrom(field.FieldType))
-                {
-                    try
-                    {
-                        field.SetValue(dummySource, dummyVisual);
-                    }
-                    catch {}
-                }
-            }
-            sourceType = sourceType.BaseType;
+            versionField.SetValue(editor, -9999);
         }
-
-        return new VisualTreeAttachmentEventArgs(dummyVisual, dummySource);
     }
 
     private void InvokeDetach(DocumentEditor editor)
     {
-        var detachMethod = typeof(DocumentEditor).GetMethod("OnDetachedFromVisualTree", BindingFlags.NonPublic | BindingFlags.Instance);
-        Assert.NotNull(detachMethod);
-        var args = CreateDummyEventArgs();
-        detachMethod.Invoke(editor, new object[] { args });
+        var window = new Avalonia.Controls.Window { Content = editor };
+        window.Show();
+        window.Content = null;
+        window.Close();
     }
 
     private void InvokeScheduleAutoSave(DocumentEditor editor)
@@ -140,6 +112,7 @@ public class AutosaveFlushStressTests
         }
         finally
         {
+            CleanupEditorTimer(editor);
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);
@@ -188,6 +161,7 @@ public class AutosaveFlushStressTests
         }
         finally
         {
+            CleanupEditorTimer(editor);
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);
@@ -232,6 +206,7 @@ public class AutosaveFlushStressTests
         }
         finally
         {
+            CleanupEditorTimer(editor);
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);
@@ -285,6 +260,7 @@ public class AutosaveFlushStressTests
         }
         finally
         {
+            CleanupEditorTimer(editor);
             if (File.Exists(tempPathA)) File.Delete(tempPathA);
             if (File.Exists(tempPathB)) File.Delete(tempPathB);
         }
@@ -337,6 +313,7 @@ public class AutosaveFlushStressTests
         }
         finally
         {
+            CleanupEditorTimer(editor);
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);

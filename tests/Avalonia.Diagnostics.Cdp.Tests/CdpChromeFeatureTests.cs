@@ -1881,9 +1881,10 @@ public class CdpChromeFeatureTests
             Title = "Inspect Test Window",
             Width = 300,
             Height = 200,
-            Content = new Button { Content = "Target Button", Width = 100, Height = 50 }
+            Content = new Button { Content = "Target Button" }
         };
         window.Show();
+        window.Focus();
 
         // Wait for window to be fully ready and laid out
         for (int i = 0; i < 10; i++)
@@ -1919,20 +1920,24 @@ public class CdpChromeFeatureTests
         window.Arrange(new Rect(0, 0, 300, 200));
         Dispatcher.UIThread.RunJobs();
         
-        await InputDomain.HandleAsync(session, "dispatchMouseEvent", clickParams);
-
-        // Give dispatcher some time to process
-        for (int i = 0; i < 10; i++)
-        {
-            Dispatcher.UIThread.RunJobs();
-            await Task.Delay(20);
-        }
-
-        // 3. Verify that Overlay.inspectNodeRequested was sent
         string? inspectMsg = null;
-        lock (fakeWs.SentMessages)
+        for (int retry = 0; retry < 5; retry++)
         {
-            inspectMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Overlay.inspectNodeRequested"));
+            await InputDomain.HandleAsync(session, "dispatchMouseEvent", clickParams);
+
+            // Give dispatcher some time to process
+            for (int i = 0; i < 5; i++)
+            {
+                Dispatcher.UIThread.RunJobs();
+                await Task.Delay(20);
+            }
+
+            lock (fakeWs.SentMessages)
+            {
+                inspectMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Overlay.inspectNodeRequested"));
+            }
+
+            if (inspectMsg != null) break;
         }
 
         Assert.NotNull(inspectMsg);

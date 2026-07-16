@@ -6,6 +6,8 @@ using Xunit;
 using SkiaSharp;
 using Avalonia;
 using Avalonia.Input;
+using Avalonia.Headless;
+using Avalonia.Headless.XUnit;
 using DocumentFormat.OpenXml;
 using CDP.Document.Parser;
 using CDP.Document.Parser.AST;
@@ -16,6 +18,7 @@ using CDP.Document.Renderer.Layout.Word;
 using CDP.Document.Editor;
 
 namespace CDP.Document.Tests;
+
 
 public class EnhancementsTests
 {
@@ -959,7 +962,7 @@ public class EnhancementsTests
         // This is because the renderer ignored the nested table, but the editor traversed it!
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestAutosaveFlushedOnDetach()
     {
         var editor = new DocumentEditor { IsReadOnly = false };
@@ -991,53 +994,13 @@ public class EnhancementsTests
 
             Assert.Equal("", File.ReadAllText(tempPath));
 
-            var detachMethod = typeof(DocumentEditor).GetMethod("OnDetachedFromVisualTree", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            Assert.NotNull(detachMethod);
+            // Attach editor to a headless window to trigger OnAttachedToVisualTree
+            var window = new Avalonia.Controls.Window { Content = editor };
+            window.Show();
 
-            // Find a concrete type that implements IPresentationSource
-            Type? presentationSourceType = null;
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                try
-                {
-                    foreach (var type in assembly.GetTypes())
-                    {
-                        if (typeof(Avalonia.Rendering.IPresentationSource).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract)
-                        {
-                            presentationSourceType = type;
-                            break;
-                        }
-                    }
-                }
-                catch {}
-                if (presentationSourceType != null) break;
-            }
-            Assert.NotNull(presentationSourceType);
-
-            // Create uninitialized dummy instances to avoid calling platform window constructors
-            var dummySource = (Avalonia.Rendering.IPresentationSource)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(presentationSourceType);
-            var dummyVisual = (Avalonia.Visual)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Avalonia.Controls.Border));
-
-            // Set any Visual fields/properties on dummySource using reflection to bypass null check
-            var sourceType = dummySource.GetType();
-            while (sourceType != null)
-            {
-                foreach (var field in sourceType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance))
-                {
-                    if (typeof(Avalonia.Visual).IsAssignableFrom(field.FieldType))
-                    {
-                        try
-                        {
-                            field.SetValue(dummySource, dummyVisual);
-                        }
-                        catch {}
-                    }
-                }
-                sourceType = sourceType.BaseType;
-            }
-
-            var args = new VisualTreeAttachmentEventArgs(dummyVisual, dummySource);
-            detachMethod.Invoke(editor, new object[] { args });
+            // Detach editor by clearing Content (this automatically triggers OnDetachedFromVisualTree!)
+            window.Content = null;
+            window.Close();
 
             Assert.Null(timerField.GetValue(editor));
 
@@ -1046,12 +1009,25 @@ public class EnhancementsTests
         }
         finally
         {
+            var timerField = typeof(DocumentEditor).GetField("_saveDebounceTimer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (timerField != null)
+            {
+                var timer = (System.Threading.Timer?)timerField.GetValue(editor);
+                timer?.Dispose();
+                timerField.SetValue(editor, null);
+            }
+            var versionField = typeof(DocumentEditor).GetField("_saveVersion", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (versionField != null)
+            {
+                versionField.SetValue(editor, -9999);
+            }
             if (File.Exists(tempPath))
             {
                 File.Delete(tempPath);
             }
         }
     }
+
 
     [Fact]
     public void TestInlineImageDimensionsAndLayout()
