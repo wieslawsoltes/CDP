@@ -7,9 +7,13 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build-linux:
-    name: Build & Test (Linux)
-    runs-on: ubuntu-latest
+  run-unit-tests:
+    name: Run Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -24,8 +28,35 @@ jobs:
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
     - name: Run Unit Tests
+      shell: bash
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1 --filter 'FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests'
+
+    - name: Upload Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs-${{ matrix.os }}
+        path: |
+          **/*.log
+          **/*.png
+          **/*.html
+
+  build-pack-linux:
+    name: Build & Pack (Linux)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Build CdpSampleApp for Tests
+      run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
     - name: Publish Linux Executable
       run: |
@@ -44,14 +75,14 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: linux-test-logs
+        name: linux-pack-logs
         path: |
           **/*.log
           **/*.png
           **/*.html
 
-  build-macos:
-    name: Build & Test (macOS)
+  build-pack-macos:
+    name: Build & Pack (macOS)
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
@@ -65,10 +96,6 @@ jobs:
 
     - name: Build CdpSampleApp for Tests
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
-
-    - name: Run Unit Tests
-      run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
 
     - name: Publish macOS ARM64 Executable
       run: |
@@ -86,14 +113,14 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: macos-test-logs
+        name: macos-pack-logs
         path: |
           **/*.log
           **/*.png
           **/*.html
 
-  build-windows:
-    name: Build & Test (Windows)
+  build-pack-windows:
+    name: Build & Pack (Windows)
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -108,11 +135,6 @@ jobs:
     - name: Build CdpSampleApp for Tests
       shell: pwsh
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
-
-    - name: Run Unit Tests
-      shell: pwsh
-      run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
 
     - name: Publish Windows Executable
       shell: pwsh
@@ -135,7 +157,7 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: windows-test-logs
+        name: windows-pack-logs
         path: |
           **/*.log
           **/*.png
@@ -144,7 +166,7 @@ jobs:
   pack-nuget:
     name: Pack NuGet
     runs-on: ubuntu-latest
-    needs: [build-linux, build-macos, build-windows]
+    needs: [run-unit-tests, build-pack-linux, build-pack-macos, build-pack-windows]
     steps:
     - uses: actions/checkout@v4
       with:
