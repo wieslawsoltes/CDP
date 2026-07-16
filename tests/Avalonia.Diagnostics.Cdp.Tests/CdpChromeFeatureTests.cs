@@ -1908,8 +1908,8 @@ public class CdpChromeFeatureTests
         var clickParams = new JsonObject
         {
             ["type"] = "mousePressed",
-            ["x"] = 50.0,
-            ["y"] = 25.0,
+            ["x"] = 150.0,
+            ["y"] = 100.0,
             ["button"] = "left",
             ["clickCount"] = 1,
             ["modifiers"] = 0
