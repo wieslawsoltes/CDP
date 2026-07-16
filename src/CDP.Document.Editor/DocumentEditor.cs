@@ -70,6 +70,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     private Timer? _saveDebounceTimer;
     private int _saveVersion;
     private const int SaveDebounceMs = 500;
+    private readonly Dispatcher _ownerDispatcher = Dispatcher.UIThread;
 
     // Scroll offset
     private double _scrollOffsetX;
@@ -1273,7 +1274,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         _saveDebounceTimer?.Dispose();
         _saveDebounceTimer = new Timer(_ =>
         {
-            Dispatcher.UIThread.Post(() =>
+            _ownerDispatcher.Post(() =>
             {
                 if (currentVersion == _saveVersion)
                 {
