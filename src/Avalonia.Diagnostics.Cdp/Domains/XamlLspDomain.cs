@@ -445,53 +445,116 @@ namespace Avalonia.Diagnostics.Cdp.Domains
             return "";
         }
 
-        private static IEnumerable<Type> GetAvailableTypes(XamlSchemaRegistry registry)
-        {
-            var field = typeof(XamlSchemaRegistry).GetField("_namespaces", BindingFlags.NonPublic | BindingFlags.Instance);
-            var namespaces = field?.GetValue(registry) as ConcurrentDictionary<string, IXamlNamespace>;
-            if (namespaces == null) yield break;
+        private static readonly ConcurrentDictionary<Assembly, bool> s_scannedAssemblies = new();
+        private static readonly ConcurrentDictionary<string, List<Type>> s_clrNamespaceCache = new();
+        private static readonly object s_scanLock = new();
 
-            foreach (var ns in namespaces.Values)
+        private static void UpdateClrNamespaceCache()
+        {
+            bool hasUnscanned = false;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                foreach (var assemblyName in ns.TargetAssemblies)
+                if (!s_scannedAssemblies.ContainsKey(assembly))
                 {
-                    Assembly? assembly = null;
-                    try
-                    {
-                        assembly = AppDomain.CurrentDomain.GetAssemblies()
-                            .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
-                        if (assembly == null)
-                        {
-                            assembly = Assembly.Load(new AssemblyName(assemblyName));
-                        }
-                    }
-                    catch
+                    hasUnscanned = true;
+                    break;
+                }
+            }
+
+            if (!hasUnscanned)
+            {
+                return;
+            }
+
+            lock (s_scanLock)
+            {
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (s_scannedAssemblies.ContainsKey(assembly))
                     {
                         continue;
                     }
-
-                    if (assembly == null) continue;
 
                     Type[] types;
                     try
                     {
                         types = assembly.GetTypes();
                     }
+                    catch (ReflectionTypeLoadException ex)
+                    {
+                        types = ex.Types.Where(t => t != null).ToArray()!;
+                    }
                     catch
                     {
+                        s_scannedAssemblies.TryAdd(assembly, true);
                         continue;
                     }
 
                     foreach (var type in types)
                     {
+                        if (type == null) continue;
                         if (!type.IsPublic || type.IsAbstract) continue;
+                        var clrNs = type.Namespace;
+                        if (clrNs == null) continue;
 
-                        foreach (var clrNs in ns.ClrNamespaces)
-                        {
-                            if (type.Namespace == clrNs)
+                        s_clrNamespaceCache.AddOrUpdate(
+                            clrNs,
+                            ns => new List<Type> { type },
+                            (ns, list) =>
                             {
-                                yield return type;
+                                lock (list)
+                                {
+                                    list.Add(type);
+                                }
+                                return list;
+                            });
+                    }
+
+                    s_scannedAssemblies.TryAdd(assembly, true);
+                }
+            }
+        }
+
+        private static IEnumerable<Type> GetAvailableTypes(XamlSchemaRegistry registry)
+        {
+            UpdateClrNamespaceCache();
+
+            foreach (var ns in registry.Namespaces)
+            {
+                var targetAssemblies = ns.TargetAssemblies;
+                if (targetAssemblies != null && targetAssemblies.Count > 0)
+                {
+                    foreach (var assemblyName in targetAssemblies)
+                    {
+                        try
+                        {
+                            var assembly = AppDomain.CurrentDomain.GetAssemblies()
+                                .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
+                            if (assembly == null)
+                            {
+                                assembly = Assembly.Load(new AssemblyName(assemblyName));
+                                UpdateClrNamespaceCache();
                             }
+                        }
+                        catch
+                        {
+                            // Ignore load errors
+                        }
+                    }
+                }
+
+                foreach (var clrNs in ns.ClrNamespaces)
+                {
+                    if (s_clrNamespaceCache.TryGetValue(clrNs, out var types))
+                    {
+                        List<Type> copy;
+                        lock (types)
+                        {
+                            copy = new List<Type>(types);
+                        }
+                        foreach (var type in copy)
+                        {
+                            yield return type;
                         }
                     }
                 }
@@ -536,7 +599,7 @@ namespace Avalonia.Diagnostics.Cdp.Domains
                         var nsUri = literal.Value;
                         if (nsUri.StartsWith("clr-namespace:"))
                         {
-                            registry.ResolveType(nsUri, "DummyTypeToRegisterNamespace");
+                            registry.EnsureNamespaceRegistered(nsUri);
                         }
                     }
                 }

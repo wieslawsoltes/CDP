@@ -1177,5 +1177,363 @@ public class RendererTests
         Assert.NotEqual(50f, styles[second].FontSize);
         Assert.NotEqual(50f, styles[third].FontSize);
     }
+
+    [Fact]
+    public void TestPseudoClassesWithWhitespaceAndNthChild()
+    {
+        // Setup DOM tree with text/whitespace nodes in between element nodes
+        // <div>
+        //   [whitespace]
+        //   <span>First</span>
+        //   [whitespace]
+        //   <span>Second</span>
+        //   [whitespace]
+        //   <span>Third</span>
+        //   [whitespace]
+        //   <span>Fourth</span>
+        //   [whitespace]
+        //   <span>Fifth</span>
+        //   [whitespace]
+        // </div>
+        var doc = new HtmlDocument();
+        var parent = new HtmlElement { TagName = "div" };
+        doc.Children.Add(parent);
+        parent.Parent = doc;
+
+        var t1 = new HtmlTextNode { Text = "\n  " };
+        var first = new HtmlElement { TagName = "span" };
+        var t2 = new HtmlTextNode { Text = "\n  " };
+        var second = new HtmlElement { TagName = "span" };
+        var t3 = new HtmlTextNode { Text = "\n  " };
+        var third = new HtmlElement { TagName = "span" };
+        var t4 = new HtmlTextNode { Text = "\n  " };
+        var fourth = new HtmlElement { TagName = "span" };
+        var t5 = new HtmlTextNode { Text = "\n  " };
+        var fifth = new HtmlElement { TagName = "span" };
+        var t6 = new HtmlTextNode { Text = "\n" };
+
+        parent.Children.Add(t1); t1.Parent = parent;
+        parent.Children.Add(first); first.Parent = parent;
+        parent.Children.Add(t2); t2.Parent = parent;
+        parent.Children.Add(second); second.Parent = parent;
+        parent.Children.Add(t3); t3.Parent = parent;
+        parent.Children.Add(third); third.Parent = parent;
+        parent.Children.Add(t4); t4.Parent = parent;
+        parent.Children.Add(fourth); fourth.Parent = parent;
+        parent.Children.Add(t5); t5.Parent = parent;
+        parent.Children.Add(fifth); fifth.Parent = parent;
+        parent.Children.Add(t6); t6.Parent = parent;
+
+        var css = @"
+            span:first-child { color: red; }
+            span:last-child { color: blue; }
+            span:nth-child(even) { font-size: 10px; }
+            span:nth-child(odd) { font-size: 11px; }
+            span:nth-child(3n+1) { background-color: green; }
+            span:nth-last-child(2) { width: 42px; }
+            span:nth-child(4) { height: 99px; }
+            span:nth-child(-n+3) { display: flex; }
+            span:nth-child(10) { display: none; }
+            span:nth-child(0) { display: none; }
+            span:nth-child(-5) { display: none; }
+        ";
+
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+
+        // 1. Verify :first-child matches the first span, ignoring preceding whitespace text node
+        Assert.Equal(SKColors.Red, styles[first].Color);
+        Assert.NotEqual(SKColors.Red, styles[second].Color);
+
+        // 2. Verify :last-child matches the fifth span, ignoring succeeding whitespace text node
+        Assert.Equal(SKColors.Blue, styles[fifth].Color);
+        Assert.NotEqual(SKColors.Blue, styles[fourth].Color);
+
+        // 3. Verify :nth-child(even) and :nth-child(odd)
+        // first span is index 1 (odd) -> font-size 11
+        // second span is index 2 (even) -> font-size 10
+        // third span is index 3 (odd) -> font-size 11
+        // fourth span is index 4 (even) -> font-size 10
+        // fifth span is index 5 (odd) -> font-size 11
+        Assert.Equal(11f, styles[first].FontSize);
+        Assert.Equal(10f, styles[second].FontSize);
+        Assert.Equal(11f, styles[third].FontSize);
+        Assert.Equal(10f, styles[fourth].FontSize);
+        Assert.Equal(11f, styles[fifth].FontSize);
+
+        // 4. Verify :nth-child(3n+1)
+        // 3n+1 matches:
+        // n=0 -> index 1 (first span) -> background-color green
+        // n=1 -> index 4 (fourth span) -> background-color green
+        Assert.Equal(SKColors.Green, styles[first].BackgroundColor);
+        Assert.Equal(SKColors.Green, styles[fourth].BackgroundColor);
+        Assert.NotEqual(SKColors.Green, styles[second].BackgroundColor);
+        Assert.NotEqual(SKColors.Green, styles[third].BackgroundColor);
+        Assert.NotEqual(SKColors.Green, styles[fifth].BackgroundColor);
+
+        // 5. Verify :nth-last-child(2)
+        // count from end:
+        // fifth span (index 5) has indexFromEnd = 1
+        // fourth span (index 4) has indexFromEnd = 2
+        // fourth span should match width 42
+        Assert.Equal(42f, styles[fourth].Width.Value);
+        Assert.True(styles[fourth].Width.IsPx);
+        Assert.True(styles[fifth].Width.IsAuto);
+
+        // 6. Verify :nth-child(4) matches fourth span and sets height to 99
+        Assert.Equal(99f, styles[fourth].Height.Value);
+        Assert.True(styles[fourth].Height.IsPx);
+        Assert.True(styles[third].Height.IsAuto);
+
+        // 7. Verify :nth-child(-n+3) matches spans 1, 2, 3 and sets display to flex
+        Assert.Equal(DisplayType.Flex, styles[first].Display);
+        Assert.Equal(DisplayType.Flex, styles[second].Display);
+        Assert.Equal(DisplayType.Flex, styles[third].Display);
+        Assert.Equal(DisplayType.Inline, styles[fourth].Display);
+        Assert.Equal(DisplayType.Inline, styles[fifth].Display);
+    }
+
+    [Fact]
+    public void TestParseNthAndMatchesNth()
+    {
+        // Test parsing of structural formulas
+        Assert.True(StyleCascade.ParseNth("odd", out int a, out int b));
+        Assert.Equal(2, a);
+        Assert.Equal(1, b);
+
+        Assert.True(StyleCascade.ParseNth("even", out a, out b));
+        Assert.Equal(2, a);
+        Assert.Equal(0, b);
+
+        Assert.True(StyleCascade.ParseNth("3n+1", out a, out b));
+        Assert.Equal(3, a);
+        Assert.Equal(1, b);
+
+        Assert.True(StyleCascade.ParseNth("2n-1", out a, out b));
+        Assert.Equal(2, a);
+        Assert.Equal(-1, b);
+
+        Assert.True(StyleCascade.ParseNth("-n+3", out a, out b));
+        Assert.Equal(-1, a);
+        Assert.Equal(3, b);
+
+        Assert.True(StyleCascade.ParseNth("5", out a, out b));
+        Assert.Equal(0, a);
+        Assert.Equal(5, b);
+
+        Assert.True(StyleCascade.ParseNth("n", out a, out b));
+        Assert.Equal(1, a);
+        Assert.Equal(0, b);
+
+        Assert.True(StyleCascade.ParseNth("+n", out a, out b));
+        Assert.Equal(1, a);
+        Assert.Equal(0, b);
+
+        Assert.True(StyleCascade.ParseNth("-n", out a, out b));
+        Assert.Equal(-1, a);
+        Assert.Equal(0, b);
+
+        // Test math for matching formulas
+        // odd (2n+1) -> 1, 3, 5, 7...
+        Assert.True(StyleCascade.MatchesNth(1, 2, 1));
+        Assert.False(StyleCascade.MatchesNth(2, 2, 1));
+        Assert.True(StyleCascade.MatchesNth(3, 2, 1));
+
+        // even (2n+0) -> 2, 4, 6...
+        Assert.False(StyleCascade.MatchesNth(1, 2, 0));
+        Assert.True(StyleCascade.MatchesNth(2, 2, 0));
+
+        // 3n+1 -> 1, 4, 7...
+        Assert.True(StyleCascade.MatchesNth(1, 3, 1));
+        Assert.False(StyleCascade.MatchesNth(2, 3, 1));
+        Assert.False(StyleCascade.MatchesNth(3, 3, 1));
+        Assert.True(StyleCascade.MatchesNth(4, 3, 1));
+
+        // -n+3 -> 3, 2, 1 (since n >= 0)
+        Assert.True(StyleCascade.MatchesNth(1, -1, 3));
+        Assert.True(StyleCascade.MatchesNth(2, -1, 3));
+        Assert.True(StyleCascade.MatchesNth(3, -1, 3));
+        Assert.False(StyleCascade.MatchesNth(4, -1, 3));
+
+        // 5 -> only 5
+        Assert.False(StyleCascade.MatchesNth(1, 0, 5));
+        Assert.True(StyleCascade.MatchesNth(5, 0, 5));
+    }
+
+    [Fact]
+    public void TestAdjacentSiblingCombinator()
+    {
+        // Arrange
+        var doc = new HtmlDocument();
+        var body = new HtmlElement { TagName = "body" };
+        var div = new HtmlElement { TagName = "div" };
+        var textNode = new HtmlTextNode { Text = "   " }; // White space/text node to ignore
+        var span1 = new HtmlElement { TagName = "span" };
+        var span2 = new HtmlElement { TagName = "span" };
+
+        doc.Children.Add(body);
+        body.Parent = doc;
+        body.Children.Add(div);
+        div.Parent = body;
+        body.Children.Add(textNode);
+        textNode.Parent = body;
+        body.Children.Add(span1);
+        span1.Parent = body;
+        body.Children.Add(span2);
+        span2.Parent = body;
+
+        var css = "div + span { color: green; }";
+        var stylesheet = CssParser.Parse(css);
+
+        // Act
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+
+        // Assert
+        Assert.Equal(SKColors.Green, styles[span1].Color);
+        Assert.NotEqual(SKColors.Green, styles[span2].Color);
+    }
+
+    [Fact]
+    public void TestGeneralSiblingCombinator()
+    {
+        // Arrange
+        var doc = new HtmlDocument();
+        var body = new HtmlElement { TagName = "body" };
+        var h2 = new HtmlElement { TagName = "h2" };
+        var p1 = new HtmlElement { TagName = "p" };
+        var div = new HtmlElement { TagName = "div" };
+        var p2 = new HtmlElement { TagName = "p" };
+
+        doc.Children.Add(body);
+        body.Parent = doc;
+        body.Children.Add(h2);
+        h2.Parent = body;
+        body.Children.Add(p1);
+        p1.Parent = body;
+        body.Children.Add(div);
+        div.Parent = body;
+        body.Children.Add(p2);
+        p2.Parent = body;
+
+        var css = "h2 ~ p { color: blue; }";
+        var stylesheet = CssParser.Parse(css);
+
+        // Act
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+
+        // Assert
+        Assert.Equal(SKColors.Blue, styles[p1].Color);
+        Assert.Equal(SKColors.Blue, styles[p2].Color);
+    }
+
+    [Fact]
+    public void TestChainSiblingCombinators()
+    {
+        // Arrange
+        // HTML: <body><div></div><span></span><p></p></body>
+        // CSS: div + span ~ p { color: red; }
+        var doc = new HtmlDocument();
+        var body = new HtmlElement { TagName = "body" };
+        var div = new HtmlElement { TagName = "div" };
+        var span = new HtmlElement { TagName = "span" };
+        var p = new HtmlElement { TagName = "p" };
+
+        doc.Children.Add(body);
+        body.Parent = doc;
+        body.Children.Add(div);
+        div.Parent = body;
+        body.Children.Add(span);
+        span.Parent = body;
+        body.Children.Add(p);
+        p.Parent = body;
+
+        var css = "div + span ~ p { color: red; }";
+        var stylesheet = CssParser.Parse(css);
+
+        // Act
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+
+        // Assert
+        Assert.Equal(SKColors.Red, styles[p].Color);
+    }
+
+    [Fact]
+    public void TestStyleCascadeWithMediaQueries()
+    {
+        // 1. Arrange document
+        var doc = new HtmlDocument();
+        var body = new HtmlElement { TagName = "body" };
+        var div = new HtmlElement { TagName = "div" };
+        div.Attributes["class"] = "box";
+
+        doc.Children.Add(body);
+        body.Parent = doc;
+        body.Children.Add(div);
+        div.Parent = body;
+
+        string css = @"
+            .box { color: black; font-size: 14px; }
+            @media print {
+                .box { color: grey; }
+            }
+            @media screen and (min-width: 600px) {
+                .box { color: blue; }
+            }
+            @media screen and (max-width: 400px) {
+                .box { color: red; }
+            }
+            @media (min-height: 800px) {
+                .box { font-size: 24px; }
+            }
+            @media (orientation: landscape) {
+                .box { font-weight: bold; }
+            }
+            @media not print {
+                .box { background-color: yellow; }
+            }
+        ";
+
+        var stylesheet = CssParser.Parse(css);
+
+        // 2. Act & Assert: default viewport (float.MaxValue, float.MaxValue, "screen")
+        {
+            var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+            var style = styles[div];
+            Assert.Equal(SKColors.Blue, style.Color); // matches screen and min-width: 600px
+            Assert.Equal(24f, style.FontSize); // min-height matches float.MaxValue
+            Assert.Equal(SKColors.Yellow, style.BackgroundColor); // matches not print
+        }
+
+        // 3. Act & Assert: Print media type
+        {
+            var styles = StyleCascade.ResolveStyles(doc, stylesheet, 800, 600, "print");
+            var style = styles[div];
+            Assert.Equal(SKColors.Gray, style.Color); // matches print
+            Assert.Null(style.BackgroundColor); // does not match not print (background color not set / transparent)
+        }
+
+        // 4. Act & Assert: screen media type, width 300 (matches max-width: 400px)
+        {
+            var styles = StyleCascade.ResolveStyles(doc, stylesheet, 300, 600, "screen");
+            var style = styles[div];
+            Assert.Equal(SKColors.Red, style.Color); // matches screen and max-width: 400px
+            Assert.Equal(14f, style.FontSize); // min-height: 800 does not match 600
+        }
+
+        // 5. Act & Assert: screen media type, orientation landscape (width 800, height 600)
+        {
+            var styles = StyleCascade.ResolveStyles(doc, stylesheet, 800, 600, "screen");
+            var style = styles[div];
+            Assert.Equal(SKFontStyleWeight.Bold, style.FontWeight); // matches orientation: landscape
+        }
+
+        // 6. Act & Assert: screen media type, orientation portrait (width 600, height 800)
+        {
+            var styles = StyleCascade.ResolveStyles(doc, stylesheet, 600, 800, "screen");
+            var style = styles[div];
+            Assert.Equal(SKFontStyleWeight.Normal, style.FontWeight); // orientation landscape does not match
+            Assert.Equal(24f, style.FontSize); // min-height: 800 matches 800
+        }
+    }
 }
 

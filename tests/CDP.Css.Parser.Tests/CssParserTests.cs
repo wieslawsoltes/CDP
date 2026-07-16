@@ -175,4 +175,115 @@ public class CssParserTests
         Assert.Equal("main-header", r3.Selectors[0].Id);
         Assert.Equal("red", r3.Declarations["color"]);
     }
+
+    [Fact]
+    public void TestNthChildSelectorParsing()
+    {
+        var css = @"
+            span:nth-child(3n+1) { color: green; }
+            div:nth-last-child(2n + 3) { color: blue; }
+        ";
+        var sheet = CssParser.Parse(css);
+        Assert.NotNull(sheet);
+        Assert.Equal(2, sheet.Rules.Count);
+
+        var r0 = sheet.Rules[0];
+        Assert.Single(r0.Selectors);
+        var s0 = r0.Selectors[0];
+        Assert.Equal("span", s0.TagName);
+        Assert.Single(s0.PseudoClasses);
+        Assert.Equal(":nth-child(3n+1)", s0.PseudoClasses[0]);
+
+        var r1 = sheet.Rules[1];
+        Assert.Single(r1.Selectors);
+        var s1 = r1.Selectors[0];
+        Assert.Equal("div", s1.TagName);
+        Assert.Single(s1.PseudoClasses);
+        Assert.Equal(":nth-last-child(2n + 3)", s1.PseudoClasses[0]);
+    }
+
+    [Fact]
+    public void TestParseSiblingCombinators()
+    {
+        // 1. Basic adjacent and general sibling combinators
+        var sPlus = CssParser.ParseSelector("div + span");
+        Assert.Equal("span", sPlus.TagName);
+        Assert.Equal("+", sPlus.Combinator);
+        Assert.NotNull(sPlus.ParentSelector);
+        Assert.Equal("div", sPlus.ParentSelector.TagName);
+
+        var sTilde = CssParser.ParseSelector("div ~ p");
+        Assert.Equal("p", sTilde.TagName);
+        Assert.Equal("~", sTilde.Combinator);
+        Assert.NotNull(sTilde.ParentSelector);
+        Assert.Equal("div", sTilde.ParentSelector.TagName);
+
+        // 2. Chained combinators
+        var sChain = CssParser.ParseSelector("div + span + p ~ section");
+        Assert.Equal("section", sChain.TagName);
+        Assert.Equal("~", sChain.Combinator);
+        Assert.NotNull(sChain.ParentSelector);
+
+        var pNode = sChain.ParentSelector;
+        Assert.Equal("p", pNode.TagName);
+        Assert.Equal("+", pNode.Combinator);
+        Assert.NotNull(pNode.ParentSelector);
+
+        var spanNode = pNode.ParentSelector;
+        Assert.Equal("span", spanNode.TagName);
+        Assert.Equal("+", spanNode.Combinator);
+        Assert.NotNull(spanNode.ParentSelector);
+
+        var divNode = spanNode.ParentSelector;
+        Assert.Equal("div", divNode.TagName);
+        Assert.Null(divNode.Combinator);
+        Assert.Null(divNode.ParentSelector);
+
+        // 3. Sibling combinators mixed with pseudo-classes containing operators
+        var sMixed = CssParser.ParseSelector("div:first-child + span:nth-child(2n+1)");
+        Assert.Equal("span", sMixed.TagName);
+        Assert.Equal("+", sMixed.Combinator);
+        Assert.Single(sMixed.PseudoClasses);
+        Assert.Equal(":nth-child(2n+1)", sMixed.PseudoClasses[0]);
+        Assert.NotNull(sMixed.ParentSelector);
+        Assert.Equal("div", sMixed.ParentSelector.TagName);
+        Assert.Single(sMixed.ParentSelector.PseudoClasses);
+        Assert.Equal(":first-child", sMixed.ParentSelector.PseudoClasses[0]);
+    }
+
+    [Fact]
+    public void TestParseMediaQueriesAndNestedConditions()
+    {
+        string css = @"
+            @media screen {
+                body { color: red; }
+                @media (min-width: 600px) {
+                    div { color: blue; }
+                }
+            }
+            @media print, (max-width: 400px) {
+                span { color: green; }
+            }
+        ";
+
+        var sheet = CssParser.Parse(css);
+        Assert.NotNull(sheet);
+        Assert.Equal(3, sheet.Rules.Count);
+
+        // Rule 0: body
+        var r0 = sheet.Rules[0];
+        Assert.Equal("body", r0.Selectors[0].TagName);
+        Assert.Equal("screen", r0.MediaCondition);
+
+        // Rule 1: div
+        var r1 = sheet.Rules[1];
+        Assert.Equal("div", r1.Selectors[0].TagName);
+        Assert.Equal("screen and (min-width: 600px)", r1.MediaCondition);
+
+        // Rule 2: span
+        var r2 = sheet.Rules[2];
+        Assert.Equal("span", r2.Selectors[0].TagName);
+        Assert.Equal("print, (max-width: 400px)", r2.MediaCondition);
+    }
 }
+

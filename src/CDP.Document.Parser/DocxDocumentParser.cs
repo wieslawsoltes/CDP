@@ -143,6 +143,12 @@ public class DocxDocumentParser : IDocumentParser
         {
             imageInline.AltText = docProperties.Description ?? docProperties.Name;
         }
+        var extent = wDrawing.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent>().FirstOrDefault();
+        if (extent != null && extent.Cx != null && extent.Cy != null)
+        {
+            imageInline.Width = extent.Cx.Value / 12700.0;
+            imageInline.Height = extent.Cy.Value / 12700.0;
+        }
         var blip = wDrawing.Descendants<DocumentFormat.OpenXml.Drawing.Blip>().FirstOrDefault();
         if (blip != null && blip.Embed != null && blip.Embed.Value != null)
         {

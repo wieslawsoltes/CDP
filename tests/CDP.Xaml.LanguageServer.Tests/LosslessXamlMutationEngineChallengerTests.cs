@@ -41,7 +41,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests
         public async Task TestChallenger_RemovingRoot()
         {
             string repoRoot = FindRepoRoot();
-            string tempFile = Path.Combine(repoRoot, "ChallengerLosslessMutationWindow.axaml");
+            string tempFile = Path.Combine(repoRoot, $"ChallengerLosslessMutationWindow_{Guid.NewGuid():N}.axaml");
 
             string initialXaml = @"<Window xmlns=""https://github.com/avaloniaui""
         xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
@@ -89,7 +89,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests
         public async Task TestChallenger_MalformedXaml()
         {
             string repoRoot = FindRepoRoot();
-            string tempFile = Path.Combine(repoRoot, "ChallengerLosslessMutationWindow.axaml");
+            string tempFile = Path.Combine(repoRoot, $"ChallengerLosslessMutationWindow_{Guid.NewGuid():N}.axaml");
 
             // Malformed XAML with unclosed tags
             string initialXaml = @"<Window xmlns=""https://github.com/avaloniaui""
@@ -137,7 +137,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests
         public async Task TestChallenger_NestedNamespaces()
         {
             string repoRoot = FindRepoRoot();
-            string tempFile = Path.Combine(repoRoot, "ChallengerLosslessMutationWindow.axaml");
+            string tempFile = Path.Combine(repoRoot, $"ChallengerLosslessMutationWindow_{Guid.NewGuid():N}.axaml");
 
             string initialXaml = @"<Window xmlns=""https://github.com/avaloniaui""
         xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
@@ -185,7 +185,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests
         public async Task TestChallenger_SequentialEdits()
         {
             string repoRoot = FindRepoRoot();
-            string tempFile = Path.Combine(repoRoot, "ChallengerLosslessMutationWindow.axaml");
+            string tempFile = Path.Combine(repoRoot, $"ChallengerLosslessMutationWindow_{Guid.NewGuid():N}.axaml");
 
             string initialXaml = @"<Window xmlns=""https://github.com/avaloniaui""
         xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
@@ -256,7 +256,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests
         public async Task TestChallenger_InvalidAttributesAndQuotes()
         {
             string repoRoot = FindRepoRoot();
-            string tempFile = Path.Combine(repoRoot, "ChallengerLosslessMutationWindow.axaml");
+            string tempFile = Path.Combine(repoRoot, $"ChallengerLosslessMutationWindow_{Guid.NewGuid():N}.axaml");
 
             string initialXaml = @"<Window xmlns=""https://github.com/avaloniaui""
         xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
@@ -313,7 +313,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests
         public async Task TestChallenger_SetOuterHtmlMalformed()
         {
             string repoRoot = FindRepoRoot();
-            string tempFile = Path.Combine(repoRoot, "ChallengerLosslessMutationWindow.axaml");
+            string tempFile = Path.Combine(repoRoot, $"ChallengerLosslessMutationWindow_{Guid.NewGuid():N}.axaml");
 
             string initialXaml = @"<Window xmlns=""https://github.com/avaloniaui""
         xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
@@ -364,7 +364,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests
         public async Task TestChallenger_WhitespacePreservation()
         {
             string repoRoot = FindRepoRoot();
-            string tempFile = Path.Combine(repoRoot, "ChallengerLosslessMutationWindow.axaml");
+            string tempFile = Path.Combine(repoRoot, $"ChallengerLosslessMutationWindow_{Guid.NewGuid():N}.axaml");
 
             // A XAML structure with complex formatting, comments, mixed tabs/spaces/newlines
             string initialXaml = @"<Window xmlns=""https://github.com/avaloniaui""

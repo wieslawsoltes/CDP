@@ -77,7 +77,7 @@ public static class CssParser
         return _normalizationBuilder;
     }
 
-    public static CssStyleSheet Parse(string cssSource)
+    public static CssStyleSheet Parse(string cssSource, string? parentMediaCondition = null)
     {
         if (cssSource == null)
             throw new ArgumentNullException(nameof(cssSource));
@@ -177,7 +177,11 @@ public static class CssParser
                         if (innerLen > 0)
                         {
                             string innerCss = new string(cssSpan.Slice(innerStart, innerLen));
-                            var subSheet = Parse(innerCss);
+                            string mediaCondition = atRuleHeaderSpan.Slice(6).Trim().ToString(); // Omit "@media"
+                            string combinedCondition = string.IsNullOrEmpty(parentMediaCondition)
+                                ? mediaCondition
+                                : $"{parentMediaCondition} and {mediaCondition}";
+                            var subSheet = Parse(innerCss, combinedCondition);
                             stylesheet.Rules.AddRange(subSheet.Rules);
                         }
                     }
@@ -256,7 +260,7 @@ public static class CssParser
 
             ReadOnlySpan<char> declSpan = cssSpan.Slice(startDecl, pos - startDecl - 1); // exclude closing '}'
 
-            var rule = new CssRule();
+            var rule = new CssRule { MediaCondition = parentMediaCondition };
 
             // Parse selectors
             ParseSelectorsList(selectorsSpan, rule.Selectors);
@@ -320,10 +324,21 @@ public static class CssParser
     {
         selectorText = selectorText.Trim();
         var sb = GetNormalizationBuilder();
+        int parenDepth = 0;
         for (int i = 0; i < selectorText.Length; i++)
         {
             char c = selectorText[i];
-            if (c == '>' || c == '+' || c == '~')
+            if (c == '(')
+            {
+                parenDepth++;
+                sb.Append(c);
+            }
+            else if (c == ')')
+            {
+                if (parenDepth > 0) parenDepth--;
+                sb.Append(c);
+            }
+            else if (parenDepth == 0 && (c == '>' || c == '+' || c == '~'))
             {
                 while (sb.Length > 0 && char.IsWhiteSpace(sb[sb.Length - 1]))
                 {
@@ -335,7 +350,7 @@ public static class CssParser
                     i++;
                 }
             }
-            else if (char.IsWhiteSpace(c))
+            else if (parenDepth == 0 && char.IsWhiteSpace(c))
             {
                 if (sb.Length > 0 && sb[sb.Length - 1] != ' ' && sb[sb.Length - 1] != '>' && sb[sb.Length - 1] != '+' && sb[sb.Length - 1] != '~')
                 {
@@ -542,21 +557,36 @@ public static class CssParser
             {
                 int lastCombinatorIdx = -1;
                 char combinatorChar = '\0';
+                int parenDepth = 0;
 
                 for (int i = currentEnd - 1; i >= 0; i--)
                 {
                     char c = currentText[i];
-                    if (c == '>' || c == '+' || c == '~')
+                    if (c == ')')
                     {
-                        lastCombinatorIdx = i;
-                        combinatorChar = c;
-                        break;
+                        parenDepth++;
+                        continue;
                     }
-                    if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
+                    if (c == '(')
                     {
-                        lastCombinatorIdx = i;
-                        combinatorChar = ' ';
-                        break;
+                        if (parenDepth > 0) parenDepth--;
+                        continue;
+                    }
+
+                    if (parenDepth == 0)
+                    {
+                        if (c == '>' || c == '+' || c == '~')
+                        {
+                            lastCombinatorIdx = i;
+                            combinatorChar = c;
+                            break;
+                        }
+                        if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
+                        {
+                            lastCombinatorIdx = i;
+                            combinatorChar = ' ';
+                            break;
+                        }
                     }
                 }
 

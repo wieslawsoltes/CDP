@@ -65,6 +65,7 @@ public class CssRule
 {
     public List<CssSelector> Selectors { get; } = new();
     public Dictionary<string, string> Declarations { get; } = new(System.StringComparer.OrdinalIgnoreCase);
+    public string? MediaCondition { get; set; }
 }
 
 public class CssStyleSheet

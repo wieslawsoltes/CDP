@@ -161,6 +161,7 @@ public class MarkdownEditor : Control, ILogicalScrollable
         FocusableProperty.OverrideDefaultValue<MarkdownEditor>(true);
         AffectsMeasure<MarkdownEditor>(TextProperty);
         AffectsRender<MarkdownEditor>(IsDarkThemeProperty);
+        TextProperty.Changed.AddClassHandler<MarkdownEditor>((control, args) => control.OnTextPropertyChanged(args));
     }
 
     public MarkdownEditor()
@@ -230,8 +231,6 @@ public class MarkdownEditor : Control, ILogicalScrollable
             _showCaret = false;
             InvalidateVisual();
         };
-
-        TextProperty.Changed.AddClassHandler<MarkdownEditor>((control, args) => control.OnTextPropertyChanged(args));
     }
 
     public void Flush()
@@ -271,8 +270,11 @@ public class MarkdownEditor : Control, ILogicalScrollable
         }
     }
 
+    public int TextPropertyChangedCallCount { get; set; }
+
     private void OnTextPropertyChanged(AvaloniaPropertyChangedEventArgs args)
     {
+        TextPropertyChangedCallCount++;
         Flush();
         var newText = args.GetNewValue<string>() ?? string.Empty;
         if (newText != _internalText)

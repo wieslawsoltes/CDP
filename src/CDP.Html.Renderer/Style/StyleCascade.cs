@@ -10,10 +10,15 @@ namespace CDP.Html.Renderer.Style;
 
 public static class StyleCascade
 {
-    public static Dictionary<HtmlNode, ComputedStyle> ResolveStyles(HtmlDocument doc, CssStyleSheet? stylesheet)
+    public static Dictionary<HtmlNode, ComputedStyle> ResolveStyles(
+        HtmlDocument doc,
+        CssStyleSheet? stylesheet,
+        float viewportWidth = float.MaxValue,
+        float viewportHeight = float.MaxValue,
+        string mediaType = "screen")
     {
         var resolved = new Dictionary<HtmlNode, ComputedStyle>();
-        ResolveNode(doc, null, stylesheet ?? new CssStyleSheet(), resolved);
+        ResolveNode(doc, null, stylesheet ?? new CssStyleSheet(), resolved, viewportWidth, viewportHeight, mediaType);
         return resolved;
     }
 
@@ -21,7 +26,10 @@ public static class StyleCascade
         HtmlNode node,
         ComputedStyle? parentStyle,
         CssStyleSheet stylesheet,
-        Dictionary<HtmlNode, ComputedStyle> resolved)
+        Dictionary<HtmlNode, ComputedStyle> resolved,
+        float viewportWidth,
+        float viewportHeight,
+        string mediaType)
     {
         if (node is HtmlDocument)
         {
@@ -30,7 +38,7 @@ public static class StyleCascade
             resolved[node] = docStyle;
             foreach (var child in node.Children)
             {
-                ResolveNode(child, docStyle, stylesheet, resolved);
+                ResolveNode(child, docStyle, stylesheet, resolved, viewportWidth, viewportHeight, mediaType);
             }
             return;
         }
@@ -90,6 +98,10 @@ public static class StyleCascade
                 rentedArray = System.Buffers.ArrayPool<MatchingRuleInfo>.Shared.Rent(totalSelectors);
                 foreach (var rule in stylesheet.Rules)
                 {
+                    if (!EvaluateMediaCondition(rule.MediaCondition, viewportWidth, viewportHeight, mediaType))
+                    {
+                        continue;
+                    }
                     foreach (var selector in rule.Selectors)
                     {
                         if (Matches(selector, element))
@@ -203,7 +215,7 @@ public static class StyleCascade
             // Resolve children recursively
             foreach (var child in element.Children)
             {
-                ResolveNode(child, style, stylesheet, resolved);
+                ResolveNode(child, style, stylesheet, resolved, viewportWidth, viewportHeight, mediaType);
             }
         }
     }
@@ -272,6 +284,55 @@ public static class StyleCascade
                 if (element.Parent is not HtmlElement parentElement || !Matches(selector.ParentSelector, parentElement))
                     return false;
             }
+            else if (selector.Combinator == "+")
+            {
+                // Adjacent sibling (immediately preceding element sibling)
+                if (element.Parent == null)
+                    return false;
+
+                int index = element.Parent.Children.IndexOf(element);
+                if (index <= 0)
+                    return false;
+
+                HtmlElement? prevElement = null;
+                for (int i = index - 1; i >= 0; i--)
+                {
+                    if (element.Parent.Children[i] is HtmlElement el)
+                    {
+                        prevElement = el;
+                        break;
+                    }
+                }
+
+                if (prevElement == null || !Matches(selector.ParentSelector, prevElement))
+                    return false;
+            }
+            else if (selector.Combinator == "~")
+            {
+                // General sibling (any preceding element sibling)
+                if (element.Parent == null)
+                    return false;
+
+                int index = element.Parent.Children.IndexOf(element);
+                if (index <= 0)
+                    return false;
+
+                bool matchedSibling = false;
+                for (int i = index - 1; i >= 0; i--)
+                {
+                    if (element.Parent.Children[i] is HtmlElement prevElement)
+                    {
+                        if (Matches(selector.ParentSelector, prevElement))
+                        {
+                            matchedSibling = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!matchedSibling)
+                    return false;
+            }
             else // Descendant selector (combinator == " " or empty/null)
             {
                 // Any ancestor
@@ -299,12 +360,101 @@ public static class StyleCascade
                 var cleanPc = pc.ToLowerInvariant();
                 if (cleanPc == ":first-child" || cleanPc == "first-child")
                 {
-                    if (element.Parent == null || element.Parent.Children.Count == 0 || element.Parent.Children[0] != element)
+                    if (element.Parent == null)
+                        return false;
+
+                    HtmlElement? firstChildElement = null;
+                    foreach (var child in element.Parent.Children)
+                    {
+                        if (child is HtmlElement childEl)
+                        {
+                            firstChildElement = childEl;
+                            break;
+                        }
+                    }
+                    if (firstChildElement != element)
                         return false;
                 }
                 else if (cleanPc == ":last-child" || cleanPc == "last-child")
                 {
-                    if (element.Parent == null || element.Parent.Children.Count == 0 || element.Parent.Children[element.Parent.Children.Count - 1] != element)
+                    if (element.Parent == null)
+                        return false;
+
+                    HtmlElement? lastChildElement = null;
+                    for (int i = element.Parent.Children.Count - 1; i >= 0; i--)
+                    {
+                        if (element.Parent.Children[i] is HtmlElement childEl)
+                        {
+                            lastChildElement = childEl;
+                            break;
+                        }
+                    }
+                    if (lastChildElement != element)
+                        return false;
+                }
+                else if ((cleanPc.StartsWith(":nth-child(") || cleanPc.StartsWith("nth-child(")) && cleanPc.EndsWith(")"))
+                {
+                    if (element.Parent == null)
+                        return false;
+
+                    int startIdx = cleanPc.StartsWith(":") ? ":nth-child(".Length : "nth-child(".Length;
+                    string arg = cleanPc.Substring(startIdx, cleanPc.Length - startIdx - 1);
+                    if (!ParseNth(arg, out int a, out int b))
+                        return false;
+
+                    int index = 0;
+                    bool found = false;
+                    foreach (var child in element.Parent.Children)
+                    {
+                        if (child is HtmlElement childEl)
+                        {
+                            index++;
+                            if (childEl == element)
+                            {
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!found)
+                        return false;
+
+                    if (!MatchesNth(index, a, b))
+                        return false;
+                }
+                else if ((cleanPc.StartsWith(":nth-last-child(") || cleanPc.StartsWith("nth-last-child(")) && cleanPc.EndsWith(")"))
+                {
+                    if (element.Parent == null)
+                        return false;
+
+                    int startIdx = cleanPc.StartsWith(":") ? ":nth-last-child(".Length : "nth-last-child(".Length;
+                    string arg = cleanPc.Substring(startIdx, cleanPc.Length - startIdx - 1);
+                    if (!ParseNth(arg, out int a, out int b))
+                        return false;
+
+                    int indexFromStart = 0;
+                    int totalElements = 0;
+                    bool found = false;
+                    foreach (var child in element.Parent.Children)
+                    {
+                        if (child is HtmlElement childEl)
+                        {
+                            totalElements++;
+                            if (childEl == element)
+                            {
+                                indexFromStart = totalElements;
+                                found = true;
+                            }
+                        }
+                    }
+
+                    if (!found)
+                        return false;
+
+                    int indexFromEnd = totalElements - indexFromStart + 1;
+
+                    if (!MatchesNth(indexFromEnd, a, b))
                         return false;
                 }
                 else
@@ -1015,5 +1165,225 @@ public static class StyleCascade
             }
         }
         return -1;
+    }
+
+    public static bool MatchesNth(int index, int a, int b)
+    {
+        if (a == 0)
+        {
+            return index == b;
+        }
+        return (index - b) % a == 0 && (index - b) / a >= 0;
+    }
+
+    public static bool ParseNth(string arg, out int a, out int b)
+    {
+        a = 0;
+        b = 0;
+        arg = arg.Trim().ToLowerInvariant().Replace(" ", "");
+        if (string.IsNullOrEmpty(arg)) return false;
+
+        if (arg == "odd")
+        {
+            a = 2;
+            b = 1;
+            return true;
+        }
+        if (arg == "even")
+        {
+            a = 2;
+            b = 0;
+            return true;
+        }
+
+        int nIdx = arg.IndexOf('n');
+        if (nIdx == -1)
+        {
+            if (int.TryParse(arg, out int val))
+            {
+                a = 0;
+                b = val;
+                return true;
+            }
+            return false;
+        }
+
+        string aPart = arg.Substring(0, nIdx);
+        if (aPart == "" || aPart == "+") a = 1;
+        else if (aPart == "-") a = -1;
+        else if (!int.TryParse(aPart, out a)) return false;
+
+        string bPart = arg.Substring(nIdx + 1);
+        if (bPart == "") b = 0;
+        else
+        {
+            if (bPart.StartsWith("+")) bPart = bPart.Substring(1);
+            if (!int.TryParse(bPart, out b)) return false;
+        }
+
+        return true;
+    }
+
+    public static bool EvaluateMediaCondition(
+        string? mediaCondition,
+        float viewportWidth,
+        float viewportHeight,
+        string mediaType)
+    {
+        if (string.IsNullOrWhiteSpace(mediaCondition))
+        {
+            return true;
+        }
+
+        var parts = mediaCondition.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return true;
+        }
+
+        foreach (var part in parts)
+        {
+            if (EvaluateSingleQuery(part, viewportWidth, viewportHeight, mediaType))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool EvaluateSingleQuery(
+        string query,
+        float viewportWidth,
+        float viewportHeight,
+        string mediaType)
+    {
+        string trimmed = query.Trim();
+        bool negate = false;
+        if (trimmed.StartsWith("not ", StringComparison.OrdinalIgnoreCase))
+        {
+            negate = true;
+            trimmed = trimmed.Substring(4).Trim();
+        }
+
+        var andParts = SplitByAnd(trimmed);
+        bool queryResult = true;
+        foreach (var part in andParts)
+        {
+            if (!EvaluatePart(part, viewportWidth, viewportHeight, mediaType))
+            {
+                queryResult = false;
+                break;
+            }
+        }
+
+        return negate ? !queryResult : queryResult;
+    }
+
+    private static List<string> SplitByAnd(string query)
+    {
+        var parts = System.Text.RegularExpressions.Regex.Split(query, @"\band\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var list = new List<string>(parts.Length);
+        foreach (var p in parts)
+        {
+            list.Add(p.Trim());
+        }
+        return list;
+    }
+
+    private static bool EvaluatePart(
+        string part,
+        float viewportWidth,
+        float viewportHeight,
+        string mediaType)
+    {
+        string clean = part.Trim();
+        while (clean.StartsWith('(') && clean.EndsWith(')'))
+        {
+            clean = clean.Substring(1, clean.Length - 2).Trim();
+        }
+
+        if (string.IsNullOrEmpty(clean))
+        {
+            return true;
+        }
+
+        if (clean.StartsWith("not ", StringComparison.OrdinalIgnoreCase))
+        {
+            return !EvaluatePart(clean.Substring(4), viewportWidth, viewportHeight, mediaType);
+        }
+
+        if (string.Equals(clean, "screen", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(mediaType, "screen", StringComparison.OrdinalIgnoreCase);
+        }
+        if (string.Equals(clean, "print", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(mediaType, "print", StringComparison.OrdinalIgnoreCase);
+        }
+        if (string.Equals(clean, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        int colonIdx = clean.IndexOf(':');
+        if (colonIdx != -1)
+        {
+            string feature = clean.Substring(0, colonIdx).Trim().ToLowerInvariant();
+            string valStr = clean.Substring(colonIdx + 1).Trim().ToLowerInvariant();
+
+            if (feature == "min-width")
+            {
+                return viewportWidth >= ParseMediaLength(valStr);
+            }
+            if (feature == "max-width")
+            {
+                return viewportWidth <= ParseMediaLength(valStr);
+            }
+            if (feature == "min-height")
+            {
+                return viewportHeight >= ParseMediaLength(valStr);
+            }
+            if (feature == "max-height")
+            {
+                return viewportHeight <= ParseMediaLength(valStr);
+            }
+            if (feature == "orientation")
+            {
+                if (valStr == "portrait")
+                {
+                    return viewportHeight >= viewportWidth;
+                }
+                if (valStr == "landscape")
+                {
+                    return viewportWidth > viewportHeight;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static float ParseMediaLength(string valStr)
+    {
+        valStr = valStr.Trim().ToLowerInvariant();
+        if (valStr.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        {
+            valStr = valStr.Substring(0, valStr.Length - 2).Trim();
+        }
+        else if (valStr.EndsWith("em", StringComparison.OrdinalIgnoreCase))
+        {
+            valStr = valStr.Substring(0, valStr.Length - 2).Trim();
+            if (float.TryParse(valStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float emVal))
+            {
+                return emVal * 16f;
+            }
+        }
+
+        if (float.TryParse(valStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float val))
+        {
+            return val;
+        }
+        return 0f;
     }
 }

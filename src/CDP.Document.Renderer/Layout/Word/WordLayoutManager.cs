@@ -52,6 +52,16 @@ public class ParagraphLayoutBlock : IDocumentLayoutBlock
 
         foreach (var line in Lines)
         {
+            bool hasImage = false;
+            foreach (var seg in line.Segments)
+            {
+                if (seg.Image != null)
+                {
+                    hasImage = true;
+                    break;
+                }
+            }
+
             foreach (var segment in line.Segments)
             {
                 if (segment.Image != null && !string.IsNullOrEmpty(segment.Image.Source))
@@ -59,14 +69,25 @@ public class ParagraphLayoutBlock : IDocumentLayoutBlock
                     var bitmap = Presentation.ShapeLayoutBlock.LoadBase64Image(segment.Image.Source);
                     if (bitmap != null)
                     {
-                        var imgRect = new SKRect(segment.XOffset, line.YOffset, segment.XOffset + segment.Width, line.YOffset + line.Height);
+                        float imgH = segment.Image.Height.HasValue ? (float)segment.Image.Height.Value : line.Height;
+                        var imgRect = new SKRect(segment.XOffset, line.YOffset + line.Height - imgH, segment.XOffset + segment.Width, line.YOffset + line.Height);
                         canvas.DrawBitmap(bitmap, imgRect);
                         continue;
                     }
                 }
 
                 using var paint = WordLayoutManager.GetPaint(segment.Run);
-                canvas.DrawText(segment.Text, segment.XOffset, line.YOffset + paint.TextSize, paint);
+                float textY;
+                if (hasImage)
+                {
+                    paint.GetFontMetrics(out var metrics);
+                    textY = line.YOffset + line.Height - metrics.Descent;
+                }
+                else
+                {
+                    textY = line.YOffset + paint.TextSize;
+                }
+                canvas.DrawText(segment.Text, segment.XOffset, textY, paint);
 
                 if (segment.Run.Underline)
                 {
@@ -76,7 +97,7 @@ public class ParagraphLayoutBlock : IDocumentLayoutBlock
                         Style = SKPaintStyle.Stroke,
                         StrokeWidth = 1
                     };
-                    float y = line.YOffset + paint.TextSize + 2;
+                    float y = textY + 2;
                     canvas.DrawLine(segment.XOffset, y, segment.XOffset + segment.Width, y, ulPaint);
                 }
             }
@@ -86,7 +107,7 @@ public class ParagraphLayoutBlock : IDocumentLayoutBlock
         if (context.SelectionStart != -1 && context.SelectionEnd != -1)
         {
             var selectionRects = new List<SKRect>();
-            GetSelectionBounds(context.SelectionStart - GlobalStartOffset, context.SelectionEnd - GlobalStartOffset, selectionRects);
+            GetSelectionBounds(context.SelectionStart, context.SelectionEnd, selectionRects);
             using var selPaint = new SKPaint { Color = new SKColor(0, 120, 215, 80), Style = SKPaintStyle.Fill };
             foreach (var r in selectionRects)
             {
@@ -99,15 +120,17 @@ public class ParagraphLayoutBlock : IDocumentLayoutBlock
         // Draw Caret if active
         if (context.DrawCaret && context.CaretOffset >= GlobalStartOffset)
         {
-            int localCaret = context.CaretOffset - GlobalStartOffset;
             int totalLen = 0;
             foreach (var line in Lines) totalLen += line.Length;
-            if (localCaret >= 0 && localCaret <= totalLen)
+            if (context.CaretOffset <= GlobalStartOffset + totalLen)
             {
-                var caretRect = GetCaretBounds(localCaret);
-                var localCaretRect = new SKRect(caretRect.Left - Bounds.Left, caretRect.Top - Bounds.Top, caretRect.Right - Bounds.Left, caretRect.Bottom - Bounds.Top);
-                using var caretPaint = new SKPaint { Color = SKColors.Black, Style = SKPaintStyle.Fill };
-                canvas.DrawRect(localCaretRect, caretPaint);
+                var caretRect = GetCaretBounds(context.CaretOffset);
+                if (caretRect != default)
+                {
+                    var localCaretRect = new SKRect(caretRect.Left - Bounds.Left, caretRect.Top - Bounds.Top, caretRect.Right - Bounds.Left, caretRect.Bottom - Bounds.Top);
+                    using var caretPaint = new SKPaint { Color = SKColors.Black, Style = SKPaintStyle.Fill };
+                    canvas.DrawRect(localCaretRect, caretPaint);
+                }
             }
         }
 
@@ -153,31 +176,34 @@ public class ParagraphLayoutBlock : IDocumentLayoutBlock
     {
         int totalLen = 0;
         foreach (var line in Lines) totalLen += line.Length;
-        offset = Math.Clamp(offset, 0, totalLen);
 
-        foreach (var line in Lines)
+        if (offset >= GlobalStartOffset && offset <= GlobalStartOffset + totalLen)
         {
-            if (offset >= line.StartOffset && offset <= line.StartOffset + line.Length)
+            int localOffset = offset - GlobalStartOffset;
+            foreach (var line in Lines)
             {
-                float currentX = 0;
-                int relOffset = offset - line.StartOffset;
-
-                foreach (var segment in line.Segments)
+                if (localOffset >= line.StartOffset && localOffset <= line.StartOffset + line.Length)
                 {
-                    int segRel = relOffset - (segment.StartOffset - line.StartOffset);
-                    if (segRel >= 0 && segRel <= segment.Length)
+                    float currentX = 0;
+                    int relOffset = localOffset - line.StartOffset;
+
+                    foreach (var segment in line.Segments)
                     {
-                        using var paint = WordLayoutManager.GetPaint(segment.Run);
-                        float w = paint.MeasureText(segment.Text.Substring(0, segRel));
-                        float x = currentX + w;
-                        return new SKRect(Bounds.Left + x - 1, Bounds.Top + line.YOffset, Bounds.Left + x + 1, Bounds.Top + line.YOffset + line.Height);
+                        int segRel = relOffset - (segment.StartOffset - line.StartOffset);
+                        if (segRel >= 0 && segRel <= segment.Length)
+                        {
+                            using var paint = WordLayoutManager.GetPaint(segment.Run);
+                            float w = paint.MeasureText(segment.Text.Substring(0, segRel));
+                            float x = currentX + w;
+                            return new SKRect(Bounds.Left + x - 1, Bounds.Top + line.YOffset, Bounds.Left + x + 1, Bounds.Top + line.YOffset + line.Height);
+                        }
+                        currentX += segment.Width;
                     }
-                    currentX += segment.Width;
+                    return new SKRect(Bounds.Left + line.Width - 1, Bounds.Top + line.YOffset, Bounds.Left + line.Width + 1, Bounds.Top + line.YOffset + line.Height);
                 }
-                return new SKRect(Bounds.Left + line.Width - 1, Bounds.Top + line.YOffset, Bounds.Left + line.Width + 1, Bounds.Top + line.YOffset + line.Height);
             }
         }
-        return new SKRect(Bounds.Left, Bounds.Top, Bounds.Left + 2, Bounds.Top + 12);
+        return default;
     }
 
     public void GetSelectionBounds(int start, int end, IList<SKRect> result)
@@ -189,44 +215,57 @@ public class ParagraphLayoutBlock : IDocumentLayoutBlock
             end = temp;
         }
 
-        foreach (var line in Lines)
+        int totalLen = 0;
+        foreach (var line in Lines) totalLen += line.Length;
+        int globalEnd = GlobalStartOffset + totalLen;
+
+        int selStart = Math.Max(start, GlobalStartOffset);
+        int selEnd = Math.Min(end, globalEnd);
+
+        if (selStart < selEnd)
         {
-            int lineStart = line.StartOffset;
-            int lineEnd = lineStart + line.Length;
+            int localStart = selStart - GlobalStartOffset;
+            int localEnd = selEnd - GlobalStartOffset;
 
-            int selStart = Math.Max(start, lineStart);
-            int selEnd = Math.Min(end, lineEnd);
-
-            if (selStart < selEnd)
+            foreach (var line in Lines)
             {
-                float startX = -1;
-                float endX = -1;
+                int lineStart = line.StartOffset;
+                int lineEnd = lineStart + line.Length;
 
-                float currentX = 0;
-                foreach (var segment in line.Segments)
+                int lineSelStart = Math.Max(localStart, lineStart);
+                int lineSelEnd = Math.Min(localEnd, lineEnd);
+
+                if (lineSelStart < lineSelEnd)
                 {
-                    int segStart = segment.StartOffset;
-                    int segEnd = segStart + segment.Length;
+                    float startX = -1;
+                    float endX = -1;
 
-                    if (selStart >= segStart && selStart <= segEnd)
+                    float currentX = 0;
+                    foreach (var segment in line.Segments)
                     {
-                        using var paint = WordLayoutManager.GetPaint(segment.Run);
-                        startX = currentX + paint.MeasureText(segment.Text.Substring(0, selStart - segStart));
+                        int segStart = segment.StartOffset;
+                        int segEnd = segStart + segment.Length;
+
+                        if (lineSelStart >= segStart && lineSelStart <= segEnd)
+                        {
+                            using var paint = WordLayoutManager.GetPaint(segment.Run);
+                            startX = currentX + paint.MeasureText(segment.Text.Substring(0, lineSelStart - segStart));
+                        }
+
+                        if (lineSelEnd >= segStart && lineSelEnd <= segEnd)
+                        {
+                            using var paint = WordLayoutManager.GetPaint(segment.Run);
+                            endX = currentX + paint.MeasureText(segment.Text.Substring(0, lineSelEnd - segStart));
+                        }
+
+                        currentX += segment.Width;
                     }
 
-                    if (selEnd >= segStart && selEnd <= segEnd)
-                    {
-                        using var paint = WordLayoutManager.GetPaint(segment.Run);
-                        endX = currentX + paint.MeasureText(segment.Text.Substring(0, selEnd - segStart));
-                    }
+                    if (startX < 0) startX = 0;
+                    if (endX < 0) endX = line.Width;
 
-                    currentX += segment.Width;
+                    result.Add(new SKRect(Bounds.Left + startX, Bounds.Top + line.YOffset, Bounds.Left + endX, Bounds.Top + line.YOffset + line.Height));
                 }
-
-                if (startX < 0) startX = 0;
-                if (endX < 0) endX = line.Width;
-
-                result.Add(new SKRect(Bounds.Left + startX, Bounds.Top + line.YOffset, Bounds.Left + endX, Bounds.Top + line.YOffset + line.Height));
             }
         }
     }
@@ -546,7 +585,7 @@ public static class WordLayoutManager
                     while (lineIdx < paraBlock.Lines.Count)
                     {
                         var line = paraBlock.Lines[lineIdx];
-                        if (heightUsed + line.Height <= remainingHeight)
+                        if (fittingLines.Count == 0 || heightUsed + line.Height <= remainingHeight)
                         {
                             line.YOffset = context.CurrentY - pageOffsetTop - (context.MarginTop - context.MarginTop); // relative to page start or block start?
                             // Let's place it
@@ -635,12 +674,11 @@ public static class WordLayoutManager
                         
                         // Layout cell contents inside cellWidth (single column layout inside cell)
                         float cellCurrentY = 0;
-                        int cellGlobalOffset = 0; // relative to cell
                         foreach (var cellChild in cellNode.Children)
                         {
                             if (cellChild is ParagraphBlock cellPara)
                             {
-                                var cellParaBlock = LayoutParagraph(cellPara, cellWidth - 10, ref cellGlobalOffset); // 5pt padding left/right
+                                var cellParaBlock = LayoutParagraph(cellPara, cellWidth - 10, ref globalOffset); // 5pt padding left/right
                                 float paraHeight = 0;
                                 foreach (var line in cellParaBlock.Lines)
                                 {
@@ -730,6 +768,20 @@ public static class WordLayoutManager
             GlobalStartOffset = globalOffset
         };
 
+        // Find default run or fallback for paint calculation
+        var defaultRun = new TextRun { FontSize = 12 };
+        foreach (var inline in para.Children)
+        {
+            if (inline is TextRun r)
+            {
+                defaultRun = r;
+                break;
+            }
+        }
+        using var defaultPaint = GetPaint(defaultRun);
+        float spaceWidth = defaultPaint.MeasureText("\u00A0");
+        if (spaceWidth <= 0f) spaceWidth = 4f; // Fallback
+
         // Concatenate run texts and map ranges
         var textRuns = new List<TextRun>();
         var textBuilder = new System.Text.StringBuilder();
@@ -746,8 +798,21 @@ public static class WordLayoutManager
             }
             else if (inline is ImageInline img)
             {
-                // Create a text run spacer for the image
-                var imgRun = new TextRun { Text = "   ", FontSize = 12 };
+                if (img.Width.HasValue && double.IsInfinity(img.Width.Value))
+                {
+                    throw new OverflowException("Image width cannot be infinite.");
+                }
+                if (img.Height.HasValue && double.IsInfinity(img.Height.Value))
+                {
+                    throw new OverflowException("Image height cannot be infinite.");
+                }
+
+                // Calculate space count based on image width
+                float imgW = img.Width.HasValue ? (float)img.Width.Value : 24f;
+                int numSpaces = (int)Math.Max(1, Math.Round(imgW / spaceWidth));
+                string spacerText = new string('\u00A0', numSpaces);
+
+                var imgRun = new TextRun { Text = spacerText, FontSize = defaultRun.FontSize };
                 textRuns.Add(imgRun);
                 inlineImages[textBuilder.Length] = img;
                 textBuilder.Append(imgRun.Text);
@@ -765,10 +830,6 @@ public static class WordLayoutManager
         {
             return paraBlock;
         }
-
-        // We wrap using a default paint (from the first run, or Arial 12)
-        var defaultRun = textRuns.Count > 0 ? textRuns[0] : new TextRun { FontSize = 12 };
-        using var defaultPaint = GetPaint(defaultRun);
 
         float indent = para.IsBullet ? (para.BulletLevel * 15f + 15f) : 0f;
         var wrappedLines = TextWrappingEngine.WrapText(fullText, width - indent, defaultPaint);
@@ -848,8 +909,15 @@ public static class WordLayoutManager
                     if (inlineImages.TryGetValue(start, out var img))
                     {
                         segment.Image = img;
-                        segment.Width = 24f; // Give image a fixed layout width
-                        segW = 24f;
+                        float imgW = img.Width.HasValue ? (float)img.Width.Value : 24f;
+                        segment.Width = imgW;
+                        segW = imgW;
+
+                        float imgH = img.Height.HasValue ? (float)img.Height.Value : wl.Height;
+                        if (imgH > line.Height)
+                        {
+                            line.Height = imgH;
+                        }
                     }
 
                     line.Segments.Add(segment);
@@ -859,8 +927,23 @@ public static class WordLayoutManager
                 runStartOffset += runLen;
             }
 
+            // Recalculate line width based on final segment widths
+            float finalLineWidth = 0f;
+            foreach (var seg in line.Segments)
+            {
+                if (seg.Run != null)
+                {
+                    float rightBound = seg.XOffset + seg.Width - indent;
+                    if (rightBound > finalLineWidth)
+                    {
+                        finalLineWidth = rightBound;
+                    }
+                }
+            }
+            line.Width = finalLineWidth;
+
             paraBlock.Lines.Add(line);
-            currentY += wl.Height;
+            currentY += line.Height;
         }
 
         return paraBlock;

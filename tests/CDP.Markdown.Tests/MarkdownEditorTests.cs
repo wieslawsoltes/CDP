@@ -538,4 +538,32 @@ public class MarkdownEditorTests
         // The text should contain "Clipboard" pasted at the end
         Assert.Contains("Clipboard", editor.Text);
     }
+
+    [AvaloniaFact]
+    public void Test_OnTextPropertyChanged_Called_Exactly_Once_When_Multiple_Editors_Exist()
+    {
+        // Instantiate several MarkdownEditor objects
+        var editor1 = CreateEditor("First");
+        var editor2 = CreateEditor("Second");
+        var editor3 = CreateEditor("Third");
+
+        // Reset counters just in case
+        editor1.TextPropertyChangedCallCount = 0;
+        editor2.TextPropertyChangedCallCount = 0;
+        editor3.TextPropertyChangedCallCount = 0;
+
+        // Modify the text on one of them
+        editor1.Text = "New Text";
+
+        // Assert that the text changed handler was called exactly once on editor1,
+        // and not called at all on editor2 and editor3 (since their text didn't change).
+        Assert.Equal(1, editor1.TextPropertyChangedCallCount);
+        Assert.Equal(0, editor2.TextPropertyChangedCallCount);
+        Assert.Equal(0, editor3.TextPropertyChangedCallCount);
+
+        // Verify correct values
+        Assert.Equal("New Text", editor1.Text);
+        Assert.Equal("Second", editor2.Text);
+        Assert.Equal("Third", editor3.Text);
+    }
 }

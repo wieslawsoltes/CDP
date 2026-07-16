@@ -14,7 +14,7 @@ public static class HtmlRenderer
         if (canvas == null) throw new ArgumentNullException(nameof(canvas));
         if (doc == null) throw new ArgumentNullException(nameof(doc));
 
-        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet, bounds.Width, bounds.Height);
         var rootBox = LayoutTreeBuilder.Build(doc, styles);
         LayoutEngine.Layout(rootBox, bounds.Width, bounds.Height);
         Render(rootBox, canvas, bounds.Left, bounds.Top);

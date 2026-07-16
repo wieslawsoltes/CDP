@@ -117,3 +117,43 @@ Integrity mode: demo
 - Visual layout unit tests verifying positioning coordinates, floats wrapping boundaries, and variables evaluation pass with 100% success.
 
 
+## Follow-up — 2026-07-16T14:45:06Z
+
+Check, fix, reply to, and resolve all remaining 10 unresolved PR review comments on pull request #97.
+
+Working directory: /Users/wieslawsoltes/GitHub/CDP
+Integrity mode: demo
+
+## Requirements
+
+### R1. Unresolved Review Comment Discovery
+Query all unresolved pull request review comments on pull request #97 using the GitHub CLI/GraphQL API.
+
+### R2. Codebase Fixes
+For each unresolved comment, analyze the issue described, implement a robust fix, and add/update unit tests to verify correctness. The 10 unresolved comment areas are:
+1. **Include grouped shapes in PPTX save ordering** (`src/CDP.Document.Editor/DocumentEditor.cs`)
+2. **Use document-global offsets for table cell hit tests** (`src/CDP.Document.Renderer/Layout/Word/WordLayoutManager.cs`)
+3. **Ignore text nodes for child pseudo-classes** (`src/CDP.Html.Renderer/Style/StyleCascade.cs`)
+4. **Register document namespaces before WPF tag completions** (`src/Wpf.Diagnostics.Cdp/Domains/XamlLspDomain.cs`)
+5. **Respect sibling combinators during CSS matching** (`src/CDP.Html.Renderer/Style/StyleCascade.cs`)
+6. **Move Markdown text handler registration to static init** (`src/CDP.Markdown.Editor/MarkdownEditor.cs`)
+7. **Preserve media conditions before applying rules** (`src/CDP.Css.Parser/CssParser.cs`)
+8. **Flush pending document autosaves before detaching** (`src/CDP.Document.Editor/DocumentEditor.cs`)
+9. **Use real extents for inline DOCX images** (`src/CDP.Document.Renderer/Layout/Word/WordLayoutManager.cs`)
+10. **Serialize table cells with the full inline writer** (`src/CDP.Document.Editor/DocumentEditor.cs`)
+
+### R3. Reply and Resolve Thread on GitHub
+For each fixed issue:
+- Push the commit to the remote repository.
+- Post a reply comment on the review thread containing a detailed explanation of the fix and the commit hash.
+- Resolve the comment thread on GitHub via GraphQL.
+
+## Acceptance Criteria
+
+### Correctness
+- [ ] All 10 comment areas are fully fixed.
+- [ ] All solution unit tests compile and pass cleanly (0 failures) on all platforms.
+- [ ] All 10 review threads are resolved on GitHub.
+
+
+

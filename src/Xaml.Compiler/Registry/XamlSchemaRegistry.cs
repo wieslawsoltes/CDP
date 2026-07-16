@@ -17,7 +17,9 @@ public class XamlSchemaRegistry
 
     public void RegisterNamespace(IXamlNamespace ns) => _namespaces[ns.Uri] = ns;
 
-    public IXamlType? ResolveType(string xmlNamespace, string typeName)
+    public IEnumerable<IXamlNamespace> Namespaces => _namespaces.Values;
+
+    public void EnsureNamespaceRegistered(string xmlNamespace)
     {
         if (xmlNamespace != null && xmlNamespace.StartsWith("clr-namespace:", StringComparison.OrdinalIgnoreCase))
         {
@@ -42,6 +44,11 @@ public class XamlSchemaRegistry
                 RegisterNamespace(dynamicNs);
             }
         }
+    }
+
+    public IXamlType? ResolveType(string xmlNamespace, string typeName)
+    {
+        EnsureNamespaceRegistered(xmlNamespace);
 
         if (xmlNamespace == null || !_namespaces.TryGetValue(xmlNamespace, out var ns)) return null;
         return _types.TryGetValue((ns, typeName), out var type) ? type : ResolveViaReflection(ns, typeName);

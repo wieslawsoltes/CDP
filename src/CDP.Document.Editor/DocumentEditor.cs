@@ -68,6 +68,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
     // Auto-save debounce
     private Timer? _saveDebounceTimer;
+    private int _saveVersion;
     private const int SaveDebounceMs = 500;
 
     // Scroll offset
@@ -346,8 +347,10 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     {
         base.OnDetachedFromVisualTree(e);
         _caretTimer?.Stop();
-        _saveDebounceTimer?.Dispose();
-        _saveDebounceTimer = null;
+        if (_saveDebounceTimer != null)
+        {
+            Flush();
+        }
         _cachedBitmap?.Dispose();
         _cachedBitmap = null;
         _cachedWriteableBitmap?.Dispose();
@@ -1069,59 +1072,56 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
         // Find the TextRun at the caret offset and insert
         int globalOffset = 0;
-        foreach (var child in wordDoc.Children)
+        foreach (var para in GetParagraphs(wordDoc))
         {
-            if (child is ParagraphBlock para)
+            for (int idx = 0; idx < para.Children.Count; idx++)
             {
-                for (int idx = 0; idx < para.Children.Count; idx++)
+                var inline = para.Children[idx];
+                if (inline is TextRun run)
                 {
-                    var inline = para.Children[idx];
-                    if (inline is TextRun run)
+                    int runEnd = globalOffset + run.Text.Length;
+                    if (_caretOffset >= globalOffset && _caretOffset <= runEnd)
                     {
-                        int runEnd = globalOffset + run.Text.Length;
-                        if (_caretOffset >= globalOffset && _caretOffset <= runEnd)
+                        int localOffset = _caretOffset - globalOffset;
+                        if (text == "\n")
                         {
-                            int localOffset = _caretOffset - globalOffset;
-                            if (text == "\n")
+                            var firstPart = run.Text.Substring(0, localOffset);
+                            var secondPart = run.Text.Substring(localOffset);
+
+                            run.Text = firstPart;
+                            var lb = new LineBreakInline { Parent = para };
+                            para.Children.Insert(idx + 1, lb);
+
+                            var run2 = new TextRun
                             {
-                                var firstPart = run.Text.Substring(0, localOffset);
-                                var secondPart = run.Text.Substring(localOffset);
+                                Parent = para,
+                                Text = secondPart,
+                                FontSize = run.FontSize,
+                                Bold = run.Bold,
+                                Italic = run.Italic,
+                                Underline = run.Underline,
+                                Color = run.Color
+                            };
+                            para.Children.Insert(idx + 2, run2);
 
-                                run.Text = firstPart;
-                                var lb = new LineBreakInline { Parent = para };
-                                para.Children.Insert(idx + 1, lb);
-
-                                var run2 = new TextRun
-                                {
-                                    Parent = para,
-                                    Text = secondPart,
-                                    FontSize = run.FontSize,
-                                    Bold = run.Bold,
-                                    Italic = run.Italic,
-                                    Underline = run.Underline,
-                                    Color = run.Color
-                                };
-                                para.Children.Insert(idx + 2, run2);
-
-                                _caretOffset += 1;
-                            }
-                            else
-                            {
-                                run.Text = run.Text.Insert(localOffset, text);
-                                _caretOffset += text.Length;
-                            }
-                            PerformLayout();
-                            ResetCaretBlink();
-                            InvalidateVisual();
-                            ScheduleAutoSave();
-                            return;
+                            _caretOffset += 1;
                         }
-                        globalOffset = runEnd;
+                        else
+                        {
+                            run.Text = run.Text.Insert(localOffset, text);
+                            _caretOffset += text.Length;
+                        }
+                        PerformLayout();
+                        ResetCaretBlink();
+                        InvalidateVisual();
+                        ScheduleAutoSave();
+                        return;
                     }
-                    else if (inline is LineBreakInline)
-                    {
-                        globalOffset++;
-                    }
+                    globalOffset = runEnd;
+                }
+                else if (inline is LineBreakInline)
+                {
+                    globalOffset++;
                 }
             }
         }
@@ -1209,56 +1209,49 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         if (start >= end) return;
 
         int globalOffset = 0;
-        foreach (var child in wordDoc.Children)
+        foreach (var para in GetParagraphs(wordDoc))
         {
-            if (child is ParagraphBlock para)
+            var toRemove = new List<DocumentNode>();
+            foreach (var inline in para.Children)
             {
-                var toRemove = new List<DocumentNode>();
-                foreach (var inline in para.Children)
+                if (inline is TextRun run)
                 {
-                    if (inline is TextRun run)
-                    {
-                        int runStart = globalOffset;
-                        int runEnd = globalOffset + run.Text.Length;
+                    int runStart = globalOffset;
+                    int runEnd = globalOffset + run.Text.Length;
 
-                        int delStart = Math.Max(start, runStart) - runStart;
-                        int delEnd = Math.Min(end, runEnd) - runStart;
+                    int delStart = Math.Max(start, runStart) - runStart;
+                    int delEnd = Math.Min(end, runEnd) - runStart;
 
-                        if (delStart < delEnd && delStart >= 0 && delEnd <= run.Text.Length)
-                        {
-                            run.Text = run.Text.Remove(delStart, delEnd - delStart);
-                        }
-                        if (run.Text.Length == 0)
-                        {
-                            toRemove.Add(run);
-                        }
-                        globalOffset = runEnd;
-                    }
-                    else if (inline is LineBreakInline lb)
+                    if (delStart < delEnd && delStart >= 0 && delEnd <= run.Text.Length)
                     {
-                        if (start <= globalOffset && end > globalOffset)
-                        {
-                            toRemove.Add(lb);
-                        }
-                        globalOffset++;
+                        run.Text = run.Text.Remove(delStart, delEnd - delStart);
                     }
+                    if (run.Text.Length == 0)
+                    {
+                        toRemove.Add(run);
+                    }
+                    globalOffset = runEnd;
                 }
-                foreach (var node in toRemove)
+                else if (inline is LineBreakInline lb)
                 {
-                    para.Children.Remove(node);
+                    if (start <= globalOffset && end > globalOffset)
+                    {
+                        toRemove.Add(lb);
+                    }
+                    globalOffset++;
                 }
+            }
+            foreach (var node in toRemove)
+            {
+                para.Children.Remove(node);
             }
         }
     }
 
     private static ParagraphBlock? GetLastParagraph(WordDocument doc)
     {
-        ParagraphBlock? last = null;
-        foreach (var child in doc.Children)
-        {
-            if (child is ParagraphBlock p) last = p;
-        }
-        return last;
+        var paragraphs = GetParagraphs(doc);
+        return paragraphs.Count > 0 ? paragraphs[paragraphs.Count - 1] : null;
     }
 
     private void ClearSelection()
@@ -1276,10 +1269,19 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
 
     private void ScheduleAutoSave()
     {
+        int currentVersion = ++_saveVersion;
         _saveDebounceTimer?.Dispose();
         _saveDebounceTimer = new Timer(_ =>
         {
-            Dispatcher.UIThread.Post(() => SaveDocument());
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (currentVersion == _saveVersion)
+                {
+                    _saveDebounceTimer?.Dispose();
+                    _saveDebounceTimer = null;
+                    SaveDocument();
+                }
+            });
         }, null, SaveDebounceMs, Timeout.Infinite);
     }
 
@@ -1324,6 +1326,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     {
         _saveDebounceTimer?.Dispose();
         _saveDebounceTimer = null;
+        _saveVersion++;
         SaveDocumentToPath(path);
     }
 
@@ -1334,6 +1337,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     {
         _saveDebounceTimer?.Dispose();
         _saveDebounceTimer = null;
+        _saveVersion++;
         SaveDocument();
     }
 
@@ -1343,19 +1347,16 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         
         // 1. Gather all unique colors
         var uniqueColors = new List<string>();
-        foreach (var child in doc.Children)
+        foreach (var para in GetParagraphs(doc))
         {
-            if (child is ParagraphBlock para)
+            foreach (var inline in para.Children)
             {
-                foreach (var inline in para.Children)
+                if (inline is TextRun run && !string.IsNullOrEmpty(run.Color))
                 {
-                    if (inline is TextRun run && !string.IsNullOrEmpty(run.Color))
+                    var hex = run.Color.Trim().ToUpperInvariant();
+                    if (!uniqueColors.Contains(hex))
                     {
-                        var hex = run.Color.Trim().ToUpperInvariant();
-                        if (!uniqueColors.Contains(hex))
-                        {
-                            uniqueColors.Add(hex);
-                        }
+                        uniqueColors.Add(hex);
                     }
                 }
             }
@@ -1386,54 +1387,51 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         sb.AppendLine();
 
         // 3. Serialize Runs
-        foreach (var child in doc.Children)
+        foreach (var para in GetParagraphs(doc))
         {
-            if (child is ParagraphBlock para)
+            foreach (var inline in para.Children)
             {
-                foreach (var inline in para.Children)
+                if (inline is TextRun run)
                 {
-                    if (inline is TextRun run)
+                    int colorIdx = -1;
+                    if (!string.IsNullOrEmpty(run.Color))
                     {
-                        int colorIdx = -1;
-                        if (!string.IsNullOrEmpty(run.Color))
-                        {
-                            colorIdx = uniqueColors.IndexOf(run.Color.Trim().ToUpperInvariant());
-                        }
-
-                        if (colorIdx >= 0) sb.Append($@"\cf{colorIdx + 1} ");
-                        if (run.Bold) sb.Append(@"\b ");
-                        if (run.Italic) sb.Append(@"\i ");
-                        if (run.Underline) sb.Append(@"\ul ");
-                        if (run.FontSize.HasValue)
-                        {
-                            int halfPts = (int)(run.FontSize.Value * 2);
-                            sb.Append($@"\fs{halfPts} ");
-                        }
-
-                        // Escape RTF special characters
-                        foreach (char c in run.Text)
-                        {
-                            if (c == '\\') sb.Append(@"\\");
-                            else if (c == '{') sb.Append(@"\{");
-                            else if (c == '}') sb.Append(@"\}");
-                            else if (c > 127) sb.Append($@"\u{(int)c}?");
-                            else sb.Append(c);
-                        }
-
-                        if (run.Bold) sb.Append(@"\b0 ");
-                        if (run.Italic) sb.Append(@"\i0 ");
-                        if (run.Underline) sb.Append(@"\ulnone ");
-                        if (run.FontSize.HasValue) sb.Append(@"\fs24 ");
-                        if (colorIdx >= 0) sb.Append(@"\cf0 ");
+                        colorIdx = uniqueColors.IndexOf(run.Color.Trim().ToUpperInvariant());
                     }
-                    else if (inline is LineBreakInline)
+
+                    if (colorIdx >= 0) sb.Append($@"\cf{colorIdx + 1} ");
+                    if (run.Bold) sb.Append(@"\b ");
+                    if (run.Italic) sb.Append(@"\i ");
+                    if (run.Underline) sb.Append(@"\ul ");
+                    if (run.FontSize.HasValue)
                     {
-                        sb.Append(@"\line ");
+                        int halfPts = (int)(run.FontSize.Value * 2);
+                        sb.Append($@"\fs{halfPts} ");
                     }
+
+                    // Escape RTF special characters
+                    foreach (char c in run.Text)
+                    {
+                        if (c == '\\') sb.Append(@"\\");
+                        else if (c == '{') sb.Append(@"\{");
+                        else if (c == '}') sb.Append(@"\}");
+                        else if (c > 127) sb.Append($@"\u{(int)c}?");
+                        else sb.Append(c);
+                    }
+
+                    if (run.Bold) sb.Append(@"\b0 ");
+                    if (run.Italic) sb.Append(@"\i0 ");
+                    if (run.Underline) sb.Append(@"\ulnone ");
+                    if (run.FontSize.HasValue) sb.Append(@"\fs24 ");
+                    if (colorIdx >= 0) sb.Append(@"\cf0 ");
                 }
-                sb.Append(@"\par ");
-                sb.AppendLine();
+                else if (inline is LineBreakInline)
+                {
+                    sb.Append(@"\line ");
+                }
             }
+            sb.Append(@"\par ");
+            sb.AppendLine();
         }
 
         sb.Append('}');
@@ -1515,7 +1513,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             }
             else if (child is ImageInline img)
             {
-                childClone = new ImageInline { Source = img.Source, AltText = img.AltText };
+                childClone = new ImageInline { Source = img.Source, AltText = img.AltText, Width = img.Width, Height = img.Height };
             }
             else if (child is LineBreakInline lb)
             {
@@ -1647,85 +1645,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         {
             if (child is ParagraphBlock para)
             {
-                var wPara = new DocumentFormat.OpenXml.Wordprocessing.Paragraph();
-                var pPr = new DocumentFormat.OpenXml.Wordprocessing.ParagraphProperties();
-                 if (para.IsBullet)
-                 {
-                     var numPr = new DocumentFormat.OpenXml.Wordprocessing.NumberingProperties(
-                         new DocumentFormat.OpenXml.Wordprocessing.NumberingLevelReference { Val = para.BulletLevel },
-                         new DocumentFormat.OpenXml.Wordprocessing.NumberingId { Val = int.TryParse(para.BulletStyle, out int nid) ? nid : 1 }
-                     );
-                     pPr.AppendChild(numPr);
-                 }
-                 wPara.AppendChild(pPr);
-
-                foreach (var inline in para.Children)
-                {
-                    if (inline is TextRun run)
-                    {
-                        var wRun = new DocumentFormat.OpenXml.Wordprocessing.Run();
-                        var rPr = new DocumentFormat.OpenXml.Wordprocessing.RunProperties();
-                        if (run.Bold) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Bold());
-                        if (run.Italic) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Italic());
-                        if (run.Underline) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Underline());
-                        if (run.FontSize.HasValue) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.FontSize { Val = (run.FontSize.Value * 2).ToString() });
-                        if (!string.IsNullOrEmpty(run.Color)) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Color { Val = run.Color });
-                        wRun.AppendChild(rPr);
-                        wRun.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Text(run.Text));
-                        wPara.AppendChild(wRun);
-                    }
-                    else if (inline is ImageInline img)
-                    {
-                        string? relationshipId = null;
-                        if (img.Source != null && img.Source.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
-                        {
-                            try
-                            {
-                                var parts = img.Source.Split(',');
-                                if (parts.Length > 1)
-                                {
-                                    var header = parts[0];
-                                    var base64 = parts[1];
-                                    var contentType = header.Split(';')[0].Split(':')[1];
-                                    
-                                    PartTypeInfo type = ImagePartType.Png;
-                                    if (contentType.Contains("jpeg") || contentType.Contains("jpg")) type = ImagePartType.Jpeg;
-                                    else if (contentType.Contains("gif")) type = ImagePartType.Gif;
-                                    else if (contentType.Contains("bmp")) type = ImagePartType.Bmp;
-                                    else if (contentType.Contains("tiff")) type = ImagePartType.Tiff;
-
-                                    byte[] bytes = Convert.FromBase64String(base64);
-                                    var imagePart = wordDoc.MainDocumentPart.AddImagePart(type);
-                                    using (var partStream = imagePart.GetStream())
-                                    {
-                                        partStream.Write(bytes, 0, bytes.Length);
-                                    }
-                                    relationshipId = wordDoc.MainDocumentPart.GetIdOfPart(imagePart);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Failed to write image part: {ex.Message}");
-                            }
-                        }
-                        else if (!string.IsNullOrEmpty(img.Source))
-                        {
-                            relationshipId = img.Source;
-                        }
-
-                        if (!string.IsNullOrEmpty(relationshipId))
-                        {
-                            var wRun = new DocumentFormat.OpenXml.Wordprocessing.Run();
-                            var drawing = CreateDrawing(relationshipId, img.AltText ?? "Image");
-                            wRun.AppendChild(drawing);
-                            wPara.AppendChild(wRun);
-                        }
-                    }
-                    else if (inline is LineBreakInline)
-                    {
-                        wPara.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Break()));
-                    }
-                }
+                var wPara = CreateParagraph(wordDoc, para);
                 body.AppendChild(wPara);
             }
             else if (child is TableBlock table)
@@ -1739,12 +1659,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                         var wCell = new DocumentFormat.OpenXml.Wordprocessing.TableCell();
                         foreach (var cellChild in cellNode.Children.OfType<ParagraphBlock>())
                         {
-                            var wCellPara = new DocumentFormat.OpenXml.Wordprocessing.Paragraph();
-                            foreach (var run in cellChild.Children.OfType<TextRun>())
-                            {
-                                var wCellRun = new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Text(run.Text));
-                                wCellPara.AppendChild(wCellRun);
-                            }
+                            var wCellPara = CreateParagraph(wordDoc, cellChild);
                             wCell.AppendChild(wCellPara);
                         }
                         if (wCell.ChildElements.Count == 0)
@@ -1763,6 +1678,100 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             body.AppendChild(existingSectPr);
         }
         wordDoc.MainDocumentPart.Document.Save();
+    }
+
+    private static DocumentFormat.OpenXml.Wordprocessing.Paragraph CreateParagraph(WordprocessingDocument wordDoc, ParagraphBlock para)
+    {
+        var wPara = new DocumentFormat.OpenXml.Wordprocessing.Paragraph();
+        var pPr = new DocumentFormat.OpenXml.Wordprocessing.ParagraphProperties();
+        if (para.IsBullet)
+        {
+            var numPr = new DocumentFormat.OpenXml.Wordprocessing.NumberingProperties(
+                new DocumentFormat.OpenXml.Wordprocessing.NumberingLevelReference { Val = para.BulletLevel },
+                new DocumentFormat.OpenXml.Wordprocessing.NumberingId { Val = int.TryParse(para.BulletStyle, out int nid) ? nid : 1 }
+            );
+            pPr.AppendChild(numPr);
+        }
+        wPara.AppendChild(pPr);
+
+        foreach (var inline in para.Children)
+        {
+            if (inline is TextRun run)
+            {
+                var wRun = new DocumentFormat.OpenXml.Wordprocessing.Run();
+                var rPr = new DocumentFormat.OpenXml.Wordprocessing.RunProperties();
+                if (run.Bold) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Bold());
+                if (run.Italic) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Italic());
+                if (run.Underline) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Underline());
+                if (run.FontSize.HasValue) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.FontSize { Val = (run.FontSize.Value * 2).ToString() });
+                if (!string.IsNullOrEmpty(run.Color)) rPr.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Color { Val = run.Color });
+                wRun.AppendChild(rPr);
+                wRun.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Text(run.Text));
+                wPara.AppendChild(wRun);
+            }
+            else if (inline is ImageInline img)
+            {
+                string? relationshipId = null;
+                if (img.Source != null && img.Source.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var parts = img.Source.Split(',');
+                        if (parts.Length > 1)
+                        {
+                            var header = parts[0];
+                            var base64 = parts[1];
+                            var contentType = header.Split(';')[0].Split(':')[1];
+                            
+                            PartTypeInfo type = ImagePartType.Png;
+                            if (contentType.Contains("jpeg") || contentType.Contains("jpg")) type = ImagePartType.Jpeg;
+                            else if (contentType.Contains("gif")) type = ImagePartType.Gif;
+                            else if (contentType.Contains("bmp")) type = ImagePartType.Bmp;
+                            else if (contentType.Contains("tiff")) type = ImagePartType.Tiff;
+
+                            byte[] bytes = Convert.FromBase64String(base64);
+                            var imagePart = wordDoc.MainDocumentPart.AddImagePart(type);
+                            using (var partStream = imagePart.GetStream())
+                            {
+                                partStream.Write(bytes, 0, bytes.Length);
+                            }
+                            relationshipId = wordDoc.MainDocumentPart.GetIdOfPart(imagePart);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to write image part: {ex.Message}");
+                    }
+                }
+                else if (!string.IsNullOrEmpty(img.Source))
+                {
+                    relationshipId = img.Source;
+                }
+
+                if (!string.IsNullOrEmpty(relationshipId))
+                {
+                    var wRun = new DocumentFormat.OpenXml.Wordprocessing.Run();
+                    DocumentFormat.OpenXml.Wordprocessing.Drawing drawing;
+                    if (img.Width.HasValue && img.Height.HasValue)
+                    {
+                        long cx = (long)Math.Round(img.Width.Value * 12700.0);
+                        long cy = (long)Math.Round(img.Height.Value * 12700.0);
+                        drawing = CreateDrawing(relationshipId, img.AltText ?? "Image", cx, cy);
+                    }
+                    else
+                    {
+                        drawing = CreateDrawing(relationshipId, img.AltText ?? "Image");
+                    }
+                    wRun.AppendChild(drawing);
+                    wPara.AppendChild(wRun);
+                }
+            }
+            else if (inline is LineBreakInline)
+            {
+                wPara.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Break()));
+            }
+        }
+        return wPara;
     }
 
     private static DocumentFormat.OpenXml.Wordprocessing.Drawing CreateDrawing(string relationshipId, string altText, long widthCx = 952500, long heightCx = 952500)
@@ -1965,7 +1974,8 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             if (shapes == null) continue;
 
             int shapeIdx = 0;
-            var shapeNodes = slideNode.Children.OfType<ShapeNode>().Where(s => s.ShapeType != "Picture" && s.ShapeType != "GraphicFrame" && s.ShapeType != "ConnectionShape").ToList();
+            var shapeNodes = new List<ShapeNode>();
+            GetShapeNodesRecursive(slideNode, shapeNodes);
 
             foreach (var sp in shapes)
             {
@@ -2015,6 +2025,24 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             slidePart.Slide.Save();
         }
         presentationPart.Presentation.Save();
+    }
+
+    private static void GetShapeNodesRecursive(DocumentNode parent, List<ShapeNode> list)
+    {
+        foreach (var child in parent.Children)
+        {
+            if (child is ShapeNode shapeNode)
+            {
+                if (shapeNode.ShapeType != "Picture" && shapeNode.ShapeType != "GraphicFrame" && shapeNode.ShapeType != "ConnectionShape")
+                {
+                    list.Add(shapeNode);
+                }
+            }
+            else if (child is GroupNode)
+            {
+                GetShapeNodesRecursive(child, list);
+            }
+        }
     }
 
     private static string GetColumnLabel(int index)
@@ -2140,81 +2168,78 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         if (start >= end) return;
 
         int globalOffset = 0;
-        foreach (var child in wordDoc.Children)
+        foreach (var para in GetParagraphs(wordDoc))
         {
-            if (child is ParagraphBlock para)
+            var originalInlines = para.Children.ToList();
+            para.Children.Clear();
+
+            foreach (var inline in originalInlines)
             {
-                var originalInlines = para.Children.ToList();
-                para.Children.Clear();
-
-                foreach (var inline in originalInlines)
+                if (inline is TextRun run)
                 {
-                    if (inline is TextRun run)
+                    int runStart = globalOffset;
+                    int runEnd = globalOffset + run.Text.Length;
+
+                    int overlapStart = Math.Max(start, runStart);
+                    int overlapEnd = Math.Min(end, runEnd);
+
+                    if (overlapStart < overlapEnd)
                     {
-                        int runStart = globalOffset;
-                        int runEnd = globalOffset + run.Text.Length;
+                        int localStart = overlapStart - runStart;
+                        int localEnd = overlapEnd - runStart;
 
-                        int overlapStart = Math.Max(start, runStart);
-                        int overlapEnd = Math.Min(end, runEnd);
-
-                        if (overlapStart < overlapEnd)
+                        if (localStart > 0)
                         {
-                            int localStart = overlapStart - runStart;
-                            int localEnd = overlapEnd - runStart;
-
-                            if (localStart > 0)
+                            var beforeRun = new TextRun
                             {
-                                var beforeRun = new TextRun
-                                {
-                                    Text = run.Text.Substring(0, localStart),
-                                    FontSize = run.FontSize,
-                                    Bold = run.Bold,
-                                    Italic = run.Italic,
-                                    Underline = run.Underline,
-                                    Color = run.Color
-                                };
-                                para.AddChild(beforeRun);
-                            }
-
-                            var midRun = new TextRun
-                            {
-                                Text = run.Text.Substring(localStart, localEnd - localStart),
+                                Text = run.Text.Substring(0, localStart),
                                 FontSize = run.FontSize,
                                 Bold = run.Bold,
                                 Italic = run.Italic,
                                 Underline = run.Underline,
                                 Color = run.Color
                             };
-                            applyToRun(midRun);
-                            para.AddChild(midRun);
+                            para.AddChild(beforeRun);
+                        }
 
-                            if (localEnd < run.Text.Length)
-                            {
-                                var afterRun = new TextRun
-                                {
-                                    Text = run.Text.Substring(localEnd),
-                                    FontSize = run.FontSize,
-                                    Bold = run.Bold,
-                                    Italic = run.Italic,
-                                    Underline = run.Underline,
-                                    Color = run.Color
-                                };
-                                para.AddChild(afterRun);
-                            }
-                        }
-                        else
+                        var midRun = new TextRun
                         {
-                            para.AddChild(run);
+                            Text = run.Text.Substring(localStart, localEnd - localStart),
+                            FontSize = run.FontSize,
+                            Bold = run.Bold,
+                            Italic = run.Italic,
+                            Underline = run.Underline,
+                            Color = run.Color
+                        };
+                        applyToRun(midRun);
+                        para.AddChild(midRun);
+
+                        if (localEnd < run.Text.Length)
+                        {
+                            var afterRun = new TextRun
+                            {
+                                Text = run.Text.Substring(localEnd),
+                                FontSize = run.FontSize,
+                                Bold = run.Bold,
+                                Italic = run.Italic,
+                                Underline = run.Underline,
+                                Color = run.Color
+                            };
+                            para.AddChild(afterRun);
                         }
-                        globalOffset = runEnd;
                     }
                     else
                     {
-                        para.AddChild(inline);
-                        if (inline is LineBreakInline)
-                        {
-                            globalOffset++;
-                        }
+                        para.AddChild(run);
+                    }
+                    globalOffset = runEnd;
+                }
+                else
+                {
+                    para.AddChild(inline);
+                    if (inline is LineBreakInline)
+                    {
+                        globalOffset++;
                     }
                 }
             }
@@ -2224,28 +2249,62 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     private TextRun? FindTextRunAtOffset(WordDocument wordDoc, int offset)
     {
         int globalOffset = 0;
-        foreach (var child in wordDoc.Children)
+        foreach (var para in GetParagraphs(wordDoc))
         {
-            if (child is ParagraphBlock para)
+            foreach (var inline in para.Children)
             {
-                foreach (var inline in para.Children)
+                if (inline is TextRun run)
                 {
-                    if (inline is TextRun run)
+                    int runEnd = globalOffset + run.Text.Length;
+                    if (offset >= globalOffset && offset <= runEnd)
                     {
-                        int runEnd = globalOffset + run.Text.Length;
-                        if (offset >= globalOffset && offset <= runEnd)
-                        {
-                            return run;
-                        }
-                        globalOffset = runEnd;
+                        return run;
                     }
-                    else if (inline is LineBreakInline)
-                    {
-                        globalOffset++;
-                    }
+                    globalOffset = runEnd;
+                }
+                else if (inline is LineBreakInline)
+                {
+                    globalOffset++;
                 }
             }
         }
         return null;
+    }
+
+    private static List<ParagraphBlock> GetParagraphs(WordDocument doc)
+    {
+        var list = new List<ParagraphBlock>();
+        foreach (var child in doc.Children)
+        {
+            CollectParagraphs(child, list);
+        }
+        return list;
+    }
+
+    private static void CollectParagraphs(DocumentNode node, List<ParagraphBlock> list)
+    {
+        if (node is ParagraphBlock para)
+        {
+            list.Add(para);
+        }
+        else if (node is TableBlock table)
+        {
+            foreach (var row in table.Children)
+            {
+                if (row is TableRowBlock rowBlock)
+                {
+                    foreach (var cell in rowBlock.Children)
+                    {
+                        if (cell is TableCellBlock cellBlock)
+                        {
+                            foreach (var cellChild in cellBlock.Children)
+                            {
+                                CollectParagraphs(cellChild, list);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
