@@ -57,3 +57,19 @@ public enum TextAlignType
     Right,
     Justify
 }
+
+public enum FloatType
+{
+    None,
+    Left,
+    Right
+}
+
+public enum ClearType
+{
+    None,
+    Left,
+    Right,
+    Both
+}
+

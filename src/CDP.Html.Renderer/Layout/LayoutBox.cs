@@ -48,8 +48,8 @@ public abstract class LayoutBox
     public float ContentWidth => Math.Max(0f, Width - PaddingLeft - PaddingRight - BorderLeft - BorderRight);
     public float ContentHeight => Math.Max(0f, Height - PaddingTop - PaddingBottom - BorderTop - BorderBottom);
 
-    public virtual bool IsBlockLevel => Style.Display == DisplayType.Block || Style.Display == DisplayType.Flex;
-    public virtual bool IsInlineLevel => Style.Display == DisplayType.Inline;
+    public virtual bool IsBlockLevel => Style.Display == DisplayType.Block || Style.Display == DisplayType.Flex || Style.Position == PositionType.Absolute || Style.Position == PositionType.Fixed || Style.Float != FloatType.None;
+    public virtual bool IsInlineLevel => Style.Display == DisplayType.Inline && Style.Position != PositionType.Absolute && Style.Position != PositionType.Fixed && Style.Float == FloatType.None;
 
     public void AddChild(LayoutBox child)
     {
@@ -66,8 +66,8 @@ public class LayoutBlockBox : LayoutBox
 
 public class LayoutInlineBox : LayoutBox
 {
-    public override bool IsBlockLevel => false;
-    public override bool IsInlineLevel => true;
+    public override bool IsBlockLevel => Style.Position == PositionType.Absolute || Style.Position == PositionType.Fixed || Style.Float != FloatType.None;
+    public override bool IsInlineLevel => Style.Position != PositionType.Absolute && Style.Position != PositionType.Fixed && Style.Float == FloatType.None;
 }
 
 public class LayoutFlexBox : LayoutBox
