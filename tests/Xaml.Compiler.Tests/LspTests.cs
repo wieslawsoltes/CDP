@@ -71,5 +71,21 @@ namespace Xaml.Compiler.Tests
             var validDiags = server.GetDiagnostics(uri);
             Assert.Empty(validDiags);
         }
+
+        [Fact]
+        public void TestCSharpLanguageServer_PrefixCompletions_Comment13()
+        {
+            var server = new CSharpLanguageServer();
+            string uri = "file:///temp_prefix.cs";
+            string text = "using System; class MyClass { void Run() { Console.W } }";
+
+            server.OpenDocument(uri, text);
+
+            var completions = server.GetCompletions(uri, 1, 53);
+            Assert.NotEmpty(completions);
+            Assert.Contains(completions, c => c.Label == "WriteLine");
+            Assert.Contains(completions, c => c.Label == "Write");
+            Assert.DoesNotContain(completions, c => c.Label == "ReadLine");
+        }
     }
 }

@@ -1133,5 +1133,49 @@ public class RendererTests
         Assert.False(HasNodeWithTag(layoutTree, "title"));
         Assert.True(HasNodeWithTag(layoutTree, "p"));
     }
+
+    [Fact]
+    public void TestStyleCascadePseudoClasses_Comment15()
+    {
+        var doc = new HtmlDocument();
+        var parent = new HtmlElement { TagName = "div" };
+        var first = new HtmlElement { TagName = "p" };
+        var second = new HtmlElement { TagName = "p" };
+        var third = new HtmlElement { TagName = "p" };
+
+        parent.Children.Add(first);
+        first.Parent = parent;
+        parent.Children.Add(second);
+        second.Parent = parent;
+        parent.Children.Add(third);
+        third.Parent = parent;
+        doc.Children.Add(parent);
+        parent.Parent = doc;
+
+        var css = @"
+            p:first-child { color: red; }
+            p:last-child { color: blue; }
+            p:hover { font-size: 50px; }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+
+        // First child should match p:first-child and be red
+        Assert.Equal(SKColors.Red, styles[first].Color);
+        Assert.NotEqual(SKColors.Blue, styles[first].Color);
+
+        // Third child should match p:last-child and be blue
+        Assert.Equal(SKColors.Blue, styles[third].Color);
+        Assert.NotEqual(SKColors.Red, styles[third].Color);
+
+        // Second child should not match first-child or last-child
+        Assert.NotEqual(SKColors.Red, styles[second].Color);
+        Assert.NotEqual(SKColors.Blue, styles[second].Color);
+
+        // None should match p:hover
+        Assert.NotEqual(50f, styles[first].FontSize);
+        Assert.NotEqual(50f, styles[second].FontSize);
+        Assert.NotEqual(50f, styles[third].FontSize);
+    }
 }
 

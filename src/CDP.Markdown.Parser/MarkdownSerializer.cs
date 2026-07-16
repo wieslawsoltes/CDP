@@ -32,7 +32,7 @@ public static class MarkdownSerializer
             LiteralInline lit => EscapeLiteralText(lit.Text, lit.IsHtml, inTable),
             EmphasisInline emp => (emp.IsStrong ? "**" : "*") + SerializeChildren(emp, inTable) + (emp.IsStrong ? "**" : "*"),
             StrikeThroughInline st => "~~" + SerializeChildren(st, inTable) + "~~",
-            CodeInline ci => "`" + ci.Code + "`",
+            CodeInline ci => SerializeCodeInline(ci),
             LinkInline link => "[" + SerializeChildren(link, inTable) + "](" + link.Url + (string.IsNullOrEmpty(link.Title) ? "" : $" \"{link.Title.Replace("\"", "\\\"")}\"") + ")",
             ImageInline img => $"![{img.AltText ?? ""}]({img.Url})",
             LineBreakInline lb => lb.IsHard ? "  \n" : "\n",
@@ -288,5 +288,27 @@ public static class MarkdownSerializer
     private static string SerializeTableCell(TableCellBlock tc)
     {
         return SerializeChildren(tc, inTable: true);
+    }
+
+    private static string SerializeCodeInline(CodeInline ci)
+    {
+        var code = ci.Code ?? string.Empty;
+        int maxRun = 0;
+        int currentRun = 0;
+        foreach (var c in code)
+        {
+            if (c == '`')
+            {
+                currentRun++;
+                maxRun = Math.Max(maxRun, currentRun);
+            }
+            else
+            {
+                currentRun = 0;
+            }
+        }
+        var fence = new string('`', maxRun + 1);
+        var pad = (code.StartsWith("`") || code.EndsWith("`") || (code.StartsWith(" ") && code.EndsWith(" "))) ? " " : "";
+        return fence + pad + code + pad + fence;
     }
 }

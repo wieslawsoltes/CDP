@@ -123,6 +123,7 @@ namespace Avalonia.Diagnostics.Cdp.Domains
 
         private static List<CompletionItem> GetCompletions(XamlDocumentSyntax doc, string fileText, int line, int column)
         {
+            RegisterDocumentNamespaces(doc, s_schemaRegistry);
             var completions = new List<CompletionItem>();
             var node = FindNodeAtPosition(doc, line, column);
 
@@ -202,10 +203,10 @@ namespace Avalonia.Diagnostics.Cdp.Domains
                                 if (prop.IsAttached && (string.IsNullOrEmpty(propPrefix) || prop.Name.StartsWith(propPrefix, StringComparison.OrdinalIgnoreCase)))
                                 {
                                     completions.Add(new CompletionItem(
-                                        $"{ownerType.Name}.{prop.Name}",
+                                        prop.Name,
                                         "Property",
                                         prop.PropertyType?.Name ?? "",
-                                        $"{ownerType.Name}.{prop.Name}=\"$1\"",
+                                        $"{prop.Name}=\"$1\"",
                                         $"Attached property {prop.Name} of type {prop.PropertyType?.Name}."
                                     ));
                                 }
@@ -514,6 +515,39 @@ namespace Avalonia.Diagnostics.Cdp.Domains
                 curr = curr.BaseType;
             }
             return props;
+        }
+
+        private static void RegisterDocumentNamespaces(XamlDocumentSyntax doc, XamlSchemaRegistry registry)
+        {
+            if (doc.RootElement != null)
+            {
+                RegisterNamespacesInElement(doc.RootElement, registry);
+            }
+        }
+
+        private static void RegisterNamespacesInElement(XamlElementSyntax el, XamlSchemaRegistry registry)
+        {
+            foreach (var attr in el.Attributes)
+            {
+                if (attr.Prefix == "xmlns" || (attr.LocalName == "xmlns" && string.IsNullOrEmpty(attr.Prefix)))
+                {
+                    if (attr.ValueNode is XamlLiteralValueSyntax literal)
+                    {
+                        var nsUri = literal.Value;
+                        if (nsUri.StartsWith("clr-namespace:"))
+                        {
+                            registry.ResolveType(nsUri, "DummyTypeToRegisterNamespace");
+                        }
+                    }
+                }
+            }
+            foreach (var child in el.Children)
+            {
+                if (child is XamlElementSyntax childEl)
+                {
+                    RegisterNamespacesInElement(childEl, registry);
+                }
+            }
         }
     }
 }

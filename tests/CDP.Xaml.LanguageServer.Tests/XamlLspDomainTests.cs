@@ -471,6 +471,46 @@ namespace Avalonia.Diagnostics.Cdp.Tests
                 if (File.Exists(tempFile)) File.Delete(tempFile);
             }
         }
+
+        [Fact]
+        public async Task TestCompletions_AttachedProperty_ReturnsOnlySuffix()
+        {
+            string repoRoot = FindRepoRoot();
+            string tempFile = Path.Combine(repoRoot, "TempAttachedProperty.axaml");
+            
+            string xaml = @"<Window xmlns=""https://github.com/avaloniaui""
+        xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml"">
+    <Button Grid.R />
+</Window>";
+            await File.WriteAllTextAsync(tempFile, xaml);
+
+            try
+            {
+                var @params = new JsonObject
+                {
+                    ["file"] = tempFile,
+                    ["line"] = 3,
+                    ["column"] = 19
+                };
+                
+                var result = await XamlLspDomain.HandleAsync(null!, "getCompletions", @params);
+                Assert.NotNull(result);
+                var completions = result["completions"] as JsonArray;
+                Assert.NotNull(completions);
+                
+                var labels = completions.Select(c => c?["label"]?.GetValue<string>() ?? "").ToList();
+                Assert.Contains("Row", labels);
+                Assert.DoesNotContain("Grid.Row", labels);
+
+                var inserts = completions.Select(c => c?["insertText"]?.GetValue<string>() ?? "").ToList();
+                Assert.Contains("Row=\"$1\"", inserts);
+                Assert.DoesNotContain("Grid.Row=\"$1\"", inserts);
+            }
+            finally
+            {
+                if (File.Exists(tempFile)) File.Delete(tempFile);
+            }
+        }
     }
 }
 

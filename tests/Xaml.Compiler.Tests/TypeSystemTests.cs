@@ -202,4 +202,21 @@ public class TypeSystemTests
         Assert.True(resolved.IsAttached);
         Assert.Equal("Row", resolved.Name);
     }
+
+    [Fact]
+    public void test_resolve_local_namespace_without_assembly_resolves_correctly()
+    {
+        var localRegistry = new XamlSchemaRegistry();
+        var nsWithoutAssembly = new XamlNamespace(
+            uri: "http://schemas.mock.com/local-no-asm",
+            defaultPrefix: "local",
+            targetAssemblies: Array.Empty<string>(),
+            clrNamespaces: new[] { "Xaml.Compiler.Tests.Mocks" }
+        );
+        localRegistry.RegisterNamespace(nsWithoutAssembly);
+
+        var type = localRegistry.ResolveType("http://schemas.mock.com/local-no-asm", "MockControl");
+        Assert.NotNull(type);
+        Assert.Equal("MockControl", type.Name);
+    }
 }

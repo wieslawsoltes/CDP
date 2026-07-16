@@ -220,6 +220,11 @@ namespace Wpf.Diagnostics.Cdp.Adapters
                         }
                     }
                 }
+                else if (parent is HeaderedContentControl headeredControl && headeredControl.Header == oldChild)
+                {
+                    headeredControl.Header = newChild;
+                    return true;
+                }
                 else if (parent is ContentControl contentControl)
                 {
                     if (contentControl.Content == oldChild)

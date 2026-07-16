@@ -69,40 +69,62 @@ public class XamlSchemaRegistry
 
             Type? resolvedType = null;
 
-        foreach (var assemblyName in ns.TargetAssemblies)
-        {
-            Assembly? assembly = null;
-            try
+            var targetAssemblies = ns.TargetAssemblies;
+            if (targetAssemblies == null || targetAssemblies.Count == 0)
             {
-                assembly = AppDomain.CurrentDomain.GetAssemblies()
-                    .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
-                
-                if (assembly == null)
+                var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+                foreach (var assembly in loadedAssemblies)
                 {
-                    assembly = Assembly.Load(new AssemblyName(assemblyName));
+                    foreach (var clrNs in ns.ClrNamespaces)
+                    {
+                        var fullTypeName = $"{clrNs}.{typeName}";
+                        resolvedType = assembly.GetType(fullTypeName);
+                        if (resolvedType != null) break;
+
+                        var extensionTypeName = $"{clrNs}.{typeName}Extension";
+                        resolvedType = assembly.GetType(extensionTypeName);
+                        if (resolvedType != null) break;
+                    }
+                    if (resolvedType != null) break;
                 }
             }
-            catch
+            else
             {
-                continue; // Skip assemblies that fail to load
+                foreach (var assemblyName in targetAssemblies)
+                {
+                    Assembly? assembly = null;
+                    try
+                    {
+                        assembly = AppDomain.CurrentDomain.GetAssemblies()
+                            .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
+                        
+                        if (assembly == null)
+                        {
+                            assembly = Assembly.Load(new AssemblyName(assemblyName));
+                        }
+                    }
+                    catch
+                    {
+                        continue; // Skip assemblies that fail to load
+                    }
+
+                    if (assembly == null) continue;
+
+                    foreach (var clrNs in ns.ClrNamespaces)
+                    {
+                        var fullTypeName = $"{clrNs}.{typeName}";
+                        resolvedType = assembly.GetType(fullTypeName);
+                        if (resolvedType != null) break;
+
+                        // Support implicit MarkupExtension suffix resolution
+                        var extensionTypeName = $"{clrNs}.{typeName}Extension";
+                        resolvedType = assembly.GetType(extensionTypeName);
+                        if (resolvedType != null) break;
+                    }
+
+                    if (resolvedType != null) break;
+                }
             }
-
-            if (assembly == null) continue;
-
-            foreach (var clrNs in ns.ClrNamespaces)
-            {
-                var fullTypeName = $"{clrNs}.{typeName}";
-                resolvedType = assembly.GetType(fullTypeName);
-                if (resolvedType != null) break;
-
-                // Support implicit MarkupExtension suffix resolution
-                var extensionTypeName = $"{clrNs}.{typeName}Extension";
-                resolvedType = assembly.GetType(extensionTypeName);
-                if (resolvedType != null) break;
-            }
-
-            if (resolvedType != null) break;
-        }
 
         if (resolvedType == null)
         {

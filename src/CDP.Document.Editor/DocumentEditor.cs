@@ -1073,16 +1073,43 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         {
             if (child is ParagraphBlock para)
             {
-                foreach (var inline in para.Children)
+                for (int idx = 0; idx < para.Children.Count; idx++)
                 {
+                    var inline = para.Children[idx];
                     if (inline is TextRun run)
                     {
                         int runEnd = globalOffset + run.Text.Length;
                         if (_caretOffset >= globalOffset && _caretOffset <= runEnd)
                         {
                             int localOffset = _caretOffset - globalOffset;
-                            run.Text = run.Text.Insert(localOffset, text);
-                            _caretOffset += text.Length;
+                            if (text == "\n")
+                            {
+                                var firstPart = run.Text.Substring(0, localOffset);
+                                var secondPart = run.Text.Substring(localOffset);
+
+                                run.Text = firstPart;
+                                var lb = new LineBreakInline { Parent = para };
+                                para.Children.Insert(idx + 1, lb);
+
+                                var run2 = new TextRun
+                                {
+                                    Parent = para,
+                                    Text = secondPart,
+                                    FontSize = run.FontSize,
+                                    Bold = run.Bold,
+                                    Italic = run.Italic,
+                                    Underline = run.Underline,
+                                    Color = run.Color
+                                };
+                                para.Children.Insert(idx + 2, run2);
+
+                                _caretOffset += 1;
+                            }
+                            else
+                            {
+                                run.Text = run.Text.Insert(localOffset, text);
+                                _caretOffset += text.Length;
+                            }
                             PerformLayout();
                             ResetCaretBlink();
                             InvalidateVisual();
@@ -1103,20 +1130,29 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         var lastPara = GetLastParagraph(wordDoc);
         if (lastPara != null)
         {
-            TextRun? lastRun = null;
-            foreach (var c in lastPara.Children)
+            if (text == "\n")
             {
-                if (c is TextRun tr) lastRun = tr;
-            }
-            if (lastRun != null)
-            {
-                lastRun.Text += text;
+                var lb = new LineBreakInline { Parent = lastPara };
+                lastPara.AddChild(lb);
+                _caretOffset += 1;
             }
             else
             {
-                lastPara.AddChild(new TextRun { Text = text });
+                TextRun? lastRun = null;
+                foreach (var c in lastPara.Children)
+                {
+                    if (c is TextRun tr) lastRun = tr;
+                }
+                if (lastRun != null)
+                {
+                    lastRun.Text += text;
+                }
+                else
+                {
+                    lastPara.AddChild(new TextRun { Text = text });
+                }
+                _caretOffset += text.Length;
             }
-            _caretOffset += text.Length;
             PerformLayout();
             ResetCaretBlink();
             InvalidateVisual();
@@ -1177,6 +1213,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         {
             if (child is ParagraphBlock para)
             {
+                var toRemove = new List<DocumentNode>();
                 foreach (var inline in para.Children)
                 {
                     if (inline is TextRun run)
@@ -1191,12 +1228,24 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                         {
                             run.Text = run.Text.Remove(delStart, delEnd - delStart);
                         }
+                        if (run.Text.Length == 0)
+                        {
+                            toRemove.Add(run);
+                        }
                         globalOffset = runEnd;
                     }
-                    else if (inline is LineBreakInline)
+                    else if (inline is LineBreakInline lb)
                     {
+                        if (start <= globalOffset && end > globalOffset)
+                        {
+                            toRemove.Add(lb);
+                        }
                         globalOffset++;
                     }
+                }
+                foreach (var node in toRemove)
+                {
+                    para.Children.Remove(node);
                 }
             }
         }
@@ -1291,9 +1340,52 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
     private static string SerializeToRtf(WordDocument doc)
     {
         var sb = new System.Text.StringBuilder();
+        
+        // 1. Gather all unique colors
+        var uniqueColors = new List<string>();
+        foreach (var child in doc.Children)
+        {
+            if (child is ParagraphBlock para)
+            {
+                foreach (var inline in para.Children)
+                {
+                    if (inline is TextRun run && !string.IsNullOrEmpty(run.Color))
+                    {
+                        var hex = run.Color.Trim().ToUpperInvariant();
+                        if (!uniqueColors.Contains(hex))
+                        {
+                            uniqueColors.Add(hex);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Output header & color table
         sb.Append(@"{\rtf1\ansi\deff0");
+        if (uniqueColors.Count > 0)
+        {
+            sb.Append(@"{\colortbl ;");
+            foreach (var hex in uniqueColors)
+            {
+                var clean = hex.Replace("#", "");
+                if (clean.Length == 8)
+                {
+                    clean = clean.Substring(2);
+                }
+                if (clean.Length == 6)
+                {
+                    int r = Convert.ToInt32(clean.Substring(0, 2), 16);
+                    int g = Convert.ToInt32(clean.Substring(2, 2), 16);
+                    int b = Convert.ToInt32(clean.Substring(4, 2), 16);
+                    sb.Append($@"\red{r}\green{g}\blue{b};");
+                }
+            }
+            sb.Append("}");
+        }
         sb.AppendLine();
 
+        // 3. Serialize Runs
         foreach (var child in doc.Children)
         {
             if (child is ParagraphBlock para)
@@ -1302,6 +1394,13 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                 {
                     if (inline is TextRun run)
                     {
+                        int colorIdx = -1;
+                        if (!string.IsNullOrEmpty(run.Color))
+                        {
+                            colorIdx = uniqueColors.IndexOf(run.Color.Trim().ToUpperInvariant());
+                        }
+
+                        if (colorIdx >= 0) sb.Append($@"\cf{colorIdx + 1} ");
                         if (run.Bold) sb.Append(@"\b ");
                         if (run.Italic) sb.Append(@"\i ");
                         if (run.Underline) sb.Append(@"\ul ");
@@ -1324,6 +1423,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                         if (run.Bold) sb.Append(@"\b0 ");
                         if (run.Italic) sb.Append(@"\i0 ");
                         if (run.Underline) sb.Append(@"\ulnone ");
+                        if (colorIdx >= 0) sb.Append(@"\cf0 ");
                     }
                     else if (inline is LineBreakInline)
                     {
@@ -1470,7 +1570,20 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             }
             else if (child is ShapeNode spn)
             {
-                childClone = new ShapeNode { X = spn.X, Y = spn.Y, Width = spn.Width, Height = spn.Height, ShapeType = spn.ShapeType, Text = spn.Text, ImageSource = spn.ImageSource };
+                childClone = new ShapeNode
+                {
+                    X = spn.X,
+                    Y = spn.Y,
+                    Width = spn.Width,
+                    Height = spn.Height,
+                    ShapeType = spn.ShapeType,
+                    Text = spn.Text,
+                    ImageSource = spn.ImageSource,
+                    Bold = spn.Bold,
+                    Italic = spn.Italic,
+                    FontSize = spn.FontSize,
+                    Color = spn.Color
+                };
             }
             else if (child is GroupNode gn)
             {
@@ -1526,6 +1639,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
         using var wordDoc = WordprocessingDocument.Open(filePath, true);
         var body = wordDoc.MainDocumentPart?.Document?.Body;
         if (body == null) return;
+        var existingSectPr = body.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.SectionProperties>()?.CloneNode(true);
         body.RemoveAllChildren();
 
         foreach (var child in doc.Children)
@@ -1643,6 +1757,10 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                 body.AppendChild(wTable);
             }
         }
+        if (existingSectPr != null)
+        {
+            body.AppendChild(existingSectPr);
+        }
         wordDoc.MainDocumentPart.Document.Save();
     }
 
@@ -1720,9 +1838,30 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                     else
                     {
                         wCell.CellFormula = null;
-                        wCell.DataType = CellValues.InlineString;
-                        wCell.InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(cellNode.DisplayText));
-                        wCell.CellValue = null;
+                        if (wCell.DataType?.Value == CellValues.Boolean && bool.TryParse(cellNode.DisplayText, out var b))
+                        {
+                            wCell.DataType = CellValues.Boolean;
+                            wCell.CellValue = new CellValue(b ? "1" : "0");
+                            wCell.InlineString = null;
+                        }
+                        else if ((wCell.DataType == null || wCell.DataType.Value == CellValues.Number) && double.TryParse(cellNode.DisplayText, out _))
+                        {
+                            wCell.DataType = null; // defaults to numeric in OpenXML
+                            wCell.CellValue = new CellValue(cellNode.DisplayText);
+                            wCell.InlineString = null;
+                        }
+                        else if (wCell.DataType?.Value == CellValues.Date)
+                        {
+                            wCell.DataType = CellValues.Date;
+                            wCell.CellValue = new CellValue(cellNode.DisplayText);
+                            wCell.InlineString = null;
+                        }
+                        else
+                        {
+                            wCell.DataType = CellValues.InlineString;
+                            wCell.InlineString = new InlineString(new DocumentFormat.OpenXml.Spreadsheet.Text(cellNode.DisplayText));
+                            wCell.CellValue = null;
+                        }
                     }
 
                     // Save cell formatting
@@ -1825,7 +1964,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
             if (shapes == null) continue;
 
             int shapeIdx = 0;
-            var shapeNodes = slideNode.Children.OfType<ShapeNode>().Where(s => s.ShapeType != "Picture").ToList();
+            var shapeNodes = slideNode.Children.OfType<ShapeNode>().Where(s => s.ShapeType != "Picture" && s.ShapeType != "GraphicFrame" && s.ShapeType != "ConnectionShape").ToList();
 
             foreach (var sp in shapes)
             {

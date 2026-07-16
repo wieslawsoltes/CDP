@@ -291,6 +291,30 @@ public static class StyleCascade
             }
         }
 
+        // 5. Pseudo-class check
+        if (selector.PseudoClasses.Count > 0)
+        {
+            foreach (var pc in selector.PseudoClasses)
+            {
+                var cleanPc = pc.ToLowerInvariant();
+                if (cleanPc == ":first-child" || cleanPc == "first-child")
+                {
+                    if (element.Parent == null || element.Parent.Children.Count == 0 || element.Parent.Children[0] != element)
+                        return false;
+                }
+                else if (cleanPc == ":last-child" || cleanPc == "last-child")
+                {
+                    if (element.Parent == null || element.Parent.Children.Count == 0 || element.Parent.Children[element.Parent.Children.Count - 1] != element)
+                        return false;
+                }
+                else
+                {
+                    // Unsupported dynamic/interactive pseudo-class (e.g. hover, focus, active)
+                    return false;
+                }
+            }
+        }
+
         return true;
     }
 

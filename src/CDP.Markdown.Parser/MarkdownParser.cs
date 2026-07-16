@@ -5,6 +5,7 @@ using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using CDP.Markdown.Parser.AST;
+using System.Linq;
 
 namespace CDP.Markdown.Parser;
 
@@ -107,18 +108,10 @@ public static class MarkdownParser
 
     private static Markdig.Extensions.TaskLists.TaskList? FindTaskListInline(ContainerBlock cb)
     {
-        foreach (var child in cb)
+        var firstChild = cb.FirstOrDefault();
+        if (firstChild is LeafBlock lb && lb.Inline != null)
         {
-            if (child is LeafBlock lb && lb.Inline != null)
-            {
-                var taskList = FindTaskListInlineInInline(lb.Inline);
-                if (taskList != null) return taskList;
-            }
-            else if (child is ContainerBlock innerCb)
-            {
-                var taskList = FindTaskListInline(innerCb);
-                if (taskList != null) return taskList;
-            }
+            return FindTaskListInlineInInline(lb.Inline);
         }
         return null;
     }

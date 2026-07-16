@@ -136,17 +136,17 @@ public class ParagraphLayoutBlock : IDocumentLayoutBlock
                         {
                             if (localX > currentX + w / 2)
                             {
-                                return segment.StartOffset + i + 1;
+                                return GlobalStartOffset + segment.StartOffset + i + 1;
                             }
-                            return segment.StartOffset + i;
+                            return GlobalStartOffset + segment.StartOffset + i;
                         }
                         currentX += w;
                     }
                 }
-                return line.StartOffset + line.Length;
+                return GlobalStartOffset + line.StartOffset + line.Length;
             }
         }
-        return 0;
+        return GlobalStartOffset;
     }
 
     public SKRect GetCaretBounds(int offset)

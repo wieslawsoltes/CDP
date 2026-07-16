@@ -233,16 +233,30 @@ namespace CDP.CSharp.LanguageServer
                 }
             }
 
-            // Context-specific completions (e.g. Console.)
-            if (prefix.EndsWith("."))
+            // Context-specific completions (e.g. Console. or Console.W)
+            string receiver = "";
+            string memberPrefix = "";
+            bool hasDot = false;
+
+            if (prefix.Contains('.'))
             {
-                var target = prefix.Substring(0, prefix.Length - 1).Trim();
-                if (string.Equals(target, "Console", StringComparison.OrdinalIgnoreCase))
+                hasDot = true;
+                int dotIdx = prefix.LastIndexOf('.');
+                receiver = prefix.Substring(0, dotIdx).Trim();
+                memberPrefix = prefix.Substring(dotIdx + 1).Trim();
+            }
+
+            if (hasDot)
+            {
+                if (string.Equals(receiver, "Console", StringComparison.OrdinalIgnoreCase))
                 {
                     var consoleMethods = new[] { "WriteLine", "Write", "ReadLine", "Clear", "ReadKey" };
                     foreach (var m in consoleMethods)
                     {
-                        completions.Add(new CompletionItem(m, "Method", "System.Console Method", m, $"Writes or reads from standard output/input."));
+                        if (string.IsNullOrEmpty(memberPrefix) || m.StartsWith(memberPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            completions.Add(new CompletionItem(m, "Method", "System.Console Method", m, $"Writes or reads from standard output/input."));
+                        }
                     }
                 }
             }

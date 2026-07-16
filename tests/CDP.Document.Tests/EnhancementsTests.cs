@@ -268,4 +268,85 @@ public class EnhancementsTests
         int caretOffset = (int)hitTestTextMethod.Invoke(editor, new object[] { "Hello", 0.0, 15.0, paint })!;
         Assert.True(caretOffset >= 0);
     }
+
+    [Fact]
+    public void TestPr97Fixes_WorkerTests()
+    {
+        var editor = new DocumentEditor { IsReadOnly = false };
+        // 1. Comment 12: ShapeNode Undo Formatting Clones
+        var shape = new ShapeNode
+        {
+            X = 10, Y = 20, Width = 100, Height = 100, ShapeType = "Rectangle", Text = "Hello",
+            Bold = true, Italic = true, FontSize = 16, Color = "#FF0000"
+        };
+        var pres = new PresentationDocument();
+        var slide = new SlideNode();
+        slide.AddChild(shape);
+        pres.AddChild(slide);
+
+        var cloneDocumentMethod = typeof(DocumentEditor).GetMethod("CloneDocument", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(cloneDocumentMethod);
+        var clonePres = (PresentationDocument)cloneDocumentMethod.Invoke(editor, new object[] { pres })!;
+        var cloneShape = clonePres.Children.OfType<SlideNode>().First().Children.OfType<ShapeNode>().First();
+        Assert.Equal(shape.X, cloneShape.X);
+        Assert.Equal(shape.ShapeType, cloneShape.ShapeType);
+        Assert.True(cloneShape.Bold);
+        Assert.True(cloneShape.Italic);
+        Assert.Equal(16, cloneShape.FontSize);
+        Assert.Equal("#FF0000", cloneShape.Color);
+
+        // 2. Comment 14: Model Enter as Document Break (InsertTextAtCaret / DeleteRange)
+        var wordDoc = new WordDocument();
+        var para = new ParagraphBlock();
+        var run = new TextRun { Text = "HelloWorld" };
+        para.AddChild(run);
+        wordDoc.AddChild(para);
+
+        var docField = typeof(DocumentEditor).GetField("_document", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(docField);
+        docField.SetValue(editor, wordDoc);
+
+        var caretField = typeof(DocumentEditor).GetField("_caretOffset", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(caretField);
+        
+        // Insert \n at offset 5 ("Hello" | "World")
+        caretField.SetValue(editor, 5);
+        
+        var insertTextAtCaretMethod = typeof(DocumentEditor).GetMethod("InsertTextAtCaret", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(insertTextAtCaretMethod);
+        insertTextAtCaretMethod.Invoke(editor, new object[] { wordDoc, "\n" });
+
+        // The paragraph should now have: TextRun("Hello"), LineBreakInline, TextRun("World")
+        Assert.Equal(3, para.Children.Count);
+        Assert.IsType<TextRun>(para.Children[0]);
+        Assert.IsType<LineBreakInline>(para.Children[1]);
+        Assert.IsType<TextRun>(para.Children[2]);
+        Assert.Equal("Hello", ((TextRun)para.Children[0]).Text);
+        Assert.Equal("World", ((TextRun)para.Children[2]).Text);
+
+        // Delete the LineBreakInline (which is at global offset 5, length 1)
+        var deleteRangeMethod = typeof(DocumentEditor).GetMethod("DeleteRange", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(deleteRangeMethod);
+        deleteRangeMethod.Invoke(null, new object[] { wordDoc, 5, 6 });
+
+        // LineBreakInline should be removed, and empty TextRun (if any) is cleaned
+        Assert.Equal(2, para.Children.Count);
+        Assert.IsType<TextRun>(para.Children[0]);
+        Assert.IsType<TextRun>(para.Children[1]);
+        Assert.Equal("Hello", ((TextRun)para.Children[0]).Text);
+        Assert.Equal("World", ((TextRun)para.Children[1]).Text);
+
+        // 3. Comment 11: Emit RTF Color Runs when Saving
+        var rtfDoc = new WordDocument();
+        var rtfPara = new ParagraphBlock();
+        rtfPara.AddChild(new TextRun { Text = "RedText", Color = "#FF0000" });
+        rtfDoc.AddChild(rtfPara);
+
+        var serializeToRtfMethod = typeof(DocumentEditor).GetMethod("SerializeToRtf", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(serializeToRtfMethod);
+        var rtfContent = (string)serializeToRtfMethod.Invoke(null, new object[] { rtfDoc })!;
+        Assert.Contains(@"\colortbl", rtfContent);
+        Assert.Contains(@"\red255\green0\blue0;", rtfContent);
+        Assert.Contains(@"\cf1", rtfContent);
+    }
 }

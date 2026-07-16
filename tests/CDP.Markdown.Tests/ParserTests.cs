@@ -198,4 +198,32 @@ public class ParserTests
         Assert.Contains("<div class=\"test\">", html.Html);
         Assert.Contains("<img src=\"test.png\" />", html.Html);
     }
+
+    [Fact]
+    public void TestNestedTaskList_Comment3()
+    {
+        var markdown = "- [ ] Parent\n  - [x] Child";
+        var doc = MarkdownParser.Parse(markdown);
+
+        Assert.NotNull(doc);
+        var parentList = Assert.IsType<ListBlock>(doc.Children[0]);
+        var parentItem = Assert.IsType<ListItemBlock>(parentList.Children[0]);
+        Assert.False(parentItem.IsChecked);
+    }
+
+    [Fact]
+    public void TestCodeInlineFencing_Comment4()
+    {
+        var ci = new CodeInline { Code = "a`b" };
+        var serialized = MarkdownSerializer.Serialize(ci);
+        Assert.Equal("``a`b``", serialized);
+
+        var ci2 = new CodeInline { Code = "a``b" };
+        var serialized2 = MarkdownSerializer.Serialize(ci2);
+        Assert.Equal("```a``b```", serialized2);
+
+        var ci3 = new CodeInline { Code = "hello" };
+        var serialized3 = MarkdownSerializer.Serialize(ci3);
+        Assert.Equal("`hello`", serialized3);
+    }
 }
