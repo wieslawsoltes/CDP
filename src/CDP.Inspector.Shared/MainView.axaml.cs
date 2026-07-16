@@ -209,6 +209,7 @@ public partial class MainView : UserControl
             "Scratch" => new ScratchView(),
             "TimeMachine" => new TimeMachineView(),
             "Designer" => new DesignerView(),
+            "HtmlPreview" => new HtmlPreviewView(),
             _ => new TextBlock { Text = $"View {viewName} not implemented", Margin = new Thickness(10) }
         };
 
@@ -223,7 +224,7 @@ public partial class MainView : UserControl
         var anchor = e.AnchorControl;
 
         var contextMenu = new ContextMenu();
-        string[] views = { "Simulation", "Elements", "Console", "Sources", "Network", "Performance", "Profiler", "Memory", "Application", "Audits", "Recorder", "Window", "Events", "Mvvm", "Diff", "Scratch", "TimeMachine", "Designer" };
+        string[] views = { "Simulation", "Elements", "Console", "Sources", "Network", "Performance", "Profiler", "Memory", "Application", "Audits", "Recorder", "Window", "Events", "Mvvm", "Diff", "Scratch", "TimeMachine", "Designer", "HtmlPreview" };
 
         foreach (var viewName in views)
         {

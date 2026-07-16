@@ -31,6 +31,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
     public ScratchViewModel Scratch { get; }
     public TimeMachineViewModel TimeMachine { get; }
     public DesignerViewModel Designer { get; }
+    public HtmlPreviewViewModel HtmlPreview { get; }
 
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
@@ -118,6 +119,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         Scratch = new ScratchViewModel(CdpService, Console, Network);
         TimeMachine = new TimeMachineViewModel(CdpService);
         Designer = new DesignerViewModel(CdpService, () => Elements);
+        HtmlPreview = new HtmlPreviewViewModel(CdpService, Elements);
 
         SetDiffLeftEventCommand = new RelayCommand(() =>
         {
@@ -470,6 +472,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         rightPane.AddTab("Scratch", "FlowchartIcon", "Scratch");
         rightPane.AddTab("Time Machine", "HistoryIcon", "TimeMachine");
         rightPane.AddTab("Designer", "DesignIcon", "Designer");
+        rightPane.AddTab("HTML Preview", "PreviewLinkIcon", "HtmlPreview");
 
         LayoutRoot = new SplitContainerNode(
             Avalonia.Layout.Orientation.Horizontal,
@@ -628,6 +631,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
             "Scratch" => "FlowchartIcon",
             "TimeMachine" => "HistoryIcon",
             "Designer" => "DesignIcon",
+            "HtmlPreview" => "PreviewLinkIcon",
             _ => "DocumentIcon"
         };
     }
