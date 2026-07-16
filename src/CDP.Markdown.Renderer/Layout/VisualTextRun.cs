@@ -19,6 +19,9 @@ public class VisualTextRun : IDisposable
     public string? ImageUrl { get; }
     public string? AltText { get; }
 
+    public bool IsHtml { get; }
+    public string? HtmlText { get; }
+
     public VisualTextRun(
         string text,
         SKTextBlob? textBlob,
@@ -29,7 +32,9 @@ public class VisualTextRun : IDisposable
         float[] characterPositions,
         bool isImage = false,
         string? imageUrl = null,
-        string? altText = null)
+        string? altText = null,
+        bool isHtml = false,
+        string? htmlText = null)
     {
         Text = text;
         TextBlob = textBlob;
@@ -41,6 +46,8 @@ public class VisualTextRun : IDisposable
         IsImage = isImage;
         ImageUrl = imageUrl;
         AltText = altText;
+        IsHtml = isHtml;
+        HtmlText = htmlText;
     }
 
     public void Dispose()

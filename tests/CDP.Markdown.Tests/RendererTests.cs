@@ -800,4 +800,60 @@ Some trailing paragraph.
 
         layout.Dispose();
     }
+
+    [Fact]
+    public void TestHtmlLayoutBlock_IntegratesHtmlParserAndLayout()
+    {
+        string markdown = "<div style=\"width: 100px; height: 50px; background-color: red;\">HTML Block</div>";
+        var layout = CreateTestLayout(markdown, 300f);
+        Assert.Single(layout.Blocks);
+        var htmlBlock = Assert.IsType<HtmlLayoutBlock>(layout.Blocks[0]);
+        Assert.NotNull(htmlBlock.Node);
+        Assert.True(htmlBlock.Bounds.Height > 0);
+        
+        // Test simplified caret bounds & hit test snap
+        var caret = htmlBlock.GetCaretBounds(0);
+        Assert.Equal(htmlBlock.Bounds.Left, caret.Left);
+        
+        var hit = htmlBlock.HitTest(new SKPoint(10f, 10f));
+        Assert.Equal(htmlBlock.Node.Span.Start, hit);
+        
+        var selection = new List<SKRect>();
+        htmlBlock.GetSelectionBounds(htmlBlock.Node.Span.Start, htmlBlock.Node.Span.Start + htmlBlock.Node.Span.Length, selection);
+        Assert.Single(selection);
+    }
+
+    [Fact]
+    public void TestParagraph_InlineHtmlTextRunLayout()
+    {
+        string markdown = "Hello <span style=\"color: blue;\">World</span> Inline HTML";
+        var layout = CreateTestLayout(markdown, 500f);
+        Assert.Single(layout.Blocks);
+        var pBlock = Assert.IsType<ParagraphLayoutBlock>(layout.Blocks[0]);
+        
+        // Check if any run in the laid out lines has IsHtml set to true
+        bool foundHtmlRun = false;
+        // Access paragraph layout lines via reflection if needed, but since it's inside the same test project assembly or a public field:
+        // Let's check: public field/property? In ParagraphLayoutBlock:
+        // Wait, _lines is a private field: private readonly List<VisualLine> _lines = new();
+        // Wait, can we access it? Since it's private, we can use reflection! Let's check how RendererTests.cs accesses private fields, if any.
+        // Let's use reflection to read _lines of ParagraphLayoutBlock.
+        var linesField = typeof(ParagraphLayoutBlock).GetField("_lines", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(linesField);
+        var lines = linesField.GetValue(pBlock) as List<VisualLine>;
+        Assert.NotNull(lines);
+        
+        foreach (var line in lines)
+        {
+            foreach (var run in line.Runs)
+            {
+                if (run.IsHtml)
+                {
+                    foundHtmlRun = true;
+                    Assert.Contains("span", run.HtmlText);
+                }
+            }
+        }
+        Assert.True(foundHtmlRun);
+    }
 }

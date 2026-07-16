@@ -58,7 +58,21 @@ public class ParagraphLayoutBlock : ILayoutBlock
             {
                 foreach (var run in line.Runs)
                 {
-                    if (run.IsImage)
+                    if (run.IsHtml)
+                    {
+                        var doc = CDP.Html.Parser.HtmlParser.Parse(run.HtmlText ?? string.Empty);
+                        var stylesheet = CDP.Css.Parser.CssParser.Parse(string.Empty);
+                        var styles = CDP.Html.Renderer.Style.StyleCascade.ResolveStyles(doc, stylesheet);
+                        var rootBox = CDP.Html.Renderer.Layout.LayoutTreeBuilder.Build(doc, styles);
+                        CDP.Html.Renderer.Layout.LayoutEngine.Layout(rootBox, run.LocalBounds.Width, run.LocalBounds.Height);
+                        CDP.Html.Renderer.HtmlRenderer.Render(
+                            rootBox, 
+                            canvas, 
+                            run.LocalBounds.Left + line.Bounds.Left, 
+                            run.LocalBounds.Top + line.Bounds.Top
+                        );
+                    }
+                    else if (run.IsImage)
                     {
                         var imgRect = new SKRect(
                             run.LocalBounds.Left + line.Bounds.Left,

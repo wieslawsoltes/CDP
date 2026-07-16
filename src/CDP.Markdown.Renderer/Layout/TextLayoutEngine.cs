@@ -18,6 +18,8 @@ public static class TextLayoutEngine
         public bool IsLineBreak { get; }
         public bool IsImage { get; }
         public ImageInline? ImageNode { get; }
+        public bool IsHtml { get; }
+        public string? HtmlText { get; }
 
         public LayoutToken(
             string text,
@@ -26,7 +28,9 @@ public static class TextLayoutEngine
             bool isWhitespace = false,
             bool isLineBreak = false,
             bool isImage = false,
-            ImageInline? imageNode = null)
+            ImageInline? imageNode = null,
+            bool isHtml = false,
+            string? htmlText = null)
         {
             Text = text;
             Style = style;
@@ -35,6 +39,8 @@ public static class TextLayoutEngine
             IsLineBreak = isLineBreak;
             IsImage = isImage;
             ImageNode = imageNode;
+            IsHtml = isHtml;
+            HtmlText = htmlText;
         }
     }
 
@@ -67,7 +73,7 @@ public static class TextLayoutEngine
             float maxLineHeight = 0;
             foreach (var run in mergedRuns)
             {
-                float runHeight = measurer.GetLineHeight(run.Style);
+                float runHeight = run.IsImage || run.IsHtml ? run.LocalBounds.Height : measurer.GetLineHeight(run.Style);
                 if (runHeight > maxLineHeight) maxLineHeight = runHeight;
             }
             if (maxLineHeight == 0) maxLineHeight = 20f;
@@ -86,7 +92,9 @@ public static class TextLayoutEngine
                     run.CharacterPositions,
                     run.IsImage,
                     run.ImageUrl,
-                    run.AltText
+                    run.AltText,
+                    run.IsHtml,
+                    run.HtmlText
                 );
                 line.Runs.Add(positionedRun);
                 currentX += run.LocalBounds.Width;
@@ -105,7 +113,14 @@ public static class TextLayoutEngine
         {
             if (node is LiteralInline literal)
             {
-                tokens.AddRange(TokenizeText(literal.Text, parentStyle, literal.Span));
+                if (literal.IsHtml)
+                {
+                    tokens.Add(new LayoutToken(literal.Text ?? string.Empty, parentStyle, literal.Span, isHtml: true, htmlText: literal.Text));
+                }
+                else
+                {
+                    tokens.AddRange(TokenizeText(literal.Text, parentStyle, literal.Span));
+                }
             }
             else if (node is CodeInline codeInline)
             {
@@ -195,7 +210,19 @@ public static class TextLayoutEngine
                 continue;
             }
 
-            float tokenWidth = token.IsImage ? 150f : measurer.MeasureText(token.Text, token.Style);
+            float tokenWidth;
+            if (token.IsImage)
+            {
+                tokenWidth = 150f;
+            }
+            else if (token.IsHtml)
+            {
+                tokenWidth = MeasureHtmlWidth(token.HtmlText);
+            }
+            else
+            {
+                tokenWidth = measurer.MeasureText(token.Text, token.Style);
+            }
 
             if (currentX + tokenWidth <= maxWidth || currentLine.Count == 0)
             {
@@ -225,7 +252,7 @@ public static class TextLayoutEngine
                         currentX = 0;
                     }
 
-                    if (token.IsImage)
+                    if (token.IsImage || token.IsHtml)
                     {
                         currentLine.Add(token);
                         lines.Add(currentLine);
@@ -294,11 +321,14 @@ public static class TextLayoutEngine
         var currentTokens = new List<LayoutToken>();
         TextStyle currentStyle = lineTokens[0].Style;
         bool currentIsImage = lineTokens[0].IsImage;
+        bool currentIsHtml = lineTokens[0].IsHtml;
 
         for (int i = 0; i < lineTokens.Count; i++)
         {
             var token = lineTokens[i];
-            if (AreStylesEqual(token.Style, currentStyle) && token.IsImage == currentIsImage && !token.IsImage)
+            if (AreStylesEqual(token.Style, currentStyle) && 
+                token.IsImage == currentIsImage && !token.IsImage &&
+                token.IsHtml == currentIsHtml && !token.IsHtml)
             {
                 currentTokens.Add(token);
             }
@@ -306,17 +336,18 @@ public static class TextLayoutEngine
             {
                 if (currentTokens.Count > 0)
                 {
-                    runs.Add(CreateRunFromTokens(currentTokens, currentStyle, currentIsImage, measurer, resources));
+                    runs.Add(CreateRunFromTokens(currentTokens, currentStyle, currentIsImage, currentIsHtml, measurer, resources));
                 }
                 currentTokens = new List<LayoutToken> { token };
                 currentStyle = token.Style;
                 currentIsImage = token.IsImage;
+                currentIsHtml = token.IsHtml;
             }
         }
 
         if (currentTokens.Count > 0)
         {
-            runs.Add(CreateRunFromTokens(currentTokens, currentStyle, currentIsImage, measurer, resources));
+            runs.Add(CreateRunFromTokens(currentTokens, currentStyle, currentIsImage, currentIsHtml, measurer, resources));
         }
 
         return runs;
@@ -338,6 +369,7 @@ public static class TextLayoutEngine
         List<LayoutToken> tokens,
         TextStyle style,
         bool isImage,
+        bool isHtml,
         ITextMeasurer measurer,
         RenderResources? resources)
     {
@@ -381,6 +413,34 @@ public static class TextLayoutEngine
             );
         }
 
+        if (isHtml)
+        {
+            float width = MeasureHtmlWidth(tokens[0].HtmlText);
+            float height = MeasureHtmlHeight(tokens[0].HtmlText, width);
+
+            int spanLength = span.Length;
+            float[] htmlCharPositions = new float[spanLength + 1];
+            for (int i = 0; i <= spanLength; i++)
+            {
+                htmlCharPositions[i] = spanLength > 0 ? (i * width / spanLength) : 0f;
+            }
+
+            return new VisualTextRun(
+                text,
+                null,
+                new SKRect(0, 0, width, height),
+                paint,
+                span,
+                style,
+                htmlCharPositions,
+                isImage: false,
+                imageUrl: null,
+                altText: null,
+                isHtml: true,
+                htmlText: tokens[0].HtmlText
+            );
+        }
+
         SKTextBlob? textBlob = null;
         if (text.Length > 0 && font != null)
         {
@@ -407,6 +467,28 @@ public static class TextLayoutEngine
             style,
             charPositions
         );
+    }
+
+    private static float MeasureHtmlWidth(string? html)
+    {
+        if (string.IsNullOrEmpty(html)) return 0f;
+        var doc = CDP.Html.Parser.HtmlParser.Parse(html);
+        var stylesheet = CDP.Css.Parser.CssParser.Parse(string.Empty);
+        var styles = CDP.Html.Renderer.Style.StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = CDP.Html.Renderer.Layout.LayoutTreeBuilder.Build(doc, styles);
+        CDP.Html.Renderer.Layout.LayoutEngine.Layout(rootBox, float.PositiveInfinity, float.PositiveInfinity);
+        return rootBox.Width;
+    }
+
+    private static float MeasureHtmlHeight(string? html, float width)
+    {
+        if (string.IsNullOrEmpty(html)) return 0f;
+        var doc = CDP.Html.Parser.HtmlParser.Parse(html);
+        var stylesheet = CDP.Css.Parser.CssParser.Parse(string.Empty);
+        var styles = CDP.Html.Renderer.Style.StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = CDP.Html.Renderer.Layout.LayoutTreeBuilder.Build(doc, styles);
+        CDP.Html.Renderer.Layout.LayoutEngine.Layout(rootBox, width, float.PositiveInfinity);
+        return rootBox.Height;
     }
 
     public static SKFont ResolveFont(TextStyle style, RenderResources resources)
