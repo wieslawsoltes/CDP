@@ -1056,5 +1056,82 @@ public class RendererTests
         ";
         VisualTestHelper.AssertVisualMatch("floats_and_clears_visual", html, css, 400, 400);
     }
+
+    [Fact]
+    public void TestHideNonRenderedTags()
+    {
+        // 1. Arrange
+        var doc = new HtmlDocument();
+        var html = new HtmlElement { TagName = "html" };
+        var head = new HtmlElement { TagName = "head" };
+        var style = new HtmlElement { TagName = "style" };
+        style.Children.Add(new HtmlTextNode { Text = "body { color: red; }" });
+        var script = new HtmlElement { TagName = "script" };
+        script.Children.Add(new HtmlTextNode { Text = "console.log('test');" });
+        var title = new HtmlElement { TagName = "title" };
+        title.Children.Add(new HtmlTextNode { Text = "My Title" });
+        var meta = new HtmlElement { TagName = "meta" };
+        var link = new HtmlElement { TagName = "link" };
+        var body = new HtmlElement { TagName = "body" };
+        var p = new HtmlElement { TagName = "p" };
+        p.Children.Add(new HtmlTextNode { Text = "Hello" });
+
+        doc.Children.Add(html);
+        html.Parent = doc;
+        html.Children.Add(head);
+        head.Parent = html;
+        head.Children.Add(style);
+        style.Parent = head;
+        head.Children.Add(script);
+        script.Parent = head;
+        head.Children.Add(title);
+        title.Parent = head;
+        head.Children.Add(meta);
+        meta.Parent = head;
+        head.Children.Add(link);
+        link.Parent = head;
+
+        html.Children.Add(body);
+        body.Parent = html;
+        body.Children.Add(p);
+        p.Parent = body;
+
+        var stylesheet = CssParser.Parse(string.Empty);
+
+        // 2. Act
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var layoutTree = LayoutTreeBuilder.Build(doc, styles);
+
+        // 3. Assert
+        // The resolved display type for style, script, head, meta, link, title should be None
+        Assert.Equal(DisplayType.None, styles[style].Display);
+        Assert.Equal(DisplayType.None, styles[script].Display);
+        Assert.Equal(DisplayType.None, styles[head].Display);
+        Assert.Equal(DisplayType.None, styles[meta].Display);
+        Assert.Equal(DisplayType.None, styles[link].Display);
+        Assert.Equal(DisplayType.None, styles[title].Display);
+
+        // The layout tree should only build box elements for non-None nodes
+        // Traversing layout tree to ensure no style or script box exists
+        bool HasNodeWithTag(LayoutBox box, string tag)
+        {
+            if (box.Node is HtmlElement el && el.TagName.Equals(tag, System.StringComparison.OrdinalIgnoreCase))
+                return true;
+            foreach (var child in box.Children)
+            {
+                if (HasNodeWithTag(child, tag))
+                    return true;
+            }
+            return false;
+        }
+
+        Assert.False(HasNodeWithTag(layoutTree, "style"));
+        Assert.False(HasNodeWithTag(layoutTree, "script"));
+        Assert.False(HasNodeWithTag(layoutTree, "head"));
+        Assert.False(HasNodeWithTag(layoutTree, "meta"));
+        Assert.False(HasNodeWithTag(layoutTree, "link"));
+        Assert.False(HasNodeWithTag(layoutTree, "title"));
+        Assert.True(HasNodeWithTag(layoutTree, "p"));
+    }
 }
 

@@ -53,10 +53,14 @@ public static class StyleCascade
 
             // Default display based on tag
             string tag = element.TagName.ToLowerInvariant();
-            if (tag == "div" || tag == "p" || tag == "body" || tag == "html" ||
-                tag == "ul" || tag == "li" || tag == "h1" || tag == "h2" ||
-                tag == "h3" || tag == "h4" || tag == "h5" || tag == "h6" ||
-                tag == "header" || tag == "footer" || tag == "section" || tag == "article")
+            if (tag == "style" || tag == "script" || tag == "head" || tag == "meta" || tag == "link" || tag == "title")
+            {
+                style.Display = DisplayType.None;
+            }
+            else if (tag == "div" || tag == "p" || tag == "body" || tag == "html" ||
+                     tag == "ul" || tag == "li" || tag == "h1" || tag == "h2" ||
+                     tag == "h3" || tag == "h4" || tag == "h5" || tag == "h6" ||
+                     tag == "header" || tag == "footer" || tag == "section" || tag == "article")
             {
                 style.Display = DisplayType.Block;
             }
