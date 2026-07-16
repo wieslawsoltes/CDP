@@ -51,6 +51,10 @@ This project implements a highly reusable, high-performance HTML/CSS parsing and
 | 5 | Gallery Showcase Pages | Add HTML standalone showcase & update Markdown showcase | M4 | DONE |
 | 6 | Inspector HTML Preview Tab | Add HTML Preview Tab, View and ViewModel in inspector | M4 | DONE |
 | 7 | Verification & Test Suite Pass | E2E simulations, unit tests pass, auditor checks | M5, M6 | DONE |
+| 8 | CSS Variables & calc() | Custom properties `--*`, inheritance via cascade, `var()`, and basic `calc()` arithmetic | M3 | DONE |
+| 9 | CSS Positioning | Absolute, Relative, Fixed positioning bounds and offset calculation relative to ancestors | M3 | DONE |
+| 10| CSS Floats and Clears | Float routing left/right, wrapping boundaries, and clearing flow | M3 | DONE |
+| 11| Visual Layout Unit Tests & Audit | Automated visual unit tests validating coordinates/dimensions and forensic integrity audit | M8, M9, M10 | DONE |
 
 ---
 

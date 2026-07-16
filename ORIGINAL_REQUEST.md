@@ -82,3 +82,38 @@ Integrity mode: demo
 - Memory allocations (allocated bytes per parsing iteration) are reduced by at least 50% compared to the baseline implementation.
 - Garbage Collection collection counts (Gen 0/1/2) show a measurable reduction during stress iterations.
 
+## Follow-up — 2026-07-16T08:30:41Z
+
+Continue working on the HTML/CSS parser and HTML rendering engine, focusing on layout correctness, spec compliance, CSS positioning, floats, and CSS variables.
+
+Working directory: /Users/wieslawsoltes/GitHub/CDP
+Integrity mode: demo
+
+## Requirements
+
+### R1. CSS Positioning (Absolute, Relative, Fixed)
+- Implement `position: absolute`, `position: relative`, and `position: fixed` support inside the style resolver and layout engine (`CDP.Html.Renderer`).
+- Properly calculate box coordinate offsets (`top`, `right`, `bottom`, `left`) relative to the nearest positioned ancestor (or the viewport for fixed).
+- Ensure positioned element bounds do not affect standard static BFC/IFC static flow layout positioning, but lay out out-of-flow elements relative to boundaries.
+
+### R2. CSS Float flows (float: left / right) and clears
+- Implement support for float routing (`float: left`, `float: right`) inside BFC blocks.
+- Calculate wrapping boundaries for static inline text boxes next to floated block boxes.
+- Support clear boundaries (`clear: left`, `clear: right`, `clear: both`) to restore static flow.
+
+### R3. CSS Variables and calc() support
+- Parse custom properties (`--var-name: value`) inside stylesheets and inline styles.
+- Resolve custom property inheritance downstream via the style cascade utilizing `var(--var-name)`.
+- Support basic `calc(...)` offset computations (e.g. `calc(100% - 20px)`) inside width, height, margin, and padding layout resolver rules.
+
+### R4. layout Visual Unit Verification
+- Create automated visual unit tests (under `tests/CDP.Html.Renderer.Tests/`) validating the correct coordinates and dimensions of elements styled with positioning, floats, and variables.
+- Ensure all tests verify boundary boxes are exactly computed.
+
+## Acceptance Criteria
+
+### Correctness
+- All existing parser, renderer, integration, and UI tests compile and pass cleanly (0 failures).
+- Visual layout unit tests verifying positioning coordinates, floats wrapping boundaries, and variables evaluation pass with 100% success.
+
+
