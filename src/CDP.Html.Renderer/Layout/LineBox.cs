@@ -20,4 +20,6 @@ public class LineBox
     public float Width { get; set; }
     public float Height { get; set; }
     public float Baseline { get; set; } // Distance from top of line box to line baseline
+    public float LineLeft { get; set; }
+    public float AvailableWidth { get; set; }
 }

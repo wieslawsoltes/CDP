@@ -59,8 +59,8 @@ public static class HtmlRenderer
                             paint.TextSize = style.FontSize;
                             paint.Color = style.Color;
 
-                            float textX = offsetX + frag.X;
-                            float textY = offsetY + frag.Y + frag.BaselineOffset;
+                            float textX = absX + frag.X;
+                            float textY = absY + frag.Y + frag.BaselineOffset;
                             canvas.DrawText(frag.Text, textX, textY, paint);
                         }
                     }

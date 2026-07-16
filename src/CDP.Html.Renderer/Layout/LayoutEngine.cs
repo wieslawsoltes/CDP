@@ -9,7 +9,7 @@ namespace CDP.Html.Renderer.Layout;
 
 public static class LayoutEngine
 {
-    public static void Layout(LayoutBox box, float availableWidth, float availableHeight)
+    public static void Layout(LayoutBox box, float availableWidth, float availableHeight, BfcContext? bfcContext = null)
     {
         if (!box.NeedsLayout && box.LayoutCacheAvailableWidth == availableWidth && box.LayoutCacheAvailableHeight == availableHeight)
         {
@@ -23,11 +23,11 @@ public static class LayoutEngine
 
         if (box is LayoutFlexBox flexBox)
         {
-            LayoutFlexContainer(flexBox, availableWidth, availableHeight);
+            LayoutFlexContainer(flexBox, availableWidth, availableHeight, bfcContext);
         }
-        else if (box is LayoutBlockBox blockBox)
+        else if (box is LayoutBlockBox blockBox || box.Style.Position == PositionType.Absolute || box.Style.Position == PositionType.Fixed || box.Style.Float != FloatType.None)
         {
-            LayoutBlockContainer(blockBox, availableWidth, availableHeight);
+            LayoutBlockContainer(box, availableWidth, availableHeight, bfcContext);
         }
         else if (box is LayoutInlineBox inlineBox)
         {
@@ -37,9 +37,14 @@ public static class LayoutEngine
         {
             // Text box geometry is solved by its parent during IFC
         }
+
+        if (box.Parent == null)
+        {
+            ResolvePositioning(box, box);
+        }
     }
 
-    private static void LayoutBlockContainer(LayoutBlockBox box, float availableWidth, float availableHeight)
+    private static void LayoutBlockContainer(LayoutBox box, float availableWidth, float availableHeight, BfcContext? bfcContext)
     {
         // 1. Resolve dimensions from style
         float resolvedWidth = box.Style.Width.Resolve(availableWidth);
@@ -100,32 +105,51 @@ public static class LayoutEngine
 
         float innerWidth = box.ContentWidth;
 
+        // Establish BFC if box is root, float, absolute/fixed, or flex
+        bool establishesNewBfc = box.Style.Float != FloatType.None ||
+                                 box.Style.Position == PositionType.Absolute ||
+                                 box.Style.Position == PositionType.Fixed ||
+                                 box is LayoutFlexBox ||
+                                 box.Parent == null;
+
+        BfcContext activeBfc = establishesNewBfc ? new BfcContext(box) : (bfcContext ?? new BfcContext(box));
+
         // 2. Check if the block establishes an Inline Formatting Context (IFC)
         bool hasInlineChildren = box.Children.Any(c => c.IsInlineLevel);
 
         if (hasInlineChildren)
         {
             box.LineBoxes.Clear();
-            
+
             using var paint = new SKPaint();
             var tokens = new List<WordToken>();
             CollectTokens(box, box, tokens, paint);
 
-            var lines = BuildLineBoxes(tokens, innerWidth, paint);
+            float blockXContent = 0f;
+            float blockYContent = 0f;
+            if (activeBfc != null)
+            {
+                var pos = GetPositionRelativeToAncestor(box, activeBfc.BfcParent);
+                blockXContent = pos.X + box.PaddingLeft + box.BorderLeft - (activeBfc.BfcParent.PaddingLeft + activeBfc.BfcParent.BorderLeft);
+                blockYContent = pos.Y + box.PaddingTop + box.BorderTop - (activeBfc.BfcParent.PaddingTop + activeBfc.BfcParent.BorderTop);
+            }
+
+            var lines = BuildLineBoxes(tokens, innerWidth, paint, activeBfc, blockXContent, blockYContent);
             box.LineBoxes.AddRange(lines);
 
             float currentY = box.PaddingTop + box.BorderTop;
             foreach (var line in lines)
             {
-                // Align line box fragments based on text-align
+                // Align line box fragments based on text-align within the available width
                 float shift = 0f;
+                float availWidth = line.AvailableWidth > 0 ? line.AvailableWidth : innerWidth;
                 if (box.Style.TextAlign == TextAlignType.Center)
                 {
-                    shift = (innerWidth - line.Width) / 2f;
+                    shift = (availWidth - line.Width) / 2f;
                 }
                 else if (box.Style.TextAlign == TextAlignType.Right)
                 {
-                    shift = innerWidth - line.Width;
+                    shift = availWidth - line.Width;
                 }
 
                 if (shift > 0f)
@@ -143,7 +167,7 @@ public static class LayoutEngine
                     var frag = line.Fragments[i];
                     frag.X += box.PaddingLeft + box.BorderLeft;
                     frag.Y += currentY;
-                    
+
                     // If it's a child box, set its coordinates
                     if (frag.Box != box && frag.Box.Parent == box)
                     {
@@ -178,22 +202,82 @@ public static class LayoutEngine
 
             foreach (var child in box.Children)
             {
+                if (child.Style.Position == PositionType.Absolute || child.Style.Position == PositionType.Fixed)
+                    continue;
+
+                // 1. Resolve Clear
+                if (child.Style.Clear != ClearType.None)
+                {
+                    float clearYContent = activeBfc.GetClearY(child.Style.Clear);
+                    float clearY = clearYContent + box.PaddingTop + box.BorderTop;
+                    if (currentY < clearY)
+                    {
+                        currentY = clearY;
+                        prevBottomMargin = 0f;
+                    }
+                }
+
                 float childMarginTop = child.Style.MarginTop.Resolve(innerWidth);
                 child.MarginLeft = child.Style.MarginLeft.Resolve(innerWidth);
                 child.MarginRight = child.Style.MarginRight.Resolve(innerWidth);
                 child.MarginBottom = child.Style.MarginBottom.Resolve(innerWidth);
 
-                // Collapse margins
-                float collapsedMargin = Math.Max(prevBottomMargin, childMarginTop);
-                currentY += collapsedMargin;
+                if (child.Style.Float != FloatType.None)
+                {
+                    // Float Child
+                    // 1. Lay out child to determine width/height
+                    Layout(child, innerWidth, availableHeight - currentY, activeBfc);
 
-                Layout(child, innerWidth, availableHeight - currentY);
+                    // 2. Query available horizontal span
+                    float childYContent = currentY - (box.PaddingTop + box.BorderTop);
+                    var (availLeft, availRight) = activeBfc.GetAvailableHorizontalSpan(childYContent, child.Height, innerWidth);
 
-                child.X = box.PaddingLeft + box.BorderLeft + child.MarginLeft;
-                child.Y = currentY;
+                    // 3. Position float
+                    float relX;
+                    if (child.Style.Float == FloatType.Left)
+                    {
+                        relX = availLeft + child.MarginLeft;
+                    }
+                    else // FloatType.Right
+                    {
+                        relX = availRight - child.Width - child.MarginRight;
+                    }
 
-                currentY += child.Height;
-                prevBottomMargin = child.MarginBottom;
+                    child.X = box.PaddingLeft + box.BorderLeft + relX;
+                    child.Y = currentY;
+
+                    // 4. Register float bounds in BfcContext
+                    float relY = currentY - (box.PaddingTop + box.BorderTop);
+                    activeBfc.RegisterFloat(child, relX, relY);
+
+                    // Floats do NOT advance currentY, and do NOT affect prevBottomMargin
+                }
+                else
+                {
+                    // Static Child
+                    float collapsedMargin = Math.Max(prevBottomMargin, childMarginTop);
+                    currentY += collapsedMargin;
+
+                    float childYContent = currentY - (box.PaddingTop + box.BorderTop);
+                    var (availLeft, availRight) = activeBfc.GetAvailableHorizontalSpan(childYContent, 1f, innerWidth);
+                    float childAvailableWidth = availRight - availLeft;
+
+                    // Tentatively set coordinates before layout so nested elements can calculate offsets relative to BfcParent
+                    child.X = box.PaddingLeft + box.BorderLeft + availLeft + child.MarginLeft;
+                    child.Y = currentY;
+
+                    Layout(child, childAvailableWidth, availableHeight - currentY, activeBfc);
+
+                    // Re-query with actual child height to position correctly
+                    var actualSpan = activeBfc.GetAvailableHorizontalSpan(childYContent, child.Height, innerWidth);
+                    availLeft = actualSpan.Left;
+
+                    child.X = box.PaddingLeft + box.BorderLeft + availLeft + child.MarginLeft;
+                    child.Y = currentY;
+
+                    currentY += child.Height;
+                    prevBottomMargin = child.MarginBottom;
+                }
             }
 
             if (heightIsOverridden)
@@ -211,7 +295,7 @@ public static class LayoutEngine
         }
     }
 
-    private static void LayoutFlexContainer(LayoutFlexBox box, float availableWidth, float availableHeight)
+    private static void LayoutFlexContainer(LayoutFlexBox box, float availableWidth, float availableHeight, BfcContext? bfcContext)
     {
         // 1. Resolve container dimensions
         float resolvedWidth = box.Style.Width.Resolve(availableWidth);
@@ -250,6 +334,9 @@ public static class LayoutEngine
         var flexItems = new List<FlexItem>();
         foreach (var child in box.Children)
         {
+            if (child.Style.Position == PositionType.Absolute || child.Style.Position == PositionType.Fixed)
+                continue;
+
             child.PaddingLeft = child.Style.PaddingLeft.Resolve(innerWidth);
             child.PaddingRight = child.Style.PaddingRight.Resolve(innerWidth);
             child.PaddingTop = child.Style.PaddingTop.Resolve(innerWidth);
@@ -557,6 +644,9 @@ public static class LayoutEngine
                 float maxColumnHeight = 0f;
                 foreach (var child in box.Children)
                 {
+                    if (child.Style.Position == PositionType.Absolute || child.Style.Position == PositionType.Fixed)
+                        continue;
+
                     float bottomExtent = child.Y + child.Height + child.MarginBottom;
                     if (bottomExtent > maxColumnHeight)
                     {
@@ -613,6 +703,9 @@ public static class LayoutEngine
 
             foreach (var child in box.Children)
             {
+                if (child.Style.Position == PositionType.Absolute || child.Style.Position == PositionType.Fixed)
+                    continue;
+
                 CollectTokens(container, child, tokens, paint);
             }
 
@@ -637,7 +730,7 @@ public static class LayoutEngine
         var style = box.Style;
         paint.Typeface = SKTypeface.FromFamilyName(style.FontFamily, style.FontWeight, SKFontStyleWidth.Normal, style.FontStyle);
         paint.TextSize = style.FontSize;
-        
+
         float width = paint.MeasureText(text);
         paint.GetFontMetrics(out var metrics);
         float height = metrics.Descent - metrics.Ascent;
@@ -669,13 +762,41 @@ public static class LayoutEngine
         };
     }
 
-    private static List<LineBox> BuildLineBoxes(List<WordToken> tokens, float availableWidth, SKPaint paint)
+    private static List<LineBox> BuildLineBoxes(
+        List<WordToken> tokens,
+        float innerWidth,
+        SKPaint paint,
+        BfcContext? bfcContext,
+        float blockXContent,
+        float blockYContent)
     {
         var lines = new List<LineBox>();
         if (tokens.Count == 0) return lines;
 
         var currentLine = new LineBox();
-        float currentX = 0f;
+        float currentLineYContent = blockYContent;
+
+        // Helper to query available span for the current line
+        (float LineLeft, float LineRight, float LineWidth) QuerySpan(float estHeight)
+        {
+            if (bfcContext == null)
+            {
+                return (0f, innerWidth, innerWidth);
+            }
+            float parentWidth = bfcContext.BfcParent.ContentWidth;
+            var span = bfcContext.GetAvailableHorizontalSpan(currentLineYContent, estHeight, parentWidth);
+            float lineLeft = Math.Max(0f, span.Left - blockXContent);
+            float lineRight = Math.Min(innerWidth, span.Right - blockXContent);
+            return (lineLeft, lineRight, Math.Max(0f, lineRight - lineLeft));
+        }
+
+        // Initialize first line's span
+        float firstTokenHeight = tokens[0].Height > 0 ? tokens[0].Height : 16f;
+        var (lineLeft, lineRight, lineAvailableWidth) = QuerySpan(firstTokenHeight);
+        float currentX = lineLeft;
+
+        currentLine.LineLeft = lineLeft;
+        currentLine.AvailableWidth = lineAvailableWidth;
 
         foreach (var token in tokens)
         {
@@ -684,11 +805,29 @@ public static class LayoutEngine
                 continue;
             }
 
-            if (currentX + token.Width <= availableWidth || currentLine.Fragments.Count == 0)
+            // Estimate height with the token if line is empty or use current line's height
+            float currentLineEstHeight = currentLine.Fragments.Count > 0
+                ? Math.Max(token.Height, currentLine.Fragments.Max(f => f.Height))
+                : token.Height;
+
+            // Re-query span if needed
+            var span = QuerySpan(currentLineEstHeight);
+            lineLeft = span.LineLeft;
+            lineRight = span.LineRight;
+            lineAvailableWidth = span.LineWidth;
+
+            if (currentLine.Fragments.Count == 0)
             {
-                if (currentX + token.Width > availableWidth && !token.IsWhitespace)
+                currentX = lineLeft;
+                currentLine.LineLeft = lineLeft;
+                currentLine.AvailableWidth = lineAvailableWidth;
+            }
+
+            if (currentX + token.Width <= lineRight || currentLine.Fragments.Count == 0)
+            {
+                if (currentX + token.Width > lineRight && !token.IsWhitespace)
                 {
-                    BreakAndAddToken(ref currentLine, token, ref currentX, availableWidth, paint, lines);
+                    BreakAndAddToken(ref currentLine, token, ref currentX, ref currentLineYContent, blockXContent, innerWidth, bfcContext, paint, lines);
                 }
                 else
                 {
@@ -697,18 +836,30 @@ public static class LayoutEngine
             }
             else
             {
+                // Flush line
                 FlushLine(currentLine, lines);
+                currentLineYContent += currentLine.Height;
+
                 currentLine = new LineBox();
-                currentX = 0f;
+
+                // Query span for the new line
+                span = QuerySpan(token.Height > 0 ? token.Height : 16f);
+                lineLeft = span.LineLeft;
+                lineRight = span.LineRight;
+                lineAvailableWidth = span.LineWidth;
+                currentX = lineLeft;
+
+                currentLine.LineLeft = lineLeft;
+                currentLine.AvailableWidth = lineAvailableWidth;
 
                 if (token.IsWhitespace)
                 {
                     continue;
                 }
 
-                if (token.Width > availableWidth)
+                if (currentX + token.Width > lineRight)
                 {
-                    BreakAndAddToken(ref currentLine, token, ref currentX, availableWidth, paint, lines);
+                    BreakAndAddToken(ref currentLine, token, ref currentX, ref currentLineYContent, blockXContent, innerWidth, bfcContext, paint, lines);
                 }
                 else
                 {
@@ -740,7 +891,10 @@ public static class LayoutEngine
         ref LineBox currentLine,
         WordToken token,
         ref float currentX,
-        float availableWidth,
+        ref float currentLineYContent,
+        float blockXContent,
+        float innerWidth,
+        BfcContext? bfcContext,
         SKPaint paint,
         List<LineBox> lines)
     {
@@ -768,11 +922,22 @@ public static class LayoutEngine
             height = lh;
         }
 
+        // Helper inside BreakAndAddToken
+        (float left, float right) GetSpan(float y)
+        {
+            if (bfcContext == null) return (0f, innerWidth);
+            float parentWidth = bfcContext.BfcParent.ContentWidth;
+            var span = bfcContext.GetAvailableHorizontalSpan(y, height, parentWidth);
+            return (Math.Max(0f, span.Left - blockXContent), Math.Min(innerWidth, span.Right - blockXContent));
+        }
+
+        var (lineLeft, lineRight) = GetSpan(currentLineYContent);
+
         int start = 0;
         while (start < word.Length)
         {
             int count = 1;
-            while (start + count < word.Length && currentX + paint.MeasureText(word.Substring(start, count + 1)) <= availableWidth)
+            while (start + count < word.Length && currentX + paint.MeasureText(word.Substring(start, count + 1)) <= lineRight)
             {
                 count++;
             }
@@ -797,8 +962,17 @@ public static class LayoutEngine
             if (start < word.Length)
             {
                 FlushLine(currentLine, lines);
+                currentLineYContent += currentLine.Height;
                 currentLine = new LineBox();
-                currentX = 0f;
+
+                // Get span for new line
+                var nextSpan = GetSpan(currentLineYContent);
+                lineLeft = nextSpan.left;
+                lineRight = nextSpan.right;
+                currentX = lineLeft;
+
+                currentLine.LineLeft = lineLeft;
+                currentLine.AvailableWidth = Math.Max(0f, lineRight - lineLeft);
             }
         }
     }
@@ -856,5 +1030,112 @@ public static class LayoutEngine
         public List<FlexItem> Items { get; } = new();
         public float MainSize { get; set; }
         public float CrossSize { get; set; }
+    }
+
+    private static void ResolvePositioning(LayoutBox box, LayoutBox rootBox)
+    {
+        if (box.Style.Position == PositionType.Absolute || box.Style.Position == PositionType.Fixed)
+        {
+            var containingBlock = FindContainingBlock(box, rootBox);
+
+            Layout(box, containingBlock.ContentWidth, containingBlock.ContentHeight);
+
+            float cbWidth = containingBlock.ContentWidth;
+            float cbHeight = containingBlock.ContentHeight;
+
+            float x_cb = containingBlock.PaddingLeft + containingBlock.BorderLeft;
+            if (!box.Style.Left.IsAuto)
+            {
+                x_cb = containingBlock.PaddingLeft + containingBlock.BorderLeft + box.Style.Left.Resolve(cbWidth);
+            }
+            else if (!box.Style.Right.IsAuto)
+            {
+                x_cb = containingBlock.Width - containingBlock.PaddingRight - containingBlock.BorderRight - box.Width - box.Style.Right.Resolve(cbWidth);
+            }
+
+            float y_cb = containingBlock.PaddingTop + containingBlock.BorderTop;
+            if (!box.Style.Top.IsAuto)
+            {
+                y_cb = containingBlock.PaddingTop + containingBlock.BorderTop + box.Style.Top.Resolve(cbHeight);
+            }
+            else if (!box.Style.Bottom.IsAuto)
+            {
+                y_cb = containingBlock.Height - containingBlock.PaddingBottom - containingBlock.BorderBottom - box.Height - box.Style.Bottom.Resolve(cbHeight);
+            }
+
+            var current = box.Parent;
+            float accumX = 0f;
+            float accumY = 0f;
+            while (current != null && current != containingBlock)
+            {
+                accumX += current.X;
+                accumY += current.Y;
+                current = current.Parent;
+            }
+
+            box.X = x_cb - accumX;
+            box.Y = y_cb - accumY;
+        }
+        else if (box.Style.Position == PositionType.Relative)
+        {
+            float parentWidth = box.Parent?.ContentWidth ?? 0f;
+            float parentHeight = box.Parent?.ContentHeight ?? 0f;
+
+            if (!box.Style.Left.IsAuto)
+            {
+                box.X += box.Style.Left.Resolve(parentWidth);
+            }
+            else if (!box.Style.Right.IsAuto)
+            {
+                box.X -= box.Style.Right.Resolve(parentWidth);
+            }
+
+            if (!box.Style.Top.IsAuto)
+            {
+                box.Y += box.Style.Top.Resolve(parentHeight);
+            }
+            else if (!box.Style.Bottom.IsAuto)
+            {
+                box.Y -= box.Style.Bottom.Resolve(parentHeight);
+            }
+        }
+
+        for (int i = 0; i < box.Children.Count; i++)
+        {
+            ResolvePositioning(box.Children[i], rootBox);
+        }
+    }
+
+    private static LayoutBox FindContainingBlock(LayoutBox box, LayoutBox rootBox)
+    {
+        if (box.Style.Position == PositionType.Fixed)
+        {
+            return rootBox;
+        }
+
+        var parent = box.Parent;
+        while (parent != null)
+        {
+            if (parent.Style.Position != PositionType.Static)
+            {
+                return parent;
+            }
+            parent = parent.Parent;
+        }
+        return rootBox;
+    }
+
+    public static (float X, float Y) GetPositionRelativeToAncestor(LayoutBox box, LayoutBox ancestor)
+    {
+        float x = 0f;
+        float y = 0f;
+        var curr = box;
+        while (curr != null && curr != ancestor)
+        {
+            x += curr.X;
+            y += curr.Y;
+            curr = curr.Parent;
+        }
+        return (x, y);
     }
 }
