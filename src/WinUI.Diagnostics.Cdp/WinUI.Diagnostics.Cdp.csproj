@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.241114003" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="Jint" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
