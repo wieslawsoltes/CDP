@@ -53,9 +53,9 @@ public static class StyleCascade
 
             // Default display based on tag
             string tag = element.TagName.ToLowerInvariant();
-            if (tag == "div" || tag == "p" || tag == "body" || tag == "html" || 
-                tag == "ul" || tag == "li" || tag == "h1" || tag == "h2" || 
-                tag == "h3" || tag == "h4" || tag == "h5" || tag == "h6" || 
+            if (tag == "div" || tag == "p" || tag == "body" || tag == "html" ||
+                tag == "ul" || tag == "li" || tag == "h1" || tag == "h2" ||
+                tag == "h3" || tag == "h4" || tag == "h5" || tag == "h6" ||
                 tag == "header" || tag == "footer" || tag == "section" || tag == "article")
             {
                 style.Display = DisplayType.Block;
@@ -105,12 +105,86 @@ public static class StyleCascade
             if (matchCount > 0 && rentedArray != null)
             {
                 Array.Sort(rentedArray, 0, matchCount, MatchingRuleInfoComparer.Instance);
+            }
+
+            // Get style attribute
+            string? inlineStyle = null;
+            bool hasInlineStyle = element.Attributes.TryGetValue("style", out inlineStyle) && !string.IsNullOrWhiteSpace(inlineStyle);
+
+            // First Pass: Apply custom variables (starting with "--") from stylesheet rules and inline styles
+            if (matchCount > 0 && rentedArray != null)
+            {
                 for (int i = 0; i < matchCount; i++)
                 {
                     var ruleInfo = rentedArray[i];
                     foreach (var decl in ruleInfo.Rule.Declarations)
                     {
-                        ApplyDeclaration(style, decl.Key, decl.Value, parentStyle);
+                        if (decl.Key.StartsWith("--"))
+                        {
+                            ApplyDeclaration(style, decl.Key, decl.Value, parentStyle);
+                        }
+                    }
+                }
+            }
+
+            if (hasInlineStyle)
+            {
+                ReadOnlySpan<char> styleSpan = inlineStyle.AsSpan();
+                int start = 0;
+                while (start < styleSpan.Length)
+                {
+                    int semi = styleSpan.Slice(start).IndexOf(';');
+                    ReadOnlySpan<char> part = semi == -1 ? styleSpan.Slice(start) : styleSpan.Slice(start, semi);
+                    start = semi == -1 ? styleSpan.Length : start + semi + 1;
+
+                    int colon = part.IndexOf(':');
+                    if (colon != -1)
+                    {
+                        ReadOnlySpan<char> nameSpan = part.Slice(0, colon).Trim();
+                        ReadOnlySpan<char> valSpan = part.Slice(colon + 1).Trim();
+                        if (!nameSpan.IsEmpty && nameSpan.StartsWith("--"))
+                        {
+                            ApplyDeclaration(style, nameSpan.ToString(), valSpan.ToString(), parentStyle);
+                        }
+                    }
+                }
+            }
+
+            // Second Pass: Apply standard properties (not starting with "--") from stylesheet rules and inline styles
+            if (matchCount > 0 && rentedArray != null)
+            {
+                for (int i = 0; i < matchCount; i++)
+                {
+                    var ruleInfo = rentedArray[i];
+                    foreach (var decl in ruleInfo.Rule.Declarations)
+                    {
+                        if (!decl.Key.StartsWith("--"))
+                        {
+                            ApplyDeclaration(style, decl.Key, decl.Value, parentStyle);
+                        }
+                    }
+                }
+            }
+
+            if (hasInlineStyle)
+            {
+                ReadOnlySpan<char> styleSpan = inlineStyle.AsSpan();
+                int start = 0;
+                while (start < styleSpan.Length)
+                {
+                    int semi = styleSpan.Slice(start).IndexOf(';');
+                    ReadOnlySpan<char> part = semi == -1 ? styleSpan.Slice(start) : styleSpan.Slice(start, semi);
+                    start = semi == -1 ? styleSpan.Length : start + semi + 1;
+
+                    int colon = part.IndexOf(':');
+                    if (colon != -1)
+                    {
+                        ReadOnlySpan<char> nameSpan = part.Slice(0, colon).Trim();
+                        ReadOnlySpan<char> valSpan = part.Slice(colon + 1).Trim();
+                        if (!nameSpan.IsEmpty && !nameSpan.StartsWith("--"))
+                        {
+                            ApplyDeclaration(style, nameSpan.ToString(), valSpan.ToString(), parentStyle);
+                        }
                     }
                 }
             }
@@ -118,39 +192,6 @@ public static class StyleCascade
             if (rentedArray != null)
             {
                 System.Buffers.ArrayPool<MatchingRuleInfo>.Shared.Return(rentedArray);
-            }
-
-            // Step 3: Apply inline styles (style attribute)
-            if (element.Attributes.TryGetValue("style", out var inlineStyle) && !string.IsNullOrWhiteSpace(inlineStyle))
-            {
-                ReadOnlySpan<char> styleSpan = inlineStyle.AsSpan();
-                int start = 0;
-                while (start < styleSpan.Length)
-                {
-                    int semi = styleSpan.Slice(start).IndexOf(';');
-                    ReadOnlySpan<char> part;
-                    if (semi == -1)
-                    {
-                        part = styleSpan.Slice(start);
-                        start = styleSpan.Length;
-                    }
-                    else
-                    {
-                        part = styleSpan.Slice(start, semi);
-                        start = start + semi + 1;
-                    }
-
-                    int colon = part.IndexOf(':');
-                    if (colon != -1)
-                    {
-                        ReadOnlySpan<char> nameSpan = part.Slice(0, colon).Trim();
-                        ReadOnlySpan<char> valSpan = part.Slice(colon + 1).Trim();
-                        if (!nameSpan.IsEmpty)
-                        {
-                            ApplyDeclaration(style, nameSpan.ToString(), valSpan.ToString(), parentStyle);
-                        }
-                    }
-                }
             }
 
             resolved[element] = style;
@@ -256,6 +297,14 @@ public static class StyleCascade
         name = name.Trim().ToLowerInvariant();
         value = value.Trim();
 
+        if (name.StartsWith("--"))
+        {
+            style.CustomProperties[name] = value;
+            return;
+        }
+
+        value = ResolveVariables(value, style);
+
         switch (name)
         {
             case "display":
@@ -298,6 +347,18 @@ public static class StyleCascade
                 break;
             case "height":
                 style.Height = ParseLength(value);
+                break;
+            case "top":
+                style.Top = ParseLength(value);
+                break;
+            case "right":
+                style.Right = ParseLength(value);
+                break;
+            case "bottom":
+                style.Bottom = ParseLength(value);
+                break;
+            case "left":
+                style.Left = ParseLength(value);
                 break;
             case "min-width":
                 style.MinWidth = ParseLength(value);
@@ -427,6 +488,14 @@ public static class StyleCascade
             case "flex":
                 ParseFlexShorthand(value, style);
                 break;
+            case "float":
+                if (Enum.TryParse<FloatType>(value, true, out var fl))
+                    style.Float = fl;
+                break;
+            case "clear":
+                if (Enum.TryParse<ClearType>(value, true, out var cl))
+                    style.Clear = cl;
+                break;
         }
     }
 
@@ -435,6 +504,12 @@ public static class StyleCascade
         val = val.Trim().ToLowerInvariant();
         if (val == "auto" || string.IsNullOrEmpty(val))
             return CssLength.Auto;
+
+        if (val.StartsWith("calc(") && val.EndsWith(")"))
+        {
+            string expr = val.Substring(5, val.Length - 6);
+            return new CssLength(0f, LengthUnit.Calc, expr);
+        }
 
         if (val.EndsWith("px", StringComparison.Ordinal))
         {
@@ -806,7 +881,7 @@ public static class StyleCascade
         {
             if (float.TryParse(tokens[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var fg))
                 style.FlexGrow = fg;
-            
+
             // Second can be flex-shrink or flex-basis
             string t2 = tokens[1].ToLowerInvariant();
             if (float.TryParse(t2, NumberStyles.Float, CultureInfo.InvariantCulture, out var fs))
@@ -846,5 +921,71 @@ public static class StyleCascade
                 return specCompare;
             return x.Index.CompareTo(y.Index);
         }
+    }
+
+    private static string ResolveVariables(string input, ComputedStyle style, HashSet<string>? visited = null)
+    {
+        return ResolveVariablesInternal(input, style, visited) ?? string.Empty;
+    }
+
+    private static string? ResolveVariablesInternal(string input, ComputedStyle style, HashSet<string>? visited)
+    {
+        if (!input.Contains("var(")) return input;
+        visited ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        int start = input.IndexOf("var(");
+        while (start != -1)
+        {
+            int end = FindClosingParenthesis(input, start + 4);
+            if (end == -1) break;
+
+            string inner = input.Substring(start + 4, end - (start + 4));
+            var parts = inner.Split(',', 2);
+            string varName = parts[0].Trim();
+            string? fallback = parts.Length > 1 ? parts[1].Trim() : null;
+
+            string? resolvedVal = null;
+            if (!visited.Contains(varName))
+            {
+                visited.Add(varName);
+                if (style.CustomProperties.TryGetValue(varName, out var val))
+                {
+                    resolvedVal = ResolveVariablesInternal(val, style, visited);
+                }
+                visited.Remove(varName);
+            }
+
+            if (resolvedVal == null)
+            {
+                if (fallback != null)
+                {
+                    resolvedVal = ResolveVariablesInternal(fallback, style, visited);
+                }
+
+                if (resolvedVal == null)
+                {
+                    return null;
+                }
+            }
+
+            input = input.Substring(0, start) + resolvedVal + input.Substring(end + 1);
+            start = input.IndexOf("var(");
+        }
+        return input;
+    }
+
+    private static int FindClosingParenthesis(string input, int startIndex)
+    {
+        int depth = 1;
+        for (int i = startIndex; i < input.Length; i++)
+        {
+            if (input[i] == '(') depth++;
+            else if (input[i] == ')')
+            {
+                depth--;
+                if (depth == 0) return i;
+            }
+        }
+        return -1;
     }
 }

@@ -1,9 +1,13 @@
+using System;
+using System.Collections.Generic;
 using SkiaSharp;
 
 namespace CDP.Html.Renderer.Style;
 
 public class ComputedStyle
 {
+    public Dictionary<string, string> CustomProperties { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     // Inherited properties
     public SKColor Color { get; set; } = SKColors.Black;
     public string FontFamily { get; set; } = "Arial";
@@ -22,6 +26,11 @@ public class ComputedStyle
     public CssLength MaxWidth { get; set; } = CssLength.Auto;
     public CssLength MinHeight { get; set; } = CssLength.Auto;
     public CssLength MaxHeight { get; set; } = CssLength.Auto;
+
+    public CssLength Top { get; set; } = CssLength.Auto;
+    public CssLength Right { get; set; } = CssLength.Auto;
+    public CssLength Bottom { get; set; } = CssLength.Auto;
+    public CssLength Left { get; set; } = CssLength.Auto;
 
     public CssLength MarginLeft { get; set; } = CssLength.Zero;
     public CssLength MarginRight { get; set; } = CssLength.Zero;
@@ -53,6 +62,9 @@ public class ComputedStyle
 
     public SKColor? BackgroundColor { get; set; }
 
+    public FloatType Float { get; set; } = FloatType.None;
+    public ClearType Clear { get; set; } = ClearType.None;
+
     public ComputedStyle InheritFrom(ComputedStyle parent)
     {
         Color = parent.Color;
@@ -62,11 +74,19 @@ public class ComputedStyle
         FontStyle = parent.FontStyle;
         LineHeight = parent.LineHeight;
         TextAlign = parent.TextAlign;
+
+        foreach (var kvp in parent.CustomProperties)
+        {
+            CustomProperties[kvp.Key] = kvp.Value;
+        }
+
         return this;
     }
 
     public ComputedStyle Clone()
     {
-        return (ComputedStyle)this.MemberwiseClone();
+        var clone = (ComputedStyle)this.MemberwiseClone();
+        clone.CustomProperties = new Dictionary<string, string>(this.CustomProperties, StringComparer.OrdinalIgnoreCase);
+        return clone;
     }
 }
