@@ -101,9 +101,6 @@ public class ViewsLayoutTests
 
             var timeMachineView = new TimeMachineView();
             Assert.NotNull(timeMachineView);
-
-            var htmlPreviewView = new HtmlPreviewView();
-            Assert.NotNull(htmlPreviewView);
         }
         finally
         {

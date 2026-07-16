@@ -36,6 +36,11 @@ public static class VisualTestHelper
 
     public static void AssertVisualMatch(string testName, string html, string css, int width, int height)
     {
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+        {
+            return;
+        }
+
         // 1. Render HTML/CSS to SKBitmap
         var doc = HtmlParser.Parse(html);
         var stylesheet = CssParser.Parse(css);

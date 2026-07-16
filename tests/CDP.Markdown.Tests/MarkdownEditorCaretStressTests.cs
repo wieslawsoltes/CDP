@@ -20,7 +20,7 @@ public class MarkdownEditorCaretStressTests
         {
             Width = 400,
             Height = 300,
-            Text = initialText
+            Text = initialText.Replace("\r\n", "\n")
         };
         editor.Arrange(new Rect(0, 0, 400, 300));
         return editor;

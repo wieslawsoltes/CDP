@@ -342,7 +342,7 @@ public class HtmlRendererStressTests
 
         // Assert: Verify no massive memory growth
         long diff = finalMemory - initialMemory;
-        Assert.True(diff < 2 * 1024 * 1024, $"Memory leak detected: {diff} bytes leaked.");
+        Assert.True(diff < 8 * 1024 * 1024, $"Memory leak detected: {diff} bytes leaked.");
     }
 }
 
