@@ -128,7 +128,7 @@ public class HtmlRendererStressTests
         var fragmentsList = divBox.LineBoxes.SelectMany(l => l.Fragments).Select(f => $"'{f.Text}'").ToList();
         var fragmentsStr = string.Join(", ", fragmentsList);
         var reconstructed = string.Join("", divBox.LineBoxes.SelectMany(l => l.Fragments).Select(f => f.Text));
-        
+
         // Print diagnostics to standard output
         Console.WriteLine($"DEBUG: Original Text: '{text.Text}', Length: {text.Text.Length}");
         Console.WriteLine($"DEBUG: Reconstructed: '{reconstructed}', Length: {reconstructed.Length}");

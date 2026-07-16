@@ -538,5 +538,523 @@ public class RendererTests
         Assert.Equal(250f, box.LayoutCacheAvailableWidth);
         Assert.Equal(350f, box.LayoutCacheAvailableHeight);
     }
+
+    [Fact]
+    public void TestCssVariablesResolution()
+    {
+        var doc = new HtmlDocument();
+        var body = new HtmlElement { TagName = "body" };
+        var div = new HtmlElement { TagName = "div" };
+
+        doc.Children.Add(body);
+        body.Parent = doc;
+        body.Children.Add(div);
+        div.Parent = body;
+
+        var css = @"
+            body {
+                --main-color: blue;
+                --main-size: 20px;
+                --cyclic-a: var(--cyclic-b);
+                --cyclic-b: var(--cyclic-a);
+            }
+            div {
+                --sub-color: var(--main-color);
+                color: var(--sub-color);
+                font-size: var(--undefined-size, 18px);
+                background-color: var(--cyclic-a, red);
+            }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+
+        var bodyStyle = styles[body];
+        Assert.Equal("blue", bodyStyle.CustomProperties["--main-color"]);
+
+        var divStyle = styles[div];
+        Assert.Equal(SKColors.Blue, divStyle.Color);
+        Assert.Equal(18f, divStyle.FontSize);
+        Assert.Equal(SKColors.Red, divStyle.BackgroundColor); // cyclic resolves to fallback
+    }
+
+    [Fact]
+    public void TestCalcBasicArithmetic()
+    {
+        var doc = new HtmlDocument();
+        var div = new HtmlElement { TagName = "div" };
+        doc.Children.Add(div);
+        div.Parent = doc;
+
+        var css = @"
+            div {
+                width: calc(100% - 20px);
+                height: calc(200px / 2);
+                margin-left: calc(20px + 10%);
+                padding-left: calc((50px * 2) - 10px);
+            }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var divStyle = styles[div];
+
+        // Verify units are Calc
+        Assert.Equal(LengthUnit.Calc, divStyle.Width.Unit);
+        Assert.Equal(LengthUnit.Calc, divStyle.Height.Unit);
+
+        // Resolve against parent size of 200px
+        float parentSize = 200f;
+        Assert.Equal(180f, divStyle.Width.Resolve(parentSize));
+        Assert.Equal(100f, divStyle.Height.Resolve(parentSize));
+        Assert.Equal(40f, divStyle.MarginLeft.Resolve(parentSize));
+        Assert.Equal(90f, divStyle.PaddingLeft.Resolve(parentSize));
+    }
+
+    [Fact]
+    public void TestCssVariablesAndCalcCombo()
+    {
+        var doc = new HtmlDocument();
+        var div = new HtmlElement { TagName = "div" };
+        doc.Children.Add(div);
+        div.Parent = doc;
+
+        var css = @"
+            div {
+                --offset: 10px;
+                --base-width: 100%;
+                width: calc(var(--base-width) - var(--offset));
+            }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var divStyle = styles[div];
+
+        Assert.Equal(LengthUnit.Calc, divStyle.Width.Unit);
+        Assert.Equal(190f, divStyle.Width.Resolve(200f));
+    }
+
+    [Fact]
+    public void TestRelativePositioningShift()
+    {
+        var doc = new HtmlDocument();
+        var body = new HtmlElement { TagName = "body" };
+        var div = new HtmlElement { TagName = "div" };
+        div.Attributes["id"] = "rel";
+        doc.Children.Add(body);
+        body.Parent = doc;
+        body.Children.Add(div);
+        div.Parent = body;
+
+        var css = @"
+            body { width: 500px; height: 500px; }
+            #rel { position: relative; left: 20px; top: 30px; width: 100px; height: 100px; }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = LayoutTreeBuilder.Build(doc, styles);
+        LayoutEngine.Layout(rootBox, 500f, 500f);
+
+        var relBox = rootBox.Children[0].Children[0];
+        Assert.Equal(PositionType.Relative, relBox.Style.Position);
+        Assert.Equal(20f, relBox.X);
+        Assert.Equal(30f, relBox.Y);
+    }
+
+    [Fact]
+    public void TestAbsolutePositioningBasic()
+    {
+        var doc = new HtmlDocument();
+        var container = new HtmlElement { TagName = "div" };
+        container.Attributes["id"] = "container";
+        var abs = new HtmlElement { TagName = "div" };
+        abs.Attributes["id"] = "abs";
+        doc.Children.Add(container);
+        container.Parent = doc;
+        container.Children.Add(abs);
+        abs.Parent = container;
+
+        var css = @"
+            #container { position: relative; width: 300px; height: 300px; padding: 10px; border: 5px solid black; }
+            #abs { position: absolute; left: 20px; top: 30px; width: 50px; height: 50px; }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = LayoutTreeBuilder.Build(doc, styles);
+        LayoutEngine.Layout(rootBox, 500f, 500f);
+
+        var containerBox = rootBox.Children[0];
+        var absBox = containerBox.Children[0];
+
+        Assert.Equal(PositionType.Relative, containerBox.Style.Position);
+        Assert.Equal(PositionType.Absolute, absBox.Style.Position);
+
+        Assert.Equal(35f, absBox.X);
+        Assert.Equal(45f, absBox.Y);
+    }
+
+    [Fact]
+    public void TestAbsolutePositioningGrandparentContainingBlock()
+    {
+        var doc = new HtmlDocument();
+        var grandparent = new HtmlElement { TagName = "div" };
+        grandparent.Attributes["id"] = "grandparent";
+        var parent = new HtmlElement { TagName = "div" };
+        parent.Attributes["id"] = "parent";
+        var abs = new HtmlElement { TagName = "div" };
+        abs.Attributes["id"] = "abs";
+
+        doc.Children.Add(grandparent);
+        grandparent.Parent = doc;
+        grandparent.Children.Add(parent);
+        parent.Parent = grandparent;
+        parent.Children.Add(abs);
+        abs.Parent = parent;
+
+        var css = @"
+            #grandparent { position: relative; width: 300px; height: 300px; }
+            #parent { position: static; margin-top: 50px; margin-left: 60px; width: 200px; height: 200px; }
+            #abs { position: absolute; left: 10px; top: 20px; width: 50px; height: 50px; }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = LayoutTreeBuilder.Build(doc, styles);
+        LayoutEngine.Layout(rootBox, 500f, 500f);
+
+        var gpBox = rootBox.Children[0];
+        var pBox = gpBox.Children[0];
+        var absBox = pBox.Children[0];
+
+        Assert.Equal(-50f, absBox.X);
+        Assert.Equal(-30f, absBox.Y);
+    }
+
+    [Fact]
+    public void TestFixedPositioning()
+    {
+        var doc = new HtmlDocument();
+        var parent = new HtmlElement { TagName = "div" };
+        parent.Attributes["id"] = "parent";
+        var fixedEl = new HtmlElement { TagName = "div" };
+        fixedEl.Attributes["id"] = "fixed";
+
+        doc.Children.Add(parent);
+        parent.Parent = doc;
+        parent.Children.Add(fixedEl);
+        fixedEl.Parent = parent;
+
+        var css = @"
+            #parent { position: relative; margin-top: 100px; }
+            #fixed { position: fixed; left: 15px; top: 25px; width: 50px; height: 50px; }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = LayoutTreeBuilder.Build(doc, styles);
+        LayoutEngine.Layout(rootBox, 500f, 500f);
+
+        var pBox = rootBox.Children[0];
+        var fixedBox = pBox.Children[0];
+
+        Assert.Equal(15f, fixedBox.X);
+        Assert.Equal(-75f, fixedBox.Y);
+    }
+
+    [Fact]
+    public void TestFloatLeftAndRightPositioning()
+    {
+        var doc = new HtmlDocument();
+        var parent = new HtmlElement { TagName = "div" };
+        parent.Attributes["id"] = "parent";
+        var floatLeft = new HtmlElement { TagName = "div" };
+        floatLeft.Attributes["id"] = "left";
+        var floatRight = new HtmlElement { TagName = "div" };
+        floatRight.Attributes["id"] = "right";
+        var staticBlock = new HtmlElement { TagName = "div" };
+        staticBlock.Attributes["id"] = "static";
+
+        doc.Children.Add(parent);
+        parent.Parent = doc;
+        parent.Children.Add(floatLeft);
+        floatLeft.Parent = parent;
+        parent.Children.Add(floatRight);
+        floatRight.Parent = parent;
+        parent.Children.Add(staticBlock);
+        staticBlock.Parent = parent;
+
+        var css = @"
+            #parent { width: 500px; }
+            #left { float: left; width: 100px; height: 80px; }
+            #right { float: right; width: 150px; height: 90px; }
+            #static { width: auto; height: 50px; }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = LayoutTreeBuilder.Build(doc, styles);
+        LayoutEngine.Layout(rootBox, 500f, 500f);
+
+        var pBox = rootBox.Children[0];
+        var leftBox = pBox.Children[0];
+        var rightBox = pBox.Children[1];
+        var staticBox = pBox.Children[2];
+
+        // Left float should be at X=0, Y=0 (relative to parent content)
+        Assert.Equal(0f, leftBox.X);
+        Assert.Equal(0f, leftBox.Y);
+
+        // Right float should be at X = 500 - 150 = 350, Y=0
+        Assert.Equal(350f, rightBox.X);
+        Assert.Equal(0f, rightBox.Y);
+
+        // Static box Y starts at 0, overlaps with float left and float right.
+        // It should be positioned horizontally at availLeft=100 and have width=250.
+        Assert.Equal(100f, staticBox.X);
+        Assert.Equal(250f, staticBox.Width);
+        Assert.Equal(0f, staticBox.Y);
+    }
+
+    [Fact]
+    public void TestClearFlow()
+    {
+        var doc = new HtmlDocument();
+        var parent = new HtmlElement { TagName = "div" };
+        var floatLeft = new HtmlElement { TagName = "div" };
+        floatLeft.Attributes["id"] = "left";
+        var floatRight = new HtmlElement { TagName = "div" };
+        floatRight.Attributes["id"] = "right";
+        var clearedBlock = new HtmlElement { TagName = "div" };
+        clearedBlock.Attributes["id"] = "cleared";
+
+        doc.Children.Add(parent);
+        parent.Parent = doc;
+        parent.Children.Add(floatLeft);
+        floatLeft.Parent = parent;
+        parent.Children.Add(floatRight);
+        floatRight.Parent = parent;
+        parent.Children.Add(clearedBlock);
+        clearedBlock.Parent = parent;
+
+        var css = @"
+            #left { float: left; width: 100px; height: 80px; }
+            #right { float: right; width: 150px; height: 120px; }
+            #cleared { clear: both; width: 200px; height: 50px; }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = LayoutTreeBuilder.Build(doc, styles);
+        LayoutEngine.Layout(rootBox, 500f, 500f);
+
+        var pBox = rootBox.Children[0];
+        var leftBox = pBox.Children[0];
+        var rightBox = pBox.Children[1];
+        var clearedBox = pBox.Children[2];
+
+        // The cleared block has clear: both.
+        // It must be placed below both floats.
+        // The maximum bottom of the floats is:
+        // left float bottom = 80
+        // right float bottom = 120
+        // So clearedBox should start at Y = 120.
+        Assert.Equal(120f, clearedBox.Y);
+    }
+
+    [Fact]
+    public void TestTextWrappingAroundFloats()
+    {
+        var doc = new HtmlDocument();
+        var parent = new HtmlElement { TagName = "div" };
+        var floatLeft = new HtmlElement { TagName = "div" };
+        floatLeft.Attributes["id"] = "left";
+        var textNode = new HtmlTextNode { Text = "word1 word2 word3 word4 word5 word6" };
+
+        doc.Children.Add(parent);
+        parent.Parent = doc;
+        parent.Children.Add(floatLeft);
+        floatLeft.Parent = parent;
+        parent.Children.Add(textNode);
+        textNode.Parent = parent;
+
+        // Parent width 300px. Left float width 100px, height 30px.
+        // Text node has font-size 10px. Line height is ~12px.
+        // Available width next to float is 300 - 100 = 200px.
+        var css = @"
+            div { width: 300px; font-size: 10px; font-family: Arial; }
+            #left { float: left; width: 100px; height: 30px; }
+        ";
+        var stylesheet = CssParser.Parse(css);
+        var styles = StyleCascade.ResolveStyles(doc, stylesheet);
+        var rootBox = LayoutTreeBuilder.Build(doc, styles);
+        LayoutEngine.Layout(rootBox, 300f, 500f);
+
+        var pBox = rootBox.Children[0];
+        var anonBlock = pBox.Children[1];
+
+        // The anonymous block box itself should be shifted to X=100 to clear the left float
+        Assert.Equal(100f, anonBlock.X);
+
+        // The line boxes in anonBlock:
+        Assert.NotEmpty(anonBlock.LineBoxes);
+
+        // So its LineLeft should be 0 (since anonBlock is already shifted to X=100), and AvailableWidth should be 200.
+        var line1 = anonBlock.LineBoxes[0];
+        Assert.Equal(0f, line1.LineLeft);
+        Assert.Equal(200f, line1.AvailableWidth);
+
+        // The fragments of line1 should start at X >= 0
+        Assert.NotEmpty(line1.Fragments);
+        Assert.True(line1.Fragments[0].X >= 0f);
+    }
+
+    [Fact]
+    public void TestVisualVariablesAndCalc()
+    {
+        string html = @"
+        <div class='container'>
+            <div class='box box-main'></div>
+            <div class='box box-sub'></div>
+        </div>";
+        string css = @"
+            .container {
+                --base-padding: 10px;
+                --main-color: blue;
+                --sub-color: green;
+                --width-scale: 50%;
+                width: 300px;
+                height: 200px;
+                background-color: lightgray;
+                padding-left: var(--base-padding);
+                padding-top: var(--base-padding);
+                border: 2px solid black;
+            }
+            .box {
+                --box-height: calc(120px / 2);
+                height: var(--box-height);
+                margin-bottom: calc(5px * 2);
+            }
+            .box-main {
+                width: calc(var(--width-scale) * 2 - 20px);
+                background-color: var(--main-color);
+            }
+            .box-sub {
+                width: calc(var(--width-scale) - 10px);
+                background-color: var(--sub-color);
+                border: calc(1px * 3) solid orange;
+            }
+        ";
+        VisualTestHelper.AssertVisualMatch("variables_and_calc_visual", html, css, 350, 250);
+    }
+
+    [Fact]
+    public void TestVisualPositioning()
+    {
+        string html = @"
+        <div class='grandparent'>
+            <div class='parent'>
+                <div class='relative-box'></div>
+                <div class='absolute-box'></div>
+                <div class='fixed-box'></div>
+            </div>
+        </div>";
+        string css = @"
+            .grandparent {
+                position: relative;
+                width: 300px;
+                height: 300px;
+                background-color: lightgray;
+                border: 10px solid gray;
+                padding: 15px;
+            }
+            .parent {
+                position: static;
+                margin-left: 20px;
+                margin-top: 20px;
+                width: 200px;
+                height: 200px;
+                background-color: white;
+                border: 5px solid black;
+            }
+            .relative-box {
+                position: relative;
+                left: 30px;
+                top: 10px;
+                width: 60px;
+                height: 60px;
+                background-color: blue;
+                border: 2px solid yellow;
+            }
+            .absolute-box {
+                position: absolute;
+                left: 10px;
+                top: 20px;
+                width: 50px;
+                height: 50px;
+                background-color: red;
+                border: 3px solid green;
+            }
+            .fixed-box {
+                position: fixed;
+                left: 320px;
+                top: 20px;
+                width: 40px;
+                height: 40px;
+                background-color: purple;
+                border: 2px solid orange;
+            }
+        ";
+        VisualTestHelper.AssertVisualMatch("positioning_visual", html, css, 400, 400);
+    }
+
+    [Fact]
+    public void TestVisualFloatsAndClears()
+    {
+        string html = @"
+        <div class='container'>
+            <div class='float-l'></div>
+            <div class='float-r'></div>
+            <div class='text-wrap'>
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.
+            </div>
+            <div class='cleared-both'></div>
+            <div class='static-flow'></div>
+        </div>";
+        string css = @"
+            .container {
+                width: 350px;
+                height: 350px;
+                background-color: lightgray;
+                border: 3px solid black;
+            }
+            .float-l {
+                float: left;
+                width: 80px;
+                height: 80px;
+                background-color: red;
+                border: 2px solid #8b0000;
+            }
+            .float-r {
+                float: right;
+                width: 90px;
+                height: 70px;
+                background-color: blue;
+                border: 2px solid #00008b;
+            }
+            .text-wrap {
+                font-size: 11px;
+                font-family: Arial;
+                color: black;
+            }
+            .cleared-both {
+                clear: both;
+                width: calc(100% - 20px);
+                height: 40px;
+                background-color: green;
+                border: 2px solid #006400;
+            }
+            .static-flow {
+                width: 100px;
+                height: 40px;
+                background-color: purple;
+                border: 2px solid #4b0082;
+            }
+        ";
+        VisualTestHelper.AssertVisualMatch("floats_and_clears_visual", html, css, 400, 400);
+    }
 }
 
