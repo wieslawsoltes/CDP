@@ -1423,6 +1423,7 @@ public class DocumentEditor : Avalonia.Controls.Control, ILogicalScrollable
                         if (run.Bold) sb.Append(@"\b0 ");
                         if (run.Italic) sb.Append(@"\i0 ");
                         if (run.Underline) sb.Append(@"\ulnone ");
+                        if (run.FontSize.HasValue) sb.Append(@"\fs24 ");
                         if (colorIdx >= 0) sb.Append(@"\cf0 ");
                     }
                     else if (inline is LineBreakInline)

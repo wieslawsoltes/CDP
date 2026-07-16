@@ -25,7 +25,7 @@ jobs:
 
     - name: Run Unit Tests
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
 
     - name: Publish Linux Executable
       run: |
@@ -68,7 +68,7 @@ jobs:
 
     - name: Run Unit Tests
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
 
     - name: Publish macOS ARM64 Executable
       run: |
@@ -112,7 +112,7 @@ jobs:
     - name: Run Unit Tests
       shell: pwsh
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
 
     - name: Publish Windows Executable
       shell: pwsh

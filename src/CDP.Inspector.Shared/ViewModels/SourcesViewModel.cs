@@ -156,10 +156,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     public bool IsMarkdownFile => SelectedFileName != null && SelectedFileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
 
-    public bool IsBinaryDocumentFile => SelectedFileName != null && (
-        SelectedFileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) ||
-        SelectedFileName.EndsWith(".pptx", StringComparison.OrdinalIgnoreCase) ||
-        SelectedFileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
+
 
     public string? LocalPreviewFilePath
     {
@@ -281,7 +278,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
         SaveFileCommand = new RelayCommand<string>(
             async (text) => await SaveFileAsync(text),
-            (text) => _cdpService.IsConnected && SelectedFile != null && !SelectedFile.IsDirectory
+            (text) => _cdpService.IsConnected && SelectedFile != null && !SelectedFile.IsDirectory && !IsDocumentFile
         );
 
         SearchCommand = new RelayCommand(

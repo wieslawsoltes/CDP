@@ -403,7 +403,7 @@ public partial class SourcesView : UserControl
     {
         if (DataContext is MainWindowViewModel vm)
         {
-            if (vm.Sources.IsBinaryDocumentFile)
+            if (vm.Sources.IsDocumentFile)
             {
                 return;
             }

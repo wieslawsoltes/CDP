@@ -348,5 +348,16 @@ public class EnhancementsTests
         Assert.Contains(@"\colortbl", rtfContent);
         Assert.Contains(@"\red255\green0\blue0;", rtfContent);
         Assert.Contains(@"\cf1", rtfContent);
+
+        // 4. Reset RTF font size after sized runs
+        var rtfDocSize = new WordDocument();
+        var rtfParaSize = new ParagraphBlock();
+        rtfParaSize.AddChild(new TextRun { Text = "Sized", FontSize = 16 });
+        rtfParaSize.AddChild(new TextRun { Text = "Normal" });
+        rtfDocSize.AddChild(rtfParaSize);
+
+        var rtfContentSize = (string)serializeToRtfMethod.Invoke(null, new object[] { rtfDocSize })!;
+        Assert.Contains(@"\fs32", rtfContentSize);
+        Assert.Contains(@"\fs24", rtfContentSize);
     }
 }
