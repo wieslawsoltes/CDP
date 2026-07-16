@@ -11,6 +11,7 @@ public class MainWindowViewModel : ViewModelBase
     public SplitLayoutPageViewModel SplitLayoutVm { get; } = new();
     public NodeEditorPageViewModel NodeEditorVm { get; } = new();
     public ChartsPageViewModel ChartsVm { get; } = new();
+    public HtmlPageViewModel HtmlVm { get; } = new();
 
     public object? CurrentPage
     {
@@ -34,6 +35,7 @@ public class MainWindowViewModel : ViewModelBase
             "NodeEditor" => NodeEditorVm,
             "Accordion" => null, // Accordion is a standalone page defined in AccordionPage.axaml
             "Charts" => ChartsVm,
+            "Html" => HtmlVm,
             "Settings" => null, // Settings is simple settings page
             _ => CurrentPage
         };

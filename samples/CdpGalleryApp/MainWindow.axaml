@@ -43,6 +43,9 @@
         <DataTemplate DataType="vm:ChartsPageViewModel">
             <views:ChartsPage/>
         </DataTemplate>
+        <DataTemplate DataType="vm:HtmlPageViewModel">
+            <views:HtmlPage/>
+        </DataTemplate>
         <DataTemplate DataType="vm:SettingsPageViewModel">
             <views:SettingsPage/>
         </DataTemplate>
@@ -76,6 +79,7 @@
             <controls:NavigationViewItem Content="Node Editor" Icon="{StaticResource NodeIcon}" Tag="NodeEditor"/>
             <controls:NavigationViewItem Content="Accordion" Icon="{StaticResource AccordionIcon}" Tag="Accordion"/>
             <controls:NavigationViewItem Content="Charts" Icon="{StaticResource ChartIcon}" Tag="Charts"/>
+            <controls:NavigationViewItem Content="HTML/CSS Showcase" Icon="{StaticResource DocumentIcon}" Tag="Html"/>
         </controls:NavigationView.MenuItems>
 
         <!-- Profile Block inside Pane Footer -->
