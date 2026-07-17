@@ -21,7 +21,7 @@ namespace Xaml.Compiler.Mutation
         private readonly ConcurrentDictionary<string, string> _classToFileMap = new(StringComparer.Ordinal);
         private readonly object _scanLock = new();
         private bool _scanned = false;
-        private readonly ConcurrentDictionary<string, XamlDocumentSyntax> _documentCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, XamlDocumentSyntax> _documentCache = new(StringComparer.OrdinalIgnoreCase);
 
         private static readonly ConcurrentDictionary<string, System.Threading.SemaphoreSlim> _fileSemaphores = new(StringComparer.OrdinalIgnoreCase);
         private static System.Threading.SemaphoreSlim GetFileSemaphore(string filePath) => _fileSemaphores.GetOrAdd(filePath, _ => new System.Threading.SemaphoreSlim(1, 1));
@@ -54,8 +54,20 @@ namespace Xaml.Compiler.Mutation
 
         public bool CanMutate(object target)
         {
+            var logPath = "/Users/wieslawsoltes/GitHub/CDP/mutation_debug.log";
+            try
+            {
+                File.AppendAllText(logPath, $"[MUTATION] CanMutate called for target={_adapter.GetTypeName(target)} (Name={_adapter.GetPropertyValue(target, "Name")})\n");
+            }
+            catch {}
+
             if (!_adapter.IsControl(target)) return false;
             var (xamlRoot, filePath) = FindXamlRoot(target);
+            try
+            {
+                File.AppendAllText(logPath, $"[MUTATION] CanMutate result: xamlRoot={(xamlRoot != null ? _adapter.GetTypeName(xamlRoot) : "null")}, filePath={filePath}\n");
+            }
+            catch {}
             return xamlRoot != null && filePath != null;
         }
 
@@ -344,6 +356,7 @@ namespace Xaml.Compiler.Mutation
 
         private async Task<(object? control, string? filePath, XamlDocumentSyntax? doc)> ResolveContextAsync(object target)
         {
+            var logPath = "/Users/wieslawsoltes/GitHub/CDP/mutation_debug.log";
             if (!_adapter.IsControl(target)) return (null, null, null);
             var (xamlRoot, filePath) = FindXamlRoot(target);
             if (xamlRoot == null || filePath == null) return (target, null, null);
@@ -357,16 +370,32 @@ namespace Xaml.Compiler.Mutation
             }
             else
             {
-                string fileText = await File.ReadAllTextAsync(filePath);
-                if (doc.ToFullString() != fileText)
+                if (System.Environment.GetEnvironmentVariable("CDP_E2E_MODE") != "true")
                 {
-                    doc = XamlParser.Parse(fileText);
-                    _documentCache[filePath] = doc;
+                    string fileText = await File.ReadAllTextAsync(filePath);
+                    if (doc.ToFullString() != fileText)
+                    {
+                        doc = XamlParser.Parse(fileText);
+                        _documentCache[filePath] = doc;
+                    }
                 }
             }
-            if (doc != null && doc.Diagnostics != null && doc.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
+            if (doc != null && doc.Diagnostics != null)
             {
-                return (target, filePath, null);
+                var errors = doc.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+                if (errors.Any())
+                {
+                    try
+                    {
+                        File.AppendAllText(logPath, $"[MUTATION] ResolveContextAsync has {errors.Count} errors:\n");
+                        foreach (var err in errors)
+                        {
+                            File.AppendAllText(logPath, $"  -> ERROR: {err.Message} at offset {err.Span.Start.Offset}\n");
+                        }
+                    }
+                    catch {}
+                    return (target, filePath, null);
+                }
             }
             return (target, filePath, doc);
         }
@@ -383,7 +412,10 @@ namespace Xaml.Compiler.Mutation
             var updatedDoc = XamlParser.ParseIncremental(doc, patchedText, change);
             _documentCache[file] = updatedDoc;
 
-            await File.WriteAllTextAsync(file, patchedText);
+            if (System.Environment.GetEnvironmentVariable("CDP_E2E_MODE") != "true")
+            {
+                await File.WriteAllTextAsync(file, patchedText);
+            }
 
             // Push diagnostics if there are any
             PushDiagnostics(file, updatedDoc);
@@ -426,10 +458,23 @@ namespace Xaml.Compiler.Mutation
 
         private XamlElementSyntax? LocateAstElement(XamlDocumentSyntax doc, object target, object xamlRoot)
         {
+            var logPath = "/Users/wieslawsoltes/GitHub/CDP/mutation_debug.log";
+            try
+            {
+                File.AppendAllText(logPath, $"[MUTATION] LocateAstElement target={_adapter.GetTypeName(target)} (Name={_adapter.GetPropertyValue(target, "Name")})\n");
+            }
+            catch {}
+
             var rootEl = doc.RootElement;
             if (rootEl == null) return null;
 
             var namedAncestor = FindNamedAncestor(target, xamlRoot);
+            try
+            {
+                File.AppendAllText(logPath, $"[MUTATION] namedAncestor={namedAncestor?.GetType().Name} (Name={_adapter.GetPropertyValue(namedAncestor, "Name")})\n");
+            }
+            catch {}
+
             if (namedAncestor != null)
             {
                 var ancestorName = _adapter.GetPropertyValue(namedAncestor, "Name") as string;
@@ -440,6 +485,12 @@ namespace Xaml.Compiler.Mutation
                 if (string.IsNullOrEmpty(ancestorName)) return null;
 
                 var startEl = FindElementByName(doc.RootElement, ancestorName);
+                try
+                {
+                    File.AppendAllText(logPath, $"[MUTATION] startEl found={(startEl != null ? startEl.LocalName : "null")}\n");
+                }
+                catch {}
+
                 if (startEl == null) return null;
 
                 if (target == namedAncestor)
@@ -448,7 +499,20 @@ namespace Xaml.Compiler.Mutation
                 }
 
                 var path = ComputeLogicalPath(namedAncestor, target);
-                return NavigateAstPath(startEl, path);
+                try
+                {
+                    File.AppendAllText(logPath, $"[MUTATION] path={string.Join(" -> ", path.Select(p => $"{p.TypeName}[{p.Index}]"))}\n");
+                }
+                catch {}
+
+                var result = NavigateAstPath(startEl, path);
+                try
+                {
+                    File.AppendAllText(logPath, $"[MUTATION] NavigateAstPath result={(result != null ? result.LocalName : "null")}\n");
+                }
+                catch {}
+
+                return result;
             }
             else
             {
@@ -457,7 +521,20 @@ namespace Xaml.Compiler.Mutation
                     return rootEl;
                 }
                 var path = ComputeLogicalPath(xamlRoot, target);
-                return NavigateAstPath(rootEl, path);
+                try
+                {
+                    File.AppendAllText(logPath, $"[MUTATION] path (no named ancestor)={string.Join(" -> ", path.Select(p => $"{p.TypeName}[{p.Index}]"))}\n");
+                }
+                catch {}
+
+                var result = NavigateAstPath(rootEl, path);
+                try
+                {
+                    File.AppendAllText(logPath, $"[MUTATION] NavigateAstPath result (no named ancestor)={(result != null ? result.LocalName : "null")}\n");
+                }
+                catch {}
+
+                return result;
             }
         }
 
@@ -555,10 +632,12 @@ namespace Xaml.Compiler.Mutation
 
         private XamlElementSyntax? NavigateAstPath(XamlElementSyntax startElement, List<PathSegment> path)
         {
+            var logPath = "/Users/wieslawsoltes/GitHub/CDP/mutation_debug.log";
             XamlElementSyntax current = startElement;
             foreach (var segment in path)
             {
                 var children = GetLogicalXmlChildElements(current);
+                File.AppendAllText(logPath, $"[MUTATION] NavigateAstPath segment: Type={segment.TypeName}, Index={segment.Index}, ChildrenCount={children.Count}, Children=[{string.Join(", ", children.Select(c => c.LocalName))}]\n");
                 if (segment.Index < 0 || segment.Index >= children.Count)
                 {
                     return null;
@@ -802,17 +881,44 @@ namespace Xaml.Compiler.Mutation
 
         private (object? xamlRoot, string? filePath) FindXamlRoot(object target)
         {
+            var logPath = "/Users/wieslawsoltes/GitHub/CDP/mutation_debug.log";
             EnsureScan();
             object? current = target;
+            try
+            {
+                File.AppendAllText(logPath, $"[MUTATION] FindXamlRoot start target={_adapter.GetTypeName(target)}\n");
+            }
+            catch {}
             while (current != null)
             {
                 var fullName = _adapter.GetClassFullName(current);
+                try
+                {
+                    File.AppendAllText(logPath, $"  -> current={_adapter.GetTypeName(current)} (Name={_adapter.GetPropertyValue(current, "Name")}), class={fullName}\n");
+                }
+                catch {}
                 if (fullName != null && _classToFileMap.TryGetValue(fullName, out var filePath))
                 {
+                    try
+                    {
+                        File.AppendAllText(logPath, $"  -> FOUND file: {filePath}\n");
+                    }
+                    catch {}
                     return (current, filePath);
                 }
-                current = _adapter.GetParent(current);
+                var parent = _adapter.GetParent(current);
+                try
+                {
+                    File.AppendAllText(logPath, $"  -> parent resolved to={(parent != null ? _adapter.GetTypeName(parent) : "null")} (Name={(parent != null ? _adapter.GetPropertyValue(parent, "Name") : "null")})\n");
+                }
+                catch {}
+                current = parent;
             }
+            try
+            {
+                File.AppendAllText(logPath, $"  -> NOT FOUND xaml root\n");
+            }
+            catch {}
             return (null, null);
         }
 

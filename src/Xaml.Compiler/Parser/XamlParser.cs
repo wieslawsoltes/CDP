@@ -215,12 +215,15 @@ namespace Xaml.Compiler.Parser
                         {
                             // If it matches an ancestor (other than element), we do not consume it here.
                             bool matchesOtherAncestor = false;
-                            foreach (var ancestor in activeTags)
+                            if (closeName != element.LocalName || closePrefix != element.Prefix)
                             {
-                                if (ancestor != element && ancestor.LocalName == closeName && ancestor.Prefix == closePrefix)
+                                foreach (var ancestor in activeTags)
                                 {
-                                    matchesOtherAncestor = true;
-                                    break;
+                                    if (ancestor != element && ancestor.LocalName == closeName && ancestor.Prefix == closePrefix)
+                                    {
+                                        matchesOtherAncestor = true;
+                                        break;
+                                    }
                                 }
                             }
 
@@ -470,6 +473,7 @@ namespace Xaml.Compiler.Parser
                 char quote = scanner.Peek();
                 if (quote == '\'' || quote == '"')
                 {
+                    arg.QuoteChar = quote;
                     scanner.Read(); // Consume quote
                     while (!scanner.IsAtEnd && scanner.Peek() != quote)
                     {
