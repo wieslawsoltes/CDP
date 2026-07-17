@@ -28,6 +28,15 @@ public static class RuntimeDomain
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger("RuntimeDomain");
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Jint.Engine> _engines = new();
+
+    static RuntimeDomain()
+    {
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.TestMo.TestMoService());
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.TestRail.TestRailService());
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.Qase.QaseService());
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.Xray.XrayService());
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.Zephyr.ZephyrService());
+    }
     private static string GenerateAriaSnapshot(CdpSession session)
     {
         Logger.LogAriaDebug("GenerateAriaSnapshot started");
