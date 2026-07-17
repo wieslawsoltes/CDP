@@ -42,6 +42,8 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     private string _appId = "";
     private string _description = "";
     private bool _isIntegrationEnabled;
+    private bool _isIntegrationSettingsVisible;
+    private string _exportedTestCaseId = "";
     private ObservableCollection<string> _integrationServices = new() { "TestMo", "TestRail", "Qase", "Xray", "Zephyr" };
     private string _selectedIntegrationService = "TestMo";
     private string _integrationUrl = "";
@@ -211,6 +213,18 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     {
         get => _isIntegrationEnabled;
         set => RaiseAndSetIfChanged(ref _isIntegrationEnabled, value);
+    }
+
+    public bool IsIntegrationSettingsVisible
+    {
+        get => _isIntegrationSettingsVisible;
+        set => RaiseAndSetIfChanged(ref _isIntegrationSettingsVisible, value);
+    }
+
+    public string ExportedTestCaseId
+    {
+        get => _exportedTestCaseId;
+        set => RaiseAndSetIfChanged(ref _exportedTestCaseId, value);
     }
 
     public ObservableCollection<string> IntegrationServices
@@ -5917,6 +5931,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
                 var targetProject = IntegrationProjectId;
                 var targetSuite = IntegrationSuiteId;
                 var appIdRef = _appId;
+                var exportedTestCaseIdRef = ExportedTestCaseId;
                 var descRef = _description;
                 var startRef = _playbackStartTime;
                 var endRef = endTime;
@@ -5942,7 +5957,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
                             var runResult = new CDP.Integration.Core.TestRunResultData
                             {
-                                TestCaseId = string.IsNullOrEmpty(appIdRef) ? "1" : appIdRef,
+                                TestCaseId = string.IsNullOrEmpty(exportedTestCaseIdRef) ? (string.IsNullOrEmpty(appIdRef) ? "1" : appIdRef) : exportedTestCaseIdRef,
                                 TestName = string.IsNullOrEmpty(descRef) ? "CDP Execution Run" : descRef,
                                 Description = $"CDP Execution Run on {DateTime.Now}",
                                 Status = stepsStatusPassed ? "Passed" : "Failed",
@@ -8033,6 +8048,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         {
             Log($"Exporting test case to {SelectedIntegrationService}...");
             string caseId = await service.ExportTestCaseAsync(config, testCase);
+            ExportedTestCaseId = caseId;
             Log($"Test Case successfully exported! ID/Key: {caseId}");
             IntegrationStatusMessage = $"Exported Case: {caseId}";
             IntegrationStatusColor = "#4caf50";

@@ -42,7 +42,7 @@
                         <Button Command="{Binding Recorder.TestStudio.ManageEnvironmentsCommand}" ToolTip.Tip="Manage Environments" Padding="6,3" VerticalAlignment="Center">
                             <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
                         </Button>
-                        <ToggleButton IsChecked="{Binding Recorder.TestStudio.IsIntegrationEnabled, Mode=TwoWay}" ToolTip.Tip="Test Service Integrations" Padding="6,3" VerticalAlignment="Center">
+                        <ToggleButton IsChecked="{Binding Recorder.TestStudio.IsIntegrationSettingsVisible, Mode=TwoWay}" ToolTip.Tip="Test Service Integrations" Padding="6,3" VerticalAlignment="Center">
                             <PathIcon Data="{StaticResource LinkIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
                         </ToggleButton>
                     </StackPanel>
@@ -804,7 +804,7 @@
         </Border>
 
         <!-- Inline Integration Settings Overlay -->
-        <Border Grid.ColumnSpan="2" Background="#80000000" IsVisible="{Binding Recorder.TestStudio.IsIntegrationEnabled}" ZIndex="102">
+        <Border Grid.ColumnSpan="2" Background="#80000000" IsVisible="{Binding Recorder.TestStudio.IsIntegrationSettingsVisible}" ZIndex="102">
             <Border Background="#2d2d2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="8" Width="360" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="16">
                 <StackPanel Spacing="12">
                     <TextBlock Text="Test Management Integration" FontSize="14" FontWeight="Bold" Foreground="White"/>
@@ -840,6 +840,15 @@
                         <TextBlock Text="Suite / Folder ID (Optional):" FontSize="11" Foreground="#9aa0a6"/>
                         <TextBox Text="{Binding Recorder.TestStudio.IntegrationSuiteId, Mode=TwoWay}" PlaceholderText="1"/>
                     </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Test Case ID / Key (Optional):" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Text="{Binding Recorder.TestStudio.ExportedTestCaseId, Mode=TwoWay}" PlaceholderText="case-123 or 123"/>
+                    </StackPanel>
+
+                    <CheckBox IsChecked="{Binding Recorder.TestStudio.IsIntegrationEnabled, Mode=TwoWay}" Margin="0,4,0,0">
+                        <TextBlock Text="Enable run results publishing" FontSize="11" Foreground="White"/>
+                    </CheckBox>
 
                     <TextBlock Text="{Binding Recorder.TestStudio.IntegrationStatusMessage}" 
                                Foreground="{Binding Recorder.TestStudio.IntegrationStatusColor}" 

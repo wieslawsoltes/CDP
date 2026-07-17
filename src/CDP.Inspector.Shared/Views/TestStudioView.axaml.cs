@@ -854,7 +854,7 @@ public partial class TestStudioView : UserControl
     {
         if (DataContext is MainWindowViewModel vm)
         {
-            vm.Recorder.TestStudio.IsIntegrationEnabled = false;
+            vm.Recorder.TestStudio.IsIntegrationSettingsVisible = false;
         }
     }
 }
