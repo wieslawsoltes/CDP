@@ -912,7 +912,9 @@ public static class PageDomain
                 {
                     string message = @params["message"]?.GetValue<string>() ?? "";
                     string group = @params["group"]?.GetValue<string>() ?? "default";
-                    Logger.LogInfoMessage("PageDomain", $"generateTestReport - Group: {group}, Message: {message}");
+                    var msg = $"generateTestReport - Group: {group}, Message: {message}";
+                    Logger.LogInfoMessage("PageDomain", msg);
+                    Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog("Page", "Information", msg);
                     return new JsonObject();
                 }
 
@@ -920,7 +922,9 @@ public static class PageDomain
                 {
                     bool accept = @params["accept"]?.GetValue<bool>() ?? false;
                     string promptText = @params["promptText"]?.GetValue<string>() ?? "";
-                    Logger.LogInfoMessage("PageDomain", $"handleJavaScriptDialog - Accept: {accept}, Prompt: {promptText}");
+                    var msg = $"handleJavaScriptDialog - Accept: {accept}, Prompt: {promptText}";
+                    Logger.LogInfoMessage("PageDomain", msg);
+                    Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog("Page", "Information", msg);
                     return new JsonObject();
                 }
 
