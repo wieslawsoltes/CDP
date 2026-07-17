@@ -1756,7 +1756,11 @@ public static class RuntimeDomain
         engine.SetValue("ViewModel", dataContext);
         engine.SetValue("__raw_window", windowObj);
         engine.SetValue("Window", windowObj);
-        engine.SetValue("__log", new Action<string>(msg => Logger.LogPlaywrightDebug($"[JS LOG] {msg}")));
+        engine.SetValue("__log", new Action<string>(msg =>
+        {
+            Logger.LogInfoMessage("JS LOG", msg);
+            Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog("Console", "Information", "[JS LOG] " + msg);
+        }));
         engine.SetValue("getJintCaller", new Func<Jint.Native.JsValue>(() => {
             var callStackField = typeof(Engine).GetField("CallStack", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (callStackField != null)
