@@ -1832,7 +1832,12 @@ public static class RuntimeDomain
             return null;
         }));
 
-        engine.SetValue("Print", new Action<object?>(obj => Logger.LogInfoMessage("RuntimeDomain", obj?.ToString() ?? "null")));
+        engine.SetValue("Print", new Action<object?>(obj =>
+        {
+            var msg = obj?.ToString() ?? "null";
+            Logger.LogInfoMessage("RuntimeDomain", msg);
+            Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog("Console", "Information", msg);
+        }));
         engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("__getBounds", new Func<Visual, double[]>(visual => DomDomain.GetVisualBounds(session, visual)));

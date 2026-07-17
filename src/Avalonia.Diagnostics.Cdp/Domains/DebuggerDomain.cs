@@ -146,7 +146,12 @@ public static class DebuggerDomain
                         engine.SetValue("Window", windowObj);
                         engine.SetValue("window", new Avalonia.Diagnostics.Cdp.Domains.CdpRuntimeWindow(session));
                         engine.SetValue("document", new Avalonia.Diagnostics.Cdp.Domains.CdpRuntimeDocument(session));
-                        engine.SetValue("Print", new Action<object?>(obj => Logger.LogInfoMessage("Debugger", obj?.ToString() ?? "null")));
+                        engine.SetValue("Print", new Action<object?>(obj =>
+                        {
+                            var msg = obj?.ToString() ?? "null";
+                            Logger.LogInfoMessage("Debugger", msg);
+                            Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog("Console", "Information", msg);
+                        }));
                         engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
                         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
                         
