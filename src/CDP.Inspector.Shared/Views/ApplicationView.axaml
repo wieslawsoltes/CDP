@@ -50,9 +50,11 @@
 
             <!-- Editor -->
             <Grid Name="gridResourceEditor" RowDefinitions="Auto, *, Auto" Margin="10,0,0,0">
-                <Grid ColumnDefinitions="*, Auto">
+                <Grid ColumnDefinitions="*, Auto, Auto, Auto">
                     <TextBlock Text="Global Application Resources" Classes="panel-header"/>
-                    <Button Grid.Column="1" Name="btnRefreshResources" Command="{Binding Application.RefreshResourcesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
+                    <TextBox Grid.Column="1" Name="txtResourceSearch" Width="150" Height="24" Watermark="Search resources..." Margin="0,0,8,8" FontSize="11"/>
+                    <Button Grid.Column="2" Name="btnToggleTheme" Content="Toggle Theme" Height="24" Padding="8,0" FontSize="11" Margin="0,0,8,8"/>
+                    <Button Grid.Column="3" Name="btnRefreshResources" Command="{Binding Application.RefreshResourcesCommand}" Content="Refresh" Height="24" Padding="8,0" FontSize="11" Margin="0,0,0,8"/>
                 </Grid>
                 
                 <DataGrid Name="lstApplicationResources" ItemsSource="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.Resources}" SelectedItem="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Application.SelectedResource, Mode=TwoWay}" Grid.Row="1"

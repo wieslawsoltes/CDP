@@ -1,0 +1,17 @@
+appId: CdpInspectorApp
+description: Verify mutation updates AST, patches file, and triggers live UI hot-reload
+  updates
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- inputText:
+    selector: '#txtAttrName'
+    text: IsEnabled
+- inputText:
+    selector: '#txtAttrValue'
+    text: 'False'
+- tapOn: '#btnApplyAttr'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode.Attributes.Any(a => a.Name
+    == 'IsEnabled' && a.Value == 'False')

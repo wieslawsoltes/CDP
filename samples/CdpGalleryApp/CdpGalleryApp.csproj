@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="ReactiveUI.Avalonia" />
+    <PackageReference Include="ReactiveUI" />
+    <PackageReference Include="ReactiveUI.SourceGenerators" PrivateAssets="all" />
+    <!--Condition below is needed to remove AvaloniaUI.DiagnosticsSupport package from build output in Release configuration.-->
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CDP.FluentNavigation\CDP.FluentNavigation.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Markdown.Editor\CDP.Markdown.Editor.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Document.Editor\CDP.Document.Editor.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Editor.Splits\CDP.Editor.Splits.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Editor.Nodes\CDP.Editor.Nodes.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Inspector.Controls\CDP.Inspector.Controls.csproj" />
+    <ProjectReference Include="..\..\src\CDP.DiagnosticTools\CDP.DiagnosticTools.csproj" />
+  </ItemGroup>
+</Project>

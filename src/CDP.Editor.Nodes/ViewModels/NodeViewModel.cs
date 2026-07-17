@@ -31,6 +31,14 @@ public class NodeViewModel : NodeEditorViewModelBase
         set => RaiseAndSetIfChanged(ref _name, value);
     }
 
+    private string? _icon;
+
+    public string? Icon
+    {
+        get => _icon;
+        set => RaiseAndSetIfChanged(ref _icon, value);
+    }
+
     public double X
     {
         get => _x;

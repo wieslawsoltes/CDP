@@ -15,10 +15,12 @@
 
   <!-- Share all code files from WinUI.Diagnostics.Cdp -->
   <ItemGroup>
+    <Compile Include="../WinUI.Diagnostics.Cdp/CdpVisualTreeHelper.cs" Link="CdpVisualTreeHelper.cs" />
     <Compile Include="../WinUI.Diagnostics.Cdp/Server/**/*.cs" LinkBase="Server" />
     <Compile Include="../WinUI.Diagnostics.Cdp/Selector/**/*.cs" LinkBase="Selector" />
     <Compile Include="../WinUI.Diagnostics.Cdp/Highlighting/**/*.cs" LinkBase="Highlighting" />
     <Compile Include="../WinUI.Diagnostics.Cdp/Domains/**/*.cs" LinkBase="Domains" />
+    <Compile Include="../WinUI.Diagnostics.Cdp/Adapters/**/*.cs" LinkBase="Adapters" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,6 +38,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+    <ProjectReference Include="../Xaml.Compiler/Xaml.Compiler.csproj" />
   </ItemGroup>
 
   <ItemGroup>

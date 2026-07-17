@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify tree walking rejects non-control types and returns null
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

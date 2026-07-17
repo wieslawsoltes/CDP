@@ -3,5 +3,5 @@ description: "Verify displaying code structure outline inside the sources panel"
 ---
 - runFlow: "shared/navigate_to_sources.yaml"
 - assertVisible: "#treeOutline"
-- delay: "1000"
+- delay: "200"
 - assertTrue: "true"

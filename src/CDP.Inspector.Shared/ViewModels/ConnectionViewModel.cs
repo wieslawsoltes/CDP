@@ -42,6 +42,22 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    private string _targetPort = "";
+    public string TargetPort
+    {
+        get => _targetPort;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _targetPort, value))
+            {
+                if (!string.IsNullOrEmpty(value) && int.TryParse(value, out var port))
+                {
+                    HostAddress = $"http://127.0.0.1:{port}";
+                }
+            }
+        }
+    }
+
     public string GeneratorHostAddress
     {
         get

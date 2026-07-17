@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:splits="clr-namespace:CDP.Editor.Splits.Controls;assembly=CDP.Editor.Splits"
+             x:Class="CdpGalleryApp.Views.SplitLayoutPage"
+             x:DataType="vm:SplitLayoutPageViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto, *">
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <Grid ColumnDefinitions="*, Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Split Layout (SuperSplit)" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
+                    <Separator Width="1" Height="16" Background="#3c4043"/>
+                    <TextBlock Text="Dock panels, split dynamically, and resize dividers." FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- SuperSplit Controls Toolbar -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Button Command="{Binding SplitLeftCommand}" ToolTip.Tip="Split Selected Pane Left" Padding="6" Width="28" Height="28">
+                        <PathIcon Data="{StaticResource ArrowLeftIcon}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Command="{Binding SplitRightCommand}" ToolTip.Tip="Split Selected Pane Right" Padding="6" Width="28" Height="28">
+                        <PathIcon Data="{StaticResource ArrowRightIcon}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Command="{Binding SplitUpCommand}" ToolTip.Tip="Split Selected Pane Up" Padding="6" Width="28" Height="28">
+                        <PathIcon Data="{StaticResource ArrowUpIcon}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Command="{Binding SplitDownCommand}" ToolTip.Tip="Split Selected Pane Down" Padding="6" Width="28" Height="28">
+                        <PathIcon Data="{StaticResource ArrowDownIcon}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Command="{Binding ClosePaneCommand}" ToolTip.Tip="Close Selected Pane" Padding="6" Width="28" Height="28" Foreground="#ff5252">
+                        <PathIcon Data="{StaticResource DismissIcon}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Command="{Binding ResetLayoutCommand}" ToolTip.Tip="Reset Split Layout" Padding="6" Width="28" Height="28" Foreground="#4caf50">
+                        <PathIcon Data="{StaticResource ArrowUndoIcon}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Command="{Binding FloatPaneCommand}" ToolTip.Tip="Float Selected Tab" Padding="6" Width="28" Height="28" Foreground="#2196f3">
+                        <PathIcon Data="{StaticResource WindowMultipleIcon}" Width="12" Height="12"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Background="#121212" Padding="8">
+            <Border Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6">
+                <!-- SuperSplit Container -->
+                <splits:SuperSplit Name="SplitControl" Root="{Binding SplitRoot}" SelectedNode="{Binding SelectedPane, Mode=TwoWay}"/>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

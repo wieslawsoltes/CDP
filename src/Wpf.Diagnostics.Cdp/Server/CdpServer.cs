@@ -47,6 +47,21 @@ public class WpfCdpTarget : ICdpTarget
 public static class CdpServer
 {
     private static readonly ConcurrentDictionary<Window, WpfCdpTarget> _targets = new();
+    private static Window? _primaryWindow;
+
+    public static Window? GetPrimaryWindow()
+    {
+        if (System.Windows.Application.Current != null)
+        {
+            var mainWin = System.Windows.Application.Current.MainWindow;
+            if (mainWin != null) return mainWin;
+        }
+        if (_primaryWindow != null && _targets.ContainsKey(_primaryWindow))
+        {
+            return _primaryWindow;
+        }
+        return _targets.Keys.FirstOrDefault();
+    }
 
     public static int Port => Chrome.DevTools.Protocol.CdpServer.Port;
     public static System.IO.TextWriter OriginalOut => Chrome.DevTools.Protocol.CdpServer.OriginalOut;
@@ -132,6 +147,7 @@ public static class CdpServer
         CdpDomainRegistry.Register("WindowChrome", (s, a, p) => Domains.WindowChromeDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("Recorder", (s, a, p) => Domains.RecorderDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("Mvvm", (s, a, p) => Domains.MvvmDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("XamlLsp", (s, a, p) => Domains.XamlLspDomain.HandleAsync((CdpSession)s, a, p));
 
         // Use EventManager to hook loaded events on all Window controls globally
         EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnWindowLoaded));
@@ -182,6 +198,10 @@ public static class CdpServer
 
     public static string Register(Window window, string title)
     {
+        if (_primaryWindow == null)
+        {
+            _primaryWindow = window;
+        }
         var target = _targets.GetOrAdd(window, w => new WpfCdpTarget(w, Guid.NewGuid().ToString(), title));
         return Chrome.DevTools.Protocol.CdpServer.Register(target);
     }
@@ -191,12 +211,20 @@ public static class CdpServer
         if (_targets.TryRemove(window, out var target))
         {
             Chrome.DevTools.Protocol.CdpServer.Unregister(target);
+            if (_primaryWindow == window)
+            {
+                _primaryWindow = _targets.Keys.FirstOrDefault();
+            }
         }
     }
 
     public static WpfCdpTarget GetOrCreateTarget(Window window)
     {
         _ = Port;
+        if (_primaryWindow == null)
+        {
+            _primaryWindow = window;
+        }
         return _targets.GetOrAdd(window, w =>
         {
             var target = new WpfCdpTarget(w, Guid.NewGuid().ToString(), w.Title ?? w.GetType().Name);
@@ -208,6 +236,10 @@ public static class CdpServer
     public static WpfCdpTarget GetOrCreateTarget(Window window, string targetId)
     {
         _ = Port;
+        if (_primaryWindow == null)
+        {
+            _primaryWindow = window;
+        }
         return _targets.GetOrAdd(window, w =>
         {
             var target = new WpfCdpTarget(w, targetId, w.Title ?? w.GetType().Name);

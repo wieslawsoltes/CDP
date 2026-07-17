@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify framework adapters resolve custom control type names
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode.TypeName != null

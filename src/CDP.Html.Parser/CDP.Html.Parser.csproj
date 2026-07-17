@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Chrome.DevTools.Html.Parser</PackageId>
+    <Title>Chrome.DevTools.Html.Parser</Title>
+    <Description>HTML DOM parser library matching Markdown AST concepts.</Description>
+    <PackageTags>html;parser;cdp;dom;ast</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+</Project>

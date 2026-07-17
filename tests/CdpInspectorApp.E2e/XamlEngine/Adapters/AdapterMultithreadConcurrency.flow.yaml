@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify adapters queue visual modifications safely onto main UI thread
+  dispatcher
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

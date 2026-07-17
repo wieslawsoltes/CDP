@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:de="clr-namespace:CDP.Document.Editor;assembly=CDP.Document.Editor"
+             x:Class="CdpGalleryApp.Views.RichDocumentsPage"
+             x:DataType="vm:RichDocumentsPageViewModel"
+             x:CompileBindings="True">
+    
+    <UserControl.Resources>
+        <StreamGeometry x:Key="BoldIcon">M6.93514 4.43963C7.21647 4.15815 7.59813 4 7.99609 4H12.3795C15.0161 4 16.9995 6.18211 16.9995 8.62541C16.9995 9.60205 16.6828 10.5367 16.1341 11.307C17.211 12.134 17.9995 13.4274 17.9995 15.12C17.9995 18.2315 15.301 20 13.1195 20H7.99951C7.17108 20 6.49951 19.3284 6.49951 18.5L6.49609 5.50082C6.49588 5.10285 6.65382 4.72111 6.93514 4.43963ZM9.49869 10.2499H12.3795C13.2824 10.2499 13.9995 9.49051 13.9995 8.62541C13.9995 7.76 13.2814 7 12.3795 7H9.49691L9.49869 10.2499ZM9.49951 13.2499V17H13.1195C13.9927 17 14.9995 16.2464 14.9995 15.12C14.9995 13.9901 14.0248 13.2499 13.1195 13.2499H9.49951Z</StreamGeometry>
+        <StreamGeometry x:Key="ItalicIcon">M18.75 4C19.1642 4 19.5 4.33579 19.5 4.75C19.5 5.16421 19.1642 5.5 18.75 5.5H15.2676L10.3359 18.5H13.75C14.1642 18.5 14.5 18.8358 14.5 19.25C14.5 19.6642 14.1642 20 13.75 20H5.25C4.83579 20 4.5 19.6642 4.5 19.25C4.5 18.8358 4.83579 18.5 5.25 18.5H8.73242L13.6641 5.5H10.25C9.83579 5.5 9.5 5.16421 9.5 4.75C9.5 4.33579 9.83579 4 10.25 4H18.75Z</StreamGeometry>
+        <StreamGeometry x:Key="UnderlineIcon">M6.75001 19H17.25C17.6642 19 18 19.3358 18 19.75C18 20.1297 17.7179 20.4435 17.3518 20.4932L17.25 20.5H6.75001C6.33579 20.5 6.00001 20.1642 6.00001 19.75C6.00001 19.3703 6.28216 19.0565 6.64824 19.0068L6.75001 19H17.25H6.75001ZM17.25 4C17.6297 4 17.9435 4.28215 17.9932 4.64823L18 4.75V10.75C18 15.1437 15.9371 17.5 11.9971 17.5C8.14241 17.5 6.08619 15.2446 6.00265 11.0336L6 10.75V4.75C6 4.33579 6.33579 4 6.75001 4C7.1297 4 7.44349 4.28215 7.49315 4.64823L7.5 4.75V10.7507C7.49647 14.3568 8.93346 16 11.9971 16C14.9824 16 16.4251 14.4395 16.4972 11.0235L16.5 10.75V4.75C16.5 4.33579 16.8358 4 17.25 4ZM17.25 4</StreamGeometry>
+    </UserControl.Resources>
+    
+    <Grid RowDefinitions="Auto, Auto, *">
+        <!-- Toolbar with Document Switcher Buttons -->
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Rich Documents" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8" Margin="0,0,10,0"/>
+
+                <Button Content="Word (DOCX)" Command="{Binding LoadDocx}" Background="#252526" BorderBrush="#3c4043"/>
+                <Button Content="Excel (XLSX)" Command="{Binding LoadXlsx}" Background="#252526" BorderBrush="#3c4043"/>
+                <Button Content="PowerPoint (PPTX)" Command="{Binding LoadPptx}" Background="#252526" BorderBrush="#3c4043"/>
+                <Button Content="RTF" Command="{Binding LoadRtf}" Background="#252526" BorderBrush="#3c4043"/>
+                
+                <Separator Width="1" Height="16" Background="#3c4043"/>
+                <Button Content="Load Custom File..." Click="BtnLoadCustom_Click" Background="#1a73e8" Foreground="White" FontWeight="Bold"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Formatting Toolbar -->
+        <Border Grid.Row="1" Background="#252526" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <!-- Bold -->
+                <Button Name="BtnBold" ToolTip.Tip="Bold" Width="32" Height="32" Padding="0" Click="BtnBold_Click" Background="Transparent" BorderThickness="0">
+                    <PathIcon Data="{StaticResource BoldIcon}" Width="16" Height="16"/>
+                </Button>
+                <!-- Italic -->
+                <Button Name="BtnItalic" ToolTip.Tip="Italic" Width="32" Height="32" Padding="0" Click="BtnItalic_Click" Background="Transparent" BorderThickness="0">
+                    <PathIcon Data="{StaticResource ItalicIcon}" Width="16" Height="16"/>
+                </Button>
+                <!-- Underline -->
+                <Button Name="BtnUnderline" ToolTip.Tip="Underline" Width="32" Height="32" Padding="0" Click="BtnUnderline_Click" Background="Transparent" BorderThickness="0">
+                    <PathIcon Data="{StaticResource UnderlineIcon}" Width="16" Height="16"/>
+                </Button>
+
+                <Separator Width="1" Height="16" Background="#3c4043"/>
+
+                <!-- Font Size -->
+                <TextBlock Text="Size:" VerticalAlignment="Center" FontSize="11" Foreground="#9aa0a6" Margin="4,0,2,0"/>
+                <ComboBox Name="ComboFontSize" Width="64" Height="28" FontSize="11" SelectedIndex="2" SelectionChanged="ComboFontSize_SelectionChanged">
+                    <ComboBoxItem Content="9"/>
+                    <ComboBoxItem Content="10"/>
+                    <ComboBoxItem Content="11"/>
+                    <ComboBoxItem Content="12"/>
+                    <ComboBoxItem Content="14"/>
+                    <ComboBoxItem Content="16"/>
+                    <ComboBoxItem Content="18"/>
+                    <ComboBoxItem Content="20"/>
+                    <ComboBoxItem Content="24"/>
+                </ComboBox>
+
+                <Separator Width="1" Height="16" Background="#3c4043"/>
+
+                <!-- Color Options -->
+                <TextBlock Text="Color:" VerticalAlignment="Center" FontSize="11" Foreground="#9aa0a6" Margin="4,0,2,0"/>
+                <Button Width="20" Height="20" CornerRadius="10" Background="Black" BorderBrush="Gray" BorderThickness="1" Click="BtnColor_Click" Tag="FF000000"/>
+                <Button Width="20" Height="20" CornerRadius="10" Background="Red" BorderBrush="Transparent" Click="BtnColor_Click" Tag="FFFF0000"/>
+                <Button Width="20" Height="20" CornerRadius="10" Background="Blue" BorderBrush="Transparent" Click="BtnColor_Click" Tag="FF0000FF"/>
+                <Button Width="20" Height="20" CornerRadius="10" Background="Green" BorderBrush="Transparent" Click="BtnColor_Click" Tag="FF008000"/>
+                <Button Width="20" Height="20" CornerRadius="10" Background="Orange" BorderBrush="Transparent" Click="BtnColor_Click" Tag="FFFFA500"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Document Viewer Editor Grid -->
+        <Grid Grid.Row="2" Margin="12" RowDefinitions="Auto, *">
+            <TextBlock Grid.Row="0" Text="{Binding FilePath, StringFormat='Active File: {0}'}" FontSize="10" Foreground="#9aa0a6" Margin="0,0,0,8"/>
+            <Border Grid.Row="1" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <de:DocumentEditor Name="DocEditor" FilePath="{Binding FilePath}" IsReadOnly="False" ClipToBounds="True"/>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

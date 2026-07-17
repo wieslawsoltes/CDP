@@ -1,9 +1,9 @@
 appId: "CdpInspectorApp"
 description: "Sub-flow: Connect to target sample app on 9222"
 ---
-- delay: "1000"
+- delay: "300"
 - tapOn: "#btnRefreshTargets"
-- delay: "1000"
+- delay: "300"
 - tapOn: "#btnConnect"
-- delay: "1000"
+- delay: "1500"
 - assertTrue: "__raw_window.DataContext.Connection.IsConnected"

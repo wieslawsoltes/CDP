@@ -1,0 +1,17 @@
+appId: CdpInspectorApp
+description: Verify that mutator checks schema registry types before patching AST
+  whitespaces
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- inputText:
+    selector: '#txtAttrName'
+    text: Content
+- inputText:
+    selector: '#txtAttrValue'
+    text: MutationWhitespaceTest
+- tapOn: '#btnApplyAttr'
+- delay: 1000
+- runFlow: shared/navigate_to_sources.yaml
+- assertTrue: Window.DataContext.Sources.ActiveEditor.Text.Contains('Content="MutationWhitespaceTest"')

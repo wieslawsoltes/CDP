@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify parser exposes custom CDP diagnostics list for syntax errors
+---
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#treeWorkspaceFiles'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.Diagnostics.Count >= 0

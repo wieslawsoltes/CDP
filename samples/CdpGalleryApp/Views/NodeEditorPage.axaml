@@ -1,0 +1,143 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:nodes="clr-namespace:CDP.Editor.Nodes.Views;assembly=CDP.Editor.Nodes"
+             x:Class="CdpGalleryApp.Views.NodeEditorPage"
+             x:DataType="vm:NodeEditorPageViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto, *">
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <Grid ColumnDefinitions="*, Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Node Editor (Logic Simulator)" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
+                    <Separator Width="1" Height="16" Background="#3c4043"/>
+                    <TextBlock Text="Drag switches, gates, and LEDs, connect their pins, and watch signals propagate live." FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                </StackPanel>
+                
+                <!-- Simulation Controls -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <!-- Toggle Run (Play) -->
+                    <Button Command="{Binding ToggleRunCommand}" IsVisible="{Binding !IsRunning}" ToolTip.Tip="Start Simulation">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource PlayIcon}" Width="10" Height="10" Foreground="#4caf50"/>
+                            <TextBlock Text="Run" FontSize="11" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <!-- Toggle Run (Pause) -->
+                    <Button Command="{Binding ToggleRunCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="Pause Simulation">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource PauseIcon}" Width="10" Height="10" Foreground="#ffb74d"/>
+                            <TextBlock Text="Pause" FontSize="11" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <!-- Single Step -->
+                    <Button Command="{Binding StepCommand}" ToolTip.Tip="Single Simulation Step">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource ChevronRightIcon}" Width="10" Height="10" Foreground="#2196f3"/>
+                            <TextBlock Text="Step" FontSize="11" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <!-- Clear -->
+                    <Button Command="{Binding ClearCommand}" ToolTip.Tip="Clear Circuit">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource DismissIcon}" Width="10" Height="10" Foreground="#ff5252"/>
+                            <TextBlock Text="Clear All" FontSize="11" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="200, *">
+            <!-- Left Panel: Toolbox -->
+            <Border Grid.Column="0" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="0,0,1,0" Padding="12">
+                <ScrollViewer>
+                    <StackPanel Name="ToolboxPanel" Spacing="10">
+                        <TextBlock Text="LOGIC ELEMENTS" FontSize="11" FontWeight="Bold" Foreground="#9aa0a6" Margin="0,0,0,6"/>
+                        
+                        <!-- Toggle Switch -->
+                        <Button Command="{Binding AddLogicNodeCommand}" CommandParameter="Switch" HorizontalAlignment="Stretch" Background="#1a237e" BorderBrush="#283593" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Border Width="14" Height="14" CornerRadius="3" Background="#e8eaed" BorderBrush="#2d2d2d" BorderThickness="1"/>
+                                <TextBlock Text="Toggle Switch" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Clock Pulse -->
+                        <Button Command="{Binding AddLogicNodeCommand}" CommandParameter="Clock" HorizontalAlignment="Stretch" Background="#4a148c" BorderBrush="#6a1b9a" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <PathIcon Data="{StaticResource TimerIcon}" Width="14" Height="14" Foreground="#ffd54f"/>
+                                <TextBlock Text="Clock Pulse" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Separator Height="1" Background="#2d2d2d" Margin="0,4"/>
+                        <TextBlock Text="LOGIC GATES" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6"/>
+
+                        <!-- AND Gate -->
+                        <Button Command="{Binding AddLogicNodeCommand}" CommandParameter="AND" HorizontalAlignment="Stretch" Background="#2e7d32" BorderBrush="#1b5e20" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="&amp;" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#ffd54f" Margin="2,0"/>
+                                <TextBlock Text="AND Gate" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- OR Gate -->
+                        <Button Command="{Binding AddLogicNodeCommand}" CommandParameter="OR" HorizontalAlignment="Stretch" Background="#c62828" BorderBrush="#b71c1c" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="≥1" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Foreground="#ffd54f" Margin="0,2"/>
+                                <TextBlock Text="OR Gate" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- NOT Gate -->
+                        <Button Command="{Binding AddLogicNodeCommand}" CommandParameter="NOT" HorizontalAlignment="Stretch" Background="#ef6c00" BorderBrush="#e65100" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="1" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#ffd54f" Margin="2,0"/>
+                                <TextBlock Text="NOT Gate" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Separator Height="1" Background="#2d2d2d" Margin="0,4"/>
+                        <TextBlock Text="FLIP-FLOPS" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6"/>
+
+                        <!-- D Flip-Flop -->
+                        <Button Command="{Binding AddLogicNodeCommand}" CommandParameter="DFF" HorizontalAlignment="Stretch" Background="#00838f" BorderBrush="#006064" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="D" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#e8eaed" Margin="2,0"/>
+                                <TextBlock Text="D Flip-Flop" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- JK Flip-Flop -->
+                        <Button Command="{Binding AddLogicNodeCommand}" CommandParameter="JKFF" HorizontalAlignment="Stretch" Background="#37474f" BorderBrush="#263238" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="JK" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                                <TextBlock Text="JK Flip-Flop" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Separator Height="1" Background="#2d2d2d" Margin="0,4"/>
+                        <TextBlock Text="OUTPUTS" FontSize="10" FontWeight="Bold" Foreground="#9aa0a6"/>
+
+                        <!-- LED Output -->
+                        <Button Command="{Binding AddLogicNodeCommand}" CommandParameter="LED" HorizontalAlignment="Stretch" Background="#4e342e" BorderBrush="#3e2723" Padding="10,8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Border Width="14" Height="14" CornerRadius="7" Background="#ff1744"/>
+                                <TextBlock Text="LED Output" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Right Panel: Editor Canvas -->
+            <Border Grid.Column="1" Background="#121212" Padding="8">
+                <Border Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+                    <nodes:NodeEditorView Name="LogicNodeEditor" DataContext="{Binding NodeEditorVm}"/>
+                </Border>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

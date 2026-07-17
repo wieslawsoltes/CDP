@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify AST parser parses an empty document or single space
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

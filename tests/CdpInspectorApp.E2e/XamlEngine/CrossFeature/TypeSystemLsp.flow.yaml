@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify type schema registry feeds auto-completions into LSP completion
+  provider
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

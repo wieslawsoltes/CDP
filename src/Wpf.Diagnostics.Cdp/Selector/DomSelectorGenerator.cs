@@ -38,7 +38,7 @@ public class DomSelectorGenerator : ISelectorGenerator
             targetPart += $":contains(\"{escaped}\")";
         }
 
-        Visual? current = useLogicalTree ? SelectorEngine.GetLogicalParent(visual) : visual.GetVisualParent();
+        Visual? current = CdpVisualTreeHelper.GetParent(visual, useLogicalTree);
         var pathParts = new List<string> { targetPart };
         while (current != null)
         {
@@ -49,10 +49,10 @@ public class DomSelectorGenerator : ISelectorGenerator
             }
 
             string part = GetSimpleSelector(current);
-            var parent = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            var parent = CdpVisualTreeHelper.GetParent(current, useLogicalTree);
             if (parent != null)
             {
-                var siblings = (useLogicalTree ? SelectorEngine.GetLogicalChildren(parent) : parent.GetVisualChildren()).ToList();
+                var siblings = CdpVisualTreeHelper.GetChildren(parent, useLogicalTree).ToList();
                 int sameTypeCount = 0;
                 foreach (var sib in siblings)
                 {
@@ -69,18 +69,18 @@ public class DomSelectorGenerator : ISelectorGenerator
             }
 
             pathParts.Insert(0, part);
-            current = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            current = CdpVisualTreeHelper.GetParent(current, useLogicalTree);
         }
 
         var parts = new List<string> { targetPart };
-        current = useLogicalTree ? SelectorEngine.GetLogicalParent(visual) : visual.GetVisualParent();
+        current = CdpVisualTreeHelper.GetParent(visual, useLogicalTree);
         while (current != null)
         {
             string part = GetSimpleSelector(current);
-            var parent = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            var parent = CdpVisualTreeHelper.GetParent(current, useLogicalTree);
             if (parent != null)
             {
-                var siblings = (useLogicalTree ? SelectorEngine.GetLogicalChildren(parent) : parent.GetVisualChildren()).ToList();
+                var siblings = CdpVisualTreeHelper.GetChildren(parent, useLogicalTree).ToList();
                 int sameTypeCount = 0;
                 foreach (var sib in siblings)
                 {
@@ -97,7 +97,7 @@ public class DomSelectorGenerator : ISelectorGenerator
             }
 
             parts.Insert(0, part);
-            current = useLogicalTree ? SelectorEngine.GetLogicalParent(current) : current.GetVisualParent();
+            current = CdpVisualTreeHelper.GetParent(current, useLogicalTree);
         }
 
         return string.Join(" > ", parts);

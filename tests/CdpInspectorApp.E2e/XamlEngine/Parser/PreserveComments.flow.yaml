@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify AST parsing preserves XML comments and their relative positions
+---
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#treeWorkspaceFiles'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor.Text.Contains('<!--')

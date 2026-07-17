@@ -3,10 +3,26 @@ description: "Explore the workspace files explorer tree, perform workspace searc
 ---
 - runFlow: "shared/navigate_to_sources.yaml"
 - assertVisible: "#treeWorkspaceFiles"
+- evalScript: |
+    var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;
+    var box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesSearch");
+    if (box != null) {
+        var tab = null;
+        for (var i = 0; i < box.Tabs.Count; i++) {
+            if (box.Tabs[i].SelectedViewName == "SourcesSearch") {
+                tab = box.Tabs[i];
+                break;
+            }
+        }
+        if (tab != null) {
+            box.ActiveTab = tab;
+        }
+    }
+- delay: "300"
 - assertVisible: "#txtSourcesSearch"
 - inputText:
     selector: "#txtSourcesSearch"
     text: "flow"
 - tapOn: "#btnSearchWorkspace"
-- delay: "1000"
+- delay: "400"
 - assertVisible: "#dgSearchResults"

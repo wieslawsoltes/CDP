@@ -46,6 +46,21 @@ public class AvaloniaCdpTarget : ICdpTarget
 public static class CdpServer
 {
     private static readonly ConcurrentDictionary<TopLevel, AvaloniaCdpTarget> _targets = new();
+    private static TopLevel? _primaryWindow;
+
+    public static TopLevel? GetPrimaryWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var mainWin = desktop.MainWindow;
+            if (mainWin != null) return mainWin;
+        }
+        if (_primaryWindow != null && _targets.ContainsKey(_primaryWindow))
+        {
+            return _primaryWindow;
+        }
+        return _targets.Keys.FirstOrDefault();
+    }
 
     public static int Port => Chrome.DevTools.Protocol.CdpServer.Port;
     public static System.IO.TextWriter OriginalOut => Chrome.DevTools.Protocol.CdpServer.OriginalOut;
@@ -137,6 +152,7 @@ public static class CdpServer
         CdpDomainRegistry.Register("Debugger", (s, a, p) => Domains.DebuggerDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("WebMCP", (s, a, p) => Domains.WebMcpDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("Mvvm", (s, a, p) => Domains.MvvmDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("XamlLsp", (s, a, p) => Domains.XamlLspDomain.HandleAsync((CdpSession)s, a, p));
 
         Window.WindowOpenedEvent.AddClassHandler<Window>((w, e) =>
         {
@@ -191,6 +207,10 @@ public static class CdpServer
 
     public static string Register(TopLevel window, string title)
     {
+        if (_primaryWindow == null)
+        {
+            _primaryWindow = window;
+        }
         var target = _targets.GetOrAdd(window, w => new AvaloniaCdpTarget(w, Guid.NewGuid().ToString(), title));
         return Chrome.DevTools.Protocol.CdpServer.Register(target);
     }
@@ -200,12 +220,20 @@ public static class CdpServer
         if (_targets.TryRemove(window, out var target))
         {
             Chrome.DevTools.Protocol.CdpServer.Unregister(target);
+            if (_primaryWindow == window)
+            {
+                _primaryWindow = _targets.Keys.FirstOrDefault();
+            }
         }
     }
 
     public static AvaloniaCdpTarget GetOrCreateTarget(TopLevel window)
     {
         _ = Port;
+        if (_primaryWindow == null)
+        {
+            _primaryWindow = window;
+        }
         return _targets.GetOrAdd(window, w =>
         {
             var target = new AvaloniaCdpTarget(w, Guid.NewGuid().ToString(), (w as Window)?.Title ?? w.GetType().Name);
@@ -217,6 +245,10 @@ public static class CdpServer
     public static AvaloniaCdpTarget GetOrCreateTarget(TopLevel window, string targetId)
     {
         _ = Port;
+        if (_primaryWindow == null)
+        {
+            _primaryWindow = window;
+        }
         return _targets.GetOrAdd(window, w =>
         {
             var target = new AvaloniaCdpTarget(w, targetId, (w as Window)?.Title ?? w.GetType().Name);

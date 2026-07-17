@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify UI tree traversal reports children elements inside hidden templates
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

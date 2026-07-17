@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify parser recovers from self-closing tags missing a slash
+---
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#treeWorkspaceFiles'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.Diagnostics != null

@@ -1,0 +1,34 @@
+appId: "CdpInspectorApp"
+description: "Verify typing in the visual Markdown editor and debounced auto-saving"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_sources.yaml"
+- assertVisible: "#treeWorkspaceFiles"
+- evalScript: |
+    var vm = Window.DataContext;
+    var markdownFile = null;
+    var files = vm.Sources.WorkspaceFiles;
+    for (var i = 0; i < files.Count; i++) {
+        var f = files[i];
+        if (!f.IsDirectory && f.Name.indexOf(".md") !== -1) {
+            markdownFile = f;
+            break;
+        }
+    }
+    if (markdownFile != null) {
+        vm.Sources.SelectedFile = markdownFile;
+    }
+- delay: "500"
+- evalScript: |
+    var vm = Window.DataContext;
+    vm.Sources.SelectedFileContent = "# Header\nInitial text.";
+- delay: "300"
+- assertVisible: "#btnToggleMarkdownMode"
+- assertVisible: "#mdVisualEditor"
+- inputText:
+    selector: "#mdVisualEditor"
+    text: "\n## Sub-Header Added"
+- delay: "1000"
+- assertTrue: "Window.DataContext.Sources.SelectedFileContent.indexOf('Sub-Header Added') !== -1"
+- assertTrue: "document.querySelector('#mdVisualEditor').value.indexOf('Sub-Header Added') !== -1"
+- assertTrue: "document.querySelector('#txtSourceContent').value.indexOf('Sub-Header Added') !== -1"

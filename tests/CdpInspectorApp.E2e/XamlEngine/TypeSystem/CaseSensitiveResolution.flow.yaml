@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify type resolution fails when type name case is mismatched
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

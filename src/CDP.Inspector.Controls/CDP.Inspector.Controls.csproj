@@ -9,6 +9,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,10 +17,14 @@
     <PackageReference Include="Avalonia.AvaloniaEdit" />
     <PackageReference Include="AvaloniaEdit.TextMate" />
     <PackageReference Include="TextMateSharp.Grammars" />
+    <PackageReference Include="SkiaSharp" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../CDP.Editor.Splits/CDP.Editor.Splits.csproj" />
+    <ProjectReference Include="../CDP.Html.Parser/CDP.Html.Parser.csproj" />
+    <ProjectReference Include="../CDP.Css.Parser/CDP.Css.Parser.csproj" />
+    <ProjectReference Include="../CDP.Html.Renderer/CDP.Html.Renderer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

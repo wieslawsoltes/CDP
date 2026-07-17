@@ -1,0 +1,8 @@
+appId: CdpInspectorApp
+description: Verify modifying attributes of commented-out elements does not mutate
+  source
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode != null

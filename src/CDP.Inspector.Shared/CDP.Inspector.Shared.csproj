@@ -33,6 +33,11 @@
     <ProjectReference Include="../CDP.Editor.Splits/CDP.Editor.Splits.csproj" />
     <ProjectReference Include="../CDP.Inspector.Controls/CDP.Inspector.Controls.csproj" />
     <ProjectReference Include="../CDP.Profiling.Analysis/CDP.Profiling.Analysis.csproj" />
+    <ProjectReference Include="../CDP.Xaml.LanguageServer/CDP.Xaml.LanguageServer.csproj" />
+    <ProjectReference Include="../CDP.CSharp.LanguageServer/CDP.CSharp.LanguageServer.csproj" />
+    <ProjectReference Include="../CDP.Markdown.Editor/CDP.Markdown.Editor.csproj" />
+    <ProjectReference Include="../CDP.Inspector.Wysiwyg/CDP.Inspector.Wysiwyg.csproj" />
+    <ProjectReference Include="../CDP.Document.Editor/CDP.Document.Editor.csproj" />
   </ItemGroup>
 
   <ItemGroup>

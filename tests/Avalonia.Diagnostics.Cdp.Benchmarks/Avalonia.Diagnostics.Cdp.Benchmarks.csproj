@@ -17,6 +17,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Avalonia.Diagnostics.Cdp\Avalonia.Diagnostics.Cdp.csproj" />
     <ProjectReference Include="..\..\src\Chrome.DevTools.Protocol\Chrome.DevTools.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Markdown.Parser\CDP.Markdown.Parser.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Document.Parser\CDP.Document.Parser.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Html.Parser\CDP.Html.Parser.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Html.Renderer\CDP.Html.Renderer.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Css.Parser\CDP.Css.Parser.csproj" />
   </ItemGroup>
 
 </Project>

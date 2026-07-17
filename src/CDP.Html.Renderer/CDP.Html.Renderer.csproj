@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Chrome.DevTools.Html.Renderer</PackageId>
+    <Title>Chrome.DevTools.Html.Renderer</Title>
+    <Description>SkiaSharp-based HTML/CSS rendering engine supporting style cascade, box tree layouts, and flexbox.</Description>
+    <PackageTags>html;css;renderer;skia;cdp;layout</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CDP.Html.Parser\CDP.Html.Parser.csproj" />
+    <ProjectReference Include="..\CDP.Css.Parser\CDP.Css.Parser.csproj" />
+  </ItemGroup>
+
+</Project>

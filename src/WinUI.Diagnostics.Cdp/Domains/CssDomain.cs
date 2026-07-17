@@ -58,32 +58,29 @@ public static class CssDomain
             case "setStyleTexts":
                 {
                     var edits = @params["edits"] as JsonArray;
-                    var styles = await session.Window!.DispatcherQueue.InvokeAsync(() =>
+                    var list = new JsonArray();
+                    if (edits != null)
                     {
-                        var list = new JsonArray();
-                        if (edits != null)
+                        foreach (var editNode in edits)
                         {
-                            foreach (var editNode in edits)
+                            if (editNode is JsonObject edit)
                             {
-                                if (editNode is JsonObject edit)
+                                string text = edit["text"]?.GetValue<string>() ?? "";
+                                var sheetId = edit["styleSheetId"]?.GetValue<string>() ?? "";
+                                if (int.TryParse(sheetId, out int nodeId))
                                 {
-                                    string text = edit["text"]?.GetValue<string>() ?? "";
-                                    var sheetId = edit["styleSheetId"]?.GetValue<string>() ?? "";
-                                    if (int.TryParse(sheetId, out int nodeId))
+                                    var visual = session.NodeMap.GetVisual(nodeId);
+                                    if (visual is FrameworkElement ctrl)
                                     {
-                                        var visual = session.NodeMap.GetVisual(nodeId);
-                                        if (visual is FrameworkElement ctrl)
-                                        {
-                                            ApplyStyleText(ctrl, text);
-                                            list.Add(GetInlineStyle(ctrl, nodeId));
-                                        }
+                                        await ApplyStyleTextAsync(session, ctrl, text);
+                                        var inlineStyle = await session.Window!.DispatcherQueue.InvokeAsync(() => GetInlineStyle(ctrl, nodeId));
+                                        list.Add(inlineStyle);
                                     }
                                 }
                             }
                         }
-                        return list;
-                    });
-                    return new JsonObject { ["styles"] = styles };
+                    }
+                    return new JsonObject { ["styles"] = list };
                 }
 
             case "createStyleSheet":
@@ -212,7 +209,46 @@ public static class CssDomain
         };
     }
 
-    private static void ApplyStyleText(FrameworkElement element, string text)
+    private static async Task ApplyStyleTextAsync(CdpSession session, FrameworkElement element, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        // 1. Run live UI update on dispatcher thread
+        await session.Window!.DispatcherQueue.InvokeAsync(() =>
+        {
+            ApplyStyleLive(element, text);
+        });
+
+        // 2. Run AST/file mutation on background/current thread
+        if (session.MutationEngine != null && session.MutationEngine.CanMutate(element))
+        {
+            var decls = text.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var decl in decls)
+            {
+                int colonIndex = decl.IndexOf(':');
+                if (colonIndex < 0) continue;
+
+                string name = decl.Substring(0, colonIndex).Trim();
+                string valStr = decl.Substring(colonIndex + 1).Trim();
+
+                string propName = name switch
+                {
+                    "width" => "Width",
+                    "height" => "Height",
+                    "opacity" => "Opacity",
+                    "background" => "Background",
+                    "background-color" => "Background",
+                    "font-size" => "FontSize",
+                    "font-family" => "FontFamily",
+                    _ => name
+                };
+
+                await session.MutationEngine.SetAttributeAsync(element, propName, valStr);
+            }
+        }
+    }
+
+    private static void ApplyStyleLive(FrameworkElement element, string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
 

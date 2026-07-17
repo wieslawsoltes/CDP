@@ -1,0 +1,257 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:CDP.FluentNavigation"
+        xmlns:media="clr-namespace:Avalonia.Media;assembly=Avalonia.Base">
+
+    <Styles.Resources>
+        <StreamGeometry x:Key="ChevronLeftIcon">M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z</StreamGeometry>
+        <StreamGeometry x:Key="MenuIcon">M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z</StreamGeometry>
+        <StreamGeometry x:Key="SettingsIcon">M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z</StreamGeometry>
+    </Styles.Resources>
+
+    <!-- NavigationViewItemHeader -->
+    <Style Selector="controls|NavigationViewItemHeader">
+        <Setter Property="Foreground" Value="#8ab4f8"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="12,8,8,4"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  Padding="{TemplateBinding Padding}"/>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="controls|NavigationView[IsPaneOpen=false] controls|NavigationViewItemHeader">
+        <Setter Property="Opacity" Value="0"/>
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
+    <!-- NavigationViewItemSeparator -->
+    <Style Selector="controls|NavigationViewItemSeparator">
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="Background" Value="#3c4043"/>
+        <Setter Property="Margin" Value="8,4"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Height="{TemplateBinding Height}"
+                        Background="{TemplateBinding Background}"
+                        Margin="{TemplateBinding Margin}"/>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!-- NavigationViewItem -->
+    <Style Selector="controls|NavigationViewItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="#e8eaed"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_RootBorder"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                    <Grid ColumnDefinitions="Auto, *, Auto" Margin="{TemplateBinding Padding}">
+                        <!-- Icon -->
+                        <ContentPresenter Grid.Column="0"
+                                          Name="PART_IconPresenter"
+                                          Content="{TemplateBinding Icon}"
+                                          IsVisible="{TemplateBinding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                          VerticalAlignment="Center">
+                            <ContentPresenter.DataTemplates>
+                                <DataTemplate DataType="x:String">
+                                    <PathIcon Data="{Binding}" Width="16" Height="16"/>
+                                </DataTemplate>
+                                <DataTemplate DataType="media:Geometry">
+                                    <PathIcon Data="{Binding}" Width="16" Height="16"/>
+                                </DataTemplate>
+                            </ContentPresenter.DataTemplates>
+                        </ContentPresenter>
+                        
+                        <!-- Content -->
+                        <Border Grid.Column="1"
+                                Name="PART_TextWrapper"
+                                ClipToBounds="True"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                MaxWidth="200">
+
+                            <ContentPresenter Name="PART_ContentPresenter"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              Margin="12,0,0,0"/>
+                        </Border>
+
+                        <!-- InfoBadge -->
+                        <ContentPresenter Grid.Column="2"
+                                          Name="PART_InfoBadgePresenter"
+                                          Content="{TemplateBinding InfoBadge}"
+                                          IsVisible="{TemplateBinding InfoBadge, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                          VerticalAlignment="Center"
+                                          Margin="8,0,0,0">
+                        </ContentPresenter>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!-- Hover & Selection States for NavigationViewItem -->
+    <Style Selector="controls|NavigationViewItem:pointerover /template/ Border#PART_RootBorder">
+        <Setter Property="Background" Value="#35363a"/>
+    </Style>
+
+    <Style Selector="controls|NavigationViewItem:selected /template/ Border#PART_RootBorder">
+        <Setter Property="Background" Value="#252526"/>
+    </Style>
+    <Style Selector="controls|NavigationViewItem:selected /template/ ContentPresenter#PART_IconPresenter">
+        <Setter Property="Foreground" Value="#8ab4f8"/>
+    </Style>
+    <Style Selector="controls|NavigationViewItem:selected">
+        <Setter Property="Foreground" Value="#8ab4f8"/>
+    </Style>
+
+    <Style Selector="controls|NavigationViewItem:selected:pointerover /template/ Border#PART_RootBorder">
+        <Setter Property="Background" Value="#303134"/>
+    </Style>
+
+    <!-- Fade out text inside item when closed -->
+    <Style Selector="controls|NavigationView[IsPaneOpen=false] controls|NavigationViewItem /template/ Border#PART_TextWrapper">
+        <Setter Property="Opacity" Value="0"/>
+        <Setter Property="MaxWidth" Value="0"/>
+    </Style>
+
+    <Style Selector="controls|NavigationView[IsPaneOpen=false] controls|NavigationViewItem /template/ ContentPresenter#PART_InfoBadgePresenter">
+        <Setter Property="Opacity" Value="0"/>
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
+
+    <!-- NavigationView -->
+    <Style Selector="controls|NavigationView">
+        <Setter Property="Background" Value="#121212"/>
+        <Setter Property="Foreground" Value="#e8eaed"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid RowDefinitions="Auto, *">
+                    <!-- Top Bar -->
+                    <Grid Grid.Row="0" Name="PART_TopBar" ColumnDefinitions="Auto, Auto, *, Auto" Height="48" Background="#1e1e1e">
+                        <!-- Back Button -->
+                        <Button Name="PART_BackButton"
+                                Grid.Column="0"
+                                IsVisible="{TemplateBinding ShowBackButton}"
+                                Width="36"
+                                Height="36"
+                                Margin="6,0"
+                                VerticalAlignment="Center"
+                                Background="Transparent"
+                                BorderThickness="0">
+                            <PathIcon Data="{StaticResource ChevronLeftIcon}" Width="16" Height="16"/>
+                        </Button>
+                        
+                        <!-- Toggle Button -->
+                        <ToggleButton Name="PART_PaneToggleButton"
+                                      Grid.Column="1"
+                                      IsChecked="{TemplateBinding IsPaneOpen, Mode=TwoWay}"
+                                      Width="36"
+                                      Height="36"
+                                      Margin="6,0"
+                                      VerticalAlignment="Center"
+                                      Background="Transparent"
+                                      BorderThickness="0">
+                            <PathIcon Data="{StaticResource MenuIcon}" Width="16" Height="16"/>
+                        </ToggleButton>
+                        
+                        <!-- Title/Header -->
+                        <ContentPresenter Grid.Column="2"
+                                          Content="{TemplateBinding Header}"
+                                          VerticalAlignment="Center"
+                                          Margin="12,0"
+                                          FontSize="16"
+                                          FontWeight="SemiBold"/>
+                    </Grid>
+
+                    <!-- Pane & Content Grid -->
+                    <Grid Grid.Row="1" ColumnDefinitions="Auto, *">
+                        <!-- Navigation Pane -->
+                        <Border Name="PART_PaneBorder"
+                                Grid.Column="0"
+                                Background="#1e1e1e"
+                                BorderBrush="#2d2d2d"
+                                BorderThickness="0,0,1,0"
+                                ClipToBounds="True">
+
+                            
+                            <Grid RowDefinitions="Auto, *, Auto">
+                                <!-- Pane Header -->
+                                <ContentPresenter Grid.Row="0"
+                                                  Content="{TemplateBinding PaneHeader}"
+                                                  Margin="12,8"/>
+                                
+                                <!-- Menu Items List -->
+                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                    <controls:NavigationViewListBox Name="PART_MenuItemsListBox"
+                                                                     Background="Transparent"
+                                                                     BorderThickness="0"
+                                                                     Padding="4"/>
+                                </ScrollViewer>
+
+                                <!-- Footer Items List -->
+                                <StackPanel Grid.Row="2" Spacing="2" Margin="4">
+                                    <controls:NavigationViewListBox Name="PART_FooterMenuItemsListBox"
+                                                                     Background="Transparent"
+                                                                     BorderThickness="0"/>
+                                    
+                                    <ContentPresenter Content="{TemplateBinding PaneFooter}" Margin="8,0"/>
+                                    
+                                    <controls:NavigationViewItem Name="PART_SettingsItem"
+                                                                 Icon="{StaticResource SettingsIcon}"
+                                                                 Content="Settings"
+                                                                 IsVisible="{TemplateBinding IsSettingsVisible}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Content Viewport -->
+                        <Border Grid.Column="1" Background="{TemplateBinding Background}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!-- NavigationView States / Width changes based on PaneDisplayMode & IsPaneOpen -->
+    
+    <!-- Expanded Mode (Default Width = OpenPaneLength, closed = CompactPaneLength) -->
+    <Style Selector="controls|NavigationView[PaneDisplayMode=Expanded] /template/ Border#PART_PaneBorder">
+        <Setter Property="Width" Value="{Binding $parent[controls:NavigationView].OpenPaneLength}"/>
+    </Style>
+    <Style Selector="controls|NavigationView[PaneDisplayMode=Expanded][IsPaneOpen=false] /template/ Border#PART_PaneBorder">
+        <Setter Property="Width" Value="{Binding $parent[controls:NavigationView].CompactPaneLength}"/>
+    </Style>
+
+    <!-- Compact Mode -->
+    <Style Selector="controls|NavigationView[PaneDisplayMode=Compact] /template/ Border#PART_PaneBorder">
+        <Setter Property="Width" Value="{Binding $parent[controls:NavigationView].OpenPaneLength}"/>
+    </Style>
+    <Style Selector="controls|NavigationView[PaneDisplayMode=Compact][IsPaneOpen=false] /template/ Border#PART_PaneBorder">
+        <Setter Property="Width" Value="{Binding $parent[controls:NavigationView].CompactPaneLength}"/>
+    </Style>
+
+    <!-- Minimal Mode -->
+    <Style Selector="controls|NavigationView[PaneDisplayMode=Minimal] /template/ Border#PART_PaneBorder">
+        <Setter Property="Width" Value="{Binding $parent[controls:NavigationView].OpenPaneLength}"/>
+    </Style>
+    <Style Selector="controls|NavigationView[PaneDisplayMode=Minimal][IsPaneOpen=false] /template/ Border#PART_PaneBorder">
+        <Setter Property="Width" Value="0"/>
+    </Style>
+
+</Styles>

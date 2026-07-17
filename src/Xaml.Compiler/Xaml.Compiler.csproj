@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Xaml.Compiler</PackageId>
+    <Title>Xaml.Compiler</Title>
+    <Description>Core XAML Type System, Lossless AST Parser, and Mutation Engine.</Description>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>xaml;compiler;parser;ast;mutation-engine</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Chrome.DevTools.Protocol/Mutation/INodeMap.cs" Link="Mutation/INodeMap.cs" />
+  </ItemGroup>
+</Project>

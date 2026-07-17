@@ -1,0 +1,13 @@
+appId: CdpInspectorApp
+description: Verify mutation engine removes attribute from XAML node in AST
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- inputText:
+    selector: '#txtAttrName'
+    text: Tag
+- tapOn: '#btnDeleteAttr'
+- delay: 1000
+- assertTrue: '!Window.DataContext.Elements.SelectedNode.Attributes.Any(a => a.Name
+    == ''Tag'')'

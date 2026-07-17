@@ -62,7 +62,7 @@ public static class CssDomain
             case "setStyleTexts":
                 {
                     var edits = @params["edits"] as JsonArray;
-                    var styles = await Dispatcher.UIThread.InvokeAsync(() =>
+                    var styles = await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
                         var list = new JsonArray();
                         if (edits != null)
@@ -78,7 +78,7 @@ public static class CssDomain
                                         var visual = session.NodeMap.GetVisual(nodeId);
                                         if (visual is Control control)
                                         {
-                                            ApplyStyleText(control, text);
+                                            await ApplyStyleTextAsync(session, control, text);
                                             list.Add(GetInlineStyle(control, nodeId));
                                         }
                                     }
@@ -99,14 +99,14 @@ public static class CssDomain
                 {
                     string sheetId = @params["styleSheetId"]?.GetValue<string>() ?? "";
                     string text = @params["text"]?.GetValue<string>() ?? "";
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
                         if (int.TryParse(sheetId, out int nodeId))
                         {
                             var visual = session.NodeMap.GetVisual(nodeId);
                             if (visual is Control control)
                             {
-                                ApplyStyleText(control, text);
+                                await ApplyStyleTextAsync(session, control, text);
                             }
                         }
                     });
@@ -336,14 +336,14 @@ public static class CssDomain
                 {
                     string sheetId = @params["styleSheetId"]?.GetValue<string>() ?? "";
                     string ruleText = @params["ruleText"]?.GetValue<string>() ?? "";
-                    var rule = await Dispatcher.UIThread.InvokeAsync(() =>
+                    var rule = await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
                         if (int.TryParse(sheetId, out int nodeId))
                         {
                             var visual = session.NodeMap.GetVisual(nodeId);
                             if (visual is Control control)
                             {
-                                ApplyStyleText(control, ruleText);
+                                await ApplyStyleTextAsync(session, control, ruleText);
                                 var inlineStyle = GetInlineStyle(control, nodeId);
                                 return new JsonObject
                                 {
@@ -774,7 +774,7 @@ public static class CssDomain
         return new Thickness();
     }
 
-    private static void ApplyStyleText(Control control, string styleText)
+    private static async Task ApplyStyleTextAsync(CdpSession session, Control control, string styleText)
     {
         var statements = styleText.Split(';', StringSplitOptions.RemoveEmptyEntries);
         foreach (var statement in statements)
@@ -850,11 +850,12 @@ public static class CssDomain
                     currentThickness = t;
                 }
 
+                string? newThicknessStr = null;
                 if (string.IsNullOrEmpty(component))
                 {
                     // Shorthand margin/padding/border
                     Thickness parsedThickness = ParseCssThickness(rawValue);
-                    string newThicknessStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", 
+                    newThicknessStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", 
                         parsedThickness.Left, parsedThickness.Top, parsedThickness.Right, parsedThickness.Bottom);
                     SetControlProperty(control, basePropName, newThicknessStr);
                 }
@@ -881,8 +882,13 @@ public static class CssDomain
                         case "left": left = valDouble; break;
                     }
 
-                    string newThicknessStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", left, top, right, bottom);
+                    newThicknessStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", left, top, right, bottom);
                     SetControlProperty(control, basePropName, newThicknessStr);
+                }
+
+                if (newThicknessStr != null && session.MutationEngine != null)
+                {
+                    await session.MutationEngine.SetAttributeAsync(control, basePropName, newThicknessStr);
                 }
             }
             else
@@ -901,6 +907,11 @@ public static class CssDomain
                 };
 
                 SetControlProperty(control, propName, normalizedValue);
+
+                if (session.MutationEngine != null)
+                {
+                    await session.MutationEngine.SetAttributeAsync(control, propName, normalizedValue);
+                }
             }
         }
     }

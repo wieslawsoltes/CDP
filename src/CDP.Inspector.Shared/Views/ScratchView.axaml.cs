@@ -34,7 +34,6 @@ public partial class ScratchView : UserControl
         else if (control.Parent is SuperSplitBox splitBox)
         {
             splitBox.InnerContent = null;
-            splitBox.UpdateLayout();
         }
     }
 

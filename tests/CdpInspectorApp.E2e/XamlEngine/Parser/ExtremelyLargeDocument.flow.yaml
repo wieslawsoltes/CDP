@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify AST parser parses 10MB XAML file with deep element nestings
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

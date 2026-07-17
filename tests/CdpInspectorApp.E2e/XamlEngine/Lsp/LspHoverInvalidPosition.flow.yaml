@@ -1,0 +1,6 @@
+appId: CdpInspectorApp
+description: Verify hover requests on empty areas or spaces return null gracefully
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

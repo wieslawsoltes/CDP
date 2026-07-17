@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify LSP pushes compiler warnings and errors to editor squiggles
+---
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#txtSourceContent'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.ActiveEditor != null

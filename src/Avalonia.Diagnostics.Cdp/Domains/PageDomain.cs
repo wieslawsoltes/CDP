@@ -957,7 +957,7 @@ public static class PageDomain
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[CDP] CaptureScreenshotAsync failed, returning fallback mock image: {ex.Message}");
+                Console.WriteLine($"[CDP] CaptureScreenshotAsync failed, returning fallback mock image: {ex.Message}\n{ex.StackTrace}");
             }
 
             // Return a 1x1 fallback mock PNG base64 string

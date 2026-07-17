@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Chrome.DevTools.Css.Parser</PackageId>
+    <Title>Chrome.DevTools.Css.Parser</Title>
+    <Description>CSS stylesheets and selectors parser library.</Description>
+    <PackageTags>css;parser;cdp;stylesheet;ast</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+</Project>

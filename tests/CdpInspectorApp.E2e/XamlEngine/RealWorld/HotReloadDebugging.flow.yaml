@@ -1,0 +1,17 @@
+appId: CdpInspectorApp
+description: Simulate live code edit in workspace sources view, saving file, and verifying
+  dynamic hot-reload updates
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- inputText:
+    selector: '#txtAttrName'
+    text: Height
+- inputText:
+    selector: '#txtAttrValue'
+    text: '600'
+- tapOn: '#btnApplyAttr'
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.SelectedNode.Attributes.Any(a => a.Name
+    == 'Height' && a.Value == '600')

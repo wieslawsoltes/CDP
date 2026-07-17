@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:controls="clr-namespace:CdpInspectorApp.Controls;assembly=CDP.Inspector.Controls"
+             x:Class="CdpGalleryApp.Views.HtmlPage"
+             x:DataType="vm:HtmlPageViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto, *">
+        <!-- Toolbar header -->
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                <TextBlock Text="HTML/CSS Live Playground" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#4caf50"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Workspace split -->
+        <Grid Grid.Row="1" ColumnDefinitions="*, 4, *">
+            <!-- Left Side: Source Code Editors -->
+            <Grid Grid.Column="0" RowDefinitions="*, 4, *" Margin="12">
+                <!-- HTML Editor -->
+                <Grid Grid.Row="0" RowDefinitions="Auto, *">
+                    <TextBlock Grid.Row="0" Text="Raw HTML Source" FontSize="11" Foreground="#9aa0a6" Margin="0,0,0,6"/>
+                    <TextBox Grid.Row="1"
+                             Text="{Binding HtmlText, Mode=TwoWay}"
+                             AcceptsReturn="True"
+                             AcceptsTab="True"
+                             FontFamily="Courier New"
+                             FontSize="12"
+                             Foreground="#e8eaed"
+                             Background="#161616"
+                             BorderBrush="#2d2d2d"
+                             BorderThickness="1"
+                             CornerRadius="4"
+                             TextWrapping="Wrap"/>
+                </Grid>
+
+                <GridSplitter Grid.Row="1" Background="#2d2d2d" ResizeDirection="Rows" Margin="0,4"/>
+
+                <!-- CSS Editor -->
+                <Grid Grid.Row="2" RowDefinitions="Auto, *">
+                    <TextBlock Grid.Row="0" Text="CSS Stylesheet" FontSize="11" Foreground="#9aa0a6" Margin="0,0,0,6"/>
+                    <TextBox Grid.Row="1"
+                             Text="{Binding CssText, Mode=TwoWay}"
+                             AcceptsReturn="True"
+                             AcceptsTab="True"
+                             FontFamily="Courier New"
+                             FontSize="12"
+                             Foreground="#e8eaed"
+                             Background="#161616"
+                             BorderBrush="#2d2d2d"
+                             BorderThickness="1"
+                             CornerRadius="4"
+                             TextWrapping="Wrap"/>
+                </Grid>
+            </Grid>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Background="#2d2d2d" ResizeDirection="Columns"/>
+
+            <!-- Right Side: Live HTML Renderer Canvas -->
+            <Grid Grid.Column="2" RowDefinitions="Auto, *" Margin="12">
+                <TextBlock Grid.Row="0" Text="Live Skia Canvas Preview" FontSize="11" Foreground="#9aa0a6" Margin="0,0,0,6"/>
+                <Border Grid.Row="1" Background="#1c1c1c" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="4" Padding="8">
+                    <controls:HtmlCanvas HtmlText="{Binding HtmlText}" CssText="{Binding CssText}" ClipToBounds="True"/>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

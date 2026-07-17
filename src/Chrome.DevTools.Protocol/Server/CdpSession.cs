@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Jint;
+using Xaml.Compiler.Mutation;
 
 namespace Chrome.DevTools.Protocol;
 
@@ -46,6 +47,7 @@ public class CdpSession : IDisposable
     public bool DiscoverTargetsEnabled { get; set; }
     public bool AutoAttachEnabled { get; set; }
     public bool WaitForDebuggerOnStart { get; set; }
+    public IMutationEngine? MutationEngine { get; set; }
     public bool IsDomEnabled => CurrentTargetSession?.IsDomEnabled ?? false;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument => CurrentTargetSession?.ScriptsToEvaluateOnNewDocument ?? _dummyScripts;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocumentWorlds => CurrentTargetSession?.ScriptsToEvaluateOnNewDocumentWorlds ?? _dummyScripts;
@@ -357,6 +359,14 @@ public class CdpSession : IDisposable
                 var jsonStr = Encoding.UTF8.GetString(ms.ToArray());
                 await HandleMessageAsync(jsonStr);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("[CDP SERVER] Session closed: Canceled");
+        }
+        catch (WebSocketException wsex)
+        {
+            Console.WriteLine($"[CDP SERVER] Session closed: WebSocket connection closed ({wsex.Message})");
         }
         catch (Exception ex)
         {

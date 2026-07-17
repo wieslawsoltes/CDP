@@ -12,6 +12,8 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.LogicalTree;
 using Chrome.DevTools.Protocol;
+using Xaml.Compiler.Mutation;
+using Avalonia.Diagnostics.Cdp.Adapters;
 
 namespace Avalonia.Diagnostics.Cdp;
 
@@ -24,11 +26,56 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
 
     private WeakReference<TopLevel>? _activeWindowOverride;
 
+    private class ActiveSessionNodeMapWrapper : INodeMap
+    {
+        private readonly CdpSession _session;
+        public ActiveSessionNodeMapWrapper(CdpSession session) => _session = session;
+        public bool TryGetId(object node, out int id) => ((INodeMap)_session.NodeMap).TryGetId(node, out id);
+        public void UpdateNodeMapping(int id, object newNode) => ((INodeMap)_session.NodeMap).UpdateNodeMapping(id, newNode);
+    }
+
     public CdpSession(WebSocket webSocket, TopLevel? window) 
         : base(webSocket, window != null ? CdpServer.GetOrCreateTarget(window) : null)
     {
         _window = window;
         CdpServer.EnsureInitialized();
+        var wrapper = new ActiveSessionNodeMapWrapper(this);
+        MutationEngine = new LosslessXamlMutationEngine(new AvaloniaUiFrameworkAdapter(wrapper), wrapper, (file, diags) => SendDiagnostics(file, diags));
+    }
+
+    private void SendDiagnostics(string file, System.Collections.Generic.List<Xaml.Compiler.Ast.Diagnostic> diags)
+    {
+        var diagArray = new JsonArray();
+        foreach (var diag in diags)
+        {
+            diagArray.Add(new JsonObject
+            {
+                ["code"] = diag.Code,
+                ["message"] = diag.Message,
+                ["severity"] = diag.Severity.ToString(),
+                ["range"] = new JsonObject
+                {
+                    ["start"] = new JsonObject
+                    {
+                        ["offset"] = diag.Span.Start.Offset,
+                        ["line"] = diag.Span.Start.Line,
+                        ["column"] = diag.Span.Start.Column
+                    },
+                    ["end"] = new JsonObject
+                    {
+                        ["offset"] = diag.Span.End.Offset,
+                        ["line"] = diag.Span.End.Line,
+                        ["column"] = diag.Span.End.Column
+                    }
+                }
+            });
+        }
+
+        _ = SendEventAsync("XamlLsp.diagnosticsUpdated", new JsonObject
+        {
+            ["file"] = file,
+            ["diagnostics"] = diagArray
+        });
     }
 
     public new CdpTargetSession? CurrentTargetSession => base.CurrentTargetSession as CdpTargetSession;

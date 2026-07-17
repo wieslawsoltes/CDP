@@ -1,0 +1,98 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+        xmlns:views="clr-namespace:CdpGalleryApp.Views"
+        xmlns:controls="clr-namespace:CDP.FluentNavigation;assembly=CDP.FluentNavigation"
+        x:Class="CdpGalleryApp.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="True"
+        Title="Premium Controls Gallery Showcase"
+        Width="1100"
+        Height="700"
+        Background="#121212"
+        RequestedThemeVariant="Dark"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <!-- Vector Icon Geometries -->
+        <StreamGeometry x:Key="MarkdownIcon">M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2M13 9V3.5L18.5 9H13M6 20V4H12V10H18V20H6</StreamGeometry>
+        <StreamGeometry x:Key="DocumentIcon">M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2M13 9V3.5L18.5 9H13M6 20V4H12V10H18V20H6</StreamGeometry>
+        <StreamGeometry x:Key="SplitIcon">M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3M19 11H13V5H19V11M11 5V19H5V5H11M13 19V13H19V19H13Z</StreamGeometry>
+        <StreamGeometry x:Key="NodeIcon">M12 2C6.5 2 2 6.5 2 12C2 17.5 6.5 22 12 22C17.5 22 22 17.5 22 12C22 6.5 17.5 2 12 2M9 16C7.3 16 6 14.7 6 13C6 11.3 7.3 10 9 10C10.7 10 12 11.3 12 13C12 14.7 10.7 16 9 16M15 14C13.3 14 12 12.7 12 11C12 9.3 13.3 8 15 8C16.7 8 18 9.3 18 11C18 12.7 16.7 14 15 14Z</StreamGeometry>
+        <StreamGeometry x:Key="AccordionIcon">M3 5H21V7H3V5M3 11H21V13H3V11M3 17H21V19H3V17Z</StreamGeometry>
+        <StreamGeometry x:Key="ChartIcon">M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3M9 17H7V10H9V17M13 17H11V7H13V17M17 17H15V12H17V17Z</StreamGeometry>
+        <StreamGeometry x:Key="ProfileIcon">M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 5C13.66 5 15 6.34 15 8C15 9.66 13.66 11 12 11C10.34 11 9 9.66 9 8C9 6.34 10.34 5 12 5ZM12 19.2C9.3 19.2 6.9 17.8 5.5 15.6C5.55 13.43 9.9 12.25 12 12.25C14.1 12.25 18.45 13.43 18.5 15.6C17.1 17.8 14.7 19.2 12 19.2Z</StreamGeometry>
+    </Window.Resources>
+
+    <Window.DataTemplates>
+        <DataTemplate DataType="vm:MarkdownPageViewModel">
+            <views:MarkdownPage/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:RichDocumentsPageViewModel">
+            <views:RichDocumentsPage/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:SplitLayoutPageViewModel">
+            <views:SplitLayoutPage/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:NodeEditorPageViewModel">
+            <views:NodeEditorPage/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:AccordionPageViewModel">
+            <views:AccordionPage/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:ChartsPageViewModel">
+            <views:ChartsPage/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:HtmlPageViewModel">
+            <views:HtmlPage/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:SettingsPageViewModel">
+            <views:SettingsPage/>
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <!-- Custom NavigationView hosting the layout shell -->
+    <controls:NavigationView Name="NavView"
+                             Header="Showcase Controls Gallery"
+                             PaneDisplayMode="Expanded"
+                             IsPaneOpen="True"
+                             IsSettingsVisible="True"
+                             Background="#121212"
+                             SelectionChanged="OnSelectionChanged"
+                             Content="{Binding CurrentPage}">
+        
+        <!-- Search Box inside Pane Header -->
+        <controls:NavigationView.PaneHeader>
+            <TextBox PlaceholderText="Search Showcase..."
+                     Background="#1e1e1e"
+                     BorderBrush="#2d2d2d"
+                     Foreground="#e8eaed"
+                     FontSize="11"
+                     Margin="6,4"/>
+        </controls:NavigationView.PaneHeader>
+
+        <!-- Navigation Menu Items -->
+        <controls:NavigationView.MenuItems>
+            <controls:NavigationViewItem Content="Markdown" Icon="{StaticResource MarkdownIcon}" Tag="Markdown" IsSelected="True"/>
+            <controls:NavigationViewItem Content="Rich Documents" Icon="{StaticResource DocumentIcon}" Tag="RichDocuments"/>
+            <controls:NavigationViewItem Content="Split Layout" Icon="{StaticResource SplitIcon}" Tag="SplitLayout"/>
+            <controls:NavigationViewItem Content="Node Editor" Icon="{StaticResource NodeIcon}" Tag="NodeEditor"/>
+            <controls:NavigationViewItem Content="Accordion" Icon="{StaticResource AccordionIcon}" Tag="Accordion"/>
+            <controls:NavigationViewItem Content="Charts" Icon="{StaticResource ChartIcon}" Tag="Charts"/>
+            <controls:NavigationViewItem Content="HTML/CSS Showcase" Icon="{StaticResource DocumentIcon}" Tag="Html"/>
+        </controls:NavigationView.MenuItems>
+
+        <!-- Profile Block inside Pane Footer -->
+        <controls:NavigationView.PaneFooter>
+            <Border Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" Padding="8" Margin="6">
+                <Grid ColumnDefinitions="Auto, *">
+                    <PathIcon Data="{StaticResource ProfileIcon}" Width="20" Height="20" Foreground="#8ab4f8"/>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Developer Profile" FontSize="11" FontWeight="Bold" Foreground="#e8eaed"/>
+                        <TextBlock Text="role: agent" FontSize="9" Foreground="#9aa0a6"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </controls:NavigationView.PaneFooter>
+    </controls:NavigationView>
+</Window>

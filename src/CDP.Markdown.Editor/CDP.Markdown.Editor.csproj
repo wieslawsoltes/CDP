@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Markdown.Editor</PackageId>
+    <Title>Chrome.DevTools.Markdown.Editor</Title>
+    <Description>Interactive Markdown editor canvas for Avalonia applications.</Description>
+    <PackageTags>avalonia;cdp;markdown;editor</PackageTags>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CDP.Markdown.Parser\CDP.Markdown.Parser.csproj" />
+    <ProjectReference Include="..\CDP.Markdown.Renderer\CDP.Markdown.Renderer.csproj" />
+  </ItemGroup>
+
+</Project>

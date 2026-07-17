@@ -31,7 +31,7 @@ public class CdpAppiumOrchestrator : IAsyncDisposable
             {
                 StartAppProcess();
                 bool opened = false;
-                for (int i = 0; i < 100; i++)
+                for (int i = 0; i < 300; i++)
                 {
                     if (IsPortOpen("127.0.0.1", _options.AppCdpPort))
                     {
@@ -46,7 +46,7 @@ public class CdpAppiumOrchestrator : IAsyncDisposable
                 }
                 if (!opened)
                 {
-                    throw new Exception($"Target application port {_options.AppCdpPort} failed to open after 10 seconds.");
+                    throw new Exception($"Target application port {_options.AppCdpPort} failed to open after 30 seconds.");
                 }
                 await Task.Delay(1500); // settle
             }
@@ -60,7 +60,7 @@ public class CdpAppiumOrchestrator : IAsyncDisposable
             {
                 StartDriverProcess();
                 bool opened = false;
-                for (int i = 0; i < 100; i++)
+                for (int i = 0; i < 300; i++)
                 {
                     if (IsPortOpen("127.0.0.1", _options.AppiumPort))
                     {
@@ -75,7 +75,7 @@ public class CdpAppiumOrchestrator : IAsyncDisposable
                 }
                 if (!opened)
                 {
-                    throw new Exception($"Appium Driver port {_options.AppiumPort} failed to open after 10 seconds.");
+                    throw new Exception($"Appium Driver port {_options.AppiumPort} failed to open after 30 seconds.");
                 }
             }
         }

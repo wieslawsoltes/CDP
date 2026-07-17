@@ -68,6 +68,14 @@ public class BiDiSession
                 await HandleMessageAsync(jsonStr);
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Graceful cancellation
+        }
+        catch (WebSocketException wsex)
+        {
+            Logger.LogInformation($"BiDi session closed: WebSocket connection closed ({wsex.Message})");
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error in BiDi session receive loop");

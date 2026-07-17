@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Chrome.DevTools.Markdown.Renderer</PackageId>
+    <Title>Chrome.DevTools.Markdown.Renderer</Title>
+    <Description>SkiaSharp-based Markdown rendering engine with layout, hit-testing, and caret support.</Description>
+    <PackageTags>markdown;renderer;skia;cdp;layout</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CDP.Markdown.Parser\CDP.Markdown.Parser.csproj" />
+    <ProjectReference Include="..\CDP.Html.Parser\CDP.Html.Parser.csproj" />
+    <ProjectReference Include="..\CDP.Css.Parser\CDP.Css.Parser.csproj" />
+    <ProjectReference Include="..\CDP.Html.Renderer\CDP.Html.Renderer.csproj" />
+  </ItemGroup>
+
+</Project>

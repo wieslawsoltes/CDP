@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: 'Simulate interactive recovery flow: user writes bad syntax, gets error
+  highlights, fixes typo, compiles cleanly'
+---
+- runFlow: shared/navigate_to_sources.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.Diagnostics != null

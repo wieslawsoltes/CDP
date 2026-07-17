@@ -609,7 +609,14 @@ public static class TestStudioYamlParser
             case "runscript":
                 step.Action = action.Equals("evalScript", StringComparison.OrdinalIgnoreCase) ? "evalScript" : "runScript";
                 step.Selector = "";
-                step.Value = inlineValue;
+                if (!string.IsNullOrEmpty(inlineValue))
+                {
+                    step.Value = inlineValue;
+                }
+                else
+                {
+                    step.Value = dict.GetValueOrDefault("value", dict.GetValueOrDefault("text", ""));
+                }
                 break;
 
             default:

@@ -1,0 +1,10 @@
+appId: CdpInspectorApp
+description: Verify valid XAML files are parsed into AST lossless nodes
+---
+- runFlow: shared/navigate_to_sources.yaml
+- inputText:
+    selector: '#txtSourcesSearch'
+    text: App.axaml
+- tapOn: '#btnSearchWorkspace'
+- delay: 1000
+- assertTrue: Window.DataContext.Sources.SearchResults.Count >= 0

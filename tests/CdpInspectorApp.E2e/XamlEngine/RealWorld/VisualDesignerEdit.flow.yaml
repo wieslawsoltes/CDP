@@ -1,0 +1,20 @@
+appId: CdpInspectorApp
+description: Simulate visual designer property editor modifying panel attributes with
+  disk and hot-reload synchronization
+---
+- runFlow: shared/navigate_to_elements.yaml
+- tapOn: '#treeDom'
+- delay: 1000
+- inputText:
+    selector: '#txtAttrName'
+    text: Width
+- inputText:
+    selector: '#txtAttrValue'
+    text: '800'
+- tapOn: '#btnApplyAttr'
+- delay: 1000
+- runFlow: shared/navigate_to_sources.yaml
+- tapOn: '#btnSaveFile'
+- delay: 1000
+- assertTrue: '!Window.DataContext.Sources.IsDirty'
+- assertTrue: Window.DataContext.Sources.ActiveEditor.Text.Contains('Width="800"')

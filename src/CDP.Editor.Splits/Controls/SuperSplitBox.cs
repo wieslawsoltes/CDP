@@ -642,6 +642,7 @@ public class SuperSplitBox : ContentControl
                 tabBorder.PointerPressed += (sender, args) =>
                 {
                     var pointerProperties = args.GetCurrentPoint(tabBorder).Properties;
+                    System.Console.WriteLine($"[CDP TAB DEBUG] Tab={tab.SelectedViewName} Pressed: Left={pointerProperties.IsLeftButtonPressed}, Right={pointerProperties.IsRightButtonPressed}, Handled={args.Handled}");
                     if (pointerProperties.IsRightButtonPressed)
                     {
                         boxNode.ActiveTab = tab;

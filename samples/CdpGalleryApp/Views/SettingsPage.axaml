@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             x:Class="CdpGalleryApp.Views.SettingsPage"
+             x:DataType="vm:SettingsPageViewModel"
+             x:CompileBindings="True">
+    
+    <Grid RowDefinitions="Auto, *">
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <TextBlock Text="Settings" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="24" Spacing="16" MaxWidth="600" HorizontalAlignment="Left">
+            <TextBlock Text="CDP Gallery Application" FontSize="18" FontWeight="Bold" Foreground="#e8eaed"/>
+            <TextBlock Text="Version 0.1.0-preview.26" FontSize="12" Foreground="#9aa0a6"/>
+            
+            <Separator Height="1" Background="#2d2d2d"/>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Chrome DevTools Protocol (CDP) Settings" FontSize="14" FontWeight="SemiBold" Foreground="#8ab4f8"/>
+                <TextBlock Text="This target application runs an in-process CDP server on port 9224. You can connect standard DevTools or the CdpInspectorApp to inspect the visual tree, trigger mouse inputs, evaluate code expression, and record automated playback scripts." FontSize="11" Foreground="#9aa0a6" TextWrapping="Wrap"/>
+            </StackPanel>
+            
+            <StackPanel Spacing="6">
+                <TextBlock Text="Supported Command-Line Parameters" FontSize="14" FontWeight="SemiBold" Foreground="#8ab4f8"/>
+                <TextBlock Text="• --headless : Starts the application in a headless mode for automated CI/CD runs." FontSize="11" Foreground="#9aa0a6"/>
+                <TextBlock Text="• --port [number] : Overrides the default port 9224 with a custom listening port." FontSize="11" Foreground="#9aa0a6"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</UserControl>

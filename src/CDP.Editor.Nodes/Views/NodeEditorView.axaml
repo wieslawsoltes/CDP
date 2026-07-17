@@ -118,14 +118,15 @@
                                 <Grid RowDefinitions="Auto, *">
                                     <!-- Title Bar -->
                                     <Border Grid.Row="0" Background="{Binding TitleBackground, FallbackValue='#35363a'}" CornerRadius="5,5,0,0" Padding="6,2" Classes="title-bar">
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="{Binding Name}"
+                                        <Grid ColumnDefinitions="Auto, *, Auto">
+                                            <PathIcon Grid.Column="0" Data="{Binding Icon}" Width="10" Height="10" Foreground="#8ab4f8" Margin="0,0,4,0" IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}"
                                                        FontSize="10"
                                                        FontWeight="Bold"
                                                        Foreground="#e8eaed"
                                                        VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="1"
+                                            <Button Grid.Column="2"
                                                     Command="{Binding $parent[UserControl].((vm:NodeEditorViewModel)DataContext).DeleteNodeCommand}"
                                                     CommandParameter="{Binding}"
                                                     Background="Transparent"
@@ -146,7 +147,12 @@
                                     <ContentPresenter Grid.Row="1" Content="{Binding Content}" Margin="6" IsVisible="{Binding Content, Converter={x:Static ObjectConverters.IsNotNull}}"/>
 
                                      <!-- Input Pins -->
-                                     <ItemsControl ItemsSource="{Binding Inputs}" Grid.RowSpan="2" HorizontalAlignment="Left" VerticalAlignment="Stretch" Focusable="False">
+                                     <ItemsControl ItemsSource="{Binding Inputs}" Classes="pins-list" Grid.RowSpan="2" HorizontalAlignment="Left" VerticalAlignment="Stretch" Focusable="False" ClipToBounds="False">
+                                         <ItemsControl.Styles>
+                                             <Style Selector="ItemsControl.pins-list > ContentPresenter" x:DataType="vm:PinViewModel">
+                                                 <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                                             </Style>
+                                         </ItemsControl.Styles>
                                          <ItemsControl.ItemsPanel>
                                              <ItemsPanelTemplate>
                                                  <Canvas Width="0" VerticalAlignment="Stretch"/>
@@ -154,13 +160,18 @@
                                          </ItemsControl.ItemsPanel>
                                          <ItemsControl.ItemTemplate>
                                              <DataTemplate x:DataType="vm:PinViewModel">
-                                                 <Ellipse Name="InputPin" Classes="input-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" Margin="-5,0,0,0" ToolTip.Tip="{Binding Name}" Canvas.Top="{Binding Top}"/>
+                                                 <Ellipse Name="InputPin" Classes="input-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" Margin="-5,0,0,0" ToolTip.Tip="{Binding Name}"/>
                                              </DataTemplate>
                                          </ItemsControl.ItemTemplate>
                                      </ItemsControl>
 
                                      <!-- Output Pins -->
-                                     <ItemsControl ItemsSource="{Binding Outputs}" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Stretch" Focusable="False">
+                                     <ItemsControl ItemsSource="{Binding Outputs}" Classes="pins-list" Grid.RowSpan="2" HorizontalAlignment="Right" VerticalAlignment="Stretch" Focusable="False" ClipToBounds="False">
+                                         <ItemsControl.Styles>
+                                             <Style Selector="ItemsControl.pins-list > ContentPresenter" x:DataType="vm:PinViewModel">
+                                                 <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                                             </Style>
+                                         </ItemsControl.Styles>
                                          <ItemsControl.ItemsPanel>
                                              <ItemsPanelTemplate>
                                                  <Canvas Width="0" VerticalAlignment="Stretch"/>
@@ -168,7 +179,7 @@
                                          </ItemsControl.ItemsPanel>
                                          <ItemsControl.ItemTemplate>
                                              <DataTemplate x:DataType="vm:PinViewModel">
-                                                 <Ellipse Name="OutputPin" Classes="output-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" Margin="-5,0,0,0" ToolTip.Tip="{Binding Name}" Canvas.Top="{Binding Top}"/>
+                                                 <Ellipse Name="OutputPin" Classes="output-pin" Width="10" Height="10" Fill="#8ab4f8" Stroke="#202124" StrokeThickness="1.5" Margin="-5,0,0,0" ToolTip.Tip="{Binding Name}"/>
                                              </DataTemplate>
                                          </ItemsControl.ItemTemplate>
                                      </ItemsControl>

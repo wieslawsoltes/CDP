@@ -157,7 +157,6 @@ public partial class MainView : UserControl
         if (control.Parent is SuperSplitBox splitBox)
         {
             splitBox.InnerContent = null;
-            splitBox.UpdateLayout();
         }
         else if (control.Parent is Panel panel)
         {
@@ -209,6 +208,7 @@ public partial class MainView : UserControl
             "Diff" => new DiffView(),
             "Scratch" => new ScratchView(),
             "TimeMachine" => new TimeMachineView(),
+            "Designer" => new DesignerView(),
             _ => new TextBlock { Text = $"View {viewName} not implemented", Margin = new Thickness(10) }
         };
 
@@ -223,7 +223,7 @@ public partial class MainView : UserControl
         var anchor = e.AnchorControl;
 
         var contextMenu = new ContextMenu();
-        string[] views = { "Simulation", "Elements", "Console", "Sources", "Network", "Performance", "Profiler", "Memory", "Application", "Audits", "Recorder", "Window", "Events", "Mvvm", "Diff", "Scratch", "TimeMachine" };
+        string[] views = { "Simulation", "Elements", "Console", "Sources", "Network", "Performance", "Profiler", "Memory", "Application", "Audits", "Recorder", "Window", "Events", "Mvvm", "Diff", "Scratch", "TimeMachine", "Designer" };
 
         foreach (var viewName in views)
         {

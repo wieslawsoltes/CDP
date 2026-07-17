@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
+using WinUI.Diagnostics.Cdp.Adapters;
 
 namespace WinUI.Diagnostics.Cdp.Domains;
 
@@ -189,6 +190,25 @@ public static class DomDomain
                     return new JsonObject { ["model"] = model };
                 }
 
+             case "getNodeForLocation":
+                {
+                    double x = @params["x"]?.GetValue<double>() ?? 0;
+                    double y = @params["y"]?.GetValue<double>() ?? 0;
+                    var pt = new Point(x, y);
+                    UIElement? hit = null;
+                    if (session.Window?.Content != null)
+                    {
+                        var hits = VisualTreeHelper.FindElementsInHostCoordinates(pt, session.Window.Content);
+                        hit = hits?.FirstOrDefault();
+                    }
+                    if (hit != null && session.UseLogicalTree)
+                    {
+                        hit = session.FindLogicalNode(hit);
+                    }
+                    int hitId = hit != null ? session.NodeMap.GetOrAdd(hit) : 0;
+                    return new JsonObject { ["nodeId"] = hitId };
+                }
+
             case "focus":
                 {
                     int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
@@ -211,8 +231,91 @@ public static class DomDomain
                     {
                         throw new Exception($"Node with ID {nodeId} not found");
                     }
-                    string html = GetOuterHtml(visual, session);
+                    string? html = null;
+                    if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                    {
+                        html = await session.MutationEngine.GetOuterHtmlAsync(visual);
+                    }
+                    if (string.IsNullOrEmpty(html))
+                    {
+                        html = GetOuterHtml(visual, session);
+                    }
                     return new JsonObject { ["outerHTML"] = html };
+                }
+
+            case "setAttributeValue":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    string value = @params["value"]?.GetValue<string>() ?? "";
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual != null)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                        {
+                            await session.MutationEngine.SetAttributeAsync(visual, name, value);
+                        }
+                        else if (session.Window != null)
+                        {
+                            var adapter = new WinUiFrameworkAdapter(session.Window.DispatcherQueue, session.NodeMap);
+                            await adapter.ApplyAttributeLiveAsync(visual, name, value);
+                        }
+                    }
+                    return new JsonObject();
+                }
+
+            case "removeAttribute":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string name = @params["name"]?.GetValue<string>() ?? "";
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual != null)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                        {
+                            await session.MutationEngine.RemoveAttributeAsync(visual, name);
+                        }
+                        else if (session.Window != null)
+                        {
+                            var adapter = new WinUiFrameworkAdapter(session.Window.DispatcherQueue, session.NodeMap);
+                            await adapter.RemoveAttributeLiveAsync(visual, name);
+                        }
+                    }
+                    return new JsonObject();
+                }
+
+            case "removeNode":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual != null)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                        {
+                            await session.MutationEngine.RemoveNodeAsync(visual);
+                        }
+                        else if (session.Window != null)
+                        {
+                            var adapter = new WinUiFrameworkAdapter(session.Window.DispatcherQueue, session.NodeMap);
+                            await adapter.RemoveNodeLiveAsync(visual);
+                        }
+                    }
+                    return new JsonObject();
+                }
+
+            case "setOuterHTML":
+                {
+                    int nodeId = @params["nodeId"]?.GetValue<int>() ?? 0;
+                    string outerHtml = @params["outerHTML"]?.GetValue<string>() ?? "";
+                    var visual = session.NodeMap.GetVisual(nodeId);
+                    if (visual != null)
+                    {
+                        if (session.MutationEngine != null && session.MutationEngine.CanMutate(visual))
+                        {
+                            await session.MutationEngine.SetOuterHtmlAsync(visual, outerHtml);
+                        }
+                    }
+                    return new JsonObject();
                 }
 
             default:
@@ -387,11 +490,7 @@ public static class DomDomain
 
     private static IEnumerable<UIElement> GetChildren(UIElement visual, CdpSession session)
     {
-        if (session.UseLogicalTree)
-        {
-            return CdpSession.GetLogicalVisualChildren(visual);
-        }
-        return visual.GetVisualChildren();
+        return CdpVisualTreeHelper.GetChildren(visual, session.UseLogicalTree);
     }
 
     private static JsonArray BuildAttributes(DependencyObject visual)

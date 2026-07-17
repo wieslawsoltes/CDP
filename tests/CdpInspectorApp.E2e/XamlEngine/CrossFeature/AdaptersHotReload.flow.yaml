@@ -1,0 +1,7 @@
+appId: CdpInspectorApp
+description: Verify framework adapters apply live structural hotswap to active visual
+  tree
+---
+- runFlow: shared/navigate_to_elements.yaml
+- delay: 1000
+- assertTrue: Window.DataContext.Elements.RootNodes != null

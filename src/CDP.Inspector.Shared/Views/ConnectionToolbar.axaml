@@ -22,6 +22,16 @@
                                            PlaceholderText="e.g. http://localhost:9222"/>
             </StackPanel>
 
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,12,4">
+                <TextBlock Text="Port:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="0,0,6,0"/>
+                <TextBox Name="txtTargetPort"
+                         Text="{Binding Connection.TargetPort, Mode=TwoWay}"
+                         Width="60" Height="28"
+                         VerticalContentAlignment="Center"
+                         Watermark="9222"
+                         Background="#202124" BorderBrush="#3c4043"/>
+            </StackPanel>
+
             <!-- Group 3: Target scanning -->
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,4,12,4">
                 <Button Name="btnRefreshTargets" Command="{Binding Connection.RefreshTargetsCommand}" ToolTip.Tip="Scan Targets" Classes="accent" Height="28" Width="30" Padding="0" VerticalAlignment="Center">
