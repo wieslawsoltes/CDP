@@ -42,6 +42,9 @@
                         <Button Command="{Binding Recorder.TestStudio.ManageEnvironmentsCommand}" ToolTip.Tip="Manage Environments" Padding="6,3" VerticalAlignment="Center">
                             <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
                         </Button>
+                        <ToggleButton IsChecked="{Binding Recorder.TestStudio.IsIntegrationEnabled, Mode=TwoWay}" ToolTip.Tip="Test Service Integrations" Padding="6,3" VerticalAlignment="Center">
+                            <PathIcon Data="{StaticResource LinkIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                        </ToggleButton>
                     </StackPanel>
 
                     <!-- Group 3: Playback Controls (Icon-only) -->
@@ -795,6 +798,57 @@
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
                         <Button Content="Cancel" Command="{Binding Recorder.TestStudio.CancelAssertPickerCommand}"/>
                         <Button Content="OK" Command="{Binding Recorder.TestStudio.SubmitAssertPickerCommand}" Classes="accent"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- Inline Integration Settings Overlay -->
+        <Border Grid.ColumnSpan="2" Background="#80000000" IsVisible="{Binding Recorder.TestStudio.IsIntegrationEnabled}" ZIndex="102">
+            <Border Background="#2d2d2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="8" Width="360" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Test Management Integration" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                    
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Service Provider:" FontSize="11" Foreground="#9aa0a6"/>
+                        <ComboBox ItemsSource="{Binding Recorder.TestStudio.IntegrationServices}"
+                                  SelectedItem="{Binding Recorder.TestStudio.SelectedIntegrationService, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Service URL:" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Text="{Binding Recorder.TestStudio.IntegrationUrl, Mode=TwoWay}" PlaceholderText="https://yourinstance.testmo.net"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Username / Client ID:" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Text="{Binding Recorder.TestStudio.IntegrationUsername, Mode=TwoWay}" PlaceholderText="your-email@company.com"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="API Token / Password:" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Text="{Binding Recorder.TestStudio.IntegrationToken, Mode=TwoWay}" PasswordChar="●" PlaceholderText="API Token"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Project ID / Code:" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Text="{Binding Recorder.TestStudio.IntegrationProjectId, Mode=TwoWay}" PlaceholderText="PRJ"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Suite / Folder ID (Optional):" FontSize="11" Foreground="#9aa0a6"/>
+                        <TextBox Text="{Binding Recorder.TestStudio.IntegrationSuiteId, Mode=TwoWay}" PlaceholderText="1"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding Recorder.TestStudio.IntegrationStatusMessage}" 
+                               Foreground="{Binding Recorder.TestStudio.IntegrationStatusColor}" 
+                               FontSize="11" TextWrapping="Wrap"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+                        <Button Content="Verify Connection" Command="{Binding Recorder.TestStudio.VerifyIntegrationConnectionCommand}" FontSize="11"/>
+                        <Button Content="Export Test Case" Command="{Binding Recorder.TestStudio.ExportTestCaseCommand}" Classes="accent" FontSize="11"/>
+                        <Button Content="Close" Click="OnCloseIntegrationSettings" FontSize="11"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
