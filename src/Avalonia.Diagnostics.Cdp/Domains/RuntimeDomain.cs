@@ -1759,6 +1759,7 @@ public static class RuntimeDomain
         engine.SetValue("Control", control);
         engine.SetValue("DataContext", dataContext);
         engine.SetValue("ViewModel", dataContext);
+        engine.SetValue("Integrations", typeof(CDP.Integration.Core.IntegrationsFacade));
         engine.SetValue("__raw_window", windowObj);
         try
         {
