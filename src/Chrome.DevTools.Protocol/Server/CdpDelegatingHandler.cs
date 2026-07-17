@@ -6,11 +6,13 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Chrome.DevTools.Protocol.Domains;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol;
 
 public class CdpDelegatingHandler : DelegatingHandler
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<CdpDelegatingHandler>();
     public CdpDelegatingHandler() : base()
     {
     }
@@ -61,7 +63,7 @@ public class CdpDelegatingHandler : DelegatingHandler
                     if (completedTask == tcs.Task)
                     {
                         var result = await tcs.Task.ConfigureAwait(false);
-                        Console.WriteLine($"[DEBUG CdpDelegatingHandler] Intercept result completed with Action: {result.Action} for url: {requestUrl}");
+                        Logger.LogInfoMessage("CdpDelegatingHandler", $"Intercept result completed with Action: {result.Action} for url: {requestUrl}");
                         switch (result.Action)
                         {
                             case InterceptAction.Fulfill:
@@ -90,7 +92,7 @@ public class CdpDelegatingHandler : DelegatingHandler
                     }
                     else
                     {
-                        Console.WriteLine($"[DEBUG CdpDelegatingHandler] WARNING: Intercept timed out or was cancelled for url: {requestUrl}! completedTask was not tcs.Task.");
+                        Logger.LogWarningMessage("CdpDelegatingHandler", $"Intercept timed out or was cancelled for url: {requestUrl}! completedTask was not tcs.Task.");
                     }
                 }
             }

@@ -9,11 +9,13 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
 public static class NetworkDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("NetworkDomain");
     public static event Action<string, JsonObject>? NetworkEventBroadcasted;
     private static readonly ConcurrentDictionary<CdpSession, bool> _enabledSessions = new();
     private static readonly ConcurrentDictionary<string, (string Body, bool Base64Encoded)> _responseBodies = new();
@@ -86,7 +88,7 @@ public static class NetworkDomain
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"CDP NetworkDomain init failed: {ex.Message}");
+            Logger.LogErrorMessage("NetworkDomain", "CDP NetworkDomain init failed", ex);
         }
     }
 
@@ -288,15 +290,15 @@ public static class NetworkDomain
 
     public static void OnRequestStart(HttpRequestMessage request)
     {
-        Console.WriteLine($"[CDP TRACE] OnRequestStart entered for URL: {request?.RequestUri}");
+        Logger.LogNetworkTrace($"OnRequestStart entered for URL: {request?.RequestUri}");
         if (request == null) return;
         if (_requestIds.ContainsKey(request))
         {
-            Console.WriteLine("[CDP TRACE] OnRequestStart: request already tracked, ignoring duplicate start.");
+            Logger.LogNetworkTrace("OnRequestStart: request already tracked, ignoring duplicate start.");
             return;
         }
         if (_enabledSessions.IsEmpty && !HasBiDiNetworkSubscriptions()) {
-            Console.WriteLine("[CDP TRACE] OnRequestStart: _enabledSessions is empty and no BiDi network subscriptions, returning.");
+            Logger.LogNetworkTrace("OnRequestStart: _enabledSessions is empty and no BiDi network subscriptions, returning.");
             return;
         }
 
@@ -343,13 +345,13 @@ public static class NetworkDomain
 
     public static void OnRequestStop(HttpRequestMessage request, HttpResponseMessage? response)
     {
-        Console.WriteLine($"[CDP TRACE] OnRequestStop entered for URL: {request?.RequestUri}, response status: {response?.StatusCode}");
+        Logger.LogNetworkTrace($"OnRequestStop entered for URL: {request?.RequestUri}, response status: {response?.StatusCode}");
         if (!_requestIds.TryRemove(request, out string? requestId)) {
-            Console.WriteLine("[CDP TRACE] OnRequestStop: request ID not found in _requestIds.");
+            Logger.LogNetworkTrace("OnRequestStop: request ID not found in _requestIds.");
             return;
         }
         if (_enabledSessions.IsEmpty && !HasBiDiNetworkSubscriptions()) {
-            Console.WriteLine("[CDP TRACE] OnRequestStop: _enabledSessions is empty and no BiDi network subscriptions, returning.");
+            Logger.LogNetworkTrace("OnRequestStop: _enabledSessions is empty and no BiDi network subscriptions, returning.");
             return;
         }
 
@@ -414,10 +416,10 @@ public static class NetworkDomain
 
     private static void BroadcastEvent(string method, JsonObject @params)
     {
-        Console.WriteLine($"[CDP TRACE] BroadcastEvent entered: {method}, params count: {@params.Count}");
+        Logger.LogNetworkTrace($"BroadcastEvent entered: {method}, params count: {@params.Count}");
         foreach (var session in _enabledSessions.Keys)
         {
-            Console.WriteLine($"[CDP TRACE] BroadcastEvent: sending event {method} to session.");
+            Logger.LogNetworkTrace($"BroadcastEvent: sending event {method} to session.");
             _ = session.SendEventAsync(method, @params);
         }
         NetworkEventBroadcasted?.Invoke(method, @params);
@@ -800,6 +802,7 @@ internal class TrackingStream : Stream
 
 public class HttpKeyValueObserver : IObserver<KeyValuePair<string, object?>>
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("NetworkDomain");
     public void OnCompleted() { }
     public void OnError(Exception error) { }
 
@@ -831,7 +834,7 @@ public class HttpKeyValueObserver : IObserver<KeyValuePair<string, object?>>
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing HTTP diagnostic event: {ex.Message}");
+            Logger.LogErrorMessage("NetworkDomain", "Error processing HTTP diagnostic event", ex);
         }
     }
 

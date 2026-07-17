@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Diagnostics.NETCore.Client;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Etlx;
@@ -13,6 +14,7 @@ namespace Chrome.DevTools.Protocol.Domains;
 
 public class EventPipeProfilingEngine : IProfilingEngine
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<EventPipeProfilingEngine>();
     private readonly object _lock = new();
     private readonly List<ProfileSpan> _spans = new();
     private DateTime _startTime;
@@ -65,14 +67,14 @@ public class EventPipeProfilingEngine : IProfilingEngine
                     }
                     catch (Exception ex)
                     {
-                        CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Copy stream task failed: {ex}");
+                        Logger.LogProfilerError("eventpipe", "Copy stream task failed", ex);
                     }
                 });
             }
             catch (Exception ex)
             {
                 // Fallback to simulated profiling if EventPipe fails to launch (e.g. lacks privileges or dependencies)
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to initialize EventPipe profiling: {ex.Message}");
+                Logger.LogProfilerError("eventpipe", "Failed to initialize EventPipe profiling", ex);
                 _session = null;
                 _tempNetTraceFile = null;
                 throw;
@@ -157,12 +159,12 @@ public class EventPipeProfilingEngine : IProfilingEngine
                 {
                     if (!copyTaskToWait.Wait(15000))
                     {
-                        CdpServer.OriginalOut.WriteLine("[CDP PROFILER] Warning: copy task did not finish in 15 seconds.");
+                        Logger.LogProfilerInfo("eventpipe", "Warning: copy task did not finish in 15 seconds.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Copy task wait threw exception: {ex}");
+                    Logger.LogProfilerError("eventpipe", "Copy task wait threw exception", ex);
                 }
             }
         }
@@ -181,7 +183,7 @@ public class EventPipeProfilingEngine : IProfilingEngine
             }
             catch (Exception ex)
             {
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] EventPipe profile conversion failed: {ex}");
+                Logger.LogProfilerError("eventpipe", "EventPipe profile conversion failed", ex);
             }
             finally
             {
@@ -301,18 +303,18 @@ public class EventPipeProfilingEngine : IProfilingEngine
                         }
                         catch (Exception ex)
                         {
-                            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to manually parse EventID(303): {ex}");
+                            Logger.LogProfilerError("eventpipe", "Failed to manually parse EventID(303)", ex);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to process event {ev?.EventName} (ID {ev?.ID}): {ex.Message}");
+                    Logger.LogProfilerError("eventpipe", $"Failed to process event {ev?.EventName} (ID {ev?.ID})", ex);
                 }
             }
         }
 
-        CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Trace Log parsing complete. Total Events: {totalEvents}, DotNetRuntime: {dotNetRuntimeEvents}, SampleProfiler: {sampleProfilerEvents}, Parsed Ticks: {parsedTickEvents}, Parsed Sampled (303): {parsedSampledEvents}");
+        Logger.LogProfilerInfo("eventpipe", $"Trace Log parsing complete. Total Events: {totalEvents}, DotNetRuntime: {dotNetRuntimeEvents}, SampleProfiler: {sampleProfilerEvents}, Parsed Ticks: {parsedTickEvents}, Parsed Sampled (303): {parsedSampledEvents}");
 
         // Build CPU V8 JSON
         var cpuNodesArray = new JsonArray();

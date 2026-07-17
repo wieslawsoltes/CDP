@@ -5,11 +5,13 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using JetBrains.Profiler.Api;
 using JetBrains.Profiler.SelfApi;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
 public class DotMemoryProfilingEngine : IProfilingEngine
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<DotMemoryProfilingEngine>();
     private readonly object _lock = new();
     private readonly List<ProfileSpan> _spans = new();
     private DateTime _startTime;
@@ -35,7 +37,7 @@ public class DotMemoryProfilingEngine : IProfilingEngine
             }
             catch (Exception ex)
             {
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to create temp dir for dotMemory: {ex.Message}");
+                Logger.LogProfilerError("dotmemory", "Failed to create temp dir", ex);
             }
 
             try
@@ -50,7 +52,7 @@ public class DotMemoryProfilingEngine : IProfilingEngine
             {
                 _isRunning = false;
                 _startTime = DateTime.MinValue;
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to start dotMemory profiling: {ex.Message}");
+                Logger.LogProfilerError("dotmemory", "Failed to start profiling", ex);
                 throw;
             }
         }
@@ -73,7 +75,7 @@ public class DotMemoryProfilingEngine : IProfilingEngine
         {
             if (!_isRunning)
             {
-                CdpServer.OriginalOut.WriteLine("[CDP PROFILER] Cannot take snapshot, dotMemory engine is not running.");
+                Logger.LogProfilerInfo("dotmemory", "Cannot take snapshot, engine is not running.");
                 return string.Empty;
             }
         }
@@ -94,7 +96,7 @@ public class DotMemoryProfilingEngine : IProfilingEngine
         }
         catch (Exception ex)
         {
-            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] MemoryProfiler.GetSnapshot failed: {ex.Message}");
+            Logger.LogProfilerError("dotmemory", "GetSnapshot failed", ex);
         }
 
         return string.Empty;
@@ -151,7 +153,7 @@ public class DotMemoryProfilingEngine : IProfilingEngine
         }
         catch (Exception ex)
         {
-            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] MemoryProfiler.GetSnapshot on Stop failed: {ex.Message}");
+            Logger.LogProfilerError("dotmemory", "GetSnapshot on Stop failed", ex);
         }
 
         try
@@ -160,7 +162,7 @@ public class DotMemoryProfilingEngine : IProfilingEngine
         }
         catch (Exception ex)
         {
-            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] DotMemory.Detach failed: {ex.Message}");
+            Logger.LogProfilerError("dotmemory", "Detach failed", ex);
         }
 
         string snapshotPath = string.Empty;
@@ -180,7 +182,7 @@ public class DotMemoryProfilingEngine : IProfilingEngine
             }
             catch (Exception ex)
             {
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Finding final .dmw file failed: {ex.Message}");
+                Logger.LogProfilerError("dotmemory", "Finding final .dmw file failed", ex);
                 snapshotPath = Path.Combine(tempDirCopy, "snapshot.dmw");
             }
         }
