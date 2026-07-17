@@ -9,11 +9,14 @@ using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class PageDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("PageDomain");
     private class PageState
     {
         public bool IsEnabled { get; set; }
@@ -29,7 +32,7 @@ public static class PageDomain
             case "enable":
                 {
                     var state = _sessionStates.GetOrCreateValue(session);
-                    Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Page.enable called, IsEnabled={state.IsEnabled}, sessionHash={session.GetHashCode()}");
+                    Logger.LogPlaywrightDebug($"Page.enable called, IsEnabled={state.IsEnabled}, sessionHash={session.GetHashCode()}");
                     if (!state.IsEnabled)
                     {
                         state.IsEnabled = true;
@@ -87,7 +90,7 @@ public static class PageDomain
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error scanning workspace files: {ex}");
+                        Logger.LogErrorMessage("PageDomain", "Error scanning workspace files", ex);
                     }
 
                     var frameTree = new JsonObject
@@ -662,7 +665,7 @@ public static class PageDomain
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"setDocumentContent XAML loader failed: {ex.Message}");
+                                Logger.LogErrorMessage("PageDomain", "setDocumentContent XAML loader failed", ex);
                             }
                         });
                     }
@@ -909,7 +912,7 @@ public static class PageDomain
                 {
                     string message = @params["message"]?.GetValue<string>() ?? "";
                     string group = @params["group"]?.GetValue<string>() ?? "default";
-                    Console.WriteLine($"[CDP Page.generateTestReport] Group: {group}, Message: {message}");
+                    Logger.LogInfoMessage("PageDomain", $"generateTestReport - Group: {group}, Message: {message}");
                     return new JsonObject();
                 }
 
@@ -917,7 +920,7 @@ public static class PageDomain
                 {
                     bool accept = @params["accept"]?.GetValue<bool>() ?? false;
                     string promptText = @params["promptText"]?.GetValue<string>() ?? "";
-                    Console.WriteLine($"[CDP Page.handleJavaScriptDialog] Accept: {accept}, PromptText: {promptText}");
+                    Logger.LogInfoMessage("PageDomain", $"handleJavaScriptDialog - Accept: {accept}, Prompt: {promptText}");
                     return new JsonObject();
                 }
 
@@ -957,7 +960,7 @@ public static class PageDomain
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CDP] CaptureScreenshotAsync failed, returning fallback mock image: {ex.Message}\n{ex.StackTrace}");
+                Logger.LogScreencastError("CaptureScreenshotAsync failed, returning fallback mock image", ex);
             }
 
             // Return a 1x1 fallback mock PNG base64 string
@@ -1077,7 +1080,7 @@ public static class PageDomain
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error executing page evaluate script: {ex.Message}");
+                Logger.LogErrorMessage("PageDomain", "Error executing page evaluate script", ex);
             }
         }
     }

@@ -19,28 +19,31 @@ using System.Collections.Generic;
 using System.Dynamic;
 using Jint;
 using Jint.Runtime;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class RuntimeDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("RuntimeDomain");
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Jint.Engine> _engines = new();
     private static string GenerateAriaSnapshot(CdpSession session)
     {
-        CdpServer.OriginalOut.WriteLine("[CDP ARIA DEBUG] GenerateAriaSnapshot started");
+        Logger.LogAriaDebug("GenerateAriaSnapshot started");
         var list = new System.Collections.Generic.List<string>();
         var root = session.Window;
         if (root != null)
         {
-            CdpServer.OriginalOut.WriteLine($"[CDP ARIA DEBUG] Root window: {root.GetType().Name} - {root.Name}");
+            Logger.LogAriaDebug($"Root window: {root.GetType().Name} - {root.Name}");
             TraverseAria(root, session, list);
         }
         else
         {
-            CdpServer.OriginalOut.WriteLine("[CDP ARIA DEBUG] Root window is null!");
+            Logger.LogAriaDebug("Root window is null!");
         }
         var result = string.Join("\n", list);
-        CdpServer.OriginalOut.WriteLine($"[CDP ARIA DEBUG] GenerateAriaSnapshot finished. Lines count: {list.Count}");
+        Logger.LogAriaDebug($"GenerateAriaSnapshot finished. Lines count: {list.Count}");
         return result;
     }
 
@@ -48,7 +51,7 @@ public static class RuntimeDomain
     {
         if (visual == null) return;
 
-        CdpServer.OriginalOut.WriteLine($"[CDP ARIA DEBUG] TraverseAria visiting: {visual.GetType().Name} - {visual.Name}");
+        Logger.LogAriaDebug($"TraverseAria visiting: {visual.GetType().Name} - {visual.Name}");
 
         string? role = null;
         string? name = null;
@@ -443,12 +446,12 @@ public static class RuntimeDomain
                     var result = await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
                         var target = session.GetObject(objectId);
-                        Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] callFunctionOn objectId: {objectId}, target: {target?.GetType().Name}, func: {functionDeclaration}");
+                        Logger.LogPlaywrightDebug($"callFunctionOn objectId: {objectId}, target: {target?.GetType().Name}, func: {functionDeclaration}");
                         if (arguments != null)
                         {
                             for (int idx = 0; idx < arguments.Count; idx++)
                             {
-                                Console.WriteLine($"  arg[{idx}]: {arguments[idx]?.ToJsonString()}");
+                                Logger.LogPlaywrightDebug($"  arg[{idx}]: {arguments[idx]?.ToJsonString()}");
                             }
                         }
 
@@ -552,7 +555,7 @@ public static class RuntimeDomain
                                 expression = (arguments[3] as JsonObject)?["value"]?.GetValue<string>() ?? "";
                             }
 
-                             Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] target: PlaywrightUtilityScriptMock, checking expression: querySelectorAll={expression.Contains("querySelectorAll")}, expect={expression.Contains("expect")}, Contains(injected,)={expression.Contains("(injected,")}");
+                             Logger.LogPlaywrightDebug($"target: PlaywrightUtilityScriptMock, checking expression: querySelectorAll={expression.Contains("querySelectorAll")}, expect={expression.Contains("expect")}, Contains(injected,)={expression.Contains("(injected,")}");
 
                              if (expression.Contains("setupHitTargetInterceptor") || expression.Contains("dispatchEvent") || expression.Contains("scrollIntoView") || expression.Contains("setTimeout") || expression.Contains("stop()"))
                              {
@@ -667,7 +670,7 @@ public static class RuntimeDomain
 
                             if (expression.Contains("fill"))
                             {
-                                Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Fill interceptor entered. Arguments: {arguments?.Count}");
+                                Logger.LogPlaywrightDebug($"Fill interceptor entered. Arguments: {arguments?.Count}");
                                 CdpRuntimeElement? element = null;
                                 string fillVal = "";
                                 if (arguments != null)
@@ -675,12 +678,12 @@ public static class RuntimeDomain
                                     for (int i = 0; i < arguments.Count; i++)
                                     {
                                         var argNode = arguments[i];
-                                        Console.WriteLine($"  arg[{i}]: {argNode?.ToJsonString()}");
+                                        Logger.LogPlaywrightDebug($"  arg[{i}]: {argNode?.ToJsonString()}");
                                         if (argNode is JsonObject argObj && argObj.TryGetPropertyValue("objectId", out var objIdVal) && objIdVal != null)
                                         {
                                             string objId = objIdVal.GetValue<string>();
                                             var resolved = session.GetObject(objId);
-                                            Console.WriteLine($"    Resolved objectId {objId} to type: {resolved?.GetType()?.FullName}");
+                                            Logger.LogPlaywrightDebug($"    Resolved objectId {objId} to type: {resolved?.GetType()?.FullName}");
                                             if (resolved is CdpRuntimeElement elem)
                                             {
                                                 element = elem;
@@ -698,7 +701,7 @@ public static class RuntimeDomain
                                                 try
                                                 {
                                                      var deserialized = DeserializePlaywrightValue(valObj);
-                                                     Console.WriteLine($"    Deserialized value node to: {deserialized?.ToJsonString()}");
+                                                     Logger.LogPlaywrightDebug($"    Deserialized value node to: {deserialized?.ToJsonString()}");
                                                      if (deserialized is JsonArray jsArr)
                                                      {
                                                          foreach (var arrItem in jsArr)
@@ -706,7 +709,7 @@ public static class RuntimeDomain
                                                              if (arrItem is JsonObject itemObj && itemObj.TryGetPropertyValue("value", out var innerVal) && innerVal != null)
                                                              {
                                                                  fillVal = innerVal.GetValue<string>();
-                                                                 Console.WriteLine($"    Found fillVal in array: {fillVal}");
+                                                                 Logger.LogPlaywrightDebug($"    Found fillVal in array: {fillVal}");
                                                                  break;
                                                              }
                                                          }
@@ -716,20 +719,20 @@ public static class RuntimeDomain
                                                          if (deserializedObj.TryGetPropertyValue("value", out var innerVal) && innerVal != null)
                                                          {
                                                              fillVal = innerVal.GetValue<string>();
-                                                             Console.WriteLine($"    Found fillVal in object: {fillVal}");
+                                                             Logger.LogPlaywrightDebug($"    Found fillVal in object: {fillVal}");
                                                          }
                                                      }
                                                 }
                                                 catch (Exception ex)
                                                 {
-                                                    Console.WriteLine($"    Exception during deserialization: {ex}");
+                                                    Logger.LogPlaywrightDebug($"    Exception during deserialization: {ex}");
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Resolved element visual: {element?.visual?.GetType()?.FullName}, fillVal: '{fillVal}'");
+                                Logger.LogPlaywrightDebug($"Resolved element visual: {element?.visual?.GetType()?.FullName}, fillVal: '{fillVal}'");
 
                                 if (element != null && element.visual is Visual control)
                                 {
@@ -737,7 +740,7 @@ public static class RuntimeDomain
                                         if (control is Avalonia.Controls.TextBox textBox)
                                         {
                                             textBox.Text = fillVal;
-                                            Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] TextBox.Text set to: {textBox.Text}");
+                                            Logger.LogPlaywrightDebug($"TextBox.Text set to: {textBox.Text}");
                                         }
                                         else
                                         {
@@ -746,7 +749,7 @@ public static class RuntimeDomain
                                             if (textProp != null && textProp.CanWrite)
                                             {
                                                 textProp.SetValue(control, fillVal);
-                                                Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Text property set via reflection to: {fillVal}");
+                                                Logger.LogPlaywrightDebug($"Text property set via reflection to: {fillVal}");
                                             }
                                         }
                                     });
@@ -851,7 +854,7 @@ public static class RuntimeDomain
                                 }
                                 catch (Exception ex)
                                 {
-                                    Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Exception during expect parsing: {ex}");
+                                    Logger.LogPlaywrightDebug($"Exception during expect parsing: {ex}");
                                 }
 
                                 string selector = "";
@@ -935,7 +938,7 @@ public static class RuntimeDomain
                                      evalVal = await evalHelper($"document.querySelector(\"{escapedSelector}\").isVisible");
                                      success = (evalVal is bool b && b == true);
                                      evalVal = success ? "visible" : "hidden";
-                                     Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Expect to.be.visible on {selector}: success={success}, evalVal={evalVal}, returnByValue={returnByValue}");
+                                     Logger.LogPlaywrightDebug($"Expect to.be.visible on {selector}: success={success}, evalVal={evalVal}, returnByValue={returnByValue}");
                                  }
                                  else if (expr == "to.be.hidden")
                                  {
@@ -973,7 +976,7 @@ public static class RuntimeDomain
                                     success = true;
                                 }
 
-                                 Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Expect evaluation result: expr={expr}, selector={selector}, expected={expected}, success={success}, evalVal={evalVal}");
+                                 Logger.LogPlaywrightDebug($"Expect evaluation result: expr={expr}, selector={selector}, expected={expected}, success={success}, evalVal={evalVal}");
 
                                  var resultMock = new PlaywrightExpectResultMock
                                  {
@@ -1033,7 +1036,7 @@ public static class RuntimeDomain
                                  }
                                  catch (Exception ex)
                                  {
-                                     Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Exception during lookup parsing: {ex}");
+                                     Logger.LogPlaywrightDebug($"Exception during lookup parsing: {ex}");
                                  }
 
                                  string selector = "";
@@ -1060,7 +1063,7 @@ public static class RuntimeDomain
 
                                      var matched = session.Window != null ? SelectorEngine.QuerySelector(session.Window, selector, session.UseLogicalTree) : null;
                                      bool success = matched != null;
-                                     Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Lookup selector: {selector}, found: {success}, session.Window is null: {session.Window == null}");
+                                     Logger.LogPlaywrightDebug($"Lookup selector: {selector}, found: {success}, session.Window is null: {session.Window == null}");
                                      object? elemVal = null;
                                      if (success)
                                      {
@@ -1108,7 +1111,7 @@ public static class RuntimeDomain
                                  }
                                  catch (Exception ex)
                                  {
-                                     Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Exception in selector lookup for '{selector}': {ex}");
+                                     Logger.LogPlaywrightDebug($"Exception in selector lookup for '{selector}': {ex}");
                                      var lookupResult = new PlaywrightLookupResultMock
                                      {
                                          Log = $"Error during lookup for {selector}: {ex.Message}",
@@ -1313,7 +1316,7 @@ public static class RuntimeDomain
 
                             var matched = session.Window != null ? SelectorEngine.QuerySelector(session.Window, selector, session.UseLogicalTree) : null;
                             bool success = matched != null;
-                            Console.WriteLine($"[CDP PLAYWRIGHT DEBUG] Lookup selector: {selector}, found: {success}");
+                            Logger.LogPlaywrightDebug($"Lookup selector: {selector}, found: {success}");
                             object? elemVal = null;
                             if (success)
                             {
@@ -1394,13 +1397,13 @@ public static class RuntimeDomain
                         var val = awaitPromise ? await AwaitPromiseIfNeededAsync(jintRes.Engine, jintRes.Value) : jintRes.Value;
                         bool deepSerialization = false;
                         int maxDepth = 2;
-                        Console.WriteLine($"[CDP DEEP DEBUG] @params: {@params.ToJsonString()}");
+                        Logger.LogPlaywrightDebug($"@params: {@params.ToJsonString()}");
                         if (@params.TryGetPropertyValue("serializationOptions", out var serOptNode) && serOptNode is JsonObject serOptObj)
                         {
-                            Console.WriteLine($"[CDP DEEP DEBUG] found serializationOptions: {serOptObj.ToJsonString()}");
+                            Logger.LogPlaywrightDebug($"found serializationOptions: {serOptObj.ToJsonString()}");
                             if (serOptObj.TryGetPropertyValue("serialization", out var serValNode))
                             {
-                                Console.WriteLine($"[CDP DEEP DEBUG] found serialization: {serValNode?.ToJsonString()}, val: {serValNode?.GetValue<string>()}");
+                                Logger.LogPlaywrightDebug($"found serialization: {serValNode?.ToJsonString()}, val: {serValNode?.GetValue<string>()}");
                                 if (serValNode?.GetValue<string>() == "deep")
                                 {
                                     deepSerialization = true;
@@ -1411,7 +1414,7 @@ public static class RuntimeDomain
                                 }
                             }
                         }
-                        Console.WriteLine($"[CDP DEEP DEBUG] deepSerialization flag: {deepSerialization}, maxDepth: {maxDepth}");
+                        Logger.LogPlaywrightDebug($"deepSerialization flag: {deepSerialization}, maxDepth: {maxDepth}");
 
                         if (deepSerialization)
                         {
@@ -1557,7 +1560,7 @@ public static class RuntimeDomain
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[CDP SERVER ERROR] Error evaluating pre-flight script: {ex.Message}");
+                            Logger.LogErrorMessage("RuntimeDomain", "Error evaluating pre-flight script", ex);
                         }
                     }
 
@@ -1701,7 +1704,7 @@ public static class RuntimeDomain
         }
         catch (JavaScriptException ex)
         {
-            Console.WriteLine($"[CDP JINT ERROR] JavaScriptException in EvaluateFunction: {ex.Message}\nJS Stack:\n{ex.JavaScriptStackTrace}");
+            Logger.LogJintError($"JavaScriptException in EvaluateFunction: {ex.Message}", ex);
             throw;
         }
     }
@@ -1743,9 +1746,9 @@ public static class RuntimeDomain
 
         var control = selectedNode as Avalonia.Controls.Control;
         var dataContext = control?.DataContext;
-        System.Console.WriteLine($"[CDP ENGINE INIT DIAGNOSTIC] selectedNode={selectedNode?.GetType().FullName ?? "null"}, session.Window={session.Window?.GetType().FullName ?? "null"}");
+        Logger.LogPlaywrightDebug($"selectedNode={selectedNode?.GetType().FullName ?? "null"}, session.Window={session.Window?.GetType().FullName ?? "null"}");
         var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
-        System.Console.WriteLine($"[CDP ENGINE INIT DIAGNOSTIC] windowObj={windowObj?.GetType().FullName ?? "null"}");
+        Logger.LogPlaywrightDebug($"windowObj={windowObj?.GetType().FullName ?? "null"}");
 
         engine.SetValue("SelectedNode", selectedNode);
         engine.SetValue("Control", control);
@@ -1753,7 +1756,7 @@ public static class RuntimeDomain
         engine.SetValue("ViewModel", dataContext);
         engine.SetValue("__raw_window", windowObj);
         engine.SetValue("Window", windowObj);
-        engine.SetValue("__log", new Action<string>(msg => Console.WriteLine("[JS LOG] " + msg)));
+        engine.SetValue("__log", new Action<string>(msg => Logger.LogPlaywrightDebug($"[JS LOG] {msg}")));
         engine.SetValue("getJintCaller", new Func<Jint.Native.JsValue>(() => {
             var callStackField = typeof(Engine).GetField("CallStack", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (callStackField != null)
@@ -1774,7 +1777,7 @@ public static class RuntimeDomain
                                 if (funcField != null)
                                 {
                                     var funcVal = funcField.GetValue(item);
-                                    Console.WriteLine($"[CDP STACK] Frame {index}: {funcVal?.ToString() ?? "null"}");
+                                    Logger.LogPlaywrightDebug($"[STACK] Frame {index}: {funcVal}");
                                 }
                                 index++;
                             }
@@ -1817,7 +1820,7 @@ public static class RuntimeDomain
             }
             if (obj == null) return null;
             var type = obj.GetType();
-            System.Console.WriteLine($"[CDP GETPROPERTY DEBUG] obj={obj}, type={type.FullName}, propName={propName}");
+            Logger.LogPlaywrightDebug($"obj={obj}, type={type.FullName}, propName={propName}");
             var prop = type.GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Static);
             if (prop != null) return prop.GetValue(obj);
             var field = type.GetField(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Static);
@@ -1825,7 +1828,7 @@ public static class RuntimeDomain
             return null;
         }));
 
-        engine.SetValue("Print", new Action<object?>(Console.WriteLine));
+        engine.SetValue("Print", new Action<object?>(obj => Logger.LogInfoMessage("RuntimeDomain", obj?.ToString() ?? "null")));
         engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
         engine.SetValue("__getBounds", new Func<Visual, double[]>(visual => DomDomain.GetVisualBounds(session, visual)));
@@ -3664,7 +3667,7 @@ public static class RuntimeDomain
     {
         Func<JintResult> evalAction = () =>
         {
-            Console.WriteLine($"[CDP EVAL DEBUG] Evaluating Jint code: '{code}'");
+            Logger.LogPlaywrightDebug($"Evaluating Jint code: '{code}'");
 
             var inspectedNode = session.NodeMap.GetVisual(inspectedNodeId);
             var engine = EnsureEngineInitialized(session, contextId, inspectedNode);
@@ -3685,12 +3688,12 @@ public static class RuntimeDomain
             try
             {
                 var jsVal = engine.Evaluate(code);
-                Console.WriteLine($"[CDP EVAL RESULT] Code: '{code}', Result: '{jsVal}', Type: '{jsVal.GetType().Name}'");
+                Logger.LogPlaywrightDebug($"Code: '{code}', Result: '{jsVal}', Type: '{jsVal.GetType().Name}'");
                 return new JintResult { Value = jsVal, Engine = engine };
             }
             catch (Jint.Runtime.JavaScriptException ex)
             {
-                Console.WriteLine($"[CDP JINT ERROR] JavaScriptException in EvaluateAsync: {ex.Message}\nJS Stack:\n{ex.JavaScriptStackTrace}");
+                Logger.LogJintError($"JavaScriptException in EvaluateAsync: {ex.Message}", ex);
                 throw new InvalidOperationException($"JS evaluation error: {ex.Message}", ex);
             }
         };
@@ -3752,7 +3755,7 @@ public static class RuntimeDomain
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[CDP JINT ERROR] Exception awaiting promise via AwaitPromiseSettlementAsync: {ex}");
+                    Logger.LogJintError("Exception awaiting promise", ex);
                 }
             }
 
@@ -3823,6 +3826,7 @@ public static class RuntimeDomain
 
 public class ReplGlobals
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("ReplGlobals");
     private readonly CdpSession _session;
 
     public ReplGlobals(CdpSession session)
@@ -3838,7 +3842,7 @@ public class ReplGlobals
     public CdpRuntimeWindow window => new(_session);
     public CdpRuntimeDocument document => new(_session);
 
-    public void Print(object? obj) => Console.WriteLine(obj);
+    public void Print(object? obj) => Logger.LogInfoMessage("RuntimeDomain", obj?.ToString() ?? "null");
 
     public Visual? Query(string selector)
     {

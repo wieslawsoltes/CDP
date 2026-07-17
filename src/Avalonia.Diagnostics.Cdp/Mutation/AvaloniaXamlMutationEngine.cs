@@ -16,10 +16,13 @@ using Chrome.DevTools.Protocol.Domains;
 using Xaml.Compiler.Mutation;
 using Avalonia.Diagnostics.Cdp.Domains;
 
+using Microsoft.Extensions.Logging;
+
 namespace Avalonia.Diagnostics.Cdp;
 
 public class AvaloniaXamlMutationEngine : IMutationEngine
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<AvaloniaXamlMutationEngine>();
     private readonly CdpSession _session;
     private readonly object _scanLock = new();
     private bool _scanned = false;
@@ -215,7 +218,7 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[MutationEngine] SetOuterHtmlAsync live UI update failed: {ex.Message}");
+                Logger.LogErrorMessage("MutationEngine", "SetOuterHtmlAsync live UI update failed", ex);
             }
         });
 
