@@ -116,6 +116,9 @@ public class DesignerOverlay : Control
     {
         base.Render(context);
 
+        // Draw a transparent background to make the entire control hit-testable
+        context.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, Bounds.Width, Bounds.Height));
+
         if (!IsOverlayVisible)
             return;
 
