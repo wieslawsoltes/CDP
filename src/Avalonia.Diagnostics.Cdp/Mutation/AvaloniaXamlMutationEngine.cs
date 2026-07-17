@@ -35,8 +35,13 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
 
     public bool CanMutate(object target)
     {
-        if (target is not Control control) return false;
+        if (target is not Control control)
+        {
+            Logger.LogWarning($"[MUTATION DEBUG] CanMutate false: target is not Control. Type: {target?.GetType().FullName}");
+            return false;
+        }
         var (xamlRoot, filePath) = FindXamlRoot(control);
+        Logger.LogWarning($"[MUTATION DEBUG] CanMutate for {control.GetType().Name} (Name={control.Name}): xamlRoot={xamlRoot?.GetType().Name}, filePath={filePath}");
         return xamlRoot != null && filePath != null;
     }
 
@@ -393,13 +398,22 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
     private XElement? LocateXmlElementInDoc(XDocument doc, Control target, Control xamlRoot)
     {
         var rootEl = doc.Root;
-        if (rootEl == null) return null;
+        if (rootEl == null)
+        {
+            Logger.LogWarning($"[MUTATION DEBUG] LocateXmlElementInDoc: doc.Root is null");
+            return null;
+        }
 
         var namedAncestor = FindNamedAncestor(target, xamlRoot);
+        Logger.LogWarning($"[MUTATION DEBUG] LocateXmlElementInDoc: target={target.GetType().Name} (Name={target.Name}), namedAncestor={namedAncestor?.GetType().Name} (Name={namedAncestor?.Name})");
         if (namedAncestor != null)
         {
             var startEl = FindElementByName(doc, namedAncestor.Name!);
-            if (startEl == null) return null;
+            if (startEl == null)
+            {
+                Logger.LogWarning($"[MUTATION DEBUG] LocateXmlElementInDoc: startEl not found for name {namedAncestor.Name}");
+                return null;
+            }
 
             if (target == namedAncestor)
             {
@@ -407,7 +421,10 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
             }
 
             var path = ComputeLogicalPath(namedAncestor, target);
-            return NavigatePath(startEl, path);
+            Logger.LogWarning($"[MUTATION DEBUG] LocateXmlElementInDoc path: {string.Join(" -> ", path.Select(p => $"{p.TypeName}[{p.Index}]"))}");
+            var result = NavigatePath(startEl, path);
+            Logger.LogWarning($"[MUTATION DEBUG] LocateXmlElementInDoc NavigatePath result: {(result != null ? result.Name.ToString() : "null")}");
+            return result;
         }
         else
         {
@@ -416,7 +433,10 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
                 return rootEl;
             }
             var path = ComputeLogicalPath(xamlRoot, target);
-            return NavigatePath(rootEl, path);
+            Logger.LogWarning($"[MUTATION DEBUG] LocateXmlElementInDoc path (no named ancestor): {string.Join(" -> ", path.Select(p => $"{p.TypeName}[{p.Index}]"))}");
+            var result = NavigatePath(rootEl, path);
+            Logger.LogWarning($"[MUTATION DEBUG] LocateXmlElementInDoc NavigatePath result (no named ancestor): {(result != null ? result.Name.ToString() : "null")}");
+            return result;
         }
     }
 

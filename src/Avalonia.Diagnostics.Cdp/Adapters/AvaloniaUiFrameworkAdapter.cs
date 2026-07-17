@@ -158,6 +158,13 @@ namespace Avalonia.Diagnostics.Cdp.Adapters
                 {
                     panel.Children.Remove(ctrl);
                 }
+                else if (parent is ItemsControl itemsControl)
+                {
+                    if (itemsControl.Items is System.Collections.IList list)
+                    {
+                        list.Remove(ctrl);
+                    }
+                }
                 else if (parent is HeaderedContentControl headeredControl)
                 {
                     if (headeredControl.Content == ctrl) headeredControl.Content = null;
@@ -179,16 +186,73 @@ namespace Avalonia.Diagnostics.Cdp.Adapters
                 {
                     visualPanel.Children.Remove(ctrl);
                 }
+
+                // Also check and detach from visual parent to guarantee complete visual tree removal
+                var visualParent = ctrl.GetVisualParent();
+                if (visualParent is Panel visPanel)
+                {
+                    visPanel.Children.Remove(ctrl);
+                }
+                else if (visualParent is Avalonia.Controls.Presenters.ContentPresenter visPresenter)
+                {
+                    if (visPresenter.Content == ctrl) visPresenter.Content = null;
+                }
+                else if (visualParent is Decorator visDecorator)
+                {
+                    if (visDecorator.Child == ctrl) visDecorator.Child = null;
+                }
             });
+        }
+
+        private string StripEventAttributes(string xaml)
+        {
+            try
+            {
+                var doc = System.Xml.Linq.XDocument.Parse(xaml);
+                var events = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "Click", "DoubleTapped", "PointerPressed", "PointerReleased", "KeyDown", "KeyUp", "Tapped"
+                };
+
+                foreach (var el in doc.Descendants())
+                {
+                    var attrsToRemove = el.Attributes()
+                        .Where(a => events.Contains(a.Name.LocalName))
+                        .ToList();
+
+                    foreach (var attr in attrsToRemove)
+                    {
+                        attr.Remove();
+                    }
+                }
+                return doc.ToString();
+            }
+            catch
+            {
+                return xaml;
+            }
         }
 
         public async Task<object> InstantiateXamlFragmentAsync(string xamlFragment, Dictionary<string, string> inheritedNamespaces)
         {
-            return await Dispatcher.UIThread.InvokeAsync(() =>
+            try
             {
-                var loaded = Avalonia.Markup.Xaml.AvaloniaRuntimeXamlLoader.Load(xamlFragment);
-                return loaded;
-            });
+                return await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    string cleanXaml = StripEventAttributes(xamlFragment);
+                    var loaded = Avalonia.Markup.Xaml.AvaloniaRuntimeXamlLoader.Load(cleanXaml);
+                    return loaded;
+                });
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    System.IO.File.WriteAllText("/Users/wieslawsoltes/GitHub/CDP/instantiate_error.txt", "XAML:\n" + xamlFragment + "\n\nEXCEPTION:\n" + ex.ToString());
+                }
+                catch {}
+                throw;
+            }
         }
 
         public async Task<bool> ReplaceChildLiveAsync(object oldChild, object newChild)
@@ -197,25 +261,34 @@ namespace Avalonia.Diagnostics.Cdp.Adapters
             return await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var parent = oldCtrl.Parent;
+                var logMsg = $"[REPLACE] oldCtrl={oldCtrl.GetType().Name} (Name={oldCtrl.Name}), newCtrl={newCtrl.GetType().Name} (Name={newCtrl.Name}), parent={(parent != null ? parent.GetType().Name : "null")} (Name={(parent is Control c ? c.Name : "")})\n";
                 if (parent is Panel panel)
                 {
                     int index = panel.Children.IndexOf(oldCtrl);
+                    logMsg += $"  -> parent is Panel. Children count={panel.Children.Count}, index={index}\n";
                     if (index != -1)
                     {
                         panel.Children[index] = newCtrl;
+                        logMsg += $"  -> Replaced successfully!\n";
+                        try { System.IO.File.AppendAllText("/Users/wieslawsoltes/GitHub/CDP/replace_child_debug.log", logMsg); } catch {}
                         return true;
                     }
                 }
                 else if (parent is HeaderedContentControl headeredControl)
                 {
+                    logMsg += $"  -> parent is HeaderedContentControl. Content={(headeredControl.Content != null ? headeredControl.Content.GetType().Name : "null")}\n";
                     if (headeredControl.Content == oldCtrl)
                     {
                         headeredControl.Content = newCtrl;
+                        logMsg += $"  -> Replaced successfully!\n";
+                        try { System.IO.File.AppendAllText("/Users/wieslawsoltes/GitHub/CDP/replace_child_debug.log", logMsg); } catch {}
                         return true;
                     }
                     else if (headeredControl.Header == oldCtrl)
                     {
                         headeredControl.Header = newCtrl;
+                        logMsg += $"  -> Replaced successfully!\n";
+                        try { System.IO.File.AppendAllText("/Users/wieslawsoltes/GitHub/CDP/replace_child_debug.log", logMsg); } catch {}
                         return true;
                     }
                 }
@@ -229,9 +302,12 @@ namespace Avalonia.Diagnostics.Cdp.Adapters
                 }
                 else if (parent is ContentControl contentControl)
                 {
+                    logMsg += $"  -> parent is ContentControl. Content={(contentControl.Content != null ? contentControl.Content.GetType().Name : "null")}\n";
                     if (contentControl.Content == oldCtrl)
                     {
                         contentControl.Content = newCtrl;
+                        logMsg += $"  -> Replaced successfully!\n";
+                        try { System.IO.File.AppendAllText("/Users/wieslawsoltes/GitHub/CDP/replace_child_debug.log", logMsg); } catch {}
                         return true;
                     }
                 }

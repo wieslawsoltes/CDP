@@ -1750,12 +1750,21 @@ public static class RuntimeDomain
         var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
         Logger.LogPlaywrightDebug($"windowObj={windowObj?.GetType().FullName ?? "null"}");
 
+        try
+        {
+            engine.Execute("try { delete globalThis.Window; } catch {}");
+        }
+        catch { }
         engine.SetValue("SelectedNode", selectedNode);
         engine.SetValue("Control", control);
         engine.SetValue("DataContext", dataContext);
         engine.SetValue("ViewModel", dataContext);
         engine.SetValue("__raw_window", windowObj);
-        engine.SetValue("Window", windowObj);
+        try
+        {
+            engine.SetValue("Window", windowObj);
+        }
+        catch { }
         engine.SetValue("__log", new Action<string>(msg =>
         {
             Logger.LogInfoMessage("JS LOG", msg);
@@ -1838,8 +1847,17 @@ public static class RuntimeDomain
             Logger.LogInfoMessage("RuntimeDomain", msg);
             Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog("Console", "Information", msg);
         }));
-        engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
-        engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
+        engine.SetValue("Query", new Func<string, Visual?>(s => {
+            var root = session.Window ?? session.NodeMap.GetVisual(session.InspectedNodeId);
+            Logger.LogInfoMessage("RuntimeDomain", $"[JS QUERY] selector={s}, root={root?.GetType().FullName ?? "null"}, window={session.Window?.GetType().FullName ?? "null"}, inspected={session.InspectedNodeId}");
+            return root != null ? Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(root, s, session.UseLogicalTree) : null;
+        }));
+        engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => {
+            var root = session.Window ?? session.NodeMap.GetVisual(session.InspectedNodeId);
+            return root != null ? Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(root, s, session.UseLogicalTree) : Enumerable.Empty<Visual>();
+        }));
+        engine.SetValue("Avalonia_Point", new Func<double, double, Avalonia.Point>((x, y) => new Avalonia.Point(x, y)));
+        engine.Execute("var Avalonia = { Point: function(x, y) { return Avalonia_Point(x, y); } };");
         engine.SetValue("__getBounds", new Func<Visual, double[]>(visual => DomDomain.GetVisualBounds(session, visual)));
         engine.SetValue("__getNodeId", new Func<Visual, int>(visual => session.NodeMap.GetOrAdd(visual)));
         engine.SetValue("__getVisualByNodeId", new Func<int, Visual?>(nodeId => session.NodeMap.GetVisual(nodeId)));
@@ -4235,7 +4253,26 @@ public sealed class CdpRuntimeElement
     public bool @checked => isChecked;
     public bool isEffectivelyVisible => _visual is Avalonia.Controls.Control control ? (control.IsEffectivelyVisible && control.IsAttachedToVisualTree()) : true;
     public bool isEnabled => string.Equals(getAttribute("IsEnabled"), "true", StringComparison.OrdinalIgnoreCase);
-    public object visual => _visual;
+    public Visual visual => _visual;
+    public Control? control => _visual as Control;
+    public double centerX
+    {
+        get
+        {
+            var bounds = _visual.Bounds;
+            var pt = _visual.TranslatePoint(new Point(bounds.Width / 2, bounds.Height / 2), _session.Window);
+            return pt?.X ?? 0;
+        }
+    }
+    public double centerY
+    {
+        get
+        {
+            var bounds = _visual.Bounds;
+            var pt = _visual.TranslatePoint(new Point(bounds.Width / 2, bounds.Height / 2), _session.Window);
+            return pt?.Y ?? 0;
+        }
+    }
 
     public string? getAttribute(string name)
     {
