@@ -492,6 +492,10 @@ public static class SelectorEngine
         var result = QuerySelectorInternal(root, normalizedSelector, useLogicalTree);
         if (result != null) return result;
 
+        // Fallback: try alternate tree type
+        result = QuerySelectorInternal(root, normalizedSelector, !useLogicalTree);
+        if (result != null) return result;
+
         // Fallback: search other registered windows/TopLevels only if query root is a TopLevel window
         if (root is TopLevel)
         {
@@ -500,6 +504,9 @@ public static class SelectorEngine
                 if (win != root)
                 {
                     result = QuerySelectorInternal(win, normalizedSelector, useLogicalTree);
+                    if (result != null) return result;
+
+                    result = QuerySelectorInternal(win, normalizedSelector, !useLogicalTree);
                     if (result != null) return result;
                 }
             }
@@ -515,6 +522,14 @@ public static class SelectorEngine
         var normalizedSelector = NormalizeSelector(selector);
         QuerySelectorAllInternal(root, normalizedSelector, results, useLogicalTree);
 
+        // Fallback: try alternate tree type
+        var altResults = new List<Visual>();
+        QuerySelectorAllInternal(root, normalizedSelector, altResults, !useLogicalTree);
+        foreach (var r in altResults)
+        {
+            if (!results.Contains(r)) results.Add(r);
+        }
+
         // Fallback: search other registered windows/TopLevels if no matches found in root and root is a TopLevel window
         if (results.Count == 0 && root is TopLevel)
         {
@@ -523,6 +538,7 @@ public static class SelectorEngine
                 if (win != root)
                 {
                     QuerySelectorAllInternal(win, normalizedSelector, results, useLogicalTree);
+                    QuerySelectorAllInternal(win, normalizedSelector, results, !useLogicalTree);
                 }
             }
         }

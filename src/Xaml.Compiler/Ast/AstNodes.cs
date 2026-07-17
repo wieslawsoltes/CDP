@@ -420,6 +420,7 @@ namespace Xaml.Compiler.Ast
         public string? Name { get; set; } // Null if it is a positional argument
         public string Value { get; set; } = string.Empty;
         public XamlValueSyntax? ValueNode { get; set; } // For nested markup extensions
+        public char QuoteChar { get; set; } = '\0';
 
         public List<XamlTrivia> BeforeEqualsTrivia { get; } = new();
         public List<XamlTrivia> AfterEqualsTrivia { get; } = new();
@@ -444,7 +445,14 @@ namespace Xaml.Compiler.Ast
             }
             else
             {
-                sb.Append(Value);
+                if (QuoteChar != '\0')
+                {
+                    sb.Append(QuoteChar).Append(Value).Append(QuoteChar);
+                }
+                else
+                {
+                    sb.Append(Value);
+                }
             }
 
             foreach (var trivia in TrailingCommaTrivia) sb.Append(trivia.RawText);

@@ -234,5 +234,25 @@ namespace Xaml.Compiler.Tests
             var shiftedDiag = newDocShift.Diagnostics.First(d => d.Severity == DiagnosticSeverity.Warning && d.Message.Contains("Duplicate attribute"));
             Assert.Equal(initialLine + 1, shiftedDiag.Span.Start.Line);
         }
+
+        [Fact]
+        public void test_markup_extension_quote_preservation()
+        {
+            var xaml = @"<TextBlock Text=""{Binding SliderValue, StringFormat='Slider Value: {0:0}'}"" />";
+            var doc = XamlParser.Parse(xaml);
+            var roundtrip = doc.ToFullString();
+            Assert.Equal(xaml, roundtrip);
+            Assert.Empty(doc.Diagnostics);
+
+            var attr = doc.RootElement.Attributes[0];
+            var ext = Assert.IsType<XamlMarkupExtensionSyntax>(attr.ValueNode);
+            Assert.Equal("Binding", ext.ExtensionName);
+            Assert.Equal(2, ext.Arguments.Count);
+            
+            var formatArg = ext.Arguments[1];
+            Assert.Equal("StringFormat", formatArg.Name);
+            Assert.Equal("Slider Value: {0:0}", formatArg.Value);
+            Assert.Equal('\'', formatArg.QuoteChar);
+        }
     }
 }

@@ -243,12 +243,15 @@ public static class DomDomain
                 {
                     int x = @params["x"]?.GetValue<int>() ?? 0;
                     int y = @params["y"]?.GetValue<int>() ?? 0;
-                    var hit = session.Window.InputHitTest(new Point(x, y)) as Visual;
-                    if (hit != null && session.UseLogicalTree)
+                    int hitId = await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        hit = session.FindLogicalNode(hit);
-                    }
-                    int hitId = hit != null ? session.NodeMap.GetOrAdd(hit) : 0;
+                        var hit = session.Window.InputHitTest(new Point(x, y)) as Visual;
+                        if (hit != null && session.UseLogicalTree)
+                        {
+                            hit = session.FindLogicalNode(hit);
+                        }
+                        return hit != null ? session.NodeMap.GetOrAdd(hit) : 0;
+                    });
                     return new JsonObject { ["nodeId"] = hitId };
                 }
 

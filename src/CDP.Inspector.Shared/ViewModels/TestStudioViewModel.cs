@@ -41,6 +41,7 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     private CancellationTokenSource? _executionCts;
     private string _appId = "";
     private string _description = "";
+    private bool _isReconnecting = false;
     private bool _isUpdatingYaml = false;
 
     private string? _workspaceRootPath;
@@ -1598,9 +1599,69 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         {
             if (!_cdpService.IsConnected && IsExecuting)
             {
-                Stop();
+                _ = HandleDisconnectionDuringExecutionAsync();
             }
             RaiseCommandCanExecuteChanged();
+        }
+    }
+
+    private async Task HandleDisconnectionDuringExecutionAsync()
+    {
+        if (_isReconnecting) return;
+        _isReconnecting = true;
+
+        if (Connection == null)
+        {
+            _isReconnecting = false;
+            Stop();
+            return;
+        }
+
+        Log("⚠️ WebSocket connection lost during test execution. Initiating auto-reconnect grace period...");
+
+        int maxRetries = 45; // 45 attempts, 500ms delay each = 22.5 seconds total
+        bool reconnected = false;
+
+        for (int i = 0; i < maxRetries; i++)
+        {
+            if (!IsExecuting)
+            {
+                _isReconnecting = false;
+                return;
+            }
+
+            try
+            {
+                Log($"Attempting to auto-reconnect to host '{Connection.HostAddress}' (attempt {i + 1}/{maxRetries})...");
+                await Connection.RefreshTargetsAsync();
+                if (Connection.Targets.Count > 0)
+                {
+                    var target = Connection.Targets[0];
+                    Connection.SelectedTarget = target;
+
+                    await Connection.ConnectAsync(bypassAutoLaunch: true);
+                    if (_cdpService.IsConnected)
+                    {
+                        reconnected = true;
+                        Log("Successfully reconnected to the target! Resuming test execution...");
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Auto-reconnect attempt {i + 1} failed: {ex.Message}");
+            }
+
+            await Task.Delay(500);
+        }
+
+        _isReconnecting = false;
+
+        if (!reconnected)
+        {
+            Log("❌ Auto-reconnection failed. Stopping test execution.");
+            Stop();
         }
     }
 
@@ -2225,6 +2286,13 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         {
             while (_currentStepIndex < Steps.Count)
             {
+                token.ThrowIfCancellationRequested();
+
+                while (_isReconnecting)
+                {
+                    await Task.Delay(200, token);
+                }
+
                 token.ThrowIfCancellationRequested();
 
                 var step = Steps[_currentStepIndex];

@@ -3,6 +3,8 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using CDP.Inspector.Wysiwyg.Controls;
 using CdpInspectorApp.ViewModels;
 
@@ -31,6 +33,65 @@ public partial class DesignerView : UserControl
             overlay.PointerPressed += Overlay_PointerPressed;
             overlay.PointerMoved += Overlay_PointerMoved;
             overlay.PointerReleased += Overlay_PointerReleased;
+
+            DragDrop.SetAllowDrop(overlay, true);
+            overlay.AddHandler(DragDrop.DragOverEvent, Overlay_DragOver);
+            overlay.AddHandler(DragDrop.DropEvent, Overlay_Drop);
+        }
+
+        var toolbox = this.Find<ItemsControl>("lstToolboxItems");
+        if (toolbox != null)
+        {
+            toolbox.AddHandler(PointerPressedEvent, Toolbox_PointerPressed, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        }
+    }
+
+    private async void Toolbox_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var source = e.Source as Visual;
+        while (source != null)
+        {
+            if (source is Button btn && btn.DataContext is ToolboxItemViewModel itemVM)
+            {
+                var xaml = itemVM.DefaultXaml;
+                if (!string.IsNullOrEmpty(xaml))
+                {
+                    var dataObject = new DataTransfer();
+                    var item = new DataTransferItem();
+                    item.Set(DataFormat.Text, xaml);
+                    dataObject.Add(item);
+                    await DragDrop.DoDragDropAsync(e, dataObject, DragDropEffects.Copy);
+                }
+                break;
+            }
+            source = source.GetVisualParent();
+        }
+    }
+
+    private void Overlay_DragOver(object? sender, DragEventArgs e)
+    {
+        if (e.DataTransfer.Formats.Contains(DataFormat.Text))
+        {
+            e.DragEffects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+        else
+        {
+            e.DragEffects = DragDropEffects.None;
+        }
+    }
+
+    private async void Overlay_Drop(object? sender, DragEventArgs e)
+    {
+        var overlay = sender as DesignerOverlay;
+        if (overlay == null || Designer == null) return;
+
+        var text = e.DataTransfer.TryGetText();
+        if (!string.IsNullOrEmpty(text))
+        {
+            var point = e.GetPosition(overlay);
+            await Designer.DropElementAtLocationAsync(text, point.X, point.Y);
+            e.Handled = true;
         }
     }
 
@@ -71,16 +132,8 @@ public partial class DesignerView : UserControl
         else
         {
             bool ctrlPressed = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-            var img = this.Find<Image>("imgDesignerScreenshot");
-            var sim = (DataContext as MainWindowViewModel)?.Simulation;
             double targetX = point.X;
             double targetY = point.Y;
-
-            if (img != null && sim != null && img.Bounds.Width > 0 && img.Bounds.Height > 0)
-            {
-                targetX = point.X * (sim.DeviceWidth / img.Bounds.Width);
-                targetY = point.Y * (sim.DeviceHeight / img.Bounds.Height);
-            }
 
             _ = Designer.SelectElementAtLocationAsync(targetX, targetY, ctrlPressed);
             e.Handled = true;

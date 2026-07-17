@@ -1,0 +1,76 @@
+appId: "CdpInspectorApp"
+description: "Verify WYSIWYG Designer selections, drag/resize movements, toolbox drag-and-drop, and mutations sync"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- delay: "1000"
+- tapOn: "#TabDesigner"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Designer != null"
+- evalScript: "Window.DataContext.Designer.IsDesignModeActive = false;"
+- delay: "500"
+- tapOn: "#btnToggleDesignMode"
+- evalScript: "Window.DataContext.Designer.IsDesignModeActive = true;"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Designer.IsDesignModeActive"
+- evalScript: "Window.DataContext.Designer.SelectElementAsync(\"#btnClickMe\");"
+- delay: "2000"
+- assertTrue: "Window.DataContext.Designer.SelectedElementSelector == '#btnClickMe'"
+- assertTrue: "Window.DataContext.Designer.IsOverlayVisible"
+- evalScript: |
+    var designer = Window.DataContext.Designer;
+    designer.SelectedElementWidth = 120;
+    designer.SelectedElementHeight = 40;
+    designer.SelectedMarginLeft = 16;
+    designer.SelectedMarginTop = 24;
+    designer.ApplyDragFinishedAsync();
+- delay: "2000"
+- evalScript: "Window.DataContext.Designer.RefreshAllSelectedElementsAsync();"
+- delay: "2000"
+- assertTrue: "Window.DataContext.Designer.SelectedBounds.Width == 120"
+- assertTrue: "Window.DataContext.Designer.SelectedBounds.Height == 40"
+- evalScript: "Window.DataContext.Elements.RefreshDomTreeAsync();"
+- delay: "2000"
+- evalScript: |
+    var designer = Window.DataContext.Designer;
+    var x = designer.SelectedElementX + designer.SelectedElementWidth / 2;
+    var y = designer.SelectedElementY + designer.SelectedElementHeight / 2;
+    designer.DropElementAtLocationAsync("<Button Content=\"New E2E Button\" />", x, y);
+- delay: "3000"
+- evalScript: "Window.DataContext.Elements.RefreshDomTreeAsync();"
+- delay: "2000"
+- evalScript: |
+    var root = Window.DataContext.Elements.RootNodes[0];
+    function findNode(n, name) {
+        if (n.NodeName === name || n.DisplayName === name) return n;
+        for (var i = 0; i < n.Children.Count; i++) {
+            var found = findNode(n.Children[i], name);
+            if (found) return found;
+        }
+        return null;
+    }
+    var designerPanel = findNode(root, "WrapPanel");
+    var msg = "WrapPanel found: " + (designerPanel != null) + "\n";
+    if (designerPanel) {
+        msg += "Children count: " + designerPanel.Children.Count + "\n";
+        for (var i = 0; i < designerPanel.Children.Count; i++) {
+            var c = designerPanel.Children[i];
+            msg += "Child " + i + ": Name=" + c.NodeName + ", Display=" + c.DisplayName + ", Value=" + c.NodeValue + "\n";
+        }
+    }
+    msg;
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('Button:contains(\\\"New E2E Button\\\")') != null\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'true'"
+- evalScript: "Window.DataContext.Designer.SelectElementAsync(\"Button:contains(\\\"New E2E Button\\\")\");"
+- delay: "2000"
+- evalScript: "Window.DataContext.Designer.DeleteElementCommand.Execute(null);"
+- delay: "2000"
+- evalScript: "Window.DataContext.Elements.RefreshDomTreeAsync();"
+- delay: "2000"
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('Button:contains(\\\"New E2E Button\\\")') == null\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'true'"
+- tapOn: "#btnToggleDesignMode"
+- evalScript: "Window.DataContext.Designer.IsDesignModeActive = false;"
+- delay: "1000"
+- assertTrue: "!Window.DataContext.Designer.IsDesignModeActive"

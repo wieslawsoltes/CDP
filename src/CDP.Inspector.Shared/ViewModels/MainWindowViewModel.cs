@@ -457,6 +457,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         };
         rightPane.AddTab("Elements", "CodeIcon", "Elements");
         rightPane.AddTab("Console", "TerminalIcon", "Console");
+        rightPane.AddTab("Designer", "DesignIcon", "Designer");
         rightPane.AddTab("Sources", "DocumentIcon", "Sources");
         rightPane.AddTab("Network", "GlobeIcon", "Network");
         rightPane.AddTab("Performance", "TimerIcon", "Performance");
@@ -470,7 +471,6 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         rightPane.AddTab("MVVM", "DiagramIcon", "Mvvm");
         rightPane.AddTab("Scratch", "FlowchartIcon", "Scratch");
         rightPane.AddTab("Time Machine", "HistoryIcon", "TimeMachine");
-        rightPane.AddTab("Designer", "DesignIcon", "Designer");
 
         LayoutRoot = new SplitContainerNode(
             Avalonia.Layout.Orientation.Horizontal,

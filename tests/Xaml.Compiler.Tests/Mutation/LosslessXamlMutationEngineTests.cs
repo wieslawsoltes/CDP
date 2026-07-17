@@ -133,16 +133,31 @@ namespace Xaml.Compiler.Tests.Mutation
             return Task.CompletedTask;
         }
 
-        public Task<object> InstantiateXamlFragmentAsync(string xamlFragment, Dictionary<string, string> inheritedNamespaces)
+          public Task<object> InstantiateXamlFragmentAsync(string xamlFragment, Dictionary<string, string> inheritedNamespaces)
         {
+            TestControl CreateControl(Xaml.Compiler.Ast.XamlElementSyntax element)
+            {
+                var tc = new TestControl
+                {
+                    Name = element.Attributes.FirstOrDefault(a => a.LocalName == "Name")?.ValueNode.ToFullString().Trim('"', '\''),
+                    Text = element.Attributes.FirstOrDefault(a => a.LocalName == "Text")?.ValueNode.ToFullString().Trim('"', '\'')
+                };
+                foreach (var childNode in element.Children)
+                {
+                    if (childNode is Xaml.Compiler.Ast.XamlElementSyntax childEl)
+                    {
+                        var childTc = CreateControl(childEl);
+                        childTc.Parent = tc;
+                        tc.Children.Add(childTc);
+                    }
+                }
+                return tc;
+            }
+
             var doc = Xaml.Compiler.Parser.XamlParser.Parse(xamlFragment);
             var rootEl = doc.RootElement;
-            var control = new TestControl
-            {
-                Name = rootEl?.Attributes.FirstOrDefault(a => a.LocalName == "Name")?.ValueNode.ToFullString().Trim('"', '\''),
-                Text = rootEl?.Attributes.FirstOrDefault(a => a.LocalName == "Text")?.ValueNode.ToFullString().Trim('"', '\'')
-            };
-            return Task.FromResult<object>(control);
+            if (rootEl == null) throw new Exception("Invalid XML");
+            return Task.FromResult<object>(CreateControl(rootEl));
         }
 
         public Task<bool> ReplaceChildLiveAsync(object oldChild, object newChild)
@@ -386,6 +401,87 @@ namespace Xaml.Compiler.Tests.Mutation
                 {
                     File.Delete(tempFile);
                 }
+            }
+        }
+
+        [Fact]
+        public async Task TestMock_RemoveDynamicallyAddedNode()
+        {
+            string repoRoot = FindRepoRoot();
+            string tempFile = Path.Combine(repoRoot, "TestControlWindow.xaml");
+            string initialXaml = @"<TestControlWindow xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
+        xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
+        x:Class=""Xaml.Compiler.Tests.Mutation.TestControlWindow""
+        Name=""MyRoot"">
+    <TestControl Name=""MyContainer"">
+        <TestControl Name=""MyChild"" />
+    </TestControl>
+</TestControlWindow>";
+
+            await File.WriteAllTextAsync(tempFile, initialXaml);
+
+            try
+            {
+                var root = new TestControlWindow { Name = "MyRoot" };
+                var container = new TestControl { Name = "MyContainer", Parent = root };
+                var child = new TestControl { Name = "MyChild", Parent = container };
+                container.Children.Add(child);
+                root.Children.Add(container);
+
+                var adapter = new MockUiFrameworkAdapter();
+                var nodeMap = new MockNodeMap();
+                nodeMap.GetOrAdd(root);
+                nodeMap.GetOrAdd(container);
+                nodeMap.GetOrAdd(child);
+
+                var engine = new LosslessXamlMutationEngine(adapter, nodeMap);
+
+                // 1. Drop a new node inside MyContainer (simulating setOuterHtml on container)
+                bool success = await engine.SetOuterHtmlAsync(container, @"<TestControl Name=""MyContainer""><TestControl Name=""MyChild"" /><TestControl Name=""NewChild"" /></TestControl>");
+                Assert.True(success);
+
+                // Assert live UI update occurred
+                Assert.Single(root.Children);
+                var newContainer = root.Children[0] as TestControl;
+                Assert.NotNull(newContainer);
+                Assert.Equal(2, newContainer.Children.Count);
+                var newChild = newContainer.Children[1];
+                Assert.Equal("NewChild", newChild.Name);
+
+                // 2. Try to remove the new child
+                bool removeSuccess = await engine.RemoveNodeAsync(newChild);
+                Assert.True(removeSuccess);
+
+                // Assert it was removed from live UI
+                Assert.Single(newContainer.Children);
+                Assert.Equal("MyChild", newContainer.Children[0].Name);
+
+                // Assert XAML file was updated
+                string updatedXaml = await File.ReadAllTextAsync(tempFile);
+                Assert.DoesNotContain("Name=\"NewChild\"", updatedXaml);
+            }
+            finally
+            {
+                if (File.Exists(tempFile))
+                {
+                    File.Delete(tempFile);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestParseMainWindowXaml()
+        {
+            string repoRoot = FindRepoRoot();
+            var path = Path.Combine(repoRoot, "samples", "CdpSampleApp", "MainWindow.axaml");
+            Assert.True(File.Exists(path), $"File not found at: {path}");
+            var text = File.ReadAllText(path);
+            var doc = Xaml.Compiler.Parser.XamlParser.Parse(text);
+            Assert.NotNull(doc);
+            if (doc.Diagnostics != null && doc.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
+            {
+                var errors = string.Join("\n", doc.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d.Message} at line {d.Span.Start.Line}, col {d.Span.Start.Column}"));
+                Assert.Fail($"XAML parse errors:\n{errors}");
             }
         }
     }
