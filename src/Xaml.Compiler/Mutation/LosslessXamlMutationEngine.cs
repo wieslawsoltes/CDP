@@ -632,12 +632,10 @@ namespace Xaml.Compiler.Mutation
 
         private XamlElementSyntax? NavigateAstPath(XamlElementSyntax startElement, List<PathSegment> path)
         {
-            var logPath = "/Users/wieslawsoltes/GitHub/CDP/mutation_debug.log";
             XamlElementSyntax current = startElement;
             foreach (var segment in path)
             {
                 var children = GetLogicalXmlChildElements(current);
-                File.AppendAllText(logPath, $"[MUTATION] NavigateAstPath segment: Type={segment.TypeName}, Index={segment.Index}, ChildrenCount={children.Count}, Children=[{string.Join(", ", children.Select(c => c.LocalName))}]\n");
                 if (segment.Index < 0 || segment.Index >= children.Count)
                 {
                     return null;

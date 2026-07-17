@@ -472,7 +472,8 @@ namespace Xaml.Compiler.Tests.Mutation
         [Fact]
         public void TestParseMainWindowXaml()
         {
-            var path = "/Users/wieslawsoltes/GitHub/CDP/samples/CdpSampleApp/MainWindow.axaml";
+            string repoRoot = FindRepoRoot();
+            var path = Path.Combine(repoRoot, "samples", "CdpSampleApp", "MainWindow.axaml");
             Assert.True(File.Exists(path), $"File not found at: {path}");
             var text = File.ReadAllText(path);
             var doc = Xaml.Compiler.Parser.XamlParser.Parse(text);
