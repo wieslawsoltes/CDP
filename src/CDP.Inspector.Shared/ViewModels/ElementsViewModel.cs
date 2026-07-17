@@ -1120,13 +1120,13 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error fetching event listeners: {ex.Message}");
+                    Logger.LogErrorMessage("ElementsVM", "Error fetching event listeners", ex);
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error fetching properties: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error fetching properties", ex);
         }
 
         if (SelectedNode != node) return;
@@ -1186,7 +1186,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error fetching CSS styles: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error fetching CSS styles", ex);
         }
 
         if (SelectedNode != node) return;
@@ -1235,7 +1235,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error fetching AX details: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error fetching AX details", ex);
         }
 
         if (SelectedNode != node) return;
@@ -1326,7 +1326,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error fetching box model: {ex.Message}");
+                Logger.LogErrorMessage("ElementsVM", "Error fetching box model", ex);
             }
         }
 
@@ -1364,7 +1364,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error focusing node: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error focusing node", ex);
         }
     }
 
@@ -1378,7 +1378,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error deleting node: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error deleting node", ex);
         }
     }
 
@@ -1412,7 +1412,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error applying attribute: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error applying attribute", ex);
         }
     }
 
@@ -1445,7 +1445,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error deleting attribute: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error deleting attribute", ex);
         }
     }
 
@@ -1487,7 +1487,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error applying property: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error applying property", ex);
         }
     }
 
@@ -1517,7 +1517,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error applying style texts: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error applying style texts", ex);
         }
     }
 
@@ -1537,7 +1537,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error updating attribute: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error updating attribute", ex);
         }
     }
 
@@ -1579,7 +1579,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error updating property: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error updating property", ex);
         }
     }
 
@@ -1616,7 +1616,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error updating inline style: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error updating inline style", ex);
         }
     }
 
@@ -1636,7 +1636,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error toggling highlight: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error toggling highlight", ex);
         }
     }
 
@@ -1658,7 +1658,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Highlight error: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Highlight error", ex);
         }
     }
 
@@ -1694,7 +1694,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Search error: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Search error", ex);
         }
     }
 
@@ -1736,7 +1736,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error doing server AX search: {ex.Message}");
+                Logger.LogErrorMessage("ElementsVM", "Error doing server AX search", ex);
             }
 
             if (_axSearchResults.Count == 0)
@@ -1953,7 +1953,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing AX tree: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error refreshing AX tree", ex);
         }
     }
 
@@ -2108,7 +2108,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error committing box model edit: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error committing box model edit", ex);
         }
     }
 
@@ -2347,7 +2347,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error updating control classes: {ex.Message}");
+            Logger.LogErrorMessage("ElementsVM", "Error updating control classes", ex);
         }
     }
 

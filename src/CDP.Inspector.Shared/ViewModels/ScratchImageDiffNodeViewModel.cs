@@ -8,11 +8,14 @@ using System.Text.Json.Nodes;
 using Avalonia.Media.Imaging;
 using CDP.Editor.Nodes.ViewModels;
 using SkiaSharp;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ScratchImageDiffNodeViewModel : ScratchNodeViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ScratchImageDiffNodeViewModel>();
     private string? _leftNodeId;
     private string? _rightNodeId;
     private ScratchNodeViewModelBase? _leftNode;
@@ -376,7 +379,7 @@ public class ScratchImageDiffNodeViewModel : ScratchNodeViewModelBase
         catch (Exception ex)
         {
             LastDiffException = ex;
-            Console.WriteLine($"Image diff computation failed: {ex.Message}");
+            Logger.LogErrorMessage("ScratchImageDiffNode", "Image diff computation failed", ex);
             DiffImage = null;
             DiffPercentage = 0.0;
         }

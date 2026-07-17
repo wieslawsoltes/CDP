@@ -8,11 +8,14 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class SimulationViewModel : ViewModelBase, IStateProvider
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<SimulationViewModel>();
     private readonly ICdpService _cdpService;
     private readonly Func<DomNodeModel?> _getSelectedNodeFunc;
     private readonly Func<bool> _isHighlightActiveFunc;
@@ -169,7 +172,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to set touch emulation: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Failed to set touch emulation", ex);
         }
     }
 
@@ -373,7 +376,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine($"[SimulationVM] CdpService_PropertyChanged: {e.PropertyName}, IsConnected: {_cdpService.IsConnected}");
+        Logger.LogPlaywrightDebug($"CdpService_PropertyChanged: {e.PropertyName}, IsConnected: {_cdpService.IsConnected}");
         if (e.PropertyName == nameof(ICdpService.IsConnected))
         {
             if (!_cdpService.IsConnected)
@@ -462,7 +465,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Click failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Click failed", ex);
         }
     }
 
@@ -477,7 +480,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Text input failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Text input failed", ex);
         }
     }
 
@@ -504,7 +507,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Keystroke simulation failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Keystroke simulation failed", ex);
         }
     }
 
@@ -554,7 +557,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Scroll failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Scroll failed", ex);
         }
     }
 
@@ -575,7 +578,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Resize failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Resize failed", ex);
         }
     }
 
@@ -588,7 +591,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Reset resize failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Reset resize failed", ex);
         }
     }
 
@@ -611,7 +614,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Screenshot capture failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Screenshot capture failed", ex);
         }
     }
 
@@ -625,7 +628,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Navigation failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Navigation failed", ex);
         }
     }
 
@@ -637,7 +640,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Reload failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Reload failed", ex);
         }
     }
 
@@ -664,7 +667,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"GoBack failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "GoBack failed", ex);
         }
     }
 
@@ -691,7 +694,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"GoForward failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "GoForward failed", ex);
         }
     }
 
@@ -721,7 +724,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Mouse move failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Mouse move failed", ex);
         }
     }
 
@@ -755,7 +758,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Click at point failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Click at point failed", ex);
         }
     }
 
@@ -827,7 +830,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Drag failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Drag failed", ex);
         }
     }
 
@@ -955,7 +958,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
 
     private async Task StartScreencastAsync()
     {
-        Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine("[SimulationVM] StartScreencastAsync called!");
+        Logger.LogScreencastDebug("StartScreencastAsync called!");
         if (!_cdpService.IsConnected) return;
         try
         {
@@ -965,7 +968,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine($"[SimulationVM] Page.enable failed: {ex.Message}");
+                Logger.LogScreencastError("Page.enable failed", ex);
             }
 
             if (SelectedDevicePreset != null && SelectedDevicePreset.Width == 0 && SelectedDevicePreset.Height == 0)
@@ -986,7 +989,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                 });
             }
 
-            Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine("[SimulationVM] Sending Page.startScreencast");
+            Logger.LogScreencastDebug("Sending Page.startScreencast");
             await _cdpService.SendCommandAsync("Page.startScreencast", new JsonObject
             {
                 ["format"] = "png",
@@ -994,11 +997,11 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                 ["transferMode"] = "tiled"
             });
             _cdpService.IsPreviewScreencastActive = true;
-            Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine("[SimulationVM] Page.startScreencast sent successfully!");
+            Logger.LogScreencastDebug("Page.startScreencast sent successfully!");
         }
         catch (Exception ex)
         {
-            Chrome.DevTools.Protocol.CdpServer.OriginalOut.WriteLine($"[SimulationVM] StartScreencast failed: {ex.Message}");
+            Logger.LogScreencastError("StartScreencast failed", ex);
         }
     }
 
@@ -1046,7 +1049,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"Error updating tiled preview: {ex.Message}");
+                                Logger.LogErrorMessage("SimulationVM", "Error updating tiled preview", ex);
                             }
                         });
                     }
@@ -1078,7 +1081,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error processing screencast frame: {ex.Message}");
+                Logger.LogErrorMessage("SimulationVM", "Error processing screencast frame", ex);
             }
         }
         else if (e.Method == "Page.frameNavigated")
@@ -1101,7 +1104,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error processing frameNavigated: {ex.Message}");
+                Logger.LogErrorMessage("SimulationVM", "Error processing frameNavigated", ex);
             }
         }
         else if (e.Method == "Page.navigatedWithinDocument")
@@ -1119,7 +1122,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error processing navigatedWithinDocument: {ex.Message}");
+                Logger.LogErrorMessage("SimulationVM", "Error processing navigatedWithinDocument", ex);
             }
         }
     }
@@ -1146,7 +1149,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error getting selector at ({x}, {y}): {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", $"Error getting selector at ({x}, {y})", ex);
         }
         return "";
     }
@@ -1202,7 +1205,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Interactive mouse event failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Interactive mouse event failed", ex);
         }
     }
 
@@ -1239,7 +1242,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Interactive wheel event failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Interactive wheel event failed", ex);
         }
     }
 
@@ -1263,7 +1266,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Interactive text input failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Interactive text input failed", ex);
         }
     }
 
@@ -1292,7 +1295,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Interactive key event failed: {ex.Message}");
+            Logger.LogErrorMessage("SimulationVM", "Interactive key event failed", ex);
         }
     }
 

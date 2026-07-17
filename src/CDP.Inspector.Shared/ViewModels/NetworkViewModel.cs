@@ -12,11 +12,14 @@ using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using Avalonia.Layout;
 using CDP.Editor.Splits.Models;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class NetworkViewModel : ViewModelBase, IStateProvider
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<NetworkViewModel>();
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
 
@@ -246,7 +249,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling Network domain: {ex.Message}");
+            Logger.LogErrorMessage("NetworkVM", "Error enabling Network domain", ex);
         }
     }
 
@@ -506,7 +509,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"Error decoding image: {ex.Message}");
+                            Logger.LogErrorMessage("NetworkVM", "Error decoding image", ex);
                         }
                     }
                     if (SelectedRequest == req)
@@ -518,7 +521,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error fetching response body: {ex.Message}");
+            Logger.LogErrorMessage("NetworkVM", "Error fetching response body", ex);
         }
     }
 
@@ -600,7 +603,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error applying network throttling: {ex.Message}");
+            Logger.LogErrorMessage("NetworkVM", "Error applying network throttling", ex);
         }
     }
 
@@ -672,7 +675,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error updating blocked URLs: {ex.Message}");
+            Logger.LogErrorMessage("NetworkVM", "Error updating blocked URLs", ex);
         }
     }
 
@@ -714,7 +717,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error fulfilling request: {ex.Message}");
+            Logger.LogErrorMessage("NetworkVM", "Error fulfilling request", ex);
         }
     }
 
@@ -729,7 +732,7 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error continuing request: {ex.Message}");
+            Logger.LogErrorMessage("NetworkVM", "Error continuing request", ex);
         }
     }
 

@@ -404,7 +404,7 @@ public class RecorderViewModel : ViewModelBase
                 }
                     catch (Exception ex) when (ex.Message.Contains("method") || ex.Message.Contains("not found") || ex.Message.Contains("not implemented") || ex.Message.Contains("Recorder"))
                     {
-                        Console.WriteLine("Recorder domain not supported by target. Falling back to client-side simulation recording.");
+                        Logger.LogWarningMessage("RecorderVM", "Recorder domain not supported by target. Falling back to client-side simulation recording.");
                         IsClientSideRecording = true;
 
                         // Emit initial steps locally
@@ -451,7 +451,7 @@ public class RecorderViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error toggling recording: {ex.Message}");
+            Logger.LogErrorMessage("RecorderVM", "Error toggling recording", ex);
         }
     }
 
@@ -1116,7 +1116,7 @@ public class RecorderViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error replaying steps: {ex.Message}");
+            Logger.LogErrorMessage("RecorderVM", "Error replaying steps", ex);
         }
         finally
         {
@@ -1129,7 +1129,7 @@ public class RecorderViewModel : ViewModelBase
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error resuming recording after replay: {ex.Message}");
+                    Logger.LogErrorMessage("RecorderVM", "Error resuming recording after replay", ex);
                 }
             }
             IsReplayEnabled = RecordedSteps.Count > 0;

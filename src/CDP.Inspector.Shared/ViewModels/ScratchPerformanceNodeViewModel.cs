@@ -10,11 +10,13 @@ using System.Windows.Input;
 using CDP.Editor.Nodes.ViewModels;
 using Chrome.DevTools.Protocol;
 using CdpInspectorApp.Services;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ScratchPerformanceNodeViewModel : ScratchNodeViewModelBase, IImportExportNode
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ScratchPerformanceNodeViewModel>();
     private readonly ICdpService? _cdpService;
     private double _cpuUsage;
     private double _memoryUsage;
@@ -233,7 +235,7 @@ public class ScratchPerformanceNodeViewModel : ScratchNodeViewModelBase, IImport
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling performance domains in ScratchPerformanceNodeViewModel: {ex.Message}");
+            Logger.LogErrorMessage("ScratchPerfNode", "Error enabling performance domains", ex);
         }
     }
 
