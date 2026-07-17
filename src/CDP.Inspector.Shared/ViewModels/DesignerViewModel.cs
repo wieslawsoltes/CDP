@@ -608,13 +608,13 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
             var model = boxResult["model"];
             if (model != null)
             {
-                var content = model["content"];
-                if (content is JsonArray contentArray && contentArray.Count >= 8)
+                var border = model["border"] ?? model["content"];
+                if (border is JsonArray borderArray && borderArray.Count >= 8)
                 {
-                    var x = contentArray[0]?.GetValue<double>() ?? 0;
-                    var y = contentArray[1]?.GetValue<double>() ?? 0;
-                    var x2 = contentArray[2]?.GetValue<double>() ?? 0;
-                    var y2 = contentArray[5]?.GetValue<double>() ?? 0;
+                    var x = borderArray[0]?.GetValue<double>() ?? 0;
+                    var y = borderArray[1]?.GetValue<double>() ?? 0;
+                    var x2 = borderArray[2]?.GetValue<double>() ?? 0;
+                    var y2 = borderArray[5]?.GetValue<double>() ?? 0;
 
                     if (nodeId == SelectedNodeId)
                     {
@@ -731,6 +731,7 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
 
     public async Task SelectElementAsync(string selector)
     {
+        Console.WriteLine($"[DEBUG] SelectElementAsync starting for selector: {selector}. IsConnected: {_cdpService.IsConnected}");
         if (string.IsNullOrEmpty(selector) || !_cdpService.IsConnected)
             return;
 
@@ -743,6 +744,7 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
                 ["depth"] = 0
             });
             var rootNodeId = docResult["root"]?["nodeId"]?.GetValue<int>() ?? 0;
+            Console.WriteLine($"[DEBUG] docResult rootNodeId: {rootNodeId}");
             if (rootNodeId == 0) return;
 
             var queryResult = await _cdpService.SendCommandAsync("DOM.querySelector", new JsonObject
@@ -751,6 +753,7 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
                 ["selector"] = selector
             });
             var nodeId = queryResult["nodeId"]?.GetValue<int>() ?? 0;
+            Console.WriteLine($"[DEBUG] queryResult nodeId: {nodeId}");
             if (nodeId == 0) return;
 
             SelectedNodeId = nodeId;
@@ -758,9 +761,11 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
             // Make sure Elements ViewModel is in sync
             Elements.SelectNodeById(nodeId);
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[DEBUG] SelectElementAsync exception: {ex.Message}\n{ex.StackTrace}");
             IsOverlayVisible = false;
+            Logger.LogErrorMessage("DesignerVM", $"SelectElementAsync failed for selector {selector}", ex);
         }
     }
 
@@ -901,6 +906,7 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
                 });
             }
 
+            await Task.Delay(200);
             await RefreshAllSelectedElementsAsync();
             TriggerWorkspaceSync();
         }
@@ -1103,6 +1109,129 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
         catch
         {
             // Mutation failed
+        }
+    }
+
+    public async Task DropElementAtLocationAsync(string xamlFragment, double x, double y)
+    {
+        if (string.IsNullOrEmpty(xamlFragment) || !_cdpService.IsConnected)
+            return;
+
+        try
+        {
+            var nodeRes = await _cdpService.SendCommandAsync("DOM.getNodeForLocation", new JsonObject
+            {
+                ["x"] = (int)x,
+                ["y"] = (int)y
+            });
+            var nodeId = nodeRes["nodeId"]?.GetValue<int>() ?? 0;
+            if (nodeId == 0) return;
+
+            var node = Elements.FindDomNode(nodeId);
+            if (node == null) return;
+
+            var containers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Grid", "StackPanel", "Canvas", "Border", "DockPanel", "WrapPanel", "ScrollViewer", "TabControl", "Expander"
+            };
+
+            var containerNode = node;
+            while (containerNode != null && !containers.Contains(containerNode.NodeName))
+            {
+                containerNode = containerNode.Parent;
+            }
+
+            if (containerNode == null) return;
+
+            if (containerNode.NodeName.Equals("Canvas", StringComparison.OrdinalIgnoreCase))
+            {
+                var boxResult = await _cdpService.SendCommandAsync("DOM.getBoxModel", new JsonObject
+                {
+                    ["nodeId"] = containerNode.NodeId
+                });
+
+                var model = boxResult["model"];
+                double canvasX = 0;
+                double canvasY = 0;
+                if (model != null)
+                {
+                    var content = model["content"];
+                    if (content is JsonArray contentArray && contentArray.Count >= 8)
+                    {
+                        canvasX = contentArray[0]?.GetValue<double>() ?? 0;
+                        canvasY = contentArray[1]?.GetValue<double>() ?? 0;
+                    }
+                }
+
+                double localX = x - canvasX;
+                double localY = y - canvasY;
+
+                double snapX = Math.Round(localX / 8.0) * 8.0;
+                double snapY = Math.Round(localY / 8.0) * 8.0;
+
+                var trimmedFragment = xamlFragment.Trim();
+                if (trimmedFragment.StartsWith("<"))
+                {
+                    var tagEnd = trimmedFragment.IndexOfAny(new[] { ' ', '/', '>' }, 1);
+                    if (tagEnd > 0)
+                    {
+                        var leftAttr = $" Canvas.Left=\"{snapX.ToString(System.Globalization.CultureInfo.InvariantCulture)}\"";
+                        var topAttr = $" Canvas.Top=\"{snapY.ToString(System.Globalization.CultureInfo.InvariantCulture)}\"";
+                        var injection = leftAttr + topAttr;
+                        xamlFragment = trimmedFragment.Insert(tagEnd, injection);
+                    }
+                }
+            }
+
+            var outerResult = await _cdpService.SendCommandAsync("DOM.getOuterHTML", new JsonObject
+            {
+                ["nodeId"] = containerNode.NodeId
+            });
+
+            var currentHtml = outerResult["outerHTML"]?.GetValue<string>();
+            if (string.IsNullOrEmpty(currentHtml))
+                return;
+
+            var closingTagIndex = currentHtml.LastIndexOf("</", StringComparison.Ordinal);
+            string newHtml;
+            if (closingTagIndex >= 0)
+            {
+                newHtml = currentHtml.Insert(closingTagIndex, xamlFragment);
+            }
+            else
+            {
+                var selfClose = currentHtml.LastIndexOf("/>", StringComparison.Ordinal);
+                if (selfClose >= 0)
+                {
+                    var tagEnd = currentHtml.IndexOfAny(new[] { ' ', '/' }, 1);
+                    var tagName = currentHtml.Substring(1, tagEnd - 1);
+                    newHtml = currentHtml.Substring(0, selfClose) + ">" + xamlFragment + "</" + tagName + ">";
+                }
+                else
+                {
+                    return;
+                }
+            }
+
+            await _cdpService.SendCommandAsync("DOM.setOuterHTML", new JsonObject
+            {
+                ["nodeId"] = containerNode.NodeId,
+                ["outerHTML"] = newHtml
+            });
+
+            TriggerWorkspaceSync();
+
+            var useAutomation = MainWindowViewModel.Instance?.Connection?.UseAutomationSelectors == true;
+            var generator = ClientSelectorRegistry.GetGenerator(useAutomation ? "automation" : "dom");
+            var containerSelector = generator.GenerateSelector(containerNode);
+            if (!string.IsNullOrEmpty(containerSelector))
+            {
+                await SelectElementAsync(containerSelector);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogErrorMessage("DesignerVM", $"Error dropping element at location ({x}, {y})", ex);
         }
     }
 

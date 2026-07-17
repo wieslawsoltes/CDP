@@ -83,7 +83,7 @@
                         ZIndex="10">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <ToggleButton Name="btnToggleDesignMode"
-                                      IsChecked="{Binding Designer.IsDesignModeActive}"
+                                      IsChecked="{Binding Designer.IsDesignModeActive, Mode=TwoWay}"
                                       Padding="6,4">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <PathIcon Data="{StaticResource DesignIcon}"
@@ -134,23 +134,26 @@
                             Margin="15"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center">
-                        <Grid>
-                            <Image Name="imgDesignerScreenshot"
-                                   Source="{Binding Simulation.ScreenshotImage}"
-                                   Width="{Binding Simulation.DeviceWidth}"
-                                   Height="{Binding Simulation.DeviceHeight}"
-                                   Stretch="Uniform" />
-                            <wysiwyg:DesignerOverlay Name="designerOverlay"
-                                                     SelectedBounds="{Binding Designer.SelectedBounds}"
-                                                     MultiSelectedBounds="{Binding Designer.MultiSelectedBounds}"
-                                                     MarginThickness="{Binding Designer.SelectedMarginThickness}"
-                                                     PaddingThickness="{Binding Designer.SelectedPaddingThickness}"
-                                                     IsOverlayVisible="{Binding Designer.IsOverlayVisible}"
-                                                     StackPanelOrientation="{Binding Designer.StackPanelOrientation}"
-                                                     SelectedElementBadge="{Binding Designer.SelectedElementBadge}"
-                                                     Width="{Binding Simulation.DeviceWidth}"
-                                                     Height="{Binding Simulation.DeviceHeight}"/>
-                        </Grid>
+                        <Viewbox Stretch="Uniform">
+                            <Grid Width="{Binding Simulation.DeviceWidth}"
+                                  Height="{Binding Simulation.DeviceHeight}">
+                                <Image Name="imgDesignerScreenshot"
+                                       Source="{Binding Simulation.ScreenshotImage}"
+                                       Width="{Binding Simulation.DeviceWidth}"
+                                       Height="{Binding Simulation.DeviceHeight}"
+                                       Stretch="Fill" />
+                                <wysiwyg:DesignerOverlay Name="designerOverlay"
+                                                         SelectedBounds="{Binding Designer.SelectedBounds}"
+                                                         MultiSelectedBounds="{Binding Designer.MultiSelectedBounds}"
+                                                         MarginThickness="{Binding Designer.SelectedMarginThickness}"
+                                                         PaddingThickness="{Binding Designer.SelectedPaddingThickness}"
+                                                         IsOverlayVisible="{Binding Designer.IsOverlayVisible}"
+                                                         StackPanelOrientation="{Binding Designer.StackPanelOrientation}"
+                                                         SelectedElementBadge="{Binding Designer.SelectedElementBadge}"
+                                                         Width="{Binding Simulation.DeviceWidth}"
+                                                         Height="{Binding Simulation.DeviceHeight}"/>
+                            </Grid>
+                        </Viewbox>
                     </Border>
                 </ScrollViewer>
 
