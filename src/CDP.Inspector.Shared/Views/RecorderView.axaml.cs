@@ -9,6 +9,8 @@ using Avalonia.Platform.Storage;
 using CdpInspectorApp.ViewModels;
 using Avalonia.VisualTree;
 using Avalonia.Controls.Presenters;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
@@ -19,6 +21,7 @@ namespace CdpInspectorApp.Views;
 [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "DataGrid is not trim-safe")]
 public partial class RecorderView : UserControl
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<RecorderView>();
     public Button BtnToggleRecord => btnToggleRecord;
     public Button BtnReplay => btnReplay;
     public Button BtnClear => btnClear;
@@ -213,7 +216,7 @@ public partial class RecorderView : UserControl
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading script: {ex.Message}");
+            Logger.LogErrorMessage("RecorderView", "Error loading script", ex);
         }
     }
 
@@ -269,7 +272,7 @@ public partial class RecorderView : UserControl
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error exporting script: {ex.Message}");
+            Logger.LogErrorMessage("RecorderView", "Error exporting script", ex);
         }
     }
 
@@ -298,7 +301,7 @@ public partial class RecorderView : UserControl
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error exporting JSON: {ex.Message}");
+            Logger.LogErrorMessage("RecorderView", "Error exporting JSON", ex);
         }
     }
 }

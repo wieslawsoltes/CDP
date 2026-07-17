@@ -5,11 +5,13 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
 public static class FetchDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("FetchDomain");
     private static readonly ConcurrentDictionary<CdpSession, List<RequestPattern>> _enabledSessions = new();
     private static readonly ConcurrentDictionary<string, TaskCompletionSource<InterceptResult>> _pendingInterceptions = new();
 
@@ -197,10 +199,10 @@ public static class FetchDomain
             case "fulfillRequest":
                 {
                     var requestId = @params["requestId"]?.GetValue<string>() ?? "";
-                    Console.WriteLine($"[DEBUG FetchDomain] fulfillRequest called for requestId: {requestId}");
+                    Logger.LogFetchDebug($"fulfillRequest called for requestId: {requestId}");
                     if (_pendingInterceptions.TryGetValue(requestId, out var tcs))
                     {
-                        Console.WriteLine($"[DEBUG FetchDomain] Found pending interception for requestId: {requestId}");
+                        Logger.LogFetchDebug($"Found pending interception for requestId: {requestId}");
                         var responseCode = @params["responseCode"]?.GetValue<int>() ?? 200;
                         
                         var responseHeaders = new Dictionary<string, string>();
@@ -242,8 +244,8 @@ public static class FetchDomain
                     }
                     else
                     {
-                        Console.WriteLine($"[DEBUG FetchDomain] WARNING: pending interception NOT found for requestId: {requestId}!");
-                        Console.WriteLine($"[DEBUG FetchDomain] Current pending interception IDs: {string.Join(", ", _pendingInterceptions.Keys)}");
+                        Logger.LogWarningMessage("FetchDomain", $"WARNING: pending interception NOT found for requestId: {requestId}!");
+                        Logger.LogFetchDebug($"Current pending interception IDs: {string.Join(", ", _pendingInterceptions.Keys)}");
                     }
                     return Task.FromResult(new JsonObject());
                 }

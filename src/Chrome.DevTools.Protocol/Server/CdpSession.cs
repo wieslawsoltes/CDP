@@ -336,7 +336,7 @@ public class CdpSession : IDisposable
 
     public async Task StartAsync()
     {
-        Console.WriteLine($"[CDP SERVER] CdpSession.StartAsync entered! Target: {Target?.Id}");
+        Logger.LogInfoMessage("CdpSession", $"StartAsync entered! Target: {Target?.Id}");
         var buffer = new byte[8192];
         try
         {
@@ -362,15 +362,15 @@ public class CdpSession : IDisposable
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("[CDP SERVER] Session closed: Canceled");
+            Logger.ClientDisconnected();
         }
         catch (WebSocketException wsex)
         {
-            Console.WriteLine($"[CDP SERVER] Session closed: WebSocket connection closed ({wsex.Message})");
+            Logger.ClientConnectionFailed(wsex.Message, wsex);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CDP SERVER] StartAsync Exception: {ex.Message}\n{ex.StackTrace}");
+            Logger.ClientConnectionFailed(ex.Message, ex);
         }
         finally
         {
@@ -395,7 +395,7 @@ public class CdpSession : IDisposable
 
     private async Task HandleMessageAsync(string jsonStr)
     {
-        Console.WriteLine($"[CDP SERVER] HandleMessageAsync entered! msg: {jsonStr}");
+        Logger.LogServerDebug($"HandleMessageAsync entered! msg: {jsonStr}");
         try
         {
             var node = JsonNode.Parse(jsonStr);
@@ -407,7 +407,7 @@ public class CdpSession : IDisposable
             
             var method = obj["method"]?.GetValue<string>() ?? "";
             var paramsNode = obj["params"] as JsonObject ?? new JsonObject();
-            CdpServer.OriginalOut.WriteLine($"[CDP SERVER INCOMING] method: {method}, id: {id}, params: {paramsNode.ToJsonString()}");
+            Logger.LogIncomingMessage("CDP", method, id, paramsNode.ToJsonString());
 
             string? sessionId = null;
             if (obj.ContainsKey("sessionId"))
@@ -535,7 +535,7 @@ public class CdpSession : IDisposable
         string jsonStr = node.ToJsonString(new JsonSerializerOptions { MaxDepth = 256, NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() });
         if (!jsonStr.Contains("screencastFrame") && !jsonStr.Contains("data:image"))
         {
-            CdpServer.OriginalOut.WriteLine($"[CDP SERVER OUTGOING] {jsonStr}");
+            Logger.LogOutgoingMessage("CDP", jsonStr);
         }
         if (_webSocket.State != WebSocketState.Open) return;
         var bytes = Encoding.UTF8.GetBytes(jsonStr);
@@ -576,7 +576,7 @@ public class CdpSession : IDisposable
 
     public void StartScreencast(string format = "png", int? quality = null, int? maxWidth = null, int? maxHeight = null, int? everyNthFrame = null, string? transferMode = null)
     {
-        Console.WriteLine($"[CDP SERVER] StartScreencast. CurrentTargetSession is null: {CurrentTargetSession == null}, Type: {CurrentTargetSession?.GetType().FullName}");
+        Logger.LogServerDebug($"StartScreencast. CurrentTargetSession is null: {CurrentTargetSession == null}, Type: {CurrentTargetSession?.GetType().FullName}");
         CurrentTargetSession?.StartScreencast(format, quality, maxWidth, maxHeight, everyNthFrame, transferMode);
     }
 

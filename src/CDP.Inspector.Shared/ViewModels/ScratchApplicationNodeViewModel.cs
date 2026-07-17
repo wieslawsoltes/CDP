@@ -8,11 +8,13 @@ using System.Windows.Input;
 using CDP.Editor.Nodes.ViewModels;
 using Chrome.DevTools.Protocol;
 using CdpInspectorApp.Services;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ScratchApplicationNodeViewModel : ScratchNodeViewModelBase, IImportExportNode
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ScratchApplicationNodeViewModel>();
     private readonly ICdpService? _cdpService;
     private string _appResourcesJson = "[]";
     private int _windowCount;
@@ -164,7 +166,7 @@ public class ScratchApplicationNodeViewModel : ScratchNodeViewModelBase, IImport
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ScratchApplicationNode] Stylesheet count query failed: {ex.Message}");
+                Logger.LogErrorMessage("ScratchAppNode", "Stylesheet count query failed", ex);
             }
             StylesheetCount = styleCount;
 
@@ -177,7 +179,7 @@ public class ScratchApplicationNodeViewModel : ScratchNodeViewModelBase, IImport
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ScratchApplicationNode] Resources query failed: {ex.Message}");
+                Logger.LogErrorMessage("ScratchAppNode", "Resources query failed", ex);
                 AppResourcesJson = "[]";
             }
 
@@ -185,7 +187,7 @@ public class ScratchApplicationNodeViewModel : ScratchNodeViewModelBase, IImport
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ScratchApplicationNode] Capture failed: {ex.Message}");
+            Logger.LogErrorMessage("ScratchAppNode", "Capture failed", ex);
         }
         finally
         {

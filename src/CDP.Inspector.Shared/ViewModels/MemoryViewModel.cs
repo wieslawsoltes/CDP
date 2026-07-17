@@ -12,11 +12,14 @@ using Avalonia.Controls.DataGridHierarchical;
 using Avalonia.Layout;
 using CDP.Editor.Splits.Models;
 using System.Text.Json.Serialization;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class MemoryViewModel : ViewModelBase, IStateProvider
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<MemoryViewModel>();
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
 
@@ -97,7 +100,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error fetching retainers: {ex.Message}");
+                Logger.LogErrorMessage("MemoryVM", "Error fetching retainers", ex);
             }
         });
     }
@@ -403,7 +406,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error taking heap snapshot: {ex.Message}");
+            Logger.LogErrorMessage("MemoryVM", "Error taking heap snapshot", ex);
         }
     }
 
@@ -422,7 +425,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error exporting heap snapshot: {ex.Message}");
+            Logger.LogErrorMessage("MemoryVM", "Error exporting heap snapshot", ex);
         }
     }
 
@@ -436,7 +439,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"GC failed: {ex.Message}");
+            Logger.LogErrorMessage("MemoryVM", "GC failed", ex);
         }
     }
 
@@ -834,7 +837,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error running duplicate strings audit: {ex.Message}");
+                Logger.LogErrorMessage("MemoryVM", "Error running duplicate strings audit", ex);
             }
         }
 
@@ -866,7 +869,7 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error fetching heap info: {ex.Message}");
+            Logger.LogErrorMessage("MemoryVM", "Error fetching heap info", ex);
         }
     }
 

@@ -10,11 +10,13 @@ using CdpInspectorApp.Services;
 using Chrome.DevTools.Protocol;
 using Avalonia.Layout;
 using CDP.Editor.Splits.Models;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class InspectorPropertyModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<InspectorPropertyModel>();
     private string _name = "";
     private string _type = "";
     private string _displayValue = "";
@@ -92,7 +94,7 @@ public class InspectorPropertyModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error setting property: {ex.Message}");
+            Logger.LogErrorMessage("MvvmVM", "Error setting property", ex);
         }
     }
 }
@@ -195,6 +197,7 @@ public class CommandExecutedModel : ViewModelBase
 
 public class MvvmViewModel : ViewModelBase, IStateProvider
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<MvvmViewModel>();
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
 
@@ -328,7 +331,7 @@ public class MvvmViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling MVVM: {ex.Message}");
+            Logger.LogErrorMessage("MvvmVM", "Error enabling MVVM", ex);
         }
     }
 
@@ -347,7 +350,7 @@ public class MvvmViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing MVVM tree: {ex.Message}");
+            Logger.LogErrorMessage("MvvmVM", "Error refreshing MVVM tree", ex);
         }
     }
 

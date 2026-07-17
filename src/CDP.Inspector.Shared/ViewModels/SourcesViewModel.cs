@@ -9,11 +9,14 @@ using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
 using Avalonia.Layout;
 using CDP.Editor.Splits.Models;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class SourcesViewModel : ViewModelBase, IStateProvider
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<SourcesViewModel>();
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
 
@@ -380,7 +383,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Sources failed: {ex.Message}");
+            Logger.LogErrorMessage("SourcesVM", "Sources failed", ex);
         }
     }
 
@@ -486,7 +489,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to get scope properties: {ex.Message}");
+                Logger.LogErrorMessage("SourcesVM", "Failed to get scope properties", ex);
             }
         }
 
@@ -525,7 +528,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Resume failed: {ex.Message}");
+            Logger.LogErrorMessage("SourcesVM", "Resume failed", ex);
         }
     }
 
@@ -538,7 +541,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"StepOver failed: {ex.Message}");
+            Logger.LogErrorMessage("SourcesVM", "StepOver failed", ex);
         }
     }
 
@@ -551,7 +554,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"StepInto failed: {ex.Message}");
+            Logger.LogErrorMessage("SourcesVM", "StepInto failed", ex);
         }
     }
 
@@ -564,7 +567,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"StepOut failed: {ex.Message}");
+            Logger.LogErrorMessage("SourcesVM", "StepOut failed", ex);
         }
     }
 
@@ -597,7 +600,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Remove breakpoint failed: {ex.Message}");
+                Logger.LogErrorMessage("SourcesVM", "Remove breakpoint failed", ex);
             }
         }
         else
@@ -636,7 +639,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Set breakpoint failed: {ex.Message}");
+                Logger.LogErrorMessage("SourcesVM", "Set breakpoint failed", ex);
             }
         }
     }
@@ -776,7 +779,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Save file failed: {ex.Message}");
+            Logger.LogErrorMessage("SourcesVM", "Save file failed", ex);
         }
         finally
         {
@@ -909,7 +912,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Search failed: {ex.Message}");
+            Logger.LogErrorMessage("SourcesVM", "Search failed", ex);
         }
     }
 

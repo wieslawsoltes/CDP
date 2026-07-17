@@ -7,11 +7,14 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class MemoryDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("MemoryDomain");
     public static void Initialize()
     {
         Avalonia.Controls.Control.LoadedEvent.AddClassHandler<Avalonia.Controls.Control>((element, args) =>
@@ -83,27 +86,27 @@ public static class MemoryDomain
                                     var colHandlers = targetSession._collectionHandlers;
                                     var classesHandlers = targetSession._classesHandlers;
 
-                                    Console.WriteLine($"[CDP DIAGNOSTIC] Session NodeMap size: {(session.NodeMap.GetVisual(0) == null ? "N/A" : "OK")}, PropHandlers: {propHandlers.Count}, ColHandlers: {colHandlers.Count}, ClassesHandlers: {classesHandlers.Count}");
+                                    Logger.LogMemoryDiagnostic($"Session NodeMap size: {(session.NodeMap.GetVisual(0) == null ? "N/A" : "OK")}, PropHandlers: {propHandlers.Count}, ColHandlers: {colHandlers.Count}, ClassesHandlers: {classesHandlers.Count}");
 
                                     foreach (var key in propHandlers.Keys)
                                     {
                                         if (key is Avalonia.Controls.Control ctrl && ctrl.Name == "leakButton")
                                         {
-                                            Console.WriteLine("[CDP LEAK] leakButton is still in _propertyHandlers!");
+                                            Logger.LogMemoryLeak("leakButton is still in _propertyHandlers!");
                                         }
                                     }
                                     foreach (var key in colHandlers.Keys)
                                     {
                                         if (key is Avalonia.Controls.Control ctrl && ctrl.Name == "leakButton")
                                         {
-                                            Console.WriteLine("[CDP LEAK] leakButton is still in _collectionHandlers!");
+                                            Logger.LogMemoryLeak("leakButton is still in _collectionHandlers!");
                                         }
                                     }
                                     foreach (var key in classesHandlers.Keys)
                                     {
                                         if (key is Avalonia.Controls.Control ctrl && ctrl.Name == "leakButton")
                                         {
-                                            Console.WriteLine("[CDP LEAK] leakButton is still in _classesHandlers!");
+                                            Logger.LogMemoryLeak("leakButton is still in _classesHandlers!");
                                         }
                                     }
                                 }
@@ -113,14 +116,14 @@ public static class MemoryDomain
                                     var v = session.NodeMap.GetVisual(i);
                                     if (v is Avalonia.Controls.Control ctrl && ctrl.Name == "leakButton")
                                     {
-                                        Console.WriteLine($"[CDP LEAK] leakButton is still in NodeMap with ID {i}!");
+                                        Logger.LogMemoryLeak($"leakButton is still in NodeMap with ID {i}!");
                                     }
                                 }
                             }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[CDP DIAGNOSTIC ERROR] {ex}");
+                            Logger.LogErrorMessage("MemoryDomain", "Diagnostic check failed", ex);
                         }
 
                         foreach (var info in detachedControls)

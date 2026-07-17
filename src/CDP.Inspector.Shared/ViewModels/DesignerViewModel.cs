@@ -8,6 +8,8 @@ using System.Windows.Input;
 using Avalonia;
 using CdpInspectorApp.Services;
 using CdpInspectorApp.Models;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -18,6 +20,7 @@ namespace CdpInspectorApp.ViewModels;
 /// </summary>
 public class DesignerViewModel : ViewModelBase, IStateProvider
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<DesignerViewModel>();
     private readonly ICdpService _cdpService;
     private readonly Func<ElementsViewModel> _elementsFunc;
     private bool _isDesignModeActive;
@@ -822,7 +825,7 @@ public class DesignerViewModel : ViewModelBase, IStateProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error selecting element at ({x}, {y}): {ex.Message}");
+            Logger.LogErrorMessage("DesignerVM", $"Error selecting element at ({x}, {y})", ex);
         }
     }
 

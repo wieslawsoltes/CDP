@@ -353,7 +353,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"Error recording preview pane click step: {ex.Message}");
+                                Logger.LogErrorMessage("OsAutomation", "Error recording preview pane click step", ex);
                             }
                         }
 
@@ -483,7 +483,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"Error recording preview pane text change step: {ex.Message}");
+                            Logger.LogErrorMessage("OsAutomation", "Error recording preview pane text change step", ex);
                         }
                     }
 
@@ -1498,7 +1498,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                 catch (TaskCanceledException) {}
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error polling focused element: {ex.Message}");
+                    Logger.LogErrorMessage("OsAutomation", "Error polling focused element", ex);
                 }
             }
         }, token);
@@ -1653,7 +1653,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                 catch (TaskCanceledException) {}
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error in screencast: {ex.Message}");
+                    Logger.LogScreencastError("Error in screencast", ex);
                 }
             }
         }, token);
@@ -1913,7 +1913,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                 catch (TaskCanceledException) {}
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error in virtual performance loop: {ex.Message}");
+                    Logger.LogErrorMessage("OsAutomation", "Error in virtual performance loop", ex);
                 }
             }
         }, token);
@@ -2335,7 +2335,7 @@ public sealed class OsAutomationCdpSession : IDisposable
                 catch (TaskCanceledException) {}
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error in virtual network simulation: {ex.Message}");
+                    Logger.LogErrorMessage("OsAutomation", "Error in virtual network simulation", ex);
                 }
             }
         }, token);

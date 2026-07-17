@@ -9,10 +9,13 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Chrome.DevTools.Protocol;
 
+using Microsoft.Extensions.Logging;
+
 namespace Avalonia.Diagnostics.Cdp;
 
 public class AvaloniaCdpTarget : ICdpTarget
 {
+#line 16
     public TopLevel Window { get; }
     public string Id { get; }
     public string Title { get; set; }
@@ -45,6 +48,7 @@ public class AvaloniaCdpTarget : ICdpTarget
 
 public static class CdpServer
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("AvaloniaCdpServer");
     private static readonly ConcurrentDictionary<TopLevel, AvaloniaCdpTarget> _targets = new();
     private static TopLevel? _primaryWindow;
 
@@ -156,7 +160,7 @@ public static class CdpServer
 
         Window.WindowOpenedEvent.AddClassHandler<Window>((w, e) =>
         {
-            Console.WriteLine($"[CDP SERVER DEBUG] WindowOpenedEvent for window: {w.GetType().FullName}, Title: '{w.Title}'");
+            Logger.LogServerDebug($"WindowOpenedEvent for window: {w.GetType().FullName}, Title: '{w.Title}'");
             var targetId = Register(w, w.Title ?? w.GetType().Name);
 
             if (ShouldWaitForDebugger(w))
@@ -169,7 +173,7 @@ public static class CdpServer
         });
         Window.WindowClosedEvent.AddClassHandler<Window>((w, e) =>
         {
-            Console.WriteLine($"[CDP SERVER DEBUG] WindowClosedEvent for window: {w.GetType().FullName}");
+            Logger.LogServerDebug($"WindowClosedEvent for window: {w.GetType().FullName}");
             Unregister(w);
         });
     }

@@ -6,11 +6,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jint;
 using Jint.Runtime;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class DebuggerDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("DebuggerDomain");
     public static readonly ManualResetEventSlim DebuggerBlockEvent = new(true);
     public static bool IsPaused { get; set; }
 
@@ -143,7 +146,12 @@ public static class DebuggerDomain
                         engine.SetValue("Window", windowObj);
                         engine.SetValue("window", new Avalonia.Diagnostics.Cdp.Domains.CdpRuntimeWindow(session));
                         engine.SetValue("document", new Avalonia.Diagnostics.Cdp.Domains.CdpRuntimeDocument(session));
-                        engine.SetValue("Print", new Action<object?>(Console.WriteLine));
+                        engine.SetValue("Print", new Action<object?>(obj =>
+                        {
+                            var msg = obj?.ToString() ?? "null";
+                            Logger.LogInfoMessage("Debugger", msg);
+                            Chrome.DevTools.Protocol.Domains.LogDomain.BroadcastLog("Console", "Information", msg);
+                        }));
                         engine.SetValue("Query", new Func<string, Visual?>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelector(session.Window ?? selectedNode, s, session.UseLogicalTree)));
                         engine.SetValue("QueryAll", new Func<string, IEnumerable<Visual>>(s => Avalonia.Diagnostics.Cdp.SelectorEngine.QuerySelectorAll(session.Window ?? selectedNode, s, session.UseLogicalTree)));
                         
@@ -318,7 +326,7 @@ public static class DebuggerDomain
                     }
                     catch (Exception ex)
                     {
-                        CdpServer.OriginalOut.WriteLine($"[CDP DEBUGGER ERROR] Failed to evaluate breakpoint condition '{hitBp.Condition}': {ex}");
+                        Logger.LogErrorMessage("DebuggerDomain", $"Failed to evaluate breakpoint condition '{hitBp.Condition}'", ex);
                         return true;
                     }
                 };

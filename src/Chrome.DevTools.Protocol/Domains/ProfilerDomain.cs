@@ -4,11 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
 public static class ProfilerDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("ProfilerDomain");
     private static readonly ConcurrentDictionary<CdpSession, ProfilerState> _states = new();
 
     public static Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
@@ -92,7 +94,7 @@ public static class ProfilerDomain
                         }
                         catch (Exception ex)
                         {
-                            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] takeJetBrainsMemorySnapshot fallback failed: {ex.Message}");
+                            Logger.LogProfilerError("ProfilerDomain", "takeJetBrainsMemorySnapshot fallback failed", ex);
                         }
                     }
 
@@ -152,6 +154,7 @@ public struct ProfileSpan
 
 public class ProfilerState
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ProfilerState>();
     private IProfilingEngine _activeEngine;
 
     public IProfilingEngine ActiveEngine => _activeEngine;
@@ -204,10 +207,10 @@ public class ProfilerState
         }
         catch (Exception ex)
         {
-            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Engine {_activeEngine.Name} failed to start: {ex.Message}");
+            Logger.LogProfilerError("ProfilerDomain", $"Engine {_activeEngine.Name} failed to start", ex);
             if (_activeEngine is EventPipeProfilingEngine)
             {
-                CdpServer.OriginalOut.WriteLine("[CDP PROFILER] Falling back to simulated profiling engine.");
+                Logger.LogProfilerInfo("ProfilerDomain", "Falling back to simulated profiling engine.");
                 _activeEngine = new SimulatedProfilingEngine();
                 _activeEngine.Start();
             }

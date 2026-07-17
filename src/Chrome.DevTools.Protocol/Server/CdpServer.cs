@@ -140,7 +140,7 @@ public static class CdpServer
 
     public static string Register(ICdpTarget target)
     {
-        Console.WriteLine($"[CDP SERVER DEBUG] CdpServer.Register target: Id={target.Id}, Title='{target.Title}', Type={target.Type}");
+        Logger.LogServerDebug($"CdpServer.Register target: Id={target.Id}, Title='{target.Title}', Type={target.Type}");
         foreach (var pair in _targets)
         {
             if (pair.Value == target) return pair.Key;
@@ -159,10 +159,10 @@ public static class CdpServer
 
         foreach (var session in _sessions.Keys)
         {
-            Console.WriteLine($"[CDP SERVER DEBUG] Checking session: AutoAttachEnabled={session.AutoAttachEnabled}");
+            Logger.LogServerDebug($"Checking session: AutoAttachEnabled={session.AutoAttachEnabled}");
             if (session.AutoAttachEnabled)
             {
-                Console.WriteLine($"[CDP SERVER DEBUG] Auto-attaching target {target.Id} to session");
+                Logger.LogServerDebug($"Auto-attaching target {target.Id} to session");
                 session.AutoAttachTarget(target, isNewTarget: true);
                 if (target.Type == "page")
                 {

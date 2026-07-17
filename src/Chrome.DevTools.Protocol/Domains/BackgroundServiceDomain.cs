@@ -3,11 +3,13 @@ using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
 public static class BackgroundServiceDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("BackgroundServiceDomain");
     private static readonly ConcurrentDictionary<CdpSession, CancellationTokenSource> _observingSessions = new();
 
     public static Task<JsonObject> HandleAsync(CdpSession session, string action, JsonObject @params)
@@ -116,7 +118,7 @@ public static class BackgroundServiceDomain
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in simulated BackgroundService event task: {ex.Message}");
+                Logger.LogErrorMessage("BackgroundServiceDomain", "Error in simulated BackgroundService event task", ex);
             }
         }, cts.Token);
     }

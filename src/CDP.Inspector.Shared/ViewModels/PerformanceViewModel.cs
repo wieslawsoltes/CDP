@@ -9,11 +9,14 @@ using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using CDP.Editor.Splits.Models;
 using Avalonia.Layout;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class PerformanceViewModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<PerformanceViewModel>();
     private readonly ICdpService _cdpService;
     private string _perfNodesText = "--";
     private string _perfMemoryText = "--";
@@ -307,7 +310,7 @@ public class PerformanceViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling performance domains: {ex.Message}");
+            Logger.LogErrorMessage("PerformanceVM", "Error enabling performance domains", ex);
         }
     }
 
@@ -436,7 +439,7 @@ public class PerformanceViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Memory counters failed: {ex.Message}");
+                Logger.LogErrorMessage("PerformanceVM", "Memory counters failed", ex);
             }
 
             try
@@ -483,12 +486,12 @@ public class PerformanceViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Live controls failed: {ex.Message}");
+                Logger.LogErrorMessage("PerformanceVM", "Live controls failed", ex);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Refresh metrics failed: {ex.Message}");
+            Logger.LogErrorMessage("PerformanceVM", "Refresh metrics failed", ex);
         }
     }
 
@@ -501,7 +504,7 @@ public class PerformanceViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error collecting garbage: {ex.Message}");
+            Logger.LogErrorMessage("PerformanceVM", "Error collecting garbage", ex);
         }
     }
 
@@ -514,7 +517,7 @@ public class PerformanceViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Target shutdown failed: {ex.Message}");
+            Logger.LogErrorMessage("PerformanceVM", "Target shutdown failed", ex);
         }
     }
 
@@ -531,7 +534,7 @@ public class PerformanceViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Start profiler failed: {ex.Message}");
+            Logger.LogErrorMessage("PerformanceVM", "Start profiler failed", ex);
         }
     }
 
@@ -553,7 +556,7 @@ public class PerformanceViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Stop profiler failed: {ex.Message}");
+            Logger.LogErrorMessage("PerformanceVM", "Stop profiler failed", ex);
             IsProfilingActive = false;
             ((RelayCommand)StartProfilerCommand).RaiseCanExecuteChanged();
             ((RelayCommand)StopProfilerCommand).RaiseCanExecuteChanged();

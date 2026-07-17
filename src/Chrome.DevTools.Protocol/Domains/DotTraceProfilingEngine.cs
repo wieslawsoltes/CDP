@@ -4,11 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using JetBrains.Profiler.SelfApi;
+using Microsoft.Extensions.Logging;
 
 namespace Chrome.DevTools.Protocol.Domains;
 
 public class DotTraceProfilingEngine : IProfilingEngine
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<DotTraceProfilingEngine>();
     private readonly object _lock = new();
     private readonly List<ProfileSpan> _spans = new();
     private DateTime _startTime;
@@ -33,7 +35,7 @@ public class DotTraceProfilingEngine : IProfilingEngine
             }
             catch (Exception ex)
             {
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to create temp dir for dotTrace: {ex.Message}");
+                Logger.LogProfilerError("dottrace", "Failed to create temp dir", ex);
             }
 
             try
@@ -48,7 +50,7 @@ public class DotTraceProfilingEngine : IProfilingEngine
             {
                 _isRunning = false;
                 _startTime = DateTime.MinValue;
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Failed to start dotTrace profiling: {ex.Message}");
+                Logger.LogProfilerError("dottrace", "Failed to start profiling", ex);
                 throw;
             }
         }
@@ -116,7 +118,7 @@ public class DotTraceProfilingEngine : IProfilingEngine
         }
         catch (Exception ex)
         {
-            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] dotTrace SaveData failed: {ex.Message}");
+            Logger.LogProfilerError("dottrace", "SaveData failed", ex);
         }
 
         try
@@ -125,7 +127,7 @@ public class DotTraceProfilingEngine : IProfilingEngine
         }
         catch (Exception ex)
         {
-            CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] dotTrace Detach failed: {ex.Message}");
+            Logger.LogProfilerError("dottrace", "Detach failed", ex);
         }
 
         string snapshotPath = string.Empty;
@@ -145,7 +147,7 @@ public class DotTraceProfilingEngine : IProfilingEngine
             }
             catch (Exception ex)
             {
-                CdpServer.OriginalOut.WriteLine($"[CDP PROFILER] Finding final .dtp file failed: {ex.Message}");
+                Logger.LogProfilerError("dottrace", "Finding final .dtp file failed", ex);
                 snapshotPath = Path.Combine(tempDirCopy, "snapshot.dtp");
             }
         }

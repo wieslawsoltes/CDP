@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Chrome.DevTools.Protocol;
 using CDP.Editor.Splits.Models;
 using Avalonia.Layout;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -23,6 +24,7 @@ public class CdpEventEntry
 
 public class EventsViewModel : ViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<EventsViewModel>();
     private readonly ICdpService _cdpService;
     private readonly List<CdpEventEntry> _allEvents = new();
     private ObservableCollection<CdpEventEntry> _filteredEvents = new();
@@ -240,7 +242,7 @@ public class EventsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error enabling Input domain in Events panel: {ex.Message}");
+            Logger.LogErrorMessage("EventsVM", "Error enabling Input domain in Events panel", ex);
         }
     }
 

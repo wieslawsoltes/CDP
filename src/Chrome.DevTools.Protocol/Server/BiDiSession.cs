@@ -141,7 +141,7 @@ public class BiDiSession
 
             var method = obj["method"]?.GetValue<string>() ?? "";
             var paramsNode = obj["params"] as JsonObject ?? new JsonObject();
-            CdpServer.OriginalOut.WriteLine($"[BIDI SERVER INCOMING] method: {method}, id: {id}, params: {paramsNode.ToJsonString()}");
+            Logger.LogIncomingMessage("BIDI", method, id, paramsNode.ToJsonString());
 
             try
             {
@@ -922,7 +922,7 @@ public class BiDiSession
             NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals, 
             TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() 
         });
-        CdpServer.OriginalOut.WriteLine($"[BIDI SERVER OUTGOING] {jsonStr}");
+        Logger.LogOutgoingMessage("BIDI", jsonStr);
         var bytes = Encoding.UTF8.GetBytes(jsonStr);
         try
         {

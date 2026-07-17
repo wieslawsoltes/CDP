@@ -11,11 +11,14 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging;
+using Chrome.DevTools.Protocol;
 
 namespace Avalonia.Diagnostics.Cdp.Domains;
 
 public static class PerformanceDomain
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger("PerformanceDomain");
     private static readonly ConcurrentDictionary<CdpSession, SessionPerformanceState> _sessionStates = new();
     private static DateTime _lastCpuTime = DateTime.UtcNow;
     private static TimeSpan _lastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
@@ -152,7 +155,7 @@ public static class PerformanceDomain
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CDP] Failed to hook SceneInvalidated: {ex}");
+                Logger.LogErrorMessage("PerformanceDomain", "Failed to hook SceneInvalidated", ex);
             }
             _isHooked = true;
         }
@@ -180,7 +183,7 @@ public static class PerformanceDomain
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CDP] Failed to unhook SceneInvalidated: {ex.Message}");
+                Logger.LogWarningMessage("PerformanceDomain", "Failed to unhook SceneInvalidated", ex);
             }
             _isHooked = false;
         }

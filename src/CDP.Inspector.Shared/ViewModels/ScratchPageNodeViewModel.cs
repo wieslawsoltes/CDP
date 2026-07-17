@@ -10,11 +10,14 @@ using System.Windows.Input;
 using Avalonia.Media.Imaging;
 using CDP.Editor.Nodes.ViewModels;
 using CdpInspectorApp.Services;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
 
 public class ScratchPageNodeViewModel : ScratchNodeViewModelBase
 {
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<ScratchPageNodeViewModel>();
     private readonly ICdpService? _cdpService;
     private Bitmap? _screenshotImage;
     private string? _screenshotBase64;
@@ -182,7 +185,7 @@ public class ScratchPageNodeViewModel : ScratchNodeViewModelBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Screenshot capture failed in node: {ex.Message}");
+            Logger.LogErrorMessage("ScratchPageNode", "Screenshot capture failed in node", ex);
         }
         finally
         {
@@ -209,7 +212,7 @@ public class ScratchPageNodeViewModel : ScratchNodeViewModelBase
         catch (Exception ex)
         {
             LastDecodeException = ex;
-            Console.WriteLine($"[BITMAP DECODE ERROR] {ex}");
+            Logger.LogErrorMessage("ScratchPageNode", "Bitmap decode error", ex);
             ScreenshotImage = null;
         }
     }
