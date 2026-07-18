@@ -849,4 +849,12 @@ public partial class TestStudioView : UserControl
             }
         }
     }
+
+    private void OnCloseIntegrationSettings(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            vm.Recorder.TestStudio.IsIntegrationSettingsVisible = false;
+        }
+    }
 }

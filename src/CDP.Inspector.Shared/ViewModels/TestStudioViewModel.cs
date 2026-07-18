@@ -41,6 +41,19 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
     private CancellationTokenSource? _executionCts;
     private string _appId = "";
     private string _description = "";
+    private bool _isIntegrationEnabled;
+    private bool _isIntegrationSettingsVisible;
+    private string _exportedTestCaseId = "";
+    private ObservableCollection<string> _integrationServices = new() { "TestMo", "TestRail", "Qase", "Xray", "Zephyr" };
+    private string _selectedIntegrationService = "TestMo";
+    private string _integrationUrl = "";
+    private string _integrationUsername = "";
+    private string _integrationToken = "";
+    private string _integrationProjectId = "";
+    private string _integrationSuiteId = "";
+    private bool _isIntegrationConnected;
+    private string _integrationStatusMessage = "";
+    private string _integrationStatusColor = "#9aa0a6";
     private bool _isReconnecting = false;
     private bool _isUpdatingYaml = false;
 
@@ -195,6 +208,87 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
             }
         }
     }
+
+    public bool IsIntegrationEnabled
+    {
+        get => _isIntegrationEnabled;
+        set => RaiseAndSetIfChanged(ref _isIntegrationEnabled, value);
+    }
+
+    public bool IsIntegrationSettingsVisible
+    {
+        get => _isIntegrationSettingsVisible;
+        set => RaiseAndSetIfChanged(ref _isIntegrationSettingsVisible, value);
+    }
+
+    public string ExportedTestCaseId
+    {
+        get => _exportedTestCaseId;
+        set => RaiseAndSetIfChanged(ref _exportedTestCaseId, value);
+    }
+
+    public ObservableCollection<string> IntegrationServices
+    {
+        get => _integrationServices;
+        set => RaiseAndSetIfChanged(ref _integrationServices, value);
+    }
+
+    public string SelectedIntegrationService
+    {
+        get => _selectedIntegrationService;
+        set => RaiseAndSetIfChanged(ref _selectedIntegrationService, value);
+    }
+
+    public string IntegrationUrl
+    {
+        get => _integrationUrl;
+        set => RaiseAndSetIfChanged(ref _integrationUrl, value);
+    }
+
+    public string IntegrationUsername
+    {
+        get => _integrationUsername;
+        set => RaiseAndSetIfChanged(ref _integrationUsername, value);
+    }
+
+    public string IntegrationToken
+    {
+        get => _integrationToken;
+        set => RaiseAndSetIfChanged(ref _integrationToken, value);
+    }
+
+    public string IntegrationProjectId
+    {
+        get => _integrationProjectId;
+        set => RaiseAndSetIfChanged(ref _integrationProjectId, value);
+    }
+
+    public string IntegrationSuiteId
+    {
+        get => _integrationSuiteId;
+        set => RaiseAndSetIfChanged(ref _integrationSuiteId, value);
+    }
+
+    public bool IsIntegrationConnected
+    {
+        get => _isIntegrationConnected;
+        set => RaiseAndSetIfChanged(ref _isIntegrationConnected, value);
+    }
+
+    public string IntegrationStatusMessage
+    {
+        get => _integrationStatusMessage;
+        set => RaiseAndSetIfChanged(ref _integrationStatusMessage, value);
+    }
+
+    public string IntegrationStatusColor
+    {
+        get => _integrationStatusColor;
+        set => RaiseAndSetIfChanged(ref _integrationStatusColor, value);
+    }
+
+    public ICommand VerifyIntegrationConnectionCommand { get; }
+    public ICommand ExportTestCaseCommand { get; }
 
     private bool _isNamePromptVisible;
     private string _namePromptTitle = "";
@@ -1252,6 +1346,16 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         };
         HierarchicalSteps = new HierarchicalModel<TestStudioStepModel>(options);
         HierarchicalSteps.SetRoots(Steps);
+
+        // Register Integration Services
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.TestMo.TestMoService());
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.TestRail.TestRailService());
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.Qase.QaseService());
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.Xray.XrayService());
+        CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.Zephyr.ZephyrService());
+
+        VerifyIntegrationConnectionCommand = new RelayCommand(async () => await VerifyIntegrationConnectionAsync());
+        ExportTestCaseCommand = new RelayCommand(async () => await ExportTestCaseAsync());
 
         ManageEnvironmentsCommand = new RelayCommand(ManageEnvironments);
         CreateEnvironmentCommand = new RelayCommand(CreateEnvironment);
@@ -5817,6 +5921,64 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
 
             Log($"HTML Report generated: {LastReportPath}");
             Log($"PDF Report generated: {LastPdfReportPath}");
+
+            if (IsIntegrationEnabled)
+            {
+                var targetService = SelectedIntegrationService;
+                var targetUrl = IntegrationUrl;
+                var targetUser = IntegrationUsername;
+                var targetToken = IntegrationToken;
+                var targetProject = IntegrationProjectId;
+                var targetSuite = IntegrationSuiteId;
+                var appIdRef = _appId;
+                var exportedTestCaseIdRef = ExportedTestCaseId;
+                var descRef = _description;
+                var startRef = _playbackStartTime;
+                var endRef = endTime;
+                var reportPathRef = LastReportPath;
+                var pdfPathRef = LastPdfReportPath;
+                var stepsStatusPassed = Steps.All(s => s.Status == StepStatus.Passed);
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var service = CDP.Integration.Core.TestServiceRegistry.Get(targetService);
+                        if (service != null)
+                        {
+                            var config = new CDP.Integration.Core.TestServiceConfig
+                            {
+                                Url = targetUrl,
+                                Username = targetUser,
+                                Token = targetToken,
+                                ProjectId = targetProject,
+                                SuiteId = targetSuite
+                            };
+
+                            var runResult = new CDP.Integration.Core.TestRunResultData
+                            {
+                                TestCaseId = string.IsNullOrEmpty(exportedTestCaseIdRef) ? (string.IsNullOrEmpty(appIdRef) ? "1" : appIdRef) : exportedTestCaseIdRef,
+                                TestName = string.IsNullOrEmpty(descRef) ? "CDP Execution Run" : descRef,
+                                Description = $"CDP Execution Run on {DateTime.Now}",
+                                Status = stepsStatusPassed ? "Passed" : "Failed",
+                                DurationMs = (endRef - startRef).TotalMilliseconds,
+                                StartTime = startRef,
+                                EndTime = endRef,
+                                HtmlReportPath = reportPathRef,
+                                PdfReportPath = pdfPathRef
+                            };
+
+                            Log($"Publishing results to {targetService}...");
+                            var runKey = await service.PublishRunResultAsync(config, runResult);
+                            Log($"Published successfully to {targetService}! Run ID: {runKey}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"Failed to publish results to {targetService}: {ex.Message}");
+                    }
+                });
+            }
         }
         catch (Exception ex)
         {
@@ -7797,6 +7959,105 @@ public class TestStudioViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             Log($"Error moving item: {ex.Message}");
+        }
+    }
+
+    public async Task VerifyIntegrationConnectionAsync()
+    {
+        var service = CDP.Integration.Core.TestServiceRegistry.Get(SelectedIntegrationService);
+        if (service == null)
+        {
+            IntegrationStatusMessage = "Selected service is not available.";
+            IntegrationStatusColor = "#ff5252";
+            IsIntegrationConnected = false;
+            return;
+        }
+
+        IntegrationStatusMessage = "Connecting...";
+        IntegrationStatusColor = "#e8eaed";
+        var config = new CDP.Integration.Core.TestServiceConfig
+        {
+            Url = IntegrationUrl,
+            Username = IntegrationUsername,
+            Token = IntegrationToken,
+            ProjectId = IntegrationProjectId,
+            SuiteId = IntegrationSuiteId
+        };
+
+        try
+        {
+            bool success = await service.ValidateConnectionAsync(config);
+            if (success)
+            {
+                IntegrationStatusMessage = "Successfully connected!";
+                IntegrationStatusColor = "#4caf50";
+                IsIntegrationConnected = true;
+            }
+            else
+            {
+                IntegrationStatusMessage = "Failed to authenticate/connect.";
+                IntegrationStatusColor = "#ff5252";
+                IsIntegrationConnected = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            IntegrationStatusMessage = $"Error: {ex.Message}";
+            IntegrationStatusColor = "#ff5252";
+            IsIntegrationConnected = false;
+        }
+    }
+
+    public async Task ExportTestCaseAsync()
+    {
+        var service = CDP.Integration.Core.TestServiceRegistry.Get(SelectedIntegrationService);
+        if (service == null)
+        {
+            Log("Integration service not configured.");
+            return;
+        }
+
+        var config = new CDP.Integration.Core.TestServiceConfig
+        {
+            Url = IntegrationUrl,
+            Username = IntegrationUsername,
+            Token = IntegrationToken,
+            ProjectId = IntegrationProjectId,
+            SuiteId = IntegrationSuiteId
+        };
+
+        var stepsList = new List<CDP.Integration.Core.TestStepData>();
+        foreach (var step in Steps)
+        {
+            stepsList.Add(new CDP.Integration.Core.TestStepData
+            {
+                Action = step.Action,
+                Selector = step.Selector,
+                Value = step.Value
+            });
+        }
+
+        var testCase = new CDP.Integration.Core.TestCaseData
+        {
+            Title = string.IsNullOrEmpty(_description) ? "CDP Recorded Scenario" : _description,
+            Description = $"Exported from CDP Test Studio scenario '{CurrentFlowFilePath ?? "unsaved"}'",
+            Steps = stepsList
+        };
+
+        try
+        {
+            Log($"Exporting test case to {SelectedIntegrationService}...");
+            string caseId = await service.ExportTestCaseAsync(config, testCase);
+            ExportedTestCaseId = caseId;
+            Log($"Test Case successfully exported! ID/Key: {caseId}");
+            IntegrationStatusMessage = $"Exported Case: {caseId}";
+            IntegrationStatusColor = "#4caf50";
+        }
+        catch (Exception ex)
+        {
+            Log($"Export failed: {ex.Message}");
+            IntegrationStatusMessage = $"Export failed: {ex.Message}";
+            IntegrationStatusColor = "#ff5252";
         }
     }
 }

@@ -28,6 +28,12 @@
   <ItemGroup>
     <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
     <ProjectReference Include="../Xaml.Compiler/Xaml.Compiler.csproj" />
+    <ProjectReference Include="../CDP.Integration.Core/CDP.Integration.Core.csproj" />
+    <ProjectReference Include="../CDP.Integration.TestMo/CDP.Integration.TestMo.csproj" />
+    <ProjectReference Include="../CDP.Integration.TestRail/CDP.Integration.TestRail.csproj" />
+    <ProjectReference Include="../CDP.Integration.Qase/CDP.Integration.Qase.csproj" />
+    <ProjectReference Include="../CDP.Integration.Xray/CDP.Integration.Xray.csproj" />
+    <ProjectReference Include="../CDP.Integration.Zephyr/CDP.Integration.Zephyr.csproj" />
   </ItemGroup>
 
   <ItemGroup>
