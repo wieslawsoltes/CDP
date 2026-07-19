@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Document.Parser</PackageId>
+    <Title>Chrome.DevTools.Document.Parser</Title>
+    <Description>Document syntax/AST parser library supporting DOCX, RTF, PPTX, and XLSX formats.</Description>
+    <PackageTags>document;parser;docx;rtf;pptx;xlsx;ast</PackageTags>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
