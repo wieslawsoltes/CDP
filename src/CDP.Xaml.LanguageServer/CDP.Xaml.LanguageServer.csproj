@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.Xaml.LanguageServer</PackageId>
-    <Title>CDP.Xaml.LanguageServer</Title>
+    <PackageId>Chrome.DevTools.Xaml.LanguageServer</PackageId>
+    <Title>Chrome.DevTools.Xaml.LanguageServer</Title>
     <Description>XAML Language Server Protocol (LSP) implementation utilizing the XAML compiler AST.</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageTags>xaml;lsp;language-server;compiler;ast</PackageTags>
