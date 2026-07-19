@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>CDP.CSharp.LanguageServer</PackageId>
-    <Title>CDP.CSharp.LanguageServer</Title>
+    <PackageId>Chrome.DevTools.CSharp.LanguageServer</PackageId>
+    <Title>Chrome.DevTools.CSharp.LanguageServer</Title>
     <Description>C# Language Server Protocol (LSP) implementation using Microsoft.CodeAnalysis.CSharp (Roslyn) parsing.</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageTags>csharp;roslyn;lsp;language-server</PackageTags>
