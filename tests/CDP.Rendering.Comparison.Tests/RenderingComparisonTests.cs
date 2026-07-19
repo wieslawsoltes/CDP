@@ -62,7 +62,6 @@ namespace CDP.Rendering.Comparison.Tests
         {
             var testName = "kitchen_sink";
             var mdPath = Path.Combine(_testDataDir, $"{testName}.md");
-            var htmlPath = Path.Combine(_resultsDir, $"{testName}_ref.html");
             var refPng = Path.Combine(_resultsDir, $"{testName}_ref.png");
             var customPng = Path.Combine(_resultsDir, $"{testName}_custom.png");
             var diffPng = Path.Combine(_resultsDir, $"{testName}_diff.png");
@@ -71,23 +70,14 @@ namespace CDP.Rendering.Comparison.Tests
 
             try
             {
-                // 1. Reference conversion using pandoc and screenshot via headless Chrome
-                try
+                // 1. Reference image using pre-rendered expected fallback (no external tools launched)
+                if (TryGetExpectedFallback(testName, refPng))
                 {
-                    DocumentConverter.ConvertMarkdownToHtml(mdPath, htmlPath);
-                    DocumentConverter.CaptureScreenshot(htmlPath, refPng, ImageWidth, ImageHeight);
                     result.RefImagePath = refPng;
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (TryGetExpectedFallback(testName, refPng))
-                    {
-                        result.RefImagePath = refPng;
-                    }
-                    else
-                    {
-                        result.ErrorMessage = "Reference generation failed: " + ex.Message;
-                    }
+                    result.ErrorMessage = "Reference image not found in Expected fallbacks.";
                 }
 
                 // 2. Custom rendering via SkiaSharp
@@ -163,22 +153,14 @@ namespace CDP.Rendering.Comparison.Tests
 
             try
             {
-                // 1. Reference screenshot via headless Chrome
-                try
+                // 1. Reference image using pre-rendered expected fallback (no external tools launched)
+                if (TryGetExpectedFallback(testName, refPng))
                 {
-                    DocumentConverter.CaptureScreenshot(htmlPath, refPng, ImageWidth, ImageHeight);
                     result.RefImagePath = refPng;
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (TryGetExpectedFallback(testName, refPng))
-                    {
-                        result.RefImagePath = refPng;
-                    }
-                    else
-                    {
-                        result.ErrorMessage = "Reference generation failed: " + ex.Message;
-                    }
+                    result.ErrorMessage = "Reference image not found in Expected fallbacks.";
                 }
 
                 // 2. Custom rendering via SkiaSharp
@@ -235,7 +217,6 @@ namespace CDP.Rendering.Comparison.Tests
         {
             var testName = "formatting_test";
             var docxPath = Path.Combine(_testDataDir, $"{testName}.docx");
-            var pdfPath = Path.Combine(_resultsDir, $"{testName}_ref.pdf");
             var refPng = Path.Combine(_resultsDir, $"{testName}_ref.png");
             var customPng = Path.Combine(_resultsDir, $"{testName}_custom.png");
             var diffPng = Path.Combine(_resultsDir, $"{testName}_diff.png");
@@ -244,23 +225,14 @@ namespace CDP.Rendering.Comparison.Tests
 
             try
             {
-                // 1. Reference conversion using Pages and screenshot via headless Chrome
-                try
+                // 1. Reference image using pre-rendered expected fallback (no external tools launched)
+                if (TryGetExpectedFallback(testName, refPng))
                 {
-                    DocumentConverter.ConvertOfficeToPdf(docxPath, pdfPath);
-                    DocumentConverter.CaptureScreenshot(pdfPath, refPng, ImageWidth, ImageHeight);
                     result.RefImagePath = refPng;
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (TryGetExpectedFallback(testName, refPng))
-                    {
-                        result.RefImagePath = refPng;
-                    }
-                    else
-                    {
-                        result.ErrorMessage = "Reference generation failed: " + ex.Message;
-                    }
+                    result.ErrorMessage = "Reference image not found in Expected fallbacks.";
                 }
 
                 // 2. Custom rendering via SkiaSharp
@@ -321,7 +293,6 @@ namespace CDP.Rendering.Comparison.Tests
         {
             var testName = "multi_sheet_calc";
             var xlsxPath = Path.Combine(_testDataDir, $"{testName}.xlsx");
-            var pdfPath = Path.Combine(_resultsDir, $"{testName}_ref.pdf");
             var refPng = Path.Combine(_resultsDir, $"{testName}_ref.png");
             var customPng = Path.Combine(_resultsDir, $"{testName}_custom.png");
             var diffPng = Path.Combine(_resultsDir, $"{testName}_diff.png");
@@ -330,23 +301,14 @@ namespace CDP.Rendering.Comparison.Tests
 
             try
             {
-                // 1. Reference conversion using Numbers and screenshot via headless Chrome
-                try
+                // 1. Reference image using pre-rendered expected fallback (no external tools launched)
+                if (TryGetExpectedFallback(testName, refPng))
                 {
-                    DocumentConverter.ConvertOfficeToPdf(xlsxPath, pdfPath);
-                    DocumentConverter.CaptureScreenshot(pdfPath, refPng, ImageWidth, ImageHeight);
                     result.RefImagePath = refPng;
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (TryGetExpectedFallback(testName, refPng))
-                    {
-                        result.RefImagePath = refPng;
-                    }
-                    else
-                    {
-                        result.ErrorMessage = "Reference generation failed: " + ex.Message;
-                    }
+                    result.ErrorMessage = "Reference image not found in Expected fallbacks.";
                 }
 
                 // 2. Custom rendering via SkiaSharp
@@ -407,7 +369,6 @@ namespace CDP.Rendering.Comparison.Tests
         {
             var testName = "slide_deck";
             var pptxPath = Path.Combine(_testDataDir, $"{testName}.pptx");
-            var pdfPath = Path.Combine(_resultsDir, $"{testName}_ref.pdf");
             var refPng = Path.Combine(_resultsDir, $"{testName}_ref.png");
             var customPng = Path.Combine(_resultsDir, $"{testName}_custom.png");
             var diffPng = Path.Combine(_resultsDir, $"{testName}_diff.png");
@@ -416,23 +377,14 @@ namespace CDP.Rendering.Comparison.Tests
 
             try
             {
-                // 1. Reference conversion using Keynote and screenshot via headless Chrome
-                try
+                // 1. Reference image using pre-rendered expected fallback (no external tools launched)
+                if (TryGetExpectedFallback(testName, refPng))
                 {
-                    DocumentConverter.ConvertOfficeToPdf(pptxPath, pdfPath);
-                    DocumentConverter.CaptureScreenshot(pdfPath, refPng, ImageWidth, ImageHeight);
                     result.RefImagePath = refPng;
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (TryGetExpectedFallback(testName, refPng))
-                    {
-                        result.RefImagePath = refPng;
-                    }
-                    else
-                    {
-                        result.ErrorMessage = "Reference generation failed: " + ex.Message;
-                    }
+                    result.ErrorMessage = "Reference image not found in Expected fallbacks.";
                 }
 
                 // 2. Custom rendering via SkiaSharp
