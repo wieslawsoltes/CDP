@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PackageId>Xaml.Compiler</PackageId>
-    <Title>Xaml.Compiler</Title>
+    <PackageId>Chrome.DevTools.Xaml.Compiler</PackageId>
+    <Title>Chrome.DevTools.Xaml.Compiler</Title>
     <Description>Core XAML Type System, Lossless AST Parser, and Mutation Engine.</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageTags>xaml;compiler;parser;ast;mutation-engine</PackageTags>
