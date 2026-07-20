@@ -18,6 +18,7 @@
     <Project Path="src/CDP.Integration.Zephyr/CDP.Integration.Zephyr.csproj" />
     <Project Path="src/Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
     <Project Path="src/Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj" />
+    <Project Path="src/Avalonia.Diagnostics.Cdp.v11/Avalonia.Diagnostics.Cdp.v11.csproj" />
     <Project Path="src/Wpf.Diagnostics.Cdp/Wpf.Diagnostics.Cdp.csproj" />
     <Project Path="src/WinUI.Diagnostics.Cdp/WinUI.Diagnostics.Cdp.csproj" />
     <Project Path="src/Uno.Diagnostics.Cdp/Uno.Diagnostics.Cdp.csproj" />
@@ -53,6 +54,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/CDP.Integration.Tests/CDP.Integration.Tests.csproj" />
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj" />
+    <Project Path="tests/Avalonia.Diagnostics.Cdp.v11.Tests/Avalonia.Diagnostics.Cdp.v11.Tests.csproj" />
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Benchmarks/Avalonia.Diagnostics.Cdp.Benchmarks.csproj" />
     <Project Path="tests/CDP.Selenium.Tests/CDP.Selenium.Tests.csproj" />
     <Project Path="tests/CDP.Appium.Tests/CDP.Appium.Tests.csproj" />
