@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <DefineConstants>$(DefineConstants);AVALONIA_V11</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" VersionOverride="11.0.13" />
+    <PackageReference Include="Avalonia.Headless.XUnit" VersionOverride="11.0.13" />
+    <PackageReference Include="Avalonia.Themes.Fluent" VersionOverride="11.0.13" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" VersionOverride="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" VersionOverride="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Avalonia.Diagnostics.Cdp.v11\Avalonia.Diagnostics.Cdp.v11.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Chrome.DevTools.Protocol" />
+    <Using Include="Chrome.DevTools.Protocol.Domains" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Avalonia.Diagnostics.Cdp.Tests/CdpIntegrationTests.cs" />
+    <Compile Include="../Avalonia.Diagnostics.Cdp.Tests/TestAppBuilder.cs" />
+  </ItemGroup>
+
+</Project>
