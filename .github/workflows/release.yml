@@ -53,7 +53,7 @@ jobs:
 
     - name: Run Unit Tests
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish Linux Executable
       run: |
@@ -96,7 +96,7 @@ jobs:
 
     - name: Run Unit Tests
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish macOS x64 Executable
       run: |
@@ -155,7 +155,7 @@ jobs:
     - name: Run Unit Tests
       shell: pwsh
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish Windows Executable
       shell: pwsh
@@ -205,14 +205,20 @@ jobs:
       with:
         dotnet-version: 10.0.x
 
-    - name: Install WASM Tools workload
-      run: dotnet workload install wasm-tools
-
     - name: Restore dependencies
       run: dotnet restore
 
     - name: Build
-      run: dotnet build --no-restore --configuration Release
+      run: |
+        for csproj in $(find src samples -name '*.csproj'); do
+          if grep -Eqi '<IsPackable>[[:space:]]*false[[:space:]]*</IsPackable>' "$csproj"; then
+            continue
+          fi
+          if [[ "$csproj" == *"CdpInspectorApp.Browser.csproj" ]]; then
+            continue
+          fi
+          dotnet build "$csproj" --no-restore --configuration Release
+        done
 
     - name: Pack NuGet Packages
       shell: bash
