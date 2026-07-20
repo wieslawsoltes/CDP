@@ -27,6 +27,7 @@ public class ViewsLayoutTests
         };
         app.Styles.Add(sharedStyles);
 
+        VideoPlaybackWindow? videoPlaybackWindow = null;
         try
         {
             // Instantiate views to trigger XAML loading, parsing, and resource resolution
@@ -42,7 +43,7 @@ public class ViewsLayoutTests
             var simulationView = new SimulationView();
             Assert.NotNull(simulationView);
 
-            var videoPlaybackWindow = new VideoPlaybackWindow();
+            videoPlaybackWindow = new VideoPlaybackWindow();
             Assert.NotNull(videoPlaybackWindow);
 
             var consoleView = new ConsoleView();
@@ -104,6 +105,7 @@ public class ViewsLayoutTests
         }
         finally
         {
+            videoPlaybackWindow?.Close();
             app.Styles.Remove(sharedStyles);
         }
     }
@@ -121,6 +123,7 @@ public class ViewsLayoutTests
         };
         app.Styles.Add(sharedStyles);
 
+        Window? window = null;
         try
         {
             var view = new TestStudioNodeEditorView();
@@ -131,7 +134,7 @@ public class ViewsLayoutTests
             var node = vm.CreateNode("Test Node", "tapOn", "#testBtn", "testVal", 120.0, 200.0);
 
             // Wrap in a window and show to attach it to visual root and run template/layout compilation
-            var window = new Window { Width = 1000, Height = 800, Content = view };
+            window = new Window { Width = 1000, Height = 800, Content = view };
             window.Show();
 
             // Force layout update
@@ -157,6 +160,7 @@ public class ViewsLayoutTests
         }
         finally
         {
+            window?.Close();
             app.Styles.Remove(sharedStyles);
         }
     }
@@ -219,27 +223,34 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Width = 1000, Height = 800, Content = superSplit };
-        window.Show();
-
-        superSplit.Rebuild();
-        superSplit.UpdateLayout();
-
-        // Find all SuperSplitBox elements inside the SuperSplit Content
-        var boxes = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(superSplit)
-            .OfType<CDP.Editor.Splits.Controls.SuperSplitBox>()
-            .ToList();
-
-        Assert.NotEmpty(boxes);
-
-        foreach (var boxControl in boxes)
+        try
         {
-            // Verify that each SuperSplitBox has its DataContext correctly set to a BoxNode
-            Assert.NotNull(boxControl.DataContext);
-            Assert.IsType<CDP.Editor.Splits.Models.BoxNode>(boxControl.DataContext);
-            
-            // Check that the node properties match
-            var nodeModel = (CDP.Editor.Splits.Models.BoxNode)boxControl.DataContext;
-            Assert.Equal(nodeModel.Title, boxControl.HeaderTitle);
+            window.Show();
+
+            superSplit.Rebuild();
+            superSplit.UpdateLayout();
+
+            // Find all SuperSplitBox elements inside the SuperSplit Content
+            var boxes = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(superSplit)
+                .OfType<CDP.Editor.Splits.Controls.SuperSplitBox>()
+                .ToList();
+
+            Assert.NotEmpty(boxes);
+
+            foreach (var boxControl in boxes)
+            {
+                // Verify that each SuperSplitBox has its DataContext correctly set to a BoxNode
+                Assert.NotNull(boxControl.DataContext);
+                Assert.IsType<CDP.Editor.Splits.Models.BoxNode>(boxControl.DataContext);
+                
+                // Check that the node properties match
+                var nodeModel = (CDP.Editor.Splits.Models.BoxNode)boxControl.DataContext;
+                Assert.Equal(nodeModel.Title, boxControl.HeaderTitle);
+            }
+        }
+        finally
+        {
+            window.Close();
         }
     }
 
@@ -468,9 +479,10 @@ public class ViewsLayoutTests
         };
         app.Styles.Add(sharedStyles);
 
+        VideoPlaybackWindow? win = null;
         try
         {
-            var win = new VideoPlaybackWindow();
+            win = new VideoPlaybackWindow();
 
             var steps = new System.Collections.Generic.List<StepReportItem>
             {
@@ -552,6 +564,7 @@ public class ViewsLayoutTests
         }
         finally
         {
+            win?.Close();
             app.Styles.Remove(sharedStyles);
         }
     }
@@ -568,20 +581,27 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Width = 800, Height = 600, Content = superSplit };
-        window.Show();
-        superSplit.Rebuild();
-        superSplit.UpdateLayout();
+        try
+        {
+            window.Show();
+            superSplit.Rebuild();
+            superSplit.UpdateLayout();
 
-        // Trigger focus overlay update manually or via selection change
-        superSplit.SelectedNode = root;
-        superSplit.UpdateLayout();
+            // Trigger focus overlay update manually or via selection change
+            superSplit.SelectedNode = root;
+            superSplit.UpdateLayout();
 
-        var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
-            .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            ?.GetValue(superSplit) as Border;
+            var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
+                .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.GetValue(superSplit) as Border;
 
-        Assert.NotNull(overlay);
-        Assert.True(overlay.IsVisible);
+            Assert.NotNull(overlay);
+            Assert.True(overlay.IsVisible);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -596,43 +616,50 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Width = 800, Height = 600, Content = superSplit };
-        window.Show();
-        superSplit.Rebuild();
-        superSplit.UpdateLayout();
+        try
+        {
+            window.Show();
+            superSplit.Rebuild();
+            superSplit.UpdateLayout();
 
-        // Perform split to create an intersection structure
-        var targetBox = superSplit.Root as BoxNode;
-        Assert.NotNull(targetBox);
+            // Perform split to create an intersection structure
+            var targetBox = superSplit.Root as BoxNode;
+            Assert.NotNull(targetBox);
 
-        // Perform split operation via reflection or by updating root manually
-        var hChild1 = new BoxNode();
-        hChild1.AddTab("SubTab1", "GlobeIcon", "Sim");
-        var hChild2 = new BoxNode();
-        hChild2.AddTab("SubTab2", "GlobeIcon", "Sim");
-        
-        var vChild1 = new BoxNode();
-        vChild1.AddTab("SubSubTab1", "GlobeIcon", "Sim");
-        var vChild2 = new BoxNode();
-        vChild2.AddTab("SubSubTab2", "GlobeIcon", "Sim");
+            // Perform split operation via reflection or by updating root manually
+            var hChild1 = new BoxNode();
+            hChild1.AddTab("SubTab1", "GlobeIcon", "Sim");
+            var hChild2 = new BoxNode();
+            hChild2.AddTab("SubTab2", "GlobeIcon", "Sim");
+            
+            var vChild1 = new BoxNode();
+            vChild1.AddTab("SubSubTab1", "GlobeIcon", "Sim");
+            var vChild2 = new BoxNode();
+            vChild2.AddTab("SubSubTab2", "GlobeIcon", "Sim");
 
-        var vContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, vChild1, vChild2);
-        var hContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, hChild1, hChild2);
+            var vContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Vertical, vChild1, vChild2);
+            var hContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, hChild1, hChild2);
 
-        var topContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, hContainer, vContainer);
-        superSplit.Root = topContainer;
+            var topContainer = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, hContainer, vContainer);
+            superSplit.Root = topContainer;
 
-        superSplit.Rebuild();
-        superSplit.UpdateLayout();
+            superSplit.Rebuild();
+            superSplit.UpdateLayout();
 
-        // Verify that FlatCornerGrabHandle is populated in the panel
-        var handles = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(superSplit)
-            .OfType<CDP.Editor.Splits.Controls.FlatCornerGrabHandle>()
-            .ToList();
+            // Verify that FlatCornerGrabHandle is populated in the panel
+            var handles = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(superSplit)
+                .OfType<CDP.Editor.Splits.Controls.FlatCornerGrabHandle>()
+                .ToList();
 
-        Assert.NotEmpty(handles);
-        var handle = handles.First();
-        Assert.Same(topContainer, handle.ParentContainer);
-        Assert.True(handle.ChildContainer == hContainer || handle.ChildContainer == vContainer);
+            Assert.NotEmpty(handles);
+            var handle = handles.First();
+            Assert.Same(topContainer, handle.ParentContainer);
+            Assert.True(handle.ChildContainer == hContainer || handle.ChildContainer == vContainer);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -864,62 +891,69 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Width = 800, Height = 600, Content = superSplit };
-        window.Show();
-        superSplit.Rebuild();
-        superSplit.UpdateLayout();
+        try
+        {
+            window.Show();
+            superSplit.Rebuild();
+            superSplit.UpdateLayout();
 
-        // Initially not interactive resizing
-        Assert.False(superSplit.IsInteractiveResizing());
+            // Initially not interactive resizing
+            Assert.False(superSplit.IsInteractiveResizing());
 
-        var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
-            .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            ?.GetValue(superSplit) as Border;
+            var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
+                .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.GetValue(superSplit) as Border;
 
-        Assert.NotNull(overlay);
-        var visual = Avalonia.Rendering.Composition.ElementComposition.GetElementVisual(overlay);
-        Assert.NotNull(visual);
+            Assert.NotNull(overlay);
+            var visual = Avalonia.Rendering.Composition.ElementComposition.GetElementVisual(overlay);
+            Assert.NotNull(visual);
 
-        // Under normal circumstances, implicit animations are assigned
-        superSplit.UpdateFocusOverlay();
-        Assert.NotNull(visual.ImplicitAnimations);
+            // Under normal circumstances, implicit animations are assigned
+            superSplit.UpdateFocusOverlay();
+            Assert.NotNull(visual.ImplicitAnimations);
 
-        // Simulate interactive resize by adding a pressed corner handle or active splitter
-        var panel = typeof(CDP.Editor.Splits.Controls.SuperSplit)
-            .GetField("_flatPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            ?.GetValue(superSplit) as CDP.Editor.Splits.Controls.FlatSplitPanel;
-        Assert.NotNull(panel);
+            // Simulate interactive resize by adding a pressed corner handle or active splitter
+            var panel = typeof(CDP.Editor.Splits.Controls.SuperSplit)
+                .GetField("_flatPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.GetValue(superSplit) as CDP.Editor.Splits.Controls.FlatSplitPanel;
+            Assert.NotNull(panel);
 
-        var child1 = new BoxNode();
-        child1.AddTab("Sub1", "GlobeIcon", "Sim");
-        var child2 = new BoxNode();
-        child2.AddTab("Sub2", "GlobeIcon", "Sim");
-        var container = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, child1, child2);
-        superSplit.Root = container;
-        superSplit.SelectedNode = child1;
-        superSplit.Rebuild();
-        superSplit.UpdateLayout();
+            var child1 = new BoxNode();
+            child1.AddTab("Sub1", "GlobeIcon", "Sim");
+            var child2 = new BoxNode();
+            child2.AddTab("Sub2", "GlobeIcon", "Sim");
+            var container = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, child1, child2);
+            superSplit.Root = container;
+            superSplit.SelectedNode = child1;
+            superSplit.Rebuild();
+            superSplit.UpdateLayout();
 
-        var cornerHandle = new CDP.Editor.Splits.Controls.FlatCornerGrabHandle(container, container);
-        panel.Children.Add(cornerHandle);
+            var cornerHandle = new CDP.Editor.Splits.Controls.FlatCornerGrabHandle(container, container);
+            panel.Children.Add(cornerHandle);
 
-        // Simulating the corner handle press
-        var pressedField = typeof(CDP.Editor.Splits.Controls.FlatCornerGrabHandle)
-            .GetField("_isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(pressedField);
-        pressedField.SetValue(cornerHandle, true);
+            // Simulating the corner handle press
+            var pressedField = typeof(CDP.Editor.Splits.Controls.FlatCornerGrabHandle)
+                .GetField("_isPressed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(pressedField);
+            pressedField.SetValue(cornerHandle, true);
 
-        // Now interactive resizing is active
-        Assert.True(superSplit.IsInteractiveResizing());
+            // Now interactive resizing is active
+            Assert.True(superSplit.IsInteractiveResizing());
 
-        // Focus overlay updates during resize should have null implicit animations to stay in lock-step
-        superSplit.UpdateFocusOverlay();
-        Assert.Null(visual.ImplicitAnimations);
+            // Focus overlay updates during resize should have null implicit animations to stay in lock-step
+            superSplit.UpdateFocusOverlay();
+            Assert.Null(visual.ImplicitAnimations);
 
-        // Releasing drag restores animations
-        pressedField.SetValue(cornerHandle, false);
-        Assert.False(superSplit.IsInteractiveResizing());
-        superSplit.UpdateFocusOverlay();
-        Assert.NotNull(visual.ImplicitAnimations);
+            // Releasing drag restores animations
+            pressedField.SetValue(cornerHandle, false);
+            Assert.False(superSplit.IsInteractiveResizing());
+            superSplit.UpdateFocusOverlay();
+            Assert.NotNull(visual.ImplicitAnimations);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -944,29 +978,36 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Width = 800, Height = 600, Content = superSplit };
-        window.Show();
-        superSplit.Rebuild();
-        superSplit.UpdateLayout();
+        try
+        {
+            window.Show();
+            superSplit.Rebuild();
+            superSplit.UpdateLayout();
 
-        var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
-            .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            ?.GetValue(superSplit) as Border;
+            var overlay = typeof(CDP.Editor.Splits.Controls.SuperSplit)
+                .GetField("_focusOverlay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.GetValue(superSplit) as Border;
 
-        Assert.NotNull(overlay);
-        Assert.NotNull(overlay.Child);
-        var txtBlock = overlay.Child as TextBlock;
-        Assert.NotNull(txtBlock);
-        Assert.Equal("Pane1", txtBlock.Text);
+            Assert.NotNull(overlay);
+            Assert.NotNull(overlay.Child);
+            var txtBlock = overlay.Child as TextBlock;
+            Assert.NotNull(txtBlock);
+            Assert.Equal("Pane1", txtBlock.Text);
 
-        // Change selection
-        superSplit.SelectedNode = child2;
-        superSplit.UpdateFocusOverlay();
+            // Change selection
+            superSplit.SelectedNode = child2;
+            superSplit.UpdateFocusOverlay();
 
-        // Verify focus template is rebuilt with correct new selected node Title
-        Assert.NotNull(overlay.Child);
-        var txtBlock2 = overlay.Child as TextBlock;
-        Assert.NotNull(txtBlock2);
-        Assert.Equal("Pane2", txtBlock2.Text);
+            // Verify focus template is rebuilt with correct new selected node Title
+            Assert.NotNull(overlay.Child);
+            var txtBlock2 = overlay.Child as TextBlock;
+            Assert.NotNull(txtBlock2);
+            Assert.Equal("Pane2", txtBlock2.Text);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     private static T? FindVisualDescendantByName<T>(Avalonia.Visual? visual, string name) where T : Control
@@ -993,43 +1034,47 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Content = boxControl };
+        try
+        {
+            var fieldHeader = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_headerPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(fieldHeader);
+            var headerPanel = fieldHeader.GetValue(boxControl) as Border;
+            Assert.NotNull(headerPanel);
 
-        var fieldHeader = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_headerPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(fieldHeader);
-        var headerPanel = fieldHeader.GetValue(boxControl) as Border;
-        Assert.NotNull(headerPanel);
+            var fieldScroll = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsScrollViewer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(fieldScroll);
+            var tabsScrollViewer = fieldScroll.GetValue(boxControl) as ScrollViewer;
+            Assert.NotNull(tabsScrollViewer);
 
-        var fieldScroll = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsScrollViewer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(fieldScroll);
-        var tabsScrollViewer = fieldScroll.GetValue(boxControl) as ScrollViewer;
-        Assert.NotNull(tabsScrollViewer);
+            var fieldSingleHeader = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_singleTabHeaderPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(fieldSingleHeader);
+            var singleHeader = fieldSingleHeader.GetValue(boxControl) as StackPanel;
+            Assert.NotNull(singleHeader);
 
-        var fieldSingleHeader = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_singleTabHeaderPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(fieldSingleHeader);
-        var singleHeader = fieldSingleHeader.GetValue(boxControl) as StackPanel;
-        Assert.NotNull(singleHeader);
+            // Force layout pass
+            window.Show();
 
-        // Force layout pass
-        window.Show();
+            // Single tab should show header but hide tab list and show single tab panel
+            Assert.True(headerPanel.IsVisible);
+            Assert.False(tabsScrollViewer.IsVisible);
+            Assert.True(singleHeader.IsVisible);
 
-        // Single tab should show header but hide tab list and show single tab panel
-        Assert.True(headerPanel.IsVisible);
-        Assert.False(tabsScrollViewer.IsVisible);
-        Assert.True(singleHeader.IsVisible);
+            // Adding a second tab should show tab list and hide single tab panel
+            boxNode.AddTab("Tab2", "GlobeIcon", "Console");
+            Assert.True(headerPanel.IsVisible);
+            Assert.True(tabsScrollViewer.IsVisible);
+            Assert.False(singleHeader.IsVisible);
 
-        // Adding a second tab should show tab list and hide single tab panel
-        boxNode.AddTab("Tab2", "GlobeIcon", "Console");
-        Assert.True(headerPanel.IsVisible);
-        Assert.True(tabsScrollViewer.IsVisible);
-        Assert.False(singleHeader.IsVisible);
-
-        // Removing a tab should restore single tab layout
-        boxNode.Tabs.RemoveAt(1);
-        Assert.True(headerPanel.IsVisible);
-        Assert.False(tabsScrollViewer.IsVisible);
-        Assert.True(singleHeader.IsVisible);
-
-        window.Close();
+            // Removing a tab should restore single tab layout
+            boxNode.Tabs.RemoveAt(1);
+            Assert.True(headerPanel.IsVisible);
+            Assert.False(tabsScrollViewer.IsVisible);
+            Assert.True(singleHeader.IsVisible);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [Fact]
@@ -1062,67 +1107,72 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Content = boxControl };
-        window.Show();
-
-        bool eventFired = false;
-        BoxTabNode? eventTab = null;
-
-        boxControl.TabDragStarted += (sender, args) =>
+        try
         {
-            eventFired = true;
-            eventTab = args.Tab;
-        };
+            window.Show();
 
-        // Simulate the drag state via reflection or internal helper
-        var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            bool eventFired = false;
+            BoxTabNode? eventTab = null;
 
-        Assert.NotNull(isTabDraggingField);
-        Assert.NotNull(draggingTabField);
-        Assert.NotNull(pressedArgsField);
+            boxControl.TabDragStarted += (sender, args) =>
+            {
+                eventFired = true;
+                eventTab = args.Tab;
+            };
 
-        isTabDraggingField.SetValue(boxControl, true);
-        draggingTabField.SetValue(boxControl, tab1);
-        
-        var dummyPressed = new PointerPressedEventArgs(
-            boxControl,
-            new Pointer(0, PointerType.Mouse, true),
-            boxControl,
-            new Point(0, 0),
-            0,
-            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonPressed),
-            KeyModifiers.None
-        );
-        pressedArgsField.SetValue(boxControl, dummyPressed);
+            // Simulate the drag state via reflection or internal helper
+            var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-        // Retrieve tabBorder of the first tab to raise PointerMoved
-        var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(fieldPanel);
-        var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
-        Assert.NotNull(tabsPanel);
-        Assert.NotEmpty(tabsPanel.Children);
-        var tabBorder = tabsPanel.Children[0] as Border;
-        Assert.NotNull(tabBorder);
+            Assert.NotNull(isTabDraggingField);
+            Assert.NotNull(draggingTabField);
+            Assert.NotNull(pressedArgsField);
 
-        // Raise a PointerMoved event at position outside the header (e.g. Y = -100)
-        var dummyMoved = new PointerEventArgs(
-            InputElement.PointerMovedEvent,
-            tabBorder,
-            new Pointer(0, PointerType.Mouse, true),
-            tabBorder,
-            new Point(0, -100),
-            0UL,
-            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
-            KeyModifiers.None
-        );
-        
-        tabBorder.RaiseEvent(dummyMoved);
+            isTabDraggingField.SetValue(boxControl, true);
+            draggingTabField.SetValue(boxControl, tab1);
+            
+            var dummyPressed = new PointerPressedEventArgs(
+                boxControl,
+                new Pointer(0, PointerType.Mouse, true),
+                boxControl,
+                new Point(0, 0),
+                0,
+                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonPressed),
+                KeyModifiers.None
+            );
+            pressedArgsField.SetValue(boxControl, dummyPressed);
 
-        Assert.True(eventFired);
-        Assert.Equal(tab1, eventTab);
+            // Retrieve tabBorder of the first tab to raise PointerMoved
+            var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(fieldPanel);
+            var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
+            Assert.NotNull(tabsPanel);
+            Assert.NotEmpty(tabsPanel.Children);
+            var tabBorder = tabsPanel.Children[0] as Border;
+            Assert.NotNull(tabBorder);
 
-        window.Close();
+            // Raise a PointerMoved event at position outside the header (e.g. Y = -100)
+            var dummyMoved = new PointerEventArgs(
+                InputElement.PointerMovedEvent,
+                tabBorder,
+                new Pointer(0, PointerType.Mouse, true),
+                tabBorder,
+                new Point(0, -100),
+                0UL,
+                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+                KeyModifiers.None
+            );
+            
+            tabBorder.RaiseEvent(dummyMoved);
+
+            Assert.True(eventFired);
+            Assert.Equal(tab1, eventTab);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -1138,48 +1188,53 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Content = boxControl };
-        window.Show();
+        try
+        {
+            window.Show();
 
-        // Simulate the drag state via reflection
-        var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            // Simulate the drag state via reflection
+            var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-        isTabDraggingField.SetValue(boxControl, true);
-        draggingTabField.SetValue(boxControl, tab1);
+            isTabDraggingField.SetValue(boxControl, true);
+            draggingTabField.SetValue(boxControl, tab1);
 
-        // Retrieve tabBorder of the first tab to raise PointerMoved
-        var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(fieldPanel);
-        var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
-        Assert.NotNull(tabsPanel);
-        var tabBorder = tabsPanel.Children[0] as Border;
-        Assert.NotNull(tabBorder);
+            // Retrieve tabBorder of the first tab to raise PointerMoved
+            var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(fieldPanel);
+            var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
+            Assert.NotNull(tabsPanel);
+            var tabBorder = tabsPanel.Children[0] as Border;
+            Assert.NotNull(tabBorder);
 
-        // Capture pointer to tabBorder
-        var pointer = new Pointer(0, PointerType.Mouse, true);
-        pointer.Capture(tabBorder);
-        Assert.Equal(tabBorder, pointer.Captured);
+            // Capture pointer to tabBorder
+            var pointer = new Pointer(0, PointerType.Mouse, true);
+            pointer.Capture(tabBorder);
+            Assert.Equal(tabBorder, pointer.Captured);
 
-        // Raise a PointerMoved event inside bounds but to the right of tab2 (e.g. X = 200, Y = 0)
-        var dummyMoved = new PointerEventArgs(
-            InputElement.PointerMovedEvent,
-            tabBorder,
-            pointer,
-            tabBorder,
-            new Point(200, 0),
-            0UL,
-            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
-            KeyModifiers.None
-        );
+            // Raise a PointerMoved event inside bounds but to the right of tab2 (e.g. X = 200, Y = 0)
+            var dummyMoved = new PointerEventArgs(
+                InputElement.PointerMovedEvent,
+                tabBorder,
+                pointer,
+                tabBorder,
+                new Point(200, 0),
+                0UL,
+                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+                KeyModifiers.None
+            );
 
-        tabBorder.RaiseEvent(dummyMoved);
+            tabBorder.RaiseEvent(dummyMoved);
 
-        // Dragging state should still be true (capture should be preserved)
-        Assert.True((bool)isTabDraggingField.GetValue(boxControl));
-        Assert.Equal(tab1, draggingTabField.GetValue(boxControl));
-
-        window.Close();
+            // Dragging state should still be true (capture should be preserved)
+            Assert.True((bool)isTabDraggingField.GetValue(boxControl));
+            Assert.Equal(tab1, draggingTabField.GetValue(boxControl));
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [Fact]
