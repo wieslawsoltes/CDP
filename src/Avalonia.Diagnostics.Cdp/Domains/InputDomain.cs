@@ -291,11 +291,32 @@ public static class InputDomain
         }
     }
 
+#if AVALONIA_V11
+    private static IInputDevice? _v11MouseDevice;
+
+    private static IInputDevice? CreateMouseDevicev11()
+    {
+        var ctor = typeof(MouseDevice).GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .FirstOrDefault();
+        if (ctor != null)
+        {
+            var parameters = ctor.GetParameters();
+            var args = new object?[parameters.Length];
+            return ctor.Invoke(args) as IInputDevice;
+        }
+        return null;
+    }
+#endif
+
     [DynamicDependency("Primary", typeof(MouseDevice))]
     private static IInputDevice? GetMouseDevice()
     {
+#if AVALONIA_V11
+        return _v11MouseDevice ??= CreateMouseDevicev11();
+#else
         var prop = typeof(MouseDevice).GetProperty("Primary", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
         return prop?.GetValue(null) as IInputDevice;
+#endif
     }
 
     [DynamicDependency("Instance", typeof(KeyboardDevice))]
