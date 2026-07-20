@@ -417,7 +417,7 @@ public class PdfDocumentModel : IDisposable
     {
         if (_document == null)
         {
-            return new SKBitmap(10, 10);
+            return null;
         }
         lock (_renderLock)
         {
@@ -427,7 +427,7 @@ public class PdfDocumentModel : IDisposable
             }
             catch
             {
-                return new SKBitmap(10, 10);
+                return null;
             }
         }
     }
@@ -442,7 +442,7 @@ public class PdfDocumentModel : IDisposable
 
     public void InsertPage(int pageIndex)
     {
-        var blankPage = new PdfPageModel { Number = Pages.Count + 1, Width = 595, Height = 842 };
+        var blankPage = new PdfPageModel { Number = -1, Width = 595, Height = 842 };
         if (pageIndex >= 0 && pageIndex <= Pages.Count) Pages.Insert(pageIndex, blankPage);
         else Pages.Add(blankPage);
     }
@@ -458,6 +458,10 @@ public class PdfDocumentModel : IDisposable
         foreach (var pageModel in Pages)
         {
             var pageBuilder = builder.AddPage(pageModel.Width, pageModel.Height);
+            if (pageModel.Rotation != 0)
+            {
+                pageBuilder.SetRotation(new UglyToad.PdfPig.Content.PageRotationDegrees(pageModel.Rotation));
+            }
             float pageHeight = (float)pageModel.Height;
 
             foreach (var element in pageModel.Elements)

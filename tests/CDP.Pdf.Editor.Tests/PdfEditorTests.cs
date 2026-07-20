@@ -122,35 +122,56 @@ public class PdfEditorTests
     public void Test_Lru_Cache_Eviction_And_Disposal()
     {
         var doc = new PdfDocumentModel();
-        // PageImageCache with maxSize = 3
-        using var cache = new PageImageCache(doc, maxSize: 3);
-
-        var b1 = cache.GetPageBitmap(1, 1.0f);
-        var b2 = cache.GetPageBitmap(2, 1.0f);
-        var b3 = cache.GetPageBitmap(3, 1.0f);
-
-        Assert.NotNull(b1);
-        Assert.NotNull(b2);
-        Assert.NotNull(b3);
-        Assert.Equal(3, cache.CacheSize);
-
-        // Accessing b1 should make it the most recently used (MRU)
-        var b1Again = cache.GetPageBitmap(1, 1.0f);
-        Assert.Same(b1, b1Again);
-
-        // Fetching b4 should evict b2 (the oldest, since b1 was recently accessed)
-        var b4 = cache.GetPageBitmap(4, 1.0f);
-        Assert.NotNull(b4);
-        Assert.Equal(3, cache.CacheSize);
-
-        // Verify that b2 is no longer in the cache but b1, b3, b4 are
-        var cachedB1 = cache.GetPageBitmap(1, 1.0f);
-        var cachedB3 = cache.GetPageBitmap(3, 1.0f);
-        var cachedB4 = cache.GetPageBitmap(4, 1.0f);
+        doc.Pages.Add(new PdfPageModel { Number = 1, Width = 100, Height = 100 });
+        doc.Pages.Add(new PdfPageModel { Number = 2, Width = 100, Height = 100 });
+        doc.Pages.Add(new PdfPageModel { Number = 3, Width = 100, Height = 100 });
+        doc.Pages.Add(new PdfPageModel { Number = 4, Width = 100, Height = 100 });
         
-        Assert.NotNull(cachedB1);
-        Assert.NotNull(cachedB3);
-        Assert.NotNull(cachedB4);
+        string tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".pdf");
+        try
+        {
+            doc.Save(tempPath);
+            
+            var loadedDoc = new PdfDocumentModel();
+            loadedDoc.Load(tempPath);
+
+            // PageImageCache with maxSize = 3
+            using var cache = new PageImageCache(loadedDoc, maxSize: 3);
+
+            var b1 = cache.GetPageBitmap(1, 1.0f);
+            var b2 = cache.GetPageBitmap(2, 1.0f);
+            var b3 = cache.GetPageBitmap(3, 1.0f);
+
+            Assert.NotNull(b1);
+            Assert.NotNull(b2);
+            Assert.NotNull(b3);
+            Assert.Equal(3, cache.CacheSize);
+
+            // Accessing b1 should make it the most recently used (MRU)
+            var b1Again = cache.GetPageBitmap(1, 1.0f);
+            Assert.Same(b1, b1Again);
+
+            // Fetching b4 should evict b2 (the oldest, since b1 was recently accessed)
+            var b4 = cache.GetPageBitmap(4, 1.0f);
+            Assert.NotNull(b4);
+            Assert.Equal(3, cache.CacheSize);
+
+            // Verify that b2 is no longer in the cache but b1, b3, b4 are
+            var cachedB1 = cache.GetPageBitmap(1, 1.0f);
+            var cachedB3 = cache.GetPageBitmap(3, 1.0f);
+            var cachedB4 = cache.GetPageBitmap(4, 1.0f);
+            
+            Assert.NotNull(cachedB1);
+            Assert.NotNull(cachedB3);
+            Assert.NotNull(cachedB4);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                try { File.Delete(tempPath); } catch {}
+            }
+        }
     }
 
     [Fact]

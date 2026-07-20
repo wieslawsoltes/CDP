@@ -661,7 +661,7 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
                     canvas.DrawRect(new SKRect(2, 2, pageW + 4, pageH + 4), shadowPaint);
 
                     // 2. Draw page background bitmap or placeholder
-                    var bgBitmap = GetPageBitmapCached(i + 1, scale * (float)scaling);
+                    var bgBitmap = page.Number > 0 ? GetPageBitmapCached(page.Number, scale * (float)scaling) : null;
                     if (bgBitmap != null)
                     {
                         canvas.Save();
@@ -1205,7 +1205,7 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
                 var page = _document.Pages[_selectedPageIndex];
                 _selectedTextElements = page.Elements
                     .OfType<PdfTextElementModel>()
-                    .Where(el => !el.IsDeleted && el.Bounds.IntersectsWith(selRect))
+                    .Where(el => !el.IsDeleted && !el.IsGranular && el.Bounds.IntersectsWith(selRect))
                     .OrderBy(el => el.Bounds.Top)
                     .ThenBy(el => el.Bounds.Left)
                     .ToList();
