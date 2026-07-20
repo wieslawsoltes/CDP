@@ -51,6 +51,9 @@ jobs:
       with:
         dotnet-version: 10.0.x
 
+    - name: Build CdpSampleApp for Tests
+      run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
+
     - name: Run Unit Tests
       run: |
         dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
@@ -93,6 +96,9 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
+
+    - name: Build CdpSampleApp for Tests
+      run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
     - name: Run Unit Tests
       run: |
@@ -151,6 +157,9 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
+
+    - name: Build CdpSampleApp for Tests
+      run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
     - name: Run Unit Tests
       shell: pwsh
