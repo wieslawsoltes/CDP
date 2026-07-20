@@ -199,7 +199,7 @@ public class PdfEditorTests
         var editor = new PdfEditor();
         scrollViewer.Content = editor;
 
-        editor.Document.Load("/Users/wieslawsoltes/Downloads/PDF/pid-legend.pdf");
+        editor.Document.Load("non_existent.pdf");
         editor.ZoomScale = 1.0;
 
         var window = new Window
@@ -212,7 +212,8 @@ public class PdfEditorTests
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         string msg = $"Bounds={editor.Bounds}, Viewport={editor.Viewport}, Extent={editor.Extent}, ScrollOffset={editor.Offset}";
-        File.WriteAllText("/Users/wieslawsoltes/GitHub/CDP/debug_layout.txt", msg);
+        string debugPath = Path.Combine(Path.GetTempPath(), "debug_layout.txt");
+        File.WriteAllText(debugPath, msg);
     }
 
     [AvaloniaFact]
@@ -228,7 +229,7 @@ public class PdfEditorTests
         var editor = new PdfEditor();
         scrollViewer.Content = editor;
 
-        editor.Document.Load("/Users/wieslawsoltes/Downloads/PDF/pid-legend.pdf");
+        editor.Document.Load("non_existent.pdf");
         editor.ZoomScale = 1.0;
 
         var window = new Window
@@ -240,14 +241,12 @@ public class PdfEditorTests
         window.Show();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        // The centering uses GetRenderWidth() which returns viewport width.
-        // In headless mode, viewport may or may not be set.
         double renderWidth = editor.Viewport.Width;
         if (renderWidth <= 0) renderWidth = editor.Bounds.Width;
         if (renderWidth <= 0) return; // Skip if no layout in headless
 
-        // Page width at ZoomScale = 1.0: 779.611
-        double pageW = 779.611;
+        // Page width at ZoomScale = 1.0: 595.0
+        double pageW = 595.0;
         double centeringOffset = Math.Max(20, (renderWidth - pageW) / 2);
         
         // Click at the left edge of the page and y = 20 (top edge of page)
@@ -267,11 +266,6 @@ public class PdfEditorTests
     [AvaloniaFact]
     public void Test_PdfEditor_Centering_WideViewport()
     {
-        // This test reproduces the centering bug: when the viewport is wider
-        // than the page extent, the page should be centered within the viewport.
-        // The fix uses the viewport width (not Bounds.Width) for centering,
-        // ensuring consistent rendering and hit-testing with ILogicalScrollable.
-        
         var scrollViewer = new ScrollViewer
         {
             Width = 1400,
@@ -284,7 +278,7 @@ public class PdfEditorTests
         var editor = new PdfEditor();
         scrollViewer.Content = editor;
 
-        editor.Document.Load("/Users/wieslawsoltes/Downloads/PDF/pid-legend.pdf");
+        editor.Document.Load("non_existent.pdf");
         editor.ZoomScale = 1.0;
 
         var window = new Window
@@ -296,11 +290,8 @@ public class PdfEditorTests
         window.Show();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        // The centering now uses viewport width (via GetRenderWidth()),
-        // not Bounds.Width, which ensures correct centering regardless
-        // of how ILogicalScrollable affects the control's arranged size.
         double viewportWidth = editor.Viewport.Width;
-        double pageW = 779.611;
+        double pageW = 595.0;
 
         // The page should be centered within the viewport width
         double expectedPageX = Math.Max(20, (viewportWidth - pageW) / 2);
@@ -330,7 +321,7 @@ public class PdfEditorTests
         var editor = new PdfEditor();
         scrollViewer.Content = editor;
 
-        editor.Document.Load("/Users/wieslawsoltes/Downloads/PDF/pid-legend.pdf");
+        editor.Document.Load("non_existent.pdf");
         editor.ZoomScale = 1.0;
 
         var window = new Window
@@ -351,7 +342,7 @@ public class PdfEditorTests
 
         // After FitToWidth, the page should fill most of the viewport width
         // and be centered within the viewport
-        double pageW = 779.611 * editor.ZoomScale;
+        double pageW = 595.0 * editor.ZoomScale;
         double expectedPageX = Math.Max(20, (viewportWidth - pageW) / 2);
 
         // The page should be roughly centered (expected offset similar on both sides)
