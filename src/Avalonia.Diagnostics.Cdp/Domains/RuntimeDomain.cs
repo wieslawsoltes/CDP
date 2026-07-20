@@ -1889,7 +1889,11 @@ public static class RuntimeDomain
         }));
         engine.SetValue("__blur", new Action(() => {
             Dispatcher.UIThread.Invoke(() => {
+#if AVALONIA_V11
+                session.Window?.FocusManager?.ClearFocus();
+#else
                 session.Window?.FocusManager?.Focus(null);
+#endif
             });
             rawDoc._activeElement = null;
         }));

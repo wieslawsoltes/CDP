@@ -48,6 +48,7 @@ public static class InputDomain
         Key key,
         RawInputModifiers modifiers)
     {
+#if !AVALONIA_V11
         var ctor9 = typeof(RawKeyEventArgs).GetConstructor(
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
             null,
@@ -81,6 +82,7 @@ public static class InputDomain
                 KeyDeviceType.Keyboard
             });
         }
+#endif
 
         var ctor6 = typeof(RawKeyEventArgs).GetConstructor(
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
