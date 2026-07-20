@@ -82,6 +82,38 @@ public static class InputDomain
                 KeyDeviceType.Keyboard
             });
         }
+#else
+        var ctor8 = typeof(RawKeyEventArgs).GetConstructor(
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+            null,
+            new[]
+            {
+                typeof(IInputDevice),
+                typeof(ulong),
+                typeof(IInputRoot),
+                typeof(RawKeyEventType),
+                typeof(Key),
+                typeof(RawInputModifiers),
+                typeof(PhysicalKey),
+                typeof(string)
+            },
+            null
+        );
+
+        if (ctor8 != null)
+        {
+            return (RawKeyEventArgs)ctor8.Invoke(new object?[]
+            {
+                device,
+                timestamp,
+                root,
+                type,
+                key,
+                modifiers,
+                PhysicalKey.None,
+                ""
+            });
+        }
 #endif
 
         var ctor6 = typeof(RawKeyEventArgs).GetConstructor(
@@ -89,7 +121,11 @@ public static class InputDomain
             null,
             new[]
             {
+#if AVALONIA_V11
+                typeof(IKeyboardDevice),
+#else
                 typeof(IInputDevice),
+#endif
                 typeof(ulong),
                 typeof(IInputRoot),
                 typeof(RawKeyEventType),
