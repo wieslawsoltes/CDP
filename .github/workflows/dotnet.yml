@@ -19,6 +19,10 @@ jobs:
             project: "tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj"
             filter: ""
           - os: ubuntu-latest
+            name: "Avalonia.Diagnostics.Cdp.v11.Tests"
+            project: "tests/Avalonia.Diagnostics.Cdp.v11.Tests/Avalonia.Diagnostics.Cdp.v11.Tests.csproj"
+            filter: ""
+          - os: ubuntu-latest
             name: "CDP.Inspector.CLI.Tests"
             project: "tests/CDP.Inspector.CLI.Tests/CDP.Inspector.CLI.Tests.csproj"
             filter: ""
@@ -38,6 +42,10 @@ jobs:
           - os: macos-latest
             name: "Avalonia.Diagnostics.Cdp.Tests"
             project: "tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj"
+            filter: ""
+          - os: macos-latest
+            name: "Avalonia.Diagnostics.Cdp.v11.Tests"
+            project: "tests/Avalonia.Diagnostics.Cdp.v11.Tests/Avalonia.Diagnostics.Cdp.v11.Tests.csproj"
             filter: ""
           - os: macos-latest
             name: "CDP.Inspector.CLI.Tests"
@@ -59,6 +67,10 @@ jobs:
           - os: windows-latest
             name: "Avalonia.Diagnostics.Cdp.Tests"
             project: "tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj"
+            filter: ""
+          - os: windows-latest
+            name: "Avalonia.Diagnostics.Cdp.v11.Tests"
+            project: "tests/Avalonia.Diagnostics.Cdp.v11.Tests/Avalonia.Diagnostics.Cdp.v11.Tests.csproj"
             filter: ""
           - os: windows-latest
             name: "CDP.Inspector.CLI.Tests"
