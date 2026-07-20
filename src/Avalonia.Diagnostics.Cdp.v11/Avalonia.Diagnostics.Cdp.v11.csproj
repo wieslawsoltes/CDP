@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Avalonia.v11</PackageId>
+    <Title>Chrome.DevTools.Avalonia.v11</Title>
+    <Description>Chrome DevTools Protocol (CDP) diagnostics server support for Avalonia UI v11.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>avalonia;cdp;chrome-devtools-protocol;diagnostics;server;v11</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);AVALONIA_V11</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" VersionOverride="11.0.13" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" VersionOverride="11.0.13" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Jint" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Features" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+    <ProjectReference Include="../Xaml.Compiler/Xaml.Compiler.csproj" />
+    <ProjectReference Include="../CDP.Integration.Core/CDP.Integration.Core.csproj" />
+    <ProjectReference Include="../CDP.Integration.TestMo/CDP.Integration.TestMo.csproj" />
+    <ProjectReference Include="../CDP.Integration.TestRail/CDP.Integration.TestRail.csproj" />
+    <ProjectReference Include="../CDP.Integration.Qase/CDP.Integration.Qase.csproj" />
+    <ProjectReference Include="../CDP.Integration.Xray/CDP.Integration.Xray.csproj" />
+    <ProjectReference Include="../CDP.Integration.Zephyr/CDP.Integration.Zephyr.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Chrome.DevTools.Protocol" />
+    <Using Include="Chrome.DevTools.Protocol.Domains" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Avalonia.Diagnostics.Cdp/**/*.cs" Exclude="../Avalonia.Diagnostics.Cdp/obj/**/*.cs;../Avalonia.Diagnostics.Cdp/bin/**/*.cs" />
+  </ItemGroup>
+
+</Project>
