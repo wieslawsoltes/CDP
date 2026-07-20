@@ -3,5 +3,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>Chrome.DevTools.Integration.Core</PackageId>
+    <Title>Chrome.DevTools.Integration.Core</Title>
+    <Description>Core integrations facade and contracts for Chrome DevTools Protocol (CDP).</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 </Project>

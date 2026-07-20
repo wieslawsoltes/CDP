@@ -3,7 +3,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>Chrome.DevTools.Integration.Xray</PackageId>
+    <Title>Chrome.DevTools.Integration.Xray</Title>
+    <Description>Xray integration provider for Chrome DevTools Protocol (CDP).</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CDP.Integration.Core\CDP.Integration.Core.csproj" />
