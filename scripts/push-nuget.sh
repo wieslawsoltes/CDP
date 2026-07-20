@@ -174,6 +174,12 @@ for package in "${packages[@]}"; do
     continue
   fi
 
+  if grep -q "The package ID is reserved" "$output_file"; then
+    echo "::warning::Package ${package_id} ${package_version} ID is reserved on NuGet.org; skipping push."
+    rm -f "$output_file"
+    continue
+  fi
+
   if nuget_package_exists "$package_id" "$package_version"; then
     echo "::warning::Package ${package_id} ${package_version} already exists on NuGet.org; continuing."
     rm -f "$output_file"
