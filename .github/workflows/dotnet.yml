@@ -37,7 +37,7 @@ jobs:
           - os: ubuntu-latest
             name: "Library Tests"
             project: "Avalonia.Diagnostics.Cdp.slnx"
-            filter: "--filter 'FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests'"
+            filter: '--filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"'
 
           - os: macos-latest
             name: "Avalonia.Diagnostics.Cdp.Tests"
@@ -62,7 +62,7 @@ jobs:
           - os: macos-latest
             name: "Library Tests"
             project: "Avalonia.Diagnostics.Cdp.slnx"
-            filter: "--filter 'FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests'"
+            filter: '--filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"'
 
           - os: windows-latest
             name: "Avalonia.Diagnostics.Cdp.Tests"
@@ -87,7 +87,7 @@ jobs:
           - os: windows-latest
             name: "Library Tests"
             project: "Avalonia.Diagnostics.Cdp.slnx"
-            filter: "--filter 'FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests'"
+            filter: '--filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"'
 
     steps:
     - uses: actions/checkout@v4
@@ -106,7 +106,7 @@ jobs:
       shell: bash
       run: |
         if [ "${{ matrix.project }}" = "Avalonia.Diagnostics.Cdp.slnx" ]; then
-          dotnet test ${{ matrix.project }} -c Release --verbosity normal -- RunConfiguration.MaxCpuCount=1 ${{ matrix.filter }}
+          dotnet test ${{ matrix.project }} -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 ${{ matrix.filter }}
         else
           dotnet test ${{ matrix.project }} -c Release --verbosity normal
         fi
