@@ -370,6 +370,10 @@ public class PdfDocumentModel : IDisposable
                     IsOriginal = true,
                     OriginalBounds = SKRect.Create(left, top, right - left, bottom - top)
                 };
+                if (img.TryGetPng(out byte[] pngBytes))
+                {
+                    imgEl.ImageBytes = pngBytes;
+                }
                 pageModel.Elements.Add(imgEl);
             }
 
@@ -460,6 +464,11 @@ public class PdfDocumentModel : IDisposable
             {
                 if (!element.IsDeleted)
                 {
+                    // Skip granular original text elements to avoid duplicates (they are already written via line elements)
+                    if (element is PdfTextElementModel t && t.IsOriginal && t.IsGranular && !t.IsModified)
+                    {
+                        continue;
+                    }
                     element.WriteTo(builder, pageBuilder, pageHeight);
                 }
             }
@@ -479,12 +488,31 @@ public class PdfDocumentModel : IDisposable
 public class PdfImageElementModel : PdfElementModel
 {
     public string ImageId { get; set; } = "";
+    public byte[]? ImageBytes { get; set; }
+
     public override void Render(SKCanvas canvas, float pageHeight)
     {
         using var paint = new SKPaint { Color = new SKColor(41, 128, 185, 100), Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f, IsAntialias = true };
         canvas.DrawRect(Bounds, paint);
     }
+
     public override void WriteTo(PdfDocumentBuilder builder, PdfPageBuilder pageBuilder, float pageHeight)
     {
+        if (ImageBytes != null && ImageBytes.Length > 0)
+        {
+            try
+            {
+                double left = Bounds.Left;
+                double bottom = pageHeight - Bounds.Bottom;
+                double right = Bounds.Right;
+                double top = pageHeight - Bounds.Top;
+                var rect = new UglyToad.PdfPig.Core.PdfRectangle(left, bottom, right, top);
+                pageBuilder.AddPng(ImageBytes, rect);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error writing image to PDF: {ex.Message}");
+            }
+        }
     }
 }

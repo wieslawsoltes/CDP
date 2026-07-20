@@ -149,6 +149,7 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
     private bool _isFitPending;
     private DispatcherTimer? _zoomDebounceTimer;
     private Avalonia.Visual? _subscribedParent;
+    private int _loadRequestId;
 
     // Range Selection & Panning state
     private bool _isPanning;
@@ -298,6 +299,8 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
 
     public async Task LoadDocumentAsync(string? path)
     {
+        int currentId = ++_loadRequestId;
+
         _selectedElement = null;
         _selectedPageIndex = -1;
         _selectedTextElements.Clear();
@@ -310,13 +313,14 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
         _scrollOffsetX = 0;
         _scrollOffsetY = 0;
 
+        PdfDocumentModel tempDoc;
         if (string.IsNullOrEmpty(path))
         {
-            _document = new PdfDocumentModel();
+            tempDoc = new PdfDocumentModel();
         }
         else
         {
-            _document = new PdfDocumentModel();
+            tempDoc = new PdfDocumentModel();
             
             IsLoading = true;
             LoadingStatus = "Loading PDF...";
@@ -325,7 +329,7 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
             {
                 await Task.Run(() =>
                 {
-                    _document.Load(path);
+                    tempDoc.Load(path);
                 });
             }
             catch (Exception ex)
@@ -334,15 +338,22 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
             }
             finally
             {
-                IsLoading = false;
-                LoadingStatus = "";
+                if (currentId == _loadRequestId)
+                {
+                    IsLoading = false;
+                    LoadingStatus = "";
+                }
             }
         }
         
-        ScrollInvalidated?.Invoke(this, EventArgs.Empty);
-        InvalidateMeasure();
-        InvalidateVisual();
-        ApplyActiveFitMode();
+        if (currentId == _loadRequestId)
+        {
+            _document = tempDoc;
+            ScrollInvalidated?.Invoke(this, EventArgs.Empty);
+            InvalidateMeasure();
+            InvalidateVisual();
+            ApplyActiveFitMode();
+        }
     }
 
     public void RotateCurrentPage(int degrees)
@@ -948,6 +959,11 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
         base.OnPointerPressed(e);
         Focus();
 
+        if (IsReadOnly && EditMode != PdfEditMode.Pan && EditMode != PdfEditMode.Select && EditMode != PdfEditMode.DirectSelect)
+        {
+            return;
+        }
+
         var pt = e.GetCurrentPoint(this).Position;
 
         if (EditMode == PdfEditMode.Pan)
@@ -993,7 +1009,7 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
                 int handleIdx = HitTestHandles(pageCoords, _selectedElement);
                 if (handleIdx != -1)
                 {
-                    _isResizing = true;
+                    _isResizing = !IsReadOnly;
                     _resizeHandleIndex = handleIdx;
                     _lastPointerPosition = pt;
                     e.Handled = true;
@@ -1007,7 +1023,7 @@ public class PdfEditor : Avalonia.Controls.Control, ILogicalScrollable
             {
                 _selectedElement = hitElement;
                 _selectedPageIndex = pageIdx;
-                _isDragging = true;
+                _isDragging = !IsReadOnly;
                 _lastPointerPosition = pt;
                 _selectedTextElements.Clear();
                 UpdateSelectedCommentText();
