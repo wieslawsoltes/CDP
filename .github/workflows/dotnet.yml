@@ -256,14 +256,16 @@ jobs:
       with:
         dotnet-version: 10.0.x
 
-    - name: Install WASM Tools workload
-      run: dotnet workload install wasm-tools
-
     - name: Restore dependencies
       run: dotnet restore
 
     - name: Build
-      run: dotnet build --no-restore --configuration Release
+      run: |
+        for csproj in $(find src -name '*.csproj'); do
+          if ! grep -Eqi '<IsPackable>[[:space:]]*false[[:space:]]*</IsPackable>' "$csproj"; then
+            dotnet build "$csproj" --no-restore --configuration Release
+          fi
+        done
 
     - name: Pack NuGet Packages
       shell: bash
