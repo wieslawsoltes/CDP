@@ -261,10 +261,14 @@ jobs:
 
     - name: Build
       run: |
-        for csproj in $(find src -name '*.csproj'); do
-          if ! grep -Eqi '<IsPackable>[[:space:]]*false[[:space:]]*</IsPackable>' "$csproj"; then
-            dotnet build "$csproj" --no-restore --configuration Release
+        for csproj in $(find src samples -name '*.csproj'); do
+          if grep -Eqi '<IsPackable>[[:space:]]*false[[:space:]]*</IsPackable>' "$csproj"; then
+            continue
           fi
+          if [[ "$csproj" == *"CdpInspectorApp.Browser.csproj" ]]; then
+            continue
+          fi
+          dotnet build "$csproj" --no-restore --configuration Release
         done
 
     - name: Pack NuGet Packages
