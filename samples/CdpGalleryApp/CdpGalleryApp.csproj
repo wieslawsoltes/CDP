@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\CDP.FluentNavigation\CDP.FluentNavigation.csproj" />
     <ProjectReference Include="..\..\src\CDP.Markdown.Editor\CDP.Markdown.Editor.csproj" />
     <ProjectReference Include="..\..\src\CDP.Document.Editor\CDP.Document.Editor.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Pdf.Editor\CDP.Pdf.Editor.csproj" />
     <ProjectReference Include="..\..\src\CDP.Editor.Splits\CDP.Editor.Splits.csproj" />
     <ProjectReference Include="..\..\src\CDP.Editor.Nodes\CDP.Editor.Nodes.csproj" />
     <ProjectReference Include="..\..\src\CDP.Inspector.Controls\CDP.Inspector.Controls.csproj" />

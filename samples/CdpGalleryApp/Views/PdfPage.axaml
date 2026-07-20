@@ -1,0 +1,126 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:pdf="clr-namespace:CDP.Pdf.Editor;assembly=CDP.Pdf.Editor"
+             xmlns:vm="clr-namespace:CdpGalleryApp.ViewModels"
+             xmlns:conv="clr-namespace:CdpGalleryApp.Converters"
+             xmlns:local="clr-namespace:CdpGalleryApp.Views"
+             x:Class="CdpGalleryApp.Views.PdfPage"
+             x:DataType="vm:PdfPageViewModel"
+             x:CompileBindings="True">
+
+    <UserControl.Resources>
+        <conv:EnumToBoolConverter x:Key="EnumToBoolConverter"/>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto, *">
+        <!-- Toolbar Header -->
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="12,8">
+            <StackPanel Orientation="Vertical" Spacing="8">
+                <Grid ColumnDefinitions="Auto, *, Auto">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                        <TextBlock Text="PDF Interactive Editor" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Foreground="#8ab4f8"/>
+                        
+                        <Separator Width="1" Height="16" Background="#3c4043" Margin="5,0"/>
+                        
+                        <Button Content="Open PDF" Command="{Binding OpenCommand}" Padding="10,5" FontSize="11"/>
+                        <Button Content="Save PDF" Command="{Binding SaveCommand}" Classes="accent" Padding="10,5" FontSize="11"/>
+                        
+                        <Separator Width="1" Height="16" Background="#3c4043" Margin="5,0"/>
+
+                        <RadioButton Content="Select" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.Select}}"
+                                     Command="{Binding SetSelectModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Direct Select" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.DirectSelect}}"
+                                     Command="{Binding SetDirectSelectModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Pan" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.Pan}}"
+                                     Command="{Binding SetPanModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Text" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.AddText}}"
+                                     Command="{Binding SetAddTextModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Shape" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.AddShape}}"
+                                     Command="{Binding SetAddShapeModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Highlight" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.Highlight}}"
+                                     Command="{Binding SetHighlightModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Underline" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.Underline}}"
+                                     Command="{Binding SetUnderlineModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Note" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.StickyNote}}"
+                                     Command="{Binding SetStickyNoteModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Pencil" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.Pencil}}"
+                                     Command="{Binding SetPencilModeCommand}"
+                                     FontSize="11"/>
+                        <RadioButton Content="Form" 
+                                     IsChecked="{Binding EditMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static pdf:PdfEditMode.AddFormField}}"
+                                     Command="{Binding SetAddFormFieldModeCommand}"
+                                     FontSize="11"/>
+                    </StackPanel>
+                </Grid>
+                
+                <Grid ColumnDefinitions="Auto, *, Auto">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="Page Operations:" FontSize="11" VerticalAlignment="Center" Foreground="#aaaaaa"/>
+                        <Button Content="Rotate 90" Command="{Binding RotatePageCommand}" CommandParameter="90" Padding="8,4" FontSize="11"/>
+                        <Button Content="Rotate 180" Command="{Binding RotatePageCommand}" CommandParameter="180" Padding="8,4" FontSize="11"/>
+                        <Button Content="Rotate 270" Command="{Binding RotatePageCommand}" CommandParameter="270" Padding="8,4" FontSize="11"/>
+                        <Separator Width="1" Height="12" Background="#3c4043" Margin="5,0"/>
+                        <Button Content="Insert Blank Page" Command="{Binding InsertPageCommand}" Padding="8,4" FontSize="11"/>
+                        <Button Content="Delete Current Page" Command="{Binding DeletePageCommand}" Padding="8,4" FontSize="11" Foreground="#ff5252"/>
+                        
+                        <Separator Width="1" Height="12" Background="#3c4043" Margin="5,0"/>
+                        <TextBlock Text="Zoom:" FontSize="11" VerticalAlignment="Center" Foreground="#aaaaaa"/>
+                        <Button Content="-" Command="{Binding ZoomOutCommand}" Padding="8,4" FontSize="11"/>
+                        <TextBlock Text="{Binding ZoomScale, StringFormat={}{0:P0}}" FontSize="11" VerticalAlignment="Center" Foreground="#ffffff" Width="50" TextAlignment="Center"/>
+                        <Button Content="+" Command="{Binding ZoomInCommand}" Padding="8,4" FontSize="11"/>
+                        <Button Content="Fit Width" Command="{Binding FitWidthCommand}" Padding="8,4" FontSize="11"/>
+                        <Button Content="Fit Page" Command="{Binding FitPageCommand}" Padding="8,4" FontSize="11"/>
+                        
+                        <Separator Width="1" Height="12" Background="#3c4043" Margin="5,0"/>
+                        <TextBlock Text="Note Comment:" FontSize="11" VerticalAlignment="Center" Foreground="#aaaaaa"/>
+                        <TextBox Text="{Binding SelectedCommentText, Mode=TwoWay}" PlaceholderText="Select note to view/edit..." Width="220" FontSize="11" VerticalAlignment="Center" Height="24" Padding="6,2"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- PDF Virtualized Scrollable Editor Canvas -->
+        <Grid Grid.Row="1">
+            <ScrollViewer Name="PdfScrollViewer" 
+                          Background="#2b2d30"
+                          HorizontalScrollBarVisibility="Auto" 
+                          VerticalScrollBarVisibility="Visible"
+                          HorizontalContentAlignment="Stretch"
+                          VerticalContentAlignment="Stretch">
+                <pdf:PdfEditor Name="PdfCanvas"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Top"
+                               FilePath="{Binding FilePath, Mode=TwoWay}"
+                               EditMode="{Binding EditMode, Mode=TwoWay}"
+                               ZoomScale="{Binding ZoomScale, Mode=TwoWay}"
+                               SelectedCommentText="{Binding SelectedCommentText, Mode=TwoWay}"
+                               IsReadOnly="{Binding IsReadOnly, Mode=TwoWay}"/>
+            </ScrollViewer>
+
+            <!-- Loading Overlay -->
+            <Border Background="#cc1e1e1e" IsVisible="{Binding #PdfCanvas.IsLoading}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+                    <ProgressBar IsIndeterminate="True" Width="200" Height="4" Foreground="#8ab4f8" Background="#3c4043"/>
+                    <TextBlock Text="{Binding #PdfCanvas.LoadingStatus}" FontSize="12" Foreground="#8ab4f8" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

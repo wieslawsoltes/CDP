@@ -12,6 +12,7 @@ public class MainWindowViewModel : ViewModelBase
     public NodeEditorPageViewModel NodeEditorVm { get; } = new();
     public ChartsPageViewModel ChartsVm { get; } = new();
     public HtmlPageViewModel HtmlVm { get; } = new();
+    public PdfPageViewModel PdfVm { get; } = new();
 
     public object? CurrentPage
     {
@@ -21,8 +22,8 @@ public class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
-        // Default to Markdown page
-        CurrentPage = MarkdownVm;
+        // Default to Pdf page
+        CurrentPage = PdfVm;
     }
 
     public void NavigateTo(string tag)
@@ -36,7 +37,8 @@ public class MainWindowViewModel : ViewModelBase
             "Accordion" => null, // Accordion is a standalone page defined in AccordionPage.axaml
             "Charts" => ChartsVm,
             "Html" => HtmlVm,
-            "Settings" => null, // Settings is simple settings page
+            "Pdf" => PdfVm,
+            "Settings" => null,
             _ => CurrentPage
         };
 

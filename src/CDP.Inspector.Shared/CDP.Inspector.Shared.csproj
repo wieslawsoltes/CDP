@@ -44,6 +44,7 @@
     <ProjectReference Include="../CDP.Markdown.Editor/CDP.Markdown.Editor.csproj" />
     <ProjectReference Include="../CDP.Inspector.Wysiwyg/CDP.Inspector.Wysiwyg.csproj" />
     <ProjectReference Include="../CDP.Document.Editor/CDP.Document.Editor.csproj" />
+    <ProjectReference Include="../CDP.Pdf.Editor/CDP.Pdf.Editor.csproj" />
   </ItemGroup>
 
   <ItemGroup>

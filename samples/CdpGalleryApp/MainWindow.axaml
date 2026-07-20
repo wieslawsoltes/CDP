@@ -46,6 +46,9 @@
         <DataTemplate DataType="vm:HtmlPageViewModel">
             <views:HtmlPage/>
         </DataTemplate>
+        <DataTemplate DataType="vm:PdfPageViewModel">
+            <views:PdfPage/>
+        </DataTemplate>
         <DataTemplate DataType="vm:SettingsPageViewModel">
             <views:SettingsPage/>
         </DataTemplate>
@@ -73,13 +76,14 @@
 
         <!-- Navigation Menu Items -->
         <controls:NavigationView.MenuItems>
-            <controls:NavigationViewItem Content="Markdown" Icon="{StaticResource MarkdownIcon}" Tag="Markdown" IsSelected="True"/>
+            <controls:NavigationViewItem Content="Markdown" Icon="{StaticResource MarkdownIcon}" Tag="Markdown"/>
             <controls:NavigationViewItem Content="Rich Documents" Icon="{StaticResource DocumentIcon}" Tag="RichDocuments"/>
             <controls:NavigationViewItem Content="Split Layout" Icon="{StaticResource SplitIcon}" Tag="SplitLayout"/>
             <controls:NavigationViewItem Content="Node Editor" Icon="{StaticResource NodeIcon}" Tag="NodeEditor"/>
             <controls:NavigationViewItem Content="Accordion" Icon="{StaticResource AccordionIcon}" Tag="Accordion"/>
             <controls:NavigationViewItem Content="Charts" Icon="{StaticResource ChartIcon}" Tag="Charts"/>
             <controls:NavigationViewItem Content="HTML/CSS Showcase" Icon="{StaticResource DocumentIcon}" Tag="Html"/>
+            <controls:NavigationViewItem Content="PDF Editor" Icon="{StaticResource DocumentIcon}" Tag="Pdf" IsSelected="True"/>
         </controls:NavigationView.MenuItems>
 
         <!-- Profile Block inside Pane Footer -->

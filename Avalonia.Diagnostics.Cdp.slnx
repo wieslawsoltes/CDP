@@ -48,6 +48,7 @@
     <Project Path="src/CDP.Inspector.Wysiwyg/CDP.Inspector.Wysiwyg.csproj" />
     <Project Path="src/CDP.Document.Renderer/CDP.Document.Renderer.csproj" />
     <Project Path="src/CDP.Document.Editor/CDP.Document.Editor.csproj" />
+    <Project Path="src/CDP.Pdf.Editor/CDP.Pdf.Editor.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CDP.Integration.Tests/CDP.Integration.Tests.csproj" />
@@ -72,5 +73,6 @@
     <Project Path="tests/CDP.Automation.OS.Tests/CDP.Automation.OS.Tests.csproj" />
     <Project Path="tests/CDP.Xaml.LanguageServer.Tests/CDP.Xaml.LanguageServer.Tests.csproj" />
     <Project Path="tests/CDP.Rendering.Comparison.Tests/CDP.Rendering.Comparison.Tests.csproj" />
+    <Project Path="tests/CDP.Pdf.Editor.Tests/CDP.Pdf.Editor.Tests.csproj" />
   </Folder>
 </Solution>

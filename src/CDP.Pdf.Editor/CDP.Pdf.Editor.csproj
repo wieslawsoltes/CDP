@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Pdf.Editor</PackageId>
+    <Title>Chrome.DevTools.Pdf.Editor</Title>
+    <Description>State of the art interactive PDF rendering and editing canvas for Avalonia applications based on PdfPig and SkiaSharp.</Description>
+    <PackageTags>avalonia;cdp;pdf;editor;pdfpig;skiasharp;wysiwyg</PackageTags>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="PdfPig.Rendering.Skia" />
+  </ItemGroup>
+
+</Project>
