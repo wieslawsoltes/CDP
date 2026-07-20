@@ -229,12 +229,19 @@ public class PdfEditorTests
             Height = 700,
             Content = scrollViewer
         };
-        window.Show();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        try
+        {
+            window.Show();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        string msg = $"Bounds={editor.Bounds}, Viewport={editor.Viewport}, Extent={editor.Extent}, ScrollOffset={editor.Offset}";
-        string debugPath = Path.Combine(Path.GetTempPath(), "debug_layout.txt");
-        File.WriteAllText(debugPath, msg);
+            string msg = $"Bounds={editor.Bounds}, Viewport={editor.Viewport}, Extent={editor.Extent}, ScrollOffset={editor.Offset}";
+            string debugPath = Path.Combine(Path.GetTempPath(), "debug_layout.txt");
+            File.WriteAllText(debugPath, msg);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -259,29 +266,36 @@ public class PdfEditorTests
             Height = 600,
             Content = scrollViewer
         };
-        window.Show();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        try
+        {
+            window.Show();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        double renderWidth = editor.Viewport.Width;
-        if (renderWidth <= 0) renderWidth = editor.Bounds.Width;
-        if (renderWidth <= 0) return; // Skip if no layout in headless
+            double renderWidth = editor.Viewport.Width;
+            if (renderWidth <= 0) renderWidth = editor.Bounds.Width;
+            if (renderWidth <= 0) return; // Skip if no layout in headless
 
-        // Page width at ZoomScale = 1.0: 595.0
-        double pageW = 595.0;
-        double centeringOffset = Math.Max(20, (renderWidth - pageW) / 2);
-        
-        // Click at the left edge of the page and y = 20 (top edge of page)
-        var result1 = editor.GetPageAtPoint(new Point(centeringOffset, 20));
-        Assert.Equal(0, result1.pageIndex);
-        Assert.True(Math.Abs(result1.pageCoords.X) < 1.0,
-            $"Expected X near 0, got {result1.pageCoords.X}");
+            // Page width at ZoomScale = 1.0: 595.0
+            double pageW = 595.0;
+            double centeringOffset = Math.Max(20, (renderWidth - pageW) / 2);
+            
+            // Click at the left edge of the page and y = 20 (top edge of page)
+            var result1 = editor.GetPageAtPoint(new Point(centeringOffset, 20));
+            Assert.Equal(0, result1.pageIndex);
+            Assert.True(Math.Abs(result1.pageCoords.X) < 1.0,
+                $"Expected X near 0, got {result1.pageCoords.X}");
 
-        // Click at the center of the render area horizontally
-        double midX = renderWidth / 2;
-        var result2 = editor.GetPageAtPoint(new Point(midX, 20));
-        Assert.Equal(0, result2.pageIndex);
-        Assert.True(Math.Abs(result2.pageCoords.X - (midX - centeringOffset)) < 1.0,
-            $"Expected X near {midX - centeringOffset}, got {result2.pageCoords.X}");
+            // Click at the center of the render area horizontally
+            double midX = renderWidth / 2;
+            var result2 = editor.GetPageAtPoint(new Point(midX, 20));
+            Assert.Equal(0, result2.pageIndex);
+            Assert.True(Math.Abs(result2.pageCoords.X - (midX - centeringOffset)) < 1.0,
+                $"Expected X near {midX - centeringOffset}, got {result2.pageCoords.X}");
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -308,22 +322,29 @@ public class PdfEditorTests
             Height = 700,
             Content = scrollViewer
         };
-        window.Show();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-
-        double viewportWidth = editor.Viewport.Width;
-        double pageW = 595.0;
-
-        // The page should be centered within the viewport width
-        double expectedPageX = Math.Max(20, (viewportWidth - pageW) / 2);
-
-        // Hit test: clicking at the calculated center should hit the page
-        if (viewportWidth > 0)
+        try
         {
-            var result = editor.GetPageAtPoint(new Point(expectedPageX + 10, 30));
-            Assert.Equal(0, result.pageIndex);
-            Assert.True(result.pageCoords.X >= 0 && result.pageCoords.X < 20,
-                $"X coord ({result.pageCoords.X}) should be near left edge of page");
+            window.Show();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            double viewportWidth = editor.Viewport.Width;
+            double pageW = 595.0;
+
+            // The page should be centered within the viewport width
+            double expectedPageX = Math.Max(20, (viewportWidth - pageW) / 2);
+
+            // Hit test: clicking at the calculated center should hit the page
+            if (viewportWidth > 0)
+            {
+                var result = editor.GetPageAtPoint(new Point(expectedPageX + 10, 30));
+                Assert.Equal(0, result.pageIndex);
+                Assert.True(result.pageCoords.X >= 0 && result.pageCoords.X < 20,
+                    $"X coord ({result.pageCoords.X}) should be near left edge of page");
+            }
+        }
+        finally
+        {
+            window.Close();
         }
     }
 
@@ -351,30 +372,37 @@ public class PdfEditorTests
             Height = 700,
             Content = scrollViewer
         };
-        window.Show();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        try
+        {
+            window.Show();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        // Apply FitToWidth
-        editor.FitToWidth();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            // Apply FitToWidth
+            editor.FitToWidth();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        double viewportWidth = editor.Viewport.Width;
-        if (viewportWidth <= 0) return; // Skip if viewport not available in headless
+            double viewportWidth = editor.Viewport.Width;
+            if (viewportWidth <= 0) return; // Skip if viewport not available in headless
 
-        // After FitToWidth, the page should fill most of the viewport width
-        // and be centered within the viewport
-        double pageW = 595.0 * editor.ZoomScale;
-        double expectedPageX = Math.Max(20, (viewportWidth - pageW) / 2);
+            // After FitToWidth, the page should fill most of the viewport width
+            // and be centered within the viewport
+            double pageW = 595.0 * editor.ZoomScale;
+            double expectedPageX = Math.Max(20, (viewportWidth - pageW) / 2);
 
-        // The page should be roughly centered (expected offset similar on both sides)
-        double leftMargin = expectedPageX;
-        double rightMargin = viewportWidth - expectedPageX - pageW;
-        Assert.True(Math.Abs(leftMargin - rightMargin) < 5,
-            $"Page should be centered: left={leftMargin}, right={rightMargin}");
+            // The page should be roughly centered (expected offset similar on both sides)
+            double leftMargin = expectedPageX;
+            double rightMargin = viewportWidth - expectedPageX - pageW;
+            Assert.True(Math.Abs(leftMargin - rightMargin) < 5,
+                $"Page should be centered: left={leftMargin}, right={rightMargin}");
 
-        // Hit test at page left edge should work
-        var result = editor.GetPageAtPoint(new Point(expectedPageX + 5, 30));
-        Assert.Equal(0, result.pageIndex);
+            // Hit test at page left edge should work
+            var result = editor.GetPageAtPoint(new Point(expectedPageX + 5, 30));
+            Assert.Equal(0, result.pageIndex);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -402,30 +430,37 @@ public class PdfEditorTests
             Height = 1200,
             Content = scrollViewer
         };
-        window.Show();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        try
+        {
+            window.Show();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        double renderWidth = editor.Viewport.Width;
-        if (renderWidth <= 0) renderWidth = editor.Bounds.Width;
-        if (renderWidth <= 0) return; // Skip if no layout in headless
+            double renderWidth = editor.Viewport.Width;
+            if (renderWidth <= 0) renderWidth = editor.Bounds.Width;
+            if (renderWidth <= 0) return; // Skip if no layout in headless
 
-        // With docWidth = 800 (max of 800 and 600)
-        // renderWidth = 1000. Since 1000 > 800 + 40, centerAxis = 500.
-        // Page 1 (width 800) pageXOffset = 500 - 400 = 100.
-        // Page 2 (width 600) pageXOffset = 500 - 300 = 200.
-        // Page 1 is from Y = 20 to 1020.
-        // Page 2 is from Y = 1040 to 1840.
+            // With docWidth = 800 (max of 800 and 600)
+            // renderWidth = 1000. Since 1000 > 800 + 40, centerAxis = 500.
+            // Page 1 (width 800) pageXOffset = 500 - 400 = 100.
+            // Page 2 (width 600) pageXOffset = 500 - 300 = 200.
+            // Page 1 is from Y = 20 to 1020.
+            // Page 2 is from Y = 1040 to 1840.
 
-        // Hit test Page 1: click at center axis, Y = 50 (currentY = 20, relative Y = 30)
-        var result1 = editor.GetPageAtPoint(new Point(500, 50));
-        Assert.Equal(0, result1.pageIndex);
-        Assert.True(Math.Abs(result1.pageCoords.X - 400) < 1.0, $"Expected pageCoords.X near 400, got {result1.pageCoords.X}");
-        Assert.True(Math.Abs(result1.pageCoords.Y - 30) < 1.0, $"Expected pageCoords.Y near 30, got {result1.pageCoords.Y}");
+            // Hit test Page 1: click at center axis, Y = 50 (currentY = 20, relative Y = 30)
+            var result1 = editor.GetPageAtPoint(new Point(500, 50));
+            Assert.Equal(0, result1.pageIndex);
+            Assert.True(Math.Abs(result1.pageCoords.X - 400) < 1.0, $"Expected pageCoords.X near 400, got {result1.pageCoords.X}");
+            Assert.True(Math.Abs(result1.pageCoords.Y - 30) < 1.0, $"Expected pageCoords.Y near 30, got {result1.pageCoords.Y}");
 
-        // Hit test Page 2: click at center axis, Y = 1100 (currentY = 1040, relative Y = 60)
-        var result2 = editor.GetPageAtPoint(new Point(500, 1100));
-        Assert.Equal(1, result2.pageIndex);
-        Assert.True(Math.Abs(result2.pageCoords.X - 300) < 1.0, $"Expected pageCoords.X near 300, got {result2.pageCoords.X}");
-        Assert.True(Math.Abs(result2.pageCoords.Y - 60) < 1.0, $"Expected pageCoords.Y near 60, got {result2.pageCoords.Y}");
+            // Hit test Page 2: click at center axis, Y = 1100 (currentY = 1040, relative Y = 60)
+            var result2 = editor.GetPageAtPoint(new Point(500, 1100));
+            Assert.Equal(1, result2.pageIndex);
+            Assert.True(Math.Abs(result2.pageCoords.X - 300) < 1.0, $"Expected pageCoords.X near 300, got {result2.pageCoords.X}");
+            Assert.True(Math.Abs(result2.pageCoords.Y - 60) < 1.0, $"Expected pageCoords.Y near 60, got {result2.pageCoords.Y}");
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 }
