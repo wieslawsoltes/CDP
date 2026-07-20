@@ -480,16 +480,14 @@ public class MarkdownEditorTests
 
         try
         {
-            bool loadedCalled = false;
+            var tcs = new TaskCompletionSource();
             var bitmap = CDP.Markdown.Renderer.Rendering.MarkdownImageLoader.GetOrLoadImage(tempFile, () =>
             {
-                loadedCalled = true;
+                tcs.SetResult();
             });
 
-            // Wait a small bit for async task to run
-            await Task.Delay(100);
-
-            Assert.True(loadedCalled || bitmap != null);
+            var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(5000));
+            Assert.Same(tcs.Task, completedTask);
 
             // Clear Cache
             CDP.Markdown.Renderer.Rendering.MarkdownImageLoader.ClearCache();

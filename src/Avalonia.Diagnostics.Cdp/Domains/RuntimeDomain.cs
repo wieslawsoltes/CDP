@@ -1756,7 +1756,7 @@ public static class RuntimeDomain
         var control = selectedNode as Avalonia.Controls.Control;
         var dataContext = control?.DataContext;
         Logger.LogPlaywrightDebug($"selectedNode={selectedNode?.GetType().FullName ?? "null"}, session.Window={session.Window?.GetType().FullName ?? "null"}");
-        var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window);
+        var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.TopLevel);
         Logger.LogPlaywrightDebug($"windowObj={windowObj?.GetType().FullName ?? "null"}");
 
         try
@@ -1889,7 +1889,11 @@ public static class RuntimeDomain
         }));
         engine.SetValue("__blur", new Action(() => {
             Dispatcher.UIThread.Invoke(() => {
+#if AVALONIA_V11
+                session.Window?.FocusManager?.ClearFocus();
+#else
                 session.Window?.FocusManager?.Focus(null);
+#endif
             });
             rawDoc._activeElement = null;
         }));

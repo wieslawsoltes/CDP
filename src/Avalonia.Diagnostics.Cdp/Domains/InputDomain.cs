@@ -48,6 +48,7 @@ public static class InputDomain
         Key key,
         RawInputModifiers modifiers)
     {
+#if !AVALONIA_V11
         var ctor9 = typeof(RawKeyEventArgs).GetConstructor(
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
             null,
@@ -81,13 +82,50 @@ public static class InputDomain
                 KeyDeviceType.Keyboard
             });
         }
+#else
+        var ctor8 = typeof(RawKeyEventArgs).GetConstructor(
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+            null,
+            new[]
+            {
+                typeof(IInputDevice),
+                typeof(ulong),
+                typeof(IInputRoot),
+                typeof(RawKeyEventType),
+                typeof(Key),
+                typeof(RawInputModifiers),
+                typeof(PhysicalKey),
+                typeof(string)
+            },
+            null
+        );
+
+        if (ctor8 != null)
+        {
+            return (RawKeyEventArgs)ctor8.Invoke(new object?[]
+            {
+                device,
+                timestamp,
+                root,
+                type,
+                key,
+                modifiers,
+                PhysicalKey.None,
+                ""
+            });
+        }
+#endif
 
         var ctor6 = typeof(RawKeyEventArgs).GetConstructor(
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
             null,
             new[]
             {
+#if AVALONIA_V11
+                typeof(IKeyboardDevice),
+#else
                 typeof(IInputDevice),
+#endif
                 typeof(ulong),
                 typeof(IInputRoot),
                 typeof(RawKeyEventType),
@@ -159,8 +197,16 @@ public static class InputDomain
                      double deltaY = GetDoubleOrDefault(@params["deltaY"], 0);
                      int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
                      int buttons = @params["buttons"]?.GetValue<int>() ?? 0;
+                     int clickCount = @params["clickCount"]?.GetValue<int>() ?? 1;
  
-                     await DispatchMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, buttons);
+                     if (GetMouseDevice() == null)
+                     {
+                         await EmulateTouchFromMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, clickCount);
+                     }
+                     else
+                     {
+                         await DispatchMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, buttons);
+                     }
                      return new JsonObject();
                  }
  
@@ -245,11 +291,32 @@ public static class InputDomain
         }
     }
 
+#if AVALONIA_V11
+    private static IInputDevice? _v11MouseDevice;
+
+    private static IInputDevice? CreateMouseDevicev11()
+    {
+        var ctor = typeof(MouseDevice).GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .FirstOrDefault();
+        if (ctor != null)
+        {
+            var parameters = ctor.GetParameters();
+            var args = new object?[parameters.Length];
+            return ctor.Invoke(args) as IInputDevice;
+        }
+        return null;
+    }
+#endif
+
     [DynamicDependency("Primary", typeof(MouseDevice))]
     private static IInputDevice? GetMouseDevice()
     {
+#if AVALONIA_V11
+        return _v11MouseDevice ??= CreateMouseDevicev11();
+#else
         var prop = typeof(MouseDevice).GetProperty("Primary", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
         return prop?.GetValue(null) as IInputDevice;
+#endif
     }
 
     [DynamicDependency("Instance", typeof(KeyboardDevice))]
@@ -263,13 +330,35 @@ public static class InputDomain
     [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection on internal PlatformImpl.Input")]
     private static Action<RawInputEventArgs>? GetInputHandler(TopLevel window)
     {
-        var platformImpl = typeof(TopLevel)
-            .GetProperty("PlatformImpl", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-            ?.GetValue(window);
-        if (platformImpl == null) return null;
+        try
+        {
+            var platformImpl = typeof(TopLevel)
+                .GetProperty("PlatformImpl", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                ?.GetValue(window);
+            if (platformImpl == null)
+            {
+                Console.WriteLine("[CDP-Input] platformImpl is null!");
+                return null;
+            }
 
-        var inputProp = platformImpl.GetType().GetProperty("Input", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        return inputProp?.GetValue(platformImpl) as Action<RawInputEventArgs>;
+            var inputProp = platformImpl.GetType().GetProperty("Input", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (inputProp == null)
+            {
+                Console.WriteLine($"[CDP-Input] Input property not found on {platformImpl.GetType().FullName}!");
+                return null;
+            }
+            var handler = inputProp.GetValue(platformImpl) as Action<RawInputEventArgs>;
+            if (handler == null)
+            {
+                Console.WriteLine("[CDP-Input] handler is null!");
+            }
+            return handler;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CDP-Input] GetInputHandler failed: {ex}");
+            return null;
+        }
     }
 
     [DynamicDependency("InputRoot", typeof(TopLevel))]
@@ -277,9 +366,15 @@ public static class InputDomain
     private static IInputRoot? GetInputRoot(TopLevel? window)
     {
         if (window == null) return null;
-        return typeof(TopLevel)
-            .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-            ?.GetValue(window) as IInputRoot;
+        try
+        {
+            var root = typeof(TopLevel)
+                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                ?.GetValue(window) as IInputRoot;
+            if (root != null) return root;
+        }
+        catch { }
+        return window as IInputRoot;
     }
 
     private static async Task DispatchMouseEventAsync(
