@@ -197,8 +197,16 @@ public static class InputDomain
                      double deltaY = GetDoubleOrDefault(@params["deltaY"], 0);
                      int modifiersRaw = @params["modifiers"]?.GetValue<int>() ?? 0;
                      int buttons = @params["buttons"]?.GetValue<int>() ?? 0;
+                     int clickCount = @params["clickCount"]?.GetValue<int>() ?? 1;
  
-                     await DispatchMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, buttons);
+                     if (GetMouseDevice() == null)
+                     {
+                         await EmulateTouchFromMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, clickCount);
+                     }
+                     else
+                     {
+                         await DispatchMouseEventAsync(session, type, x, y, button, deltaX, deltaY, modifiersRaw, buttons);
+                     }
                      return new JsonObject();
                  }
  
@@ -301,13 +309,35 @@ public static class InputDomain
     [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Reflection on internal PlatformImpl.Input")]
     private static Action<RawInputEventArgs>? GetInputHandler(TopLevel window)
     {
-        var platformImpl = typeof(TopLevel)
-            .GetProperty("PlatformImpl", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-            ?.GetValue(window);
-        if (platformImpl == null) return null;
+        try
+        {
+            var platformImpl = typeof(TopLevel)
+                .GetProperty("PlatformImpl", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                ?.GetValue(window);
+            if (platformImpl == null)
+            {
+                Console.WriteLine("[CDP-Input] platformImpl is null!");
+                return null;
+            }
 
-        var inputProp = platformImpl.GetType().GetProperty("Input", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        return inputProp?.GetValue(platformImpl) as Action<RawInputEventArgs>;
+            var inputProp = platformImpl.GetType().GetProperty("Input", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (inputProp == null)
+            {
+                Console.WriteLine($"[CDP-Input] Input property not found on {platformImpl.GetType().FullName}!");
+                return null;
+            }
+            var handler = inputProp.GetValue(platformImpl) as Action<RawInputEventArgs>;
+            if (handler == null)
+            {
+                Console.WriteLine("[CDP-Input] handler is null!");
+            }
+            return handler;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CDP-Input] GetInputHandler failed: {ex}");
+            return null;
+        }
     }
 
     [DynamicDependency("InputRoot", typeof(TopLevel))]
@@ -315,9 +345,15 @@ public static class InputDomain
     private static IInputRoot? GetInputRoot(TopLevel? window)
     {
         if (window == null) return null;
-        return typeof(TopLevel)
-            .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-            ?.GetValue(window) as IInputRoot;
+        try
+        {
+            var root = typeof(TopLevel)
+                .GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                ?.GetValue(window) as IInputRoot;
+            if (root != null) return root;
+        }
+        catch { }
+        return window as IInputRoot;
     }
 
     private static async Task DispatchMouseEventAsync(
