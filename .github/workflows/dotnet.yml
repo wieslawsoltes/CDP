@@ -8,86 +8,12 @@ on:
 
 jobs:
   run-unit-tests:
-    name: Test - ${{ matrix.name }} (${{ matrix.os }})
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            name: "Avalonia.Diagnostics.Cdp.Tests"
-            project: "tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj"
-            filter: ""
-          - os: ubuntu-latest
-            name: "Avalonia.Diagnostics.Cdp.v11.Tests"
-            project: "tests/Avalonia.Diagnostics.Cdp.v11.Tests/Avalonia.Diagnostics.Cdp.v11.Tests.csproj"
-            filter: ""
-          - os: ubuntu-latest
-            name: "CDP.Inspector.CLI.Tests"
-            project: "tests/CDP.Inspector.CLI.Tests/CDP.Inspector.CLI.Tests.csproj"
-            filter: ""
-          - os: ubuntu-latest
-            name: "CDP.Diagnostics.IntegrationTests"
-            project: "tests/CDP.Diagnostics.IntegrationTests/CDP.Diagnostics.IntegrationTests.csproj"
-            filter: ""
-          - os: ubuntu-latest
-            name: "CDP.Rendering.Comparison.Tests"
-            project: "tests/CDP.Rendering.Comparison.Tests/CDP.Rendering.Comparison.Tests.csproj"
-            filter: ""
-          - os: ubuntu-latest
-            name: "Library Tests"
-            project: "Avalonia.Diagnostics.Cdp.slnx"
-            filter: '--filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"'
-
-          - os: macos-latest
-            name: "Avalonia.Diagnostics.Cdp.Tests"
-            project: "tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj"
-            filter: ""
-          - os: macos-latest
-            name: "Avalonia.Diagnostics.Cdp.v11.Tests"
-            project: "tests/Avalonia.Diagnostics.Cdp.v11.Tests/Avalonia.Diagnostics.Cdp.v11.Tests.csproj"
-            filter: ""
-          - os: macos-latest
-            name: "CDP.Inspector.CLI.Tests"
-            project: "tests/CDP.Inspector.CLI.Tests/CDP.Inspector.CLI.Tests.csproj"
-            filter: ""
-          - os: macos-latest
-            name: "CDP.Diagnostics.IntegrationTests"
-            project: "tests/CDP.Diagnostics.IntegrationTests/CDP.Diagnostics.IntegrationTests.csproj"
-            filter: ""
-          - os: macos-latest
-            name: "CDP.Rendering.Comparison.Tests"
-            project: "tests/CDP.Rendering.Comparison.Tests/CDP.Rendering.Comparison.Tests.csproj"
-            filter: ""
-          - os: macos-latest
-            name: "Library Tests"
-            project: "Avalonia.Diagnostics.Cdp.slnx"
-            filter: '--filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"'
-
-          - os: windows-latest
-            name: "Avalonia.Diagnostics.Cdp.Tests"
-            project: "tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj"
-            filter: ""
-          - os: windows-latest
-            name: "Avalonia.Diagnostics.Cdp.v11.Tests"
-            project: "tests/Avalonia.Diagnostics.Cdp.v11.Tests/Avalonia.Diagnostics.Cdp.v11.Tests.csproj"
-            filter: ""
-          - os: windows-latest
-            name: "CDP.Inspector.CLI.Tests"
-            project: "tests/CDP.Inspector.CLI.Tests/CDP.Inspector.CLI.Tests.csproj"
-            filter: ""
-          - os: windows-latest
-            name: "CDP.Diagnostics.IntegrationTests"
-            project: "tests/CDP.Diagnostics.IntegrationTests/CDP.Diagnostics.IntegrationTests.csproj"
-            filter: ""
-          - os: windows-latest
-            name: "CDP.Rendering.Comparison.Tests"
-            project: "tests/CDP.Rendering.Comparison.Tests/CDP.Rendering.Comparison.Tests.csproj"
-            filter: ""
-          - os: windows-latest
-            name: "Library Tests"
-            project: "Avalonia.Diagnostics.Cdp.slnx"
-            filter: '--filter "FullyQualifiedName!~Avalonia.Diagnostics.Cdp.Tests&FullyQualifiedName!~CDP.Inspector.CLI.Tests&FullyQualifiedName!~CDP.Diagnostics.IntegrationTests&FullyQualifiedName!~CDP.Rendering.Comparison.Tests&FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"'
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
     - uses: actions/checkout@v4
@@ -102,20 +28,19 @@ jobs:
     - name: Build CdpSampleApp for Tests
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
+    - name: Build Solution for Tests
+      run: dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release
+
     - name: Run Unit Tests
       shell: bash
       run: |
-        if [ "${{ matrix.project }}" = "Avalonia.Diagnostics.Cdp.slnx" ]; then
-          dotnet test ${{ matrix.project }} -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 ${{ matrix.filter }}
-        else
-          dotnet test ${{ matrix.project }} -c Release --verbosity normal
-        fi
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Upload Logs on Failure
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: test-logs-${{ matrix.name }}-${{ matrix.os }}
+        name: test-logs-${{ matrix.os }}
         path: |
           **/*.log
           **/*.png
