@@ -183,12 +183,15 @@ public static class PageDomain
 
             case "reload":
                 {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    if (session.Window != null)
                     {
-                        session.Window.InvalidateMeasure();
-                        session.Window.InvalidateArrange();
-                        session.Window.InvalidateVisual();
-                    });
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            session.Window.InvalidateMeasure();
+                            session.Window.InvalidateArrange();
+                            session.Window.InvalidateVisual();
+                        });
+                    }
                     _ = Task.Run(async () =>
                     {
                         await EvaluateScriptsAsync(session, session.ScriptsToEvaluateOnNewDocument.Values);
@@ -201,15 +204,18 @@ public static class PageDomain
                 {
                     string url = @params["url"]?.GetValue<string>() ?? "";
                     string loaderId = $"loader-{Guid.NewGuid()}";
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    if (session.Window != null)
                     {
-                        var windowType = session.Window.GetType();
-                        var navigateMethod = windowType.GetMethod("Navigate", new[] { typeof(string) });
-                        if (navigateMethod != null)
+                        await Dispatcher.UIThread.InvokeAsync(() =>
                         {
-                            navigateMethod.Invoke(session.Window, new object[] { url });
-                        }
-                    });
+                            var windowType = session.Window.GetType();
+                            var navigateMethod = windowType.GetMethod("Navigate", new[] { typeof(string) });
+                            if (navigateMethod != null)
+                            {
+                                navigateMethod.Invoke(session.Window, new object[] { url });
+                            }
+                        });
+                    }
 
                     var nextId = session.NavigationHistory.Count + 1;
                     var historyEntry = new JsonObject
@@ -255,12 +261,15 @@ public static class PageDomain
             case "getLayoutMetrics":
                 {
                     double w = 800, h = 600;
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    if (session.Window != null)
                     {
-                        var size = session.Window.ClientSize;
-                        if (!double.IsNaN(size.Width) && size.Width > 0) w = size.Width;
-                        if (!double.IsNaN(size.Height) && size.Height > 0) h = size.Height;
-                    });
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            var size = session.Window.ClientSize;
+                            if (!double.IsNaN(size.Width) && size.Width > 0) w = size.Width;
+                            if (!double.IsNaN(size.Height) && size.Height > 0) h = size.Height;
+                        });
+                    }
 
                     return new JsonObject
                     {
