@@ -21,10 +21,22 @@ public static class PerformanceDomain
     private static readonly ILogger Logger = CdpLogging.CreateLogger("PerformanceDomain");
     private static readonly ConcurrentDictionary<CdpSession, SessionPerformanceState> _sessionStates = new();
     private static DateTime _lastCpuTime = DateTime.UtcNow;
-    private static TimeSpan _lastTotalProcessorTime = Process.GetCurrentProcess().TotalProcessorTime;
+    private static TimeSpan _lastTotalProcessorTime = SafeGetTotalProcessorTime();
     private static readonly int _processorCount = Environment.ProcessorCount;
     private static long _lastAllocatedBytes = GC.GetTotalAllocatedBytes();
     private static readonly object _allocationLock = new();
+
+    private static TimeSpan SafeGetTotalProcessorTime()
+    {
+        try
+        {
+            return Process.GetCurrentProcess().TotalProcessorTime;
+        }
+        catch
+        {
+            return TimeSpan.Zero;
+        }
+    }
 
     public static void CleanupSession(CdpSession session)
     {
@@ -79,15 +91,22 @@ public static class PerformanceDomain
 
     private static double GetCpuUsage()
     {
-        var now = DateTime.UtcNow;
-        var cpuTime = Process.GetCurrentProcess().TotalProcessorTime;
-        var elapsed = now - _lastCpuTime;
-        if (elapsed.TotalMilliseconds <= 0) return 0.0;
+        try
+        {
+            var now = DateTime.UtcNow;
+            var cpuTime = Process.GetCurrentProcess().TotalProcessorTime;
+            var elapsed = now - _lastCpuTime;
+            if (elapsed.TotalMilliseconds <= 0) return 0.0;
 
-        var usage = (cpuTime - _lastTotalProcessorTime).TotalMilliseconds / (elapsed.TotalMilliseconds * _processorCount) * 100;
-        _lastCpuTime = now;
-        _lastTotalProcessorTime = cpuTime;
-        return Math.Min(100.0, Math.Max(0.0, usage));
+            var usage = (cpuTime - _lastTotalProcessorTime).TotalMilliseconds / (elapsed.TotalMilliseconds * _processorCount) * 100;
+            _lastCpuTime = now;
+            _lastTotalProcessorTime = cpuTime;
+            return Math.Min(100.0, Math.Max(0.0, usage));
+        }
+        catch
+        {
+            return 0.0;
+        }
     }
 
     private static int CountVisuals(Visual visual)
@@ -293,7 +312,15 @@ public static class PerformanceDomain
         public async Task<JsonArray> GetMetricsAsync()
         {
             double timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
-            double jsHeapUsedSize = Process.GetCurrentProcess().WorkingSet64;
+            double jsHeapUsedSize = 0;
+            try
+            {
+                jsHeapUsedSize = Process.GetCurrentProcess().WorkingSet64;
+            }
+            catch
+            {
+                // Ignored
+            }
             double jsHeapTotalSize = GC.GetTotalMemory(false);
             double cpuUsage = GetCpuUsage();
 
