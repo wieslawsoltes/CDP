@@ -54,9 +54,12 @@ jobs:
     - name: Build CdpSampleApp for Tests
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
+    - name: Prebuild Solution for Tests
+      run: dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release -m
+
     - name: Run Unit Tests
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish Linux Executable
       run: |
@@ -100,9 +103,12 @@ jobs:
     - name: Build CdpSampleApp for Tests
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
+    - name: Prebuild Solution for Tests
+      run: dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release -m
+
     - name: Run Unit Tests
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish macOS x64 Executable
       run: |
@@ -161,10 +167,15 @@ jobs:
     - name: Build CdpSampleApp for Tests
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
+    - name: Prebuild Solution for Tests
+      shell: pwsh
+      run: |
+        Get-ChildItem tests/*/*.csproj | ForEach-Object { dotnet build $_.FullName -c Release }
+
     - name: Run Unit Tests
       shell: pwsh
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish Windows Executable
       shell: pwsh
