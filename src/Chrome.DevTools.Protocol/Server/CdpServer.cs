@@ -596,14 +596,14 @@ public static class CdpServer
                 var list = new JsonArray();
                 foreach (var target in GetTargets())
                 {
-                    if (target.Type == "tab") continue;
+                    var typeMapped = target.Type == "tab" ? "page" : target.Type;
                     list.Add(new JsonObject
                     {
                         ["description"] = "",
                         ["devtoolsFrontendUrl"] = $"devtools://devtools/bundled/inspector.html?ws={host}/devtools/page/{target.Id}",
                         ["id"] = target.Id,
                         ["title"] = target.Title,
-                        ["type"] = target.Type,
+                        ["type"] = typeMapped,
                         ["url"] = target.Url,
                         ["webSocketDebuggerUrl"] = $"ws://{host}/devtools/page/{target.Id}"
                     });
