@@ -281,11 +281,25 @@ public static class CdpServer
         {
             foreach (var win in desktop.Windows)
             {
-                if (win.IsVisible && !_targets.ContainsKey(win))
+                if (!_targets.ContainsKey(win))
                 {
                     var title = win.Title ?? "Avalonia Window";
                     var target = new AvaloniaCdpTarget(win, Guid.NewGuid().ToString(), title);
                     _targets[win] = target;
+                }
+            }
+        }
+        else if (Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime singleView)
+        {
+            var mainView = singleView.MainView;
+            if (mainView != null)
+            {
+                var topLevel = TopLevel.GetTopLevel(mainView);
+                if (topLevel != null && !_targets.ContainsKey(topLevel))
+                {
+                    var title = "Avalonia View";
+                    var target = new AvaloniaCdpTarget(topLevel, Guid.NewGuid().ToString(), title);
+                    _targets[topLevel] = target;
                 }
             }
         }
