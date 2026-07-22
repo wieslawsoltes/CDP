@@ -9,8 +9,11 @@
     <Title>Chrome.DevTools.Inspector</Title>
     <Description>Chrome DevTools Protocol (CDP) client inspector for Avalonia UI applications.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageTags>avalonia;cdp;chrome-devtools-protocol;inspector;tool;automation;testing</PackageTags>
+    <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
+    <TrimMode Condition="'$(Configuration)' == 'Release'">full</TrimMode>
+    <IlcFoldIdenticalMethodBodies Condition="'$(Configuration)' == 'Release'">true</IlcFoldIdenticalMethodBodies>
   </PropertyGroup>
 
   <ItemGroup>
