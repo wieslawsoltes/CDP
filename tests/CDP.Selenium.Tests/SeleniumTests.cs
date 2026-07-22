@@ -7,6 +7,9 @@ using CDP.Automation.Selenium;
 
 namespace CDP.Selenium.Tests;
 
+using Xunit;
+
+[Trait("Category", "Selenium")]
 public class SeleniumTests : IClassFixture<CdpSeleniumFixture>
 {
     private readonly CdpSeleniumFixture _fixture;

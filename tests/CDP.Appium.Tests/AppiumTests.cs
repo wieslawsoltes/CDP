@@ -24,6 +24,7 @@ public class CustomAppiumFixture : CdpAppiumFixture
     }
 }
 
+[Trait("Category", "Appium")]
 public class AppiumTests : IClassFixture<CustomAppiumFixture>
 {
     private readonly CustomAppiumFixture _fixture;
