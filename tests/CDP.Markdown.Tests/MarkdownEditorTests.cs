@@ -48,7 +48,7 @@ public class MarkdownEditorTests
     }
 
     [AvaloniaFact]
-    public async Task Test_TextInput_Updates_Text_Property_After_Debounce()
+    public void Test_TextInput_Updates_Text_Property_After_Debounce()
     {
         var editor = CreateEditor("Hello");
         editor.CaretIndex = 5;
@@ -64,14 +64,14 @@ public class MarkdownEditorTests
 
         Assert.Equal("Hello", editor.Text.TrimEnd('\r', '\n'));
 
-        // Wait 600ms for debounce timer to fire
-        await Task.Delay(600);
+        // Flush debounce timer to fire immediately
+        editor.Flush();
 
         Assert.Contains("Hello World", editor.Text);
     }
 
     [AvaloniaFact]
-    public async Task Test_Backspace_Removes_Character()
+    public void Test_Backspace_Removes_Character()
     {
         var editor = CreateEditor("Hello");
         editor.CaretIndex = 5;
@@ -85,13 +85,13 @@ public class MarkdownEditorTests
         };
         editor.RaiseEvent(keyArgs);
 
-        await Task.Delay(600);
+        editor.Flush();
 
         Assert.Contains("Hell", editor.Text);
     }
 
     [AvaloniaFact]
-    public async Task Test_Delete_Removes_Character()
+    public void Test_Delete_Removes_Character()
     {
         var editor = CreateEditor("Hello");
         editor.CaretIndex = 0;
@@ -105,13 +105,13 @@ public class MarkdownEditorTests
         };
         editor.RaiseEvent(keyArgs);
 
-        await Task.Delay(600);
+        editor.Flush();
 
         Assert.Contains("ello", editor.Text);
     }
 
     [AvaloniaFact]
-    public async Task Test_Enter_Inserts_Newline()
+    public void Test_Enter_Inserts_Newline()
     {
         var editor = CreateEditor("Hello");
         editor.CaretIndex = 5;
@@ -125,13 +125,13 @@ public class MarkdownEditorTests
         };
         editor.RaiseEvent(enterArgs);
 
-        await Task.Delay(600);
+        editor.Flush();
 
         Assert.Contains("Hello\n", editor.Text);
     }
 
     [AvaloniaFact]
-    public async Task Test_SelectAll_SelectionRange()
+    public void Test_SelectAll_SelectionRange()
     {
         var editor = CreateEditor("Hello World");
         editor.Focus();
@@ -153,7 +153,7 @@ public class MarkdownEditorTests
         };
         editor.RaiseEvent(deleteArgs);
 
-        await Task.Delay(600);
+        editor.Flush();
 
         Assert.Equal("", editor.Text.TrimEnd('\r', '\n'));
     }
@@ -227,7 +227,7 @@ public class MarkdownEditorTests
         };
         editor.RaiseEvent(enterArgs);
 
-        await Task.Delay(600);
+        editor.Flush();
 
         // Text should remain exactly "Hello"
         Assert.Equal("Hello", editor.Text.TrimEnd('\r', '\n'));
@@ -253,7 +253,7 @@ public class MarkdownEditorTests
     }
 
     [AvaloniaFact]
-    public async Task Test_Caret_Mapping_On_AutoSave_Correctly_Aligns()
+    public void Test_Caret_Mapping_On_AutoSave_Correctly_Aligns()
     {
         var editor = CreateEditor("#  Heading");
         editor.Focus();
@@ -270,8 +270,7 @@ public class MarkdownEditorTests
         };
         editor.RaiseEvent(textArgs);
 
-        // Wait 600ms for auto-save
-        await Task.Delay(600);
+        editor.Flush();
 
         Assert.Equal(10, editor.CaretIndex);
     }
@@ -330,7 +329,7 @@ public class MarkdownEditorTests
     }
 
     [AvaloniaFact]
-    public async Task Test_Ctrl_B_Bold_Formatting()
+    public void Test_Ctrl_B_Bold_Formatting()
     {
         var editor = CreateEditor("Hello World");
         editor.Focus();
@@ -340,7 +339,7 @@ public class MarkdownEditorTests
 
         PressKey(editor, Key.B);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Hello **World**", editor.Text);
 
         // Toggle again to unwrap
@@ -349,12 +348,12 @@ public class MarkdownEditorTests
         editor.SelectionEnd = 15;
         PressKey(editor, Key.B);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Hello World", editor.Text);
     }
 
     [AvaloniaFact]
-    public async Task Test_Ctrl_I_Italic_Formatting()
+    public void Test_Ctrl_I_Italic_Formatting()
     {
         var editor = CreateEditor("Hello World");
         editor.Focus();
@@ -364,7 +363,7 @@ public class MarkdownEditorTests
 
         PressKey(editor, Key.I);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Hello *World*", editor.Text);
 
         // Toggle again to unwrap
@@ -373,12 +372,12 @@ public class MarkdownEditorTests
         editor.SelectionEnd = 13;
         PressKey(editor, Key.I);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Hello World", editor.Text);
     }
 
     [AvaloniaFact]
-    public async Task Test_Ctrl_K_Link_Formatting()
+    public void Test_Ctrl_K_Link_Formatting()
     {
         var editor = CreateEditor("Hello World");
         editor.Focus();
@@ -388,12 +387,12 @@ public class MarkdownEditorTests
 
         PressKey(editor, Key.K);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Hello [World](url)", editor.Text);
     }
 
     [AvaloniaFact]
-    public async Task Test_Ctrl_Tilde_Code_Formatting()
+    public void Test_Ctrl_Tilde_Code_Formatting()
     {
         var editor = CreateEditor("Hello World");
         editor.Focus();
@@ -403,12 +402,12 @@ public class MarkdownEditorTests
 
         PressKey(editor, Key.OemTilde);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Hello `World`", editor.Text);
     }
 
     [AvaloniaFact]
-    public async Task Test_Undo_Redo_Stack()
+    public void Test_Undo_Redo_Stack()
     {
         var editor = CreateEditor("Initial");
         editor.Focus();
@@ -422,19 +421,19 @@ public class MarkdownEditorTests
         };
         editor.RaiseEvent(textArgs);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Initial Text", editor.Text);
 
         // Undo
         PressKey(editor, Key.Z);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Initial", editor.Text);
 
         // Redo
         PressKey(editor, Key.Y);
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Contains("Initial Text", editor.Text);
     }
 
@@ -532,6 +531,7 @@ public class MarkdownEditorTests
 
         // Give it a brief moment for Dispatcher.UIThread to run the paste action
         await Task.Delay(200);
+        editor.Flush();
 
         // The text should contain "Clipboard" pasted at the end
         Assert.Contains("Clipboard", editor.Text);
