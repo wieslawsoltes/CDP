@@ -13,9 +13,39 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-    - uses: ./.github/actions/run-unit-tests
+    - uses: actions/checkout@v4
       with:
-        os-name: ${{ matrix.os }}
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Build CdpSampleApp for Tests
+      shell: bash
+      run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
+
+    - name: Prebuild Solution for Tests
+      shell: bash
+      run: |
+        dotnet restore Avalonia.Diagnostics.Cdp.slnx
+        dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release --no-restore -m
+
+    - name: Run Unit Tests
+      shell: bash
+      run: |
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation' -- RunConfiguration.MaxCpuCount=1
+
+    - name: Upload Logs on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs-${{ matrix.os }}
+        path: |
+          **/*.log
+          **/*.png
+          **/*.html
 
   aot-validate-avalonia:
     name: AOT Integration (Avalonia)
