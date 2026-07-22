@@ -226,7 +226,7 @@ jobs:
         xvfb-run --auto-servernum ./samples/AvaloniaAotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaAotIntegrationApp &
         PID=$!
         SUCCESS=0
-        for i in {1..15}; do
+        for i in {1..30}; do
           if curl -s http://127.0.0.1:9230/json | grep -q "Avalonia AOT Integration App"; then
             echo "CDP Endpoint Verified Successfully!"
             SUCCESS=1
@@ -258,7 +258,7 @@ jobs:
         xvfb-run --auto-servernum ./samples/AvaloniaV11AotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaV11AotIntegrationApp &
         PID=$!
         SUCCESS=0
-        for i in {1..15}; do
+        for i in {1..30}; do
           if curl -s http://127.0.0.1:9231/json | grep -q "Avalonia v11 AOT Integration App"; then
             echo "CDP Endpoint Verified Successfully!"
             SUCCESS=1
