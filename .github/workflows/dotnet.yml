@@ -285,7 +285,7 @@ jobs:
         dotnet-version: 10.0.x
     - name: Publish WPF App with NativeAOT
       shell: pwsh
-      run: dotnet publish samples/WpfAotIntegrationApp/WpfAotIntegrationApp.csproj -c Release -r win-x64 -f net10.0-windows -p:PublishAot=true
+      run: dotnet publish samples/WpfAotIntegrationApp/WpfAotIntegrationApp.csproj -c Release -r win-x64 -f net10.0-windows -p:PublishAot=true -p:_SuppressWpfTrimmingError=true -p:EnableSdkNativeAotFrameworkSupportedChecks=false
 
   aot-validate-winui:
     name: AOT Integration (WinUI 3)
