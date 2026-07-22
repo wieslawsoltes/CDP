@@ -29,7 +29,9 @@ jobs:
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
     - name: Prebuild Solution for Tests
-      run: dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release -m
+      run: |
+        dotnet restore Avalonia.Diagnostics.Cdp.slnx
+        dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release --no-restore -m
 
     - name: Run Unit Tests
       shell: bash
