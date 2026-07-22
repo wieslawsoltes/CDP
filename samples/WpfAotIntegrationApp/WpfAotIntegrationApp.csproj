@@ -6,8 +6,7 @@
     <UseWPF Condition="'$(TargetFramework)' == 'net10.0-windows'">true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject Condition="'$(TargetFramework)' == 'net10.0-windows'">WpfAotIntegrationApp.App</StartupObject>
-    <StartupObject Condition="'$(TargetFramework)' != 'net10.0-windows'">WpfAotIntegrationApp.Program</StartupObject>
+    <StartupObject>WpfAotIntegrationApp.Program</StartupObject>
     <IsPackable>false</IsPackable>
     <PublishAot Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0-windows'">true</PublishAot>
     <TrimMode Condition="'$(Configuration)' == 'Release'">full</TrimMode>
