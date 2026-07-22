@@ -58,7 +58,7 @@ jobs:
 
     - name: Publish Linux Executable
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r linux-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r linux-x64 -p:PublishAot=false -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
         mkdir -p artifacts
         cd ./publish/linux-x64
         tar -czf ../../artifacts/cdp-inspector-linux-x64.tar.gz CdpInspectorApp
@@ -97,7 +97,7 @@ jobs:
 
     - name: Publish macOS x64 Executable
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-x64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-x64 -p:PublishAot=false -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-x64
         mkdir -p artifacts
         cd ./publish/osx-x64
         tar -czf ../../artifacts/cdp-inspector-osx-x64.tar.gz CdpInspectorApp
@@ -105,7 +105,7 @@ jobs:
 
     - name: Publish macOS ARM64 Executable
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-arm64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-arm64 -p:PublishAot=false -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
         mkdir -p artifacts
         cd ./publish/osx-arm64
         tar -czf ../../artifacts/cdp-inspector-osx-arm64.tar.gz CdpInspectorApp
@@ -152,7 +152,7 @@ jobs:
     - name: Publish Windows Executable
       shell: pwsh
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
         New-Item -ItemType Directory -Force -Path artifacts
         Compress-Archive -Path publish/win-x64/CdpInspectorApp.exe -DestinationPath artifacts/cdp-inspector-win-x64.zip -Force
 
