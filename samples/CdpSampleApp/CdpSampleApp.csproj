@@ -6,6 +6,8 @@
     <IsPackable>false</IsPackable>
     <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
     <TrimMode Condition="'$(Configuration)' == 'Release'">full</TrimMode>
+    <StripSymbols Condition="'$(Configuration)' == 'Release'">true</StripSymbols>
+    <NativeDebugSymbols Condition="'$(Configuration)' == 'Release'">false</NativeDebugSymbols>
     <IlcFoldIdenticalMethodBodies Condition="'$(Configuration)' == 'Release'">true</IlcFoldIdenticalMethodBodies>
   </PropertyGroup>
 

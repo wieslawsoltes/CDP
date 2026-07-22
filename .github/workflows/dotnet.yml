@@ -41,7 +41,7 @@ jobs:
     - name: Run Unit Tests
       shell: bash
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~AppiumTests&FullyQualifiedName!~SeleniumTests"
 
     - name: Upload Logs on Failure
       if: failure()
@@ -223,7 +223,7 @@ jobs:
       run: dotnet publish samples/AvaloniaAotIntegrationApp/AvaloniaAotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
     - name: Test CDP Endpoint
       run: |
-        ./samples/AvaloniaAotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaAotIntegrationApp &
+        xvfb-run --auto-servernum ./samples/AvaloniaAotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaAotIntegrationApp &
         PID=$!
         sleep 3
         curl -s http://127.0.0.1:9230/json | grep "Avalonia AOT Integration App"
@@ -244,7 +244,7 @@ jobs:
       run: dotnet publish samples/AvaloniaV11AotIntegrationApp/AvaloniaV11AotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
     - name: Test CDP Endpoint
       run: |
-        ./samples/AvaloniaV11AotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaV11AotIntegrationApp &
+        xvfb-run --auto-servernum ./samples/AvaloniaV11AotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaV11AotIntegrationApp &
         PID=$!
         sleep 3
         curl -s http://127.0.0.1:9231/json | grep "Avalonia v11 AOT Integration App"
@@ -263,7 +263,7 @@ jobs:
         dotnet-version: 10.0.x
     - name: Publish WPF App with NativeAOT
       shell: pwsh
-      run: dotnet publish samples/WpfAotIntegrationApp/WpfAotIntegrationApp.csproj -c Release -r win-x64 -p:PublishAot=true
+      run: dotnet publish samples/WpfAotIntegrationApp/WpfAotIntegrationApp.csproj -c Release -r win-x64 -f net10.0-windows -p:PublishAot=true
 
   aot-validate-winui:
     name: AOT Integration (WinUI 3)
@@ -278,7 +278,7 @@ jobs:
         dotnet-version: 10.0.x
     - name: Publish WinUI 3 App with NativeAOT
       shell: pwsh
-      run: dotnet publish samples/WinUiAotIntegrationApp/WinUiAotIntegrationApp.csproj -c Release -r win-x64 -p:PublishAot=true
+      run: dotnet publish samples/WinUiAotIntegrationApp/WinUiAotIntegrationApp.csproj -c Release -r win-x64 -f net10.0-windows -p:PublishAot=true
 
   aot-validate-uno:
     name: AOT Integration (Uno Platform)
@@ -293,4 +293,5 @@ jobs:
         dotnet-version: 10.0.x
     - name: Publish Uno App with NativeAOT
       run: dotnet publish samples/UnoAotIntegrationApp/UnoAotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
+
 
