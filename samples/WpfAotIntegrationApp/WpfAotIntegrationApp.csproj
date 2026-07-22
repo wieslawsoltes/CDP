@@ -12,6 +12,8 @@
     <PublishAot Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0-windows'">true</PublishAot>
     <TrimMode Condition="'$(Configuration)' == 'Release'">full</TrimMode>
     <_SuppressWpfTrimmingError>true</_SuppressWpfTrimmingError>
+    <EnableSdkNativeAotFrameworkSupportedChecks>false</EnableSdkNativeAotFrameworkSupportedChecks>
+    <NETCoreSdkResult_WpfTrimmingSupported>true</NETCoreSdkResult_WpfTrimmingSupported>
   </PropertyGroup>
 
   <!-- Non-Windows compilation excludes XAML/WPF source files and builds placeholder Program.cs -->
