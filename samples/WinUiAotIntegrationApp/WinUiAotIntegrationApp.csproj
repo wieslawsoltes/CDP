@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <StartupObject Condition="'$(TargetFramework)' != 'net10.0'">WinUiAotIntegrationApp.App</StartupObject>
+    <StartupObject Condition="'$(TargetFramework)' == 'net10.0'">WinUiAotIntegrationApp.Program</StartupObject>
+    <IsPackable>false</IsPackable>
+    <PublishAot Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' != 'net10.0'">true</PublishAot>
+    <TrimMode Condition="'$(Configuration)' == 'Release'">full</TrimMode>
+  </PropertyGroup>
+
+  <!-- Non-Windows compilation excludes source files and builds placeholder Program.cs -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Compile Remove="**/*.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
+    <ProjectReference Include="..\..\src\WinUI.Diagnostics.Cdp\WinUI.Diagnostics.Cdp.csproj" />
+  </ItemGroup>
+</Project>
