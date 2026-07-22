@@ -29,13 +29,13 @@ jobs:
     - name: Prebuild Solution for Tests
       shell: bash
       run: |
-        dotnet restore Avalonia.Diagnostics.Cdp.slnx
-        dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release --no-restore -m
+        dotnet restore CDP.Tests.slnf
+        dotnet build CDP.Tests.slnf -c Release --no-restore -m
 
     - name: Run Unit Tests
       shell: bash
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation' -- RunConfiguration.MaxCpuCount=1
+        dotnet test CDP.Tests.slnf -c Release --no-build --verbosity normal -m:1 --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation' -- RunConfiguration.MaxCpuCount=1
 
     - name: Upload Logs on Failure
       if: failure()
