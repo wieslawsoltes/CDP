@@ -248,6 +248,14 @@ jobs:
         path: artifacts
         merge-multiple: true
 
+    - name: Clean Existing Release if Present
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: v${{ needs.version.outputs.VERSION }}
+      run: |
+        gh release delete "$TAG" -y --cleanup-tag=false || true
+
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
