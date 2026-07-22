@@ -246,7 +246,7 @@ jobs:
       run: |
         xvfb-run --auto-servernum ./samples/AvaloniaV11AotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaV11AotIntegrationApp &
         PID=$!
-        sleep 3
+        sleep 5
         curl -s http://127.0.0.1:9231/json | grep "Avalonia v11 AOT Integration App"
         kill $PID || true
 
