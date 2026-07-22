@@ -37,10 +37,15 @@ jobs:
           echo "VERSION=${version}" >> "$GITHUB_OUTPUT"
         fi
 
+  test-suite:
+    name: Test Suite
+    needs: version
+    uses: ./.github/workflows/test-suite.yml
+
   build-linux:
     name: Build & Test (Linux)
     runs-on: ubuntu-latest
-    needs: version
+    needs: [version, test-suite]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -50,16 +55,6 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
-
-    - name: Build CdpSampleApp for Tests
-      run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
-
-    - name: Prebuild Solution for Tests
-      run: dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release -m
-
-    - name: Run Unit Tests
-      run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish Linux Executable
       run: |
@@ -89,7 +84,7 @@ jobs:
   build-macos:
     name: Build & Test (macOS)
     runs-on: macos-latest
-    needs: version
+    needs: [version, test-suite]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -99,16 +94,6 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
-
-    - name: Build CdpSampleApp for Tests
-      run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
-
-    - name: Prebuild Solution for Tests
-      run: dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release -m
-
-    - name: Run Unit Tests
-      run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish macOS x64 Executable
       run: |
@@ -153,7 +138,7 @@ jobs:
   build-windows:
     name: Build & Test (Windows)
     runs-on: windows-latest
-    needs: version
+    needs: [version, test-suite]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -163,19 +148,6 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
-
-    - name: Build CdpSampleApp for Tests
-      run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
-
-    - name: Prebuild Solution for Tests
-      shell: pwsh
-      run: |
-        Get-ChildItem tests/*/*.csproj | ForEach-Object { dotnet build $_.FullName -c Release }
-
-    - name: Run Unit Tests
-      shell: pwsh
-      run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
 
     - name: Publish Windows Executable
       shell: pwsh
