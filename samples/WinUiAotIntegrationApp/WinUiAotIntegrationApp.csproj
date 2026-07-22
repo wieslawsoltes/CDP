@@ -5,8 +5,7 @@
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0;net10.0-windows</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject Condition="'$(TargetFramework)' != 'net10.0'">WinUiAotIntegrationApp.App</StartupObject>
-    <StartupObject Condition="'$(TargetFramework)' == 'net10.0'">WinUiAotIntegrationApp.Program</StartupObject>
+    <StartupObject>WinUiAotIntegrationApp.Program</StartupObject>
     <IsPackable>false</IsPackable>
     <PublishAot Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' != 'net10.0'">true</PublishAot>
     <TrimMode Condition="'$(Configuration)' == 'Release'">full</TrimMode>
