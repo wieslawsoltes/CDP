@@ -1,0 +1,10 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AvaloniaV11AotIntegrationApp.MainWindow"
+        Title="Avalonia v11 AOT Integration App"
+        Width="400" Height="300">
+    <StackPanel Margin="20" Spacing="10">
+        <TextBlock Name="txtStatus" Text="Avalonia v11 AOT Integration Running" FontSize="16"/>
+        <Button Name="btnClickMe" Content="Click Me"/>
+    </StackPanel>
+</Window>

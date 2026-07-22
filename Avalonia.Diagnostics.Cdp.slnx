@@ -8,6 +8,11 @@
     <Project Path="samples/WpfSampleApp/WpfSampleApp.csproj" />
     <Project Path="samples/WinUiSampleApp/WinUiSampleApp.csproj" />
     <Project Path="samples/UnoSampleApp/UnoSampleApp.csproj" />
+    <Project Path="samples/AvaloniaAotIntegrationApp/AvaloniaAotIntegrationApp.csproj" />
+    <Project Path="samples/AvaloniaV11AotIntegrationApp/AvaloniaV11AotIntegrationApp.csproj" />
+    <Project Path="samples/WpfAotIntegrationApp/WpfAotIntegrationApp.csproj" />
+    <Project Path="samples/WinUiAotIntegrationApp/WinUiAotIntegrationApp.csproj" />
+    <Project Path="samples/UnoAotIntegrationApp/UnoAotIntegrationApp.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/CDP.Integration.Core/CDP.Integration.Core.csproj" />

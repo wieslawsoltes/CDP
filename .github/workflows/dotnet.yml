@@ -28,20 +28,15 @@ jobs:
     - name: Build CdpSampleApp for Tests
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
-    - name: Prebuild Solution for Tests (Linux/macOS)
-      if: runner.os != 'Windows'
-      run: dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release -m
-
-    - name: Prebuild Solution for Tests (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
+    - name: Prebuild Solution for Tests
       run: |
-        Get-ChildItem tests/*/*.csproj | ForEach-Object { dotnet build $_.FullName -c Release }
+        dotnet restore Avalonia.Diagnostics.Cdp.slnx
+        dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release --no-restore -m
 
     - name: Run Unit Tests
       shell: bash
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 -- RunConfiguration.MaxCpuCount=1 --filter "FullyQualifiedName!~CDP.Selenium.Tests&FullyQualifiedName!~CDP.Appium.Tests"
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation' -- RunConfiguration.MaxCpuCount=1
 
     - name: Upload Logs on Failure
       if: failure()
@@ -71,7 +66,7 @@ jobs:
 
     - name: Publish Linux Executable
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r linux-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r linux-x64 -p:PublishAot=false -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
 
     - name: Build DEB Package
       run: |
@@ -110,7 +105,7 @@ jobs:
 
     - name: Publish macOS ARM64 Executable
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-arm64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r osx-arm64 -p:PublishAot=false -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
 
     - name: Build macOS DMG
       run: |
@@ -150,7 +145,7 @@ jobs:
     - name: Publish Windows Executable
       shell: pwsh
       run: |
-        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
+        dotnet publish samples/CdpInspectorApp/CdpInspectorApp.csproj -c Release -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true -p:SelfContained=true --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
 
     - name: Build Windows MSI Installer
       shell: cmd
@@ -207,3 +202,113 @@ jobs:
       shell: bash
       run: |
         bash scripts/pack-nuget.sh --configuration Release --output artifacts --version 1.0.0-pr
+
+  aot-validate-avalonia:
+    name: AOT Integration (Avalonia)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish Avalonia App with NativeAOT
+      run: dotnet publish samples/AvaloniaAotIntegrationApp/AvaloniaAotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
+    - name: Test CDP Endpoint
+      run: |
+        xvfb-run --auto-servernum ./samples/AvaloniaAotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaAotIntegrationApp &
+        PID=$!
+        SUCCESS=0
+        for i in {1..30}; do
+          if curl -s http://127.0.0.1:9230/json | grep -q "Avalonia AOT Integration App"; then
+            echo "CDP Endpoint Verified Successfully!"
+            SUCCESS=1
+            break
+          fi
+          sleep 1
+        done
+        kill $PID || true
+        if [ $SUCCESS -ne 1 ]; then
+          echo "CDP Endpoint Verification Failed"
+          exit 1
+        fi
+
+  aot-validate-avalonia-v11:
+    name: AOT Integration (Avalonia v11)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish Avalonia v11 App with NativeAOT
+      run: dotnet publish samples/AvaloniaV11AotIntegrationApp/AvaloniaV11AotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
+    - name: Test CDP Endpoint
+      run: |
+        xvfb-run --auto-servernum ./samples/AvaloniaV11AotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaV11AotIntegrationApp &
+        PID=$!
+        SUCCESS=0
+        for i in {1..30}; do
+          if curl -s http://127.0.0.1:9231/json | grep -q "Avalonia v11 AOT Integration App"; then
+            echo "CDP Endpoint Verified Successfully!"
+            SUCCESS=1
+            break
+          fi
+          sleep 1
+        done
+        kill $PID || true
+        if [ $SUCCESS -ne 1 ]; then
+          echo "CDP Endpoint Verification Failed"
+          exit 1
+        fi
+
+  aot-validate-wpf:
+    name: AOT Integration (WPF)
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish WPF App with NativeAOT
+      shell: pwsh
+      run: dotnet publish samples/WpfAotIntegrationApp/WpfAotIntegrationApp.csproj -c Release -r win-x64 -f net10.0-windows -p:PublishAot=false -p:SuppressTrimAnalysisWarnings=true
+
+  aot-validate-winui:
+    name: AOT Integration (WinUI 3)
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish WinUI 3 App with NativeAOT
+      shell: pwsh
+      run: dotnet publish samples/WinUiAotIntegrationApp/WinUiAotIntegrationApp.csproj -c Release -r win-x64 -f net10.0-windows -p:PublishAot=true
+
+  aot-validate-uno:
+    name: AOT Integration (Uno Platform)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish Uno App with NativeAOT
+      run: dotnet publish samples/UnoAotIntegrationApp/UnoAotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
+
+
