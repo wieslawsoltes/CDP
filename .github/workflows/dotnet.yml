@@ -225,9 +225,20 @@ jobs:
       run: |
         xvfb-run --auto-servernum ./samples/AvaloniaAotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaAotIntegrationApp &
         PID=$!
-        sleep 3
-        curl -s http://127.0.0.1:9230/json | grep "Avalonia AOT Integration App"
+        SUCCESS=0
+        for i in {1..15}; do
+          if curl -s http://127.0.0.1:9230/json | grep -q "Avalonia AOT Integration App"; then
+            echo "CDP Endpoint Verified Successfully!"
+            SUCCESS=1
+            break
+          fi
+          sleep 1
+        done
         kill $PID || true
+        if [ $SUCCESS -ne 1 ]; then
+          echo "CDP Endpoint Verification Failed"
+          exit 1
+        fi
 
   aot-validate-avalonia-v11:
     name: AOT Integration (Avalonia v11)
@@ -246,9 +257,20 @@ jobs:
       run: |
         xvfb-run --auto-servernum ./samples/AvaloniaV11AotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaV11AotIntegrationApp &
         PID=$!
-        sleep 5
-        curl -s http://127.0.0.1:9231/json | grep "Avalonia v11 AOT Integration App"
+        SUCCESS=0
+        for i in {1..15}; do
+          if curl -s http://127.0.0.1:9231/json | grep -q "Avalonia v11 AOT Integration App"; then
+            echo "CDP Endpoint Verified Successfully!"
+            SUCCESS=1
+            break
+          fi
+          sleep 1
+        done
         kill $PID || true
+        if [ $SUCCESS -ne 1 ]; then
+          echo "CDP Endpoint Verification Failed"
+          exit 1
+        fi
 
   aot-validate-wpf:
     name: AOT Integration (WPF)
