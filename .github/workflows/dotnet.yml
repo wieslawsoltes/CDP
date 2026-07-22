@@ -207,3 +207,90 @@ jobs:
       shell: bash
       run: |
         bash scripts/pack-nuget.sh --configuration Release --output artifacts --version 1.0.0-pr
+
+  aot-validate-avalonia:
+    name: AOT Integration (Avalonia)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish Avalonia App with NativeAOT
+      run: dotnet publish samples/AvaloniaAotIntegrationApp/AvaloniaAotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
+    - name: Test CDP Endpoint
+      run: |
+        ./samples/AvaloniaAotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaAotIntegrationApp &
+        PID=$!
+        sleep 3
+        curl -s http://127.0.0.1:9230/json | grep "Avalonia AOT Integration App"
+        kill $PID || true
+
+  aot-validate-avalonia-v11:
+    name: AOT Integration (Avalonia v11)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish Avalonia v11 App with NativeAOT
+      run: dotnet publish samples/AvaloniaV11AotIntegrationApp/AvaloniaV11AotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
+    - name: Test CDP Endpoint
+      run: |
+        ./samples/AvaloniaV11AotIntegrationApp/bin/Release/net10.0/linux-x64/publish/AvaloniaV11AotIntegrationApp &
+        PID=$!
+        sleep 3
+        curl -s http://127.0.0.1:9231/json | grep "Avalonia v11 AOT Integration App"
+        kill $PID || true
+
+  aot-validate-wpf:
+    name: AOT Integration (WPF)
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish WPF App with NativeAOT
+      shell: pwsh
+      run: dotnet publish samples/WpfAotIntegrationApp/WpfAotIntegrationApp.csproj -c Release -r win-x64 -p:PublishAot=true
+
+  aot-validate-winui:
+    name: AOT Integration (WinUI 3)
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish WinUI 3 App with NativeAOT
+      shell: pwsh
+      run: dotnet publish samples/WinUiAotIntegrationApp/WinUiAotIntegrationApp.csproj -c Release -r win-x64 -p:PublishAot=true
+
+  aot-validate-uno:
+    name: AOT Integration (Uno Platform)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Publish Uno App with NativeAOT
+      run: dotnet publish samples/UnoAotIntegrationApp/UnoAotIntegrationApp.csproj -c Release -r linux-x64 -p:PublishAot=true
+
