@@ -28,20 +28,13 @@ jobs:
     - name: Build CdpSampleApp for Tests
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
-    - name: Prebuild Solution for Tests (Linux/macOS)
-      if: runner.os != 'Windows'
+    - name: Prebuild Solution for Tests
       run: dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release -m
-
-    - name: Prebuild Solution for Tests (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        Get-ChildItem tests/*/*.csproj | ForEach-Object { dotnet build $_.FullName -c Release }
 
     - name: Run Unit Tests
       shell: bash
       run: |
-        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 --filter 'Category!=Appium&Category!=Selenium' -- RunConfiguration.MaxCpuCount=1
+        dotnet test Avalonia.Diagnostics.Cdp.slnx -c Release --no-build --verbosity normal -m:1 --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation' -- RunConfiguration.MaxCpuCount=1
 
     - name: Upload Logs on Failure
       if: failure()

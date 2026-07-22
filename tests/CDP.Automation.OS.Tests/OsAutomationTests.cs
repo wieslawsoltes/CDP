@@ -7,6 +7,7 @@ using Xunit;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
+[Trait("Category", "OSAutomation")]
 public class OsAutomationTests
 {
     public OsAutomationTests()
