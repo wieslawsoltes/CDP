@@ -52,7 +52,7 @@ public class MarkdownEditorCaretStressTests
             PressKey(editor, Key.Delete);
         }
 
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Equal("", editor.Text.TrimEnd('\r', '\n'));
         Assert.Equal(0, editor.CaretIndex);
 
@@ -65,7 +65,7 @@ public class MarkdownEditorCaretStressTests
         {
             PressKey(editor, Key.Back);
         }
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Equal("Hello", editor.Text.TrimEnd('\r', '\n'));
         Assert.Equal(0, editor.CaretIndex);
 
@@ -74,7 +74,7 @@ public class MarkdownEditorCaretStressTests
         {
             PressKey(editor, Key.Delete);
         }
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Equal("", editor.Text.TrimEnd('\r', '\n'));
         Assert.Equal(0, editor.CaretIndex);
 
@@ -87,7 +87,7 @@ public class MarkdownEditorCaretStressTests
         {
             PressKey(editor, Key.Delete);
         }
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Equal("Hello", editor.Text.TrimEnd('\r', '\n'));
         Assert.Equal(5, editor.CaretIndex);
 
@@ -96,7 +96,7 @@ public class MarkdownEditorCaretStressTests
         {
             PressKey(editor, Key.Back);
         }
-        await Task.Delay(600);
+        editor.Flush();
         Assert.Equal("", editor.Text.TrimEnd('\r', '\n'));
         Assert.Equal(0, editor.CaretIndex);
     }
