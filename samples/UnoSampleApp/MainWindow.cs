@@ -31,7 +31,7 @@ public class MainWindow : Window
 
     public MainWindowViewModel ViewModel { get; }
 
-    public Pivot TabContainer { get; }
+    public TabView TabContainer { get; }
     public TextBlock TxtStatus { get; }
     public TextBlock TxtSliderVal { get; }
     public TextBlock DoubleClickStatus { get; }
@@ -76,11 +76,11 @@ public class MainWindow : Window
         Grid.SetRow(header, 0);
         rootGrid.Children.Add(header);
 
-        TabContainer = new Pivot
+        TabContainer = new TabView
         {
-            Name = "tabContainer"
+            Name = "tabContainer",
+            IsAddTabButtonVisible = false
         };
-        TabContainer.SetBinding(Pivot.SelectedIndexProperty, new Binding { Path = new PropertyPath("SelectedTabIndex"), Mode = BindingMode.TwoWay });
         Grid.SetRow(TabContainer, 1);
 
         TxtSliderVal = new TextBlock
@@ -110,10 +110,11 @@ public class MainWindow : Window
         DragDropStatus.SetBinding(TextBlock.TextProperty, new Binding { Path = new PropertyPath("DragDropStatus") });
 
         // 1. Home Tab
-        var homeItem = new PivotItem
+        var homeItem = new TabViewItem
         {
             Name = "tabHome",
-            Header = "Home"
+            Header = "Home",
+            IsClosable = false
         };
         var homeScroll = new ScrollViewer { Margin = new Thickness(10) };
         var homeStack = new StackPanel { Spacing = 15 };
@@ -218,13 +219,14 @@ public class MainWindow : Window
 
         homeScroll.Content = homeStack;
         homeItem.Content = homeScroll;
-        TabContainer.Items.Add(homeItem);
+        TabContainer.TabItems.Add(homeItem);
 
         // 2. Scroll Test Tab
-        var scrollItem = new PivotItem
+        var scrollItem = new TabViewItem
         {
             Name = "tabScroll",
-            Header = "Scroll Test"
+            Header = "Scroll Test",
+            IsClosable = false
         };
         var scrollGrid = new Grid();
         scrollGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -262,13 +264,14 @@ public class MainWindow : Window
         scrollViewer.Content = scrollStack;
         scrollGrid.Children.Add(scrollViewer);
         scrollItem.Content = scrollGrid;
-        TabContainer.Items.Add(scrollItem);
+        TabContainer.TabItems.Add(scrollItem);
 
         // 3. About Tab
-        var aboutItem = new PivotItem
+        var aboutItem = new TabViewItem
         {
             Name = "tabAbout",
-            Header = "About"
+            Header = "About",
+            IsClosable = false
         };
         var aboutStack = new StackPanel { Spacing = 15, Margin = new Thickness(20) };
         aboutStack.Children.Add(new TextBlock { Text = "About This App", FontSize = 18, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
@@ -285,13 +288,14 @@ public class MainWindow : Window
         btnGoBack.Click += (s, e) => ViewModel.GoBack();
         aboutStack.Children.Add(btnGoBack);
         aboutItem.Content = aboutStack;
-        TabContainer.Items.Add(aboutItem);
+        TabContainer.TabItems.Add(aboutItem);
 
         // 4. Gestures Tab
-        var gesturesItem = new PivotItem
+        var gesturesItem = new TabViewItem
         {
             Name = "tabGestures",
-            Header = "Gestures"
+            Header = "Gestures",
+            IsClosable = false
         };
         AutomationProperties.SetAutomationId(gesturesItem, "tabContainerTabItem");
 
@@ -386,13 +390,14 @@ public class MainWindow : Window
 
         gesturesScroll.Content = gesturesStack;
         gesturesItem.Content = gesturesScroll;
-        TabContainer.Items.Add(gesturesItem);
+        TabContainer.TabItems.Add(gesturesItem);
 
         // 5. Asserts & Keys Tab
-        var assertsItem = new PivotItem
+        var assertsItem = new TabViewItem
         {
             Name = "tabAssertsAndKeys",
-            Header = "Asserts & Keys"
+            Header = "Asserts & Keys",
+            IsClosable = false
         };
         AutomationProperties.SetAutomationId(assertsItem, "tabContainerTabItem");
 
@@ -431,13 +436,14 @@ public class MainWindow : Window
 
         assertsScroll.Content = assertsStack;
         assertsItem.Content = assertsScroll;
-        TabContainer.Items.Add(assertsItem);
+        TabContainer.TabItems.Add(assertsItem);
 
         // 6. Popups & Windows Tab
-        var popupsItem = new PivotItem
+        var popupsItem = new TabViewItem
         {
             Name = "tabPopups",
-            Header = "Popups & Windows"
+            Header = "Popups & Windows",
+            IsClosable = false
         };
         AutomationProperties.SetAutomationId(popupsItem, "tabPopups");
 
@@ -530,7 +536,9 @@ public class MainWindow : Window
 
         popupsScroll.Content = popupsStack;
         popupsItem.Content = popupsScroll;
-        TabContainer.Items.Add(popupsItem);
+        TabContainer.TabItems.Add(popupsItem);
+
+        TabContainer.SetBinding(TabView.SelectedIndexProperty, new Binding { Path = new PropertyPath("SelectedTabIndex"), Mode = BindingMode.TwoWay });
 
         rootGrid.Children.Add(TabContainer);
         Content = rootGrid;
