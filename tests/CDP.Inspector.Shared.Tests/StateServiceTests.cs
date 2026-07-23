@@ -570,7 +570,10 @@ public class StateServiceTests
                 HeightText = "800",
                 ScaleFactorText = "2.0",
                 IsMobileActive = true,
-                NavigateUrlText = "https://google.com"
+                NavigateUrlText = "https://google.com",
+                IsAdvancedToolsExpanded = true,
+                IsAdvancedToolsPinned = false,
+                AdvancedToolsPanelHeight = 340.0
             };
 
             service.RegisterProvider(vm);
@@ -594,6 +597,9 @@ public class StateServiceTests
             Assert.Equal("2.0", vm2.ScaleFactorText);
             Assert.True(vm2.IsMobileActive);
             Assert.Equal("https://google.com", vm2.NavigateUrlText);
+            Assert.True(vm2.IsAdvancedToolsExpanded);
+            Assert.False(vm2.IsAdvancedToolsPinned);
+            Assert.Equal(340.0, vm2.AdvancedToolsPanelHeight);
         }
         finally
         {

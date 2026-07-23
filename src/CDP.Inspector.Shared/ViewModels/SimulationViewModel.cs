@@ -45,6 +45,28 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     private string _inputSimText = "";
     private string _selectedKey = "Enter";
     private string _scrollDeltaYText = "100";
+    private bool _isAdvancedToolsExpanded = false;
+    private bool _isAdvancedToolsPinned = true;
+
+    private double _advancedToolsPanelHeight = 220.0;
+
+    public bool IsAdvancedToolsExpanded
+    {
+        get => _isAdvancedToolsExpanded;
+        set => RaiseAndSetIfChanged(ref _isAdvancedToolsExpanded, value);
+    }
+
+    public bool IsAdvancedToolsPinned
+    {
+        get => _isAdvancedToolsPinned;
+        set => RaiseAndSetIfChanged(ref _isAdvancedToolsPinned, value);
+    }
+
+    public double AdvancedToolsPanelHeight
+    {
+        get => _advancedToolsPanelHeight;
+        set => RaiseAndSetIfChanged(ref _advancedToolsPanelHeight, value);
+    }
     
     private string _widthText = "800";
     private string _heightText = "600";
@@ -1473,6 +1495,9 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         root["scaleFactorText"] = ScaleFactorText;
         root["isMobileActive"] = IsMobileActive;
         root["navigateUrlText"] = NavigateUrlText;
+        root["isAdvancedToolsExpanded"] = IsAdvancedToolsExpanded;
+        root["isAdvancedToolsPinned"] = IsAdvancedToolsPinned;
+        root["advancedToolsPanelHeight"] = AdvancedToolsPanelHeight;
         return root;
     }
 
@@ -1509,6 +1534,18 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("navigateUrlText", out var urlNode) && urlNode != null)
         {
             NavigateUrlText = (string?)urlNode ?? "http://localhost:9222/about";
+        }
+        if (json.TryGetPropertyValue("isAdvancedToolsExpanded", out var expNode) && expNode != null)
+        {
+            IsAdvancedToolsExpanded = (bool?)expNode ?? false;
+        }
+        if (json.TryGetPropertyValue("isAdvancedToolsPinned", out var pinNode) && pinNode != null)
+        {
+            IsAdvancedToolsPinned = (bool?)pinNode ?? true;
+        }
+        if (json.TryGetPropertyValue("advancedToolsPanelHeight", out var hPanelNode) && hPanelNode != null)
+        {
+            AdvancedToolsPanelHeight = (double?)hPanelNode ?? 220.0;
         }
     }
 
