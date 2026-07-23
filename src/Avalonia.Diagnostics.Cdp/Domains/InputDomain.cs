@@ -404,6 +404,10 @@ public static class InputDomain
                 var hitRes = CdpVisualTreeHelper.HitTestAllRoots(session.Window, position, session.TargetViewMode);
                 targetWindow = hitRes.TargetTopLevel ?? session.Window;
                 position = hitRes.LocalPoint;
+                if (hitRes.TargetTopLevel is Avalonia.Controls.Window hitWin)
+                {
+                    session.Window = hitWin;
+                }
             }
 
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -926,6 +930,24 @@ public static class InputDomain
         session.RequestScreencastFrame();
     }
 
+    private static TopLevel? GetTargetTopLevel(CdpSession session)
+    {
+        if (session.Window is TopLevel mainTl && mainTl.FocusManager?.GetFocusedElement() is Visual v1 && v1.IsVisible)
+        {
+            return TopLevel.GetTopLevel(v1) ?? mainTl;
+        }
+
+        foreach (var winInfo in CdpServer.GetWindows())
+        {
+            if (winInfo.Window is TopLevel tl && tl.FocusManager?.GetFocusedElement() is Visual v2 && v2.IsVisible)
+            {
+                return TopLevel.GetTopLevel(v2) ?? tl;
+            }
+        }
+
+        return session.Window;
+    }
+
     private static async Task DispatchKeyEventAsync(
         CdpSession session,
         string type,
@@ -937,8 +959,7 @@ public static class InputDomain
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var focusedVisual = (session.Window as TopLevel)?.FocusManager?.GetFocusedElement() as Visual;
-            var targetWindow = focusedVisual != null ? TopLevel.GetTopLevel(focusedVisual) ?? session.Window : session.Window;
+            var targetWindow = GetTargetTopLevel(session);
             var inputHandler = GetInputHandler(targetWindow);
             var keyboardDevice = GetKeyboardDevice();
             var inputRoot = GetInputRoot(targetWindow);
@@ -1023,14 +1044,15 @@ public static class InputDomain
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var inputHandler = GetInputHandler(session.Window);
+            var targetWindow = GetTargetTopLevel(session);
+            var inputHandler = GetInputHandler(targetWindow);
             var keyboardDevice = GetKeyboardDevice();
-            var inputRoot = GetInputRoot(session.Window);
+            var inputRoot = GetInputRoot(targetWindow);
 
             if (inputHandler == null || keyboardDevice == null || inputRoot == null || string.IsNullOrEmpty(text))
             {
                 // Fallback to direct mutation if input infrastructure is missing
-                var focusedTextBox = FindFocusedTextBox(session.Window);
+                var focusedTextBox = targetWindow != null ? FindFocusedTextBox(targetWindow) : FindFocusedTextBox(session.Window);
                 if (focusedTextBox != null && !string.IsNullOrEmpty(text))
                 {
                     int start = Math.Min(focusedTextBox.SelectionStart, focusedTextBox.SelectionEnd);

@@ -356,6 +356,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                         var currentFrameSpan = new ReadOnlySpan<byte>(rawPngBytes, 0, rawPngLength);
                         if (_lastSentFrameBytes != null && currentFrameSpan.SequenceEqual(_lastSentFrameBytes))
                         {
+                            try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
                             await Task.Delay(33, _cts.Token);
                             continue;
                         }

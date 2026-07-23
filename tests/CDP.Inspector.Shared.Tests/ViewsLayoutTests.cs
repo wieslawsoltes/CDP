@@ -216,24 +216,31 @@ public class ViewsLayoutTests
     }
 
     [AvaloniaFact]
-    public void Test_CdpVisualTreeHelper_HitTestAllRoots_And_TargetViews()
+    public void Test_HitTestAllRoots_And_TargetViews()
     {
         var window = new Window { Width = 800, Height = 600, Title = "Test Window" };
-        var button = new Button { Width = 100, Height = 30, Content = "Click Me" };
-        window.Content = button;
-        window.Show();
+        try
+        {
+            var button = new Button { Width = 100, Height = 30, Content = "Click Me" };
+            window.Content = button;
+            window.Show();
 
-        var hitRes = Avalonia.Diagnostics.Cdp.CdpVisualTreeHelper.HitTestAllRoots(window, new Avalonia.Point(10, 10));
-        Assert.NotNull(hitRes);
-        Assert.NotNull(hitRes.TargetTopLevel);
-        Assert.NotNull(hitRes.TargetVisual);
+            var hitRes = Avalonia.Diagnostics.Cdp.CdpVisualTreeHelper.HitTestAllRoots(window, new Avalonia.Point(10, 10));
+            Assert.NotNull(hitRes);
+            Assert.NotNull(hitRes.TargetTopLevel);
+            Assert.NotNull(hitRes.TargetVisual);
 
-        var mockCdp = new MemoryViewModelTests.MockCdpService();
-        var simVm = new CdpInspectorApp.ViewModels.SimulationViewModel(mockCdp, () => null, () => false, _ => (null, null), () => false, _ => null, () => false);
-        Assert.NotNull(simVm.TargetViews);
-        Assert.NotEmpty(simVm.TargetViews);
-        Assert.Contains(simVm.TargetViews, x => x.Id == "all");
-        Assert.Contains(simVm.TargetViews, x => x.Id == "main");
+            var mockCdp = new MemoryViewModelTests.MockCdpService();
+            var simVm = new CdpInspectorApp.ViewModels.SimulationViewModel(mockCdp, () => null, () => false, _ => (null, null), () => false, _ => null, () => false);
+            Assert.NotNull(simVm.TargetViews);
+            Assert.NotEmpty(simVm.TargetViews);
+            Assert.Contains(simVm.TargetViews, x => x.Id == "all");
+            Assert.Contains(simVm.TargetViews, x => x.Id == "main");
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]

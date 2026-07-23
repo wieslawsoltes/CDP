@@ -1561,16 +1561,6 @@ public static class RuntimeDomain
 
             case "runIfWaitingForDebugger":
                 {
-                    var targetId = session.CurrentTargetSession?.TargetId ?? session.Target?.Id;
-                    if (!string.IsNullOrEmpty(targetId))
-                    {
-                        CdpServer.ResumeTarget(targetId);
-                    }
-                    else
-                    {
-                        Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = true;
-                    }
-
                     var targetWindow = session.Window ?? CdpServer.GetPrimaryWindow();
                     if (targetWindow != null)
                     {
@@ -1585,6 +1575,16 @@ public static class RuntimeDomain
                                 Logger.LogErrorMessage("RuntimeDomain", "Error evaluating pre-flight script", ex);
                             }
                         }
+                    }
+
+                    var targetId = session.CurrentTargetSession?.TargetId ?? session.Target?.Id;
+                    if (!string.IsNullOrEmpty(targetId))
+                    {
+                        CdpServer.ResumeTarget(targetId);
+                    }
+                    else
+                    {
+                        Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = true;
                     }
 
                     return new JsonObject();
@@ -1729,7 +1729,7 @@ public static class RuntimeDomain
     [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script property evaluation")]
     private static Engine EnsureEngineInitialized(CdpSession session, int contextId, Visual? selectedNode)
     {
-        if (session.Window == null || !session.Window.IsVisible)
+        if (session.Window == null)
         {
             var mainWin = CdpServer.GetPrimaryWindow();
             if (mainWin != null)
