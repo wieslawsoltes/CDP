@@ -224,31 +224,35 @@ internal class SessionRecorderState
     private Visual? ResolveHitVisual(object? sender, RoutedEventArgs e, Point position)
     {
         EnsureAttachedToAllTopLevelsAndPopups();
-        Visual? visual = null;
+
+        if (e.Source is Visual sourceVisual)
+        {
+            var hitTop = TopLevel.GetTopLevel(sourceVisual);
+            if (hitTop != null) EnsureAttachedToTopLevel(hitTop);
+            return sourceVisual;
+        }
+
         var topLevel = (sender as TopLevel) ?? TopLevel.GetTopLevel(e.Source as Visual);
         if (topLevel != null)
         {
             EnsureAttachedToTopLevel(topLevel);
-            visual = topLevel.InputHitTest(position) as Visual;
+            var visual = topLevel.InputHitTest(position) as Visual;
+            if (visual != null) return visual;
         }
 
-        if (visual == null)
-        {
-            visual = e.Source as Visual;
-        }
-
-        if (visual == null && _session.Window != null)
+        if (_session.Window != null)
         {
             var res = CdpVisualTreeHelper.HitTestAllRoots(_session.Window, position, _session.TargetViewMode);
-            visual = res.HitVisual;
+            var visual = res.HitVisual;
             if (visual != null)
             {
                 var hitTop = TopLevel.GetTopLevel(visual);
                 if (hitTop != null) EnsureAttachedToTopLevel(hitTop);
+                return visual;
             }
         }
 
-        return visual;
+        return null;
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -307,26 +311,6 @@ internal class SessionRecorderState
         {
             var logical = _session.FindLogicalNode(endVisual);
             endControl = (logical as Control) ?? (endVisual as Control);
-        }
-
-        if (endControl != null)
-        {
-            if (endControl == startControl || IsDescendantOf(endControl, startControl))
-            {
-                var current = endControl as Visual;
-                while (current != null)
-                {
-                    if (current != startControl && !IsDescendantOf(current, startControl))
-                    {
-                        if (current is Control parentControl)
-                        {
-                            endControl = parentControl;
-                            break;
-                        }
-                    }
-                    current = current.GetVisualParent();
-                }
-            }
         }
         if (endControl == null) endControl = startControl;
 

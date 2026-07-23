@@ -215,7 +215,7 @@ internal class SessionRecorderState
 
         var pos = e.GetPosition(_session.Window);
         var hitRes = CdpVisualTreeHelper.HitTestAllRoots(_session.Window, pos, "composite");
-        var visual = hitRes.Target ?? HitTestElement(_session.Window, pos) ?? (e.Source as Visual);
+        var visual = (e.OriginalSource as Visual) ?? (e.Source as Visual) ?? hitRes.Target ?? HitTestElement(_session.Window, pos);
         if (visual == null) return;
 
         var logical = _session.FindLogicalNode(visual);
@@ -256,33 +256,13 @@ internal class SessionRecorderState
         if (startControl == null) return;
 
         var releasePos = e.GetPosition(_session.Window);
-        var hit = HitTestElement(_session.Window, releasePos);
-        var endVisual = hit ?? (e.Source as Visual);
+        var hit = (e.OriginalSource as Visual) ?? (e.Source as Visual) ?? HitTestElement(_session.Window, releasePos);
+        var endVisual = hit;
         FrameworkElement? endControl = null;
         if (endVisual != null)
         {
             var logical = _session.FindLogicalNode(endVisual);
             endControl = (logical as FrameworkElement) ?? (endVisual as FrameworkElement);
-        }
-
-        if (endControl != null)
-        {
-            if (endControl == startControl || IsDescendantOf(endControl, startControl))
-            {
-                var current = endControl as Visual;
-                while (current != null)
-                {
-                    if (current != startControl && !IsDescendantOf(current, startControl))
-                    {
-                        if (current is FrameworkElement parentControl)
-                        {
-                            endControl = parentControl;
-                            break;
-                        }
-                    }
-                    current = VisualTreeHelper.GetParent(current) as Visual;
-                }
-            }
         }
         if (endControl == null) endControl = startControl;
 

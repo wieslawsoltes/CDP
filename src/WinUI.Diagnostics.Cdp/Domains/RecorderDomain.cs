@@ -213,7 +213,7 @@ internal class SessionRecorderState
 
         var pos = e.GetCurrentPoint(_session.Window.Content).Position;
         var hitRes = CdpVisualTreeHelper.HitTestAllRoots(_session.Window, pos, "composite");
-        var hit = hitRes.Target ?? VisualTreeHelper.FindElementsInHostCoordinates(pos, _session.Window.Content).FirstOrDefault();
+        var hit = (e.OriginalSource as UIElement) ?? hitRes.Target ?? VisualTreeHelper.FindElementsInHostCoordinates(pos, _session.Window.Content).FirstOrDefault();
         if (hit == null) return;
 
         var logical = _session.FindLogicalNode(hit);
@@ -255,32 +255,12 @@ internal class SessionRecorderState
 
         var releasePos = e.GetCurrentPoint(_session.Window.Content).Position;
         var elements = VisualTreeHelper.FindElementsInHostCoordinates(releasePos, _session.Window.Content);
-        var endVisual = elements.FirstOrDefault();
+        var endVisual = (e.OriginalSource as UIElement) ?? elements.FirstOrDefault();
         FrameworkElement? endControl = null;
         if (endVisual != null)
         {
             var logical = _session.FindLogicalNode(endVisual);
             endControl = (logical as FrameworkElement) ?? (endVisual as FrameworkElement);
-        }
-
-        if (endControl != null)
-        {
-            if (endControl == startControl || IsDescendantOf(endControl, startControl))
-            {
-                var current = endControl as DependencyObject;
-                while (current != null)
-                {
-                    if (current != startControl && !IsDescendantOf(current, startControl))
-                    {
-                        if (current is FrameworkElement parentControl)
-                        {
-                            endControl = parentControl;
-                            break;
-                        }
-                    }
-                    current = VisualTreeHelper.GetParent(current);
-                }
-            }
         }
         if (endControl == null) endControl = startControl;
 
