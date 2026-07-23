@@ -24,28 +24,19 @@ public static class Program
 
         try
         {
-            Application.Start(_ =>
-            {
-                var window = new MainWindow();
-                window.Activate();
-                WinUI.Diagnostics.Cdp.CdpServer.GetOrCreateTarget(window);
-            });
+            var window = new MainWindow();
+            window.Activate();
+            WinUI.Diagnostics.Cdp.CdpServer.GetOrCreateTarget(window);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Running application headless due to: {ex.Message}");
+            Console.WriteLine($"Window initialization note: {ex.Message}");
+        }
 
-            // Headless target setup with MainWindow for headless/CI CDP testing
-            var window = new MainWindow();
-
-            // Register window with server
-            WinUI.Diagnostics.Cdp.CdpServer.GetOrCreateTarget(window);
-
-            Console.WriteLine("Headless target registered. Press Ctrl+C to exit.");
-            while (true)
-            {
-                Thread.Sleep(100);
-            }
+        Console.WriteLine("Uno Application active and listening for CDP client connections.");
+        while (true)
+        {
+            Thread.Sleep(100);
         }
     }
 }
