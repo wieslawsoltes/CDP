@@ -153,6 +153,44 @@
                             </Flyout>
                         </Button.Flyout>
                     </Button>
+
+                    <!-- Preview Settings Flyout Button -->
+                    <Button Name="btnPreviewSettingsFlyout" ToolTip.Tip="Preview Options &amp; Settings" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                        <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="14" Width="260">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Preview Settings &amp; Features" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                                        <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
+
+                                        <!-- Right-Click Behavior Option -->
+                                        <StackPanel Spacing="3">
+                                            <CheckBox Name="chkSimulationContextMenu"
+                                                      IsChecked="{Binding Simulation.IsSimulationContextMenuEnabled, Mode=TwoWay}"
+                                                      Content="Enable Inspector Right-Click Menu"
+                                                      FontSize="11"
+                                                      ToolTip.Tip="When checked, right-clicking shows the inspector command context menu. When unchecked, right-clicks pass directly to the target application to test native app right-click interactions."/>
+                                            <TextBlock Text="Uncheck to pass right-clicks directly to target app." FontSize="9" Foreground="#9aa0a6" Margin="24,0,0,0"/>
+                                        </StackPanel>
+
+                                        <Separator Background="#3c4043" Height="1"/>
+
+                                        <!-- Display Options -->
+                                        <CheckBox Name="chkWindowFrameSettings" IsChecked="{Binding Simulation.IsWindowFrameVisible, Mode=TwoWay}" Content="Show Virtual Window Title Bar" FontSize="11"/>
+                                        <CheckBox Name="chkInspectOverlay" IsChecked="{Binding Simulation.IsHighlightOverlayVisible, Mode=TwoWay}" Content="Show Inspect Hover Overlay" FontSize="11"/>
+                                        <CheckBox Name="chkPanModeSettings" IsChecked="{Binding Simulation.IsPanModeActive, Mode=TwoWay}" Content="Enable Pan Mode (Hand Tool)" FontSize="11"/>
+                                        <CheckBox Name="chkFitZoomSettings" IsChecked="{Binding Simulation.IsFitZoomActive, Mode=TwoWay}" Content="Auto Fit Zoom to Viewport" FontSize="11"/>
+
+                                        <Separator Background="#3c4043" Height="1"/>
+
+                                        <!-- Actions -->
+                                        <Button Name="btnResetPanSettings" Command="{Binding Simulation.ResetPanCommand}" Content="Reset Pan Position (0,0)" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
             </ScrollViewer>
         </Border>

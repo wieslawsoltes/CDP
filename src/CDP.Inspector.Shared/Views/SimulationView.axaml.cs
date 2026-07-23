@@ -307,7 +307,8 @@ public partial class SimulationView : UserControl
         var border = this.Find<Border>("borderScreenshot");
         border?.Focus();
 
-        if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        var mainVm = DataContext as MainWindowViewModel;
+        if (mainVm?.Simulation != null)
         {
             var simVm = mainVm.Simulation;
             var pointerPoint = e.GetCurrentPoint(sender as Control);
@@ -331,6 +332,13 @@ public partial class SimulationView : UserControl
             var pointerPoint = e.GetCurrentPoint(img);
             if (pointerPoint.Properties.IsRightButtonPressed)
             {
+                if (mainVm?.Simulation != null && !mainVm.Simulation.IsSimulationContextMenuEnabled)
+                {
+                    SendMouseEvent("mousePressed", e);
+                    e.Handled = true;
+                    return;
+                }
+
                 e.Handled = true;
                 return;
             }
@@ -356,7 +364,14 @@ public partial class SimulationView : UserControl
             var pointerPoint = e.GetCurrentPoint(img);
             if (pointerPoint.Properties.PointerUpdateKind == PointerUpdateKind.RightButtonReleased)
             {
-                ShowRecommendedCommandsMenu(pointerPoint.Position, e);
+                if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null && mainVm.Simulation.IsSimulationContextMenuEnabled)
+                {
+                    ShowRecommendedCommandsMenu(pointerPoint.Position, e);
+                }
+                else
+                {
+                    SendMouseEvent("mouseReleased", e);
+                }
                 e.Handled = true;
                 return;
             }

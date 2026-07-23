@@ -1626,6 +1626,15 @@ public class ViewsLayoutTests
             var btnViewOptionsFlyout = simView.FindControl<Button>("btnViewOptionsFlyout");
             Assert.NotNull(btnViewOptionsFlyout);
 
+            var btnPreviewSettingsFlyout = simView.FindControl<Button>("btnPreviewSettingsFlyout");
+            Assert.NotNull(btnPreviewSettingsFlyout);
+
+            // Verify IsSimulationContextMenuEnabled toggle defaults to true and can be toggled
+            Assert.True(mainVm.Simulation.IsSimulationContextMenuEnabled);
+            mainVm.Simulation.IsSimulationContextMenuEnabled = false;
+            Assert.False(mainVm.Simulation.IsSimulationContextMenuEnabled);
+            mainVm.Simulation.IsSimulationContextMenuEnabled = true;
+
             // Verify virtual window title bar width updates to match DeviceWidth
             mainVm.Simulation.WidthText = "1200";
             mainVm.Simulation.ResizeCommand.Execute(null);

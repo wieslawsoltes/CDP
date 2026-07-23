@@ -67,6 +67,14 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         get => _advancedToolsPanelHeight;
         set => RaiseAndSetIfChanged(ref _advancedToolsPanelHeight, value);
     }
+
+    private bool _isSimulationContextMenuEnabled = true;
+
+    public bool IsSimulationContextMenuEnabled
+    {
+        get => _isSimulationContextMenuEnabled;
+        set => RaiseAndSetIfChanged(ref _isSimulationContextMenuEnabled, value);
+    }
     
     private string _widthText = "800";
     private string _heightText = "600";
