@@ -39,6 +39,12 @@ public partial class SimulationView : UserControl
         DataContextChanged += SimulationView_DataContextChanged;
         SizeChanged += (s, e) => UpdateViewportTransform();
 
+        var viewportContainer = this.Find<Control>("gridViewportContainer") ?? this.Find<Control>("borderScreenshot");
+        if (viewportContainer != null)
+        {
+            viewportContainer.SizeChanged += (s, e) => UpdateViewportTransform();
+        }
+
         var img = this.Find<Image>("imgScreenshot");
         if (img != null)
         {
@@ -136,7 +142,8 @@ public partial class SimulationView : UserControl
             nameof(SimulationViewModel.PanY) or
             nameof(SimulationViewModel.IsPanModeActive) or
             nameof(SimulationViewModel.DeviceWidth) or
-            nameof(SimulationViewModel.DeviceHeight))
+            nameof(SimulationViewModel.DeviceHeight) or
+            nameof(SimulationViewModel.IsWindowFrameVisible))
         {
             UpdateViewportTransform();
             UpdateCursor(_connectionVm?.IsInspectModeActive ?? false);
@@ -174,12 +181,16 @@ public partial class SimulationView : UserControl
             double zoom = simVm.ZoomLevel;
             if (simVm.IsFitZoomActive)
             {
-                var container = this.Find<Control>("borderPreviewViewport") ?? this.Parent as Control;
+                var container = this.Find<Control>("gridViewportContainer") ?? this.Find<Control>("borderScreenshot") ?? this.Parent as Control;
                 if (container != null && container.Bounds.Width > 0 && container.Bounds.Height > 0 && simVm.DeviceWidth > 0 && simVm.DeviceHeight > 0)
                 {
+                    double titleBarHeight = simVm.IsWindowFrameVisible ? 32.0 : 0.0;
+                    double totalDeviceHeight = simVm.DeviceHeight + titleBarHeight;
+
                     double availW = Math.Max(100, container.Bounds.Width - 40);
-                    double availH = Math.Max(100, container.Bounds.Height - 60);
-                    zoom = Math.Min(availW / simVm.DeviceWidth, availH / simVm.DeviceHeight);
+                    double availH = Math.Max(100, container.Bounds.Height - 40);
+
+                    zoom = Math.Min(availW / simVm.DeviceWidth, availH / totalDeviceHeight);
                     zoom = Math.Clamp(zoom, 0.1, 3.0);
                 }
             }

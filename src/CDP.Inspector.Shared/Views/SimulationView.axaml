@@ -218,7 +218,7 @@
                                                Source="{Binding Simulation.ScreenshotImage}"
                                                Width="{Binding Simulation.DeviceWidth}"
                                                Height="{Binding Simulation.DeviceHeight}"
-                                               Stretch="Uniform"/>
+                                               Stretch="Fill"/>
                                         <controls:PreviewHighlightOverlay Name="overlayHighlight"
                                                                           DeviceWidth="{Binding Simulation.DeviceWidth}"
                                                                           DeviceHeight="{Binding Simulation.DeviceHeight}"
