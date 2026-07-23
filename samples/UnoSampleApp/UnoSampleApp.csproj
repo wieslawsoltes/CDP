@@ -1,4 +1,4 @@
-<Project Sdk="Uno.Sdk/5.2.161">
+<Project Sdk="Uno.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-desktop</TargetFramework>
 
@@ -20,7 +20,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Uno.WinUI.Runtime.Skia.MacOS" />
     <PackageReference Include="Uno.WinUI.Runtime.Skia.Gtk" />
     <ProjectReference Include="../../src/Uno.Diagnostics.Cdp/Uno.Diagnostics.Cdp.csproj" />
   </ItemGroup>
