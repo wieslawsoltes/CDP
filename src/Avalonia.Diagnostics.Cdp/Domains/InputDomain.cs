@@ -404,10 +404,6 @@ public static class InputDomain
                 var hitRes = CdpVisualTreeHelper.HitTestAllRoots(session.Window, position, session.TargetViewMode);
                 targetWindow = hitRes.TargetTopLevel ?? session.Window;
                 position = hitRes.LocalPoint;
-                if (hitRes.TargetTopLevel is Avalonia.Controls.Window hitWin)
-                {
-                    session.Window = hitWin;
-                }
             }
 
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

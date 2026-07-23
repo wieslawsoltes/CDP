@@ -1,6 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Automation;
 using Avalonia.Headless.XUnit;
+using System.Net.WebSockets;
 using Xunit;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -254,7 +256,8 @@ public class SelectorTests
         rootPanel.Children.Add(popup);
         window.Content = rootPanel;
 
-        var session = new CdpSession(window);
+        using var fakeWs = new ClientWebSocket();
+        var session = new CdpSession(fakeWs, window);
 
         var axResponse = await Domains.AccessibilityDomain.HandleAsync(session, "getFullAXTree", new System.Text.Json.Nodes.JsonObject());
         Assert.NotNull(axResponse);

@@ -3,7 +3,7 @@
         xmlns:views="clr-namespace:CdpInspectorApp.Views;assembly=CDP.Inspector.Shared"
         x:Class="CdpInspectorApp.MainWindow"
         x:CompileBindings="True"
-        Title="Avalonia CDP Inspector Client - Chrome Parity" Width="1280" Height="800"
+        Title="CDP Inspector Client - Chrome Parity" Width="1280" Height="800"
         WindowStartupLocation="CenterScreen"
         RequestedThemeVariant="Dark">
 
