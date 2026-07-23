@@ -37,162 +37,161 @@
 
         <!-- Row 1: Device Emulation, Zoom & View Toolbar -->
         <Border Grid.Row="1" Background="#242528" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="6,3">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <!-- Device Presets Dropdown -->
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Text="Device:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
-                        <ComboBox Name="cmbDevicePresets"
-                                  Width="140" Height="24"
-                                  ItemsSource="{Binding Simulation.DevicePresets}"
-                                  SelectedItem="{Binding Simulation.SelectedDevicePreset, Mode=TwoWay}"
-                                  Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:DevicePreset">
-                                    <TextBlock Text="{Binding DisplayName}" FontSize="11"/>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <!-- Target View / Window Selector Dropdown -->
-                    <ComboBox Name="cmbTargetViews"
-                              Width="160" Height="24"
-                              ItemsSource="{Binding Simulation.TargetViews}"
-                              SelectedItem="{Binding Simulation.SelectedTargetView, Mode=TwoWay}"
-                              ToolTip.Tip="Target View: Preview &amp; inspect all windows/popups composited together or select specific target"
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Device Presets Dropdown -->
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,2,8,2">
+                    <TextBlock Text="Device:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
+                    <ComboBox Name="cmbDevicePresets"
+                              Width="140" Height="24"
+                              ItemsSource="{Binding Simulation.DevicePresets}"
+                              SelectedItem="{Binding Simulation.SelectedDevicePreset, Mode=TwoWay}"
                               Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center">
                         <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:TargetViewItemViewModel">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <PathIcon Data="{StaticResource WindowIcon}" Width="10" Height="10" Foreground="#8ab4f8"/>
-                                    <TextBlock Text="{Binding Title}" FontSize="11"/>
-                                </StackPanel>
+                            <DataTemplate x:DataType="vm:DevicePreset">
+                                <TextBlock Text="{Binding DisplayName}" FontSize="11"/>
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
-
-                    <!-- Segmented Dimension Input Pill: Width x Height [Swap] -->
-                    <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="2,0" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" Width="44" Height="20" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="11" Padding="0"/>
-                            <TextBlock Text="×" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
-                            <TextBox Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" Width="44" Height="20" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="11" Padding="0"/>
-                            <Button Command="{Binding Simulation.RotateDeviceCommand}" ToolTip.Tip="Swap Orientation (Width × Height)" Width="20" Height="20" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
-                                <PathIcon Data="{StaticResource SwapVertIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
-                            </Button>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Device Settings Flyout Button -->
-                    <Button Name="btnDeviceSettingsFlyout" ToolTip.Tip="Device Emulation Settings (DPR, Mobile UA, Apply)" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
-                        <PathIcon Data="{StaticResource SlidersIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
-                        <Button.Flyout>
-                            <Flyout Placement="BottomEdgeAlignedLeft">
-                                <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Width="220">
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Device Emulation Settings" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
-                                        <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
-
-                                        <Grid ColumnDefinitions="*, Auto" VerticalAlignment="Center">
-                                            <TextBlock Text="Scale Factor (DPR):" FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
-                                            <TextBox Grid.Column="1" Name="txtScaleFactor" Text="{Binding Simulation.ScaleFactorText, Mode=TwoWay}" Width="48" Height="24" FontSize="11" VerticalContentAlignment="Center"/>
-                                        </Grid>
-
-                                        <CheckBox Name="chkMobile" IsChecked="{Binding Simulation.IsMobileActive, Mode=TwoWay}" Content="Emulate Mobile Touch &amp; UA" FontSize="11"/>
-
-                                        <Grid ColumnDefinitions="*, *" ColumnSpacing="6" Margin="0,4,0,0">
-                                            <Button Name="btnResizeReset" Command="{Binding Simulation.ResizeResetCommand}" Content="Reset" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
-                                            <Button Grid.Column="1" Name="btnResize" Command="{Binding Simulation.ResizeCommand}" Content="Apply" Classes="accent" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
-
-                    <!-- Divider -->
-                    <Border Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center"/>
-
-                    <!-- Segmented Zoom & Pan Pill -->
-                    <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="1" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="1">
-                            <Button Name="btnZoomOut" Command="{Binding Simulation.ZoomOutCommand}" ToolTip.Tip="Zoom Out (Ctrl + Scroll Down)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
-                                <PathIcon Data="{StaticResource ZoomOutIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
-                            </Button>
-                            <ComboBox Name="cmbZoomPresets"
-                                      Width="72" Height="22"
-                                      ItemsSource="{Binding Simulation.ZoomPresets}"
-                                      SelectedItem="{Binding Simulation.SelectedZoomPreset, Mode=TwoWay}"
-                                      Background="Transparent" BorderThickness="0" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center"/>
-                            <Button Name="btnZoomIn" Command="{Binding Simulation.ZoomInCommand}" ToolTip.Tip="Zoom In (Ctrl + Scroll Up)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
-                                <PathIcon Data="{StaticResource ZoomInIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
-                            </Button>
-                            <ToggleButton Name="chkPanMode" IsChecked="{Binding Simulation.IsPanModeActive, Mode=TwoWay}" ToolTip.Tip="Toggle Pan Mode (Middle Mouse Drag or Space+Drag)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
-                                <PathIcon Data="{StaticResource HandIcon}" Width="11" Height="11" Foreground="#e8eaed"/>
-                            </ToggleButton>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- View Options Flyout Button -->
-                    <Button Name="btnViewOptionsFlyout" ToolTip.Tip="View Options (Window Frame, Reset Pan)" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
-                        <PathIcon Data="{StaticResource EyeIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
-                        <Button.Flyout>
-                            <Flyout Placement="BottomEdgeAlignedRight">
-                                <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Width="200">
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="View Options" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
-                                        <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
-
-                                        <CheckBox Name="chkWindowFrame" IsChecked="{Binding Simulation.IsWindowFrameVisible, Mode=TwoWay}" Content="Show Window Frame" FontSize="11"/>
-                                        
-                                        <Button Name="btnResetPan" Command="{Binding Simulation.ResetPanCommand}" Content="Reset Pan Position (0,0)" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
-                                        <Button Name="btnToggleFitZoom" Command="{Binding Simulation.ToggleFitZoomCommand}" Content="Fit Zoom to Screen" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
-                                    </StackPanel>
-                                </Border>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
-
-                    <!-- Preview Settings Flyout Button -->
-                    <Button Name="btnPreviewSettingsFlyout" ToolTip.Tip="Preview Options &amp; Settings" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
-                        <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
-                        <Button.Flyout>
-                            <Flyout Placement="BottomEdgeAlignedRight">
-                                <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="14" Width="260">
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="Preview Settings &amp; Features" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
-                                        <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
-
-                                        <!-- Right-Click Behavior Option -->
-                                        <StackPanel Spacing="3">
-                                            <CheckBox Name="chkSimulationContextMenu"
-                                                      IsChecked="{Binding Simulation.IsSimulationContextMenuEnabled, Mode=TwoWay}"
-                                                      Content="Enable Inspector Right-Click Menu"
-                                                      FontSize="11"
-                                                      ToolTip.Tip="When checked, right-clicking shows the inspector command context menu. When unchecked, right-clicks pass directly to the target application to test native app right-click interactions."/>
-                                            <TextBlock Text="Uncheck to pass right-clicks directly to target app." FontSize="9" Foreground="#9aa0a6" Margin="24,0,0,0"/>
-                                        </StackPanel>
-
-                                        <Separator Background="#3c4043" Height="1"/>
-
-                                        <!-- Display Options -->
-                                        <CheckBox Name="chkWindowFrameSettings" IsChecked="{Binding Simulation.IsWindowFrameVisible, Mode=TwoWay}" Content="Show Virtual Window Title Bar" FontSize="11"/>
-                                        <CheckBox Name="chkInspectOverlay" IsChecked="{Binding Simulation.IsHighlightOverlayVisible, Mode=TwoWay}" Content="Show Inspect Hover Overlay" FontSize="11"/>
-                                        <CheckBox Name="chkPanModeSettings" IsChecked="{Binding Simulation.IsPanModeActive, Mode=TwoWay}" Content="Enable Pan Mode (Hand Tool)" FontSize="11"/>
-                                        <CheckBox Name="chkFitZoomSettings" IsChecked="{Binding Simulation.IsFitZoomActive, Mode=TwoWay}" Content="Auto Fit Zoom to Viewport" FontSize="11"/>
-
-                                        <Separator Background="#3c4043" Height="1"/>
-
-                                        <!-- Actions -->
-                                        <Button Name="btnResetPanSettings" Command="{Binding Simulation.ResetPanCommand}" Content="Reset Pan Position (0,0)" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
-                                    </StackPanel>
-                                </Border>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
                 </StackPanel>
-            </ScrollViewer>
+
+                <!-- Target View / Window Selector Dropdown -->
+                <ComboBox Name="cmbTargetViews"
+                          Width="160" Height="24"
+                          ItemsSource="{Binding Simulation.TargetViews}"
+                          SelectedItem="{Binding Simulation.SelectedTargetView, Mode=TwoWay}"
+                          ToolTip.Tip="Target View: Preview &amp; inspect all windows/popups composited together or select specific target"
+                          Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center"
+                          Margin="0,2,8,2">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TargetViewItemViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Data="{StaticResource WindowIcon}" Width="10" Height="10" Foreground="#8ab4f8"/>
+                                <TextBlock Text="{Binding Title}" FontSize="11"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <!-- Segmented Dimension Input Pill: Width x Height [Swap] -->
+                <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="2,0" VerticalAlignment="Center" Margin="0,2,8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" Width="44" Height="20" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="11" Padding="0"/>
+                        <TextBlock Text="×" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
+                        <TextBox Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" Width="44" Height="20" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="11" Padding="0"/>
+                        <Button Command="{Binding Simulation.RotateDeviceCommand}" ToolTip.Tip="Swap Orientation (Width × Height)" Width="20" Height="20" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                            <PathIcon Data="{StaticResource SwapVertIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Device Settings Flyout Button -->
+                <Button Name="btnDeviceSettingsFlyout" ToolTip.Tip="Device Emulation Settings (DPR, Mobile UA, Apply)" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,2,8,2">
+                    <PathIcon Data="{StaticResource SlidersIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedLeft">
+                            <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Width="220">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Device Emulation Settings" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                                    <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
+
+                                    <Grid ColumnDefinitions="*, Auto" VerticalAlignment="Center">
+                                        <TextBlock Text="Scale Factor (DPR):" FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Name="txtScaleFactor" Text="{Binding Simulation.ScaleFactorText, Mode=TwoWay}" Width="48" Height="24" FontSize="11" VerticalContentAlignment="Center"/>
+                                    </Grid>
+
+                                    <CheckBox Name="chkMobile" IsChecked="{Binding Simulation.IsMobileActive, Mode=TwoWay}" Content="Emulate Mobile Touch &amp; UA" FontSize="11"/>
+
+                                    <Grid ColumnDefinitions="*, *" ColumnSpacing="6" Margin="0,4,0,0">
+                                        <Button Name="btnResizeReset" Command="{Binding Simulation.ResizeResetCommand}" Content="Reset" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                        <Button Grid.Column="1" Name="btnResize" Command="{Binding Simulation.ResizeCommand}" Content="Apply" Classes="accent" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <!-- Divider -->
+                <Border Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center" Margin="0,2,8,2"/>
+
+                <!-- Segmented Zoom & Pan Pill -->
+                <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="1" VerticalAlignment="Center" Margin="0,2,8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="1">
+                        <Button Name="btnZoomOut" Command="{Binding Simulation.ZoomOutCommand}" ToolTip.Tip="Zoom Out (Ctrl + Scroll Down)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                            <PathIcon Data="{StaticResource ZoomOutIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                        </Button>
+                        <ComboBox Name="cmbZoomPresets"
+                                  Width="72" Height="22"
+                                  ItemsSource="{Binding Simulation.ZoomPresets}"
+                                  SelectedItem="{Binding Simulation.SelectedZoomPreset, Mode=TwoWay}"
+                                  Background="Transparent" BorderThickness="0" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center"/>
+                        <Button Name="btnZoomIn" Command="{Binding Simulation.ZoomInCommand}" ToolTip.Tip="Zoom In (Ctrl + Scroll Up)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                            <PathIcon Data="{StaticResource ZoomInIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                        </Button>
+                        <ToggleButton Name="chkPanMode" IsChecked="{Binding Simulation.IsPanModeActive, Mode=TwoWay}" ToolTip.Tip="Toggle Pan Mode (Middle Mouse Drag or Space+Drag)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                            <PathIcon Data="{StaticResource HandIcon}" Width="11" Height="11" Foreground="#e8eaed"/>
+                        </ToggleButton>
+                    </StackPanel>
+                </Border>
+
+                <!-- View Options Flyout Button -->
+                <Button Name="btnViewOptionsFlyout" ToolTip.Tip="View Options (Window Frame, Reset Pan)" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,2,8,2">
+                    <PathIcon Data="{StaticResource EyeIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Width="200">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="View Options" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                                    <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
+
+                                    <CheckBox Name="chkWindowFrame" IsChecked="{Binding Simulation.IsWindowFrameVisible, Mode=TwoWay}" Content="Show Window Frame" FontSize="11"/>
+                                    
+                                    <Button Name="btnResetPan" Command="{Binding Simulation.ResetPanCommand}" Content="Reset Pan Position (0,0)" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                    <Button Name="btnToggleFitZoom" Command="{Binding Simulation.ToggleFitZoomCommand}" Content="Fit Zoom to Screen" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <!-- Preview Settings Flyout Button -->
+                <Button Name="btnPreviewSettingsFlyout" ToolTip.Tip="Preview Options &amp; Settings" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,2,0,2">
+                    <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="14" Width="260">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Preview Settings &amp; Features" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                                    <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
+
+                                    <!-- Right-Click Behavior Option -->
+                                    <StackPanel Spacing="3">
+                                        <CheckBox Name="chkSimulationContextMenu"
+                                                  IsChecked="{Binding Simulation.IsSimulationContextMenuEnabled, Mode=TwoWay}"
+                                                  Content="Enable Inspector Right-Click Menu"
+                                                  FontSize="11"
+                                                  ToolTip.Tip="When checked, right-clicking shows the inspector command context menu. When unchecked, right-clicks pass directly to the target application to test native app right-click interactions."/>
+                                        <TextBlock Text="Uncheck to pass right-clicks directly to target app." FontSize="9" Foreground="#9aa0a6" Margin="24,0,0,0"/>
+                                    </StackPanel>
+
+                                    <Separator Background="#3c4043" Height="1"/>
+
+                                    <!-- Display Options -->
+                                    <CheckBox Name="chkWindowFrameSettings" IsChecked="{Binding Simulation.IsWindowFrameVisible, Mode=TwoWay}" Content="Show Virtual Window Title Bar" FontSize="11"/>
+                                    <CheckBox Name="chkInspectOverlay" IsChecked="{Binding Simulation.IsHighlightOverlayVisible, Mode=TwoWay}" Content="Show Inspect Hover Overlay" FontSize="11"/>
+                                    <CheckBox Name="chkPanModeSettings" IsChecked="{Binding Simulation.IsPanModeActive, Mode=TwoWay}" Content="Enable Pan Mode (Hand Tool)" FontSize="11"/>
+                                    <CheckBox Name="chkFitZoomSettings" IsChecked="{Binding Simulation.IsFitZoomActive, Mode=TwoWay}" Content="Auto Fit Zoom to Viewport" FontSize="11"/>
+
+                                    <Separator Background="#3c4043" Height="1"/>
+
+                                    <!-- Actions -->
+                                    <Button Name="btnResetPanSettings" Command="{Binding Simulation.ResetPanCommand}" Content="Reset Pan Position (0,0)" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </WrapPanel>
         </Border>
 
         <!-- Row 2: Dockable Split Panel containing Live Viewport and Advanced Manual Interaction Tools -->
