@@ -87,4 +87,48 @@ public class DockSplitPanelTests
         dockPanel.PanelHeight = 500.0;
         Assert.Equal(500.0, dockPanel.PanelHeight);
     }
+
+    [AvaloniaFact]
+    public void Test_DockSplitPanel_ContentHost_SizeChanged_Updates_PanelHeight()
+    {
+        var app = Avalonia.Application.Current;
+        Assert.NotNull(app);
+
+        var sharedStyles = new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://Avalonia.Diagnostics.Cdp.Tests/"))
+        {
+            Source = new Uri("avares://CDP.Inspector.Shared/Styles.axaml")
+        };
+        app.Styles.Add(sharedStyles);
+
+        try
+        {
+            var dockPanel = new DockSplitPanel
+            {
+                Header = "Test Panel",
+                MainContent = new TextBlock { Text = "Main" },
+                Content = new TextBlock { Text = "Sub" },
+                IsExpanded = true,
+                IsPinned = true,
+                MinPanelHeight = 100.0,
+                MaxPanelHeight = 500.0,
+                PanelHeight = 220.0
+            };
+
+            var window = new Window { Content = dockPanel, Width = 800, Height = 600 };
+            window.Show();
+
+            try
+            {
+                Assert.Equal(220.0, dockPanel.PanelHeight);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+        finally
+        {
+            app.Styles.Remove(sharedStyles);
+        }
+    }
 }

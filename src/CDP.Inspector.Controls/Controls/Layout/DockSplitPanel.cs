@@ -173,6 +173,22 @@ public class DockSplitPanel : TemplatedControl
             grip.PointerReleased += OnGripPointerReleased;
             grip.PointerCaptureLost += OnGripPointerCaptureLost;
         }
+
+        var contentHost = e.NameScope.Find<Control>("PART_ContentHost");
+        if (contentHost != null)
+        {
+            contentHost.SizeChanged += (s, args) =>
+            {
+                if (IsPinned && IsExpanded && args.NewSize.Height > 0 && !_isDraggingGrip)
+                {
+                    var clamped = Math.Clamp(args.NewSize.Height, MinPanelHeight, MaxPanelHeight);
+                    if (Math.Abs(PanelHeight - clamped) > 0.5)
+                    {
+                        SetCurrentValue(PanelHeightProperty, clamped);
+                    }
+                }
+            };
+        }
     }
 
     private void OnHeaderBarPointerPressed(object? sender, PointerPressedEventArgs e)

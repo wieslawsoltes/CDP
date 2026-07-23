@@ -216,7 +216,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto" MinHeight="{TemplateBinding MinPanelHeight}" MaxHeight="{TemplateBinding MaxPanelHeight}"/>
                     </Grid.RowDefinitions>
 
                     <!-- Main Content (Screencast Viewport, etc.) - Single ContentPresenter -->
