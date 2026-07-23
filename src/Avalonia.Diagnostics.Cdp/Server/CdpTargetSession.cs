@@ -333,37 +333,48 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                         rawPngLength = rawPngBytes.Length;
                     }
 
-                    using var ms = new MemoryStream(rawPngBytes, 0, rawPngLength);
-                    using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
-                    if (skBitmap != null)
+                    bool hasPopupsOrSecondaryWindows = false;
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        if (CdpVisualTreeHelper.HasSecondaryWindowsOrPopups(Window))
+                        hasPopupsOrSecondaryWindows = CdpVisualTreeHelper.HasSecondaryWindowsOrPopups(Window);
+                    });
+
+                    if (hasPopupsOrSecondaryWindows)
+                    {
+                        using var msPopups = new MemoryStream(rawPngBytes, 0, rawPngLength);
+                        using var skBitmapPopups = SkiaSharp.SKBitmap.Decode(msPopups);
+                        if (skBitmapPopups != null)
                         {
                             await Dispatcher.UIThread.InvokeAsync(() =>
                             {
-                                CdpVisualTreeHelper.CompositeAllWindowsAndPopups(Window, skBitmap, scale, _session.TargetViewMode);
+                                CdpVisualTreeHelper.CompositeAllWindowsAndPopups(Window, skBitmapPopups, scale, _session.TargetViewMode);
                             });
 
                             using var compositedStream = new MemoryStream();
-                            if (skBitmap.Encode(compositedStream, SkiaSharp.SKEncodedImageFormat.Png, 100))
+                            if (skBitmapPopups.Encode(compositedStream, SkiaSharp.SKEncodedImageFormat.Png, 100))
                             {
                                 rawPngBytes = compositedStream.ToArray();
                                 rawPngLength = rawPngBytes.Length;
                             }
                         }
+                    }
 
-                        // Delta Compression / Change Detection: compare raw pixels (including composited popups/windows) to previous frame
-                        var currentFrameSpan = new ReadOnlySpan<byte>(rawPngBytes, 0, rawPngLength);
-                        if (_lastSentFrameBytes != null && currentFrameSpan.SequenceEqual(_lastSentFrameBytes))
-                        {
-                            try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
-                            await Task.Delay(33, _cts.Token);
-                            continue;
-                        }
+                    // Delta Compression / Change Detection: compare raw pixels (including composited popups/windows) to previous frame
+                    var currentFrameSpan = new ReadOnlySpan<byte>(rawPngBytes, 0, rawPngLength);
+                    if (_lastSentFrameBytes != null && currentFrameSpan.SequenceEqual(_lastSentFrameBytes))
+                    {
+                        try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
+                        await Task.Delay(33, _cts.Token);
+                        continue;
+                    }
 
-                        _lastSentFrameBytes = currentFrameSpan.ToArray();
+                    _lastSentFrameBytes = currentFrameSpan.ToArray();
 
-                            pixelWidth = skBitmap.Width;
+                    using var ms = new MemoryStream(rawPngBytes, 0, rawPngLength);
+                    using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
+                    if (skBitmap != null)
+                    {
+                        pixelWidth = skBitmap.Width;
                             pixelHeight = skBitmap.Height;
 
                             double resizeScale = 1.0;

@@ -266,7 +266,7 @@ public static class CdpVisualTreeHelper
                 }
             }
 
-            if (HasOpenLogicalPopups(primaryWindow))
+            if (HasOpenPopups(primaryWindow))
             {
                 return true;
             }
@@ -275,8 +275,11 @@ public static class CdpVisualTreeHelper
         return false;
     }
 
-    private static bool HasOpenLogicalPopups(Visual visual)
+    private static bool HasOpenPopups(Visual visual, HashSet<Visual>? visited = null)
     {
+        visited ??= new HashSet<Visual>();
+        if (visual == null || !visited.Add(visual)) return false;
+
         if (visual is Popup p && p.IsOpen) return true;
 
         if (visual is Control ctrl)
@@ -294,19 +297,26 @@ public static class CdpVisualTreeHelper
             {
                 if (child is Visual childVisual)
                 {
-                    if (HasOpenLogicalPopups(childVisual)) return true;
+                    if (HasOpenPopups(childVisual, visited)) return true;
                 }
             }
         }
+
+        foreach (var child in visual.GetVisualChildren())
+        {
+            if (HasOpenPopups(child, visited)) return true;
+        }
+
         return false;
     }
 
-    public static void CompositeAllWindowsAndPopups(TopLevel? primaryWindow, SkiaSharp.SKBitmap? baseSkBitmap, double scale, string? targetViewId = null)
+    public static bool CompositeAllWindowsAndPopups(TopLevel? primaryWindow, SkiaSharp.SKBitmap? baseSkBitmap, double scale, string? targetViewId = null)
     {
-        if (primaryWindow == null || baseSkBitmap == null) return;
-        if (targetViewId == "main") return;
-        if (!HasSecondaryWindowsOrPopups(primaryWindow)) return;
+        if (primaryWindow == null || baseSkBitmap == null) return false;
+        if (targetViewId == "main") return false;
+        if (!HasSecondaryWindowsOrPopups(primaryWindow)) return false;
 
+        bool compositedAny = false;
         try
         {
             foreach (var target in CdpServer.GetWindows())
@@ -335,24 +345,31 @@ public static class CdpVisualTreeHelper
                         {
                             using var canvas = new SkiaSharp.SKCanvas(baseSkBitmap);
                             canvas.DrawBitmap(winSkBitmap, (float)(winX * scale), (float)(winY * scale));
+                            compositedAny = true;
                         }
                     }
                     catch { }
                 }
             }
 
-            CompositeOpenPopups(primaryWindow, baseSkBitmap, scale);
+            if (CompositeOpenPopups(primaryWindow, baseSkBitmap, scale))
+            {
+                compositedAny = true;
+            }
         }
         catch
         {
             // Ignore compositing errors gracefully
         }
+
+        return compositedAny;
     }
 
-    public static void CompositeOpenPopups(TopLevel? topLevel, SkiaSharp.SKBitmap? baseSkBitmap, double scale)
+    public static bool CompositeOpenPopups(TopLevel? topLevel, SkiaSharp.SKBitmap? baseSkBitmap, double scale)
     {
-        if (topLevel == null || baseSkBitmap == null) return;
+        if (topLevel == null || baseSkBitmap == null) return false;
 
+        bool compositedAny = false;
         try
         {
             var openPopups = new List<Popup>();
@@ -398,7 +415,7 @@ public static class CdpVisualTreeHelper
                 }
             }
 
-            if (overlayVisuals.Count == 0) return;
+            if (overlayVisuals.Count == 0) return false;
 
             foreach (var renderTarget in overlayVisuals)
             {
@@ -435,6 +452,7 @@ public static class CdpVisualTreeHelper
                     float drawX = (float)(popupX * scale);
                     float drawY = (float)(popupY * scale);
                     canvas.DrawBitmap(popupSkBitmap, drawX, drawY);
+                    compositedAny = true;
                 }
             }
         }
@@ -442,6 +460,8 @@ public static class CdpVisualTreeHelper
         {
             // Ignore popup compositing errors gracefully
         }
+
+        return compositedAny;
     }
 
     public class RootHitResult
