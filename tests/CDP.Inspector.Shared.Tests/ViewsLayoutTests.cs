@@ -228,7 +228,7 @@ public class ViewsLayoutTests
         Assert.NotNull(hitRes.TargetTopLevel);
         Assert.NotNull(hitRes.TargetVisual);
 
-        var mockCdp = new MockCdpService();
+        var mockCdp = new MemoryViewModelTests.MockCdpService();
         var simVm = new CdpInspectorApp.ViewModels.SimulationViewModel(mockCdp, () => null, () => false, _ => (null, null), () => false, _ => null, () => false);
         Assert.NotNull(simVm.TargetViews);
         Assert.NotEmpty(simVm.TargetViews);
