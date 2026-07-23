@@ -29,6 +29,8 @@ public static class DomDebuggerDomain
                     return new JsonObject { ["listeners"] = listeners };
                 }
 
+            case "enable":
+            case "disable":
             case "setEventListenerBreakpoint":
             case "removeEventListenerBreakpoint":
             case "removeDOMBreakpoint":
