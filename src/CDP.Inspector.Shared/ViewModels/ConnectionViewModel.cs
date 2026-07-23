@@ -25,6 +25,9 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
     {
         "http://127.0.0.1:9222",
         "http://127.0.0.1:9223",
+        "http://127.0.0.1:9224",
+        "http://127.0.0.1:9225",
+        "http://127.0.0.1:9226",
         "os://"
     };
 
