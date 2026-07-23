@@ -1,54 +1,8 @@
 using System;
 using System.Threading;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 
 namespace UnoSampleApp;
-
-public class App : Application
-{
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
-    {
-        var window = new Window();
-        
-        var stackPanel = new StackPanel
-        {
-            Spacing = 10,
-            Padding = new Thickness(20)
-        };
-
-        var textBlock = new TextBlock
-        {
-            Name = "txtTitle",
-            Text = "Uno CDP Sample Application",
-            FontSize = 24
-        };
-        stackPanel.Children.Add(textBlock);
-
-        var button = new Button
-        {
-            Name = "btnClickMe",
-            Content = "Click Me!"
-        };
-        button.Click += (s, e) =>
-        {
-            textBlock.Text = "Button Clicked!";
-        };
-        stackPanel.Children.Add(button);
-
-        var inputField = new TextBox
-        {
-            Name = "txtInput",
-            PlaceholderText = "Type something here..."
-        };
-        stackPanel.Children.Add(inputField);
-
-        window.Content = stackPanel;
-        window.Activate();
-
-        Console.WriteLine("Uno window created and activated.");
-    }
-}
 
 public static class Program
 {
@@ -70,26 +24,20 @@ public static class Program
 
         try
         {
-            Application.Start(_ => new App());
+            Application.Start(_ =>
+            {
+                var window = new MainWindow();
+                window.Activate();
+                WinUI.Diagnostics.Cdp.CdpServer.GetOrCreateTarget(window);
+            });
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Running application headless due to: {ex.Message}");
-            
-            // Headless mock setup for automated testing
-            var window = new Window();
-            var stackPanel = new StackPanel
-            {
-                Spacing = 10,
-                Padding = new Thickness(20)
-            };
 
-            var textBlock = new TextBlock { Name = "txtTitle", Text = "Headless Uno App" };
-            var button = new Button { Name = "btnClickMe", Content = "Click Me" };
-            stackPanel.Children.Add(textBlock);
-            stackPanel.Children.Add(button);
-            window.Content = stackPanel;
-            
+            // Headless target setup with MainWindow for headless/CI CDP testing
+            var window = new MainWindow();
+
             // Register window with server
             WinUI.Diagnostics.Cdp.CdpServer.GetOrCreateTarget(window);
 
