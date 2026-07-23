@@ -1,15 +1,27 @@
 <Project Sdk="Uno.Sdk/5.2.161">
-
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-desktop</TargetFramework>
+
     <OutputType>Exe</OutputType>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
     <UnoSingleProject>true</UnoSingleProject>
+
+    <!-- Display name -->
+    <ApplicationTitle>UnoSampleApp</ApplicationTitle>
+    <!-- App Identifier -->
+    <ApplicationId>com.companyname.unosampleapp</ApplicationId>
+    <ApplicationIdGuid>A1234567-89AB-CDEF-0123-456789ABCDEF</ApplicationIdGuid>
+    <!-- Versions -->
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <!-- Package Publisher -->
+    <ApplicationPublisher>UnoSampleApp</ApplicationPublisher>
+    <!-- Package Description -->
+    <Description>UnoSampleApp powered by Uno Platform.</Description>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Uno.WinUI.Runtime.Skia.MacOS" />
+    <PackageReference Include="Uno.WinUI.Runtime.Skia.Gtk" />
     <ProjectReference Include="../../src/Uno.Diagnostics.Cdp/Uno.Diagnostics.Cdp.csproj" />
   </ItemGroup>
 

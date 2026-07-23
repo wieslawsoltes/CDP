@@ -48,6 +48,8 @@
     <PackageVersion Include="ReactiveUI.SourceGenerators" Version="3.1.0" />
     <PackageVersion Include="Uno.WinUI" Version="5.2.161" />
     <PackageVersion Include="Uno.WinUI.Skia.Gtk" Version="5.2.161" />
+    <PackageVersion Include="Uno.WinUI.Runtime.Skia.Gtk" Version="5.2.161" />
+    <PackageVersion Include="Uno.WinUI.Runtime.Skia.MacOS" Version="5.2.161" />
     <PackageVersion Include="Microsoft.Diagnostics.NETCore.Client" Version="0.2.661903" />
     <PackageVersion Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.1.15" />
     <PackageVersion Include="JetBrains.Profiler.SelfApi" Version="2.5.18" />
