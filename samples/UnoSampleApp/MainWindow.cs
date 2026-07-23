@@ -59,6 +59,10 @@ public class MainWindow : Window
 
         var rootGrid = new Grid
         {
+            Width = 550,
+            Height = 520,
+            MinWidth = 550,
+            MinHeight = 520,
             Margin = new Thickness(10),
             DataContext = ViewModel
         };
