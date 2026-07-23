@@ -3,11 +3,26 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using UnoSampleApp.ViewModels;
 
 namespace UnoSampleApp;
+
+public class BoolToVisConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        return value is true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        return value is Visibility.Visible;
+    }
+}
 
 public class MainWindow : Window
 {
@@ -31,9 +46,21 @@ public class MainWindow : Window
         Title = "Uno CDP Inspector Sample";
         ViewModel = new MainWindowViewModel();
 
+        try
+        {
+            AppWindow?.Resize(new Windows.Graphics.SizeInt32 { Width = 550, Height = 520 });
+        }
+        catch
+        {
+            // Ignore platform specific window size exception
+        }
+
+        var boolToVis = new BoolToVisConverter();
+
         var rootGrid = new Grid
         {
-            Margin = new Thickness(10)
+            Margin = new Thickness(10),
+            DataContext = ViewModel
         };
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -53,33 +80,34 @@ public class MainWindow : Window
         {
             Name = "tabContainer"
         };
+        TabContainer.SetBinding(Pivot.SelectedIndexProperty, new Binding { Path = new PropertyPath("SelectedTabIndex"), Mode = BindingMode.TwoWay });
         Grid.SetRow(TabContainer, 1);
 
         TxtSliderVal = new TextBlock
         {
-            Name = "txtSliderVal",
-            Text = ViewModel.SliderValueText
+            Name = "txtSliderVal"
         };
+        TxtSliderVal.SetBinding(TextBlock.TextProperty, new Binding { Path = new PropertyPath("SliderValueText") });
 
         DoubleClickStatus = new TextBlock
         {
             Name = "DoubleClickStatus",
-            Text = ViewModel.DoubleClickStatus,
             VerticalAlignment = VerticalAlignment.Center
         };
+        DoubleClickStatus.SetBinding(TextBlock.TextProperty, new Binding { Path = new PropertyPath("DoubleClickStatus") });
 
         LongPressStatus = new TextBlock
         {
             Name = "LongPressStatus",
-            Text = ViewModel.LongPressStatus,
             VerticalAlignment = VerticalAlignment.Center
         };
+        LongPressStatus.SetBinding(TextBlock.TextProperty, new Binding { Path = new PropertyPath("LongPressStatus") });
 
         DragDropStatus = new TextBlock
         {
-            Name = "DragDropStatus",
-            Text = ViewModel.DragDropStatus
+            Name = "DragDropStatus"
         };
+        DragDropStatus.SetBinding(TextBlock.TextProperty, new Binding { Path = new PropertyPath("DragDropStatus") });
 
         // 1. Home Tab
         var homeItem = new PivotItem
@@ -125,9 +153,9 @@ public class MainWindow : Window
         TxtStatus = new TextBlock
         {
             Name = "txtStatus",
-            Text = ViewModel.StatusText,
             VerticalAlignment = VerticalAlignment.Center
         };
+        TxtStatus.SetBinding(TextBlock.TextProperty, new Binding { Path = new PropertyPath("StatusText") });
         homeButtons.Children.Add(TxtStatus);
         homeStack.Children.Add(homeButtons);
 
@@ -139,17 +167,16 @@ public class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Left
         };
         AutomationProperties.SetAutomationId(txtInput, "txtTarget");
-        txtInput.TextChanged += (s, e) => ViewModel.InputText = txtInput.Text;
+        txtInput.SetBinding(TextBox.TextProperty, new Binding { Path = new PropertyPath("InputText"), Mode = BindingMode.TwoWay });
         homeStack.Children.Add(txtInput);
 
         var chkToggle = new CheckBox
         {
             Name = "chkToggle",
-            Content = "Enable Option",
-            IsChecked = ViewModel.IsOptionEnabled
+            Content = "Enable Option"
         };
         AutomationProperties.SetAutomationId(chkToggle, "chkToggle");
-        chkToggle.Click += (s, e) => ViewModel.IsOptionEnabled = chkToggle.IsChecked == true;
+        chkToggle.SetBinding(ToggleButton.IsCheckedProperty, new Binding { Path = new PropertyPath("IsOptionEnabled"), Mode = BindingMode.TwoWay });
         homeStack.Children.Add(chkToggle);
 
         var sliderValue = new Slider
@@ -157,16 +184,11 @@ public class MainWindow : Window
             Name = "sliderValue",
             Minimum = 0,
             Maximum = 100,
-            Value = ViewModel.SliderValue,
             Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left
         };
         AutomationProperties.SetAutomationId(sliderValue, "sliderValue");
-        sliderValue.ValueChanged += (s, e) =>
-        {
-            ViewModel.SliderValue = e.NewValue;
-            TxtSliderVal.Text = ViewModel.SliderValueText;
-        };
+        sliderValue.SetBinding(Slider.ValueProperty, new Binding { Path = new PropertyPath("SliderValue"), Mode = BindingMode.TwoWay });
         homeStack.Children.Add(sliderValue);
         homeStack.Children.Add(TxtSliderVal);
 
@@ -187,11 +209,11 @@ public class MainWindow : Window
             Name = "progressVal",
             Minimum = 0,
             Maximum = 100,
-            Value = ViewModel.SliderValue,
             Height = 15,
             Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left
         };
+        progressVal.SetBinding(RangeBase.ValueProperty, new Binding { Path = new PropertyPath("SliderValue") });
         homeStack.Children.Add(progressVal);
 
         homeScroll.Content = homeStack;
@@ -260,7 +282,7 @@ public class MainWindow : Window
             Width = 120,
             Margin = new Thickness(0, 20, 0, 0)
         };
-        btnGoBack.Click += (s, e) => TabContainer.SelectedIndex = 0;
+        btnGoBack.Click += (s, e) => ViewModel.GoBack();
         aboutStack.Children.Add(btnGoBack);
         aboutItem.Content = aboutStack;
         TabContainer.Items.Add(aboutItem);
@@ -288,7 +310,6 @@ public class MainWindow : Window
         {
             ViewModel.DoubleClickedCount++;
             ViewModel.DoubleClickStatus = $"Double Clicked {ViewModel.DoubleClickedCount} times!";
-            DoubleClickStatus.Text = ViewModel.DoubleClickStatus;
         };
         doubleClickStack.Children.Add(btnDoubleClick);
         doubleClickStack.Children.Add(DoubleClickStatus);
@@ -309,7 +330,6 @@ public class MainWindow : Window
             {
                 ViewModel.LongPressedCount++;
                 ViewModel.LongPressStatus = $"Long Pressed {ViewModel.LongPressedCount} times!";
-                LongPressStatus.Text = ViewModel.LongPressStatus;
             }
         };
         longPressStack.Children.Add(btnLongPress);
@@ -319,11 +339,11 @@ public class MainWindow : Window
         var txtClearTarget = new TextBox
         {
             Name = "txtClearTarget",
-            Text = ViewModel.ClearTargetText,
             PlaceholderText = "Clear target text...",
             Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left
         };
+        txtClearTarget.SetBinding(TextBox.TextProperty, new Binding { Path = new PropertyPath("ClearTargetText"), Mode = BindingMode.TwoWay });
         gesturesStack.Children.Add(txtClearTarget);
 
         var dragDropStack = new StackPanel { Spacing = 10 };
@@ -355,7 +375,6 @@ public class MainWindow : Window
             if (_dragSourcePressed)
             {
                 ViewModel.DragDropStatus = "Dropped Successfully!";
-                DragDropStatus.Text = ViewModel.DragDropStatus;
                 _dragSourcePressed = false;
             }
         };
@@ -388,6 +407,7 @@ public class MainWindow : Window
             Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left
         };
+        txtKeyInput.KeyDown += (s, e) => ViewModel.LastPressedKey = e.Key.ToString();
         assertsStack.Children.Add(txtKeyInput);
 
         TxtVisibilityTarget = new TextBlock
@@ -395,9 +415,9 @@ public class MainWindow : Window
             Name = "txtVisibilityTarget",
             Text = "Visibility Target Text",
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Visibility = Visibility.Visible
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         };
+        TxtVisibilityTarget.SetBinding(UIElement.VisibilityProperty, new Binding { Path = new PropertyPath("IsVisibleTarget"), Converter = boolToVis });
 
         var btnToggleVisibility = new Button
         {
@@ -405,11 +425,7 @@ public class MainWindow : Window
             Content = "Toggle Visibility",
             Width = 150
         };
-        btnToggleVisibility.Click += (s, e) =>
-        {
-            ViewModel.ToggleVisibility();
-            TxtVisibilityTarget.Visibility = ViewModel.IsVisibleTarget ? Visibility.Visible : Visibility.Collapsed;
-        };
+        btnToggleVisibility.Click += (s, e) => ViewModel.ToggleVisibility();
         assertsStack.Children.Add(btnToggleVisibility);
         assertsStack.Children.Add(TxtVisibilityTarget);
 
@@ -457,11 +473,11 @@ public class MainWindow : Window
         AutomationProperties.SetAutomationId(menuFlyout, "contextMenu");
 
         var item1 = new MenuFlyoutItem { Name = "menuItem1", Text = "Menu Item 1" };
-        item1.Click += (s, e) => UpdatePopupStatus($"Selected Menu: {item1.Text}");
+        item1.Click += (s, e) => ViewModel.PopupStatus = $"Selected Menu: {item1.Text}";
         menuFlyout.Items.Add(item1);
 
         var item2 = new MenuFlyoutItem { Name = "menuItem2", Text = "Menu Item 2" };
-        item2.Click += (s, e) => UpdatePopupStatus($"Selected Menu: {item2.Text}");
+        item2.Click += (s, e) => ViewModel.PopupStatus = $"Selected Menu: {item2.Text}";
         menuFlyout.Items.Add(item2);
 
         btnContextMenu.ContextFlyout = menuFlyout;
@@ -490,7 +506,7 @@ public class MainWindow : Window
         };
         btnInsideFlyout.Click += (s, e) =>
         {
-            UpdatePopupStatus("Clicked Inside Flyout!");
+            ViewModel.PopupStatus = "Clicked Inside Flyout!";
             flyout.Hide();
         };
         flyoutContentStack.Children.Add(btnInsideFlyout);
@@ -505,10 +521,10 @@ public class MainWindow : Window
         TxtPopupStatus = new TextBlock
         {
             Name = "txtPopupStatus",
-            Text = ViewModel.PopupStatus,
             FontSize = 14,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         };
+        TxtPopupStatus.SetBinding(TextBlock.TextProperty, new Binding { Path = new PropertyPath("PopupStatus") });
         popupStatusStack.Children.Add(TxtPopupStatus);
         popupsStack.Children.Add(popupStatusStack);
 
@@ -537,15 +553,6 @@ public class MainWindow : Window
         else
         {
             TabContainer.SelectedIndex = 0; // Home tab
-        }
-    }
-
-    private void UpdatePopupStatus(string status)
-    {
-        ViewModel.PopupStatus = status;
-        if (TxtPopupStatus != null)
-        {
-            TxtPopupStatus.Text = status;
         }
     }
 }
