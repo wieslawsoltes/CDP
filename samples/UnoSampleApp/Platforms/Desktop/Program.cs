@@ -1,5 +1,6 @@
 using System;
 using Microsoft.UI.Xaml;
+using Uno.UI.Runtime.Skia.Gtk;
 
 namespace UnoSampleApp;
 
@@ -10,14 +11,7 @@ internal class Program
     {
         App.InitializeLogging();
 
-        try
-        {
-            var gtkHost = new Uno.UI.Runtime.Skia.Gtk.GtkHost(() => new App());
-            gtkHost.Run();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"GTK Host error: {ex.Message}");
-        }
+        var host = new GtkHost(() => new App());
+        host.Run();
     }
 }
