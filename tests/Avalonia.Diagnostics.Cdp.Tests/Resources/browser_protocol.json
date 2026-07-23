@@ -30789,6 +30789,16 @@
                             "name": "backupState",
                             "optional": true,
                             "type": "boolean"
+                        },
+                        {
+                            "name": "activeCmtgKeyIndex",
+                            "optional": true,
+                            "type": "integer"
+                        },
+                        {
+                            "name": "generateCmtgKeyOnNextOperation",
+                            "optional": true,
+                            "type": "boolean"
                         }
                     ]
                 }

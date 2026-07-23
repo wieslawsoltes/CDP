@@ -64,6 +64,9 @@ public class ViewsLayoutTests
             var scratchView = new ScratchView();
             Assert.NotNull(scratchView);
 
+            var eventsView = new EventsView();
+            Assert.NotNull(eventsView);
+
             var scratchDomNodeView = new ScratchDomNodeView();
             Assert.NotNull(scratchDomNodeView);
 
@@ -210,6 +213,34 @@ public class ViewsLayoutTests
         Assert.NotNull(superSplit);
         superSplit.Rebuild();
         Assert.NotNull(superSplit.Content);
+    }
+
+    [AvaloniaFact]
+    public void Test_HitTestAllRoots_And_TargetViews()
+    {
+        var window = new Window { Width = 800, Height = 600, Title = "Test Window" };
+        try
+        {
+            var button = new Button { Width = 100, Height = 30, Content = "Click Me" };
+            window.Content = button;
+            window.Show();
+
+            var hitRes = Avalonia.Diagnostics.Cdp.CdpVisualTreeHelper.HitTestAllRoots(window, new Avalonia.Point(10, 10));
+            Assert.NotNull(hitRes);
+            Assert.NotNull(hitRes.TargetTopLevel);
+            Assert.NotNull(hitRes.TargetVisual);
+
+            var mockCdp = new MemoryViewModelTests.MockCdpService();
+            var simVm = new CdpInspectorApp.ViewModels.SimulationViewModel(mockCdp, () => null, () => false, _ => (null, null), () => false, _ => null, () => false);
+            Assert.NotNull(simVm.TargetViews);
+            Assert.NotEmpty(simVm.TargetViews);
+            Assert.Contains(simVm.TargetViews, x => x.Id == "all");
+            Assert.Contains(simVm.TargetViews, x => x.Id == "main");
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
@@ -1469,5 +1500,184 @@ public class ViewsLayoutTests
         testStudioVm.ManageEnvironmentsCommand.Execute(null);
         Assert.Equal("settings", testStudioVm.ActiveSidebarTab);
         Assert.Equal(4, testStudioVm.ActiveSidebarTabIndex);
+    }
+
+    [Fact]
+    public void Test_SimulationViewModel_Zoom_And_Pan_Features()
+    {
+        var mockService = new MemoryViewModelTests.MockCdpService();
+        var mainVm = new MainWindowViewModel(mockService);
+        var simVm = mainVm.Simulation;
+
+        Assert.NotNull(simVm);
+        Assert.Equal(1.0, simVm.ZoomLevel);
+        Assert.True(simVm.IsFitZoomActive);
+        Assert.Equal("Fit", simVm.ZoomLevelText);
+        Assert.Equal(0.0, simVm.PanX);
+        Assert.Equal(0.0, simVm.PanY);
+        Assert.False(simVm.IsPanModeActive);
+        Assert.True(simVm.IsWindowFrameVisible);
+
+        // Test ZoomIn
+        simVm.ZoomInCommand.Execute(null);
+        Assert.False(simVm.IsFitZoomActive);
+        Assert.Equal(1.25, simVm.ZoomLevel);
+        Assert.Equal("125%", simVm.ZoomLevelText);
+
+        // Test ZoomOut
+        simVm.ZoomOutCommand.Execute(null);
+        Assert.Equal(1.0, simVm.ZoomLevel);
+        Assert.Equal("100%", simVm.ZoomLevelText);
+
+        // Test ZoomPreset
+        simVm.SelectedZoomPreset = "200%";
+        Assert.Equal(2.0, simVm.ZoomLevel);
+        Assert.Equal("200%", simVm.ZoomLevelText);
+
+        // Test ToggleFitZoom
+        simVm.ToggleFitZoomCommand.Execute(null);
+        Assert.True(simVm.IsFitZoomActive);
+        Assert.Equal("Fit", simVm.ZoomLevelText);
+
+        // Test Pan state
+        simVm.PanX = 50.0;
+        simVm.PanY = -25.0;
+        Assert.Equal(50.0, simVm.PanX);
+        Assert.Equal(-25.0, simVm.PanY);
+
+        simVm.ResetPanCommand.Execute(null);
+        Assert.Equal(0.0, simVm.PanX);
+        Assert.Equal(0.0, simVm.PanY);
+
+        simVm.TogglePanModeCommand.Execute(null);
+        Assert.True(simVm.IsPanModeActive);
+
+        simVm.ToggleWindowFrameCommand.Execute(null);
+        Assert.False(simVm.IsWindowFrameVisible);
+
+        // Test State persistence
+        var savedState = simVm.SaveState() as System.Text.Json.Nodes.JsonObject;
+        Assert.NotNull(savedState);
+        Assert.Equal(2.0, (double?)savedState["zoomLevel"]);
+        Assert.Equal(false, (bool?)savedState["isWindowFrameVisible"]);
+
+        // Reset and restore
+        simVm.IsWindowFrameVisible = true;
+        simVm.LoadState(savedState);
+        Assert.False(simVm.IsWindowFrameVisible);
+    }
+
+    [AvaloniaFact]
+    public void Test_SimulationView_Layout_And_Controls_Rendering()
+    {
+        var app = Avalonia.Application.Current;
+        Assert.NotNull(app);
+
+        var sharedStyles = new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://Avalonia.Diagnostics.Cdp.Tests/"))
+        {
+            Source = new Uri("avares://CDP.Inspector.Shared/Styles.axaml")
+        };
+        app.Styles.Add(sharedStyles);
+
+        Window? window = null;
+        try
+        {
+            var mockService = new MemoryViewModelTests.MockCdpService();
+            var mainVm = new MainWindowViewModel(mockService);
+            var simView = new SimulationView
+            {
+                DataContext = mainVm
+            };
+
+            window = new Window { Width = 1200, Height = 900, Content = simView };
+            window.Show();
+            simView.UpdateLayout();
+
+            // Verify controls inside SimulationView render cleanly
+            var imgScreenshot = simView.FindControl<Image>("imgScreenshot");
+            Assert.NotNull(imgScreenshot);
+
+            var cmbZoomPresets = simView.FindControl<ComboBox>("cmbZoomPresets");
+            Assert.NotNull(cmbZoomPresets);
+
+            var borderVirtualWindowFrame = simView.FindControl<Border>("borderVirtualWindowFrame");
+            Assert.NotNull(borderVirtualWindowFrame);
+
+            var handleResizeTop = simView.FindControl<Border>("handleResizeTop");
+            Assert.NotNull(handleResizeTop);
+            var handleResizeBottom = simView.FindControl<Border>("handleResizeBottom");
+            Assert.NotNull(handleResizeBottom);
+            var handleResizeLeft = simView.FindControl<Border>("handleResizeLeft");
+            Assert.NotNull(handleResizeLeft);
+            var handleResizeRight = simView.FindControl<Border>("handleResizeRight");
+            Assert.NotNull(handleResizeRight);
+            var handleResizeTopLeft = simView.FindControl<Border>("handleResizeTopLeft");
+            Assert.NotNull(handleResizeTopLeft);
+            var handleResizeTopRight = simView.FindControl<Border>("handleResizeTopRight");
+            Assert.NotNull(handleResizeTopRight);
+            var handleResizeBottomLeft = simView.FindControl<Border>("handleResizeBottomLeft");
+            Assert.NotNull(handleResizeBottomLeft);
+            var handleResizeBottomRight = simView.FindControl<Border>("handleResizeBottomRight");
+            Assert.NotNull(handleResizeBottomRight);
+
+            var btnDeviceSettingsFlyout = simView.FindControl<Button>("btnDeviceSettingsFlyout");
+            Assert.NotNull(btnDeviceSettingsFlyout);
+
+            var btnViewOptionsFlyout = simView.FindControl<Button>("btnViewOptionsFlyout");
+            Assert.NotNull(btnViewOptionsFlyout);
+
+            var btnPreviewSettingsFlyout = simView.FindControl<Button>("btnPreviewSettingsFlyout");
+            Assert.NotNull(btnPreviewSettingsFlyout);
+
+            // Verify IsSimulationContextMenuEnabled toggle defaults to true and can be toggled
+            Assert.True(mainVm.Simulation.IsSimulationContextMenuEnabled);
+            mainVm.Simulation.IsSimulationContextMenuEnabled = false;
+            Assert.False(mainVm.Simulation.IsSimulationContextMenuEnabled);
+            mainVm.Simulation.IsSimulationContextMenuEnabled = true;
+
+            // Verify virtual window title bar width updates to match DeviceWidth
+            mainVm.Simulation.WidthText = "1200";
+            mainVm.Simulation.ResizeCommand.Execute(null);
+            simView.UpdateLayout();
+            Assert.Equal(1200, borderVirtualWindowFrame.Width);
+
+            // Verify icon resources resolve from shared styles
+            Assert.NotNull(app.FindResource("ZoomOutIcon"));
+            Assert.NotNull(app.FindResource("ZoomInIcon"));
+            Assert.NotNull(app.FindResource("HandIcon"));
+            Assert.NotNull(app.FindResource("WindowIcon"));
+            Assert.NotNull(app.FindResource("MinimizeIcon"));
+            Assert.NotNull(app.FindResource("MaximizeIcon"));
+        }
+        finally
+        {
+            window?.Close();
+            app.Styles.Remove(sharedStyles);
+        }
+    }
+
+    [AvaloniaFact]
+    public void Test_CdpVisualTreeHelper_CompositeOpenPopups_Executes_Without_Errors()
+    {
+        var app = Avalonia.Application.Current;
+        Assert.NotNull(app);
+
+        Window? win = null;
+        try
+        {
+            win = new Window { Width = 800, Height = 600, Title = "Popup Test Window" };
+            win.Show();
+
+            using var skBitmap = new SkiaSharp.SKBitmap(800, 600);
+            using var canvas = new SkiaSharp.SKCanvas(skBitmap);
+            canvas.Clear(SkiaSharp.SKColors.DarkGray);
+
+            // Verify CompositeOpenPopups runs cleanly on window and bitmap without throwing exceptions
+            CdpVisualTreeHelper.CompositeOpenPopups(win, skBitmap, 1.0);
+        }
+        finally
+        {
+            win?.Close();
+        }
     }
 }

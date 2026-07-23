@@ -200,6 +200,13 @@ public static class PageDomain
                     return new JsonObject();
                 }
 
+            case "setTargetViewMode":
+                {
+                    string viewMode = @params["targetViewId"]?.GetValue<string>() ?? "all";
+                    session.TargetViewMode = viewMode;
+                    return new JsonObject();
+                }
+
             case "navigate":
                 {
                     string url = @params["url"]?.GetValue<string>() ?? "";
@@ -964,11 +971,18 @@ public static class PageDomain
 
                 using var ms = new MemoryStream();
                 bitmap.Save(ms);
-                
-                var bytes = ms.ToArray();
-                if (bytes.Length > 0)
+                ms.Position = 0;
+
+                using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
+                if (skBitmap != null)
                 {
-                    return Convert.ToBase64String(bytes);
+                    CdpVisualTreeHelper.CompositeAllWindowsAndPopups(window, skBitmap, scale);
+                    using var data = skBitmap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+                    var bytes = data?.ToArray() ?? Array.Empty<byte>();
+                    if (bytes.Length > 0)
+                    {
+                        return Convert.ToBase64String(bytes);
+                    }
                 }
             }
             catch (Exception ex)

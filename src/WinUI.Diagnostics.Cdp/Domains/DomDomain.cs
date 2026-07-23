@@ -462,13 +462,19 @@ public static class DomDomain
         {
             return textBox.Text;
         }
-        if (ctrl is ContentControl contentControl && contentControl.Content is string contentStr)
+        if (ctrl is Microsoft.UI.Xaml.Controls.MenuFlyoutItem menuFlyoutItem)
         {
-            return contentStr;
+            return menuFlyoutItem.Text;
         }
-        if (ctrl is ContentPresenter contentPresenter && contentPresenter.Content is string contentPresenterStr)
+        if (ctrl is ContentControl contentControl)
         {
-            return contentPresenterStr;
+            if (contentControl.Content is string contentStr) return contentStr;
+            if (contentControl.Content != null) return contentControl.Content.ToString();
+        }
+        if (ctrl is ContentPresenter contentPresenter)
+        {
+            if (contentPresenter.Content is string contentPresenterStr) return contentPresenterStr;
+            if (contentPresenter.Content != null) return contentPresenter.Content.ToString();
         }
         return null;
     }

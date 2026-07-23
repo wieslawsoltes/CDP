@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -77,6 +78,8 @@ internal class SessionRecorderState
     private bool _isDragging = false;
     private int _clickCount = 1;
 
+    private readonly HashSet<TopLevel> _attachedTopLevels = new();
+
     public SessionRecorderState(CdpSession session, bool useAutomation = false)
     {
         _session = session;
@@ -90,15 +93,60 @@ internal class SessionRecorderState
         _keyDownHandler = OnKeyDown;
     }
 
+    private void EnsureAttachedToTopLevel(TopLevel? topLevel)
+    {
+        if (topLevel == null || _attachedTopLevels.Contains(topLevel)) return;
+        try
+        {
+            topLevel.AddHandler(InputElement.PointerPressedEvent, _pointerPressedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+            topLevel.AddHandler(InputElement.PointerMovedEvent, _pointerMovedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+            topLevel.AddHandler(InputElement.PointerReleasedEvent, _pointerReleasedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+            topLevel.AddHandler(InputElement.PointerWheelChangedEvent, _pointerWheelChangedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+            topLevel.AddHandler(InputElement.GotFocusEvent, _gotFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+            topLevel.AddHandler(InputElement.LostFocusEvent, _lostFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+            topLevel.AddHandler(InputElement.KeyDownEvent, _keyDownHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+            _attachedTopLevels.Add(topLevel);
+        }
+        catch { }
+    }
+
+    private void EnsureAttachedToAllTopLevelsAndPopups()
+    {
+        EnsureAttachedToTopLevel(_session.Window);
+
+        foreach (var target in CdpServer.GetWindows())
+        {
+            if (target.Window != null)
+            {
+                EnsureAttachedToTopLevel(target.Window);
+            }
+        }
+
+        try
+        {
+            var openPopups = new List<Popup>();
+            var visited = new HashSet<Visual>();
+            CdpVisualTreeHelper.FindOpenPopups(_session.Window, openPopups, visited);
+
+            foreach (var popup in openPopups)
+            {
+                var content = CdpVisualTreeHelper.GetPopupContent(popup);
+                if (content != null)
+                {
+                    var topLevel = TopLevel.GetTopLevel(content);
+                    if (topLevel != null)
+                    {
+                        EnsureAttachedToTopLevel(topLevel);
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
     public void Attach()
     {
-        _session.Window.AddHandler(InputElement.PointerPressedEvent, _pointerPressedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
-        _session.Window.AddHandler(InputElement.PointerMovedEvent, _pointerMovedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
-        _session.Window.AddHandler(InputElement.PointerReleasedEvent, _pointerReleasedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
-        _session.Window.AddHandler(InputElement.PointerWheelChangedEvent, _pointerWheelChangedHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
-        _session.Window.AddHandler(InputElement.GotFocusEvent, _gotFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
-        _session.Window.AddHandler(InputElement.LostFocusEvent, _lostFocusHandler, RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
-        _session.Window.AddHandler(InputElement.KeyDownEvent, _keyDownHandler, RoutingStrategies.Tunnel, handledEventsToo: true);
+        EnsureAttachedToAllTopLevelsAndPopups();
 
         // Emit initial viewport size
         var size = _session.Window.ClientSize;
@@ -125,13 +173,21 @@ internal class SessionRecorderState
 
     public void Detach()
     {
-        _session.Window.RemoveHandler(InputElement.PointerPressedEvent, _pointerPressedHandler);
-        _session.Window.RemoveHandler(InputElement.PointerMovedEvent, _pointerMovedHandler);
-        _session.Window.RemoveHandler(InputElement.PointerReleasedEvent, _pointerReleasedHandler);
-        _session.Window.RemoveHandler(InputElement.PointerWheelChangedEvent, _pointerWheelChangedHandler);
-        _session.Window.RemoveHandler(InputElement.GotFocusEvent, _gotFocusHandler);
-        _session.Window.RemoveHandler(InputElement.LostFocusEvent, _lostFocusHandler);
-        _session.Window.RemoveHandler(InputElement.KeyDownEvent, _keyDownHandler);
+        foreach (var topLevel in _attachedTopLevels.ToList())
+        {
+            try
+            {
+                topLevel.RemoveHandler(InputElement.PointerPressedEvent, _pointerPressedHandler);
+                topLevel.RemoveHandler(InputElement.PointerMovedEvent, _pointerMovedHandler);
+                topLevel.RemoveHandler(InputElement.PointerReleasedEvent, _pointerReleasedHandler);
+                topLevel.RemoveHandler(InputElement.PointerWheelChangedEvent, _pointerWheelChangedHandler);
+                topLevel.RemoveHandler(InputElement.GotFocusEvent, _gotFocusHandler);
+                topLevel.RemoveHandler(InputElement.LostFocusEvent, _lostFocusHandler);
+                topLevel.RemoveHandler(InputElement.KeyDownEvent, _keyDownHandler);
+            }
+            catch { }
+        }
+        _attachedTopLevels.Clear();
         _initialTexts.Clear();
     }
 
@@ -165,12 +221,48 @@ internal class SessionRecorderState
         }
     }
 
+    private Visual? ResolveHitVisual(object? sender, RoutedEventArgs e, Point position)
+    {
+        EnsureAttachedToAllTopLevelsAndPopups();
+
+        if (e.Source is Visual sourceVisual)
+        {
+            var hitTop = TopLevel.GetTopLevel(sourceVisual);
+            if (hitTop != null) EnsureAttachedToTopLevel(hitTop);
+            return sourceVisual;
+        }
+
+        var topLevel = (sender as TopLevel) ?? TopLevel.GetTopLevel(e.Source as Visual);
+        if (topLevel != null)
+        {
+            EnsureAttachedToTopLevel(topLevel);
+            var visual = topLevel.InputHitTest(position) as Visual;
+            if (visual != null) return visual;
+        }
+
+        if (_session.Window != null)
+        {
+            var res = CdpVisualTreeHelper.HitTestAllRoots(_session.Window, position, _session.TargetViewMode);
+            var visual = res.HitVisual;
+            if (visual != null)
+            {
+                var hitTop = TopLevel.GetTopLevel(visual);
+                if (hitTop != null) EnsureAttachedToTopLevel(hitTop);
+                return visual;
+            }
+        }
+
+        return null;
+    }
+
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (_session.InspectModeEnabled) return;
+        EnsureAttachedToAllTopLevelsAndPopups();
 
-        var hit = _session.Window.InputHitTest(e.GetPosition(_session.Window)) as Visual;
-        var visual = hit ?? (e.Source as Visual);
+        var topLevel = (sender as TopLevel) ?? TopLevel.GetTopLevel(e.Source as Visual) ?? _session.Window;
+        var pos = e.GetPosition(topLevel);
+        var visual = ResolveHitVisual(sender, e, pos);
         if (visual == null) return;
 
         var logical = _session.FindLogicalNode(visual);
@@ -179,7 +271,7 @@ internal class SessionRecorderState
 
         _isPointerDown = true;
         _dragStartControl = control;
-        _dragStartPos = e.GetPosition(_session.Window);
+        _dragStartPos = pos;
         _dragStartLocalPos = e.GetPosition(control);
         _isDragging = false;
         _clickCount = e.ClickCount;
@@ -189,7 +281,8 @@ internal class SessionRecorderState
     {
         if (!_isPointerDown || _dragStartControl == null) return;
 
-        var currentPos = e.GetPosition(_session.Window);
+        var topLevel = (sender as TopLevel) ?? TopLevel.GetTopLevel(e.Source as Visual) ?? _session.Window;
+        var currentPos = e.GetPosition(topLevel);
         double dx = currentPos.X - _dragStartPos.X;
         double dy = currentPos.Y - _dragStartPos.Y;
         double distance = Math.Sqrt(dx * dx + dy * dy);
@@ -210,34 +303,14 @@ internal class SessionRecorderState
 
         if (startControl == null) return;
 
-        var releasePos = e.GetPosition(_session.Window);
-        var hit = _session.Window.InputHitTest(releasePos) as Visual;
-        var endVisual = hit ?? (e.Source as Visual);
+        var topLevel = (sender as TopLevel) ?? TopLevel.GetTopLevel(e.Source as Visual) ?? _session.Window;
+        var releasePos = e.GetPosition(topLevel);
+        var endVisual = ResolveHitVisual(sender, e, releasePos);
         Control? endControl = null;
         if (endVisual != null)
         {
             var logical = _session.FindLogicalNode(endVisual);
             endControl = (logical as Control) ?? (endVisual as Control);
-        }
-
-        if (endControl != null)
-        {
-            if (endControl == startControl || IsDescendantOf(endControl, startControl))
-            {
-                var current = endControl as Visual;
-                while (current != null)
-                {
-                    if (current != startControl && !IsDescendantOf(current, startControl))
-                    {
-                        if (current is Control parentControl)
-                        {
-                            endControl = parentControl;
-                            break;
-                        }
-                    }
-                    current = current.GetVisualParent();
-                }
-            }
         }
         if (endControl == null) endControl = startControl;
 
@@ -308,8 +381,9 @@ internal class SessionRecorderState
     {
         if (_session.InspectModeEnabled) return;
 
-        var hit = _session.Window.InputHitTest(e.GetPosition(_session.Window)) as Visual;
-        var visual = hit ?? (e.Source as Visual);
+        var topLevel = (sender as TopLevel) ?? TopLevel.GetTopLevel(e.Source as Visual) ?? _session.Window;
+        var pos = e.GetPosition(topLevel);
+        var visual = ResolveHitVisual(sender, e, pos);
         if (visual == null) return;
 
         var logical = _session.FindLogicalNode(visual);

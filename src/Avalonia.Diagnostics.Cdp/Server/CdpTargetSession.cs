@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
@@ -333,24 +334,48 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                         rawPngLength = rawPngBytes.Length;
                     }
 
-                    // Delta Compression / Change Detection: compare raw pixels to previous frame
+                    bool hasPopupsOrSecondaryWindows = false;
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        hasPopupsOrSecondaryWindows = CdpVisualTreeHelper.HasSecondaryWindowsOrPopups(Window);
+                    });
+
+                    if (hasPopupsOrSecondaryWindows)
+                    {
+                        using var msPopups = new MemoryStream(rawPngBytes, 0, rawPngLength);
+                        using var skBitmapPopups = SkiaSharp.SKBitmap.Decode(msPopups);
+                        if (skBitmapPopups != null)
+                        {
+                            await Dispatcher.UIThread.InvokeAsync(() =>
+                            {
+                                CdpVisualTreeHelper.CompositeAllWindowsAndPopups(Window, skBitmapPopups, scale, _session.TargetViewMode);
+                            });
+
+                            using var compositedStream = new MemoryStream();
+                            if (skBitmapPopups.Encode(compositedStream, SkiaSharp.SKEncodedImageFormat.Png, 100))
+                            {
+                                rawPngBytes = compositedStream.ToArray();
+                                rawPngLength = rawPngBytes.Length;
+                            }
+                        }
+                    }
+
+                    // Delta Compression / Change Detection: compare raw pixels (including composited popups/windows) to previous frame
                     var currentFrameSpan = new ReadOnlySpan<byte>(rawPngBytes, 0, rawPngLength);
                     if (_lastSentFrameBytes != null && currentFrameSpan.SequenceEqual(_lastSentFrameBytes))
                     {
-                        // Release ack signal permit since we are skipping this frame
                         try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
+                        await Task.Delay(33, _cts.Token);
                         continue;
                     }
 
                     _lastSentFrameBytes = currentFrameSpan.ToArray();
 
-                    try
+                    using var ms = new MemoryStream(rawPngBytes, 0, rawPngLength);
+                    using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
+                    if (skBitmap != null)
                     {
-                        using var ms = new MemoryStream(rawPngBytes, 0, rawPngLength);
-                        using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
-                        if (skBitmap != null)
-                        {
-                            pixelWidth = skBitmap.Width;
+                        pixelWidth = skBitmap.Width;
                             pixelHeight = skBitmap.Height;
 
                             double resizeScale = 1.0;
@@ -503,15 +528,10 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                             }
                         }
                     }
-                    catch (Exception ex)
+                    catch (OperationCanceledException)
                     {
-                        Logger.LogScreencastError("Inner Exception", ex);
+                        break;
                     }
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
                 catch (Exception ex)
                 {
                     Logger.LogScreencastError("Outer Exception", ex);
@@ -678,6 +698,28 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
         StopObservingVisualTree();
         IsDomEnabled = true;
         SubscribeToVisual(Window);
+
+        var openPopups = new List<Popup>();
+        var visited = new HashSet<Visual>();
+        foreach (var target in CdpServer.GetWindows())
+        {
+            if (target.Window != null)
+            {
+                if (target.Window != Window)
+                {
+                    SubscribeToVisual(target.Window);
+                }
+                CdpVisualTreeHelper.FindOpenPopups(target.Window, openPopups, visited);
+            }
+        }
+        foreach (var popup in openPopups)
+        {
+            var content = CdpVisualTreeHelper.GetPopupContent(popup);
+            if (content != null)
+            {
+                SubscribeToVisual(content);
+            }
+        }
     }
 
     public override void StopObservingVisualTree()
@@ -1129,6 +1171,50 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
             {
                 _ = _session.SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Text", ["value"] = text }, this);
             }
+        }
+        else if (e.Property.Name == "IsOpen")
+        {
+            var isOpen = e.NewValue as bool? ?? false;
+            _ = _session.SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "IsOpen", ["value"] = isOpen.ToString().ToLowerInvariant() }, this);
+
+            if (isOpen)
+            {
+                if (sender is Popup popup)
+                {
+                    var content = CdpVisualTreeHelper.GetPopupContent(popup);
+                    if (content != null)
+                    {
+                        SubscribeToVisual(content);
+                    }
+                }
+                else if (sender is ContextMenu cm)
+                {
+                    var internalPopup = CdpVisualTreeHelper.GetInternalPopup(cm);
+                    if (internalPopup != null)
+                    {
+                        var content = CdpVisualTreeHelper.GetPopupContent(internalPopup);
+                        if (content != null)
+                        {
+                            SubscribeToVisual(content);
+                        }
+                    }
+                }
+                else if (sender is FlyoutBase flyout)
+                {
+                    var internalPopup = CdpVisualTreeHelper.GetInternalPopup(flyout);
+                    if (internalPopup != null)
+                    {
+                        var content = CdpVisualTreeHelper.GetPopupContent(internalPopup);
+                        if (content != null)
+                        {
+                            SubscribeToVisual(content);
+                        }
+                    }
+                }
+            }
+
+            _ = _session.SendEventAsync("DOM.documentUpdated", new JsonObject(), this);
+            _ = _session.SendEventAsync("Accessibility.axTreeUpdated", new JsonObject(), this);
         }
     }
 

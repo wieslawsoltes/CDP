@@ -831,7 +831,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
                 });
             }
         }
-        else if (e.Method == "DOM.documentUpdated" || e.Method == "DOM.childNodeInserted" || e.Method == "DOM.childNodeRemoved")
+        else if (e.Method == "DOM.documentUpdated" || e.Method == "DOM.childNodeInserted" || e.Method == "DOM.childNodeRemoved" || e.Method == "Accessibility.axTreeUpdated")
         {
             Dispatcher.UIThread.Post(async () =>
             {

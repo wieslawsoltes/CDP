@@ -206,4 +206,68 @@ public static class CdpVisualTreeHelper
         }
         return IntPtr.Zero;
     }
+
+    public record HitTestResult(UIElement? Target, Window? TargetWindow, Point LocalPoint);
+
+    public static HitTestResult HitTestAllRoots(Window primaryWindow, Point mousePos, string targetViewMode = "composite")
+    {
+        if (primaryWindow == null || primaryWindow.Content == null)
+        {
+            return new HitTestResult(null, null, mousePos);
+        }
+
+        var windows = CdpServer.GetWindows().ToList();
+
+        // Check popups in main and secondary windows
+        foreach (var target in windows)
+        {
+            var win = target.Window;
+            if (win != null && win.Content != null && win.Content.XamlRoot != null)
+            {
+                var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
+                if (popups != null)
+                {
+                    foreach (var popup in popups)
+                    {
+                        if (popup != null && popup.Child is UIElement childUI && childUI.Visibility == Visibility.Visible)
+                        {
+                            Point popupLocalPoint = mousePos;
+                            try
+                            {
+                                var transform = primaryWindow.Content.TransformToVisual(childUI);
+                                popupLocalPoint = transform.TransformPoint(mousePos);
+                            }
+                            catch { }
+
+                            var elements = VisualTreeHelper.FindElementsInHostCoordinates(popupLocalPoint, childUI);
+                            var targetElem = elements.FirstOrDefault() ?? childUI;
+                            if (targetElem != null)
+                            {
+                                return new HitTestResult(targetElem, primaryWindow, popupLocalPoint);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check secondary windows
+        foreach (var target in windows)
+        {
+            var win = target.Window;
+            if (win != null && win != primaryWindow && win.Content != null)
+            {
+                var winPoint = TranslatePointToWindow(win.Content, mousePos, primaryWindow);
+                var elements = VisualTreeHelper.FindElementsInHostCoordinates(winPoint, win.Content);
+                var targetElem = elements.FirstOrDefault();
+                if (targetElem != null)
+                {
+                    return new HitTestResult(targetElem, win, winPoint);
+                }
+            }
+        }
+
+        var primaryElements = VisualTreeHelper.FindElementsInHostCoordinates(mousePos, primaryWindow.Content);
+        return new HitTestResult(primaryElements.FirstOrDefault(), primaryWindow, mousePos);
+    }
 }

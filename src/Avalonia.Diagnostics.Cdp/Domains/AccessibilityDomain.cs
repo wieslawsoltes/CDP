@@ -34,10 +34,21 @@ public static class AccessibilityDomain
                             var list = new List<AutomationPeer>();
                             TraversePeers(rootPeer, list);
 
+                            var extraRoots = GetExtraRootPeers(session);
+                            foreach (var extraRoot in extraRoots)
+                            {
+                                TraversePeers(extraRoot, list);
+                            }
+
+                            var addedPeerIds = new HashSet<string>();
                             foreach (var peer in list)
                             {
-                                var node = BuildAXNode(session, peer);
-                                nodes.Add(node);
+                                string peerId = GetPeerId(session, peer);
+                                if (addedPeerIds.Add(peerId))
+                                {
+                                    var node = BuildAXNode(session, peer);
+                                    nodes.Add(node);
+                                }
                             }
                         }
                     }
@@ -327,6 +338,55 @@ public static class AccessibilityDomain
         }
     }
 
+    private static List<AutomationPeer> GetExtraRootPeers(CdpSession session)
+    {
+        var list = new List<AutomationPeer>();
+        var mainWin = session.Window;
+
+        // 1. Secondary Windows
+        foreach (var target in CdpServer.GetWindows())
+        {
+            var win = target.Window;
+            if (win != null && win != mainWin && win.IsVisible)
+            {
+                var winPeer = ControlAutomationPeer.CreatePeerForElement(win);
+                if (winPeer != null)
+                {
+                    list.Add(winPeer);
+                }
+            }
+        }
+
+        // 2. Open Popups (ContextMenu, Flyout, ToolTip, ComboBox dropdown, PopupRoot)
+        var openPopups = new List<Popup>();
+        var visited = new HashSet<Visual>();
+        foreach (var target in CdpServer.GetWindows())
+        {
+            if (target.Window != null)
+            {
+                CdpVisualTreeHelper.FindOpenPopups(target.Window, openPopups, visited);
+            }
+        }
+
+        foreach (var popup in openPopups)
+        {
+            if (popup != null)
+            {
+                var content = CdpVisualTreeHelper.GetPopupContent(popup);
+                if (content is Control ctrl)
+                {
+                    var popupPeer = ControlAutomationPeer.CreatePeerForElement(ctrl);
+                    if (popupPeer != null && !list.Contains(popupPeer))
+                    {
+                        list.Add(popupPeer);
+                    }
+                }
+            }
+        }
+
+        return list;
+    }
+
     private static Dictionary<string, AutomationPeer> GetPeersMap(CdpSession session)
     {
         var map = new Dictionary<string, AutomationPeer>();
@@ -337,10 +397,26 @@ public static class AccessibilityDomain
             {
                 var list = new List<AutomationPeer>();
                 TraversePeers(rootPeer, list);
+
+                var extraRoots = GetExtraRootPeers(session);
+                foreach (var extraRoot in extraRoots)
+                {
+                    if (extraRoot != null)
+                    {
+                        TraversePeers(extraRoot, list);
+                    }
+                }
+
                 foreach (var peer in list)
                 {
-                    string id = GetPeerId(session, peer);
-                    map[id] = peer;
+                    if (peer != null)
+                    {
+                        string id = GetPeerId(session, peer);
+                        if (!string.IsNullOrEmpty(id))
+                        {
+                            map[id] = peer;
+                        }
+                    }
                 }
             }
         }
@@ -349,6 +425,7 @@ public static class AccessibilityDomain
 
     private static string GetPeerId(CdpSession session, AutomationPeer peer)
     {
+        if (peer == null) return "";
         if (peer is ControlAutomationPeer controlPeer && controlPeer.Owner is Visual visual)
         {
             return session.NodeMap.GetOrAdd(visual).ToString();
@@ -476,6 +553,14 @@ public static class AccessibilityDomain
         {
             parentId = GetPeerId(session, parentPeer);
         }
+        else if (session.Window != null && peer is ControlAutomationPeer popupCap && popupCap.Owner != session.Window)
+        {
+            var mainPeer = ControlAutomationPeer.CreatePeerForElement(session.Window);
+            if (mainPeer != null)
+            {
+                parentId = GetPeerId(session, mainPeer);
+            }
+        }
 
         var childIds = new JsonArray();
         var children = peer.GetChildren();
@@ -484,6 +569,22 @@ public static class AccessibilityDomain
             foreach (var child in children)
             {
                 childIds.Add(GetPeerId(session, child));
+            }
+        }
+
+        if (session.Window != null && peer is ControlAutomationPeer cap && cap.Owner == session.Window)
+        {
+            var extraRoots = GetExtraRootPeers(session);
+            foreach (var extra in extraRoots)
+            {
+                if (extra != null)
+                {
+                    string extraId = GetPeerId(session, extra);
+                    if (!string.IsNullOrEmpty(extraId) && !childIds.Any(c => c?.GetValue<string>() == extraId))
+                    {
+                        childIds.Add(extraId);
+                    }
+                }
             }
         }
 

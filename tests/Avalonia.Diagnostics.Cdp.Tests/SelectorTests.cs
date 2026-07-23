@@ -1,6 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Automation;
 using Avalonia.Headless.XUnit;
+using System.Net.WebSockets;
 using Xunit;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -185,7 +187,7 @@ public class SelectorTests
         var clientDomGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("dom");
         var clientAutoGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("automation");
 
-        Assert.Equal("Label", clientDomGen.GenerateSelector(clientLabel));
+        Assert.Equal("Label:contains(\"Submit Form\")", clientDomGen.GenerateSelector(clientLabel));
         Assert.Equal("Label:contains(\"Submit Form\")", clientAutoGen.GenerateSelector(clientLabel));
     }
 
@@ -209,5 +211,62 @@ public class SelectorTests
     {
         var tabItem = new TabItem { Name = "tabScroll", Header = "Scroll Test" };
         Assert.True(SelectorEngine.Matches(tabItem, "#tabScroll[Header=\"Scroll Test\"]"));
+    }
+
+    [AvaloniaFact]
+    public void TestPopupAndContextMenuSelectorSupport()
+    {
+        var menuItem = new MenuItem { Header = "Right Click Option 1" };
+        var comboItem = new ComboBoxItem { Content = "Popup Option 2" };
+
+        var domGen = SelectorRegistry.GetGenerator("dom");
+        Assert.Equal("MenuItem:contains(\"Right Click Option 1\")", domGen.GenerateSelector(menuItem));
+        Assert.Equal("ComboBoxItem:contains(\"Popup Option 2\")", domGen.GenerateSelector(comboItem));
+
+        var clientMenu = new CdpInspectorApp.Models.DomNodeModel(10, "MenuItem");
+        clientMenu.AttributesList.Add(new CdpInspectorApp.Models.AttributeModel("Header", "Right Click Option 1"));
+
+        var clientCombo = new CdpInspectorApp.Models.DomNodeModel(11, "ComboBoxItem");
+        clientCombo.AttributesList.Add(new CdpInspectorApp.Models.AttributeModel("Content", "Popup Option 2"));
+
+        var clientDomGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("dom");
+        Assert.Equal("MenuItem:contains(\"Right Click Option 1\")", clientDomGen.GenerateSelector(clientMenu));
+        Assert.Equal("ComboBoxItem:contains(\"Popup Option 2\")", clientDomGen.GenerateSelector(clientCombo));
+    }
+
+    [AvaloniaFact]
+    public async Task TestPopupAndContextMenuAccessibilityTreeInspection()
+    {
+        var window = new Window { Title = "Main App Window" };
+        window.Show();
+        CdpServer.EnsureInitialized();
+        CdpServer.GetOrCreateTarget(window, "test-target-id");
+
+        var rootPanel = new StackPanel();
+        var popupBtn = new Button { Name = "btnPopup", Content = "Open Popup" };
+        var popup = new Popup { IsOpen = true };
+        var popupStack = new StackPanel();
+        var menuItem1 = new MenuItem { Header = "Popup MenuItem 1" };
+        var menuItem2 = new MenuItem { Header = "Popup MenuItem 2" };
+        popupStack.Children.Add(menuItem1);
+        popupStack.Children.Add(menuItem2);
+        popup.Child = popupStack;
+
+        rootPanel.Children.Add(popupBtn);
+        rootPanel.Children.Add(popup);
+        window.Content = rootPanel;
+
+        using var fakeWs = new ClientWebSocket();
+        var session = new CdpSession(fakeWs, window);
+
+        var axResponse = await Domains.AccessibilityDomain.HandleAsync(session, "getFullAXTree", new System.Text.Json.Nodes.JsonObject());
+        Assert.NotNull(axResponse);
+        var nodes = axResponse["nodes"] as System.Text.Json.Nodes.JsonArray;
+        Assert.NotNull(nodes);
+
+        bool foundMenuItem1 = nodes.Any(n => n?["name"]?["value"]?.GetValue<string>() == "Popup MenuItem 1");
+        bool foundMenuItem2 = nodes.Any(n => n?["name"]?["value"]?.GetValue<string>() == "Popup MenuItem 2");
+        Assert.True(foundMenuItem1, "Popup MenuItem 1 should be found in getFullAXTree");
+        Assert.True(foundMenuItem2, "Popup MenuItem 2 should be found in getFullAXTree");
     }
 }

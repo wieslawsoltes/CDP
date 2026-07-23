@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -84,11 +85,16 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     {
         get
         {
-            if (_activeWindowOverride != null && _activeWindowOverride.TryGetTarget(out var win) && win.IsVisible)
+            if (_activeWindowOverride != null && _activeWindowOverride.TryGetTarget(out var winOverride))
             {
-                return win;
+                return winOverride;
             }
-            return CurrentTargetSession?.Window ?? _window;
+            var targetWin = CurrentTargetSession?.Window ?? _window;
+            if (targetWin != null)
+            {
+                return targetWin;
+            }
+            return CdpServer.GetPrimaryWindow();
         }
         set
         {
@@ -105,6 +111,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     public NodeMap NodeMap => CurrentTargetSession?.NodeMap ?? _nodeMap;
     public IInputDevice TouchDevice => CurrentTargetSession?.TouchDevice ?? _dummyTouchDevice;
     public bool UseSlimTree { get; set; }
+    public string? TargetViewMode { get; set; }
 
     public static Visual? GetVisualFromObject(object? obj)
     {
@@ -169,7 +176,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
             var parent = current.LogicalParent;
             if (parent == null)
             {
-                return current is TopLevel;
+                return current is TopLevel || current is Popup || current is ContextMenu || current is FlyoutBase;
             }
             if (current is StyledElement cse && cse.TemplatedParent != null)
             {

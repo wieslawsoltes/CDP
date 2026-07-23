@@ -1561,15 +1561,19 @@ public static class RuntimeDomain
 
             case "runIfWaitingForDebugger":
                 {
-                    foreach (var script in session.ScriptsToEvaluateOnNewDocument.Values)
+                    var targetWindow = session.Window ?? CdpServer.GetPrimaryWindow();
+                    if (targetWindow != null)
                     {
-                        try
+                        foreach (var script in session.ScriptsToEvaluateOnNewDocument.Values)
                         {
-                            await EvaluateAsync(session, ScriptPreprocessor.Preprocess(script), inspectedNodeId: 0);
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.LogErrorMessage("RuntimeDomain", "Error evaluating pre-flight script", ex);
+                            try
+                            {
+                                await EvaluateAsync(session, ScriptPreprocessor.Preprocess(script), inspectedNodeId: 0);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogErrorMessage("RuntimeDomain", "Error evaluating pre-flight script", ex);
+                            }
                         }
                     }
 
@@ -1577,6 +1581,10 @@ public static class RuntimeDomain
                     if (!string.IsNullOrEmpty(targetId))
                     {
                         CdpServer.ResumeTarget(targetId);
+                    }
+                    else
+                    {
+                        Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = true;
                     }
 
                     return new JsonObject();
@@ -1721,7 +1729,7 @@ public static class RuntimeDomain
     [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "REPL dynamic script property evaluation")]
     private static Engine EnsureEngineInitialized(CdpSession session, int contextId, Visual? selectedNode)
     {
-        if (session.Window == null || !session.Window.IsVisible)
+        if (session.Window == null)
         {
             var mainWin = CdpServer.GetPrimaryWindow();
             if (mainWin != null)

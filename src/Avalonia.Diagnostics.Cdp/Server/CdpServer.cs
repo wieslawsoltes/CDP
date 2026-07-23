@@ -200,6 +200,7 @@ public static class CdpServer
         }
 
         _targets.Clear();
+        _primaryWindow = null;
 
         // Resume and clear all paused dispatcher frames to prevent thread hangs
         foreach (var frame in _pausedFrames.Values)

@@ -90,17 +90,52 @@ internal class SessionRecorderState
         _keyDownHandler = OnKeyDown;
     }
 
+    private readonly HashSet<UIElement> _attachedElements = new();
+
+    private void EnsureAttachedToTopLevel()
+    {
+        foreach (var target in CdpServer.GetWindows())
+        {
+            var win = target.Window;
+            if (win != null && _attachedElements.Add(win))
+            {
+                win.PreviewMouseDown += _pointerPressedHandler;
+                win.PreviewMouseMove += _pointerMovedHandler;
+                win.PreviewMouseUp += _pointerReleasedHandler;
+                win.PreviewMouseWheel += _pointerWheelChangedHandler;
+                win.AddHandler(UIElement.GotFocusEvent, _gotFocusHandler);
+                win.AddHandler(UIElement.LostFocusEvent, _lostFocusHandler);
+                win.PreviewKeyDown += _keyDownHandler;
+            }
+
+            if (win != null)
+            {
+                var openPopups = new List<Popup>();
+                var visited = new HashSet<Visual>();
+                CdpVisualTreeHelper.FindOpenPopups(win, openPopups, visited);
+
+                foreach (var popup in openPopups)
+                {
+                    if (popup != null && popup.Child is UIElement childUI && _attachedElements.Add(childUI))
+                    {
+                        childUI.PreviewMouseDown += _pointerPressedHandler;
+                        childUI.PreviewMouseMove += _pointerMovedHandler;
+                        childUI.PreviewMouseUp += _pointerReleasedHandler;
+                        childUI.PreviewMouseWheel += _pointerWheelChangedHandler;
+                        childUI.AddHandler(UIElement.GotFocusEvent, _gotFocusHandler);
+                        childUI.AddHandler(UIElement.LostFocusEvent, _lostFocusHandler);
+                        childUI.PreviewKeyDown += _keyDownHandler;
+                    }
+                }
+            }
+        }
+    }
+
     public void Attach()
     {
         if (_session.Window == null) return;
 
-        _session.Window.PreviewMouseDown += _pointerPressedHandler;
-        _session.Window.PreviewMouseMove += _pointerMovedHandler;
-        _session.Window.PreviewMouseUp += _pointerReleasedHandler;
-        _session.Window.PreviewMouseWheel += _pointerWheelChangedHandler;
-        _session.Window.AddHandler(UIElement.GotFocusEvent, _gotFocusHandler);
-        _session.Window.AddHandler(UIElement.LostFocusEvent, _lostFocusHandler);
-        _session.Window.PreviewKeyDown += _keyDownHandler;
+        EnsureAttachedToTopLevel();
 
         // Emit initial viewport size
         _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
@@ -126,15 +161,20 @@ internal class SessionRecorderState
 
     public void Detach()
     {
-        if (_session.Window == null) return;
-
-        _session.Window.PreviewMouseDown -= _pointerPressedHandler;
-        _session.Window.PreviewMouseMove -= _pointerMovedHandler;
-        _session.Window.PreviewMouseUp -= _pointerReleasedHandler;
-        _session.Window.PreviewMouseWheel -= _pointerWheelChangedHandler;
-        _session.Window.RemoveHandler(UIElement.GotFocusEvent, _gotFocusHandler);
-        _session.Window.RemoveHandler(UIElement.LostFocusEvent, _lostFocusHandler);
-        _session.Window.PreviewKeyDown -= _keyDownHandler;
+        foreach (var elem in _attachedElements)
+        {
+            if (elem != null)
+            {
+                elem.PreviewMouseDown -= _pointerPressedHandler;
+                elem.PreviewMouseMove -= _pointerMovedHandler;
+                elem.PreviewMouseUp -= _pointerReleasedHandler;
+                elem.PreviewMouseWheel -= _pointerWheelChangedHandler;
+                elem.RemoveHandler(UIElement.GotFocusEvent, _gotFocusHandler);
+                elem.RemoveHandler(UIElement.LostFocusEvent, _lostFocusHandler);
+                elem.PreviewKeyDown -= _keyDownHandler;
+            }
+        }
+        _attachedElements.Clear();
         _initialTexts.Clear();
     }
 
@@ -171,9 +211,11 @@ internal class SessionRecorderState
     private void OnPointerPressed(object sender, MouseButtonEventArgs e)
     {
         if (_session.InspectModeEnabled || _session.Window == null) return;
+        EnsureAttachedToTopLevel();
 
-        var hit = HitTestElement(_session.Window, e.GetPosition(_session.Window));
-        var visual = hit ?? (e.Source as Visual);
+        var pos = e.GetPosition(_session.Window);
+        var hitRes = CdpVisualTreeHelper.HitTestAllRoots(_session.Window, pos, "composite");
+        var visual = (e.OriginalSource as Visual) ?? (e.Source as Visual) ?? hitRes.Target ?? HitTestElement(_session.Window, pos);
         if (visual == null) return;
 
         var logical = _session.FindLogicalNode(visual);
@@ -214,33 +256,13 @@ internal class SessionRecorderState
         if (startControl == null) return;
 
         var releasePos = e.GetPosition(_session.Window);
-        var hit = HitTestElement(_session.Window, releasePos);
-        var endVisual = hit ?? (e.Source as Visual);
+        var hit = (e.OriginalSource as Visual) ?? (e.Source as Visual) ?? HitTestElement(_session.Window, releasePos);
+        var endVisual = hit;
         FrameworkElement? endControl = null;
         if (endVisual != null)
         {
             var logical = _session.FindLogicalNode(endVisual);
             endControl = (logical as FrameworkElement) ?? (endVisual as FrameworkElement);
-        }
-
-        if (endControl != null)
-        {
-            if (endControl == startControl || IsDescendantOf(endControl, startControl))
-            {
-                var current = endControl as Visual;
-                while (current != null)
-                {
-                    if (current != startControl && !IsDescendantOf(current, startControl))
-                    {
-                        if (current is FrameworkElement parentControl)
-                        {
-                            endControl = parentControl;
-                            break;
-                        }
-                    }
-                    current = VisualTreeHelper.GetParent(current) as Visual;
-                }
-            }
         }
         if (endControl == null) endControl = startControl;
 

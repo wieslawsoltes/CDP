@@ -173,4 +173,65 @@ public static class CdpVisualTreeHelper
             FindOpenPopups(child, popups, visited);
         }
     }
+
+    public record HitTestResult(Visual? Target, Window? TargetWindow, Point LocalPoint);
+
+    public static HitTestResult HitTestAllRoots(Window primaryWindow, Point mousePos, string targetViewMode = "composite")
+    {
+        if (primaryWindow == null)
+        {
+            return new HitTestResult(null, null, mousePos);
+        }
+
+        var openPopups = new List<Popup>();
+        var visited = new HashSet<Visual>();
+        foreach (var target in CdpServer.GetWindows())
+        {
+            if (target.Window != null)
+            {
+                FindOpenPopups(target.Window, openPopups, visited);
+            }
+        }
+
+        foreach (var popup in openPopups)
+        {
+            if (popup != null && popup.Child is UIElement childUI && childUI.IsVisible)
+            {
+                Point popupLocalPoint = mousePos;
+                try
+                {
+                    var screenPoint = primaryWindow.PointToScreen(mousePos);
+                    popupLocalPoint = childUI.PointFromScreen(screenPoint);
+                }
+                catch { }
+
+                var hit = VisualTreeHelper.HitTest(childUI, popupLocalPoint)?.VisualHit;
+                if (hit != null)
+                {
+                    return new HitTestResult(hit, primaryWindow, popupLocalPoint);
+                }
+            }
+        }
+
+        var secondaryWindows = CdpServer.GetWindows()
+            .Select(t => t.Window)
+            .Where(w => w != null && w != primaryWindow && w.IsVisible)
+            .ToList();
+
+        foreach (var win in secondaryWindows)
+        {
+            if (win != null)
+            {
+                Point winLocalPoint = TranslatePointToWindow(primaryWindow, mousePos, win);
+                var hit = VisualTreeHelper.HitTest(win, winLocalPoint)?.VisualHit;
+                if (hit != null)
+                {
+                    return new HitTestResult(hit, win, winLocalPoint);
+                }
+            }
+        }
+
+        var primaryHit = VisualTreeHelper.HitTest(primaryWindow, mousePos)?.VisualHit;
+        return new HitTestResult(primaryHit, primaryWindow, mousePos);
+    }
 }

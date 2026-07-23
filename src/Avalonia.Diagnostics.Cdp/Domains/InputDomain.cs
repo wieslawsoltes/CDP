@@ -401,53 +401,9 @@ public static class InputDomain
 
             if (session.Window != null)
             {
-                var screenPoint = session.Window.PointToScreen(position);
-                var allRoots = new List<TopLevel>();
-                allRoots.Add(session.Window);
-
-                foreach (var target in CdpServer.GetWindows())
-                {
-                    if (target.Window != null && !allRoots.Contains(target.Window))
-                    {
-                        allRoots.Add(target.Window);
-                    }
-                }
-
-                for (int i = 0; i < allRoots.Count; i++)
-                {
-                    var root = allRoots[i];
-                    var openPopups = new List<Popup>();
-                    var visited = new HashSet<Visual>();
-                    CdpVisualTreeHelper.FindOpenPopups(root, openPopups, visited);
-                    foreach (var popup in openPopups)
-                    {
-                        var host = CdpVisualTreeHelper.GetPopupHost(popup) as TopLevel;
-                        if (host != null && !allRoots.Contains(host))
-                        {
-                            allRoots.Add(host);
-                        }
-                    }
-                }
-
-                for (int i = allRoots.Count - 1; i >= 0; i--)
-                {
-                    var win = allRoots[i];
-                    if (win != null && win.IsVisible)
-                    {
-                        try
-                        {
-                            var localPoint = win.PointToClient(screenPoint);
-                            if (localPoint.X >= 0 && localPoint.X <= win.Bounds.Width &&
-                                localPoint.Y >= 0 && localPoint.Y <= win.Bounds.Height)
-                            {
-                                targetWindow = win;
-                                position = localPoint;
-                                break;
-                            }
-                        }
-                        catch { }
-                    }
-                }
+                var hitRes = CdpVisualTreeHelper.HitTestAllRoots(session.Window, position, session.TargetViewMode);
+                targetWindow = hitRes.TargetTopLevel ?? session.Window;
+                position = hitRes.LocalPoint;
             }
 
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -970,6 +926,24 @@ public static class InputDomain
         session.RequestScreencastFrame();
     }
 
+    private static TopLevel? GetTargetTopLevel(CdpSession session)
+    {
+        if (session.Window is TopLevel mainTl && mainTl.FocusManager?.GetFocusedElement() is Visual v1 && v1.IsVisible)
+        {
+            return TopLevel.GetTopLevel(v1) ?? mainTl;
+        }
+
+        foreach (var winInfo in CdpServer.GetWindows())
+        {
+            if (winInfo.Window is TopLevel tl && tl.FocusManager?.GetFocusedElement() is Visual v2 && v2.IsVisible)
+            {
+                return TopLevel.GetTopLevel(v2) ?? tl;
+            }
+        }
+
+        return session.Window;
+    }
+
     private static async Task DispatchKeyEventAsync(
         CdpSession session,
         string type,
@@ -981,9 +955,10 @@ public static class InputDomain
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var inputHandler = GetInputHandler(session.Window);
+            var targetWindow = GetTargetTopLevel(session);
+            var inputHandler = GetInputHandler(targetWindow);
             var keyboardDevice = GetKeyboardDevice();
-            var inputRoot = GetInputRoot(session.Window);
+            var inputRoot = GetInputRoot(targetWindow);
             if (inputHandler == null || keyboardDevice == null || inputRoot == null) return;
 
             var modifiers = RawInputModifiers.None;
@@ -1065,14 +1040,15 @@ public static class InputDomain
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var inputHandler = GetInputHandler(session.Window);
+            var targetWindow = GetTargetTopLevel(session);
+            var inputHandler = GetInputHandler(targetWindow);
             var keyboardDevice = GetKeyboardDevice();
-            var inputRoot = GetInputRoot(session.Window);
+            var inputRoot = GetInputRoot(targetWindow);
 
             if (inputHandler == null || keyboardDevice == null || inputRoot == null || string.IsNullOrEmpty(text))
             {
                 // Fallback to direct mutation if input infrastructure is missing
-                var focusedTextBox = FindFocusedTextBox(session.Window);
+                var focusedTextBox = targetWindow != null ? FindFocusedTextBox(targetWindow) : FindFocusedTextBox(session.Window);
                 if (focusedTextBox != null && !string.IsNullOrEmpty(text))
                 {
                     int start = Math.Min(focusedTextBox.SelectionStart, focusedTextBox.SelectionEnd);

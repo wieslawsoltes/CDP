@@ -339,6 +339,11 @@ After introducing new XAML code or modifying resources:
 
 ## Implementation Guidelines
 
+### Multi-Framework Parity Mandate (`Avalonia`, `Uno`, `WinUI`, `WPF`)
+
+- **Cross-Framework CDP Feature Parity**: Whenever adding or enhancing CDP features, protocol domains, selector contracts, popup/flyout/context menu recording/replay, tree inspection, screencasting, or multi-window/multi-toplevel support in one framework implementation (e.g. `Avalonia.Diagnostics.Cdp`), the corresponding feature must **also be fully implemented and ported** across all other supported UI framework CDP diagnostic implementations (`Uno.Diagnostics.Cdp`, `WinUI.Diagnostics.Cdp`, `Wpf.Diagnostics.Cdp`).
+- Framework-specific visual tree helpers, automation peer helpers, popup/flyout observers, and hit-test providers must maintain identical CDP domain APIs and event response contracts across all framework adapters.
+
 ### `Avalonia.Diagnostics.Cdp`
 
 - Do not use the `dynamic` keyword or inherit from `DynamicObject` anywhere in the codebase. All properties, parameters, and local variables must be statically typed to ensure full assembly trimming-safety (`PublishTrimmed`) and compilation compatibility. If dynamic member lookup or runtime member resolution is necessary (e.g. in the REPL console), use explicit reflection or a manual fallback evaluator instead.

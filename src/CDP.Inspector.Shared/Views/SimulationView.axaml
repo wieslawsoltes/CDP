@@ -7,40 +7,45 @@
              x:CompileBindings="True">
     <Grid RowDefinitions="Auto, Auto, *" Background="#202124">
         
-        <!-- Row 0: Browser Navigation Bar -->
-        <Border Grid.Row="0" Background="#2d2e31" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,5">
-            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto">
-                <Button Command="{Binding Simulation.BackCommand}" ToolTip.Tip="Go back" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0">
-                    <PathIcon Data="{StaticResource ChevronLeftIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+        <!-- Row 0: Navigation & Address Bar -->
+        <Border Grid.Row="0" Background="#28292c" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="6,4">
+            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto">
+                <Button Command="{Binding Simulation.BackCommand}" ToolTip.Tip="Go back" Width="26" Height="26" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,4,0">
+                    <PathIcon Data="{StaticResource ChevronLeftIcon}" Width="11" Height="11" Foreground="#e8eaed"/>
                 </Button>
-                <Button Grid.Column="1" Command="{Binding Simulation.ForwardCommand}" ToolTip.Tip="Go forward" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0">
-                    <PathIcon Data="{StaticResource ChevronRightIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                <Button Grid.Column="1" Command="{Binding Simulation.ForwardCommand}" ToolTip.Tip="Go forward" Width="26" Height="26" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,4,0">
+                    <PathIcon Data="{StaticResource ChevronRightIcon}" Width="11" Height="11" Foreground="#e8eaed"/>
                 </Button>
-                <Button Grid.Column="2" Command="{Binding Simulation.ReloadCommand}" ToolTip.Tip="Reload target page" Width="30" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,8,0">
-                    <PathIcon Data="{StaticResource RefreshIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                <Button Grid.Column="2" Command="{Binding Simulation.ReloadCommand}" ToolTip.Tip="Reload target page" Width="26" Height="26" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,6,0">
+                    <PathIcon Data="{StaticResource RefreshIcon}" Width="11" Height="11" Foreground="#e8eaed"/>
                 </Button>
-                
-                <!-- Address URL text box -->
-                <TextBox Grid.Column="3" Name="txtNavigateUrl" Text="{Binding Simulation.NavigateUrlText, Mode=TwoWay}" PlaceholderText="Enter URL (e.g. http://localhost:9222/)" Height="28" VerticalContentAlignment="Center" Margin="0,0,5,0">
+
+                <TextBox Grid.Column="3" Name="txtNavigateUrl" Text="{Binding Simulation.NavigateUrlText, Mode=TwoWay}" PlaceholderText="Enter URL (e.g. http://127.0.0.1:9222/)" Height="26" VerticalContentAlignment="Center" FontSize="11" Padding="6,2" Margin="0,0,6,0">
                     <TextBox.KeyBindings>
                         <KeyBinding Gesture="Enter" Command="{Binding Simulation.NavigateCommand}"/>
                     </TextBox.KeyBindings>
                 </TextBox>
                 
-                <Button Grid.Column="4" Command="{Binding Simulation.NavigateCommand}" Content="Go" Classes="accent" Height="28" VerticalAlignment="Center"/>
+                <Button Grid.Column="4" Command="{Binding Simulation.NavigateCommand}" Content="Go" Classes="accent" Height="26" MinWidth="0" MinHeight="0" FontSize="11" Padding="10,0" VerticalAlignment="Center" Margin="0,0,6,0"/>
+
+                <!-- Screenshot Button -->
+                <Button Grid.Column="5" Name="btnCaptureScreenshot" Command="{Binding Simulation.CaptureScreenshotCommand}" ToolTip.Tip="Capture Page Screenshot" Width="26" Height="26" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                    <PathIcon Data="{StaticResource CameraIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                </Button>
             </Grid>
         </Border>
 
-        <!-- Row 1: Device Emulation Bar -->
-        <Border Grid.Row="1" Background="#28292c" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="8,5">
+        <!-- Row 1: Device Emulation, Zoom & View Toolbar -->
+        <Border Grid.Row="1" Background="#242528" BorderBrush="#3c4043" BorderThickness="0,0,0,1" Padding="6,3">
             <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
-                    <TextBlock Text="Device:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <!-- Device Presets Dropdown -->
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,2,8,2">
+                    <TextBlock Text="Device:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
                     <ComboBox Name="cmbDevicePresets"
-                              Width="150" Height="28"
+                              Width="140" Height="24"
                               ItemsSource="{Binding Simulation.DevicePresets}"
                               SelectedItem="{Binding Simulation.SelectedDevicePreset, Mode=TwoWay}"
-                              Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed" VerticalAlignment="Center">
+                              Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:DevicePreset">
                                 <TextBlock Text="{Binding DisplayName}" FontSize="11"/>
@@ -49,26 +54,143 @@
                     </ComboBox>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
-                    <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" PlaceholderText="Width" Width="55" Height="28" VerticalContentAlignment="Center" FontSize="11" Margin="0,0,2,0"/>
-                    <TextBlock Text="x" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="3,0"/>
-                    <TextBox Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" PlaceholderText="Height" Width="55" Height="28" VerticalContentAlignment="Center" FontSize="11" Margin="2,0,5,0"/>
-                    <Button Command="{Binding Simulation.RotateDeviceCommand}" ToolTip.Tip="Swap orientation" Width="28" Height="28" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,0,5,0">
-                        <PathIcon Data="{StaticResource SwapVertIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
-                    </Button>
-                </StackPanel>
+                <!-- Target View / Window Selector Dropdown -->
+                <ComboBox Name="cmbTargetViews"
+                          Width="160" Height="24"
+                          ItemsSource="{Binding Simulation.TargetViews}"
+                          SelectedItem="{Binding Simulation.SelectedTargetView, Mode=TwoWay}"
+                          ToolTip.Tip="Target View: Preview &amp; inspect all windows/popups composited together or select specific target"
+                          Background="#202124" BorderBrush="#3c4043" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center"
+                          Margin="0,2,8,2">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TargetViewItemViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <PathIcon Data="{StaticResource WindowIcon}" Width="10" Height="10" Foreground="#8ab4f8"/>
+                                <TextBlock Text="{Binding Title}" FontSize="11"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
-                <StackPanel Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
-                    <TextBlock Text="Scale:" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBox Name="txtScaleFactor" Text="{Binding Simulation.ScaleFactorText, Mode=TwoWay}" PlaceholderText="1.0" Width="40" Height="28" VerticalContentAlignment="Center" FontSize="11"/>
-                </StackPanel>
+                <!-- Segmented Dimension Input Pill: Width x Height [Swap] -->
+                <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="2,0" VerticalAlignment="Center" Margin="0,2,8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <TextBox Name="txtWidth" Text="{Binding Simulation.WidthText, Mode=TwoWay}" Width="44" Height="20" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="11" Padding="0"/>
+                        <TextBlock Text="×" Foreground="#9aa0a6" FontSize="11" VerticalAlignment="Center"/>
+                        <TextBox Name="txtHeight" Text="{Binding Simulation.HeightText, Mode=TwoWay}" Width="44" Height="20" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" FontSize="11" Padding="0"/>
+                        <Button Command="{Binding Simulation.RotateDeviceCommand}" ToolTip.Tip="Swap Orientation (Width × Height)" Width="20" Height="20" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                            <PathIcon Data="{StaticResource SwapVertIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
 
-                <CheckBox Name="chkMobile" IsChecked="{Binding Simulation.IsMobileActive, Mode=TwoWay}" Content="Mobile" VerticalAlignment="Center" FontSize="11" Margin="0,0,15,0"/>
+                <!-- Device Settings Flyout Button -->
+                <Button Name="btnDeviceSettingsFlyout" ToolTip.Tip="Device Emulation Settings (DPR, Mobile UA, Apply)" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,2,8,2">
+                    <PathIcon Data="{StaticResource SlidersIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedLeft">
+                            <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Width="220">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Device Emulation Settings" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                                    <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
 
-                <Button Name="btnResize" Command="{Binding Simulation.ResizeCommand}" Content="Apply" Classes="accent" Height="28" FontSize="11" Margin="0,0,5,0"/>
-                <Button Name="btnResizeReset" Command="{Binding Simulation.ResizeResetCommand}" Content="Reset" Height="28" FontSize="11" Margin="0,0,15,0"/>
-                
-                <Button Name="btnCaptureScreenshot" Command="{Binding Simulation.CaptureScreenshotCommand}" Content="Screenshot" Height="28" FontSize="11"/>
+                                    <Grid ColumnDefinitions="*, Auto" VerticalAlignment="Center">
+                                        <TextBlock Text="Scale Factor (DPR):" FontSize="11" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Name="txtScaleFactor" Text="{Binding Simulation.ScaleFactorText, Mode=TwoWay}" Width="48" Height="24" FontSize="11" VerticalContentAlignment="Center"/>
+                                    </Grid>
+
+                                    <CheckBox Name="chkMobile" IsChecked="{Binding Simulation.IsMobileActive, Mode=TwoWay}" Content="Emulate Mobile Touch &amp; UA" FontSize="11"/>
+
+                                    <Grid ColumnDefinitions="*, *" ColumnSpacing="6" Margin="0,4,0,0">
+                                        <Button Name="btnResizeReset" Command="{Binding Simulation.ResizeResetCommand}" Content="Reset" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                        <Button Grid.Column="1" Name="btnResize" Command="{Binding Simulation.ResizeCommand}" Content="Apply" Classes="accent" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <!-- Divider -->
+                <Border Width="1" Height="16" Background="#3c4043" VerticalAlignment="Center" Margin="0,2,8,2"/>
+
+                <!-- Segmented Zoom & Pan Pill -->
+                <Border Background="#202124" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Padding="1" VerticalAlignment="Center" Margin="0,2,8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="1">
+                        <Button Name="btnZoomOut" Command="{Binding Simulation.ZoomOutCommand}" ToolTip.Tip="Zoom Out (Ctrl + Scroll Down)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                            <PathIcon Data="{StaticResource ZoomOutIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                        </Button>
+                        <ComboBox Name="cmbZoomPresets"
+                                  Width="72" Height="22"
+                                  ItemsSource="{Binding Simulation.ZoomPresets}"
+                                  SelectedItem="{Binding Simulation.SelectedZoomPreset, Mode=TwoWay}"
+                                  Background="Transparent" BorderThickness="0" Foreground="#e8eaed" FontSize="11" VerticalAlignment="Center"/>
+                        <Button Name="btnZoomIn" Command="{Binding Simulation.ZoomInCommand}" ToolTip.Tip="Zoom In (Ctrl + Scroll Up)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                            <PathIcon Data="{StaticResource ZoomInIcon}" Width="10" Height="10" Foreground="#e8eaed"/>
+                        </Button>
+                        <ToggleButton Name="chkPanMode" IsChecked="{Binding Simulation.IsPanModeActive, Mode=TwoWay}" ToolTip.Tip="Toggle Pan Mode (Middle Mouse Drag or Space+Drag)" Width="24" Height="22" MinWidth="0" MinHeight="0" Padding="0" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                            <PathIcon Data="{StaticResource HandIcon}" Width="11" Height="11" Foreground="#e8eaed"/>
+                        </ToggleButton>
+                    </StackPanel>
+                </Border>
+
+                <!-- View Options Flyout Button -->
+                <Button Name="btnViewOptionsFlyout" ToolTip.Tip="View Options (Window Frame, Reset Pan)" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,2,8,2">
+                    <PathIcon Data="{StaticResource EyeIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="12" Width="200">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="View Options" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                                    <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
+
+                                    <CheckBox Name="chkWindowFrame" IsChecked="{Binding Simulation.IsWindowFrameVisible, Mode=TwoWay}" Content="Show Window Frame" FontSize="11"/>
+                                    
+                                    <Button Name="btnResetPan" Command="{Binding Simulation.ResetPanCommand}" Content="Reset Pan Position (0,0)" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                    <Button Name="btnToggleFitZoom" Command="{Binding Simulation.ToggleFitZoomCommand}" Content="Fit Zoom to Screen" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <!-- Preview Settings Flyout Button -->
+                <Button Name="btnPreviewSettingsFlyout" ToolTip.Tip="Preview Options &amp; Settings" Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="0,2,0,2">
+                    <PathIcon Data="{StaticResource SettingsIcon}" Width="12" Height="12" Foreground="#e8eaed"/>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <Border Background="#28292c" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="6" Padding="14" Width="260">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Preview Settings &amp; Features" FontWeight="Bold" FontSize="12" Foreground="#e8eaed"/>
+                                    <Separator Background="#3c4043" Height="1" Margin="0,-4,0,0"/>
+
+                                    <!-- Right-Click Behavior Option -->
+                                    <StackPanel Spacing="3">
+                                        <CheckBox Name="chkSimulationContextMenu"
+                                                  IsChecked="{Binding Simulation.IsSimulationContextMenuEnabled, Mode=TwoWay}"
+                                                  Content="Enable Inspector Right-Click Menu"
+                                                  FontSize="11"
+                                                  ToolTip.Tip="When checked, right-clicking shows the inspector command context menu. When unchecked, right-clicks pass directly to the target application to test native app right-click interactions."/>
+                                        <TextBlock Text="Uncheck to pass right-clicks directly to target app." FontSize="9" Foreground="#9aa0a6" Margin="24,0,0,0"/>
+                                    </StackPanel>
+
+                                    <Separator Background="#3c4043" Height="1"/>
+
+                                    <!-- Display Options -->
+                                    <CheckBox Name="chkWindowFrameSettings" IsChecked="{Binding Simulation.IsWindowFrameVisible, Mode=TwoWay}" Content="Show Virtual Window Title Bar" FontSize="11"/>
+                                    <CheckBox Name="chkInspectOverlay" IsChecked="{Binding Simulation.IsHighlightOverlayVisible, Mode=TwoWay}" Content="Show Inspect Hover Overlay" FontSize="11"/>
+                                    <CheckBox Name="chkPanModeSettings" IsChecked="{Binding Simulation.IsPanModeActive, Mode=TwoWay}" Content="Enable Pan Mode (Hand Tool)" FontSize="11"/>
+                                    <CheckBox Name="chkFitZoomSettings" IsChecked="{Binding Simulation.IsFitZoomActive, Mode=TwoWay}" Content="Auto Fit Zoom to Viewport" FontSize="11"/>
+
+                                    <Separator Background="#3c4043" Height="1"/>
+
+                                    <!-- Actions -->
+                                    <Button Name="btnResetPanSettings" Command="{Binding Simulation.ResetPanCommand}" Content="Reset Pan Position (0,0)" Height="26" MinWidth="0" MinHeight="0" FontSize="11" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
             </WrapPanel>
         </Border>
 
@@ -78,27 +200,102 @@
                                 IsExpanded="{Binding Simulation.IsAdvancedToolsExpanded, Mode=TwoWay}"
                                 IsPinned="{Binding Simulation.IsAdvancedToolsPinned, Mode=TwoWay}"
                                 PanelHeight="{Binding Simulation.AdvancedToolsPanelHeight, Mode=TwoWay}">
-            <!-- Main Content: Screencast Viewport -->
+            <!-- Main Content: Screencast Viewport Container -->
             <controls:DockSplitPanel.MainContent>
-                <Border Background="#202124" Focusable="True" Name="borderScreenshot">
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                        <Border Background="#292a2d" BorderBrush="#3c4043" BorderThickness="1" CornerRadius="4" Margin="15" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Grid>
-                                <Image Name="imgScreenshot" Source="{Binding Simulation.ScreenshotImage}" Width="{Binding Simulation.DeviceWidth}" Height="{Binding Simulation.DeviceHeight}" Stretch="Uniform"/>
-                                <controls:PreviewHighlightOverlay DeviceWidth="{Binding Simulation.DeviceWidth}"
-                                                                  DeviceHeight="{Binding Simulation.DeviceHeight}"
-                                                                  IsHighlightOverlayVisible="{Binding Simulation.IsHighlightOverlayVisible}"
-                                                                  HighlightBoxModel="{Binding Simulation.HighlightBoxModel}"
-                                                                  HighlightElementType="{Binding Simulation.HighlightElementType}"
-                                                                  HighlightAxRole="{Binding Simulation.HighlightAxRole}"
-                                                                  HighlightAxName="{Binding Simulation.HighlightAxName}"
-                                                                  ActiveReplayIndicator="{Binding Simulation.ActiveReplayIndicator}"
-                                                                  Width="{Binding Simulation.DeviceWidth}"
-                                                                  Height="{Binding Simulation.DeviceHeight}"
-                                                                  IsHitTestVisible="False"/>
+                <Border Background="#1a1b1e" Focusable="True" Name="borderScreenshot" ClipToBounds="True">
+                    <Grid Name="gridViewportContainer" Background="#1a1b1e">
+                        <!-- Canvas container for viewport and virtual window -->
+                        <Grid Name="gridCanvasTransformGroup" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel Name="panelVirtualWindow" Orientation="Vertical" Width="{Binding Simulation.DeviceWidth}">
+                                <!-- Virtual Window Title Bar -->
+                                <Border Name="borderVirtualWindowFrame"
+                                        Width="{Binding Simulation.DeviceWidth}"
+                                        IsVisible="{Binding Simulation.IsWindowFrameVisible}"
+                                        Background="#2d2e31"
+                                        BorderBrush="#3c4043"
+                                        BorderThickness="1,1,1,0"
+                                        CornerRadius="6,6,0,0"
+                                        Padding="8,5">
+                                    <Grid ColumnDefinitions="Auto, *, Auto">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <PathIcon Data="{StaticResource WindowIcon}" Width="12" Height="12" Foreground="#8ab4f8"/>
+                                            <TextBlock Text="{Binding Simulation.WindowTitle}" FontWeight="SemiBold" FontSize="11" Foreground="#e8eaed" VerticalAlignment="Center"/>
+                                            <Border Background="#3c4043" CornerRadius="3" Padding="4,1" VerticalAlignment="Center" Margin="5,0,0,0">
+                                                <TextBlock Text="{Binding Simulation.WindowStateText}" FontSize="9" Foreground="#9aa0a6"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- Drag Region Hint -->
+                                        <TextBlock Grid.Column="1" Text=":: Drag Title Bar to Pan ::" FontSize="10" Foreground="#5f6368" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+                                            <Button Name="btnVirtualMinimize" Command="{Binding Simulation.VirtualMinimizeCommand}" ToolTip.Tip="Minimize Target Window" Width="24" Height="20" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="Transparent" BorderThickness="0">
+                                                <PathIcon Data="{StaticResource MinimizeIcon}" Width="10" Height="10" Foreground="#9aa0a6"/>
+                                            </Button>
+                                            <Button Name="btnVirtualMaximize" Command="{Binding Simulation.VirtualMaximizeCommand}" ToolTip.Tip="Maximize / Restore Target Window" Width="24" Height="20" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="Transparent" BorderThickness="0">
+                                                <PathIcon Data="{StaticResource MaximizeIcon}" Width="10" Height="10" Foreground="#9aa0a6"/>
+                                            </Button>
+                                            <Button Name="btnVirtualClose" Command="{Binding Simulation.VirtualCloseCommand}" ToolTip.Tip="Close Target Window" Width="24" Height="20" MinWidth="0" MinHeight="0" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Background="Transparent" BorderThickness="0">
+                                                <PathIcon Data="{StaticResource CloseIcon}" Width="10" Height="10" Foreground="#ff5252"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Main Screencast Image & Highlight Overlay Frame -->
+                                <Border Name="borderImageFrame"
+                                        Width="{Binding Simulation.DeviceWidth}"
+                                        Height="{Binding Simulation.DeviceHeight}"
+                                        Background="#292a2d"
+                                        BorderBrush="#3c4043"
+                                        BorderThickness="1"
+                                        CornerRadius="0,0,6,6">
+                                    <Grid Name="gridImageContainer">
+                                        <Image Name="imgScreenshot"
+                                               Source="{Binding Simulation.ScreenshotImage}"
+                                               Width="{Binding Simulation.DeviceWidth}"
+                                               Height="{Binding Simulation.DeviceHeight}"
+                                               Stretch="Fill"/>
+                                        <controls:PreviewHighlightOverlay Name="overlayHighlight"
+                                                                          DeviceWidth="{Binding Simulation.DeviceWidth}"
+                                                                          DeviceHeight="{Binding Simulation.DeviceHeight}"
+                                                                          IsHighlightOverlayVisible="{Binding Simulation.IsHighlightOverlayVisible}"
+                                                                          HighlightBoxModel="{Binding Simulation.HighlightBoxModel}"
+                                                                          HighlightElementType="{Binding Simulation.HighlightElementType}"
+                                                                          HighlightAxRole="{Binding Simulation.HighlightAxRole}"
+                                                                          HighlightAxName="{Binding Simulation.HighlightAxName}"
+                                                                          ActiveReplayIndicator="{Binding Simulation.ActiveReplayIndicator}"
+                                                                          Width="{Binding Simulation.DeviceWidth}"
+                                                                          Height="{Binding Simulation.DeviceHeight}"
+                                                                          IsHitTestVisible="False"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Virtual Window 8-Direction Resizing Overlay Handles -->
+                            <Grid Name="gridResizeHandlesOverlay" IsHitTestVisible="True">
+                                <!-- Edges -->
+                                <Border Name="handleResizeTop" Height="8" Cursor="SizeNorthSouth" Background="Transparent" VerticalAlignment="Top" Margin="10,-4,10,0"/>
+                                <Border Name="handleResizeBottom" Height="8" Cursor="SizeNorthSouth" Background="Transparent" VerticalAlignment="Bottom" Margin="10,0,10,-4"/>
+                                <Border Name="handleResizeLeft" Width="8" Cursor="SizeWestEast" Background="Transparent" HorizontalAlignment="Left" Margin="-4,10,0,10"/>
+                                <Border Name="handleResizeRight" Width="8" Cursor="SizeWestEast" Background="Transparent" HorizontalAlignment="Right" Margin="0,10,-4,10"/>
+
+                                <!-- Corners -->
+                                <Border Name="handleResizeTopLeft" Width="14" Height="14" Cursor="TopLeftCorner" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-7,-7,0,0">
+                                    <Border Width="8" Height="8" Background="#8ab4f8" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.8" ToolTip.Tip="Drag Top-Left Corner to Resize"/>
+                                </Border>
+                                <Border Name="handleResizeTopRight" Width="14" Height="14" Cursor="TopRightCorner" Background="Transparent" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-7,-7,0">
+                                    <Border Width="8" Height="8" Background="#8ab4f8" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.8" ToolTip.Tip="Drag Top-Right Corner to Resize"/>
+                                </Border>
+                                <Border Name="handleResizeBottomLeft" Width="14" Height="14" Cursor="BottomLeftCorner" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-7,0,0,-7">
+                                    <Border Width="8" Height="8" Background="#8ab4f8" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.8" ToolTip.Tip="Drag Bottom-Left Corner to Resize"/>
+                                </Border>
+                                <Border Name="handleResizeBottomRight" Width="14" Height="14" Cursor="BottomRightCorner" Background="Transparent" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-7,-7">
+                                    <Border Width="8" Height="8" Background="#8ab4f8" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.8" ToolTip.Tip="Drag Bottom-Right Corner to Resize"/>
+                                </Border>
                             </Grid>
-                        </Border>
-                    </ScrollViewer>
+                        </Grid>
+                    </Grid>
                 </Border>
             </controls:DockSplitPanel.MainContent>
 
