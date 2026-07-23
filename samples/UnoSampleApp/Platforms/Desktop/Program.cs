@@ -1,6 +1,5 @@
 using System;
-using Microsoft.UI.Xaml;
-using Uno.UI.Runtime.Skia.Gtk;
+using Uno.UI.Hosting;
 
 namespace UnoSampleApp;
 
@@ -11,7 +10,14 @@ internal class Program
     {
         App.InitializeLogging();
 
-        var host = new GtkHost(() => new App());
+        var host = UnoPlatformHostBuilder.Create()
+            .App(() => new App())
+            .UseX11()
+            .UseLinuxFrameBuffer()
+            .UseMacOS()
+            .UseWin32()
+            .Build();
+
         host.Run();
     }
 }

@@ -17,10 +17,13 @@
     <ApplicationPublisher>UnoSampleApp</ApplicationPublisher>
     <!-- Package Description -->
     <Description>UnoSampleApp powered by Uno Platform.</Description>
+
+    <UnoFeatures>
+      Skia;
+    </UnoFeatures>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Uno.WinUI.Runtime.Skia.Gtk" />
     <ProjectReference Include="../../src/Uno.Diagnostics.Cdp/Uno.Diagnostics.Cdp.csproj" />
   </ItemGroup>
 
