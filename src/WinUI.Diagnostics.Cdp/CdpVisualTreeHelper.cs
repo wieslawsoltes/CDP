@@ -231,12 +231,19 @@ public static class CdpVisualTreeHelper
                     {
                         if (popup != null && popup.Child is UIElement childUI && childUI.Visibility == Visibility.Visible)
                         {
-                            var popupPoint = TranslatePointToWindow(childUI, mousePos, primaryWindow);
-                            var elements = VisualTreeHelper.FindElementsInHostCoordinates(popupPoint, childUI);
-                            var targetElem = elements.FirstOrDefault();
+                            Point popupLocalPoint = mousePos;
+                            try
+                            {
+                                var transform = primaryWindow.Content.TransformToVisual(childUI);
+                                popupLocalPoint = transform.TransformPoint(mousePos);
+                            }
+                            catch { }
+
+                            var elements = VisualTreeHelper.FindElementsInHostCoordinates(popupLocalPoint, childUI);
+                            var targetElem = elements.FirstOrDefault() ?? childUI;
                             if (targetElem != null)
                             {
-                                return new HitTestResult(targetElem, primaryWindow, popupPoint);
+                                return new HitTestResult(targetElem, primaryWindow, popupLocalPoint);
                             }
                         }
                     }

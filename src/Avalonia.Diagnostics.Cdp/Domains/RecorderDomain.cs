@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -109,7 +110,7 @@ internal class SessionRecorderState
         catch { }
     }
 
-    public void Attach()
+    private void EnsureAttachedToAllTopLevelsAndPopups()
     {
         EnsureAttachedToTopLevel(_session.Window);
 
@@ -120,6 +121,32 @@ internal class SessionRecorderState
                 EnsureAttachedToTopLevel(target.Window);
             }
         }
+
+        try
+        {
+            var openPopups = new List<Popup>();
+            var visited = new HashSet<Visual>();
+            CdpVisualTreeHelper.FindOpenPopups(_session.Window, openPopups, visited);
+
+            foreach (var popup in openPopups)
+            {
+                var content = CdpVisualTreeHelper.GetPopupContent(popup);
+                if (content != null)
+                {
+                    var topLevel = TopLevel.GetTopLevel(content);
+                    if (topLevel != null)
+                    {
+                        EnsureAttachedToTopLevel(topLevel);
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    public void Attach()
+    {
+        EnsureAttachedToAllTopLevelsAndPopups();
 
         // Emit initial viewport size
         var size = _session.Window.ClientSize;
@@ -196,6 +223,7 @@ internal class SessionRecorderState
 
     private Visual? ResolveHitVisual(object? sender, RoutedEventArgs e, Point position)
     {
+        EnsureAttachedToAllTopLevelsAndPopups();
         Visual? visual = null;
         var topLevel = (sender as TopLevel) ?? TopLevel.GetTopLevel(e.Source as Visual);
         if (topLevel != null)
@@ -226,6 +254,7 @@ internal class SessionRecorderState
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (_session.InspectModeEnabled) return;
+        EnsureAttachedToAllTopLevelsAndPopups();
 
         var topLevel = (sender as TopLevel) ?? TopLevel.GetTopLevel(e.Source as Visual) ?? _session.Window;
         var pos = e.GetPosition(topLevel);

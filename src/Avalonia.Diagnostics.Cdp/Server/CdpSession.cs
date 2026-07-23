@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -175,7 +176,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
             var parent = current.LogicalParent;
             if (parent == null)
             {
-                return current is TopLevel;
+                return current is TopLevel || current is Popup || current is ContextMenu || current is FlyoutBase;
             }
             if (current is StyledElement cse && cse.TemplatedParent != null)
             {

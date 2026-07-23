@@ -197,7 +197,14 @@ public static class CdpVisualTreeHelper
         {
             if (popup != null && popup.Child is UIElement childUI && childUI.IsVisible)
             {
-                Point popupLocalPoint = TranslatePointToWindow(primaryWindow, mousePos, null);
+                Point popupLocalPoint = mousePos;
+                try
+                {
+                    var screenPoint = primaryWindow.PointToScreen(mousePos);
+                    popupLocalPoint = childUI.PointFromScreen(screenPoint);
+                }
+                catch { }
+
                 var hit = VisualTreeHelper.HitTest(childUI, popupLocalPoint)?.VisualHit;
                 if (hit != null)
                 {

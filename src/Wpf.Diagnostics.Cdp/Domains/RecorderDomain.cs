@@ -90,14 +90,14 @@ internal class SessionRecorderState
         _keyDownHandler = OnKeyDown;
     }
 
-    private readonly HashSet<Window> _attachedWindows = new();
+    private readonly HashSet<UIElement> _attachedElements = new();
 
     private void EnsureAttachedToTopLevel()
     {
         foreach (var target in CdpServer.GetWindows())
         {
             var win = target.Window;
-            if (win != null && _attachedWindows.Add(win))
+            if (win != null && _attachedElements.Add(win))
             {
                 win.PreviewMouseDown += _pointerPressedHandler;
                 win.PreviewMouseMove += _pointerMovedHandler;
@@ -106,6 +106,27 @@ internal class SessionRecorderState
                 win.AddHandler(UIElement.GotFocusEvent, _gotFocusHandler);
                 win.AddHandler(UIElement.LostFocusEvent, _lostFocusHandler);
                 win.PreviewKeyDown += _keyDownHandler;
+            }
+
+            if (win != null)
+            {
+                var openPopups = new List<Popup>();
+                var visited = new HashSet<Visual>();
+                CdpVisualTreeHelper.FindOpenPopups(win, openPopups, visited);
+
+                foreach (var popup in openPopups)
+                {
+                    if (popup != null && popup.Child is UIElement childUI && _attachedElements.Add(childUI))
+                    {
+                        childUI.PreviewMouseDown += _pointerPressedHandler;
+                        childUI.PreviewMouseMove += _pointerMovedHandler;
+                        childUI.PreviewMouseUp += _pointerReleasedHandler;
+                        childUI.PreviewMouseWheel += _pointerWheelChangedHandler;
+                        childUI.AddHandler(UIElement.GotFocusEvent, _gotFocusHandler);
+                        childUI.AddHandler(UIElement.LostFocusEvent, _lostFocusHandler);
+                        childUI.PreviewKeyDown += _keyDownHandler;
+                    }
+                }
             }
         }
     }
@@ -140,20 +161,20 @@ internal class SessionRecorderState
 
     public void Detach()
     {
-        foreach (var win in _attachedWindows)
+        foreach (var elem in _attachedElements)
         {
-            if (win != null)
+            if (elem != null)
             {
-                win.PreviewMouseDown -= _pointerPressedHandler;
-                win.PreviewMouseMove -= _pointerMovedHandler;
-                win.PreviewMouseUp -= _pointerReleasedHandler;
-                win.PreviewMouseWheel -= _pointerWheelChangedHandler;
-                win.RemoveHandler(UIElement.GotFocusEvent, _gotFocusHandler);
-                win.RemoveHandler(UIElement.LostFocusEvent, _lostFocusHandler);
-                win.PreviewKeyDown -= _keyDownHandler;
+                elem.PreviewMouseDown -= _pointerPressedHandler;
+                elem.PreviewMouseMove -= _pointerMovedHandler;
+                elem.PreviewMouseUp -= _pointerReleasedHandler;
+                elem.PreviewMouseWheel -= _pointerWheelChangedHandler;
+                elem.RemoveHandler(UIElement.GotFocusEvent, _gotFocusHandler);
+                elem.RemoveHandler(UIElement.LostFocusEvent, _lostFocusHandler);
+                elem.PreviewKeyDown -= _keyDownHandler;
             }
         }
-        _attachedWindows.Clear();
+        _attachedElements.Clear();
         _initialTexts.Clear();
     }
 

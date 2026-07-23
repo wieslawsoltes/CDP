@@ -544,9 +544,10 @@ public static class CdpVisualTreeHelper
                 try
                 {
                     Point localPoint;
-                    if (host is TopLevel topHost)
+                    var hostTop = TopLevel.GetTopLevel(host);
+                    if (hostTop != null)
                     {
-                        localPoint = topHost.PointToClient(screenPoint);
+                        localPoint = host.PointToClient(screenPoint);
                     }
                     else
                     {
@@ -560,14 +561,13 @@ public static class CdpVisualTreeHelper
                         Visual? hit = (host as InputElement)?.InputHitTest(localPoint) as Visual;
                         if (hit != null)
                         {
-                            var targetTopLevel = host as TopLevel ?? rootWindow;
-                            Point dispatchPoint = (targetTopLevel == rootWindow) ? clientPoint : localPoint;
+                            var targetTopLevel = TopLevel.GetTopLevel(hit) ?? host as TopLevel ?? rootWindow;
 
                             return new RootHitResult
                             {
                                 TargetTopLevel = targetTopLevel,
                                 TargetVisual = host,
-                                LocalPoint = dispatchPoint,
+                                LocalPoint = localPoint,
                                 HitVisual = hit
                             };
                         }

@@ -99,15 +99,43 @@ internal class SessionRecorderState
         foreach (var target in windows)
         {
             var win = target.Window;
-            if (win?.Content != null && _attachedElements.Add(win.Content))
+            if (win?.Content != null)
             {
-                win.Content.PointerPressed += _pointerPressedHandler;
-                win.Content.PointerMoved += _pointerMovedHandler;
-                win.Content.PointerReleased += _pointerReleasedHandler;
-                win.Content.PointerWheelChanged += _pointerWheelChangedHandler;
-                win.Content.GotFocus += _gotFocusHandler;
-                win.Content.LostFocus += _lostFocusHandler;
-                win.Content.KeyDown += _keyDownHandler;
+                if (_attachedElements.Add(win.Content))
+                {
+                    win.Content.PointerPressed += _pointerPressedHandler;
+                    win.Content.PointerMoved += _pointerMovedHandler;
+                    win.Content.PointerReleased += _pointerReleasedHandler;
+                    win.Content.PointerWheelChanged += _pointerWheelChangedHandler;
+                    win.Content.GotFocus += _gotFocusHandler;
+                    win.Content.LostFocus += _lostFocusHandler;
+                    win.Content.KeyDown += _keyDownHandler;
+                }
+
+                if (win.Content.XamlRoot != null)
+                {
+                    try
+                    {
+                        var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
+                        if (popups != null)
+                        {
+                            foreach (var popup in popups)
+                            {
+                                if (popup != null && popup.Child is UIElement childUI && _attachedElements.Add(childUI))
+                                {
+                                    childUI.PointerPressed += _pointerPressedHandler;
+                                    childUI.PointerMoved += _pointerMovedHandler;
+                                    childUI.PointerReleased += _pointerReleasedHandler;
+                                    childUI.PointerWheelChanged += _pointerWheelChangedHandler;
+                                    childUI.GotFocus += _gotFocusHandler;
+                                    childUI.LostFocus += _lostFocusHandler;
+                                    childUI.KeyDown += _keyDownHandler;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
             }
         }
     }
