@@ -27,30 +27,30 @@ public partial class EventsView : UserControl
     {
         InitializeComponent();
 
-        var eventsPanel = lstEvents;
-        var payloadPanel = EventsPayloadPanel;
+        var eventsPanel = this.FindControl<Control>("lstEvents");
+        var payloadPanel = this.FindControl<Control>("EventsPayloadPanel");
+        var hiddenPanel = this.FindControl<Panel>("HiddenPanel");
+        var splitControl = this.FindControl<SuperSplit>("SplitControl");
 
-        HiddenPanel.Children.Clear();
+        hiddenPanel?.Children.Clear();
 
-        _viewsCache["EventsList"] = eventsPanel;
-        _viewsCache["EventsPayload"] = payloadPanel;
+        if (eventsPanel != null) _viewsCache["EventsList"] = eventsPanel;
+        if (payloadPanel != null) _viewsCache["EventsPayload"] = payloadPanel;
 
-        SplitControl.ViewResolver = (viewName, targetBox) =>
+        if (splitControl != null)
         {
-            if (_viewsCache.TryGetValue(viewName, out var cached))
+            splitControl.ViewResolver = (viewName, targetBox) =>
             {
-                if (targetBox == null || cached.Parent != targetBox)
+                if (_viewsCache.TryGetValue(viewName, out var cached))
                 {
-                    DetachControl(cached);
+                    if (targetBox == null || cached.Parent != targetBox)
+                    {
+                        DetachControl(cached);
+                    }
+                    return cached;
                 }
-                return cached;
-            }
-            return new Control();
-        };
-    }
-
-    private void InitializeComponent()
-    {
-        Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
+                return new Control();
+            };
+        }
     }
 }

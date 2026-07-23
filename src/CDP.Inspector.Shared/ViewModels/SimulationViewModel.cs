@@ -80,14 +80,215 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     private double _deviceWidth = 800;
     private double _deviceHeight = 600;
 
+    // Zoom state
+    private double _zoomLevel = 1.0;
+    private bool _isFitZoomActive = true;
+    private string _selectedZoomPreset = "Fit";
+    private readonly System.Collections.ObjectModel.ObservableCollection<string> _zoomPresets = new()
+    {
+        "Fit", "25%", "50%", "75%", "100%", "125%", "150%", "200%", "300%", "400%"
+    };
+
+    public System.Collections.ObjectModel.ObservableCollection<string> ZoomPresets => _zoomPresets;
+
+    public double ZoomLevel
+    {
+        get => _zoomLevel;
+        set
+        {
+            double clamped = Math.Clamp(value, 0.1, 5.0);
+            if (RaiseAndSetIfChanged(ref _zoomLevel, clamped))
+            {
+                OnPropertyChanged(nameof(ZoomLevelText));
+            }
+        }
+    }
+
+    public bool IsFitZoomActive
+    {
+        get => _isFitZoomActive;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isFitZoomActive, value))
+            {
+                if (value)
+                {
+                    _selectedZoomPreset = "Fit";
+                    OnPropertyChanged(nameof(SelectedZoomPreset));
+                }
+                OnPropertyChanged(nameof(ZoomLevelText));
+            }
+        }
+    }
+
+    public string SelectedZoomPreset
+    {
+        get => _selectedZoomPreset;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedZoomPreset, value))
+            {
+                ApplyZoomPreset(value);
+            }
+        }
+    }
+
+    public string ZoomLevelText => IsFitZoomActive ? "Fit" : $"{ZoomLevel * 100:F0}%";
+
+    // Pan state
+    private double _panX = 0.0;
+    private double _panY = 0.0;
+    private bool _isPanModeActive = false;
+
+    public double PanX
+    {
+        get => _panX;
+        set => RaiseAndSetIfChanged(ref _panX, value);
+    }
+
+    public double PanY
+    {
+        get => _panY;
+        set => RaiseAndSetIfChanged(ref _panY, value);
+    }
+
+    public bool IsPanModeActive
+    {
+        get => _isPanModeActive;
+        set => RaiseAndSetIfChanged(ref _isPanModeActive, value);
+    }
+
+    private System.Collections.ObjectModel.ObservableCollection<TargetViewItemViewModel> _targetViews = new()
+    {
+        new TargetViewItemViewModel("all", "All Windows & Popups"),
+        new TargetViewItemViewModel("main", "Main Window Only")
+    };
+    private TargetViewItemViewModel? _selectedTargetView;
+
+    public System.Collections.ObjectModel.ObservableCollection<TargetViewItemViewModel> TargetViews
+    {
+        get => _targetViews;
+        set => RaiseAndSetIfChanged(ref _targetViews, value);
+    }
+
+    public TargetViewItemViewModel? SelectedTargetView
+    {
+        get => _selectedTargetView;
+        set => RaiseAndSetIfChanged(ref _selectedTargetView, value);
+    }
+
+    public void RefreshTargetViews()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                var existingSelectedId = SelectedTargetView?.Id ?? "all";
+
+                var newViews = new List<TargetViewItemViewModel>
+                {
+                    new TargetViewItemViewModel("all", "All Visible Windows & Popups"),
+                    new TargetViewItemViewModel("main", "Main Window Only")
+                };
+
+                int windowIndex = 2;
+                foreach (var target in Avalonia.Diagnostics.Cdp.CdpServer.GetWindows())
+                {
+                    if (target.Window != null && target.Window.IsVisible)
+                    {
+                        string title = !string.IsNullOrWhiteSpace(target.Title) ? target.Title : $"Window #{windowIndex++}";
+                        string id = target.Id;
+                        if (!newViews.Exists(x => x.Id == id))
+                        {
+                            newViews.Add(new TargetViewItemViewModel(id, $"Window: {title}"));
+                        }
+                    }
+                }
+
+                var openPopups = new List<Avalonia.Controls.Primitives.Popup>();
+                var visited = new HashSet<Avalonia.Visual>();
+                foreach (var target in Avalonia.Diagnostics.Cdp.CdpServer.GetWindows())
+                {
+                    if (target.Window != null)
+                    {
+                        Avalonia.Diagnostics.Cdp.CdpVisualTreeHelper.FindOpenPopups(target.Window, openPopups, visited);
+                    }
+                }
+
+                int popupIndex = 1;
+                foreach (var popup in openPopups)
+                {
+                    if (popup.IsOpen)
+                    {
+                        string popupType = popup.Parent?.GetType().Name ?? "Popup";
+                        string id = $"popup_{popup.GetHashCode()}";
+                        newViews.Add(new TargetViewItemViewModel(id, $"Popup: {popupType} #{popupIndex++}"));
+                    }
+                }
+
+                bool matches = TargetViews.Count == newViews.Count;
+                if (matches)
+                {
+                    for (int i = 0; i < TargetViews.Count; i++)
+                    {
+                        if (TargetViews[i].Id != newViews[i].Id || TargetViews[i].Title != newViews[i].Title)
+                        {
+                            matches = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (!matches)
+                {
+                    TargetViews.Clear();
+                    foreach (var item in newViews)
+                    {
+                        TargetViews.Add(item);
+                    }
+
+                    SelectedTargetView = System.Linq.Enumerable.FirstOrDefault(TargetViews, x => x.Id == existingSelectedId)
+                                      ?? System.Linq.Enumerable.FirstOrDefault(TargetViews);
+                }
+            }
+            catch { }
+        });
+    }
+
+    // Virtual Window Frame state & Metadata
+    private bool _isWindowFrameVisible = true;
+    private string _windowTitle = "Target Application";
+    private string _windowStateText = "Normal";
+
+    public bool IsWindowFrameVisible
+    {
+        get => _isWindowFrameVisible;
+        set => RaiseAndSetIfChanged(ref _isWindowFrameVisible, value);
+    }
+
+    public string WindowTitle
+    {
+        get => _windowTitle;
+        set => RaiseAndSetIfChanged(ref _windowTitle, value);
+    }
+
+    public string WindowStateText
+    {
+        get => _windowStateText;
+        set => RaiseAndSetIfChanged(ref _windowStateText, value);
+    }
+
     private readonly System.Collections.ObjectModel.ObservableCollection<DevicePreset> _devicePresets = new()
     {
-        new DevicePreset("Responsive", 0, 0, 1.0, false),
-        new DevicePreset("iPhone SE", 375, 667, 2.0, true),
-        new DevicePreset("iPhone 12 Pro", 390, 844, 3.0, true),
-        new DevicePreset("Pixel 5", 393, 851, 2.75, true),
+        new DevicePreset("Responsive (Reset)", 0, 0, 1.0, false),
+        new DevicePreset("Desktop (720p)", 1280, 720, 1.0, false),
+        new DevicePreset("Desktop (1080p)", 1920, 1080, 1.0, false),
+        new DevicePreset("Desktop (1440p 2K)", 2560, 1440, 1.0, false),
+        new DevicePreset("Desktop (4K)", 3840, 2160, 1.0, false),
         new DevicePreset("iPad Air", 820, 1180, 2.0, true),
-        new DevicePreset("Desktop (1080p)", 1920, 1080, 1.0, false)
+        new DevicePreset("iPhone 14 Pro", 393, 852, 3.0, true),
+        new DevicePreset("iPhone SE", 375, 667, 2.0, true),
+        new DevicePreset("Pixel 7", 412, 915, 2.625, true)
     };
     private DevicePreset? _selectedDevicePreset;
 
@@ -350,6 +551,18 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     public ICommand MouseDragCommand { get; }
     public ICommand RotateDeviceCommand { get; }
 
+    // Zoom & Pan & Window Frame
+    public ICommand ZoomInCommand { get; }
+    public ICommand ZoomOutCommand { get; }
+    public ICommand ZoomResetCommand { get; }
+    public ICommand ToggleFitZoomCommand { get; }
+    public ICommand ResetPanCommand { get; }
+    public ICommand TogglePanModeCommand { get; }
+    public ICommand ToggleWindowFrameCommand { get; }
+    public ICommand VirtualMinimizeCommand { get; }
+    public ICommand VirtualMaximizeCommand { get; }
+    public ICommand VirtualCloseCommand { get; }
+
     public SimulationViewModel(
         ICdpService cdpService,
         Func<DomNodeModel?> getSelectedNodeFunc,
@@ -388,6 +601,17 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         MouseMoveCommand = new RelayCommand(async () => await MouseMoveAsync(), () => _cdpService.IsConnected);
         MouseClickAtPointCommand = new RelayCommand(async () => await MouseClickAtPointAsync(), () => _cdpService.IsConnected);
         MouseDragCommand = new RelayCommand(async () => await MouseDragAsync(), () => _cdpService.IsConnected);
+
+        ZoomInCommand = new RelayCommand(ZoomIn);
+        ZoomOutCommand = new RelayCommand(ZoomOut);
+        ZoomResetCommand = new RelayCommand(ZoomReset);
+        ToggleFitZoomCommand = new RelayCommand(ToggleFitZoom);
+        ResetPanCommand = new RelayCommand(ResetPan);
+        TogglePanModeCommand = new RelayCommand(() => IsPanModeActive = !IsPanModeActive);
+        ToggleWindowFrameCommand = new RelayCommand(() => IsWindowFrameVisible = !IsWindowFrameVisible);
+        VirtualMinimizeCommand = new RelayCommand(async () => await ExecuteVirtualWindowControlAsync("minimize"), () => _cdpService.IsConnected);
+        VirtualMaximizeCommand = new RelayCommand(async () => await ExecuteVirtualWindowControlAsync("maximize"), () => _cdpService.IsConnected);
+        VirtualCloseCommand = new RelayCommand(async () => await ExecuteVirtualWindowControlAsync("close"), () => _cdpService.IsConnected);
 
         _cdpService.EventReceived += CdpService_EventReceived;
         if (_cdpService.IsConnected)
@@ -588,6 +812,10 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         if (!int.TryParse(WidthText, out int w) || !int.TryParse(HeightText, out int h)) return;
         if (!double.TryParse(ScaleFactorText, out double scale)) scale = 1.0;
         bool mobile = IsMobileActive;
+
+        DeviceWidth = w;
+        DeviceHeight = h;
+
         try
         {
             await _cdpService.SendCommandAsync("Emulation.setDeviceMetricsOverride", new JsonObject
@@ -606,10 +834,16 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
 
     private async Task ResizeResetAsync()
     {
+        WidthText = "800";
+        HeightText = "600";
+        ScaleFactorText = "1.0";
+        IsMobileActive = false;
+        DeviceWidth = 800;
+        DeviceHeight = 600;
+
         try
         {
             await _cdpService.SendCommandAsync("Emulation.clearDeviceMetricsOverride", new JsonObject());
-            IsMobileActive = false;
         }
         catch (Exception ex)
         {
@@ -1482,6 +1716,133 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         _lastInspectY = -999;
     }
 
+    public void ZoomIn()
+    {
+        IsFitZoomActive = false;
+        ZoomLevel = Math.Min(5.0, ZoomLevel * 1.25);
+        _selectedZoomPreset = $"{ZoomLevel * 100:F0}%";
+        OnPropertyChanged(nameof(SelectedZoomPreset));
+    }
+
+    public void ZoomOut()
+    {
+        IsFitZoomActive = false;
+        ZoomLevel = Math.Max(0.1, ZoomLevel / 1.25);
+        _selectedZoomPreset = $"{ZoomLevel * 100:F0}%";
+        OnPropertyChanged(nameof(SelectedZoomPreset));
+    }
+
+    public void ZoomReset()
+    {
+        IsFitZoomActive = false;
+        ZoomLevel = 1.0;
+        PanX = 0;
+        PanY = 0;
+        _selectedZoomPreset = "100%";
+        OnPropertyChanged(nameof(SelectedZoomPreset));
+    }
+
+    public void ToggleFitZoom()
+    {
+        IsFitZoomActive = !IsFitZoomActive;
+        if (IsFitZoomActive)
+        {
+            PanX = 0;
+            PanY = 0;
+            _selectedZoomPreset = "Fit";
+            OnPropertyChanged(nameof(SelectedZoomPreset));
+        }
+    }
+
+    public void ResetPan()
+    {
+        PanX = 0;
+        PanY = 0;
+    }
+
+    public void ApplyZoomPreset(string preset)
+    {
+        if (string.IsNullOrEmpty(preset)) return;
+        if (preset.Equals("Fit", StringComparison.OrdinalIgnoreCase))
+        {
+            IsFitZoomActive = true;
+            PanX = 0;
+            PanY = 0;
+            return;
+        }
+
+        IsFitZoomActive = false;
+        string clean = preset.Replace("%", "").Trim();
+        if (double.TryParse(clean, out double pct))
+        {
+            ZoomLevel = pct / 100.0;
+        }
+    }
+
+    public async Task ResizeToMetricsAsync(int width, int height)
+    {
+        WidthText = Math.Max(100, width).ToString();
+        HeightText = Math.Max(100, height).ToString();
+        await ResizeAsync();
+    }
+
+    private async Task ExecuteVirtualWindowControlAsync(string action)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            string expression = action switch
+            {
+                "minimize" => "if (Window != null) Window.WindowState = Avalonia.Controls.WindowState.Minimized;",
+                "maximize" => "if (Window != null) Window.WindowState = (Window.WindowState == Avalonia.Controls.WindowState.Maximized) ? Avalonia.Controls.WindowState.Normal : Avalonia.Controls.WindowState.Maximized;",
+                "close" => "if (Window != null) Window.Close();",
+                _ => ""
+            };
+
+            if (!string.IsNullOrEmpty(expression))
+            {
+                await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+                {
+                    ["expression"] = expression,
+                    ["returnByValue"] = true
+                });
+                await RefreshWindowMetadataAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogErrorMessage("SimulationVM", $"Virtual window action {action} failed", ex);
+        }
+    }
+
+    public async Task RefreshWindowMetadataAsync()
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            var evalRes = await _cdpService.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "(Window?.Title ?? document.title) + '|' + (Window?.WindowState.ToString() ?? 'Normal')",
+                ["returnByValue"] = true
+            });
+            var resultObj = evalRes["result"] as JsonObject;
+            var val = resultObj?["value"]?.GetValue<string>();
+            if (!string.IsNullOrEmpty(val))
+            {
+                var parts = val.Split('|');
+                if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
+                {
+                    Dispatcher.UIThread.Post(() => WindowTitle = parts[0]);
+                }
+                if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
+                {
+                    Dispatcher.UIThread.Post(() => WindowStateText = parts[1]);
+                }
+            }
+        }
+        catch { }
+    }
+
     #region IStateProvider Implementation
 
     public string StateKey => "simulation";
@@ -1498,6 +1859,13 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         root["isAdvancedToolsExpanded"] = IsAdvancedToolsExpanded;
         root["isAdvancedToolsPinned"] = IsAdvancedToolsPinned;
         root["advancedToolsPanelHeight"] = AdvancedToolsPanelHeight;
+        root["zoomLevel"] = ZoomLevel;
+        root["isFitZoomActive"] = IsFitZoomActive;
+        root["selectedZoomPreset"] = SelectedZoomPreset;
+        root["panX"] = PanX;
+        root["panY"] = PanY;
+        root["isPanModeActive"] = IsPanModeActive;
+        root["isWindowFrameVisible"] = IsWindowFrameVisible;
         return root;
     }
 
@@ -1547,6 +1915,34 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         {
             AdvancedToolsPanelHeight = (double?)hPanelNode ?? 220.0;
         }
+        if (json.TryGetPropertyValue("zoomLevel", out var zNode) && zNode != null)
+        {
+            ZoomLevel = (double?)zNode ?? 1.0;
+        }
+        if (json.TryGetPropertyValue("isFitZoomActive", out var fitNode) && fitNode != null)
+        {
+            IsFitZoomActive = (bool?)fitNode ?? true;
+        }
+        if (json.TryGetPropertyValue("selectedZoomPreset", out var zPNode) && zPNode != null)
+        {
+            SelectedZoomPreset = (string?)zPNode ?? "Fit";
+        }
+        if (json.TryGetPropertyValue("panX", out var pxNode) && pxNode != null)
+        {
+            PanX = (double?)pxNode ?? 0.0;
+        }
+        if (json.TryGetPropertyValue("panY", out var pyNode) && pyNode != null)
+        {
+            PanY = (double?)pyNode ?? 0.0;
+        }
+        if (json.TryGetPropertyValue("isPanModeActive", out var panMNode) && panMNode != null)
+        {
+            IsPanModeActive = (bool?)panMNode ?? false;
+        }
+        if (json.TryGetPropertyValue("isWindowFrameVisible", out var wfNode) && wfNode != null)
+        {
+            IsWindowFrameVisible = (bool?)wfNode ?? true;
+        }
     }
 
     #endregion
@@ -1576,5 +1972,17 @@ public class InteractionEventArgs : EventArgs
     public InteractionEventArgs(JsonObject step)
     {
         Step = step;
+    }
+}
+
+public class TargetViewItemViewModel : ViewModelBase
+{
+    public string Id { get; }
+    public string Title { get; }
+
+    public TargetViewItemViewModel(string id, string title)
+    {
+        Id = id;
+        Title = title;
     }
 }

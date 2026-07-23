@@ -14,6 +14,23 @@ namespace CdpInspectorApp.Views;
 public partial class SimulationView : UserControl
 {
     private ConnectionViewModel? _connectionVm;
+    private SimulationViewModel? _simulationVm;
+
+    private bool _isSpaceKeyDown;
+
+    private bool _isTitleBarPanning;
+    private Avalonia.Point _panStartPoint;
+    private double _panStartPanX;
+    private double _panStartPanY;
+
+    private bool _isResizing;
+    private bool _resizeLeft;
+    private bool _resizeRight;
+    private bool _resizeTop;
+    private bool _resizeBottom;
+    private Avalonia.Point _resizeStartPoint;
+    private double _resizeStartWidth;
+    private double _resizeStartHeight;
 
     public SimulationView()
     {
@@ -38,6 +55,34 @@ public partial class SimulationView : UserControl
             border.KeyUp += Border_KeyUp;
             border.TextInput += Border_TextInput;
         }
+
+        var titleBar = this.Find<Border>("borderVirtualWindowFrame");
+        if (titleBar != null)
+        {
+            titleBar.PointerPressed += TitleBar_PointerPressed;
+            titleBar.PointerMoved += TitleBar_PointerMoved;
+            titleBar.PointerReleased += TitleBar_PointerReleased;
+        }
+
+        WireResizeHandle("handleResizeTop", false, false, true, false);
+        WireResizeHandle("handleResizeBottom", false, false, false, true);
+        WireResizeHandle("handleResizeLeft", true, false, false, false);
+        WireResizeHandle("handleResizeRight", false, true, false, false);
+        WireResizeHandle("handleResizeTopLeft", true, false, true, false);
+        WireResizeHandle("handleResizeTopRight", false, true, true, false);
+        WireResizeHandle("handleResizeBottomLeft", true, false, false, true);
+        WireResizeHandle("handleResizeBottomRight", false, true, false, true);
+    }
+
+    private void WireResizeHandle(string name, bool left, bool right, bool top, bool bottom)
+    {
+        var handle = this.Find<Border>(name);
+        if (handle != null)
+        {
+            handle.PointerPressed += (s, e) => StartResize(e, left, right, top, bottom);
+            handle.PointerMoved += Resize_PointerMoved;
+            handle.PointerReleased += Resize_PointerReleased;
+        }
     }
 
     private void SimulationView_DataContextChanged(object? sender, EventArgs e)
@@ -48,11 +93,25 @@ public partial class SimulationView : UserControl
             _connectionVm = null;
         }
 
+        if (_simulationVm != null)
+        {
+            _simulationVm.PropertyChanged -= SimulationVm_PropertyChanged;
+            _simulationVm = null;
+        }
+
         if (DataContext is MainWindowViewModel mainVm)
         {
             _connectionVm = mainVm.Connection;
             _connectionVm.PropertyChanged += ConnectionVm_PropertyChanged;
+
+            _simulationVm = mainVm.Simulation;
+            if (_simulationVm != null)
+            {
+                _simulationVm.PropertyChanged += SimulationVm_PropertyChanged;
+            }
+
             UpdateCursor(_connectionVm.IsInspectModeActive);
+            UpdateViewportTransform();
         }
         else
         {
@@ -68,12 +127,153 @@ public partial class SimulationView : UserControl
         }
     }
 
+    private void SimulationVm_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SimulationViewModel.ZoomLevel) or
+            nameof(SimulationViewModel.IsFitZoomActive) or
+            nameof(SimulationViewModel.PanX) or
+            nameof(SimulationViewModel.PanY) or
+            nameof(SimulationViewModel.IsPanModeActive))
+        {
+            UpdateViewportTransform();
+            UpdateCursor(_connectionVm?.IsInspectModeActive ?? false);
+        }
+    }
+
     private void UpdateCursor(bool isInspectActive)
     {
         var img = this.Find<Image>("imgScreenshot");
         if (img != null)
         {
-            img.Cursor = isInspectActive ? new Cursor(StandardCursorType.Cross) : null;
+            if (isInspectActive)
+            {
+                img.Cursor = new Cursor(StandardCursorType.Cross);
+            }
+            else if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null && mainVm.Simulation.IsPanModeActive)
+            {
+                img.Cursor = new Cursor(StandardCursorType.Hand);
+            }
+            else
+            {
+                img.Cursor = null;
+            }
+        }
+    }
+
+    private void UpdateViewportTransform()
+    {
+        var transformGroup = this.Find<Grid>("gridCanvasTransformGroup");
+        if (transformGroup == null) return;
+
+        if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            var simVm = mainVm.Simulation;
+            double zoom = simVm.ZoomLevel;
+            double panX = simVm.PanX;
+            double panY = simVm.PanY;
+
+            var scaleTransform = new Avalonia.Media.ScaleTransform(zoom, zoom);
+            var translateTransform = new Avalonia.Media.TranslateTransform(panX, panY);
+            var group = new Avalonia.Media.TransformGroup();
+            group.Children.Add(scaleTransform);
+            group.Children.Add(translateTransform);
+            transformGroup.RenderTransform = group;
+        }
+    }
+
+    private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            _isTitleBarPanning = true;
+            _panStartPoint = e.GetPosition(this);
+            _panStartPanX = mainVm.Simulation.PanX;
+            _panStartPanY = mainVm.Simulation.PanY;
+            e.Pointer.Capture(sender as Control);
+            e.Handled = true;
+        }
+    }
+
+    private void TitleBar_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_isTitleBarPanning && DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            var current = e.GetPosition(this);
+            var delta = current - _panStartPoint;
+            mainVm.Simulation.PanX = _panStartPanX + delta.X;
+            mainVm.Simulation.PanY = _panStartPanY + delta.Y;
+            e.Handled = true;
+        }
+    }
+
+    private void TitleBar_PointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_isTitleBarPanning)
+        {
+            _isTitleBarPanning = false;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+        }
+    }
+
+    private void StartResize(PointerPressedEventArgs e, bool left, bool right, bool top, bool bottom)
+    {
+        if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            _isResizing = true;
+            _resizeLeft = left;
+            _resizeRight = right;
+            _resizeTop = top;
+            _resizeBottom = bottom;
+            _resizeStartPoint = e.GetPosition(this);
+            _resizeStartWidth = mainVm.Simulation.DeviceWidth;
+            _resizeStartHeight = mainVm.Simulation.DeviceHeight;
+            e.Pointer.Capture(e.Source as Control);
+            e.Handled = true;
+        }
+    }
+
+    private void Resize_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_isResizing && DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            var current = e.GetPosition(this);
+            var delta = current - _resizeStartPoint;
+
+            if (_resizeRight)
+            {
+                double newW = Math.Max(200, _resizeStartWidth + delta.X);
+                mainVm.Simulation.WidthText = Math.Round(newW).ToString();
+            }
+            else if (_resizeLeft)
+            {
+                double newW = Math.Max(200, _resizeStartWidth - delta.X);
+                mainVm.Simulation.WidthText = Math.Round(newW).ToString();
+            }
+
+            if (_resizeBottom)
+            {
+                double newH = Math.Max(200, _resizeStartHeight + delta.Y);
+                mainVm.Simulation.HeightText = Math.Round(newH).ToString();
+            }
+            else if (_resizeTop)
+            {
+                double newH = Math.Max(200, _resizeStartHeight - delta.Y);
+                mainVm.Simulation.HeightText = Math.Round(newH).ToString();
+            }
+
+            e.Handled = true;
+        }
+    }
+
+    private void Resize_PointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_isResizing && DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            _isResizing = false;
+            e.Pointer.Capture(null);
+            mainVm.Simulation.ResizeCommand.Execute(null);
+            e.Handled = true;
         }
     }
 
@@ -81,6 +281,24 @@ public partial class SimulationView : UserControl
     {
         var border = this.Find<Border>("borderScreenshot");
         border?.Focus();
+
+        if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            var simVm = mainVm.Simulation;
+            var pointerPoint = e.GetCurrentPoint(sender as Control);
+            bool isMiddle = pointerPoint.Properties.IsMiddleButtonPressed;
+
+            if (isMiddle || simVm.IsPanModeActive || _isSpaceKeyDown)
+            {
+                _isTitleBarPanning = true;
+                _panStartPoint = e.GetPosition(this);
+                _panStartPanX = simVm.PanX;
+                _panStartPanY = simVm.PanY;
+                e.Pointer.Capture(sender as Control);
+                e.Handled = true;
+                return;
+            }
+        }
 
         var img = this.Find<Image>("imgScreenshot");
         if (img != null)
@@ -99,6 +317,14 @@ public partial class SimulationView : UserControl
 
     private void Image_PointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_isTitleBarPanning)
+        {
+            _isTitleBarPanning = false;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
         var img = this.Find<Image>("imgScreenshot");
         if (img != null)
         {
@@ -404,12 +630,39 @@ public partial class SimulationView : UserControl
 
     private void Image_PointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_isTitleBarPanning && DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        {
+            var current = e.GetPosition(this);
+            var delta = current - _panStartPoint;
+            mainVm.Simulation.PanX = _panStartPanX + delta.X;
+            mainVm.Simulation.PanY = _panStartPanY + delta.Y;
+            e.Handled = true;
+            return;
+        }
+
         SendMouseEvent("mouseMoved", e);
         e.Handled = true;
     }
 
     private void Image_PointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))
+        {
+            if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+            {
+                if (e.Delta.Y > 0)
+                {
+                    mainVm.Simulation.ZoomIn();
+                }
+                else if (e.Delta.Y < 0)
+                {
+                    mainVm.Simulation.ZoomOut();
+                }
+            }
+            e.Handled = true;
+            return;
+        }
+
         var img = this.Find<Image>("imgScreenshot");
         if (img == null || img.Source is not Bitmap bitmap) return;
 
@@ -425,15 +678,15 @@ public partial class SimulationView : UserControl
 
         if (targetX < 0 || targetX > imageWidth || targetY < 0 || targetY > imageHeight) return;
 
-        if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
+        if (DataContext is MainWindowViewModel mainVm2 && mainVm2.Simulation != null)
         {
-            var simVm = mainVm.Simulation;
+            var simVm = mainVm2.Simulation;
             if (simVm.DeviceWidth > 0 && simVm.DeviceHeight > 0)
             {
                 targetX = pos.X * (simVm.DeviceWidth / imageWidth);
                 targetY = pos.Y * (simVm.DeviceHeight / imageHeight);
             }
-            _ = mainVm.Simulation.SendWheelEventAsync(targetX, targetY, e.Delta.Y);
+            _ = mainVm2.Simulation.SendWheelEventAsync(targetX, targetY, e.Delta.Y);
         }
         e.Handled = true;
     }
@@ -512,6 +765,11 @@ public partial class SimulationView : UserControl
 
     private void Border_KeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Space)
+        {
+            _isSpaceKeyDown = true;
+        }
+
         if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
         {
             int modifiers = 0;
@@ -524,7 +782,7 @@ public partial class SimulationView : UserControl
             _ = mainVm.Simulation.SendKeyboardEventAsync("rawKeyDown", keyStr, modifiers);
         }
         
-        if (e.Key is Key.Tab or Key.Left or Key.Right or Key.Up or Key.Down or Key.Back or Key.Delete or Key.Escape or Key.Enter)
+        if (e.Key is Key.Tab or Key.Left or Key.Right or Key.Up or Key.Down or Key.Back or Key.Delete or Key.Escape or Key.Enter or Key.Space)
         {
             e.Handled = true;
         }
@@ -532,6 +790,11 @@ public partial class SimulationView : UserControl
 
     private void Border_KeyUp(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Space)
+        {
+            _isSpaceKeyDown = false;
+        }
+
         if (DataContext is MainWindowViewModel mainVm && mainVm.Simulation != null)
         {
             int modifiers = 0;
@@ -544,7 +807,7 @@ public partial class SimulationView : UserControl
             _ = mainVm.Simulation.SendKeyboardEventAsync("keyUp", keyStr, modifiers);
         }
         
-        if (e.Key is Key.Tab or Key.Left or Key.Right or Key.Up or Key.Down or Key.Back or Key.Delete or Key.Escape or Key.Enter)
+        if (e.Key is Key.Tab or Key.Left or Key.Right or Key.Up or Key.Down or Key.Back or Key.Delete or Key.Escape or Key.Enter or Key.Space)
         {
             e.Handled = true;
         }
