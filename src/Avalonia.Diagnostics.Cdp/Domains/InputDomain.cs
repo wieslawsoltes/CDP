@@ -401,53 +401,9 @@ public static class InputDomain
 
             if (session.Window != null)
             {
-                var screenPoint = session.Window.PointToScreen(position);
-                var allRoots = new List<TopLevel>();
-                allRoots.Add(session.Window);
-
-                foreach (var target in CdpServer.GetWindows())
-                {
-                    if (target.Window != null && !allRoots.Contains(target.Window))
-                    {
-                        allRoots.Add(target.Window);
-                    }
-                }
-
-                for (int i = 0; i < allRoots.Count; i++)
-                {
-                    var root = allRoots[i];
-                    var openPopups = new List<Popup>();
-                    var visited = new HashSet<Visual>();
-                    CdpVisualTreeHelper.FindOpenPopups(root, openPopups, visited);
-                    foreach (var popup in openPopups)
-                    {
-                        var host = CdpVisualTreeHelper.GetPopupHost(popup) as TopLevel;
-                        if (host != null && !allRoots.Contains(host))
-                        {
-                            allRoots.Add(host);
-                        }
-                    }
-                }
-
-                for (int i = allRoots.Count - 1; i >= 0; i--)
-                {
-                    var win = allRoots[i];
-                    if (win != null && win.IsVisible)
-                    {
-                        try
-                        {
-                            var localPoint = win.PointToClient(screenPoint);
-                            if (localPoint.X >= 0 && localPoint.X <= win.Bounds.Width &&
-                                localPoint.Y >= 0 && localPoint.Y <= win.Bounds.Height)
-                            {
-                                targetWindow = win;
-                                position = localPoint;
-                                break;
-                            }
-                        }
-                        catch { }
-                    }
-                }
+                var hitRes = CdpVisualTreeHelper.HitTestAllRoots(session.Window, position);
+                targetWindow = hitRes.TargetTopLevel ?? session.Window;
+                position = hitRes.LocalPoint;
             }
 
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -981,9 +937,11 @@ public static class InputDomain
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             var timestamp = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var inputHandler = GetInputHandler(session.Window);
+            var focusedVisual = (session.Window as TopLevel)?.FocusManager?.GetFocusedElement() as Visual;
+            var targetWindow = focusedVisual != null ? TopLevel.GetTopLevel(focusedVisual) ?? session.Window : session.Window;
+            var inputHandler = GetInputHandler(targetWindow);
             var keyboardDevice = GetKeyboardDevice();
-            var inputRoot = GetInputRoot(session.Window);
+            var inputRoot = GetInputRoot(targetWindow);
             if (inputHandler == null || keyboardDevice == null || inputRoot == null) return;
 
             var modifiers = RawInputModifiers.None;

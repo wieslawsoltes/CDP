@@ -245,7 +245,8 @@ public static class DomDomain
                     int y = @params["y"]?.GetValue<int>() ?? 0;
                     int hitId = await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        var hit = session.Window.InputHitTest(new Point(x, y)) as Visual;
+                        var res = CdpVisualTreeHelper.HitTestAllRoots(session.Window, new Point(x, y));
+                        var hit = res.HitVisual;
                         if (hit != null && session.UseLogicalTree)
                         {
                             hit = session.FindLogicalNode(hit);

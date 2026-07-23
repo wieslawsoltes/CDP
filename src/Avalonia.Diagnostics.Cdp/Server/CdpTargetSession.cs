@@ -350,6 +350,14 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                         using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
                         if (skBitmap != null)
                         {
+                            if (CdpVisualTreeHelper.HasSecondaryWindowsOrPopups(Window))
+                            {
+                                await Dispatcher.UIThread.InvokeAsync(() =>
+                                {
+                                    CdpVisualTreeHelper.CompositeAllWindowsAndPopups(Window, skBitmap, scale);
+                                });
+                            }
+
                             pixelWidth = skBitmap.Width;
                             pixelHeight = skBitmap.Height;
 

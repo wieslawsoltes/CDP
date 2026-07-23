@@ -84,11 +84,16 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     {
         get
         {
-            if (_activeWindowOverride != null && _activeWindowOverride.TryGetTarget(out var win) && win.IsVisible)
+            if (_activeWindowOverride != null && _activeWindowOverride.TryGetTarget(out var winOverride))
             {
-                return win;
+                return winOverride;
             }
-            return CurrentTargetSession?.Window ?? _window;
+            var targetWin = CurrentTargetSession?.Window ?? _window;
+            if (targetWin != null)
+            {
+                return targetWin;
+            }
+            return CdpServer.GetPrimaryWindow();
         }
         set
         {

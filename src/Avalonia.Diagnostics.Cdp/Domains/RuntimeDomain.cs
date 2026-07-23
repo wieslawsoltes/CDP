@@ -1561,22 +1561,30 @@ public static class RuntimeDomain
 
             case "runIfWaitingForDebugger":
                 {
-                    foreach (var script in session.ScriptsToEvaluateOnNewDocument.Values)
-                    {
-                        try
-                        {
-                            await EvaluateAsync(session, ScriptPreprocessor.Preprocess(script), inspectedNodeId: 0);
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.LogErrorMessage("RuntimeDomain", "Error evaluating pre-flight script", ex);
-                        }
-                    }
-
                     var targetId = session.CurrentTargetSession?.TargetId ?? session.Target?.Id;
                     if (!string.IsNullOrEmpty(targetId))
                     {
                         CdpServer.ResumeTarget(targetId);
+                    }
+                    else
+                    {
+                        Chrome.DevTools.Protocol.CdpServer.HasWaitedForDebugger = true;
+                    }
+
+                    var targetWindow = session.Window ?? CdpServer.GetPrimaryWindow();
+                    if (targetWindow != null)
+                    {
+                        foreach (var script in session.ScriptsToEvaluateOnNewDocument.Values)
+                        {
+                            try
+                            {
+                                await EvaluateAsync(session, ScriptPreprocessor.Preprocess(script), inspectedNodeId: 0);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogErrorMessage("RuntimeDomain", "Error evaluating pre-flight script", ex);
+                            }
+                        }
                     }
 
                     return new JsonObject();
