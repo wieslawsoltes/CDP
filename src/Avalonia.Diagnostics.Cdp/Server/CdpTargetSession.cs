@@ -697,6 +697,28 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
         StopObservingVisualTree();
         IsDomEnabled = true;
         SubscribeToVisual(Window);
+
+        var openPopups = new List<Popup>();
+        var visited = new HashSet<Visual>();
+        foreach (var target in CdpServer.GetWindows())
+        {
+            if (target.Window != null)
+            {
+                if (target.Window != Window)
+                {
+                    SubscribeToVisual(target.Window);
+                }
+                CdpVisualTreeHelper.FindOpenPopups(target.Window, openPopups, visited);
+            }
+        }
+        foreach (var popup in openPopups)
+        {
+            var content = CdpVisualTreeHelper.GetPopupContent(popup);
+            if (content != null)
+            {
+                SubscribeToVisual(content);
+            }
+        }
     }
 
     public override void StopObservingVisualTree()
@@ -1148,6 +1170,50 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
             {
                 _ = _session.SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "Text", ["value"] = text }, this);
             }
+        }
+        else if (e.Property.Name == "IsOpen")
+        {
+            var isOpen = e.NewValue as bool? ?? false;
+            _ = _session.SendEventAsync("DOM.attributeModified", new JsonObject { ["nodeId"] = nodeId, ["name"] = "IsOpen", ["value"] = isOpen.ToString().ToLowerInvariant() }, this);
+
+            if (isOpen)
+            {
+                if (sender is Popup popup)
+                {
+                    var content = CdpVisualTreeHelper.GetPopupContent(popup);
+                    if (content != null)
+                    {
+                        SubscribeToVisual(content);
+                    }
+                }
+                else if (sender is ContextMenu cm)
+                {
+                    var internalPopup = CdpVisualTreeHelper.GetInternalPopup(cm);
+                    if (internalPopup != null)
+                    {
+                        var content = CdpVisualTreeHelper.GetPopupContent(internalPopup);
+                        if (content != null)
+                        {
+                            SubscribeToVisual(content);
+                        }
+                    }
+                }
+                else if (sender is FlyoutBase flyout)
+                {
+                    var internalPopup = CdpVisualTreeHelper.GetInternalPopup(flyout);
+                    if (internalPopup != null)
+                    {
+                        var content = CdpVisualTreeHelper.GetPopupContent(internalPopup);
+                        if (content != null)
+                        {
+                            SubscribeToVisual(content);
+                        }
+                    }
+                }
+            }
+
+            _ = _session.SendEventAsync("DOM.documentUpdated", new JsonObject(), this);
+            _ = _session.SendEventAsync("Accessibility.axTreeUpdated", new JsonObject(), this);
         }
     }
 

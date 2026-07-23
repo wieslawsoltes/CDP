@@ -217,7 +217,7 @@ public static class CdpVisualTreeHelper
         }
     }
 
-    private static Popup? GetInternalPopup(object target)
+    public static Popup? GetInternalPopup(object target)
     {
         if (target == null) return null;
         try

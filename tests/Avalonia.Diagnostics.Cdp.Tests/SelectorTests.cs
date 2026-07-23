@@ -231,4 +231,39 @@ public class SelectorTests
         Assert.Equal("MenuItem:contains(\"Right Click Option 1\")", clientDomGen.GenerateSelector(clientMenu));
         Assert.Equal("ComboBoxItem:contains(\"Popup Option 2\")", clientDomGen.GenerateSelector(clientCombo));
     }
+
+    [AvaloniaFact]
+    public async Task TestPopupAndContextMenuAccessibilityTreeInspection()
+    {
+        var window = new Window { Title = "Main App Window" };
+        window.Show();
+        CdpServer.EnsureInitialized();
+        CdpServer.GetOrCreateTarget(window, "test-target-id");
+
+        var rootPanel = new StackPanel();
+        var popupBtn = new Button { Name = "btnPopup", Content = "Open Popup" };
+        var popup = new Popup { IsOpen = true };
+        var popupStack = new StackPanel();
+        var menuItem1 = new MenuItem { Header = "Popup MenuItem 1" };
+        var menuItem2 = new MenuItem { Header = "Popup MenuItem 2" };
+        popupStack.Children.Add(menuItem1);
+        popupStack.Children.Add(menuItem2);
+        popup.Child = popupStack;
+
+        rootPanel.Children.Add(popupBtn);
+        rootPanel.Children.Add(popup);
+        window.Content = rootPanel;
+
+        var session = new CdpSession(window);
+
+        var axResponse = await Domains.AccessibilityDomain.HandleAsync(session, "getFullAXTree", new System.Text.Json.Nodes.JsonObject());
+        Assert.NotNull(axResponse);
+        var nodes = axResponse["nodes"] as System.Text.Json.Nodes.JsonArray;
+        Assert.NotNull(nodes);
+
+        bool foundMenuItem1 = nodes.Any(n => n?["name"]?["value"]?.GetValue<string>() == "Popup MenuItem 1");
+        bool foundMenuItem2 = nodes.Any(n => n?["name"]?["value"]?.GetValue<string>() == "Popup MenuItem 2");
+        Assert.True(foundMenuItem1, "Popup MenuItem 1 should be found in getFullAXTree");
+        Assert.True(foundMenuItem2, "Popup MenuItem 2 should be found in getFullAXTree");
+    }
 }
