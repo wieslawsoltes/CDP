@@ -185,7 +185,7 @@ public class SelectorTests
         var clientDomGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("dom");
         var clientAutoGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("automation");
 
-        Assert.Equal("Label", clientDomGen.GenerateSelector(clientLabel));
+        Assert.Equal("Label:contains(\"Submit Form\")", clientDomGen.GenerateSelector(clientLabel));
         Assert.Equal("Label:contains(\"Submit Form\")", clientAutoGen.GenerateSelector(clientLabel));
     }
 
@@ -209,5 +209,26 @@ public class SelectorTests
     {
         var tabItem = new TabItem { Name = "tabScroll", Header = "Scroll Test" };
         Assert.True(SelectorEngine.Matches(tabItem, "#tabScroll[Header=\"Scroll Test\"]"));
+    }
+
+    [AvaloniaFact]
+    public void TestPopupAndContextMenuSelectorSupport()
+    {
+        var menuItem = new MenuItem { Header = "Right Click Option 1" };
+        var comboItem = new ComboBoxItem { Content = "Popup Option 2" };
+
+        var domGen = SelectorRegistry.GetGenerator("dom");
+        Assert.Equal("MenuItem:contains(\"Right Click Option 1\")", domGen.GenerateSelector(menuItem));
+        Assert.Equal("ComboBoxItem:contains(\"Popup Option 2\")", domGen.GenerateSelector(comboItem));
+
+        var clientMenu = new CdpInspectorApp.Models.DomNodeModel(10, "MenuItem");
+        clientMenu.AttributesList.Add(new CdpInspectorApp.Models.AttributeModel("Header", "Right Click Option 1"));
+
+        var clientCombo = new CdpInspectorApp.Models.DomNodeModel(11, "ComboBoxItem");
+        clientCombo.AttributesList.Add(new CdpInspectorApp.Models.AttributeModel("Content", "Popup Option 2"));
+
+        var clientDomGen = CdpInspectorApp.Services.ClientSelectorRegistry.GetGenerator("dom");
+        Assert.Equal("MenuItem:contains(\"Right Click Option 1\")", clientDomGen.GenerateSelector(clientMenu));
+        Assert.Equal("ComboBoxItem:contains(\"Popup Option 2\")", clientDomGen.GenerateSelector(clientCombo));
     }
 }

@@ -24,7 +24,11 @@ public static class ClientSelectorRegistry
 
     public static string? GetNodeTextContent(DomNodeModel node)
     {
-        var textAttr = node.AttributesList.FirstOrDefault(a => a.Name.Equals("text", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Text", StringComparison.OrdinalIgnoreCase));
+        var textAttr = node.AttributesList.FirstOrDefault(a =>
+            a.Name.Equals("text", StringComparison.OrdinalIgnoreCase) ||
+            a.Name.Equals("Text", StringComparison.OrdinalIgnoreCase) ||
+            a.Name.Equals("Content", StringComparison.OrdinalIgnoreCase) ||
+            a.Name.Equals("Header", StringComparison.OrdinalIgnoreCase));
         if (textAttr != null && !string.IsNullOrEmpty(textAttr.Value))
         {
             return textAttr.Value;

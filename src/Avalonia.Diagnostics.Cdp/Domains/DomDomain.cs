@@ -771,16 +771,45 @@ public static class DomDomain
         
         if (control is HeaderedContentControl headeredControl)
         {
-            if (headeredControl.Content is string str) return str;
-            if (headeredControl.Header is string hdrStr) return hdrStr;
-        }
-        else if (control is ContentControl contentControl)
-        {
-            if (contentControl.Content is string str) return str;
+            var contentStr = headeredControl.Content?.ToString();
+            if (!string.IsNullOrEmpty(contentStr)) return contentStr;
+            var headerStr = headeredControl.Header?.ToString();
+            if (!string.IsNullOrEmpty(headerStr)) return headerStr;
         }
         else if (control is HeaderedItemsControl headeredItemsControl)
         {
-            if (headeredItemsControl.Header is string str) return str;
+            var headerStr = headeredItemsControl.Header?.ToString();
+            if (!string.IsNullOrEmpty(headerStr)) return headerStr;
+        }
+        else if (control is MenuItem menuItem)
+        {
+            var headerStr = menuItem.Header?.ToString();
+            if (!string.IsNullOrEmpty(headerStr)) return headerStr;
+        }
+        else if (control is TabItem tabItem)
+        {
+            var headerStr = tabItem.Header?.ToString();
+            if (!string.IsNullOrEmpty(headerStr)) return headerStr;
+        }
+        else if (control is ContentControl contentControl)
+        {
+            var contentStr = contentControl.Content?.ToString();
+            if (!string.IsNullOrEmpty(contentStr)) return contentStr;
+        }
+        else
+        {
+            var headerProp = control.GetType().GetProperty("Header", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (headerProp != null)
+            {
+                var headerVal = headerProp.GetValue(control)?.ToString();
+                if (!string.IsNullOrEmpty(headerVal)) return headerVal;
+            }
+            var contentProp = control.GetType().GetProperty("Content", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (contentProp != null)
+            {
+                var contentVal = contentProp.GetValue(control)?.ToString();
+                if (!string.IsNullOrEmpty(contentVal)) return contentVal;
+            }
         }
 
         return null;

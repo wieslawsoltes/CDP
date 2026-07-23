@@ -47,7 +47,7 @@ public class AutomationClientSelectorGenerator : IClientSelectorGenerator
         }
 
         var fallbackSel = _fallback.GenerateSelector(node);
-        if (escapedText != null)
+        if (escapedText != null && !fallbackSel.Contains(":contains("))
         {
             return $"{fallbackSel}:contains(\"{escapedText}\")";
         }
