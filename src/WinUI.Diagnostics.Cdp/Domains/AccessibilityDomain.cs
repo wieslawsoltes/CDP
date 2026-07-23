@@ -27,6 +27,37 @@ public static class AccessibilityDomain
                     {
                         var arr = new JsonArray();
                         WalkAccessibilityTree(session.Window.Content, session, arr);
+
+                        var windows = CdpServer.GetWindows().ToList();
+                        var mainWin = session.Window;
+                        foreach (var target in windows)
+                        {
+                            var win = target.Window;
+                            if (win != null && win != mainWin && win.Content != null)
+                            {
+                                WalkAccessibilityTree(win.Content, session, arr);
+                            }
+                        }
+
+                        foreach (var target in windows)
+                        {
+                            var win = target.Window;
+                            if (win != null && win.Content != null && win.Content.XamlRoot != null)
+                            {
+                                var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
+                                if (popups != null)
+                                {
+                                    foreach (var popup in popups)
+                                    {
+                                        if (popup != null && popup.Child is UIElement popupChild)
+                                        {
+                                            WalkAccessibilityTree(popupChild, session, arr);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         return arr;
                     });
                     return new JsonObject { ["nodes"] = nodes };

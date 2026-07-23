@@ -470,21 +470,30 @@ public static class DomDomain
         {
             return textBox.Text;
         }
-        if (ctrl is ContentControl contentControl && contentControl.Content is string contentStr)
+        if (ctrl is System.Windows.Controls.MenuItem menuItem)
         {
-            return contentStr;
+            if (menuItem.Header is string headerStr) return headerStr;
+            if (menuItem.Header != null) return menuItem.Header.ToString();
         }
-        if (ctrl is HeaderedContentControl headeredControl && headeredControl.Header is string headerStr)
+        if (ctrl is HeaderedContentControl headeredControl)
         {
-            return headerStr;
+            if (headeredControl.Header is string headerStr) return headerStr;
+            if (headeredControl.Header != null) return headeredControl.Header.ToString();
         }
-        if (ctrl is HeaderedItemsControl itemsControl && itemsControl.Header is string headerItemsStr)
+        if (ctrl is HeaderedItemsControl itemsControl)
         {
-            return headerItemsStr;
+            if (itemsControl.Header is string headerItemsStr) return headerItemsStr;
+            if (itemsControl.Header != null) return itemsControl.Header.ToString();
         }
-        if (ctrl is ContentPresenter contentPresenter && contentPresenter.Content is string contentPresenterStr)
+        if (ctrl is ContentControl contentControl)
         {
-            return contentPresenterStr;
+            if (contentControl.Content is string contentStr) return contentStr;
+            if (contentControl.Content != null) return contentControl.Content.ToString();
+        }
+        if (ctrl is ContentPresenter contentPresenter)
+        {
+            if (contentPresenter.Content is string contentPresenterStr) return contentPresenterStr;
+            if (contentPresenter.Content != null) return contentPresenter.Content.ToString();
         }
         return null;
     }

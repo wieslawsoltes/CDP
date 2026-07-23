@@ -91,18 +91,32 @@ internal class SessionRecorderState
         _keyDownHandler = OnKeyDown;
     }
 
+    private readonly HashSet<UIElement> _attachedElements = new();
+
+    private void EnsureAttachedToTopLevel()
+    {
+        var windows = CdpServer.GetWindows().ToList();
+        foreach (var target in windows)
+        {
+            var win = target.Window;
+            if (win?.Content != null && _attachedElements.Add(win.Content))
+            {
+                win.Content.PointerPressed += _pointerPressedHandler;
+                win.Content.PointerMoved += _pointerMovedHandler;
+                win.Content.PointerReleased += _pointerReleasedHandler;
+                win.Content.PointerWheelChanged += _pointerWheelChangedHandler;
+                win.Content.GotFocus += _gotFocusHandler;
+                win.Content.LostFocus += _lostFocusHandler;
+                win.Content.KeyDown += _keyDownHandler;
+            }
+        }
+    }
+
     public void Attach()
     {
         if (_session.Window?.Content == null) return;
 
-        var content = _session.Window.Content;
-        content.PointerPressed += _pointerPressedHandler;
-        content.PointerMoved += _pointerMovedHandler;
-        content.PointerReleased += _pointerReleasedHandler;
-        content.PointerWheelChanged += _pointerWheelChangedHandler;
-        content.GotFocus += _gotFocusHandler;
-        content.LostFocus += _lostFocusHandler;
-        content.KeyDown += _keyDownHandler;
+        EnsureAttachedToTopLevel();
 
         // Emit initial viewport size
         _ = _session.SendEventAsync("Recorder.stepAdded", new JsonObject
@@ -128,16 +142,20 @@ internal class SessionRecorderState
 
     public void Detach()
     {
-        if (_session.Window?.Content == null) return;
-
-        var content = _session.Window.Content;
-        content.PointerPressed -= _pointerPressedHandler;
-        content.PointerMoved -= _pointerMovedHandler;
-        content.PointerReleased -= _pointerReleasedHandler;
-        content.PointerWheelChanged -= _pointerWheelChangedHandler;
-        content.GotFocus -= _gotFocusHandler;
-        content.LostFocus -= _lostFocusHandler;
-        content.KeyDown -= _keyDownHandler;
+        foreach (var content in _attachedElements)
+        {
+            if (content != null)
+            {
+                content.PointerPressed -= _pointerPressedHandler;
+                content.PointerMoved -= _pointerMovedHandler;
+                content.PointerReleased -= _pointerReleasedHandler;
+                content.PointerWheelChanged -= _pointerWheelChangedHandler;
+                content.GotFocus -= _gotFocusHandler;
+                content.LostFocus -= _lostFocusHandler;
+                content.KeyDown -= _keyDownHandler;
+            }
+        }
+        _attachedElements.Clear();
         _initialTexts.Clear();
     }
 
@@ -163,10 +181,11 @@ internal class SessionRecorderState
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (_session.InspectModeEnabled || _session.Window?.Content == null) return;
+        EnsureAttachedToTopLevel();
 
         var pos = e.GetCurrentPoint(_session.Window.Content).Position;
-        var elements = VisualTreeHelper.FindElementsInHostCoordinates(pos, _session.Window.Content);
-        var hit = elements.FirstOrDefault();
+        var hitRes = CdpVisualTreeHelper.HitTestAllRoots(_session.Window, pos, "composite");
+        var hit = hitRes.Target ?? VisualTreeHelper.FindElementsInHostCoordinates(pos, _session.Window.Content).FirstOrDefault();
         if (hit == null) return;
 
         var logical = _session.FindLogicalNode(hit);
