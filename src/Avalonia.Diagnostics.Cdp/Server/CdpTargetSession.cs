@@ -337,18 +337,13 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                     using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
                     if (skBitmap != null)
                     {
-                        bool hasComposited = false;
-                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        if (CdpVisualTreeHelper.HasSecondaryWindowsOrPopups(Window))
                         {
-                            if (CdpVisualTreeHelper.HasSecondaryWindowsOrPopups(Window))
+                            await Dispatcher.UIThread.InvokeAsync(() =>
                             {
-                                CdpVisualTreeHelper.CompositeAllWindowsAndPopups(Window, skBitmap, scale);
-                                hasComposited = true;
-                            }
-                        });
+                                CdpVisualTreeHelper.CompositeAllWindowsAndPopups(Window, skBitmap, scale, _session.TargetViewMode);
+                            });
 
-                        if (hasComposited)
-                        {
                             using var compositedStream = new MemoryStream();
                             if (skBitmap.Encode(compositedStream, SkiaSharp.SKEncodedImageFormat.Png, 100))
                             {
@@ -361,8 +356,7 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                         var currentFrameSpan = new ReadOnlySpan<byte>(rawPngBytes, 0, rawPngLength);
                         if (_lastSentFrameBytes != null && currentFrameSpan.SequenceEqual(_lastSentFrameBytes))
                         {
-                            // Release ack signal permit since we are skipping this frame
-                            try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
+                            await Task.Delay(33, _cts.Token);
                             continue;
                         }
 
