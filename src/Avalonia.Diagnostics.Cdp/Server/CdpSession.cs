@@ -110,6 +110,7 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     public NodeMap NodeMap => CurrentTargetSession?.NodeMap ?? _nodeMap;
     public IInputDevice TouchDevice => CurrentTargetSession?.TouchDevice ?? _dummyTouchDevice;
     public bool UseSlimTree { get; set; }
+    public string? TargetViewMode { get; set; }
 
     public static Visual? GetVisualFromObject(object? obj)
     {

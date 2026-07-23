@@ -200,6 +200,13 @@ public static class PageDomain
                     return new JsonObject();
                 }
 
+            case "setTargetViewMode":
+                {
+                    string viewMode = @params["targetViewId"]?.GetValue<string>() ?? "all";
+                    session.TargetViewMode = viewMode;
+                    return new JsonObject();
+                }
+
             case "navigate":
                 {
                     string url = @params["url"]?.GetValue<string>() ?? "";

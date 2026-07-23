@@ -37,6 +37,7 @@ public partial class SimulationView : UserControl
         InitializeComponent();
         
         DataContextChanged += SimulationView_DataContextChanged;
+        SizeChanged += (s, e) => UpdateViewportTransform();
 
         var img = this.Find<Image>("imgScreenshot");
         if (img != null)
@@ -133,7 +134,9 @@ public partial class SimulationView : UserControl
             nameof(SimulationViewModel.IsFitZoomActive) or
             nameof(SimulationViewModel.PanX) or
             nameof(SimulationViewModel.PanY) or
-            nameof(SimulationViewModel.IsPanModeActive))
+            nameof(SimulationViewModel.IsPanModeActive) or
+            nameof(SimulationViewModel.DeviceWidth) or
+            nameof(SimulationViewModel.DeviceHeight))
         {
             UpdateViewportTransform();
             UpdateCursor(_connectionVm?.IsInspectModeActive ?? false);
@@ -169,6 +172,17 @@ public partial class SimulationView : UserControl
         {
             var simVm = mainVm.Simulation;
             double zoom = simVm.ZoomLevel;
+            if (simVm.IsFitZoomActive)
+            {
+                var container = this.Find<Control>("borderPreviewViewport") ?? this.Parent as Control;
+                if (container != null && container.Bounds.Width > 0 && container.Bounds.Height > 0 && simVm.DeviceWidth > 0 && simVm.DeviceHeight > 0)
+                {
+                    double availW = Math.Max(100, container.Bounds.Width - 40);
+                    double availH = Math.Max(100, container.Bounds.Height - 60);
+                    zoom = Math.Min(availW / simVm.DeviceWidth, availH / simVm.DeviceHeight);
+                    zoom = Math.Clamp(zoom, 0.1, 3.0);
+                }
+            }
             double panX = simVm.PanX;
             double panY = simVm.PanY;
 

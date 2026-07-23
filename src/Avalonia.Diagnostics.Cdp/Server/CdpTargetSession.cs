@@ -333,30 +333,40 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                         rawPngLength = rawPngBytes.Length;
                     }
 
-                    // Delta Compression / Change Detection: compare raw pixels to previous frame
-                    var currentFrameSpan = new ReadOnlySpan<byte>(rawPngBytes, 0, rawPngLength);
-                    if (_lastSentFrameBytes != null && currentFrameSpan.SequenceEqual(_lastSentFrameBytes))
+                    using var ms = new MemoryStream(rawPngBytes, 0, rawPngLength);
+                    using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
+                    if (skBitmap != null)
                     {
-                        // Release ack signal permit since we are skipping this frame
-                        try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
-                        continue;
-                    }
-
-                    _lastSentFrameBytes = currentFrameSpan.ToArray();
-
-                    try
-                    {
-                        using var ms = new MemoryStream(rawPngBytes, 0, rawPngLength);
-                        using var skBitmap = SkiaSharp.SKBitmap.Decode(ms);
-                        if (skBitmap != null)
+                        bool hasComposited = false;
+                        await Dispatcher.UIThread.InvokeAsync(() =>
                         {
                             if (CdpVisualTreeHelper.HasSecondaryWindowsOrPopups(Window))
                             {
-                                await Dispatcher.UIThread.InvokeAsync(() =>
-                                {
-                                    CdpVisualTreeHelper.CompositeAllWindowsAndPopups(Window, skBitmap, scale);
-                                });
+                                CdpVisualTreeHelper.CompositeAllWindowsAndPopups(Window, skBitmap, scale);
+                                hasComposited = true;
                             }
+                        });
+
+                        if (hasComposited)
+                        {
+                            using var compositedStream = new MemoryStream();
+                            if (skBitmap.Encode(compositedStream, SkiaSharp.SKEncodedImageFormat.Png, 100))
+                            {
+                                rawPngBytes = compositedStream.ToArray();
+                                rawPngLength = rawPngBytes.Length;
+                            }
+                        }
+
+                        // Delta Compression / Change Detection: compare raw pixels (including composited popups/windows) to previous frame
+                        var currentFrameSpan = new ReadOnlySpan<byte>(rawPngBytes, 0, rawPngLength);
+                        if (_lastSentFrameBytes != null && currentFrameSpan.SequenceEqual(_lastSentFrameBytes))
+                        {
+                            // Release ack signal permit since we are skipping this frame
+                            try { if (_ackSignal.CurrentCount == 0) _ackSignal.Release(); } catch { }
+                            continue;
+                        }
+
+                        _lastSentFrameBytes = currentFrameSpan.ToArray();
 
                             pixelWidth = skBitmap.Width;
                             pixelHeight = skBitmap.Height;
@@ -511,15 +521,10 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                             }
                         }
                     }
-                    catch (Exception ex)
+                    catch (OperationCanceledException)
                     {
-                        Logger.LogScreencastError("Inner Exception", ex);
+                        break;
                     }
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
                 catch (Exception ex)
                 {
                     Logger.LogScreencastError("Outer Exception", ex);

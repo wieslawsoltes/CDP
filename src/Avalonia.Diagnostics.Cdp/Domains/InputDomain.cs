@@ -401,7 +401,7 @@ public static class InputDomain
 
             if (session.Window != null)
             {
-                var hitRes = CdpVisualTreeHelper.HitTestAllRoots(session.Window, position);
+                var hitRes = CdpVisualTreeHelper.HitTestAllRoots(session.Window, position, session.TargetViewMode);
                 targetWindow = hitRes.TargetTopLevel ?? session.Window;
                 position = hitRes.LocalPoint;
             }

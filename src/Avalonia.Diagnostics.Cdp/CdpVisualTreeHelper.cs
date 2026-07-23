@@ -301,9 +301,10 @@ public static class CdpVisualTreeHelper
         return false;
     }
 
-    public static void CompositeAllWindowsAndPopups(TopLevel? primaryWindow, SkiaSharp.SKBitmap? baseSkBitmap, double scale)
+    public static void CompositeAllWindowsAndPopups(TopLevel? primaryWindow, SkiaSharp.SKBitmap? baseSkBitmap, double scale, string? targetViewId = null)
     {
         if (primaryWindow == null || baseSkBitmap == null) return;
+        if (targetViewId == "main") return;
         if (!HasSecondaryWindowsOrPopups(primaryWindow)) return;
 
         try
@@ -451,7 +452,7 @@ public static class CdpVisualTreeHelper
         public Visual HitVisual { get; set; } = null!;
     }
 
-    public static RootHitResult HitTestAllRoots(TopLevel rootWindow, Point clientPoint)
+    public static RootHitResult HitTestAllRoots(TopLevel rootWindow, Point clientPoint, string? targetViewId = null)
     {
         if (rootWindow == null)
         {
@@ -460,11 +461,34 @@ public static class CdpVisualTreeHelper
 
         try
         {
+            var mainHitResult = (rootWindow as InputElement)?.InputHitTest(clientPoint) as Visual;
+            var defaultHit = new RootHitResult
+            {
+                TargetTopLevel = rootWindow,
+                TargetVisual = rootWindow,
+                LocalPoint = clientPoint,
+                HitVisual = mainHitResult ?? rootWindow
+            };
+
+            if (targetViewId == "main")
+            {
+                return defaultHit;
+            }
             var screenPoint = rootWindow.PointToScreen(clientPoint);
 
             var openPopups = new List<Popup>();
             var visited = new HashSet<Visual>();
             FindOpenPopups(rootWindow, openPopups, visited);
+
+            var secondaryWindows = new List<TopLevel>();
+            foreach (var target in CdpServer.GetWindows())
+            {
+                if (target.Window != null && target.Window != rootWindow && target.Window.IsVisible && target.Window.Bounds.Width > 0 && target.Window.Bounds.Height > 0)
+                {
+                    secondaryWindows.Add(target.Window);
+                    FindOpenPopups(target.Window, openPopups, visited);
+                }
+            }
 
             var overlayRoots = new List<Visual>();
 
@@ -475,6 +499,11 @@ public static class CdpVisualTreeHelper
                 {
                     if (!overlayRoots.Contains(host)) overlayRoots.Add(host);
                 }
+            }
+
+            foreach (var secWin in secondaryWindows)
+            {
+                if (!overlayRoots.Contains(secWin)) overlayRoots.Add(secWin);
             }
 
             var overlayLayer = OverlayLayer.GetOverlayLayer(rootWindow);
@@ -508,16 +537,20 @@ public static class CdpVisualTreeHelper
                     if (localPoint.X >= 0 && localPoint.X <= host.Bounds.Width &&
                         localPoint.Y >= 0 && localPoint.Y <= host.Bounds.Height)
                     {
-                        Visual? hit = (host as InputElement)?.InputHitTest(localPoint) as Visual
-                                   ?? (rootWindow as InputElement)?.InputHitTest(clientPoint) as Visual;
-
-                        return new RootHitResult
+                        Visual? hit = (host as InputElement)?.InputHitTest(localPoint) as Visual;
+                        if (hit != null)
                         {
-                            TargetTopLevel = host as TopLevel ?? rootWindow,
-                            TargetVisual = host,
-                            LocalPoint = localPoint,
-                            HitVisual = hit ?? host
-                        };
+                            var targetTopLevel = host as TopLevel ?? rootWindow;
+                            Point dispatchPoint = (targetTopLevel == rootWindow) ? clientPoint : localPoint;
+
+                            return new RootHitResult
+                            {
+                                TargetTopLevel = targetTopLevel,
+                                TargetVisual = host,
+                                LocalPoint = dispatchPoint,
+                                HitVisual = hit
+                            };
+                        }
                     }
                 }
                 catch { }
