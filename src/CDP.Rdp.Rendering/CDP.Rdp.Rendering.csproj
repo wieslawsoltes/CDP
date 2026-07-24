@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Chrome.DevTools.Rdp.Rendering</PackageId>
+    <Title>Chrome.DevTools.Rdp.Rendering</Title>
+    <Description>SkiaSharp-based RDP frame buffer rendering, double-buffering, tile compositing, and dirty region tracking engine for RDP client sessions.</Description>
+    <PackageTags>rdp;remote-desktop;cdp;skia;skiasharp;rendering;framebuffer;double-buffering;dirty-rectangles</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CDP.Rdp\CDP.Rdp.csproj" />
+  </ItemGroup>
+
+</Project>
