@@ -197,26 +197,16 @@ public class UnoTests
                     .FirstOrDefault(f => f.Name == "_content");
                 Assert.NotNull(contentField);
 
-                // Find a secondary Window instance that gets iterated AFTER mainWindow in GetWindows() ConcurrentDictionary
-                for (int i = 0; i < 100; i++)
-                {
-                    var tempWindow = (Window)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Window));
-                    var tempImpl = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(coreWindowWindowType);
-                    windowImplField.SetValue(tempWindow, tempImpl);
-                    var tempContentManager = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(contentManagerType);
-                    contentManagerField.SetValue(tempImpl, tempContentManager);
-                    contentField.SetValue(tempContentManager, secondaryGrid);
+                // Create and register secondary Window instance
+                var tempWindow = (Window)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Window));
+                var tempImpl = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(coreWindowWindowType);
+                windowImplField.SetValue(tempWindow, tempImpl);
+                var tempContentManager = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(contentManagerType);
+                contentManagerField.SetValue(tempImpl, tempContentManager);
+                contentField.SetValue(tempContentManager, secondaryGrid);
 
-                    CdpServer.Register(tempWindow, "SecondaryWindow");
-
-                    var firstWin = CdpServer.GetWindows().FirstOrDefault().Window;
-                    if (firstWin == mainWindow)
-                    {
-                        secondaryWindow = tempWindow;
-                        break;
-                    }
-                    CdpServer.Unregister(tempWindow);
-                }
+                CdpServer.Register(tempWindow, "SecondaryWindow");
+                secondaryWindow = tempWindow;
 
                 Assert.NotNull(secondaryWindow);
 

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
@@ -18,9 +19,9 @@ public static class BrowserDomain
                     {
                         ["protocolVersion"] = "1.3",
                         ["product"] = "Uno/WinUI/3.0",
-                        ["revision"] = "1.0",
-                        ["userAgent"] = "Mozilla/5.0 (Uno Platform UI)",
-                        ["jsVersion"] = ".NET 10.0"
+                        ["revision"] = "1.0.0",
+                        ["userAgent"] = "WinUI-CDP-Agent",
+                        ["jsVersion"] = "Jint/3.0"
                     };
                 }
 
@@ -142,10 +143,58 @@ public static class BrowserDomain
                     {
                         await session.Window.DispatcherQueue.InvokeAsync(() =>
                         {
+                            int? leftVal = boundsNode["left"]?.GetValue<int>();
+                            int? topVal = boundsNode["top"]?.GetValue<int>();
                             int? widthVal = boundsNode["width"]?.GetValue<int>();
                             int? heightVal = boundsNode["height"]?.GetValue<int>();
 
-                            if (targetWindow.Content is FrameworkElement fe)
+                            bool resizedAppWindow = false;
+
+                            // Attempt native WinUI AppWindow resizing first
+                            var appWinProp = targetWindow.GetType().GetProperty("AppWindow", BindingFlags.Public | BindingFlags.Instance);
+                            if (appWinProp != null)
+                            {
+                                var appWin = appWinProp.GetValue(targetWindow);
+                                if (appWin != null)
+                                {
+                                    int w = widthVal ?? (int)targetWindow.Bounds.Width;
+                                    int h = heightVal ?? (int)targetWindow.Bounds.Height;
+                                    int l = leftVal ?? (int)targetWindow.Bounds.X;
+                                    int t = topVal ?? (int)targetWindow.Bounds.Y;
+
+                                    if (leftVal.HasValue || topVal.HasValue)
+                                    {
+                                        var moveAndResizeMethod = appWin.GetType().GetMethod("MoveAndResize", BindingFlags.Public | BindingFlags.Instance);
+                                        if (moveAndResizeMethod != null)
+                                        {
+                                            var paramType = moveAndResizeMethod.GetParameters()[0].ParameterType;
+                                            var rectInst = Activator.CreateInstance(paramType, new object[] { l, t, w, h });
+                                            if (rectInst != null)
+                                            {
+                                                moveAndResizeMethod.Invoke(appWin, new object[] { rectInst });
+                                                resizedAppWindow = true;
+                                            }
+                                        }
+                                    }
+                                    else if (widthVal.HasValue || heightVal.HasValue)
+                                    {
+                                        var resizeMethod = appWin.GetType().GetMethod("Resize", BindingFlags.Public | BindingFlags.Instance);
+                                        if (resizeMethod != null)
+                                        {
+                                            var paramType = resizeMethod.GetParameters()[0].ParameterType;
+                                            var sizeInst = Activator.CreateInstance(paramType, new object[] { w, h });
+                                            if (sizeInst != null)
+                                            {
+                                                resizeMethod.Invoke(appWin, new object[] { sizeInst });
+                                                resizedAppWindow = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Fallback to content width/height if AppWindow was unavailable or unhandled
+                            if (!resizedAppWindow && targetWindow.Content is FrameworkElement fe)
                             {
                                 if (widthVal.HasValue) fe.Width = widthVal.Value;
                                 if (heightVal.HasValue) fe.Height = heightVal.Value;
