@@ -190,10 +190,12 @@ public class RdpControl : Control
         int pixelWidth = (int)Math.Max(1, Math.Round(width * scaling));
         int pixelHeight = (int)Math.Max(1, Math.Round(height * scaling));
 
+        bool isNewBitmap = false;
         if (_cachedSkiaBitmap == null || _cachedSkiaBitmap.Width != pixelWidth || _cachedSkiaBitmap.Height != pixelHeight)
         {
             _cachedSkiaBitmap?.Dispose();
             _cachedSkiaBitmap = new SKBitmap(new SKImageInfo(pixelWidth, pixelHeight, SKColorType.Bgra8888, SKAlphaType.Opaque));
+            isNewBitmap = true;
         }
 
         if (_writeableBitmap == null || _writeableBitmap.PixelSize.Width != pixelWidth || _writeableBitmap.PixelSize.Height != pixelHeight)
@@ -208,9 +210,16 @@ public class RdpControl : Control
 
         using (var canvas = new SKCanvas(_cachedSkiaBitmap))
         {
-            canvas.Clear(SKColors.Black);
             var targetBounds = new SKRect(0, 0, pixelWidth, pixelHeight);
-            _skiaCanvas.Render(canvas, targetBounds, drawDirtyOnly: true);
+            if (isNewBitmap)
+            {
+                canvas.Clear(SKColors.Black);
+                _skiaCanvas.Render(canvas, targetBounds, drawDirtyOnly: false);
+            }
+            else
+            {
+                _skiaCanvas.Render(canvas, targetBounds, drawDirtyOnly: true);
+            }
         }
 
         using (var locked = _writeableBitmap.Lock())

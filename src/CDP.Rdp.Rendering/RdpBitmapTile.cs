@@ -148,7 +148,7 @@ public sealed class RdpBitmapTile : IDisposable
                 }
             }
 
-            if (count == 0) count = 1;
+            if (count <= 0) count = 1;
 
             if (isRun)
             {
@@ -170,20 +170,28 @@ public sealed class RdpBitmapTile : IDisposable
             }
             else
             {
-                int bytesToCopy = Math.Min(count * bytesPerPixel, src.Length - srcIdx);
-                bytesToCopy = Math.Min(bytesToCopy, dst.Length - dstIdx);
-                if (bytesToCopy > 0)
+                int maxBytesToCopy = Math.Min(count * bytesPerPixel, src.Length - srcIdx);
+                maxBytesToCopy = Math.Min(maxBytesToCopy, dst.Length - dstIdx);
+                if (maxBytesToCopy > 0)
                 {
-                    src.Slice(srcIdx, bytesToCopy).CopyTo(dst.Slice(dstIdx, bytesToCopy));
-                    srcIdx += bytesToCopy;
-                    dstIdx += bytesToCopy;
+                    src.Slice(srcIdx, maxBytesToCopy).CopyTo(dst.Slice(dstIdx, maxBytesToCopy));
+                    srcIdx += maxBytesToCopy;
+                    dstIdx += maxBytesToCopy;
+                }
+                else
+                {
+                    break;
                 }
             }
         }
 
         if (dstIdx < expectedLength && dstIdx < dst.Length)
         {
-            dst[dstIdx..Math.Min(dst.Length, expectedLength)].Clear();
+            int remaining = Math.Min(dst.Length - dstIdx, expectedLength - dstIdx);
+            if (remaining > 0)
+            {
+                dst.Slice(dstIdx, remaining).Clear();
+            }
         }
 
         return expectedLength;
