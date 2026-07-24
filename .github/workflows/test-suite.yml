@@ -36,7 +36,11 @@ jobs:
     - name: Run Unit Tests
       shell: bash
       run: |
-        dotnet test CDP.Tests.slnf -c Release --no-build -m:1 --verbosity normal --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation'
+        if [ "${{ matrix.os }}" = "macos-latest" ]; then
+          dotnet test CDP.Tests.slnf -c Release --no-build -m:1 --verbosity normal --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation'
+        else
+          dotnet test CDP.Tests.slnf -c Release --no-build --verbosity normal --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation'
+        fi
 
     - name: Upload Logs on Failure
       if: failure()
