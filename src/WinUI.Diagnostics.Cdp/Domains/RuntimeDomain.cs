@@ -546,3 +546,22 @@ public static class RuntimeDomain
         return engine.Invoke(jsonParser, jsonStr);
     }
 }
+
+public static class ScriptPreprocessor
+{
+    public static string Preprocess(string expression)
+    {
+        if (string.IsNullOrWhiteSpace(expression)) return expression;
+
+        var processed = System.Text.RegularExpressions.Regex.Replace(expression, @"(?<!\w)\$0\b", "_0");
+        processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$vm\b", "DataContext");
+        processed = System.Text.RegularExpressions.Regex.Replace(processed, @"(?<!\w)\$dc\b", "DataContext");
+
+        if (expression.Length < 1000)
+        {
+            processed = System.Text.RegularExpressions.Regex.Replace(processed, @"\(\s*[A-Z][A-Za-z0-9_.*+?<>]*\s*\)", "");
+        }
+
+        return processed;
+    }
+}

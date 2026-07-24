@@ -160,6 +160,114 @@ public class WpfTests
             }
         });
     }
+
+    [Fact]
+    public void TestWpfApplicationDomain()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        RunInSta(() =>
+        {
+            CdpServer.EnsureInitialized();
+            using var fakeWs = new FakeWebSocket();
+            var session = new CdpSession(fakeWs, null);
+
+            var getDbRes = Wpf.Diagnostics.Cdp.Domains.ApplicationDomain.HandleAsync(session, "getDatabases", new System.Text.Json.Nodes.JsonObject()).GetAwaiter().GetResult();
+            Assert.NotNull(getDbRes["databases"]);
+
+            var getResRes = Wpf.Diagnostics.Cdp.Domains.ApplicationDomain.HandleAsync(session, "getResources", new System.Text.Json.Nodes.JsonObject()).GetAwaiter().GetResult();
+            Assert.NotNull(getResRes["resources"]);
+        });
+    }
+
+    [Fact]
+    public void TestWpfAuditsDomain()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        RunInSta(() =>
+        {
+            CdpServer.EnsureInitialized();
+            using var fakeWs = new FakeWebSocket();
+            var session = new CdpSession(fakeWs, null);
+
+            var diagRes = Wpf.Diagnostics.Cdp.Domains.AuditsDomain.HandleAsync(session, "runDiagnostics", new System.Text.Json.Nodes.JsonObject()).GetAwaiter().GetResult();
+            Assert.NotNull(diagRes["accessibilityScore"]);
+            Assert.NotNull(diagRes["issues"]);
+        });
+    }
+
+    [Fact]
+    public void TestWpfBrowserDomain()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        RunInSta(() =>
+        {
+            CdpServer.EnsureInitialized();
+            using var fakeWs = new FakeWebSocket();
+            var session = new CdpSession(fakeWs, null);
+
+            var verRes = Wpf.Diagnostics.Cdp.Domains.BrowserDomain.HandleAsync(session, "getVersion", new System.Text.Json.Nodes.JsonObject()).GetAwaiter().GetResult();
+            Assert.Equal("1.3", verRes["protocolVersion"]?.GetValue<string>());
+            Assert.Equal("WPF/10.0", verRes["product"]?.GetValue<string>());
+        });
+    }
+
+    [Fact]
+    public void TestWpfEmulationDomain()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        RunInSta(() =>
+        {
+            CdpServer.EnsureInitialized();
+            using var fakeWs = new FakeWebSocket();
+            var session = new CdpSession(fakeWs, null);
+
+            var metricsRes = Wpf.Diagnostics.Cdp.Domains.EmulationDomain.HandleAsync(session, "setDeviceMetricsOverride", new System.Text.Json.Nodes.JsonObject { ["width"] = 1024, ["height"] = 768 }).GetAwaiter().GetResult();
+            Assert.NotNull(metricsRes);
+
+            var clearRes = Wpf.Diagnostics.Cdp.Domains.EmulationDomain.HandleAsync(session, "clearDeviceMetricsOverride", new System.Text.Json.Nodes.JsonObject()).GetAwaiter().GetResult();
+            Assert.NotNull(clearRes);
+        });
+    }
+
+    private class WpfSampleMcpTool : Wpf.Diagnostics.Cdp.IMcpTool
+    {
+        public string Name => "wpfSampleTool";
+        public string Description => "Sample test tool";
+        public System.Text.Json.Nodes.JsonObject? InputSchema => new System.Text.Json.Nodes.JsonObject { ["type"] = "object" };
+        public System.Threading.Tasks.Task<System.Text.Json.Nodes.JsonNode?> InvokeAsync(System.Text.Json.Nodes.JsonObject input)
+        {
+            return System.Threading.Tasks.Task.FromResult<System.Text.Json.Nodes.JsonNode?>(new System.Text.Json.Nodes.JsonObject { ["status"] = "ok" });
+        }
+    }
+
+    [Fact]
+    public void TestWpfWebMcpDomain()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        RunInSta(() =>
+        {
+            CdpServer.EnsureInitialized();
+            using var fakeWs = new FakeWebSocket();
+            var session = new CdpSession(fakeWs, null);
+
+            Wpf.Diagnostics.Cdp.McpToolRegistry.RegisterTool(new WpfSampleMcpTool());
+
+            var enableRes = Wpf.Diagnostics.Cdp.Domains.WebMcpDomain.HandleAsync(session, "enable", new System.Text.Json.Nodes.JsonObject()).GetAwaiter().GetResult();
+            Assert.NotNull(enableRes);
+
+            var invokeRes = Wpf.Diagnostics.Cdp.Domains.WebMcpDomain.HandleAsync(session, "invokeTool", new System.Text.Json.Nodes.JsonObject
+            {
+                ["toolName"] = "wpfSampleTool",
+                ["input"] = new System.Text.Json.Nodes.JsonObject()
+            }).GetAwaiter().GetResult();
+            Assert.NotNull(invokeRes["invocationId"]);
+        });
+    }
 }
 
 public class FakeWebSocket : System.Net.WebSockets.WebSocket

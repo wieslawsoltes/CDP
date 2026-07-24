@@ -2,11 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using WinUI.Diagnostics.Cdp;
+using WinUI.Diagnostics.Cdp.Domains;
 using Xunit;
 
 namespace CDP.Diagnostics.IntegrationTests;
@@ -70,6 +73,84 @@ public class UnoTests
     }
 
     [Fact]
+    public async Task TestApplicationDomain()
+    {
+        CdpServer.EnsureInitialized();
+        var session = new CdpSession(null!, null);
+
+        var getDbRes = await ApplicationDomain.HandleAsync(session, "getDatabases", new JsonObject());
+        Assert.NotNull(getDbRes["databases"]);
+
+        var getResRes = await ApplicationDomain.HandleAsync(session, "getResources", new JsonObject());
+        Assert.NotNull(getResRes["resources"]);
+    }
+
+    [Fact]
+    public async Task TestAuditsDomain()
+    {
+        CdpServer.EnsureInitialized();
+        var session = new CdpSession(null!, null);
+
+        var diagRes = await AuditsDomain.HandleAsync(session, "runDiagnostics", new JsonObject());
+        Assert.NotNull(diagRes["accessibilityScore"]);
+        Assert.NotNull(diagRes["issues"]);
+    }
+
+    [Fact]
+    public async Task TestBrowserDomain()
+    {
+        CdpServer.EnsureInitialized();
+        var session = new CdpSession(null!, null);
+
+        var verRes = await BrowserDomain.HandleAsync(session, "getVersion", new JsonObject());
+        Assert.Equal("1.3", verRes["protocolVersion"]?.GetValue<string>());
+        Assert.Equal("Uno/WinUI/3.0", verRes["product"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task TestEmulationDomain()
+    {
+        CdpServer.EnsureInitialized();
+        var session = new CdpSession(null!, null);
+
+        var metricsRes = await EmulationDomain.HandleAsync(session, "setDeviceMetricsOverride", new JsonObject { ["width"] = 1024, ["height"] = 768 });
+        Assert.NotNull(metricsRes);
+
+        var clearRes = await EmulationDomain.HandleAsync(session, "clearDeviceMetricsOverride", new JsonObject());
+        Assert.NotNull(clearRes);
+    }
+
+    private class SampleMcpTool : IMcpTool
+    {
+        public string Name => "sampleTool";
+        public string Description => "Sample test tool";
+        public JsonObject? InputSchema => new JsonObject { ["type"] = "object" };
+        public Task<JsonNode?> InvokeAsync(JsonObject input)
+        {
+            return Task.FromResult<JsonNode?>(new JsonObject { ["status"] = "ok" });
+        }
+    }
+
+    [Fact]
+    public async Task TestWebMcpDomain()
+    {
+        CdpServer.EnsureInitialized();
+        var session = new CdpSession(null!, null);
+
+        McpToolRegistry.RegisterTool(new SampleMcpTool());
+
+        var enableRes = await WebMcpDomain.HandleAsync(session, "enable", new JsonObject());
+        Assert.NotNull(enableRes);
+
+        var invokeRes = await WebMcpDomain.HandleAsync(session, "invokeTool", new JsonObject
+        {
+            ["toolName"] = "sampleTool",
+            ["input"] = new JsonObject()
+        });
+        Assert.NotNull(invokeRes["invocationId"]);
+    }
+
+    [Fact]
     public void TestPopupAndSecondaryWindowSupport()
     {
         if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux()) return;
@@ -93,7 +174,7 @@ public class UnoTests
             // Register main Window in CdpServer
             CdpServer.Register(mainWindow, "MainWindow");
 
-            Window secondaryWindow = null;
+            Window? secondaryWindow = null;
 
             try
             {
@@ -116,26 +197,16 @@ public class UnoTests
                     .FirstOrDefault(f => f.Name == "_content");
                 Assert.NotNull(contentField);
 
-                // Find a secondary Window instance that gets iterated AFTER mainWindow in GetWindows() ConcurrentDictionary
-                for (int i = 0; i < 100; i++)
-                {
-                    var tempWindow = (Window)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Window));
-                    var tempImpl = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(coreWindowWindowType);
-                    windowImplField.SetValue(tempWindow, tempImpl);
-                    var tempContentManager = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(contentManagerType);
-                    contentManagerField.SetValue(tempImpl, tempContentManager);
-                    contentField.SetValue(tempContentManager, secondaryGrid);
+                // Create and register secondary Window instance
+                var tempWindow = (Window)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Window));
+                var tempImpl = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(coreWindowWindowType);
+                windowImplField.SetValue(tempWindow, tempImpl);
+                var tempContentManager = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(contentManagerType);
+                contentManagerField.SetValue(tempImpl, tempContentManager);
+                contentField.SetValue(tempContentManager, secondaryGrid);
 
-                    CdpServer.Register(tempWindow, "SecondaryWindow");
-
-                    var firstWin = CdpServer.GetWindows().FirstOrDefault().Window;
-                    if (firstWin == mainWindow)
-                    {
-                        secondaryWindow = tempWindow;
-                        break;
-                    }
-                    CdpServer.Unregister(tempWindow);
-                }
+                CdpServer.Register(tempWindow, "SecondaryWindow");
+                secondaryWindow = tempWindow;
 
                 Assert.NotNull(secondaryWindow);
 
