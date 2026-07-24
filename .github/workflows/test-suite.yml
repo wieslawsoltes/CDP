@@ -36,7 +36,7 @@ jobs:
     - name: Run Unit Tests
       shell: bash
       run: |
-        dotnet test CDP.Tests.slnf -c Release --no-build --verbosity normal --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation'
+        dotnet test CDP.Tests.slnf -c Release --no-build -m:1 --verbosity normal --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation'
 
     - name: Upload Logs on Failure
       if: failure()
