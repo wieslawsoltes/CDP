@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Headless.XUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Avalonia.Headless.XUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CDP.Rdp\CDP.Rdp.csproj" />
+    <ProjectReference Include="..\..\src\CDP.Rdp.Rendering\CDP.Rdp.Rendering.csproj" />
+    <ProjectReference Include="..\..\src\Avalonia.Diagnostics.Cdp.Rdp\Avalonia.Diagnostics.Cdp.Rdp.csproj" />
+    <ProjectReference Include="..\..\src\Avalonia.Diagnostics.Cdp\Avalonia.Diagnostics.Cdp.csproj" />
+    <ProjectReference Include="..\..\samples\CdpRdpApp\CdpRdpApp.csproj" />
+  </ItemGroup>
+
+</Project>
