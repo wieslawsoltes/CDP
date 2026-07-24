@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>Chrome.DevTools.Avalonia.Rdp</PackageId>
+    <Title>Chrome.DevTools.Avalonia.Rdp</Title>
+    <Description>Avalonia UI custom controls and CDP diagnostic integration for Remote Desktop Protocol (RDP) sessions.</Description>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Chrome.DevTools.Protocol\Chrome.DevTools.Protocol.csproj" />
+    <ProjectReference Include="..\CDP.Rdp\CDP.Rdp.csproj" />
+    <ProjectReference Include="..\CDP.Rdp.Rendering\CDP.Rdp.Rendering.csproj" />
+  </ItemGroup>
+</Project>

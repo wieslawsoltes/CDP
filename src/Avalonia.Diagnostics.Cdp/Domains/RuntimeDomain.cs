@@ -1761,10 +1761,10 @@ public static class RuntimeDomain
             });
         });
 
-        var control = selectedNode as Avalonia.Controls.Control;
-        var dataContext = control?.DataContext;
-        Logger.LogPlaywrightDebug($"selectedNode={selectedNode?.GetType().FullName ?? "null"}, session.Window={session.Window?.GetType().FullName ?? "null"}");
         var windowObj = (selectedNode as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.Window) ?? (session.Window as Avalonia.Controls.TopLevel);
+        var control = selectedNode as Avalonia.Controls.Control;
+        var dataContext = control?.DataContext ?? (windowObj as Avalonia.StyledElement)?.DataContext;
+        Logger.LogPlaywrightDebug($"selectedNode={selectedNode?.GetType().FullName ?? "null"}, session.Window={session.Window?.GetType().FullName ?? "null"}");
         Logger.LogPlaywrightDebug($"windowObj={windowObj?.GetType().FullName ?? "null"}");
 
         try
