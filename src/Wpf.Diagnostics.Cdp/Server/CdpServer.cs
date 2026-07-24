@@ -148,6 +148,13 @@ public static class CdpServer
         CdpDomainRegistry.Register("Recorder", (s, a, p) => Domains.RecorderDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("Mvvm", (s, a, p) => Domains.MvvmDomain.HandleAsync((CdpSession)s, a, p));
         CdpDomainRegistry.Register("XamlLsp", (s, a, p) => Domains.XamlLspDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("Application", (s, a, p) => Domains.ApplicationDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("Audits", (s, a, p) => Domains.AuditsDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("Browser", (s, a, p) => Domains.BrowserDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("Debugger", (s, a, p) => Domains.DebuggerDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("DOMDebugger", (s, a, p) => Domains.DomDebuggerDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("Emulation", (s, a, p) => Domains.EmulationDomain.HandleAsync((CdpSession)s, a, p));
+        CdpDomainRegistry.Register("WebMCP", (s, a, p) => Domains.WebMcpDomain.HandleAsync((CdpSession)s, a, p));
 
         // Use EventManager to hook loaded events on all Window controls globally
         EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnWindowLoaded));
