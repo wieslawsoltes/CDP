@@ -14,6 +14,7 @@ jobs:
   build-pack-linux:
     name: Build & Pack (Linux)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: test-suite
     steps:
     - uses: actions/checkout@v4
@@ -51,6 +52,7 @@ jobs:
   build-pack-macos:
     name: Build & Pack (macOS)
     runs-on: macos-latest
+    timeout-minutes: 20
     needs: test-suite
     steps:
     - uses: actions/checkout@v4
@@ -87,6 +89,7 @@ jobs:
   build-pack-windows:
     name: Build & Pack (Windows)
     runs-on: windows-latest
+    timeout-minutes: 20
     needs: test-suite
     steps:
     - uses: actions/checkout@v4
@@ -128,6 +131,7 @@ jobs:
   pack-nuget:
     name: Pack NuGet
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [test-suite, build-pack-linux, build-pack-macos, build-pack-windows]
     steps:
     - uses: actions/checkout@v4

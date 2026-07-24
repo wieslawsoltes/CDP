@@ -189,6 +189,9 @@ namespace Xaml.Compiler.Tests.Mutation
             while (current != null)
             {
                 if (Directory.EnumerateFiles(current, "*.sln").Any() ||
+                    Directory.EnumerateFiles(current, "*.slnx").Any() ||
+                    File.Exists(Path.Combine(current, "Directory.Build.props")) ||
+                    File.Exists(Path.Combine(current, ".git")) ||
                     Directory.Exists(Path.Combine(current, ".git")))
                 {
                     return current;

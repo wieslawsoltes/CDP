@@ -90,7 +90,9 @@ public static class SourcesDomain
         string dir = Directory.GetCurrentDirectory();
         while (!string.IsNullOrEmpty(dir))
         {
-            if (Directory.Exists(Path.Combine(dir, ".git")) || 
+            if (Directory.Exists(Path.Combine(dir, ".git")) ||
+                File.Exists(Path.Combine(dir, ".git")) ||
+                File.Exists(Path.Combine(dir, "Directory.Build.props")) ||
                 Directory.GetFiles(dir, "*.sln").Length > 0 ||
                 Directory.GetFiles(dir, "*.slnx").Length > 0)
             {

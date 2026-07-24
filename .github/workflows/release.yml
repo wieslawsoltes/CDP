@@ -10,6 +10,7 @@ jobs:
   version:
     name: Validate version tag
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       VERSION: ${{ steps.version.outputs.VERSION }}
     steps:
@@ -45,6 +46,7 @@ jobs:
   build-linux:
     name: Build & Test (Linux)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [version, test-suite]
     steps:
     - uses: actions/checkout@v4
@@ -84,6 +86,7 @@ jobs:
   build-macos:
     name: Build & Test (macOS)
     runs-on: macos-latest
+    timeout-minutes: 20
     needs: [version, test-suite]
     steps:
     - uses: actions/checkout@v4
@@ -138,6 +141,7 @@ jobs:
   build-windows:
     name: Build & Test (Windows)
     runs-on: windows-latest
+    timeout-minutes: 20
     needs: [version, test-suite]
     steps:
     - uses: actions/checkout@v4
@@ -186,6 +190,7 @@ jobs:
   pack-nuget:
     name: Pack NuGet
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [version, build-linux, build-macos, build-windows]
     steps:
     - uses: actions/checkout@v4
@@ -226,6 +231,7 @@ jobs:
   release:
     name: Create GitHub Release & Publish
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [version, build-linux, build-macos, build-windows, pack-nuget]
     permissions:
       contents: write
