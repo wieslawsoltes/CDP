@@ -13,6 +13,8 @@ public class WinUiTests
     [Fact]
     public void TestWinUiPopupAndSecondaryWindowSupport()
     {
+        if (!OperatingSystem.IsWindows()) return;
+
         // Initialize CdpServer
         CdpServer.EnsureInitialized();
 

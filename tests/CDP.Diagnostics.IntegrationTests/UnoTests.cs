@@ -72,6 +72,8 @@ public class UnoTests
     [Fact]
     public void TestPopupAndSecondaryWindowSupport()
     {
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux()) return;
+
         try
         {
             // 1. Bypass thread access

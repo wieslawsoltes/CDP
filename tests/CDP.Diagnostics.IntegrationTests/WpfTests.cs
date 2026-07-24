@@ -40,6 +40,8 @@ public class WpfTests
     [Fact]
     public void TestWpfPopupAndSecondaryWindowSupport()
     {
+        if (!OperatingSystem.IsWindows()) return;
+
         RunInSta(() =>
         {
             CdpServer.EnsureInitialized();
@@ -105,6 +107,8 @@ public class WpfTests
     [Fact]
     public void TestWpfDomHitTesting()
     {
+        if (!OperatingSystem.IsWindows()) return;
+
         RunInSta(() =>
         {
             CdpServer.EnsureInitialized();
