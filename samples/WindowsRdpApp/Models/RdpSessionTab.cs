@@ -227,13 +227,25 @@ public class RdpSessionTab : ReactiveObject, IDisposable
             Domain = Domain,
             Width = (ushort)(Width <= 0 ? 1920 : Width),
             Height = (ushort)(Height <= 0 ? 1080 : Height),
-            ColorDepth = (ushort)(ColorDepth <= 0 ? 32 : ColorDepth)
+            ColorDepth = (ushort)(ColorDepth <= 0 ? 32 : ColorDepth),
+            AcceptUntrustedCertificates = true
         };
 
         if (Session != null)
         {
-            Session.StateChanged -= OnStateChanged;
-            Session.FrameUpdated -= OnFrameUpdated;
+            var oldSession = Session;
+            Session = null;
+            oldSession.StateChanged -= OnStateChanged;
+            oldSession.FrameUpdated -= OnFrameUpdated;
+            try
+            {
+                await oldSession.DisconnectAsync();
+            }
+            catch { }
+            if (oldSession is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
 
         var client = new RdpClient(options, customTransportFactory);

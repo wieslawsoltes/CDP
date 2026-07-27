@@ -16,4 +16,6 @@ public sealed record RdpSessionOptions
     public RdpSecurityProtocol RequestedProtocols { get; init; } = RdpSecurityProtocol.Ssl | RdpSecurityProtocol.Hybrid;
     public bool EnableFastPath { get; init; } = true;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(15);
+    public System.Net.Security.RemoteCertificateValidationCallback? ServerCertificateValidationCallback { get; init; }
+    public bool AcceptUntrustedCertificates { get; init; } = true;
 }

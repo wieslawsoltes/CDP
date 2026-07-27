@@ -108,6 +108,12 @@ public sealed class RdpClient : IRdpSession
                     SetState(RdpConnectionState.Negotiating);
 
                     var negotiator = new RdpNegotiator();
+                    System.Net.Security.RemoteCertificateValidationCallback? certCallback = _options.ServerCertificateValidationCallback;
+                    if (certCallback == null && _options.AcceptUntrustedCertificates)
+                    {
+                        certCallback = (sender, cert, chain, errors) => true;
+                    }
+
                     _transport = await negotiator.NegotiateAsync(
                         _networkStream,
                         _options.Host,
@@ -116,6 +122,7 @@ public sealed class RdpClient : IRdpSession
                         password: _options.Password,
                         domain: _options.Domain,
                         performSecurityHandshake: true,
+                        certValidation: certCallback,
                         cancellationToken: timeoutCts.Token).ConfigureAwait(false);
                 }
 
