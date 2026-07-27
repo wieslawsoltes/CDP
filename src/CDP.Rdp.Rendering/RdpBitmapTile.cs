@@ -56,52 +56,56 @@ public sealed class RdpBitmapTile : IDisposable
         int bgraByteCount = pixelCount * 4;
 
         byte[] bgraBuffer = targetPool.Rent(bgraByteCount);
-
-        ReadOnlySpan<byte> rawSource = update.Data.Span;
-        byte[]? decompressedPoolBuffer = null;
+        bool success = false;
 
         try
         {
+            ReadOnlySpan<byte> rawSource = update.Data.Span;
             ReadOnlySpan<byte> uncompressedPixels;
-            if (update.Compressed)
+            byte[]? decompressedPoolBuffer = null;
+
+            try
             {
-                int bytesPerInputPixel = update.Bpp switch
+                if (update.Compressed)
                 {
-                    15 or 16 => 2,
-                    24 => 3,
-                    32 => 4,
-                    _ => 4
-                };
-                int decompressedSize = pixelCount * bytesPerInputPixel;
-                decompressedPoolBuffer = targetPool.Rent(decompressedSize);
-                DecompressRle(rawSource, decompressedPoolBuffer.AsSpan(0, decompressedSize), width, height, update.Bpp);
-                uncompressedPixels = decompressedPoolBuffer.AsSpan(0, decompressedSize);
-            }
-            else
-            {
-                uncompressedPixels = rawSource;
-            }
+                    int bytesPerInputPixel = update.Bpp switch
+                    {
+                        15 or 16 => 2,
+                        24 => 3,
+                        32 => 4,
+                        _ => 4
+                    };
+                    int decompressedSize = pixelCount * bytesPerInputPixel;
+                    decompressedPoolBuffer = targetPool.Rent(decompressedSize);
+                    DecompressRle(rawSource, decompressedPoolBuffer.AsSpan(0, decompressedSize), width, height, update.Bpp);
+                    uncompressedPixels = decompressedPoolBuffer.AsSpan(0, decompressedSize);
+                }
+                else
+                {
+                    uncompressedPixels = rawSource;
+                }
 
-            ConvertPixelsToBgra32(uncompressedPixels, bgraBuffer.AsSpan(0, bgraByteCount), width, height, update.Bpp);
-
-            if (decompressedPoolBuffer != null)
+                ConvertPixelsToBgra32(uncompressedPixels, bgraBuffer.AsSpan(0, bgraByteCount), width, height, update.Bpp);
+            }
+            finally
             {
-                targetPool.Return(decompressedPoolBuffer);
-                decompressedPoolBuffer = null;
+                if (decompressedPoolBuffer != null)
+                {
+                    targetPool.Return(decompressedPoolBuffer);
+                }
             }
 
             SKRectI bounds = SKRectI.Create(update.Left, update.Top, update.Width, update.Height);
-            return new RdpBitmapTile(bounds, update.Bpp, bgraBuffer, bgraByteCount, bgraBuffer, targetPool);
+            var tile = new RdpBitmapTile(bounds, update.Bpp, bgraBuffer, bgraByteCount, bgraBuffer, targetPool);
+            success = true;
+            return tile;
         }
-        catch
+        finally
         {
-            if (decompressedPoolBuffer != null)
+            if (!success)
             {
-                targetPool.Return(decompressedPoolBuffer);
+                targetPool.Return(bgraBuffer);
             }
-
-            targetPool.Return(bgraBuffer);
-            throw;
         }
     }
 

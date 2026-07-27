@@ -73,43 +73,46 @@ public sealed class RdpSkiaCanvas
 
         UpdateFps();
 
-        canvas.Save();
-        try
+        lock (FrameBuffer.SyncRoot)
         {
-            canvas.ClipRect(targetBounds);
-
-            if (drawDirtyOnly)
+            canvas.Save();
+            try
             {
-                var dirtyRegion = FrameBuffer.SwapBuffers();
-                if (!dirtyRegion.IsEmpty)
+                canvas.ClipRect(targetBounds);
+
+                if (drawDirtyOnly)
                 {
-                    float scaleX = targetBounds.Width / FrameBuffer.Width;
-                    float scaleY = targetBounds.Height / FrameBuffer.Height;
-
-                    var dirtyRects = dirtyRegion.Rectangles;
-                    for (int i = 0; i < dirtyRects.Count; i++)
+                    var dirtyRegion = FrameBuffer.SwapBuffers();
+                    if (!dirtyRegion.IsEmpty)
                     {
-                        var dirtyRect = dirtyRects[i];
-                        SKRect srcRect = dirtyRect;
-                        SKRect destRect = SKRect.Create(
-                            targetBounds.Left + (dirtyRect.Left * scaleX),
-                            targetBounds.Top + (dirtyRect.Top * scaleY),
-                            dirtyRect.Width * scaleX,
-                            dirtyRect.Height * scaleY);
+                        float scaleX = targetBounds.Width / FrameBuffer.Width;
+                        float scaleY = targetBounds.Height / FrameBuffer.Height;
 
-                        FrameBuffer.RenderToCanvas(canvas, srcRect, destRect);
+                        var dirtyRects = dirtyRegion.Rectangles;
+                        for (int i = 0; i < dirtyRects.Count; i++)
+                        {
+                            var dirtyRect = dirtyRects[i];
+                            SKRect srcRect = dirtyRect;
+                            SKRect destRect = SKRect.Create(
+                                targetBounds.Left + (dirtyRect.Left * scaleX),
+                                targetBounds.Top + (dirtyRect.Top * scaleY),
+                                dirtyRect.Width * scaleX,
+                                dirtyRect.Height * scaleY);
+
+                            FrameBuffer.RenderToCanvas(canvas, srcRect, destRect);
+                        }
                     }
                 }
+                else
+                {
+                    SKRect srcBounds = SKRect.Create(0, 0, FrameBuffer.Width, FrameBuffer.Height);
+                    FrameBuffer.RenderToCanvas(canvas, srcBounds, targetBounds);
+                }
             }
-            else
+            finally
             {
-                SKRect srcBounds = SKRect.Create(0, 0, FrameBuffer.Width, FrameBuffer.Height);
-                FrameBuffer.RenderToCanvas(canvas, srcBounds, targetBounds);
+                canvas.Restore();
             }
-        }
-        finally
-        {
-            canvas.Restore();
         }
     }
 
@@ -121,7 +124,10 @@ public sealed class RdpSkiaCanvas
         if (canvas == null) throw new ArgumentNullException(nameof(canvas));
 
         UpdateFps();
-        FrameBuffer.RenderToCanvas(canvas, destX, destY);
+        lock (FrameBuffer.SyncRoot)
+        {
+            FrameBuffer.RenderToCanvas(canvas, destX, destY);
+        }
     }
 
     private void UpdateFps()

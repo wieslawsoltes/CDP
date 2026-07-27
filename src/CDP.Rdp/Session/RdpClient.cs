@@ -1,3 +1,7 @@
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("CDP.Rdp.Tests")]
+
 namespace CDP.Rdp.Session;
 
 using System;
@@ -433,6 +437,11 @@ public sealed class RdpClient : IRdpSession
 
         _stateLock.Dispose();
         _sendLock.Dispose();
+    }
+
+    internal void RaiseFrameUpdatedForTesting(RdpFrameUpdateEventArgs args)
+    {
+        FrameUpdated?.Invoke(this, args);
     }
 
     public void Dispose()

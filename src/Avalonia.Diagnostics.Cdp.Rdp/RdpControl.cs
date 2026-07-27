@@ -50,6 +50,15 @@ public class RdpControl : Control
     public static readonly StyledProperty<IRdpSession?> SessionProperty =
         AvaloniaProperty.Register<RdpControl, IRdpSession?>(nameof(Session));
 
+    public static readonly StyledProperty<double> ScaleFactorProperty =
+        AvaloniaProperty.Register<RdpControl, double>(nameof(ScaleFactor), 1.0);
+
+    public double ScaleFactor
+    {
+        get => GetValue(ScaleFactorProperty);
+        set => SetValue(ScaleFactorProperty, value);
+    }
+
     public string Host
     {
         get => GetValue(HostProperty);
@@ -328,6 +337,8 @@ public class RdpControl : Control
         double width = Bounds.Width > 0 ? Bounds.Width : (Width > 0 && !double.IsNaN(Width) ? Width : 1);
         double height = Bounds.Height > 0 ? Bounds.Height : (Height > 0 && !double.IsNaN(Height) ? Height : 1);
 
+        double scale = ScaleFactor > 0 && !double.IsNaN(ScaleFactor) && !double.IsInfinity(ScaleFactor) ? ScaleFactor : 1.0;
+
         int fbWidth = _frameBuffer?.Width ?? 1280;
         int fbHeight = _frameBuffer?.Height ?? 720;
 
@@ -342,7 +353,7 @@ public class RdpControl : Control
         }
         else
         {
-            mappedX = (int)Math.Clamp(Math.Floor((controlPoint.X / width) * fbWidth), 0, fbWidth - 1);
+            mappedX = (int)Math.Clamp(Math.Floor((controlPoint.X / (width * scale)) * fbWidth), 0, fbWidth - 1);
         }
 
         int mappedY;
@@ -356,7 +367,7 @@ public class RdpControl : Control
         }
         else
         {
-            mappedY = (int)Math.Clamp(Math.Floor((controlPoint.Y / height) * fbHeight), 0, fbHeight - 1);
+            mappedY = (int)Math.Clamp(Math.Floor((controlPoint.Y / (height * scale)) * fbHeight), 0, fbHeight - 1);
         }
 
         xPos = (ushort)mappedX;

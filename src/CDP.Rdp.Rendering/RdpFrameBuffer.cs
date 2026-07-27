@@ -13,6 +13,8 @@ public sealed class RdpFrameBuffer : IDisposable
 {
     private readonly object _lock = new();
 
+    public object SyncRoot => _lock;
+
     private SKBitmap _backBuffer;
     private SKBitmap _frontBuffer;
     private readonly RdpDirtyRegion _backDirtyRegion = new();
