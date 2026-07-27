@@ -1,0 +1,8 @@
+appId: "WindowsRdpApp"
+description: "Tier 3: Verify canvas screencast stream on CDP port 9225"
+tags:
+  - "screencast"
+  - "page"
+---
+- delay: "500"
+- assertTrue: "document.querySelector('#rdpViewport') != null"

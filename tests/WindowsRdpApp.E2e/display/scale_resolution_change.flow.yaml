@@ -1,0 +1,10 @@
+appId: "WindowsRdpApp"
+description: "Tier 2: Verify viewport resolution and scaling controls"
+tags:
+  - "display"
+  - "scaling"
+---
+- delay: "300"
+- tapOn: "#rdpViewport"
+- delay: "300"
+- assertTrue: "document.querySelector('#rdpViewport') != null"

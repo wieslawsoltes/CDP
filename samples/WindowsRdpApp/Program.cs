@@ -56,6 +56,18 @@ class Program
         }
         else
         {
+            int port = 9225;
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i].Equals("--port", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                {
+                    int.TryParse(args[i + 1], out port);
+                }
+            }
+
+            Avalonia.Diagnostics.Cdp.CdpServer.EnsureInitialized();
+            Avalonia.Diagnostics.Cdp.CdpServer.Start(port);
+
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
     }

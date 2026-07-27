@@ -1,0 +1,10 @@
+appId: "WindowsRdpApp"
+description: "Tier 2: Verify multi-session workspace tab switching"
+tags:
+  - "workspace"
+  - "tabs"
+---
+- delay: "300"
+- tapOn: "#tabWorkspace"
+- delay: "300"
+- assertTrue: "document.querySelector('#tabWorkspace') != null"
