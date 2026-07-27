@@ -384,10 +384,20 @@ public sealed class RdpClient : IRdpSession
     {
         if (_cts != null)
         {
-            _cts.Cancel();
-            _cts.Dispose();
-            _cts = null;
+            try { _cts.Cancel(); } catch { }
         }
+
+        if (_transport != null)
+        {
+            try { await _transport.DisposeAsync().ConfigureAwait(false); } catch { }
+            _transport = null;
+        }
+
+        try { _networkStream?.Dispose(); } catch { }
+        _networkStream = null;
+
+        try { _tcpClient?.Dispose(); } catch { }
+        _tcpClient = null;
 
         if (_receiveLoopTask != null)
         {
@@ -395,17 +405,11 @@ public sealed class RdpClient : IRdpSession
             _receiveLoopTask = null;
         }
 
-        if (_transport != null)
+        if (_cts != null)
         {
-            await _transport.DisposeAsync().ConfigureAwait(false);
-            _transport = null;
+            try { _cts.Dispose(); } catch { }
+            _cts = null;
         }
-
-        _networkStream?.Dispose();
-        _networkStream = null;
-
-        _tcpClient?.Dispose();
-        _tcpClient = null;
     }
 
     public async ValueTask DisposeAsync()
