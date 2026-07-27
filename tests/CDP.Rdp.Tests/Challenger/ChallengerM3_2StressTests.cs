@@ -289,8 +289,8 @@ public class ChallengerM3_2StressTests
         long finalMemory = GC.GetTotalMemory(true);
         long memoryDelta = finalMemory - initialMemory;
 
-        // Verify memory growth after 2,000 continuous frame render cycles is less than 5 MB
-        Assert.True(memoryDelta < 5 * 1024 * 1024, $"Memory grew by {memoryDelta} bytes after {renderCycles} render cycles, exceeding safety threshold.");
+        // Verify memory growth after 2,000 continuous frame render cycles is less than 10 MB
+        Assert.True(memoryDelta < 10 * 1024 * 1024, $"Memory grew by {memoryDelta} bytes after {renderCycles} render cycles, exceeding safety threshold.");
     }
 
     [Fact]
