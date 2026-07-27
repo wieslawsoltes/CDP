@@ -336,12 +336,12 @@ public class ChallengerM2Iter5StressTests
 
         public void TriggerFrameUpdated(int dirtyRectCount)
         {
-            var bitmaps = new List<RdpBitmapData>();
+            var bitmaps = new List<RdpBitmapUpdate>();
             for (int i = 0; i < dirtyRectCount; i++)
             {
-                bitmaps.Add(new RdpBitmapData(0, 0, 10, 10, 32, new byte[400]));
+                bitmaps.Add(new RdpBitmapUpdate(0, 0, 10, 10, 32, false, new byte[400]));
             }
-            FrameUpdated?.Invoke(this, new RdpFrameUpdateEventArgs(bitmaps));
+            FrameUpdated?.Invoke(this, new RdpFrameUpdateEventArgs(1, DateTimeOffset.UtcNow, bitmaps));
         }
 
         public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

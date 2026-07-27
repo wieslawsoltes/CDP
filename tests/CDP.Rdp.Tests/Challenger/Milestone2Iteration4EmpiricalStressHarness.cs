@@ -353,7 +353,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
     [InlineData(1000, 500, 1.0, 1280, 720, 500, 250, 640, 360)]
     [InlineData(1000, 500, 2.0, 1280, 720, 500, 250, 320, 180)]
     [InlineData(1000, 500, 0.5, 1280, 720, 500, 250, 1279, 719)]
-    [InlineData(1920, 1080, 1.5, 1920, 1080, 1440, 810, 959, 539)]
+    [InlineData(1920, 1080, 1.5, 1920, 1080, 1440, 810, 960, 540)]
     public void StressTest_RdpControl_TranslateCoordinates_ScalingOracle(
         double controlWidth, double controlHeight, double scaleFactor,
         int fbWidth, int fbHeight, double inputX, double inputY, ushort expectedX, ushort expectedY)

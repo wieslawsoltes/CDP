@@ -382,7 +382,7 @@ public class DummyTestRdpSession : IRdpSession, IDisposable
 
     public void RaiseFrameUpdated()
     {
-        FrameUpdated?.Invoke(this, new RdpFrameUpdateEventArgs(new List<RdpBitmapData>()));
+        FrameUpdated?.Invoke(this, new RdpFrameUpdateEventArgs(1, DateTimeOffset.UtcNow, new List<RdpBitmapUpdate>()));
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
