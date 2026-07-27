@@ -292,6 +292,9 @@ public sealed class RdpClient : IRdpSession
         }
         try
         {
+            if (_state != RdpConnectionState.Connected || _transport == null || Volatile.Read(ref _isDisposed) != 0)
+                throw new InvalidOperationException("Client is not connected.");
+
             byte[] buffer = new byte[128];
             Span<byte> span = buffer;
             RdpPacketWriter writer = new RdpPacketWriter(span);
@@ -326,6 +329,9 @@ public sealed class RdpClient : IRdpSession
         }
         try
         {
+            if (_state != RdpConnectionState.Connected || _transport == null || Volatile.Read(ref _isDisposed) != 0)
+                throw new InvalidOperationException("Client is not connected.");
+
             byte[] buffer = new byte[128];
             Span<byte> span = buffer;
             RdpPacketWriter writer = new RdpPacketWriter(span);
