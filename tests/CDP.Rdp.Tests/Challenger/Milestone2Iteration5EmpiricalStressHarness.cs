@@ -35,7 +35,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
     // 1. Multi-Session Tab Disposal Memory Leaks Empirical Challenges
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public void TabDisposal_DirectDispose_DemonstratesNullSessionBug()
     {
         // Bug Hypothesis: When RdpSessionTab.Dispose() is called directly,
@@ -69,7 +69,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
         Assert.True(sessionWasCleanedUp, "CRITICAL BUG CONFIRMED: RdpSessionTab.Dispose() sets _session=null before calling DisconnectSessionAsync(), leaving underlying IRdpSession undisposed and leaking resources.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task MultiSessionTabDisposal_RapidCycle_MemoryLeakStressTest()
     {
         // Stress test creating and disposing 50 session tabs repeatedly
@@ -117,7 +117,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
     // 2. Thread Marshaling Under Test Contexts Empirical Challenges
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ThreadMarshaling_BackgroundThreadCallbacks_Behaviors()
     {
         var tab = new RdpSessionTab
@@ -149,7 +149,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
         Assert.Equal("Connected", tab.Status);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ThreadMarshaling_FrameUpdateFromThreadPool_CalculatesFpsSafely()
     {
         var tab = new RdpSessionTab
@@ -280,7 +280,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
         Assert.Equal(secret, manuallyDecrypted);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileImportExport_RoundtripWithSpecialCharsAndCorruptedInputs()
     {
         string exportFile = Path.Combine(_tempTestDir, "export_roundtrip.json");
@@ -310,7 +310,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
         Assert.Equal("PassKey!@#$%^&*()_+-=[]{}|;':\",./<>?", imported.Password);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileImport_CorruptedEncryptedPassword_HandledGracefullyWithoutCrash()
     {
         string corruptedImportFile = Path.Combine(_tempTestDir, "corrupted_import.json");
