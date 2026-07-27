@@ -384,10 +384,31 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
         {
             if (current is Control control)
             {
-                var fullName = control.GetType().FullName;
+                var type = control.GetType();
+                var fullName = type.FullName;
                 if (fullName != null && _classToFileMap.TryGetValue(fullName, out var filePath))
                 {
                     return (control, filePath);
+                }
+
+                try
+                {
+                    var root = FindWorkspaceRoot();
+                    var fallbackFile = Directory.EnumerateFiles(root, $"{type.Name}.axaml", SearchOption.AllDirectories)
+                        .FirstOrDefault(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") &&
+                                              !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"));
+                    if (!string.IsNullOrEmpty(fallbackFile))
+                    {
+                        if (fullName != null)
+                        {
+                            _classToFileMap[fullName] = fallbackFile;
+                        }
+                        return (control, fallbackFile);
+                    }
+                }
+                catch
+                {
+                    // Fallback scan error ignored
                 }
             }
             current = current.LogicalParent;
