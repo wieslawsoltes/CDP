@@ -304,7 +304,14 @@ public class RdpSessionTab : ReactiveObject, IDisposable
 
     public async Task DisconnectSessionAsync()
     {
-        _connectCts?.Cancel();
+        try
+        {
+            _connectCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Ignore disposed CTS
+        }
 
         if (Session != null)
         {
@@ -478,8 +485,14 @@ public class RdpSessionTab : ReactiveObject, IDisposable
 
     public void Dispose()
     {
-        _connectCts?.Cancel();
-        _connectCts?.Dispose();
+        try
+        {
+            _connectCts?.Cancel();
+            _connectCts?.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
         _connectCts = null;
 
         if (_session != null)
