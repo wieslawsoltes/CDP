@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Themes.Fluent;
+using Avalonia.Threading;
+using ReactiveUI;
 
 [assembly: AvaloniaTestApplication(typeof(Avalonia.Diagnostics.Cdp.Tests.TestAppBuilder))]
 [assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
@@ -18,6 +20,7 @@ public class TestApp : Application
 {
     public override void Initialize()
     {
+        RxApp.MainThreadScheduler = DispatcherScheduler.Current;
         Styles.Add(new FluentTheme());
 #if !AVALONIA_V11
         Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://Avalonia.Diagnostics.Cdp.Tests/"))
