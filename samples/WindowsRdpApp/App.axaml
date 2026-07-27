@@ -1,0 +1,10 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="WindowsRdpApp.App"
+             RequestedThemeVariant="Dark">
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://CDP.FluentNavigation/Themes/Generic.axaml" />
+        <StyleInclude Source="avares://WindowsRdpApp/Styles/Icons.axaml" />
+    </Application.Styles>
+</Application>
