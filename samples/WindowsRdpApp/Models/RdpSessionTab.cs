@@ -271,11 +271,6 @@ public class RdpSessionTab : ReactiveObject, IDisposable
                 Status = "Faulted";
                 ConnectionState = RdpConnectionState.Faulted;
             });
-
-            if (AutoReconnect && ReconnectCount < MaxReconnectAttempts && _connectCts?.IsCancellationRequested == false)
-            {
-                await TriggerAutoReconnectAsync(_connectCts.Token);
-            }
         }
     }
 
