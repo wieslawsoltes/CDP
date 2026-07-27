@@ -1,5 +1,6 @@
 using System;
 using Xunit;
+using Avalonia.Headless.XUnit;
 using Avalonia;
 using Avalonia.Controls;
 using CDP.Editor.Nodes.ViewModels;
@@ -9,14 +10,14 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public class LogicalScrollingTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void CanvasPanel_ReportsIsLogicalScrollEnabledTrue()
     {
         var panel = new NodeEditorCanvasPanel();
         Assert.True(panel.IsLogicalScrollEnabled);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CanvasPanel_OffsetAndExtentStayInSyncWithViewModel()
     {
         var vm = new NodeEditorViewModel();
@@ -46,7 +47,7 @@ public class LogicalScrollingTests
         Assert.Equal(800.0, panel.Offset.Y);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CanvasPanel_RaisesScrollInvalidatedEventOnViewModelChanges()
     {
         var vm = new NodeEditorViewModel();

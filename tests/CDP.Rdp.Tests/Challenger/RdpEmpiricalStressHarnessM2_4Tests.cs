@@ -407,13 +407,17 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
         }
 
         await Task.WhenAll(tasks);
-        var timeout = DateTime.UtcNow.AddSeconds(2);
+        var timeout = DateTime.UtcNow.AddSeconds(10);
         while (tab.TotalFrames < frameCount && DateTime.UtcNow < timeout)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            await Task.Delay(10);
+        }
+        for (int i = 0; i < 5; i++)
         {
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             await Task.Delay(5);
         }
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(frameCount, tab.TotalFrames);
     }

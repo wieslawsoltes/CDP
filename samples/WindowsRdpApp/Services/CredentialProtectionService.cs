@@ -12,9 +12,6 @@ public class CredentialProtectionService : ICredentialProtectionService
         if (string.IsNullOrEmpty(plainText))
             return string.Empty;
 
-        if (plainText.StartsWith(Prefix, StringComparison.Ordinal))
-            return plainText;
-
         try
         {
             byte[] bytes = System.Text.Encoding.UTF8.GetBytes(plainText);

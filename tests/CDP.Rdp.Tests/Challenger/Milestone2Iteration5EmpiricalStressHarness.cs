@@ -51,6 +51,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
 
         var mockSession = new DummyTestRdpSession();
         tab.Session = mockSession;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.NotNull(tab.Session);
         Assert.False(mockSession.IsDisposed);
@@ -58,14 +59,11 @@ public class Milestone2Iteration5EmpiricalStressHarness
 
         // Act: Dispose tab directly
         tab.Dispose();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         // Empirical assertion check:
-        // Does mockSession get disconnected and disposed?
-        // Because of the bug in RdpSessionTab.Dispose() setting _session = null first,
-        // mockSession.DisconnectAsync() and Dispose() are NEVER CALLED!
         bool sessionWasCleanedUp = mockSession.IsDisposed || mockSession.IsDisconnected;
 
-        // We record and assert this empirical finding.
         Assert.True(sessionWasCleanedUp, "CRITICAL BUG CONFIRMED: RdpSessionTab.Dispose() sets _session=null before calling DisconnectSessionAsync(), leaving underlying IRdpSession undisposed and leaking resources.");
     }
 
@@ -91,20 +89,25 @@ public class Milestone2Iteration5EmpiricalStressHarness
             var tab = workspaceVM.OpenSession(profile);
             var mockSession = new DummyTestRdpSession();
             tab.Session = mockSession;
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
             tabReferences.Add(new WeakReference(tab));
             sessionReferences.Add(new WeakReference(mockSession));
 
             // Close session via workspace
             await workspaceVM.ExecuteCloseSessionAsync(tab);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         }
 
         Assert.Empty(workspaceVM.Sessions);
 
         // Force GC collection
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
+        for (int i = 0; i < 3; i++)
+        {
+            GC.Collect(2, GCCollectionMode.Forced, true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
 
         int aliveTabs = tabReferences.Count(r => r.IsAlive);
         int aliveSessions = sessionReferences.Count(r => r.IsAlive);
@@ -170,6 +173,14 @@ public class Milestone2Iteration5EmpiricalStressHarness
         }));
 
         await Task.WhenAll(tasks);
+
+        var timeout = DateTime.UtcNow.AddSeconds(5);
+        while (tab.TotalFrames < 100 && DateTime.UtcNow < timeout)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            await Task.Delay(5);
+        }
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(100, tab.TotalFrames);
     }

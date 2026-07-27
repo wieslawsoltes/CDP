@@ -379,20 +379,13 @@ public class RdpSessionTab : ReactiveObject, IDisposable
 
     private static void RunOnUIThread(Action action)
     {
-        try
-        {
-            if (Dispatcher.UIThread.CheckAccess() || IsTestContext)
-            {
-                action();
-            }
-            else
-            {
-                Dispatcher.UIThread.Post(action);
-            }
-        }
-        catch
+        if (Dispatcher.UIThread.CheckAccess())
         {
             action();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(action);
         }
     }
 
@@ -400,7 +393,7 @@ public class RdpSessionTab : ReactiveObject, IDisposable
     {
         RunOnUIThread(() =>
         {
-            if (ConnectionState == RdpConnectionState.Disconnected)
+            if (ConnectionState == e.NewState)
                 return;
 
             ConnectionState = e.NewState;
@@ -502,13 +495,24 @@ public class RdpSessionTab : ReactiveObject, IDisposable
         }
         _connectCts = null;
 
-        if (_session != null)
+        var s = _session;
+        if (s != null)
         {
-            _session.StateChanged -= OnStateChanged;
-            _session.FrameUpdated -= OnFrameUpdated;
             _session = null;
+            s.StateChanged -= OnStateChanged;
+            s.FrameUpdated -= OnFrameUpdated;
+            try
+            {
+                _ = s.DisconnectAsync();
+            }
+            catch { }
+            if (s is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
 
-        _ = DisconnectSessionAsync();
+        Status = "Disconnected";
+        ConnectionState = RdpConnectionState.Disconnected;
     }
 }

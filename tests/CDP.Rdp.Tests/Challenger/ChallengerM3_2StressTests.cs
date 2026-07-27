@@ -17,6 +17,8 @@ using CDP.Rdp.Rendering;
 using SkiaSharp;
 using Xunit;
 
+using Avalonia.Headless.XUnit;
+
 /// <summary>
 /// Empirical stress test suite for Milestone 3 (Challenger 2).
 /// Verifies:
@@ -28,7 +30,7 @@ public class ChallengerM3_2StressTests
 {
     #region 1. ViewModel State Transitions
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_Defaults_InitializedCorrectly()
     {
         var vm = new MainWindowViewModel();
@@ -44,7 +46,7 @@ public class ChallengerM3_2StressTests
         Assert.NotNull(vm.Recorder.TestStudio);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_ConnectCommand_TransitionsStateToConnected()
     {
         var vm = new MainWindowViewModel();
@@ -57,7 +59,7 @@ public class ChallengerM3_2StressTests
         Assert.Equal("Connected", vm.Connection.StatusText);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_DisconnectCommand_TransitionsStateToDisconnected()
     {
         var vm = new MainWindowViewModel();
@@ -70,7 +72,7 @@ public class ChallengerM3_2StressTests
         Assert.Equal("Disconnected", vm.Connection.StatusText);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_ToggleRecordCommand_TogglesIsRecordingState()
     {
         var vm = new MainWindowViewModel();
@@ -86,7 +88,7 @@ public class ChallengerM3_2StressTests
         Assert.True(vm.Recorder.IsRecording);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_PropertyChangeNotifications_FiresPropertyChangedEvents()
     {
         var vm = new MainWindowViewModel();
@@ -120,7 +122,7 @@ public class ChallengerM3_2StressTests
         Assert.Contains(nameof(RecorderStateViewModel.IsRecording), changedProps);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ConnectionStateViewModel_ResetForm_ResetsAllFieldsToDefaultState()
     {
         var conn = new ConnectionStateViewModel
@@ -143,7 +145,7 @@ public class ChallengerM3_2StressTests
         Assert.Equal("Disconnected", conn.StatusText);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_RapidStateTransitionsStress_MaintainsStateConsistency()
     {
         var vm = new MainWindowViewModel();

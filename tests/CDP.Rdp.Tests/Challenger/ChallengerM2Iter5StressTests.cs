@@ -55,6 +55,8 @@ public class ChallengerM2Iter5StressTests
             mockSession.TriggerStateChanged(RdpConnectionState.Connected);
             mockSession.TriggerFrameUpdated(1);
 
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
             Assert.Equal(RdpConnectionState.Connected, tab.ConnectionState);
             Assert.Equal(1, tab.TotalFrames);
 
@@ -66,6 +68,7 @@ public class ChallengerM2Iter5StressTests
 
             // After disposal, firing event should not update tab or throw
             mockSession.TriggerFrameUpdated(1);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
             await Task.CompletedTask;
         };
@@ -110,6 +113,8 @@ public class ChallengerM2Iter5StressTests
 
             weakTabs.Add(new WeakReference(tab));
         }
+
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(50, vm.Sessions.Count);
 
@@ -180,6 +185,14 @@ public class ChallengerM2Iter5StressTests
         }
 
         await Task.WhenAll(tasks);
+
+        var timeout = DateTime.UtcNow.AddSeconds(5);
+        while (tab.TotalFrames < tasksCount * eventsPerTask && DateTime.UtcNow < timeout)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            await Task.Delay(5);
+        }
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(tasksCount * eventsPerTask, tab.TotalFrames);
         Assert.Equal(RdpConnectionState.Connected, tab.ConnectionState);
