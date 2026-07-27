@@ -153,8 +153,12 @@ public class CredSspSecurityTransportTests
 
         Task serverTask = Task.Run(async () =>
         {
-            using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-            await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+            try
+            {
+                using SslStream serverSsl = new SslStream(pair.ServerStream, false);
+                await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+            }
+            catch { }
         }, ct);
 
         using CredSspSecurityTransport transport = new CredSspSecurityTransport(
@@ -165,7 +169,8 @@ public class CredSspSecurityTransportTests
             certValidation: (s, c, ch, e) => true);
 
         var ex = await Assert.ThrowsAsync<RdpNegotiationException>(() => transport.HandshakeAsync("localhost", ct));
-        await serverTask;
+        pair.Dispose();
+        try { await serverTask; } catch { }
 
         Assert.Contains("Username credential was not specified", ex.Message);
     }

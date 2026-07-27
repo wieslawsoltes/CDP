@@ -112,16 +112,20 @@ public class Challenger4EmpiricalTests
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
-            if (bytesReturnedBeforeEof > 0)
+            try
             {
-                byte[] partialTpkt = new byte[] { 0x03, 0x00, 0x00, 0x13 };
-                await pair.ServerStream.WriteAsync(partialTpkt.AsMemory(0, bytesReturnedBeforeEof), ct);
+                byte[] req = new byte[1024];
+                await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
+                if (bytesReturnedBeforeEof > 0)
+                {
+                    byte[] partialTpkt = new byte[] { 0x03, 0x00, 0x00, 0x13 };
+                    await pair.ServerStream.WriteAsync(partialTpkt.AsMemory(0, bytesReturnedBeforeEof), ct);
+                }
+                pair.ServerStream.Close();
             }
-            pair.ServerStream.Close();
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -129,6 +133,7 @@ public class Challenger4EmpiricalTests
             negotiator.NegotiateAsync(pair.ClientStream, "localhost", performSecurityHandshake: false, cancellationToken: ct));
 
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -137,14 +142,17 @@ public class Challenger4EmpiricalTests
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
-            // TPKT header claims total 19 bytes (15 payload bytes), but server sends only 5 payload bytes then drops stream
-            byte[] partialResponse = new byte[] { 0x03, 0x00, 0x00, 0x13, 0x0E, 0xD0, 0x00, 0x00, 0x12 };
-            await pair.ServerStream.WriteAsync(partialResponse, ct);
-            pair.ServerStream.Close();
+            try
+            {
+                byte[] req = new byte[1024];
+                await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
+                byte[] partialResponse = new byte[] { 0x03, 0x00, 0x00, 0x13, 0x0E, 0xD0, 0x00, 0x00, 0x12 };
+                await pair.ServerStream.WriteAsync(partialResponse, ct);
+                pair.ServerStream.Close();
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -152,6 +160,7 @@ public class Challenger4EmpiricalTests
             negotiator.NegotiateAsync(pair.ClientStream, "localhost", performSecurityHandshake: false, cancellationToken: ct));
 
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Theory]
@@ -165,12 +174,16 @@ public class Challenger4EmpiricalTests
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
-            byte[] response = new byte[] { invalidVersion, 0x00, 0x00, 0x0B, 0x06, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00 };
-            await pair.ServerStream.WriteAsync(response, ct);
+            try
+            {
+                byte[] req = new byte[1024];
+                await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
+                byte[] response = new byte[] { invalidVersion, 0x00, 0x00, 0x0B, 0x06, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00 };
+                await pair.ServerStream.WriteAsync(response, ct);
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -179,6 +192,7 @@ public class Challenger4EmpiricalTests
 
         Assert.Contains("Invalid TPKT header", ex.Message);
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Theory]
@@ -191,12 +205,16 @@ public class Challenger4EmpiricalTests
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
-            byte[] response = new byte[] { 0x03, 0x00, (byte)(invalidLength >> 8), (byte)(invalidLength & 0xFF) };
-            await pair.ServerStream.WriteAsync(response, ct);
+            try
+            {
+                byte[] req = new byte[1024];
+                await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
+                byte[] response = new byte[] { 0x03, 0x00, (byte)(invalidLength >> 8), (byte)(invalidLength & 0xFF) };
+                await pair.ServerStream.WriteAsync(response, ct);
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -204,6 +222,7 @@ public class Challenger4EmpiricalTests
             negotiator.NegotiateAsync(pair.ClientStream, "localhost", cancellationToken: ct));
 
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Theory]
@@ -215,12 +234,16 @@ public class Challenger4EmpiricalTests
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
-            byte[] response = new byte[] { 0x03, 0x00, 0x00, 0x0B, 0x06, invalidTpduCode, 0x00, 0x00, 0x12, 0x34, 0x00 };
-            await pair.ServerStream.WriteAsync(response, ct);
+            try
+            {
+                byte[] req = new byte[1024];
+                await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
+                byte[] response = new byte[] { 0x03, 0x00, 0x00, 0x0B, 0x06, invalidTpduCode, 0x00, 0x00, 0x12, 0x34, 0x00 };
+                await pair.ServerStream.WriteAsync(response, ct);
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -229,6 +252,7 @@ public class Challenger4EmpiricalTests
 
         Assert.Contains("Unexpected X.224 TPDU code received", ex.Message);
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -237,17 +261,20 @@ public class Challenger4EmpiricalTests
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
-            // TPKT header (length 19), X.224 CC, RDP_NEG_FAILURE with HybridRequiredByServer
-            byte[] failureRsp = new byte[] {
-                0x03, 0x00, 0x00, 0x13,
-                0x0E, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00,
-                0x03, 0x00, 0x08, 0x00, 0x05, 0x00, 0x00, 0x00
-            };
-            await pair.ServerStream.WriteAsync(failureRsp, ct);
+            try
+            {
+                byte[] req = new byte[1024];
+                await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
+                byte[] failureRsp = new byte[] {
+                    0x03, 0x00, 0x00, 0x13,
+                    0x0E, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00,
+                    0x03, 0x00, 0x08, 0x00, 0x05, 0x00, 0x00, 0x00
+                };
+                await pair.ServerStream.WriteAsync(failureRsp, ct);
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -256,6 +283,7 @@ public class Challenger4EmpiricalTests
 
         Assert.Equal(RdpNegotiationFailureCode.HybridRequiredByServer, ex.FailureCode);
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -264,19 +292,21 @@ public class Challenger4EmpiricalTests
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
-            // Accept SSL protocol
-            byte[] sslConfirm = new byte[] {
-                0x03, 0x00, 0x00, 0x13,
-                0x0E, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00,
-                0x02, 0x00, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00
-            };
-            await pair.ServerStream.WriteAsync(sslConfirm, ct);
-            // Close stream immediately so TLS handshake fails
-            pair.ServerStream.Close();
+            try
+            {
+                byte[] req = new byte[1024];
+                await ReadExactAsync(pair.ServerStream, req.AsMemory(0, 4), ct);
+                byte[] sslConfirm = new byte[] {
+                    0x03, 0x00, 0x00, 0x13,
+                    0x0E, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00,
+                    0x02, 0x00, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00
+                };
+                await pair.ServerStream.WriteAsync(sslConfirm, ct);
+                pair.ServerStream.Close();
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -284,6 +314,7 @@ public class Challenger4EmpiricalTests
             negotiator.NegotiateAsync(pair.ClientStream, "localhost", RdpSecurityProtocol.Ssl, performSecurityHandshake: true, cancellationToken: ct));
 
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -293,12 +324,15 @@ public class Challenger4EmpiricalTests
         using DuplexStreamPair pair = new DuplexStreamPair();
         using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] buf = new byte[1024];
-            await ReadExactAsync(pair.ServerStream, buf.AsMemory(0, 4), cts.Token);
-            // Cancel token while negotiator is awaiting server response
-            cts.Cancel();
+            try
+            {
+                byte[] buf = new byte[1024];
+                await ReadExactAsync(pair.ServerStream, buf.AsMemory(0, 4), cts.Token);
+                cts.Cancel();
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -306,6 +340,7 @@ public class Challenger4EmpiricalTests
             negotiator.NegotiateAsync(pair.ClientStream, "localhost", cancellationToken: cts.Token));
 
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     #endregion

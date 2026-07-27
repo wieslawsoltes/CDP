@@ -392,12 +392,16 @@ public class EmpiricalProtocolChallenges
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] buf = new byte[128];
-            await ReadExactAsync(pair.ServerStream, buf, 4, ct);
-            byte[] response = new byte[] { 0x03, 0x00, 0x00, 0x04 };
-            await pair.ServerStream.WriteAsync(response, ct);
+            try
+            {
+                byte[] buf = new byte[128];
+                await ReadExactAsync(pair.ServerStream, buf, 4, ct);
+                byte[] response = new byte[] { 0x03, 0x00, 0x00, 0x04 };
+                await pair.ServerStream.WriteAsync(response, ct);
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -406,6 +410,7 @@ public class EmpiricalProtocolChallenges
 
         Assert.Contains("Invalid X.224 header", ex.Message);
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -414,12 +419,16 @@ public class EmpiricalProtocolChallenges
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] buf = new byte[128];
-            await ReadExactAsync(pair.ServerStream, buf, 4, ct);
-            byte[] response = new byte[] { 0x03, 0x00, 0x00, 0x0B, 0x06, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            await pair.ServerStream.WriteAsync(response, ct);
+            try
+            {
+                byte[] buf = new byte[128];
+                await ReadExactAsync(pair.ServerStream, buf, 4, ct);
+                byte[] response = new byte[] { 0x03, 0x00, 0x00, 0x0B, 0x06, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00 };
+                await pair.ServerStream.WriteAsync(response, ct);
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -428,6 +437,7 @@ public class EmpiricalProtocolChallenges
 
         Assert.Contains("Unexpected X.224 TPDU code received", ex.Message);
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -436,12 +446,16 @@ public class EmpiricalProtocolChallenges
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] buf = new byte[128];
-            await ReadExactAsync(pair.ServerStream, buf, 4, ct);
-            byte[] legacyConfirm = new byte[] { 0x03, 0x00, 0x00, 0x0B, 0x06, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00 };
-            await pair.ServerStream.WriteAsync(legacyConfirm, ct);
+            try
+            {
+                byte[] buf = new byte[128];
+                await ReadExactAsync(pair.ServerStream, buf, 4, ct);
+                byte[] legacyConfirm = new byte[] { 0x03, 0x00, 0x00, 0x0B, 0x06, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00 };
+                await pair.ServerStream.WriteAsync(legacyConfirm, ct);
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -455,6 +469,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(RdpSecurityProtocol.Rdp, transport.Protocol);
         Assert.Equal(RdpSecurityProtocol.Rdp, negotiator.SelectedProtocol);
         Assert.Equal(RdpNegotiationState.Connected, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -463,16 +478,20 @@ public class EmpiricalProtocolChallenges
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
 
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] buf = new byte[128];
-            await ReadExactAsync(pair.ServerStream, buf, 4, ct);
-            byte[] rsp = new byte[] {
-                0x03, 0x00, 0x00, 0x13, // TPKT
-                0x0E, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00, // X.224 CC
-                0x02, 0x00, 0x08, 0x00, 0x99, 0x00, 0x00, 0x00 // RDP_NEG_RSP
-            };
-            await pair.ServerStream.WriteAsync(rsp, ct);
+            try
+            {
+                byte[] buf = new byte[128];
+                await ReadExactAsync(pair.ServerStream, buf, 4, ct);
+                byte[] rsp = new byte[] {
+                    0x03, 0x00, 0x00, 0x13, // TPKT
+                    0x0E, 0xD0, 0x00, 0x00, 0x12, 0x34, 0x00, // X.224 CC
+                    0x02, 0x00, 0x08, 0x00, 0x99, 0x00, 0x00, 0x00 // RDP_NEG_RSP
+                };
+                await pair.ServerStream.WriteAsync(rsp, ct);
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -486,6 +505,7 @@ public class EmpiricalProtocolChallenges
         Assert.IsType<PlainRdpSecurityTransport>(transport);
         Assert.Equal((RdpSecurityProtocol)0x99, negotiator.SelectedProtocol);
         Assert.Equal(RdpNegotiationState.Connected, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     private static async Task<int> ReadExactAsync(Stream stream, byte[] buffer, int count, System.Threading.CancellationToken ct)

@@ -62,12 +62,16 @@ public class ChallengerM11EmpiricalTests
         using DuplexStreamPair pair = new DuplexStreamPair();
 
         // Server writes only 2 bytes of TPKT header and closes
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await pair.ServerStream.ReadAsync(req, 0, 4, ct);
-            await pair.ServerStream.WriteAsync(new byte[] { 0x03, 0x00 }, ct);
-            pair.ServerStream.Close();
+            try
+            {
+                byte[] req = new byte[1024];
+                await pair.ServerStream.ReadAsync(req, 0, 4, ct);
+                await pair.ServerStream.WriteAsync(new byte[] { 0x03, 0x00 }, ct);
+                pair.ServerStream.Close();
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -76,6 +80,7 @@ public class ChallengerM11EmpiricalTests
 
         Assert.Contains("Expected 4 bytes, read 2 bytes", ex.Message);
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -85,14 +90,17 @@ public class ChallengerM11EmpiricalTests
         using DuplexStreamPair pair = new DuplexStreamPair();
 
         // Server writes valid TPKT header indicating 19 total bytes (15 payload bytes), but sends only 3 bytes of payload then closes
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] req = new byte[1024];
-            await pair.ServerStream.ReadAsync(req, 0, 4, ct);
-            // TPKT: v3, rsvd 0, length 19 (0x0013)
-            byte[] truncatedResponse = new byte[] { 0x03, 0x00, 0x00, 0x13, 0x0E, 0xD0, 0x00 };
-            await pair.ServerStream.WriteAsync(truncatedResponse, ct);
-            pair.ServerStream.Close();
+            try
+            {
+                byte[] req = new byte[1024];
+                await pair.ServerStream.ReadAsync(req, 0, 4, ct);
+                byte[] truncatedResponse = new byte[] { 0x03, 0x00, 0x00, 0x13, 0x0E, 0xD0, 0x00 };
+                await pair.ServerStream.WriteAsync(truncatedResponse, ct);
+                pair.ServerStream.Close();
+            }
+            catch { }
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -101,6 +109,7 @@ public class ChallengerM11EmpiricalTests
 
         Assert.Contains("Expected 15 bytes, read 3 bytes", ex.Message);
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+        try { await serverTask; } catch { }
     }
 
     [Fact]
@@ -112,16 +121,21 @@ public class ChallengerM11EmpiricalTests
         SimulatedRdpServer server = new SimulatedRdpServer(pair.ServerStream);
 
         // Client writes 2 bytes then closes stream
-        _ = Task.Run(async () =>
+        Task clientTask = Task.Run(async () =>
         {
-            await pair.ClientStream.WriteAsync(new byte[] { 0x03, 0x00 }, ct);
-            pair.ClientStream.Close();
+            try
+            {
+                await pair.ClientStream.WriteAsync(new byte[] { 0x03, 0x00 }, ct);
+                pair.ClientStream.Close();
+            }
+            catch { }
         }, ct);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             server.ProcessConnectionRequestAsync(ct));
 
         Assert.Contains("Client closed stream prematurely", ex.Message);
+        try { await clientTask; } catch { }
     }
 
     #endregion
@@ -237,16 +251,20 @@ public class ChallengerM11EmpiricalTests
         using CancellationTokenSource cts = new CancellationTokenSource(100);
 
         // Server receives request but never responds
-        _ = Task.Run(async () =>
+        Task serverTask = Task.Run(async () =>
         {
-            byte[] buf = new byte[1024];
-            await pair.ServerStream.ReadAsync(buf);
-            // Intentionally don't respond, let client wait and get canceled
+            try
+            {
+                byte[] buf = new byte[1024];
+                await pair.ServerStream.ReadAsync(buf);
+            }
+            catch { }
         });
 
         RdpNegotiator negotiator = new RdpNegotiator();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             negotiator.NegotiateAsync(pair.ClientStream, "localhost", cancellationToken: cts.Token));
+        try { await serverTask; } catch { }
     }
 
     [Fact]
