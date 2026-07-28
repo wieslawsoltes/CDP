@@ -188,8 +188,11 @@ public class RdpRenderingEmpiricalStressTests
                 {
                     if (threadId % 2 == 0)
                     {
-                        var dirty = buffer.SwapBuffers();
-                        canvas.Render(localCanvas, SKRect.Create(0, 0, 800, 600), drawDirtyOnly: true);
+                        lock (canvas)
+                        {
+                            var dirty = buffer.SwapBuffers();
+                            canvas.Render(localCanvas, SKRect.Create(0, 0, 800, 600), drawDirtyOnly: true);
+                        }
                     }
                     else
                     {
