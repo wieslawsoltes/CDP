@@ -116,6 +116,7 @@ public class ChallengerM2Iter5StressTests
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static void CreateAndDisconnectWorkspaceSessions(SessionWorkspaceViewModel vm, List<WeakReference> weakTabs)
     {
+        vm.Sessions.Clear();
         for (int i = 0; i < 50; i++)
         {
             var profile = new RdpConnectionProfile

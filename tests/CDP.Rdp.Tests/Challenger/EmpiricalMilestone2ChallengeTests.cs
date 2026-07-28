@@ -261,6 +261,7 @@ public class EmpiricalMilestone2ChallengeTests
         Assert.False(weakTab.IsAlive, "RdpSessionTab leaked memory after DisconnectSessionAsync and Dispose!");
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static async Task<WeakReference> CreateAndDisposeTabAsync()
     {
         var mockSession = new MockRdpSession();
