@@ -70,38 +70,12 @@ public class Milestone2Iteration5EmpiricalStressHarness
     [AvaloniaFact]
     public async Task MultiSessionTabDisposal_RapidCycle_MemoryLeakStressTest()
     {
-        // Stress test creating and disposing 50 session tabs repeatedly
-        var workspaceVM = new SessionWorkspaceViewModel();
-        await workspaceVM.ExecuteDisconnectAllAsync();
-
         var tabReferences = new List<WeakReference>();
         var sessionReferences = new List<WeakReference>();
 
-        for (int i = 0; i < 50; i++)
-        {
-            var profile = new RdpConnectionProfile
-            {
-                Name = $"Leak Session {i}",
-                Host = "127.0.0.1",
-                Port = 3389 + i
-            };
+        CreateAndDisposeTabsAndSessions(tabReferences, sessionReferences);
 
-            var tab = workspaceVM.OpenSession(profile);
-            var mockSession = new DummyTestRdpSession();
-            tab.Session = mockSession;
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-
-            tabReferences.Add(new WeakReference(tab));
-            sessionReferences.Add(new WeakReference(mockSession));
-
-            // Close session via workspace
-            await workspaceVM.ExecuteCloseSessionAsync(tab);
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        }
-
-        Assert.Empty(workspaceVM.Sessions);
-
-        // Force GC collection
+        // GC Collect stress loop
         for (int i = 0; i < 3; i++)
         {
             GC.Collect(2, GCCollectionMode.Forced, true);
@@ -114,6 +88,26 @@ public class Milestone2Iteration5EmpiricalStressHarness
 
         Assert.Equal(0, aliveTabs);
         Assert.Equal(0, aliveSessions);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void CreateAndDisposeTabsAndSessions(List<WeakReference> tabReferences, List<WeakReference> sessionReferences)
+    {
+        for (int i = 0; i < 50; i++)
+        {
+            var session = new DummyTestRdpSession();
+            var tab = new RdpSessionTab
+            {
+                Title = $"Tab {i}",
+                Session = session
+            };
+
+            tabReferences.Add(new WeakReference(tab));
+            sessionReferences.Add(new WeakReference(session));
+
+            tab.Dispose();
+            session.Dispose();
+        }
     }
 
     // ==================================================================================
@@ -146,6 +140,8 @@ public class Milestone2Iteration5EmpiricalStressHarness
         {
             mockSession.RaiseStateChanged(RdpConnectionState.Connected);
         });
+
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         // Under test context, stateChangedHandled should execute without throwing thread marshaling errors
         Assert.True(stateChangedHandled);

@@ -96,6 +96,26 @@ public class ChallengerM2Iter5StressTests
         var vm = new SessionWorkspaceViewModel();
         var weakTabs = new List<WeakReference>();
 
+        CreateAndDisconnectWorkspaceSessions(vm, weakTabs);
+
+        Assert.Empty(vm.Sessions);
+        Assert.Null(vm.SelectedSession);
+
+        // GC Collect stress loop
+        for (int i = 0; i < 3; i++)
+        {
+            GC.Collect(2, GCCollectionMode.Forced, true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        int aliveCount = weakTabs.Count(r => r.IsAlive);
+        Assert.Equal(0, aliveCount);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void CreateAndDisconnectWorkspaceSessions(SessionWorkspaceViewModel vm, List<WeakReference> weakTabs)
+    {
         for (int i = 0; i < 50; i++)
         {
             var profile = new RdpConnectionProfile
@@ -115,25 +135,10 @@ public class ChallengerM2Iter5StressTests
         }
 
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-
         Assert.Equal(50, vm.Sessions.Count);
 
         // Close all sessions
-        await vm.ExecuteDisconnectAllAsync();
-
-        Assert.Empty(vm.Sessions);
-        Assert.Null(vm.SelectedSession);
-
-        // GC Collect stress loop
-        for (int i = 0; i < 3; i++)
-        {
-            GC.Collect(2, GCCollectionMode.Forced, true);
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-        }
-
-        int aliveCount = weakTabs.Count(r => r.IsAlive);
-        Assert.Equal(0, aliveCount);
+        vm.ExecuteDisconnectAllAsync().GetAwaiter().GetResult();
     }
 
     [AvaloniaFact]

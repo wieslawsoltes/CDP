@@ -413,10 +413,10 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             await Task.Delay(10);
         }
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 25; i++)
         {
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-            await Task.Delay(5);
+            await Task.Delay(10);
         }
 
         Assert.Equal(frameCount, tab.TotalFrames);

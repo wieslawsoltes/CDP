@@ -12,6 +12,22 @@ public class CredentialProtectionService : ICredentialProtectionService
         if (string.IsNullOrEmpty(plainText))
             return string.Empty;
 
+        if (plainText.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            try
+            {
+                var decrypted = Unprotect(plainText);
+                if (!string.IsNullOrEmpty(decrypted) && decrypted != plainText)
+                {
+                    return plainText;
+                }
+            }
+            catch
+            {
+                // Not a valid encrypted payload; proceed to encrypt below
+            }
+        }
+
         try
         {
             byte[] bytes = System.Text.Encoding.UTF8.GetBytes(plainText);
