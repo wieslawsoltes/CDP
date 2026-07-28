@@ -56,15 +56,20 @@ public class CredSspSecurityTransportTests
         Assert.False(parsed);
     }
 
+    private static X509Certificate2 CreateTestCertificate()
+    {
+        using RSA rsa = RSA.Create(2048);
+        CertificateRequest req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using X509Certificate2 certWithKey = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
+        return new X509Certificate2(certWithKey.Export(X509ContentType.Pkcs12), (string?)null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.MachineKeySet);
+    }
+
     [AvaloniaFact]
     public async Task HandshakeAsync_SuccessfulTlsAndTsRequestExchange_Succeeds()
     {
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
-
-        using RSA rsa = RSA.Create(2048);
-        CertificateRequest req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using X509Certificate2 cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
+        using X509Certificate2 cert = CreateTestCertificate();
 
         Task serverTask = Task.Run(async () =>
         {
@@ -107,10 +112,7 @@ public class CredSspSecurityTransportTests
     {
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
-
-        using RSA rsa = RSA.Create(2048);
-        CertificateRequest req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using X509Certificate2 cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
+        using X509Certificate2 cert = CreateTestCertificate();
 
         Task serverTask = Task.Run(async () =>
         {
@@ -147,10 +149,7 @@ public class CredSspSecurityTransportTests
     {
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
-
-        using RSA rsa = RSA.Create(2048);
-        CertificateRequest req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using X509Certificate2 cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
+        using X509Certificate2 cert = CreateTestCertificate();
 
         Task serverTask = Task.Run(async () =>
         {
