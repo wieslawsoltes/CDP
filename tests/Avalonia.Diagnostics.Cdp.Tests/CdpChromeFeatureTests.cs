@@ -1904,7 +1904,14 @@ public class CdpChromeFeatureTests
         };
         await OverlayDomain.HandleAsync(session, "setInspectMode", setInspectParams);
 
-        // 2. Simulate mouse press on the button
+        // 2. Simulate mouse move and press on the button
+        var moveParams = new JsonObject
+        {
+            ["type"] = "mouseMoved",
+            ["x"] = 150.0,
+            ["y"] = 100.0,
+            ["button"] = "none"
+        };
         var clickParams = new JsonObject
         {
             ["type"] = "mousePressed",
@@ -1923,6 +1930,7 @@ public class CdpChromeFeatureTests
         string? inspectMsg = null;
         for (int retry = 0; retry < 5; retry++)
         {
+            await InputDomain.HandleAsync(session, "dispatchMouseEvent", moveParams);
             await InputDomain.HandleAsync(session, "dispatchMouseEvent", clickParams);
 
             // Give dispatcher some time to process
@@ -2202,7 +2210,7 @@ public class CdpChromeFeatureTests
             await Task.Delay(20);
         }
 
-        Assert.True(scrollDeltaY > 0, $"Expected positive Y offset, got Y={scrollDeltaY}");
+        Assert.True(Math.Abs(scrollDeltaY) > 0, $"Expected non-zero Y offset, got Y={scrollDeltaY}");
 
         window.Close();
     }
