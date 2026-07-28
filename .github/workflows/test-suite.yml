@@ -7,7 +7,7 @@ jobs:
   run-unit-tests:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -36,11 +36,11 @@ jobs:
     - name: Run Unit Tests
       shell: bash
       run: |
-        TEST_CMD="dotnet test CDP.Tests.slnf -c Release --no-build --verbosity minimal --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation' -- RunConfiguration.MaxCpuCount=0"
+        FILTER="Category!=Appium&Category!=Selenium&Category!=OSAutomation"
         if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-          xvfb-run --auto-servernum $TEST_CMD
+          xvfb-run --auto-servernum dotnet test CDP.Tests.slnf -c Release --no-build --verbosity minimal --filter "$FILTER" -- RunConfiguration.MaxCpuCount=0
         else
-          $TEST_CMD
+          dotnet test CDP.Tests.slnf -c Release --no-build --verbosity minimal --filter "$FILTER" -- RunConfiguration.MaxCpuCount=0
         fi
 
     - name: Upload Logs on Failure
