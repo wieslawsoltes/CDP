@@ -13,7 +13,7 @@ using Xunit;
 
 public class WindowsRdpAppViewModelTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_InitialState_DefaultsToQuickConnect()
     {
         var vm = new MainWindowViewModel();
@@ -24,7 +24,7 @@ public class WindowsRdpAppViewModelTests
         Assert.Contains("CDP Server active", vm.StatusMessage);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void QuickConnectViewModel_ExecuteConnect_EmitsRequestConnectEvent()
     {
         var vm = new QuickConnectViewModel
@@ -50,7 +50,7 @@ public class WindowsRdpAppViewModelTests
         Assert.Equal("Test Server", receivedProfile.Name);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void QuickConnectViewModel_ExecuteClear_ResetsFields()
     {
         var vm = new QuickConnectViewModel
@@ -67,7 +67,7 @@ public class WindowsRdpAppViewModelTests
         Assert.Equal("admin", vm.Username);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfilesViewModel_AddAndDeleteProfile_UpdatesCollection()
     {
         var mockStorage = new ProfileStorageService("/tmp/test_profiles_mock.json");
@@ -94,7 +94,7 @@ public class WindowsRdpAppViewModelTests
         Assert.Equal(countBefore, vm.Profiles.Count);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SessionWorkspaceViewModel_OpenSession_AddsSessionTab()
     {
         var vm = new SessionWorkspaceViewModel();
@@ -116,7 +116,7 @@ public class WindowsRdpAppViewModelTests
         Assert.Equal(vm.SelectedSession, tab);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SessionWorkspaceViewModel_DisconnectAll_ClearsAllSessions()
     {
         var vm = new SessionWorkspaceViewModel();
@@ -131,7 +131,7 @@ public class WindowsRdpAppViewModelTests
         Assert.Null(vm.SelectedSession);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SettingsViewModel_SwitchTheme_UpdatesSelectedTheme()
     {
         var vm = new SettingsViewModel();
@@ -144,7 +144,7 @@ public class WindowsRdpAppViewModelTests
         Assert.Equal("Dark", vm.SelectedTheme);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorageService_SaveProfilesAsync_CreatesFileAndParentDirectory_WhenFileDoesNotExist()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "cdp_test_" + Guid.NewGuid().ToString("N"));

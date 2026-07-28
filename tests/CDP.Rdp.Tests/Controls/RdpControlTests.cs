@@ -10,7 +10,7 @@ using Xunit;
 
 public class RdpControlTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void RdpControl_Defaults_InitializedCorrectly()
     {
         var control = new RdpControl();
@@ -28,7 +28,7 @@ public class RdpControlTests
         Assert.Null(control.Session);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpControl_StyledProperties_CanBeSetAndRetrieved()
     {
         var control = new RdpControl
@@ -70,7 +70,7 @@ public class RdpControlTests
         Assert.Equal(expectedY, mappedY);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TranslateCoordinates_HandlesNaNAndInfinityBoundsCorrectly()
     {
         var control = new RdpControl();

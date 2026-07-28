@@ -5,7 +5,7 @@ using Xunit;
 
 public class CdpRdpAppViewModelTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_InitialState_Disconnected()
     {
         var vm = new MainWindowViewModel();
@@ -19,7 +19,7 @@ public class CdpRdpAppViewModelTests
         Assert.False(vm.Recorder.IsRecording);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_ConnectCommand_UpdatesConnectionState()
     {
         var vm = new MainWindowViewModel();
@@ -30,7 +30,7 @@ public class CdpRdpAppViewModelTests
         Assert.Equal("Connected", vm.Connection.StatusText);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_DisconnectCommand_UpdatesConnectionState()
     {
         var vm = new MainWindowViewModel();
@@ -42,7 +42,7 @@ public class CdpRdpAppViewModelTests
         Assert.Equal("Disconnected", vm.Connection.StatusText);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_ToggleRecordCommand_TogglesRecording()
     {
         var vm = new MainWindowViewModel();
@@ -55,7 +55,7 @@ public class CdpRdpAppViewModelTests
         Assert.False(vm.Recorder.IsRecording);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ConnectionStateViewModel_ResetForm_ResetsValues()
     {
         var conn = new ConnectionStateViewModel

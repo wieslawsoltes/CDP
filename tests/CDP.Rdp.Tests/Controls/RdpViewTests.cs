@@ -5,7 +5,7 @@ using Xunit;
 
 public class RdpViewTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void RdpView_Defaults_InitializedCorrectly()
     {
         var view = new RdpView();
@@ -21,7 +21,7 @@ public class RdpViewTests
         Assert.Null(view.DisconnectCommand);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpView_StyledProperties_CanBeSetAndRetrieved()
     {
         var view = new RdpView
