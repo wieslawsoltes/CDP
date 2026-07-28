@@ -196,17 +196,20 @@ public class RdpSessionTab : ReactiveObject, IDisposable
         set
         {
             if (_session == value) return;
-            if (_session != null)
+            RunOnUIThread(() =>
             {
-                _session.StateChanged -= OnStateChanged;
-                _session.FrameUpdated -= OnFrameUpdated;
-            }
-            this.RaiseAndSetIfChanged(ref _session, value);
-            if (_session != null)
-            {
-                _session.StateChanged += OnStateChanged;
-                _session.FrameUpdated += OnFrameUpdated;
-            }
+                if (_session != null)
+                {
+                    _session.StateChanged -= OnStateChanged;
+                    _session.FrameUpdated -= OnFrameUpdated;
+                }
+                this.RaiseAndSetIfChanged(ref _session, value);
+                if (_session != null)
+                {
+                    _session.StateChanged += OnStateChanged;
+                    _session.FrameUpdated += OnFrameUpdated;
+                }
+            });
         }
     }
 
@@ -512,7 +515,10 @@ public class RdpSessionTab : ReactiveObject, IDisposable
             }
         }
 
-        Status = "Disconnected";
-        ConnectionState = RdpConnectionState.Disconnected;
+        RunOnUIThread(() =>
+        {
+            Status = "Disconnected";
+            ConnectionState = RdpConnectionState.Disconnected;
+        });
     }
 }
