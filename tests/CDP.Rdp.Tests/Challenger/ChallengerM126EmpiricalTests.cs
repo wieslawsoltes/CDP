@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Challenger;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class ChallengerM126EmpiricalTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(16 * 1024 * 1024 + 1)]     // 16MB + 1 byte
     [InlineData(17 * 1024 * 1024)]         // 17MB
     [InlineData(50 * 1024 * 1024)]         // 50MB
@@ -72,7 +73,7 @@ public class ChallengerM126EmpiricalTests
         Assert.Equal(0, callbackCount);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(16 * 1024 * 1024 + 1)]     // 16MB + 1 byte
     [InlineData(20 * 1024 * 1024)]         // 20MB
     [InlineData(100 * 1024 * 1024)]        // 100MB
@@ -145,7 +146,7 @@ public class ChallengerM126EmpiricalTests
         Assert.Equal(0, callbackCount);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_OutOfOrderContinuationChunk_UninitializedChannel_ReturnsFalseWithoutCallback()
     {
         var manager = new StaticVirtualChannelManager();
@@ -180,7 +181,7 @@ public class ChallengerM126EmpiricalTests
         Assert.Equal(0, callbackCount);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_OutOfOrderContinuationChunk_UnknownChannel_ReturnsFalse()
     {
         var manager = new StaticVirtualChannelManager();
@@ -197,7 +198,7 @@ public class ChallengerM126EmpiricalTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_ContinuationDataChunk_UninitializedChannel_ReturnsFalseWithoutCallback()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -222,7 +223,7 @@ public class ChallengerM126EmpiricalTests
         Assert.Equal(0, callbackCount);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_ContinuationDataChunk_ClosedChannel_ReturnsFalseWithoutCallback()
     {
         var manager = new DynamicVirtualChannelManager();

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Challenger;
 
 using System;
@@ -76,7 +77,7 @@ public class Challenger4EmpiricalTests
 
     #region 1. RdpNegotiator Exception Safety Tests
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_StreamWriteFails_StateTransitionsToFailed()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -89,7 +90,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_StreamFlushFails_StateTransitionsToFailed()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -102,7 +103,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -136,7 +137,7 @@ public class Challenger4EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_StreamReadDropMidPayload_StateTransitionsToFailed()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -163,7 +164,7 @@ public class Challenger4EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x00)]
     [InlineData(0x01)]
     [InlineData(0x02)]
@@ -195,7 +196,7 @@ public class Challenger4EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -225,7 +226,7 @@ public class Challenger4EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x80)] // DisconnectRequest
     [InlineData(0x00)] // Invalid code
     [InlineData(0x10)] // Invalid code
@@ -255,7 +256,7 @@ public class Challenger4EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_NegotiationFailurePdu_StateTransitionsToFailed()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -286,7 +287,7 @@ public class Challenger4EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_SecurityHandshakeFails_StateTransitionsToFailed()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -317,7 +318,7 @@ public class Challenger4EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_CancellationTokenCancelledMidNegotiation_StateTransitionsToFailed()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -347,7 +348,7 @@ public class Challenger4EmpiricalTests
 
     #region 2. Non-Mutating PDU Readers & Mutation Side-Effect Tests
 
-    [Fact]
+    [AvaloniaFact]
     public void TpktHeader_TryRead_InvalidVersion_CheckMutationSideEffect()
     {
         byte[] buffer = new byte[] { 0x02, 0x00, 0x00, 0x10 };
@@ -363,7 +364,7 @@ public class Challenger4EmpiricalTests
         Assert.False(positionPreserved, "TpktHeader.TryRead currently mutates reader.Position on invalid version failure.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TpktHeader_TryRead_InvalidLengthUnderflow_CheckMutationSideEffect()
     {
         byte[] buffer = new byte[] { 0x03, 0x00, 0x00, 0x02 };
@@ -377,7 +378,7 @@ public class Challenger4EmpiricalTests
         Assert.False(positionPreserved, "TpktHeader.TryRead currently mutates reader.Position on invalid length failure.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TpktHeader_TryRead_ShortBuffer_DoesNotMutateReaderPosition()
     {
         byte[] buffer = new byte[] { 0x03, 0x00, 0x00 };
@@ -390,7 +391,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(initialPosition, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void X224Header_TryRead_ShortBuffer_DoesNotMutateReaderPosition()
     {
         byte[] buffer = new byte[] { 0x06, 0xE0, 0x00, 0x00, 0x00, 0x00 }; // 6 bytes (needs 7)
@@ -403,7 +404,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(initialPosition, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpNegotiationRequest_TryRead_InvalidType_DoesNotMutateReaderPosition()
     {
         byte[] buffer = new byte[] { 0x02, 0x00, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00 };
@@ -416,7 +417,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(initialPosition, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpNegotiationRequest_TryRead_InvalidLength_DoesNotMutateReaderPosition()
     {
         byte[] buffer = new byte[] { 0x01, 0x00, 0x09, 0x00, 0x01, 0x00, 0x00, 0x00 };
@@ -429,7 +430,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(initialPosition, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpNegotiationResponse_TryRead_InvalidType_DoesNotMutateReaderPosition()
     {
         byte[] buffer = new byte[] { 0x01, 0x00, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00 };
@@ -442,7 +443,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(initialPosition, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpNegotiationResponse_TryRead_InvalidLength_DoesNotMutateReaderPosition()
     {
         byte[] buffer = new byte[] { 0x02, 0x00, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00 };
@@ -455,7 +456,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(initialPosition, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpNegotiationFailure_TryRead_InvalidType_DoesNotMutateReaderPosition()
     {
         byte[] buffer = new byte[] { 0x01, 0x00, 0x08, 0x00, 0x05, 0x00, 0x00, 0x00 };
@@ -468,7 +469,7 @@ public class Challenger4EmpiricalTests
         Assert.Equal(initialPosition, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpNegotiationFailure_TryRead_InvalidLength_DoesNotMutateReaderPosition()
     {
         byte[] buffer = new byte[] { 0x03, 0x00, 0x0A, 0x00, 0x05, 0x00, 0x00, 0x00 };

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Connection;
 
 using System;
@@ -9,7 +10,7 @@ using CDP.Rdp.Tests.Fixtures;
 
 public class RdpNegotiatorTests
 {
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerAcceptsSSL_ReturnsTlsTransport()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -41,7 +42,7 @@ public class RdpNegotiatorTests
         Assert.Equal(RdpSecurityProtocol.Ssl, server.ReceivedRequest.Value.RequestedProtocols);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerAcceptsPlainRdp_ReturnsPlainTransport()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -70,7 +71,7 @@ public class RdpNegotiatorTests
         Assert.Equal(RdpNegotiationState.Connected, negotiator.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerRejectsWithFailure_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -93,7 +94,7 @@ public class RdpNegotiatorTests
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_RoutingCookieProvided_EncodesInConnectionRequest()
     {
         var ct = TestContext.Current.CancellationToken;

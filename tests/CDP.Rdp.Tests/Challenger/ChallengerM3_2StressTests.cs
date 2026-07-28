@@ -185,7 +185,7 @@ public class ChallengerM3_2StressTests
         Assert.True(CdpServer.Port > 0);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(new string[] { "--headless" }, 9224)]
     [InlineData(new string[] { "--headless", "--port", "9224" }, 9224)]
     [InlineData(new string[] { "--headless", "--port", "9225" }, 9225)]

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Protocol;
 
 using System;
@@ -5,7 +6,7 @@ using CDP.Rdp.Protocol;
 
 public class RdpPacketWriterTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void WriteByte_ValidSpan_EncodesCorrectly()
     {
         byte[] buffer = new byte[4];
@@ -20,7 +21,7 @@ public class RdpPacketWriterTests
         Assert.Equal(0xCD, buffer[1]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WriteUInt16BE_ValidSpan_WritesBigEndian()
     {
         byte[] buffer = new byte[2];
@@ -33,7 +34,7 @@ public class RdpPacketWriterTests
         Assert.Equal(0x34, buffer[1]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WriteUInt16LE_ValidSpan_WritesLittleEndian()
     {
         byte[] buffer = new byte[2];
@@ -46,7 +47,7 @@ public class RdpPacketWriterTests
         Assert.Equal(0x12, buffer[1]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WriteUInt32BE_ValidSpan_WritesBigEndian()
     {
         byte[] buffer = new byte[4];
@@ -61,7 +62,7 @@ public class RdpPacketWriterTests
         Assert.Equal(0x78, buffer[3]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WriteUInt32LE_ValidSpan_WritesLittleEndian()
     {
         byte[] buffer = new byte[4];
@@ -76,7 +77,7 @@ public class RdpPacketWriterTests
         Assert.Equal(0x12, buffer[3]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WriteSpan_ValidSource_CopiesSpanContent()
     {
         byte[] buffer = new byte[5];
@@ -91,7 +92,7 @@ public class RdpPacketWriterTests
         Assert.Equal(0x03, buffer[2]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WriteByte_CapacityExceeded_ThrowsInvalidOperationException()
     {
         byte[] buffer = new byte[1];

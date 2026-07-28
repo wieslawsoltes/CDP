@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Challenger;
 
 using System;
@@ -12,7 +13,7 @@ public class EmpiricalProtocolChallenges
 {
     #region RdpPacketReader Edge Cases
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketReader_ZeroByteSpan_ThrowsOnReadOperations()
     {
         RdpPacketReader reader = new RdpPacketReader(ReadOnlySpan<byte>.Empty);
@@ -29,7 +30,7 @@ public class EmpiricalProtocolChallenges
         bool t6 = false; try { reader.ReadSpan(1); } catch (InvalidOperationException) { t6 = true; } Assert.True(t6);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketReader_ReadSpanZero_OnEmptyBuffer_Succeeds()
     {
         RdpPacketReader reader = new RdpPacketReader(ReadOnlySpan<byte>.Empty);
@@ -39,7 +40,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(0, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketReader_AdvanceZero_Succeeds()
     {
         byte[] data = new byte[] { 0x01, 0x02 };
@@ -50,7 +51,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(2, reader.UnreadLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketReader_AdvancePastEnd_ThrowsInvalidOperationException()
     {
         byte[] data = new byte[] { 0x01, 0x02 };
@@ -68,7 +69,7 @@ public class EmpiricalProtocolChallenges
         Assert.True(threw);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketReader_NegativeAdvance_RewindsOffset()
     {
         byte[] data = new byte[] { 0x10, 0x20, 0x30, 0x40 };
@@ -84,7 +85,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(0x30, reader.ReadByte());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketReader_BoundaryRead_ReadsExactCapacityThenThrows()
     {
         byte[] data = new byte[] { 0x01, 0x02, 0x03 };
@@ -110,7 +111,7 @@ public class EmpiricalProtocolChallenges
 
     #region RdpPacketWriter Edge Cases
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketWriter_ZeroByteSpan_ThrowsOnWriteOperations()
     {
         RdpPacketWriter writer = new RdpPacketWriter(Span<byte>.Empty);
@@ -126,7 +127,7 @@ public class EmpiricalProtocolChallenges
         bool threwSpan = false; try { writer.WriteSpan(new byte[1]); } catch (InvalidOperationException) { threwSpan = true; } Assert.True(threwSpan);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketWriter_WriteZeroLengthSpan_OnEmptyBuffer_Succeeds()
     {
         RdpPacketWriter writer = new RdpPacketWriter(Span<byte>.Empty);
@@ -135,7 +136,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(0, writer.WrittenCount);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpPacketWriter_CapacityOverflow_ThrowsInvalidOperationException()
     {
         byte[] buffer = new byte[3];
@@ -155,7 +156,7 @@ public class EmpiricalProtocolChallenges
 
     #region TpktHeader Parser Edge Cases
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(new byte[] { })]
     [InlineData(new byte[] { 0x03 })]
     [InlineData(new byte[] { 0x03, 0x00 })]
@@ -169,7 +170,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(default, header);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x00)]
     [InlineData(0x01)]
     [InlineData(0x02)]
@@ -184,7 +185,7 @@ public class EmpiricalProtocolChallenges
         Assert.False(success);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -203,7 +204,7 @@ public class EmpiricalProtocolChallenges
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TpktHeader_TryRead_MinimumValidLength_ReturnsTrue()
     {
         byte[] buffer = new byte[] { 0x03, 0x00, 0x00, 0x04 };
@@ -217,7 +218,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(4, header.PacketLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TpktHeader_TryRead_MaximumPacketLength_ReturnsTrue()
     {
         byte[] buffer = new byte[] { 0x03, 0x00, 0xFF, 0xFF };
@@ -229,7 +230,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(65535, header.PacketLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TpktHeader_TryRead_NonZeroReservedByte_PreservesReservedByte()
     {
         byte[] buffer = new byte[] { 0x03, 0xAA, 0x00, 0x10 };
@@ -246,7 +247,7 @@ public class EmpiricalProtocolChallenges
 
     #region X224Header Parser Edge Cases
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(new byte[] { })]
     [InlineData(new byte[] { 0x06, 0xE0, 0x00, 0x00, 0x00, 0x00 })] // 6 bytes (less than 7)
     public void X224Header_TryRead_BufferLessThan7Bytes_ReturnsFalse(byte[] buffer)
@@ -258,7 +259,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(default, header);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void X224Header_TryRead_UnknownTpduCode_ParsesWithoutException()
     {
         byte[] buffer = new byte[] { 0x06, 0x70, 0x00, 0x00, 0x11, 0x22, 0x00 };
@@ -273,7 +274,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(0x1122, header.SrcReference);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void X224Header_TryRead_PreservesClassAndOption()
     {
         byte[] buffer = new byte[] { 0x0E, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x0F };
@@ -289,7 +290,7 @@ public class EmpiricalProtocolChallenges
 
     #region RdpNegotiationPdu Edge Cases
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationRequest_TryRead_BufferLessThan8Bytes_ReturnsFalse()
     {
         byte[] buffer = new byte[] { 0x01, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00 };
@@ -299,7 +300,7 @@ public class EmpiricalProtocolChallenges
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationRequest_TryRead_WrongType_ReturnsFalse()
     {
         byte[] buffer = new byte[] { 0x02, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00, 0x00 };
@@ -309,7 +310,7 @@ public class EmpiricalProtocolChallenges
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationRequest_TryRead_InvalidLengthField_ReturnsFalse()
     {
         byte[] buffer = new byte[] { 0x01, 0x00, 0x09, 0x00, 0x03, 0x00, 0x00, 0x00 };
@@ -319,7 +320,7 @@ public class EmpiricalProtocolChallenges
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationRequest_TryRead_UnknownSecurityFlags_ParsesValue()
     {
         uint unknownFlags = 0x80000010u;
@@ -333,7 +334,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal((RdpSecurityProtocol)unknownFlags, req.RequestedProtocols);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationResponse_TryRead_UnknownSelectedProtocol_ParsesValue()
     {
         uint unknownProtocol = 0x00000099u;
@@ -347,7 +348,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal((RdpSecurityProtocol)unknownProtocol, rsp.SelectedProtocol);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationFailure_TryRead_UnknownFailureCode_ParsesValue()
     {
         uint unknownFailureCode = 0x00000077u;
@@ -364,7 +365,7 @@ public class EmpiricalProtocolChallenges
 
     #region RdpNegotiator Machine Challenges
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_NullStream_ThrowsArgumentNullException()
     {
         RdpNegotiator negotiator = new RdpNegotiator();
@@ -372,7 +373,7 @@ public class EmpiricalProtocolChallenges
             negotiator.NegotiateAsync(null!, "localhost"));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ZeroByteServerResponse_ThrowsIOException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -386,7 +387,7 @@ public class EmpiricalProtocolChallenges
         Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerTpktLengthEqualsFour_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -413,7 +414,7 @@ public class EmpiricalProtocolChallenges
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerReturnsDataTpduInsteadOfConfirm_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -440,7 +441,7 @@ public class EmpiricalProtocolChallenges
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_LegacyServer_NoNegotiationResponsePdu_NegotiatesPlainRdp()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -472,7 +473,7 @@ public class EmpiricalProtocolChallenges
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerReturnsUnknownSelectedProtocol_FallsBackToPlainTransport()
     {
         var ct = TestContext.Current.CancellationToken;

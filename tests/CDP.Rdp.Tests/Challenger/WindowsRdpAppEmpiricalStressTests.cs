@@ -427,7 +427,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.Contains("Active Session: Direct Connect Server", vm.StatusMessage);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(new string[] { "--port", "9235" }, 9235)]
     [InlineData(new string[] { "--PORT", "9300" }, 9300)]
     [InlineData(new string[] { "--port", "invalid" }, 9225)]

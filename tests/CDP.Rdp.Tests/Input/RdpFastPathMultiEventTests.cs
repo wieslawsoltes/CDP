@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Input;
 
 using System;
@@ -8,7 +9,7 @@ using Xunit;
 
 public class RdpFastPathMultiEventTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(5)]
@@ -106,7 +107,7 @@ public class RdpFastPathMultiEventTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPath_Max15Events_All15DistinctTypes_PackedInSinglePdu()
     {
         var events = new RdpFastPathInputEvent[15]
@@ -164,7 +165,7 @@ public class RdpFastPathMultiEventTests
         Assert.Equal(expectedPduLength, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathHeader_ExtendedLength_PduLengthGreaterThan127_RoundTrip()
     {
         // 20 mouse events * 7 bytes = 140 bytes payload.

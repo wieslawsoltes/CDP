@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Security;
 
 using System;
@@ -16,7 +17,7 @@ public class TsRequestPduEmpiricalChallengeTests
 {
     #region 1. Corrupted ASN.1 DER Tag Sequences
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData((byte)0x31)] // SET instead of SEQUENCE
     [InlineData((byte)0x00)] // NULL tag
     [InlineData((byte)0x02)] // INTEGER tag
@@ -30,7 +31,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.False(result, $"Expected TryParse to fail for outer tag 0x{invalidOuterTag:X2}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_UnknownExplicitTags_GracefullySkipped()
     {
         // Tag 0xA5 (unknown tag index 5) inside sequence with Version 2
@@ -49,7 +50,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Equal(2, pdu.Version);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_CorruptedVersionTagInnerContent_ReturnsDefaultVersionZero()
     {
         // Tag 0xA0 with non-INTEGER inner tag (0x04 OCTET STRING instead of 0x02 INTEGER)
@@ -64,7 +65,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Equal(0, pdu.Version);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_CorruptedAuthInfoInnerTag_HandlesFallback()
     {
         // Tag 0xA2 with non-OCTET-STRING tag inside
@@ -80,7 +81,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Equal(new byte[] { 0x02, 0x01, 0x42 }, pdu.AuthInfo);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_CorruptedNegoDataOuterTag_ReturnsFallbackBuffer()
     {
         // Tag 0xA1 containing corrupt sequence (0x31 SET instead of 0x30 SEQUENCE)
@@ -97,7 +98,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Equal(negoContent, pdu.NegoToken);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_DuplicateTagsInSequence_OverwritesWithLastValue()
     {
         // Tag 0xA0 appears twice: first version=1, then version=2
@@ -113,7 +114,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Equal(2, pdu.Version);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_OutOfOrderTags_ParsesAllFieldsSuccessfully()
     {
         // Sequence with 0xA4 (errorCode=0), 0xA0 (version=2), 0xA2 (authInfo=0x11,0x22)
@@ -141,7 +142,7 @@ public class TsRequestPduEmpiricalChallengeTests
 
     #region 2. Invalid Length Bounds & Buffer Truncation
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_DeclaredSequenceLengthExceedsBuffer_ReturnsFalse()
     {
         // Header claims 100 bytes sequence length, but payload is only 5 bytes
@@ -150,7 +151,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_ElementLengthExceedsSequenceBoundary_ReturnsFalse()
     {
         // Sequence length is 5, but tag 0xA0 claims length 10
@@ -159,7 +160,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_TruncatedLongFormLengthByte_ReturnsFalse()
     {
         // Sequence header 0x30 0x82 (2-byte length following), but buffer ends immediately
@@ -168,7 +169,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_TruncatedThreeByteLengthHeader_ReturnsFalse()
     {
         // Sequence header 0x30 0x83 (3-byte length expected), but only 2 length bytes provided
@@ -177,7 +178,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_HugeLengthOverflow_ReturnsFalse()
     {
         // Sequence header 0x30 0x84 0x7F 0xFF 0xFF 0xFF (2GB length specification)
@@ -186,7 +187,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_IndefiniteLengthEncoding_EmpiricalBehaviorCheck()
     {
         // DER forbids indefinite length form 0x80 (X.690 Section 10.1).
@@ -198,7 +199,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.True(result); // Note: In strict DER validation, indefinite length 0x80 is non-canonical/invalid.
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -215,7 +216,7 @@ public class TsRequestPduEmpiricalChallengeTests
 
     #region 3. Malformed TSRequest Error Codes & Exception Formatting
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParse_NegativeErrorCode_ParsesSuccessfully()
     {
         // Error code -1 encoded as 4-byte 0xFFFFFFFF
@@ -232,7 +233,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Equal(-1, pdu.ErrorCode);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(-1)]
@@ -257,7 +258,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Equal(errorCode, result.ErrorCode);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(unchecked((int)0x0000006D), "0x0000006D")]
     [InlineData(unchecked((int)0x8009030E), "0x8009030E")]
     [InlineData(unchecked((int)0x00000001), "0x00000001")]
@@ -311,7 +312,7 @@ public class TsRequestPduEmpiricalChallengeTests
 
     #region 4. Truncated Token Payloads & Transport Handshake Robustness
 
-    [Fact]
+    [AvaloniaFact]
     public void ParseNegoData_TruncatedInnerOctetString_ReturnsFallbackBuffer()
     {
         // NegoData structure with inner OCTET STRING specifying length 100, but only 4 bytes supplied
@@ -337,7 +338,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Equal(negoDataPayload, pdu.NegoToken);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ExecuteCredSspAuthAsync_ServerSendsTruncatedTsRequest_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -373,7 +374,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Contains("Invalid TSRequest ASN.1 PDU received from server", ex.Message);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ExecuteCredSspAuthAsync_ServerSendsJunkBytes_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -412,7 +413,7 @@ public class TsRequestPduEmpiricalChallengeTests
         Assert.Contains("Invalid TSRequest ASN.1 PDU received from server", ex.Message);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ExecuteCredSspAuthAsync_ServerClosesConnectionImmediately_ThrowsException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -445,7 +446,7 @@ public class TsRequestPduEmpiricalChallengeTests
         await serverTask;
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ExecuteCredSspAuthAsync_ServerSendsValidTsRequestWithAuthInfoAndPubKeyAuth_HandshakeSucceeds()
     {
         var ct = TestContext.Current.CancellationToken;

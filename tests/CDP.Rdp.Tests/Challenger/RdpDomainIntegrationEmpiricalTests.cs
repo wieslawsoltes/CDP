@@ -202,7 +202,7 @@ public class RdpDomainIntegrationEmpiricalTests
         window.Close();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpControl_OnTextInput_SurrogatePair_Handling_Empirical_Check()
     {
         var rdpControl = new RdpControl();

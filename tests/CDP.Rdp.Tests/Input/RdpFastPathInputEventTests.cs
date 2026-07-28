@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Input;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class RdpFastPathInputEventTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void FastPathScancode_KeyPress_RoundTripSerialization()
     {
         var fpEvent = new RdpFastPathInputEvent(FastPathKeyboardFlags.None, 0x1E); // Key 'A'
@@ -27,7 +28,7 @@ public class RdpFastPathInputEventTests
         Assert.Equal(FastPathKeyboardFlags.None, parsed.KeyboardFlags);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathScancode_KeyReleaseExtended_RoundTripSerialization()
     {
         var fpEvent = new RdpFastPathInputEvent(FastPathKeyboardFlags.Release | FastPathKeyboardFlags.Extended, 0x48);
@@ -48,7 +49,7 @@ public class RdpFastPathInputEventTests
         Assert.True(parsed.KeyboardFlags.HasFlag(FastPathKeyboardFlags.Extended));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathMouse_MoveAndClick_RoundTripSerialization()
     {
         var fpEvent = new RdpFastPathInputEvent(FastPathInputEventCode.Mouse, RdpPointerFlags.Move | RdpPointerFlags.Button1 | RdpPointerFlags.Down, 1024, 768);
@@ -69,7 +70,7 @@ public class RdpFastPathInputEventTests
         Assert.True(parsed.PointerFlags.HasFlag(RdpPointerFlags.Button1));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathReleaseAll_RoundTripSerialization()
     {
         var fpEvent = new RdpFastPathInputEvent(FastPathInputEventCode.ReleaseAll);
@@ -87,7 +88,7 @@ public class RdpFastPathInputEventTests
         Assert.Equal(FastPathInputEventCode.ReleaseAll, parsed.Code);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathSync_RoundTripSerialization()
     {
         var fpEvent = new RdpFastPathInputEvent((byte)RdpSyncToggleFlags.CapsLock);
@@ -106,7 +107,7 @@ public class RdpFastPathInputEventTests
         Assert.Equal((byte)RdpSyncToggleFlags.CapsLock, parsed.ToggleFlags);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathHeader_ShortLength_RoundTrip()
     {
         byte[] buffer = new byte[2];
@@ -125,7 +126,7 @@ public class RdpFastPathInputEventTests
         Assert.Equal(45, len);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathHeader_ExtendedLength_RoundTrip()
     {
         byte[] buffer = new byte[3];

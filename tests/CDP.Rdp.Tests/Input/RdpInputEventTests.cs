@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Input;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class RdpInputEventTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void ScanCodeEvent_RoundTripSerialization_PreservesValues()
     {
         uint eventTime = 123456;
@@ -33,7 +34,7 @@ public class RdpInputEventTests
         Assert.True(parsedEvent.KeyboardEvent.Flags.HasFlag(RdpKeyboardFlags.Extended));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void VkCodeEvent_RoundTripSerialization_PreservesValues()
     {
         uint eventTime = 654321;
@@ -55,7 +56,7 @@ public class RdpInputEventTests
         Assert.Equal(0x41u, parsedEvent.KeyboardEvent.KeyCode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MouseEvent_MoveAndButtonClick_RoundTripSerialization()
     {
         uint eventTime = 100200;
@@ -79,7 +80,7 @@ public class RdpInputEventTests
         Assert.True(parsedEvent.MouseEvent.PointerFlags.HasFlag(RdpPointerFlags.Down));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MouseEvent_WheelNegative_RoundTripSerialization()
     {
         uint eventTime = 200300;
@@ -99,7 +100,7 @@ public class RdpInputEventTests
         Assert.True(parsedEvent.MouseEvent.PointerFlags.HasFlag(RdpPointerFlags.WheelNegative));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SyncEvent_RoundTripSerialization_PreservesToggleFlags()
     {
         uint eventTime = 300400;
@@ -121,7 +122,7 @@ public class RdpInputEventTests
         Assert.True(parsedEvent.SyncEvent.ToggleFlags.HasFlag(RdpSyncToggleFlags.NumLock));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_InsufficientBytes_ReturnsFalse()
     {
         byte[] buffer = new byte[10];
@@ -132,7 +133,7 @@ public class RdpInputEventTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SlowPathPduHeader_RoundTripSerialization()
     {
         byte[] buffer = new byte[4];

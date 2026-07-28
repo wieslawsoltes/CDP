@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Channels;
 
 using System;
@@ -13,7 +14,7 @@ public class Challenger3EmpiricalVerificationTests
     // lengths (100, 500, 70,000 bytes) using packet buffer sizes < 256 bytes.
     // =========================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(100u, 15)]
     [InlineData(100u, 30)]
     [InlineData(100u, 50)]
@@ -51,7 +52,7 @@ public class Challenger3EmpiricalVerificationTests
         Assert.Equal(totalLength, parsed.TotalLength);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(100, 50)]
     [InlineData(100, 128)]
     [InlineData(500, 50)]
@@ -117,7 +118,7 @@ public class Challenger3EmpiricalVerificationTests
     // Requirement 2: Truncated CreateResponse PDUs (< 4 bytes status) return false cleanly.
     // =========================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)] // 0 bytes status after channelId
     [InlineData(1)] // 1 byte status after channelId
     [InlineData(2)] // 2 bytes status after channelId
@@ -146,7 +147,7 @@ public class Challenger3EmpiricalVerificationTests
         Assert.Equal(0, pdu.CreationStatus);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]

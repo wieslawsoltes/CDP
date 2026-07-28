@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Channels;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class ChannelPduHeaderTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void ChannelPduHeader_SingleChunkFlags_RoundTrip()
     {
         uint payloadLength = 1024;
@@ -29,7 +30,7 @@ public class ChannelPduHeaderTests
         Assert.True(parsed.Flags.HasFlag(ChannelPduFlags.Last));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ChannelPduHeader_InsufficientBytes_ReturnsFalse()
     {
         byte[] buffer = new byte[7];
@@ -40,7 +41,7 @@ public class ChannelPduHeaderTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void McsChannelJoinRequest_BER_RoundTrip()
     {
         var req = new McsChannelJoinRequest(initiatorId: 1004, channelId: 1005);
@@ -57,7 +58,7 @@ public class ChannelPduHeaderTests
         Assert.Equal(1005, parsed.ChannelId);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void McsChannelJoinConfirm_BER_RoundTrip()
     {
         var cfm = new McsChannelJoinConfirm(result: 0, initiatorId: 1004, requestedChannelId: 1005, channelId: 1005);

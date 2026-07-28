@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Rendering;
 
 using System;
@@ -13,7 +14,7 @@ using Xunit;
 
 public class RdpRenderingEmpiricalStressTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0, 64)]
     [InlineData(64, 0)]
     [InlineData(0, 0)]
@@ -35,7 +36,7 @@ public class RdpRenderingEmpiricalStressTests
         Assert.True(dirty.IsEmpty);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0, 0, 100, 100)]
     [InlineData(150, 150, 100, 100)]   // Partial bottom-right
     [InlineData(100, 100, 100, 100)] // Partially out of bounds (bottom-right)
@@ -70,7 +71,7 @@ public class RdpRenderingEmpiricalStressTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Boundary_NegativeTileCoordinates_ClipsCorrectly()
     {
         using var buffer = new RdpFrameBuffer(200, 200);
@@ -87,7 +88,7 @@ public class RdpRenderingEmpiricalStressTests
         Assert.Equal(0xFF, samplePixel.Red);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Boundary_EmptyDirtyRegions_HandledSafely()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -108,7 +109,7 @@ public class RdpRenderingEmpiricalStressTests
         Assert.Empty(buffer.DirtyRegions);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(4)]
@@ -123,7 +124,7 @@ public class RdpRenderingEmpiricalStressTests
         Assert.Throws<ArgumentException>(() => RdpBitmapTile.FromUpdate(update));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Boundary_ExtremeColorDepthInputs_DoesNotLeakPooledMemoryOnException()
     {
         // Verify that if FromUpdate throws ArgumentException due to invalid bpp,
@@ -141,7 +142,7 @@ public class RdpRenderingEmpiricalStressTests
         ArrayPool<byte>.Shared.Return(testBuffer);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Stress_HighMultiThreadingContention_NoDeadlocksOrDataRaceExceptions()
     {
         using var buffer = new RdpFrameBuffer(800, 600);
@@ -208,7 +209,7 @@ public class RdpRenderingEmpiricalStressTests
         Assert.True(canvas.RenderedFrameCount > 0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Stress_MemoryLeakCheck_ThousandsOfRapidFrameUpdates()
     {
         using var buffer = new RdpFrameBuffer(1280, 720);

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Input;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class RdpInputTruncationAndBoundaryTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -24,7 +25,7 @@ public class RdpInputTruncationAndBoundaryTests
         Assert.Equal(0, reader.Position); // Position remains unchanged on failure
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(5)]
@@ -40,7 +41,7 @@ public class RdpInputTruncationAndBoundaryTests
         Assert.Equal(0, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SlowPathInputEvent_UnknownMessageType_ReturnsFalse()
     {
         byte[] buffer = new byte[14];
@@ -57,7 +58,7 @@ public class RdpInputTruncationAndBoundaryTests
         Assert.False(success);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0)]
     [InlineData(1)]
     public void FastPathHeader_TruncatedBuffer_ReturnsFalse(int length)
@@ -70,7 +71,7 @@ public class RdpInputTruncationAndBoundaryTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathHeader_ExtendedLength_MissingSecondByte_ReturnsFalse()
     {
         // Byte 0: Header (numEvents=1, action=0), Byte 1: 0x80 (indicates 2-byte length, but 2nd byte missing)
@@ -83,7 +84,7 @@ public class RdpInputTruncationAndBoundaryTests
         Assert.Equal(0, pduLen);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathEvent_ScanCode_TruncatedPayload_ReturnsFalse()
     {
         // Header byte indicates FastPath ScanCode (code = 0x00), but keycode byte is missing
@@ -95,7 +96,7 @@ public class RdpInputTruncationAndBoundaryTests
         Assert.False(success);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(1)] // Header byte only (0 bytes payload remaining)
     [InlineData(2)] // 1 byte payload remaining (needs 6)
     [InlineData(3)] // 2 bytes payload remaining
@@ -114,7 +115,7 @@ public class RdpInputTruncationAndBoundaryTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathEvent_Sync_TruncatedPayload_ReturnsFalse()
     {
         // Header byte indicates FastPath Sync (code = 0x03), but toggle flags byte is missing
@@ -126,7 +127,7 @@ public class RdpInputTruncationAndBoundaryTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FastPathEvent_UnknownEventCode_ReturnsFalse()
     {
         // Header byte with code = 0x1F (unknown/unassigned fastpath code)

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Input;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class RdpKeyboardEmpiricalTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x1C, RdpKeyboardFlags.None)] // Enter Down
     [InlineData(0x1C, RdpKeyboardFlags.Release)] // Enter Up
     [InlineData(0x1D, RdpKeyboardFlags.Extended)] // Right Ctrl Down (0xE0)
@@ -40,7 +41,7 @@ public class RdpKeyboardEmpiricalTests
         Assert.Equal(flags, parsedEvent.KeyboardEvent.Flags);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x0D, RdpKeyboardFlags.None)] // VK_RETURN
     [InlineData(0x10, RdpKeyboardFlags.Release)] // VK_SHIFT release
     [InlineData(0x11, RdpKeyboardFlags.Extended)] // VK_CONTROL extended
@@ -70,7 +71,7 @@ public class RdpKeyboardEmpiricalTests
         Assert.Equal(flags, parsedEvent.KeyboardEvent.Flags);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x1E, FastPathKeyboardFlags.None)] // 'A' key down
     [InlineData(0x1E, FastPathKeyboardFlags.Release)] // 'A' key up
     [InlineData(0x1D, FastPathKeyboardFlags.Extended)] // Right Ctrl down (0xE0)

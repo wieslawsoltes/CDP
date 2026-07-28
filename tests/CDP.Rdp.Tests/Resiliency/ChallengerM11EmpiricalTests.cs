@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Resiliency;
 
 using System;
@@ -55,7 +56,7 @@ public class ChallengerM11EmpiricalTests
 
     #region 1. Unexpected Disconnect Tests
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerDisconnectsMidTpktHeader_ThrowsIOException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -83,7 +84,7 @@ public class ChallengerM11EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerDisconnectsMidPayload_ThrowsIOException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -112,7 +113,7 @@ public class ChallengerM11EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SimulatedRdpServer_ClientDisconnectsEarly_ThrowsInvalidOperationException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -142,7 +143,7 @@ public class ChallengerM11EmpiricalTests
 
     #region 2. Single-Byte Chunked Network Arrivals Tests
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_SingleByteReadArrivals_SuccessfullyNegotiates()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -174,7 +175,7 @@ public class ChallengerM11EmpiricalTests
         Assert.Equal(RdpNegotiationState.Connected, negotiator.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SimulatedRdpServer_SingleByteArrivalsFromClient_SuccessfullyProcessesRequest()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -206,7 +207,7 @@ public class ChallengerM11EmpiricalTests
         Assert.Equal(RdpSecurityProtocol.Ssl, server.ReceivedRequest.Value.RequestedProtocols);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DuplexPipeStream_SingleByteReadAsync_ReadsAllBytesCorrectly()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -232,7 +233,7 @@ public class ChallengerM11EmpiricalTests
 
     #region 3. Cancellation Token Triggers Tests
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_PreCanceledToken_ThrowsOperationCanceledException()
     {
         using DuplexStreamPair pair = new DuplexStreamPair();
@@ -244,7 +245,7 @@ public class ChallengerM11EmpiricalTests
             negotiator.NegotiateAsync(pair.ClientStream, "localhost", cancellationToken: cts.Token));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_CanceledDuringRead_ThrowsOperationCanceledException()
     {
         using DuplexStreamPair pair = new DuplexStreamPair();
@@ -267,7 +268,7 @@ public class ChallengerM11EmpiricalTests
         try { await serverTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SimulatedRdpServer_CanceledDuringRead_ThrowsOperationCanceledException()
     {
         using DuplexStreamPair pair = new DuplexStreamPair();
@@ -284,7 +285,7 @@ public class ChallengerM11EmpiricalTests
 
     #region 4. Multi-Threaded / Concurrent Connection Tests
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SimulatedRdpServer_MultipleParallelConnections_HandledIndependently()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -323,7 +324,7 @@ public class ChallengerM11EmpiricalTests
         await Task.WhenAll(tasks);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DuplexPipeStream_ConcurrentWriteAndRead_TransfersDataWithoutLoss()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -371,7 +372,7 @@ public class ChallengerM11EmpiricalTests
         await Task.WhenAll(writerTask, readerTask);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task RdpNegotiator_ConcurrentNegotiateCallsOnSameInstance_DetectsStateMutation()
     {
         var ct = TestContext.Current.CancellationToken;

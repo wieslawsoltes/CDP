@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Security;
 
 using System;
@@ -9,7 +10,7 @@ using CDP.Rdp.Tests.Fixtures;
 
 public class TlsSecurityTransportTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void Properties_BeforeHandshake_ReflectsExpectedValues()
     {
         using DuplexStreamPair pair = new DuplexStreamPair();

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Controls;
 
 using System;
@@ -49,7 +50,7 @@ public class RdpControlTests
         Assert.True(control.IsConnected);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0, 0, 100, 100, 1280, 720, (ushort)0, (ushort)0)]
     [InlineData(50, 50, 100, 100, 1280, 720, (ushort)640, (ushort)360)]
     [InlineData(100, 100, 100, 100, 1280, 720, (ushort)1279, (ushort)719)]

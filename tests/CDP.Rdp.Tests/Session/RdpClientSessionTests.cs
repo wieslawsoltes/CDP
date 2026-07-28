@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Session;
 
 using System;
@@ -15,7 +16,7 @@ using Xunit;
 
 public class RdpClientSessionTests
 {
-    [Fact]
+    [AvaloniaFact]
     public async Task ConnectAsync_TransitionsStateCorrectly()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -49,7 +50,7 @@ public class RdpClientSessionTests
             stateChanges);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DisconnectAsync_TransitionsToDisconnected()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -67,7 +68,7 @@ public class RdpClientSessionTests
         Assert.Equal(RdpConnectionState.Disconnected, client.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_FiresFrameUpdatedEvent()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -103,7 +104,7 @@ public class RdpClientSessionTests
         Assert.Equal(new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }, rect.Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SendInputEventAsync_WritesToStream()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -134,7 +135,7 @@ public class RdpClientSessionTests
         Assert.Equal(0x1Eu, parsedInput.KeyboardEvent.KeyCode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SendFastPathInputEventAsync_WritesToStream()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -163,7 +164,7 @@ public class RdpClientSessionTests
         Assert.Equal(0x2A, parsedFp.KeyCode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SendInputEvent_WhenDisconnected_ThrowsInvalidOperationException()
     {
         RdpSessionOptions options = new RdpSessionOptions();
@@ -175,7 +176,7 @@ public class RdpClientSessionTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.SendInputEventAsync(inputEvent));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConnectionFailure_TransitionsToFaulted()
     {
         RdpSessionOptions options = new RdpSessionOptions();

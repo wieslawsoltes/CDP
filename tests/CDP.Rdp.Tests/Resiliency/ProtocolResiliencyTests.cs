@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Resiliency;
 
 using System;
@@ -9,7 +10,7 @@ using CDP.Rdp.Tests.Fixtures;
 
 public class ProtocolResiliencyTests
 {
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_MalformedTpktVersion_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -28,7 +29,7 @@ public class ProtocolResiliencyTests
         await serverTask;
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_TruncatedHeader_ThrowsIOException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -47,7 +48,7 @@ public class ProtocolResiliencyTests
         await serverTask;
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerClosesConnection_ThrowsIOException()
     {
         var ct = TestContext.Current.CancellationToken;

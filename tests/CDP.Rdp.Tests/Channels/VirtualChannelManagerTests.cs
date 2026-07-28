@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Channels;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class VirtualChannelManagerTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_RegisterAndLookup_Success()
     {
         var manager = new StaticVirtualChannelManager();
@@ -21,7 +22,7 @@ public class VirtualChannelManagerTests
         Assert.Equal("rdpsnd", name2);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_SingleChunkMessage_ReassemblesAndTriggersCallback()
     {
         var manager = new StaticVirtualChannelManager();
@@ -49,7 +50,7 @@ public class VirtualChannelManagerTests
         Assert.Equal(originalPayload, receivedData);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_MultiChunkMessage_ReassemblesAndTriggersCallback()
     {
         var manager = new StaticVirtualChannelManager();
@@ -81,7 +82,7 @@ public class VirtualChannelManagerTests
         Assert.Equal(largePayload, receivedData);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_RegisterAndHandleCreateRequest()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -114,7 +115,7 @@ public class VirtualChannelManagerTests
         Assert.True(rsp.IsSuccess);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_MultiChunkDvcData_ReassemblesAndTriggersCallback()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -153,7 +154,7 @@ public class VirtualChannelManagerTests
         Assert.Equal(originalPayload, receivedPayload);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(16 * 1024 * 1024 + 1)] // 16MB + 1 byte
     [InlineData(20 * 1024 * 1024)]     // 20MB
     [InlineData(100 * 1024 * 1024)]    // 100MB
@@ -182,7 +183,7 @@ public class VirtualChannelManagerTests
         Assert.True(allocatedDelta < 100_000, $"Expected minimal allocation, but allocated {allocatedDelta} bytes");
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(16 * 1024 * 1024 + 1)] // 16MB + 1 byte
     [InlineData(30 * 1024 * 1024)]     // 30MB
     [InlineData(1_000_000_000)]        // 1GB
@@ -217,7 +218,7 @@ public class VirtualChannelManagerTests
         Assert.True(allocatedDelta < 100_000, $"Expected minimal allocation, but allocated {allocatedDelta} bytes");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_MultiChannelInterleaved_ReassemblesAllChannelsCorrectly()
     {
         var manager = new StaticVirtualChannelManager();
@@ -276,7 +277,7 @@ public class VirtualChannelManagerTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_MultiChannelInterleaved_ReassemblesAllChannelsCorrectly()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -343,7 +344,7 @@ public class VirtualChannelManagerTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async System.Threading.Tasks.Task StaticManager_ConcurrentChannelsMultiThreaded_ReassemblesWithoutDataCorruption()
     {
         var manager = new StaticVirtualChannelManager();
@@ -404,7 +405,7 @@ public class VirtualChannelManagerTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_ExactMaxMessageSizeBoundary_BehaviorVerified()
     {
         var manager = new StaticVirtualChannelManager();
@@ -431,7 +432,7 @@ public class VirtualChannelManagerTests
         Assert.False(invalidResult);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_ExactMaxMessageSizeBoundary_BehaviorVerified()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -464,7 +465,7 @@ public class VirtualChannelManagerTests
         Assert.False(invalidResult);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("DVC")]
     [InlineData("FOO")]
     [InlineData("CTX")]
@@ -516,7 +517,7 @@ public class VirtualChannelManagerTests
         Assert.Equal(testData, receivedPayload);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_OversizedFirstHeader_RejectsHeaderAndSubsequentContinuationChunksWithoutArrayExpansion()
     {
         var manager = new StaticVirtualChannelManager();
@@ -556,7 +557,7 @@ public class VirtualChannelManagerTests
         Assert.False(callbackInvoked);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_OversizedDataFirstHeader_RejectsFirstAndSubsequentDataChunksWithoutCallbackOrAllocation()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -593,7 +594,7 @@ public class VirtualChannelManagerTests
         Assert.False(callbackInvoked);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_OutOfOrderContinuationChunk_DroppedWithoutCallback()
     {
         var manager = new StaticVirtualChannelManager();

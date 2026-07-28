@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Protocol;
 
 using System;
@@ -5,7 +6,7 @@ using CDP.Rdp.Protocol;
 
 public class RdpPacketReaderTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void ReadByte_ValidBytes_DecodesCorrectly()
     {
         byte[] data = new byte[] { 0x01, 0x02, 0xFF };
@@ -24,7 +25,7 @@ public class RdpPacketReaderTests
         Assert.Equal(0, reader.UnreadLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ReadByte_PastEnd_ThrowsInvalidOperationException()
     {
         byte[] data = new byte[] { 0x42 };
@@ -43,7 +44,7 @@ public class RdpPacketReaderTests
         Assert.True(threw);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ReadUInt16BE_ValidBytes_DecodesBigEndian()
     {
         byte[] data = new byte[] { 0x12, 0x34 };
@@ -54,7 +55,7 @@ public class RdpPacketReaderTests
         Assert.Equal(2, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ReadUInt16LE_ValidBytes_DecodesLittleEndian()
     {
         byte[] data = new byte[] { 0x34, 0x12 };
@@ -65,7 +66,7 @@ public class RdpPacketReaderTests
         Assert.Equal(2, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ReadUInt32BE_ValidBytes_DecodesBigEndian()
     {
         byte[] data = new byte[] { 0x12, 0x34, 0x56, 0x78 };
@@ -75,7 +76,7 @@ public class RdpPacketReaderTests
         Assert.Equal(0x12345678u, value);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ReadUInt32LE_ValidBytes_DecodesLittleEndian()
     {
         byte[] data = new byte[] { 0x78, 0x56, 0x34, 0x12 };
@@ -85,7 +86,7 @@ public class RdpPacketReaderTests
         Assert.Equal(0x12345678u, value);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ReadSpan_ValidLength_ReturnsSliceAndAdvances()
     {
         byte[] data = new byte[] { 0x10, 0x20, 0x30, 0x40, 0x50 };
@@ -99,7 +100,7 @@ public class RdpPacketReaderTests
         Assert.Equal(3, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Advance_ValidCount_AdvancesPosition()
     {
         byte[] data = new byte[10];

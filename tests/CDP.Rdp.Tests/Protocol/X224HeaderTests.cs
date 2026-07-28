@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Protocol;
 
 using System;
@@ -5,7 +6,7 @@ using CDP.Rdp.Protocol;
 
 public class X224HeaderTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_ConnectionRequest_ParsesCodeAndReferences()
     {
         byte[] data = new byte[] { 0x0E, 0xE0, 0x00, 0x00, 0x12, 0x34, 0x00 };
@@ -21,7 +22,7 @@ public class X224HeaderTests
         Assert.Equal(0x00, header.ClassAndOption);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_ConnectionConfirm_ParsesCodeAndReferences()
     {
         byte[] data = new byte[] { 0x0E, 0xD0, 0x12, 0x34, 0x56, 0x78, 0x00 };
@@ -37,7 +38,7 @@ public class X224HeaderTests
         Assert.Equal(0x00, header.ClassAndOption);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_InsufficientBytes_ReturnsFalse()
     {
         byte[] data = new byte[] { 0x0E, 0xE0, 0x00, 0x00 };
@@ -48,7 +49,7 @@ public class X224HeaderTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Write_ValidHeader_SerializesToSpan()
     {
         byte[] buffer = new byte[7];

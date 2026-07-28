@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Input;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class RdpMouseEmpiricalTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(120, false)] // Positive 1 notch (wheel up/forward)
     [InlineData(120, true)]  // Negative 1 notch (wheel down/backward)
     [InlineData(240, false)] // Positive 2 notches
@@ -45,7 +46,7 @@ public class RdpMouseEmpiricalTests
         Assert.Equal(deltaMagnitude, parsedDelta);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(120, false)]
     [InlineData(120, true)]
     [InlineData(240, false)]
@@ -79,7 +80,7 @@ public class RdpMouseEmpiricalTests
         Assert.Equal(deltaMagnitude, parsedDelta);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0, 0)]
     [InlineData(0, 65535)]
     [InlineData(65535, 0)]
@@ -115,7 +116,7 @@ public class RdpMouseEmpiricalTests
         Assert.Equal(y, fastParsed.YPos);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(RdpPointerFlags.Button1 | RdpPointerFlags.Down)] // Left Down
     [InlineData(RdpPointerFlags.Button1)]                        // Left Up
     [InlineData(RdpPointerFlags.Button2 | RdpPointerFlags.Down)] // Right Down

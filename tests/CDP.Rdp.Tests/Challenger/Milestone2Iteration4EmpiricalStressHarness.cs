@@ -165,7 +165,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
         Assert.Equal(1L, tab.TotalFrames);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StressTest_ActiveTabSelectionInvariants_IsActiveStateTransitions()
     {
         var workspaceVM = new SessionWorkspaceViewModel();
@@ -194,7 +194,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
     // AREA 2: PROFILE JSON SERIALIZATION & DESERIALIZATION STRESS TESTS
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task StressTest_ProfileStorage_MalformedJson_HandlesGracefullyWithoutCrashing()
     {
         string[] malformedPayloads = new[]
@@ -222,7 +222,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task StressTest_ProfileStorage_ExtremeValues_PathTraversalAndUnicode()
     {
         string filePath = Path.Combine(_tempTestDir, "extreme_profiles.json");
@@ -276,7 +276,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
         Assert.Equal(-100, p2.Height);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task StressTest_ProfileStorage_EncryptedPassword_CorruptedCiphertext_HandledSafely()
     {
         string filePath = Path.Combine(_tempTestDir, "corrupted_enc.json");
@@ -311,7 +311,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
         Assert.Equal("UnencryptedSecret123", loaded[2].Password); // Unencrypted legacy remains unchanged
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task StressTest_ProfileStorage_ConcurrentOperations_ThreadSafetyUnderLock()
     {
         string filePath = Path.Combine(_tempTestDir, "concurrent_storage.json");
@@ -349,7 +349,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
     // AREA 3: DISPLAY RESOLUTION SCALING CALCULATION IN RDPCONTROL STRESS TESTS
     // ==================================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(1000, 500, 1.0, 1280, 720, 500, 250, 640, 360)]
     [InlineData(1000, 500, 2.0, 1280, 720, 500, 250, 320, 180)]
     [InlineData(1000, 500, 0.5, 1280, 720, 500, 250, 1279, 719)]
@@ -373,7 +373,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
         Assert.Equal(expectedY, actualY);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(-100.0, -50.0, (ushort)0, (ushort)0)] // Negative inputs clip to 0
     [InlineData(99999.0, 99999.0, (ushort)1279, (ushort)719)] // Overflow inputs clip to max fb bounds
     [InlineData(double.NaN, 250.0, (ushort)0, (ushort)360)] // NaN input X maps to 0
@@ -400,7 +400,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
         Assert.Equal(expectedY, y);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0.0)]
     [InlineData(-2.5)]
     [InlineData(double.NaN)]
@@ -423,7 +423,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
         Assert.Equal((ushort)250, y);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StressTest_RdpControl_TranslateCoordinates_ZeroOrNegativeControlBounds_DoesNotThrowDivideByZero()
     {
         var control = new RdpControl
@@ -443,7 +443,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
     // AREA 4: THREAD DISPATCHING & UI THREAD MARSHALING STRESS TESTS
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task StressTest_ThreadDispatching_BackgroundThreadOperations_ExecuteSafely()
     {
         var tab = new RdpSessionTab();

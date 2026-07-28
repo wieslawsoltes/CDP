@@ -185,7 +185,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
     // 3. Scale Factor Infinity Bounds & Coordinate Mapping Stress Tests
     // ==================================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(double.PositiveInfinity)]
     [InlineData(double.NegativeInfinity)]
     [InlineData(double.NaN)]
@@ -218,7 +218,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
         Assert.Null(ex);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ScaleFactor_ExtremeControlPointInputs_HandledSafely()
     {
         var control = new RdpControl();
@@ -246,7 +246,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
     // 4. Profile Import/Export Encryption & Security Empirical Challenges
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public void CredentialProtection_PasswordStartingWithENC_BypassesEncryption()
     {
         // Vulnerability Hypothesis:
@@ -263,7 +263,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
         Assert.False(bypassedEncryption, "SECURITY VULNERABILITY: CredentialProtectionService.Protect() returns passwords starting with 'ENC:' as unencrypted plain text.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CredentialProtection_XorEncryption_TriviallyReversibleWithKnownKey()
     {
         var service = new CredentialProtectionService();

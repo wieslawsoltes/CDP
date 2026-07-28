@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Challenger;
 
 using System;
@@ -375,7 +376,7 @@ public class WindowsRdpAppEmpiricalChallengerM2_2Tests
     // AREA 4: PROFILE STORAGE ENCRYPTION & SECURITY
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public void CredentialProtection_ProtectAndUnprotect_RoundtripsPlainText()
     {
         var service = new CredentialProtectionService();
@@ -392,7 +393,7 @@ public class WindowsRdpAppEmpiricalChallengerM2_2Tests
         Assert.Equal(plainText, unprotectedText);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CredentialProtection_Protect_IsIdempotent_IfAlreadyEncrypted()
     {
         var service = new CredentialProtectionService();
@@ -404,7 +405,7 @@ public class WindowsRdpAppEmpiricalChallengerM2_2Tests
         Assert.Equal(encryptedOnce, encryptedTwice);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CredentialProtection_Unprotect_ReturnsUnchanged_IfNotEncrypted()
     {
         var service = new CredentialProtectionService();
@@ -415,7 +416,7 @@ public class WindowsRdpAppEmpiricalChallengerM2_2Tests
         Assert.Equal(unencryptedPlainText, result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CredentialProtection_CorruptedBase64_FallsBackGracefullyWithoutCrashing()
     {
         var service = new CredentialProtectionService();
@@ -430,7 +431,7 @@ public class WindowsRdpAppEmpiricalChallengerM2_2Tests
         Assert.Null(ex);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("")]
     [InlineData(null)]
     public void CredentialProtection_EmptyOrNullInputs_ReturnEmptyString(string? input)
@@ -444,7 +445,7 @@ public class WindowsRdpAppEmpiricalChallengerM2_2Tests
         Assert.Equal(string.Empty, unprotectedResult);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_DiskFormat_VerifiesEncryptionAndPlaintextFieldsOnDisk()
     {
         string filePath = Path.Combine(_tempTestDir, "disk_format_test.json");
@@ -483,7 +484,7 @@ public class WindowsRdpAppEmpiricalChallengerM2_2Tests
         Assert.Equal(plainPassword, loadedProfiles[0].Password);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_AtomicWrite_CleansUpTmpFileOnSave()
     {
         string filePath = Path.Combine(_tempTestDir, "atomic_cleanup.json");

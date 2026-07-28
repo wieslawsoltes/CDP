@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Challenger;
 
 using System;
@@ -10,7 +11,7 @@ using Xunit;
 
 public class RdpRenderingChallengerM2Tests
 {
-    [Fact]
+    [AvaloniaFact]
     public void DirtyRegion_ThresholdMerging_16Vs17Rectangles()
     {
         var dirty = new RdpDirtyRegion();
@@ -35,7 +36,7 @@ public class RdpRenderingChallengerM2Tests
         Assert.Equal(SKRectI.Create(0, 0, 110, 110), dirty.Rectangles[0]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DirtyRegion_AdjacentVsOverlappingVsDiagonalMerging()
     {
         // 1. Overlapping rectangles
@@ -72,7 +73,7 @@ public class RdpRenderingChallengerM2Tests
         Assert.Equal(2, dirty5.Rectangles.Count);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void FrameBuffer_TileClipping_Boundaries()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -126,7 +127,7 @@ public class RdpRenderingChallengerM2Tests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ArrayPool_MemoryRecycling_And_DoubleDispose()
     {
         byte[] rawPixels = new byte[32 * 32 * 4];
@@ -143,7 +144,7 @@ public class RdpRenderingChallengerM2Tests
         tile.Dispose(); // Must not throw or corrupt ArrayPool
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ArrayPool_CompressedRleDecompression_RecyclesTempBuffers()
     {
         // RLE compressed: run of 16 32bpp pixels
@@ -157,7 +158,7 @@ public class RdpRenderingChallengerM2Tests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SkiaCanvas_60Fps_StreamingPerformance()
     {
         using var buffer = new RdpFrameBuffer(1920, 1080);

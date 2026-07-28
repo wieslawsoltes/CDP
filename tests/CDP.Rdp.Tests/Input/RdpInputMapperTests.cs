@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Input;
 
 using System;
@@ -8,7 +9,7 @@ using Xunit;
 
 public class RdpInputMapperTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(Key.A, true, (ushort)0x1E, RdpKeyboardFlags.Down)]
     [InlineData(Key.A, false, (ushort)0x1E, RdpKeyboardFlags.Release)]
     [InlineData(Key.Enter, true, (ushort)0x1C, RdpKeyboardFlags.Down)]
@@ -25,7 +26,7 @@ public class RdpInputMapperTests
         Assert.False(kbEvent.IsVirtualKey);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(Key.Up, true, (ushort)0x48, RdpKeyboardFlags.Down | RdpKeyboardFlags.Extended)]
     [InlineData(Key.Down, true, (ushort)0x50, RdpKeyboardFlags.Down | RdpKeyboardFlags.Extended)]
     [InlineData(Key.Left, true, (ushort)0x4B, RdpKeyboardFlags.Down | RdpKeyboardFlags.Extended)]
@@ -41,7 +42,7 @@ public class RdpInputMapperTests
         Assert.True((kbEvent.Flags & RdpKeyboardFlags.Extended) != 0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryMapKey_UnmappedKey_ReturnsFalse()
     {
         bool mapped = RdpInputMapper.TryMapKey(Key.None, isDown: true, out _);

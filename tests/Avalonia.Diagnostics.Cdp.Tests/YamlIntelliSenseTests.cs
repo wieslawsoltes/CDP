@@ -7,7 +7,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public class YamlIntelliSenseTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("tapOn:", true)]
     [InlineData("doubleTapOn:", true)]
     [InlineData("inputText:", true)]

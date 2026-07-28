@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Challenger;
 
 using System;
@@ -180,7 +181,7 @@ public class ChallengerM2DedicatedEmpiricalTests
     // 4. ATOMIC FILE WRITE EDGE CASES
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task AtomicFileWrite_CreatesDirectory_And_ReplacesFileAtomically()
     {
         string subDir = Path.Combine(_tempTestDir, "NestedDir", "Profiles");
@@ -200,7 +201,7 @@ public class ChallengerM2DedicatedEmpiricalTests
         Assert.Equal("Atomic Profile", loaded[0].Name);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task AtomicFileWrite_LoadCorruptedJson_FallsBackToDefaultProfiles()
     {
         string filePath = Path.Combine(_tempTestDir, "corrupted_profiles.json");

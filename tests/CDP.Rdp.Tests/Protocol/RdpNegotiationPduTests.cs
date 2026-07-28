@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Protocol;
 
 using System;
@@ -5,7 +6,7 @@ using CDP.Rdp.Protocol;
 
 public class RdpNegotiationPduTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationRequest_TryRead_ValidPayload_ParsesProtocols()
     {
         byte[] data = new byte[] { 0x01, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00, 0x00 };
@@ -20,7 +21,7 @@ public class RdpNegotiationPduTests
         Assert.Equal(RdpSecurityProtocol.Ssl | RdpSecurityProtocol.Hybrid, req.RequestedProtocols);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationRequest_Write_ValidStruct_SerializesToSpan()
     {
         byte[] buffer = new byte[8];
@@ -40,7 +41,7 @@ public class RdpNegotiationPduTests
         Assert.Equal(0x00, buffer[7]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationResponse_TryRead_ValidPayload_ParsesSelectedProtocol()
     {
         byte[] data = new byte[] { 0x02, 0x01, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00 };
@@ -55,7 +56,7 @@ public class RdpNegotiationPduTests
         Assert.Equal(RdpSecurityProtocol.Ssl, rsp.SelectedProtocol);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationResponse_Write_ValidStruct_SerializesToSpan()
     {
         byte[] buffer = new byte[8];
@@ -72,7 +73,7 @@ public class RdpNegotiationPduTests
         Assert.Equal(0x02, buffer[4]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationFailure_TryRead_ValidPayload_ParsesFailureCode()
     {
         byte[] data = new byte[] { 0x03, 0x00, 0x08, 0x00, 0x05, 0x00, 0x00, 0x00 };
@@ -85,7 +86,7 @@ public class RdpNegotiationPduTests
         Assert.Equal(RdpNegotiationFailureCode.HybridRequiredByServer, fail.FailureCode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NegotiationFailure_Write_ValidStruct_SerializesToSpan()
     {
         byte[] buffer = new byte[8];
@@ -102,7 +103,7 @@ public class RdpNegotiationPduTests
         Assert.Equal(0x01, buffer[4]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_InvalidTypeOrLength_DoesNotMutateReaderPosition()
     {
         // Bad type 0xFF, length 8

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Frames;
 
 using System;
@@ -14,7 +15,7 @@ public class FastPathFrameReaderChallengerTests
 {
     #region Category A: FastPath Server Header Parsing
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadFastPathHeader_OneByteLength_Standard_ReturnsTrue()
     {
         // Action = 0, EncFlags = 0, CompFlags = 0, Length = 64 (1-byte length variant)
@@ -32,7 +33,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(0, reader.UnreadLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadFastPathHeader_OneByteLength_WithFlags_ReturnsTrue()
     {
         // 0xE5: compFlags = 0xC0 (FASTPATH_OUTPUT_COMPRESSED), encFlags = 0x01 (FASTPATH_OUTPUT_ENCRYPTED), action = 0x01
@@ -50,7 +51,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(2, header.HeaderLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadFastPathHeader_TwoByteLength_Standard_ReturnsTrue()
     {
         // 0x00: Action=0, Enc=0, Comp=0
@@ -69,7 +70,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(0, reader.UnreadLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadFastPathHeader_TwoByteLength_MaxUshort_ReturnsTrue()
     {
         // (0x7F << 8) | 0xFF = 32767
@@ -83,7 +84,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(3, header.HeaderLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadFastPathHeader_Truncated_0Bytes_ReturnsFalse()
     {
         ReadOnlySpan<byte> raw = ReadOnlySpan<byte>.Empty;
@@ -95,7 +96,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(default, header);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadFastPathHeader_Truncated_1Byte_ReturnsFalse()
     {
         byte[] raw = new byte[] { 0x00 };
@@ -107,7 +108,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(default, header);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadFastPathHeader_Truncated_2ByteLengthMissingSecondByte_ReturnsFalse()
     {
         // 0x81 has MSB set indicating 2-byte length, but 3rd byte is missing
@@ -124,7 +125,7 @@ public class FastPathFrameReaderChallengerTests
 
     #region Category B: FastPath Update Header Parsing
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadUpdateHeader_Uncompressed_Standard_ReturnsTrue()
     {
         // 0x01: updateCode = 0x1 (Bitmap), frag = 0 (Single), isComp = false
@@ -143,7 +144,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(3, header.HeaderLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadUpdateHeader_Compressed_Standard_ReturnsTrue()
     {
         // 0x81: bit 6-7 is 0x2 (isComp = true), bit 4-5 is 0x0 (Single), bit 0-3 is 0x1 (Bitmap)
@@ -163,7 +164,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(4, header.HeaderLength);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x00, FastPathFragmentation.Single)]
     [InlineData(0x10, FastPathFragmentation.Last)]
     [InlineData(0x20, FastPathFragmentation.First)]
@@ -180,7 +181,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(expectedFrag, header.Fragmentation);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x07)] // Unknown / unassigned update code
     [InlineData(0x0C)]
     [InlineData(0x0D)]
@@ -199,7 +200,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(32, header.UpdateSize);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadUpdateHeader_Truncated_0Bytes_ReturnsFalse()
     {
         ReadOnlySpan<byte> raw = ReadOnlySpan<byte>.Empty;
@@ -211,7 +212,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(default, header);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadUpdateHeader_Truncated_CompressedMissingCompFlags_ReturnsFalse()
     {
         // 0x81 indicates isCompressed = true, but no second byte provided
@@ -224,7 +225,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(default, header);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadUpdateHeader_Truncated_MissingUpdateSize_ReturnsFalse()
     {
         // 0x01: isCompressed = false, but only 1 size byte (0x10) provided instead of 2
@@ -237,7 +238,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(default, header);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadUpdateHeader_Truncated_CompressedMissingUpdateSize_ReturnsFalse()
     {
         // 0x81: isCompressed = true, byte 2: compFlags = 0x02, byte 3: 0x10 (missing 2nd size byte)
@@ -254,7 +255,7 @@ public class FastPathFrameReaderChallengerTests
 
     #region Category C: Bitmap Update Data Parsing
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadBitmapUpdateData_MultiRectangle_Success()
     {
         TestRectSpec[] rects = new[]
@@ -316,7 +317,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(new byte[] { 0x11, 0x22, 0x33 }, updates[2].Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadBitmapUpdateData_ZeroWidthAndHeightEdgeCases_CalculatesOrFallsBack()
     {
         // Rect A: destRight < destLeft, destBottom < destTop, Width = 0, Height = 0 -> calcWidth = 0, calcHeight = 0
@@ -363,7 +364,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(11, updates[2].Height);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x0000, false)] // No compression flag
     [InlineData(0x0001, true)]  // BITMAP_COMPRESSION
     [InlineData(0x0002, false)] // Other flag
@@ -392,7 +393,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(expectedCompressed, updates[0].Compressed);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadBitmapUpdateData_BufferBoundarySlicing_MatchesSlicedMemoryOffset()
     {
         TestRectSpec[] rects = new[]
@@ -421,7 +422,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF }, updates[0].Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadBitmapUpdateData_ZeroRectangles_ReturnsTrueWithEmptyList()
     {
         byte[] payload = BuildBitmapUpdatePayload(0x0001, Array.Empty<TestRectSpec>());
@@ -434,7 +435,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Empty(updates);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadBitmapUpdateData_Truncated_LessThan4BytesHeader_ReturnsFalse()
     {
         byte[] raw = new byte[] { 0x01, 0x00, 0x01 }; // only 3 bytes
@@ -447,7 +448,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Empty(updates);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadBitmapUpdateData_InvalidUpdateType_ReturnsFalse()
     {
         // updateType = 0x0002 instead of 0x0001
@@ -461,7 +462,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Empty(updates);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadBitmapUpdateData_Truncated_MidRectangleHeader_ReturnsFalse()
     {
         TestRectSpec[] rects = new[]
@@ -492,7 +493,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryReadBitmapUpdateData_Truncated_RectanglePixelDataIncomplete_ReturnsFalse()
     {
         TestRectSpec[] rects = new[]
@@ -521,7 +522,7 @@ public class FastPathFrameReaderChallengerTests
 
     #region Category D: Frame Parsing End-to-End
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_MultipleUpdateHeadersInSinglePdu_SkipsNonBitmapAndParsesBitmap()
     {
         // PDU contains:
@@ -582,7 +583,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(new byte[] { 0x77, 0x88 }, args.BitmapUpdates[0].Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_MultipleBitmapUpdateHeadersInSinglePdu_AggregatesAllUpdates()
     {
         // PDU contains 2 separate Bitmap update headers
@@ -658,7 +659,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(new byte[] { 0x33 }, args.BitmapUpdates[2].Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_UnknownUpdateCode_SkippedSuccessfully()
     {
         using MemoryStream ms = new MemoryStream();
@@ -709,7 +710,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(new byte[] { 0x99 }, args.BitmapUpdates[0].Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_UnknownUpdateCode_TruncatedPayload_ReturnsFalse()
     {
         using MemoryStream ms = new MemoryStream();
@@ -737,7 +738,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Null(args);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_EncryptedAndCompressedServerHeaderFlags_ParsesPayload()
     {
         using MemoryStream ms = new MemoryStream();
@@ -784,7 +785,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(new byte[] { 0xAB }, args.BitmapUpdates[0].Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_ZeroBitmapUpdates_ReturnsFalse()
     {
         // PDU contains only a Synchronize update (updateCode = 0x3, updateSize = 0)
@@ -811,7 +812,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Null(args);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_CorruptedTrailingBytesAfterValidBitmap_ReturnsTrueWithParsedBitmap()
     {
         using MemoryStream ms = new MemoryStream();
@@ -861,7 +862,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.Equal(new byte[] { 0xEF }, args.BitmapUpdates[0].Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_EmptyPayload_ReturnsFalse()
     {
         bool success = RdpFastPathFrameReader.TryParseFrame(

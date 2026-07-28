@@ -206,7 +206,7 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
     // 2. PROFILE JSON SERIALIZATION/DESERIALIZATION EDGE CASES & CONCURRENCY
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_ExtremeDataTypesAndStrings_RoundtripsWithoutTruncationOrCorrupt()
     {
         string filePath = Path.Combine(_tempDir, "extreme_profiles.json");
@@ -251,7 +251,7 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
         Assert.True(p.IsAutoConnect);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_CorruptedOrInvalidJsonOnDisk_ReturnsDefaultProfilesWithoutCrashing()
     {
         string filePath = Path.Combine(_tempDir, "corrupted_profiles.json");
@@ -266,7 +266,7 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
         Assert.NotEmpty(profiles);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_ConcurrentReadWriteAccess_ProtectedByFileLock()
     {
         string filePath = Path.Combine(_tempDir, "concurrent_profiles.json");
@@ -313,7 +313,7 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
     // 3. DISPLAY RESOLUTION SCALING CALCULATION IN RDPCONTROL
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public void DisplayScaling_TranslateCoordinates_BoundaryAndExtremeInputs_ClampsSafely()
     {
         var control = new RdpControl
@@ -355,7 +355,7 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
         Assert.Equal(0, yNaN);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DisplayScaling_TranslateCoordinates_ScaleFactorEdgeCases_BehavesPredictably()
     {
         var control = new RdpControl

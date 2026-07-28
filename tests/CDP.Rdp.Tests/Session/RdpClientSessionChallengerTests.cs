@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Session;
 
 using System;
@@ -20,7 +21,7 @@ public class RdpClientSessionChallengerTests
 {
     #region 1. Stress-Test Concurrent Input Operations
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConcurrentInputSends_HighLoad_MaintainsStreamIntegrity()
     {
         using DuplexStreamPair streams = new DuplexStreamPair(bufferSize: 4 * 1024 * 1024);
@@ -139,7 +140,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(taskCount * eventsPerTask, fastPathInputCount);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConcurrentInputSends_WithCancellationTokens_MaintainsSendLockUsability()
     {
         using DuplexStreamPair streams = new DuplexStreamPair(bufferSize: 1024 * 1024);
@@ -206,7 +207,7 @@ public class RdpClientSessionChallengerTests
         try { await drainTask; } catch { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SendInput_DuringDisconnect_HandledSafelyWithoutUncaughtTaskCrash()
     {
         using DuplexStreamPair streams = new DuplexStreamPair(bufferSize: 1024 * 1024);
@@ -256,7 +257,7 @@ public class RdpClientSessionChallengerTests
 
     #region 2. Stress-Test Rapid Lifecycle, Cancellation, & Recovery
 
-    [Fact]
+    [AvaloniaFact]
     public async Task RapidConnectDisconnectCycles_Repeated30Times_MaintainsCleanState()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -277,7 +278,7 @@ public class RdpClientSessionChallengerTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConcurrentConnectCalls_OnlyOneSucceeds_OthersThrowInvalidOperationException()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -317,7 +318,7 @@ public class RdpClientSessionChallengerTests
         Assert.True(client.State == RdpConnectionState.Connected || client.State == RdpConnectionState.Faulted);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConnectAsync_CanceledDuringNegotiation_TransitionsToFaulted_RecoversViaDisconnect()
     {
         using DuplexStreamPair streams1 = new DuplexStreamPair();
@@ -351,7 +352,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(RdpConnectionState.Connected, client.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConnectAsync_TransportFactoryThrows_TransitionsToFaulted_RecoversViaDisconnect()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -382,7 +383,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(RdpConnectionState.Connected, client.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConcurrentDisconnectAsync_IsIdempotentAndThreadSafe()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -408,7 +409,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(RdpConnectionState.Disconnected, client.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DisposeAsync_ConcurrentWithActiveOperations_CleansUpWithoutDeadlock()
     {
         using DuplexStreamPair streams = new DuplexStreamPair(bufferSize: 1024 * 1024);
@@ -447,7 +448,7 @@ public class RdpClientSessionChallengerTests
 
     #region 3. Stress-Test Background Processing Loop Error Handling
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_ContinuousGarbageByteStream_DoesNotCrashOrHang()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -471,7 +472,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(RdpConnectionState.Connected, client.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_InterleavedCorruptedDataAndValidFastPathFrames_RecoversAndFiresEvents()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -519,7 +520,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(2, receivedFrames);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_PartialPduChunks_BuffersAndAssemblesValidFrame()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -555,7 +556,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(50, receivedArgs.BitmapUpdates[0].Width);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_FastPathHeaderSplitByteByByte_AssemblesAndFiresEvent()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -590,7 +591,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(50, receivedArgs.BitmapUpdates[0].Width);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_2ByteFastPathHeaderSplitByteByByte_AssemblesAndFiresEvent()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -624,7 +625,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(5, receivedArgs.BitmapUpdates[0].Left);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_CorruptedTpktLengthUnderflow_DiscardsByteAndRecovers()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -659,7 +660,7 @@ public class RdpClientSessionChallengerTests
         Assert.Single(receivedArgs.BitmapUpdates);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_TransportStreamReadException_TransitionsToFaulted()
     {
         using FailingTransportStream failingStream = new FailingTransportStream();
@@ -691,7 +692,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(RdpConnectionState.Faulted, client.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_StreamClosedUnexpectedly_TerminatesCleanlyWithoutFaulting()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -711,7 +712,7 @@ public class RdpClientSessionChallengerTests
         Assert.True(client.State == RdpConnectionState.Connected || client.State == RdpConnectionState.Faulted);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_CorruptedPacketLengthLargerThanBuffer_DiscardsByteAndRecovers()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -746,7 +747,7 @@ public class RdpClientSessionChallengerTests
         Assert.Single(receivedArgs.BitmapUpdates);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProcessingLoop_CorruptedTpktLength0xFFFF_DiscardsByteAndRecovers()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -781,7 +782,7 @@ public class RdpClientSessionChallengerTests
         Assert.Single(receivedArgs.BitmapUpdates);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task Dispose_MultipleCalls_ReturnsCleanlyWithoutThrowing()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -801,7 +802,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(RdpConnectionState.Disconnected, client.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DisconnectAsync_AfterDispose_ReturnsCleanlyWithoutThrowing()
     {
         using DuplexStreamPair streams = new DuplexStreamPair();
@@ -819,7 +820,7 @@ public class RdpClientSessionChallengerTests
         Assert.Equal(RdpConnectionState.Disconnected, client.State);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DisposeAndDisconnect_ConcurrentInvocationsAcross20Tasks_CleansUpCleanlyWithoutThrowing()
     {
         for (int iteration = 0; iteration < 20; iteration++)

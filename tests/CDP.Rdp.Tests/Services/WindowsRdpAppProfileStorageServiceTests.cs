@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Services;
 
 using System;
@@ -25,7 +26,7 @@ public class WindowsRdpAppProfileStorageServiceTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_AtomicWrite_CreatesFileViaTmpAndDirectory()
     {
         string filePath = Path.Combine(_tempDir, "subDir", "atomic_profiles.json");
@@ -46,7 +47,7 @@ public class WindowsRdpAppProfileStorageServiceTests
         Assert.Equal("Atomic Server 2", loaded[1].Name);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_CredentialProtection_EncryptsPasswordOnDiskAndDecryptsOnLoad()
     {
         string filePath = Path.Combine(_tempDir, "protected_profiles.json");
@@ -75,7 +76,7 @@ public class WindowsRdpAppProfileStorageServiceTests
         Assert.Equal(rawSecretPassword, loaded[0].Password);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_CRUD_AddUpdateDeleteOperations()
     {
         string filePath = Path.Combine(_tempDir, "crud_profiles.json");
@@ -105,7 +106,7 @@ public class WindowsRdpAppProfileStorageServiceTests
         Assert.Equal("c1", loaded3[0].Id);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfilesViewModel_SearchFilter_FiltersProfilesByNameHostUsernameDomain()
     {
         string filePath = Path.Combine(_tempDir, "filter_profiles.json");
@@ -141,7 +142,7 @@ public class WindowsRdpAppProfileStorageServiceTests
         Assert.Equal(2, vm.FilteredProfiles.Count);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfilesViewModel_ImportExport_SerializesAndDeserializesProfiles()
     {
         string filePath = Path.Combine(_tempDir, "vm_import_export.json");
@@ -169,7 +170,7 @@ public class WindowsRdpAppProfileStorageServiceTests
         Assert.Equal("Export Server 1", vm2.Profiles[0].Name);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpControl_ScaleFactor_TranslatesCoordinatesWithScaling()
     {
         var rdpControl = new RdpControl

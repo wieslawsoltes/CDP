@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Channels;
 
 using System;
@@ -7,7 +8,7 @@ using Xunit;
 
 public class DvcPduTests
 {
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(DvcCommandCode.Create, (byte)0, (byte)1)]
     [InlineData(DvcCommandCode.DataFirst, (byte)1, (byte)2)]
     [InlineData(DvcCommandCode.Capabilities, (byte)2, (byte)0)]
@@ -28,7 +29,7 @@ public class DvcPduTests
         Assert.Equal(priority, parsed.Priority);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0x42u, 0)]
     [InlineData(0x1234u, 1)]
     [InlineData(0x12345678u, 2)]
@@ -48,7 +49,7 @@ public class DvcPduTests
         Assert.Equal(value, parsed);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcCapabilities_V1_RoundTrip()
     {
         var caps = new DvcCapabilitiesPdu(version: 1);
@@ -64,7 +65,7 @@ public class DvcPduTests
         Assert.Equal(1, parsed.Version);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcCapabilities_V2WithCharges_RoundTrip()
     {
         var caps = new DvcCapabilitiesPdu(version: 2, pri0: 10, pri1: 20, pri2: 30, pri3: 40);
@@ -84,7 +85,7 @@ public class DvcPduTests
         Assert.Equal(40, parsed.Priority3Charge);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcCreateRequest_RoundTrip()
     {
         var req = new DvcCreateRequestPdu(channelId: 42, channelName: "AUDIO_INPUT", priority: 1);
@@ -102,7 +103,7 @@ public class DvcPduTests
         Assert.Equal(1, parsed.Priority);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcCreateResponse_Success_RoundTrip()
     {
         var rsp = new DvcCreateResponsePdu(channelId: 100, creationStatus: 0, priority: 0);
@@ -120,7 +121,7 @@ public class DvcPduTests
         Assert.True(parsed.IsSuccess);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcClose_RoundTrip()
     {
         var closePdu = new DvcClosePdu(channelId: 250);
@@ -136,7 +137,7 @@ public class DvcPduTests
         Assert.Equal(250u, parsed.ChannelId);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcDataHeader_RoundTrip()
     {
         var dataHeader = new DvcDataHeader(channelId: 300);
@@ -152,7 +153,7 @@ public class DvcPduTests
         Assert.Equal(300u, parsed.ChannelId);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcDataFirstHeader_SmallTotalLength_RoundTrip()
     {
         var header = new DvcDataFirstHeader(channelId: 1, totalLength: 100);
@@ -169,7 +170,7 @@ public class DvcPduTests
         Assert.Equal(100u, parsed.TotalLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcDataFirstHeader_MediumTotalLength_RoundTrip_Bits67Encoded()
     {
         // Total length = 500 (> 255), requires 2-byte length encoding (lenSp = 1)
@@ -193,7 +194,7 @@ public class DvcPduTests
         Assert.Equal(500u, parsed.TotalLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcDataFirstHeader_LargeTotalLength_RoundTrip()
     {
         // Total length = 70,000 (> 65,535), requires 4-byte length encoding (lenSp = 2)

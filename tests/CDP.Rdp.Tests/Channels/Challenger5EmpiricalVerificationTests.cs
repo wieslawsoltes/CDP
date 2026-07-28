@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Channels;
 
 using System;
@@ -13,7 +14,7 @@ public class Challenger5EmpiricalVerificationTests
     // names ("DVC", "FOO", "CTX", "SND"), verifying success and response PDU generation.
     // =========================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("DVC", 1u, (byte)0)]
     [InlineData("FOO", 2u, (byte)1)]
     [InlineData("CTX", 3u, (byte)2)]
@@ -39,7 +40,7 @@ public class Challenger5EmpiricalVerificationTests
         Assert.Equal(priority, parsed.Priority);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("DVC", 10u)]
     [InlineData("FOO", 20u)]
     [InlineData("CTX", 30u)]
@@ -95,7 +96,7 @@ public class Challenger5EmpiricalVerificationTests
         Assert.Equal(testData, receivedPayload);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_MultipleThreeCharChannels_OpenConcurrently()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -149,7 +150,7 @@ public class Challenger5EmpiricalVerificationTests
         }
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("DVC")]
     [InlineData("FOO")]
     [InlineData("CTX")]
@@ -183,7 +184,7 @@ public class Challenger5EmpiricalVerificationTests
     // Requirement 2: Verify multi-byte total length DVC framing and small packet chunk reassembly.
     // =========================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(100u, 0)]    // lenSp = 0 (1-byte length)
     [InlineData(255u, 0)]    // lenSp = 0 (1-byte length max)
     [InlineData(256u, 1)]    // lenSp = 1 (2-byte length min)
@@ -216,7 +217,7 @@ public class Challenger5EmpiricalVerificationTests
         Assert.Equal(totalLength, parsed.TotalLength);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("DVC", 500, 15)]   // 500 bytes payload, 15 byte max chunk
     [InlineData("FOO", 500, 25)]   // 500 bytes payload, 25 byte max chunk
     [InlineData("CTX", 70000, 32)] // 70,000 bytes payload, 32 byte max chunk
@@ -271,7 +272,7 @@ public class Challenger5EmpiricalVerificationTests
         Assert.Equal(originalPayload, receivedPayload);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_InterleavedSmallChunks_AcrossMultipleThreeCharChannels()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -347,7 +348,7 @@ public class Challenger5EmpiricalVerificationTests
     // Area 3: Empirical Findings and Boundary Conditions
     // =========================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_CreateRequest_MissingNullTerminator_FailsGracefully()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -365,7 +366,7 @@ public class Challenger5EmpiricalVerificationTests
         Assert.False(result, "CreateRequest PDU without null terminator must fail gracefully.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_ThreeCharChannelName_StructuralOverlapWithCreateResponse_EmpiricalDiscovery()
     {
         // Empirical test demonstrating that a 3-character channel name payload (3 bytes string + 1 byte null = 4 bytes)
@@ -388,7 +389,7 @@ public class Challenger5EmpiricalVerificationTests
         Assert.True(result, "Empirical Finding: Invalid 3-char name payload (4 bytes) falls through and parses as CreateResponse.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_DvcDataFirst_ZeroTotalLength_FailsGracefully()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -411,7 +412,7 @@ public class Challenger5EmpiricalVerificationTests
         Assert.False(result, "DataFirst with TotalLength = 0 must fail gracefully.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_DvcDataFirst_ExceedingMaxMessageSize_FailsGracefully()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -434,7 +435,7 @@ public class Challenger5EmpiricalVerificationTests
         Assert.False(result, "DataFirst exceeding 16MB MaxMessageSize must fail gracefully.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_DataChunkExceedingTotalLength_FailsGracefully()
     {
         var manager = new DynamicVirtualChannelManager();

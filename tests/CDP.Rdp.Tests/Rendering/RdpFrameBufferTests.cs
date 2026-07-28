@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Rendering;
 
 using System;
@@ -9,7 +10,7 @@ using Xunit;
 
 public class RdpFrameBufferTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void Constructor_ValidDimensions_InitializesBuffers()
     {
         using var buffer = new RdpFrameBuffer(800, 600);
@@ -21,7 +22,7 @@ public class RdpFrameBufferTests
         Assert.Empty(buffer.DirtyRegions);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0, 600)]
     [InlineData(800, 0)]
     [InlineData(-100, 600)]
@@ -30,7 +31,7 @@ public class RdpFrameBufferTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new RdpFrameBuffer(width, height));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyTile_32Bpp_UpdatesBackBufferPixels()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -60,7 +61,7 @@ public class RdpFrameBufferTests
         Assert.Equal(SKColors.Black, frontPixel);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyTile_24Bpp_ConvertsPixelsCorrectly()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -85,7 +86,7 @@ public class RdpFrameBufferTests
         Assert.Equal(0x00, pixel.Blue);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyTile_16BppRGB565_ConvertsPixelsCorrectly()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -104,7 +105,7 @@ public class RdpFrameBufferTests
         Assert.Equal(0x00, pixel.Green);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyTile_15BppRGB555_ConvertsPixelsCorrectly()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -123,7 +124,7 @@ public class RdpFrameBufferTests
         Assert.Equal(0x00, pixel.Blue);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyTile_RleCompressed_DecompressesAndBlits()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -141,7 +142,7 @@ public class RdpFrameBufferTests
         Assert.Equal(0xFF, pixel.Blue);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyTile_OutOfBounds_ClipsCorrectly()
     {
         using var buffer = new RdpFrameBuffer(50, 50);
@@ -158,7 +159,7 @@ public class RdpFrameBufferTests
         Assert.Equal(0xFF, buffer.BackBuffer.GetPixel(49, 49).Red);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SwapBuffers_TransfersDirtyRegionsAndPixelsToFrontBuffer()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -181,7 +182,7 @@ public class RdpFrameBufferTests
         Assert.Equal(1u, buffer.CurrentFrameId);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DirtyRegion_MergesOverlappingAndAdjacentRectangles()
     {
         var dirty = new RdpDirtyRegion();
@@ -197,7 +198,7 @@ public class RdpFrameBufferTests
         Assert.Equal(SKRectI.Create(0, 0, 25, 15), dirty.Rectangles[0]);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DirtyRegion_ExceedingThreshold_UnionsAllRectangles()
     {
         var dirty = new RdpDirtyRegion();
@@ -211,7 +212,7 @@ public class RdpFrameBufferTests
         Assert.Equal(SKRectI.Create(0, 0, 195, 195), dirty.TotalBounds);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Resize_UpdatesDimensionsAndResetsBuffers()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -224,7 +225,7 @@ public class RdpFrameBufferTests
         Assert.Empty(buffer.DirtyRegions);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetFrontBufferSnapshot_ReturnsDeepCopy()
     {
         using var buffer = new RdpFrameBuffer(50, 50);
@@ -235,7 +236,7 @@ public class RdpFrameBufferTests
         Assert.Equal(50, snapshot.Height);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RenderToCanvas_WithPaintAndOffset_RendersCorrectly()
     {
         using var buffer = new RdpFrameBuffer(50, 50);
@@ -256,7 +257,7 @@ public class RdpFrameBufferTests
         Assert.Equal(0xFF, targetPixel.Red);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RenderToCanvas_WithSrcAndDestRects_RendersCorrectly()
     {
         using var buffer = new RdpFrameBuffer(50, 50);

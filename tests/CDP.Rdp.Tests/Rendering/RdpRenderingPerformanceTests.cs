@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Rendering;
 
 using System;
@@ -9,7 +10,7 @@ using Xunit;
 
 public class RdpRenderingPerformanceTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void FramePipeline_LowAllocation_UnderHighUpdateLoad()
     {
         using var buffer = new RdpFrameBuffer(1920, 1080);
@@ -54,7 +55,7 @@ public class RdpRenderingPerformanceTests
         Assert.True(averageAllocBytesPerFrame < 10240, $"Average allocation per frame too high: {averageAllocBytesPerFrame:F2} bytes/frame");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RenderingPipeline_60Fps_UnderHighUpdateLoad()
     {
         using var buffer = new RdpFrameBuffer(1280, 720);

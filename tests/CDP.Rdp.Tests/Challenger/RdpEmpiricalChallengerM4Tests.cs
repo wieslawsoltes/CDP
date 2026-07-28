@@ -68,7 +68,7 @@ public class RdpEmpiricalChallengerM4Tests
         public void Dispose() { }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CoordinateMapping_BoundaryAndOutofBounds_EmpiricalTest()
     {
         var control = new RdpControl();
@@ -185,7 +185,7 @@ public class RdpEmpiricalChallengerM4Tests
         window.Close();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void UnicodeSymbols_SurrogatePairs_EmpiricalTest()
     {
         var control = new RdpControl();
@@ -222,7 +222,7 @@ public class RdpEmpiricalChallengerM4Tests
         Assert.True(isSplitSurrogate || firstCode == 0x1F600, $"Emoji key code: 0x{firstCode:X4}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RapidFrameUpdates_Backpressure_EmpiricalTest()
     {
         var control = new RdpControl();
@@ -310,7 +310,7 @@ public class RdpEmpiricalChallengerM4Tests
         window.Close();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpInputMapper_UnmappedKeys_EmpiricalTest()
     {
         // Test unmapped / unusual keys

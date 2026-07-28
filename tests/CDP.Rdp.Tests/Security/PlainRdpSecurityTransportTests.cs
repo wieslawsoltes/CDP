@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Security;
 
 using System.IO;
@@ -8,7 +9,7 @@ using CDP.Rdp.Tests.Fixtures;
 
 public class PlainRdpSecurityTransportTests
 {
-    [Fact]
+    [AvaloniaFact]
     public async Task HandshakeAsync_PlainTransport_CompletesWithoutError()
     {
         var ct = TestContext.Current.CancellationToken;

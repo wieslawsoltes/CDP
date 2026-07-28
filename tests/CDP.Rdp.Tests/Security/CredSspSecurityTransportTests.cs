@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Security;
 
 using System;
@@ -14,7 +15,7 @@ using CDP.Rdp.Tests.Fixtures;
 
 public class CredSspSecurityTransportTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void Properties_BeforeHandshake_ReflectsExpectedValues()
     {
         using DuplexStreamPair pair = new DuplexStreamPair();
@@ -24,7 +25,7 @@ public class CredSspSecurityTransportTests
         Assert.False(transport.IsEncrypted);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TsRequestPdu_EncodeAndTryParse_RoundTripsCorrectly()
     {
         byte[] token = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 };
@@ -47,7 +48,7 @@ public class CredSspSecurityTransportTests
         Assert.Equal(0, result.ErrorCode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TsRequestPdu_TryParse_InvalidData_ReturnsFalse()
     {
         byte[] invalidData = new byte[] { 0x12, 0x34, 0x56, 0x78 };
@@ -55,7 +56,7 @@ public class CredSspSecurityTransportTests
         Assert.False(parsed);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task HandshakeAsync_SuccessfulTlsAndTsRequestExchange_Succeeds()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -101,7 +102,7 @@ public class CredSspSecurityTransportTests
         Assert.True(transport.IsEncrypted);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task HandshakeAsync_ServerReturnsErrorCode_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -141,7 +142,7 @@ public class CredSspSecurityTransportTests
         Assert.Contains("0x0000006D", ex.Message);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task HandshakeAsync_EmptyUsername_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Protocol;
 
 using System;
@@ -5,7 +6,7 @@ using CDP.Rdp.Protocol;
 
 public class TpktHeaderTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_ValidHeader_ReturnsTrueAndParsesCorrectly()
     {
         byte[] data = new byte[] { 0x03, 0x00, 0x00, 0x13 };
@@ -20,7 +21,7 @@ public class TpktHeaderTests
         Assert.Equal(4, reader.Position);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_InvalidVersion_ReturnsFalse()
     {
         byte[] data = new byte[] { 0x02, 0x00, 0x00, 0x13 };
@@ -31,7 +32,7 @@ public class TpktHeaderTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_LengthLessThan4_ReturnsFalse()
     {
         byte[] data = new byte[] { 0x03, 0x00, 0x00, 0x03 };
@@ -42,7 +43,7 @@ public class TpktHeaderTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryRead_InsufficientBytes_ReturnsFalse()
     {
         byte[] data = new byte[] { 0x03, 0x00 };
@@ -53,7 +54,7 @@ public class TpktHeaderTests
         Assert.False(success);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Write_ValidHeader_SerializesToSpan()
     {
         byte[] buffer = new byte[4];

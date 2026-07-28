@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Frames;
 
 using System;
@@ -9,7 +10,7 @@ using Xunit;
 
 public class FastPathFrameReaderTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_SingleUncompressedRectangle_Success()
     {
         byte[] payload = BuildFastPathBitmapPdu(
@@ -50,7 +51,7 @@ public class FastPathFrameReaderTests
         Assert.Equal(new byte[] { 0x11, 0x22, 0x33, 0x44 }, update.Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_MultipleRectangles_Success()
     {
         byte[] payload = BuildFastPathBitmapPdu(
@@ -111,7 +112,7 @@ public class FastPathFrameReaderTests
         Assert.Equal(new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }, rect2.Data.ToArray());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_FallbackWidthAndHeight_WhenDestRightLessThanDestLeft()
     {
         byte[] payload = BuildFastPathBitmapPdu(
@@ -148,7 +149,7 @@ public class FastPathFrameReaderTests
         Assert.Equal(80, update.Height);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_InvalidFastPathLength_ReturnsFalse()
     {
         byte[] truncatedHeader = new byte[] { 0x00 }; // 1 byte only
@@ -163,7 +164,7 @@ public class FastPathFrameReaderTests
         Assert.Null(args);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_TruncatedBitmapData_ReturnsFalse()
     {
         byte[] validPdu = BuildFastPathBitmapPdu(
@@ -196,7 +197,7 @@ public class FastPathFrameReaderTests
         Assert.Null(args);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_NonBitmapUpdateCode_ReturnsFalse()
     {
         // Build PDU with updateCode = Orders (0x0)
@@ -218,7 +219,7 @@ public class FastPathFrameReaderTests
         Assert.Null(args);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryParseFrame_UpdateTypeNotBitmap_ReturnsFalse()
     {
         using MemoryStream ms = new MemoryStream();

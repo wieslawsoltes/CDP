@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Challenger;
 
 using System;
@@ -34,7 +35,7 @@ public class EmpiricalMilestone2ChallengeTests
     // 1. SCALABLE SCANCODE & KEY COMBO ACCURACY TESTS
     // ==================================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(RdpKeyCombination.AltTab, new ushort[] { 0x38, 0x0F, 0x0F, 0x38 }, new bool[] { false, false, false, false }, new bool[] { true, true, false, false })]
     [InlineData(RdpKeyCombination.CtrlAltDel, new ushort[] { 0x1D, 0x38, 0x53, 0x53, 0x38, 0x1D }, new bool[] { false, false, true, true, false, false }, new bool[] { true, true, true, false, false, false })]
     [InlineData(RdpKeyCombination.WinKey, new ushort[] { 0x5B, 0x5B }, new bool[] { true, true }, new bool[] { true, false })]
@@ -71,7 +72,7 @@ public class EmpiricalMilestone2ChallengeTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ScancodeAccuracy_KeyPassthroughDisabled_SendsNoEvents()
     {
         var mockSession = new MockRdpSession();
@@ -90,7 +91,7 @@ public class EmpiricalMilestone2ChallengeTests
     // 2. BAD JSON & CORRUPTED STORAGE HANDLING TESTS
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_BadJson_JsonObjectInsteadOfArray_FallsBackToDefaults()
     {
         string path = Path.Combine(_tempTestDir, "object.json");
@@ -104,7 +105,7 @@ public class EmpiricalMilestone2ChallengeTests
         Assert.Equal("Primary Domain Controller", profiles[0].Name);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_BadJson_ArrayWithNullElement_HandledWithoutCrashing()
     {
         string path = Path.Combine(_tempTestDir, "null_element.json");
@@ -118,7 +119,7 @@ public class EmpiricalMilestone2ChallengeTests
         Assert.Equal(2, profiles.Count);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_BadJson_CorruptedEncryptedPassword_FallsBackToDefaults()
     {
         string path = Path.Combine(_tempTestDir, "bad_encrypted.json");
@@ -141,7 +142,7 @@ public class EmpiricalMilestone2ChallengeTests
         Assert.Single(profiles);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_ConcurrentWrites_RaceConditionStressTest()
     {
         string path = Path.Combine(_tempTestDir, "concurrent.json");
@@ -177,7 +178,7 @@ public class EmpiricalMilestone2ChallengeTests
     // 3. CONCURRENT TAB MANAGEMENT & LIFECYCLE STRESS TESTS
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConcurrentTabManagement_RapidOpenClose50Tabs_NoDeadlocksOrExceptions()
     {
         var vm = new SessionWorkspaceViewModel();
@@ -216,7 +217,7 @@ public class EmpiricalMilestone2ChallengeTests
         Assert.Null(vm.SelectedSession);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ConcurrentTabManagement_DisconnectAll_WhileConnecting_ClearsWorkspace()
     {
         var vm = new SessionWorkspaceViewModel();
@@ -249,7 +250,7 @@ public class EmpiricalMilestone2ChallengeTests
     // 4. MEMORY LEAKS & EVENT HANDLER RETENTION TESTS
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task MemoryLeak_RdpSessionTab_Disposal_UnsubscribesEvents()
     {
         WeakReference weakTab = await CreateAndDisposeTabAsync();
@@ -277,7 +278,7 @@ public class EmpiricalMilestone2ChallengeTests
         return weakTab;
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task MemoryLeak_RdpClient_DisposeAsync_FreesResourcesAndState()
     {
         WeakReference weakClient = await CreateAndDisposeClientAsync();

@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Channels;
 
 using System;
@@ -12,7 +13,7 @@ public class ChallengerVirtualChannelEmpiricalTests
     // Area 1: Multi-chunk SVC reassembly with boundary payload sizes
     // =========================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0, 50)]      // Empty payload
     [InlineData(41, 50)]     // 1 byte below chunk capacity (maxPayloadPerChunk = 50 - 8 = 42)
     [InlineData(42, 50)]     // Exact chunk capacity (1 chunk)
@@ -54,7 +55,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.Equal(originalPayload, receivedData);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_MinimumValidChunkSize_ReassemblesCorrectly()
     {
         var manager = new StaticVirtualChannelManager();
@@ -87,7 +88,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.Equal(payload, receivedData);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(8)]
     [InlineData(7)]
     [InlineData(0)]
@@ -101,7 +102,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         });
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_InterleavedMultiChannelChunks_ReassemblesSeparately()
     {
         var manager = new StaticVirtualChannelManager();
@@ -146,7 +147,7 @@ public class ChallengerVirtualChannelEmpiricalTests
     // Area 2: DVC variable-length field (Sp = 0, 1, 2) edge cases
     // =========================================================================
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0u, 0)]
     [InlineData(255u, 0)]
     [InlineData(256u, 1)]
@@ -158,7 +159,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.Equal(expectedSp, DvcValueCodec.GetRequiredSp(value));
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0u, 0)]
     [InlineData(255u, 0)]
     [InlineData(256u, 1)]
@@ -183,7 +184,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.Equal(written, reader.Position);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(0, 0)] // Sp=0 expects 1 byte, 0 provided
     [InlineData(1, 1)] // Sp=1 expects 2 bytes, 1 provided
     [InlineData(2, 3)] // Sp=2 expects 4 bytes, 3 provided
@@ -199,7 +200,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.Equal(0u, val);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData(5u, 0)]          // 1-byte ChannelId
     [InlineData(0x1A0u, 1)]      // 2-byte ChannelId (416)
     [InlineData(0x10000u, 2)]    // 4-byte ChannelId (65536)
@@ -252,7 +253,7 @@ public class ChallengerVirtualChannelEmpiricalTests
     // Area 3: DVC DataFirst + Data chunking and reassembly across multiple channels
     // =========================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_MultiChannelInterleavedDvcData_ReassemblesCorrectly()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -305,7 +306,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.Equal(ch2Payload, ch2Received);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DvcDataFirstHeader_RoundTrip_LargeTotalLength_EmpiricalChallenge()
     {
         // Direct test of DvcDataFirstHeader serialization & deserialization when TotalLength > 255 (requires lenSp=1)
@@ -325,7 +326,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.Equal(500u, parsedHeader.TotalLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_DvcDataFirst_LargePayloadTotalLength_EmpiricalChallenge()
     {
         // Challenge: Test SendDvcData with a payload size > 255 bytes (requiring 2-byte lenSp in DataFirst Header)
@@ -363,7 +364,7 @@ public class ChallengerVirtualChannelEmpiricalTests
     // Area 4: Error handling for invalid/corrupted channel headers or unregistered channels
     // =========================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_TruncatedHeader_ReturnsFalse()
     {
         var manager = new StaticVirtualChannelManager();
@@ -374,7 +375,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void StaticManager_UnregisteredChannel_HandledGracefully()
     {
         var manager = new StaticVirtualChannelManager();
@@ -390,7 +391,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.True(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_EmptyPacket_ReturnsFalse()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -398,7 +399,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.False(result);
     }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData((byte)0x00)] // Cmd = 0 (invalid)
     [InlineData((byte)0x06)] // Cmd = 6 (unrecognized)
     [InlineData((byte)0x0F)] // Cmd = 15 (unrecognized)
@@ -412,7 +413,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_TruncatedCreateRequest_MissingNullTerminator_ReturnsFalse()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -430,7 +431,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_TruncatedCreateResponse_MissingStatus_ReturnsFalse()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -449,7 +450,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.False(result);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_UnregisteredChannelCreateRequest_RepliesWithUnsuccessfulStatus()
     {
         var manager = new DynamicVirtualChannelManager();
@@ -475,7 +476,7 @@ public class ChallengerVirtualChannelEmpiricalTests
         Assert.Equal(unchecked((int)0xC0000001), rsp.CreationStatus);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DynamicManager_ClosePdu_RemovesChannelAndReassemblyState()
     {
         var manager = new DynamicVirtualChannelManager();
