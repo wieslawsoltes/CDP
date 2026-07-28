@@ -145,6 +145,7 @@ public class ChallengerM2Iter5StressTests
         vm.ExecuteDisconnectAllAsync().GetAwaiter().GetResult();
         vm.Sessions.Clear();
         vm.SelectedSession = null;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
     }
 
     [AvaloniaFact]
