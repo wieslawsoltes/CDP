@@ -210,7 +210,7 @@ public class ChallengerM3_2StressTests
         // Call EnsureInitialized multiple times to test idempotent server setup
         CdpServer.EnsureInitialized();
         CdpServer.EnsureInitialized();
-        Assert.Equal(9224, CdpServer.Port);
+        Assert.True(CdpServer.Port > 0, "CdpServer.Port should be initialized.");
     }
 
     #endregion

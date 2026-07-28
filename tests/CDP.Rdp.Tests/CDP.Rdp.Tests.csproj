@@ -22,6 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\CDP.Rdp\CDP.Rdp.csproj" />
     <ProjectReference Include="..\..\src\CDP.Rdp.Rendering\CDP.Rdp.Rendering.csproj" />
     <ProjectReference Include="..\..\src\Avalonia.Diagnostics.Cdp.Rdp\Avalonia.Diagnostics.Cdp.Rdp.csproj" />
