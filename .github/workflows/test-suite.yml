@@ -38,9 +38,9 @@ jobs:
       run: |
         FILTER="Category!=Appium&Category!=Selenium&Category!=OSAutomation"
         if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-          xvfb-run --auto-servernum dotnet test CDP.Tests.slnf -c Release --no-build -m --verbosity minimal --filter "$FILTER"
+          xvfb-run --auto-servernum dotnet test CDP.Tests.slnf -c Release --no-build --verbosity minimal --filter "$FILTER"
         else
-          dotnet test CDP.Tests.slnf -c Release --no-build -m --verbosity minimal --filter "$FILTER"
+          dotnet test CDP.Tests.slnf -c Release --no-build --verbosity minimal --filter "$FILTER"
         fi
 
     - name: Upload Logs on Failure

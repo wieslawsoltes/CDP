@@ -117,6 +117,9 @@ public class ChallengerM2Iter5StressTests
     private static void CreateAndDisconnectWorkspaceSessions(SessionWorkspaceViewModel vm, List<WeakReference> weakTabs)
     {
         vm.Sessions.Clear();
+        Func<RdpSessionOptions, CancellationToken, Task<IRdpSecurityTransport>> dummyFactory =
+            (opt, ct) => Task.FromException<IRdpSecurityTransport>(new OperationCanceledException());
+
         for (int i = 0; i < 50; i++)
         {
             var profile = new RdpConnectionProfile
@@ -125,7 +128,7 @@ public class ChallengerM2Iter5StressTests
                 Host = $"10.0.0.{i + 1}"
             };
 
-            var tab = vm.OpenSession(profile);
+            var tab = vm.OpenSession(profile, dummyFactory);
             var mockSession = new StressTestRdpSession();
             tab.Session = mockSession;
 
