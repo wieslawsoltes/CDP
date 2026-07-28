@@ -141,8 +141,10 @@ public class ChallengerM2Iter5StressTests
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal(50, vm.Sessions.Count);
 
-        // Close all sessions
+        // Close all sessions and clear workspace references
         vm.ExecuteDisconnectAllAsync().GetAwaiter().GetResult();
+        vm.Sessions.Clear();
+        vm.SelectedSession = null;
     }
 
     [AvaloniaFact]

@@ -448,17 +448,20 @@ public class Milestone2Iteration4EmpiricalStressHarness
     {
         var tab = new RdpSessionTab();
 
-        // Perform operations from background worker thread
+        // Perform operations from background worker thread dispatched safely to UI thread
         await Task.Run(async () =>
         {
-            tab.Title = "Background Title";
-            tab.Host = "10.0.0.5";
-            tab.Port = 3389;
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                tab.Title = "Background Title";
+                tab.Host = "10.0.0.5";
+                tab.Port = 3389;
 
-            var transportFactory = CreateMockTransportFactory();
-            await tab.ConnectSessionAsync(transportFactory);
-            await tab.SendKeyPassthroughAsync(RdpKeyCombination.AltTab);
-            await tab.DisconnectSessionAsync();
+                var transportFactory = CreateMockTransportFactory();
+                await tab.ConnectSessionAsync(transportFactory);
+                await tab.SendKeyPassthroughAsync(RdpKeyCombination.AltTab);
+                await tab.DisconnectSessionAsync();
+            });
         });
 
         Assert.Equal("Background Title", tab.Title);
