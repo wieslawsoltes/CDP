@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Avalonia.Headless.XUnit;
 using Xunit;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.ViewModels;
@@ -8,7 +9,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public class NodeParametersTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void TestStudioNodeViewModel_DynamicVisibilityByCommand()
     {
         var node = new TestStudioNodeViewModel
@@ -31,7 +32,7 @@ public class NodeParametersTests
         Assert.True(node.ShowValue);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestStudioNodeViewModel_CustomParametersPopulatedAndSync()
     {
         var step = new TestStudioStepModel

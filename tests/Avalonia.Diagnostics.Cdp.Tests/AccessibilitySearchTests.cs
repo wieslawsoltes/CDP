@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Avalonia.Headless.XUnit;
 using Xunit;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.ViewModels;
@@ -33,7 +34,7 @@ public class AccessibilitySearchTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestAccessibilityTreeSearchAndSelection()
     {
         var cdpService = new MockCdpService();

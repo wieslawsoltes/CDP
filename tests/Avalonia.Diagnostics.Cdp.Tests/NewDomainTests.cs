@@ -1191,7 +1191,7 @@ public class NewDomainTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task TestConnectionViewModelTargetSwitching()
     {
         var service = new MockInspectorCdpService();
@@ -1302,7 +1302,7 @@ public class NewDomainTests
         window.Close();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task TestConnectionViewModelDirectTargetParsing()
     {
         var service = new MockInspectorCdpService();
@@ -1728,7 +1728,7 @@ public class NewDomainTests
     }
 
 
-    [Fact]
+    [AvaloniaFact]
     public async Task TestBackgroundServiceDomain()
     {
         using var clientWs = new System.Net.WebSockets.ClientWebSocket();
@@ -1758,7 +1758,7 @@ public class NewDomainTests
         Assert.NotNull(stopResult);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task TestIndexedDBDomain()
     {
         using var clientWs = new System.Net.WebSockets.ClientWebSocket();
@@ -1834,7 +1834,7 @@ public class NewDomainTests
         Assert.NotNull(disableResult);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestProfilerAllocationSampledManualParsing()
     {
         int pointerSize = 8;
@@ -1990,7 +1990,7 @@ public class NewDomainTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestProfilerViewModelActivatePaneAndFindNodePath()
     {
         var mockCdpService = new MockInspectorCdpService();
@@ -2018,7 +2018,7 @@ public class NewDomainTests
         Assert.True(child2.IsSelected);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestProfilerViewModelLoadRealJetBrainsPathsFromJson()
     {
         var mockCdpService = new MockInspectorCdpService();
@@ -2065,7 +2065,7 @@ public class NewDomainTests
         Assert.Empty(vm.ProfilerLogs);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestProfilerViewModelFallbackTraceLoader()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"fallback_test_{Guid.NewGuid()}.dtp");

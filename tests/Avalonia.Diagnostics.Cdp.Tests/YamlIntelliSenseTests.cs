@@ -1,5 +1,6 @@
 using CdpInspectorApp.Services;
 using CdpInspectorApp.Models;
+using Avalonia.Headless.XUnit;
 using Xunit;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -19,7 +20,7 @@ public class YamlIntelliSenseTests
         Assert.Equal(expected, YamlIntelliSenseProvider.IsCommand(suggestion));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestGetProperIndentation_Empty()
     {
         string yaml = "ta";
@@ -27,7 +28,7 @@ public class YamlIntelliSenseTests
         Assert.Equal(0, indent);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestGetProperIndentation_AfterSequenceItem()
     {
         string yaml = @"- launchApp
@@ -37,7 +38,7 @@ public class YamlIntelliSenseTests
         Assert.Equal(0, indent); // Aligns with root - launchApp which has 0 indent
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestGetProperIndentation_AfterIndentedSequenceItem()
     {
         string yaml = @"- repeat:
@@ -50,7 +51,7 @@ public class YamlIntelliSenseTests
         Assert.Equal(6, indent); // Aligns with the previous list item which has 6 spaces indent
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestGetProperIndentation_AfterCommandsHeader()
     {
         string yaml = @"- repeat:
@@ -62,7 +63,7 @@ public class YamlIntelliSenseTests
         Assert.Equal(6, indent); // commands has 4 spaces, so children list items should have 4 + 2 = 6 spaces
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestGetProperIndentation_AcrossDocumentSeparator()
     {
         string yaml = @"appId: com.test
@@ -77,7 +78,7 @@ ta";
         Assert.Equal(0, indent); // Resets to 0 because of --- separator
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestCatalogCommandsAreSuggested()
     {
         var suggestions = YamlIntelliSenseProvider.GetSuggestions("-", 1, null);
@@ -89,7 +90,7 @@ ta";
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestSelectorMapParametersAreSuggested()
     {
         string yaml = @"- tapOn:

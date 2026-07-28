@@ -441,7 +441,7 @@ public class CdpChromeFeatureTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestRecordingParser()
     {
         // 1. JSON parse test
@@ -568,7 +568,7 @@ public class CdpChromeFeatureTests
         Assert.Equal("Tab", jsSteps[5].Key);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestPlaywrightScriptGenerationAndParsing()
     {
         // 1. Playwright JS parse test
@@ -676,7 +676,7 @@ public class CdpChromeFeatureTests
         Assert.Contains("modifiers: ['Control', 'Shift']", generated);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestRecorderStepEditingAndCommands()
     {
         var stepsList = new List<CdpInspectorApp.Models.RecordedStepModel>
@@ -716,7 +716,7 @@ public class CdpChromeFeatureTests
         Assert.DoesNotContain("#btnSubmit", vm.GeneratedCode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestEscapedStringLiteralParsingAndGeneration()
     {
         // 1. Parser verification for mixed/escaped quotes
@@ -782,7 +782,7 @@ public class CdpChromeFeatureTests
         Assert.Contains(@"fill('I said ""yes"" and backslash \\ test')", generated);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestPlaywrightCodeGeneration()
     {
         var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
@@ -810,7 +810,7 @@ public class CdpChromeFeatureTests
         Assert.Contains("await page.keyboard.press('Enter');", generated);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestPuppeteerCodeGeneration()
     {
         var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
@@ -838,7 +838,7 @@ public class CdpChromeFeatureTests
         Assert.Contains("await page.keyboard.press('Enter');", generated);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestSeleniumCSharpCodeGeneration()
     {
         var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
@@ -896,7 +896,7 @@ public class CdpChromeFeatureTests
         Assert.Contains("action_18 = action_18.KeyDown(Keys.Control);", generated);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestAppiumCSharpCodeGeneration()
     {
         var steps = new List<CdpInspectorApp.Models.RecordedStepModel>
@@ -935,7 +935,7 @@ public class CdpChromeFeatureTests
         Assert.Contains("for (int c_9 = 0; c_9 < 3; c_9++)", generated);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestAvaloniaHeadlessXUnitCodeGeneration()
     {
         var steps = new List<CdpInspectorApp.Models.RecordedStepModel>

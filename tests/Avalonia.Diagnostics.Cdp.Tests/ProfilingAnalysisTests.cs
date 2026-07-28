@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using Avalonia.Headless.XUnit;
 using Xunit;
 using CDP.Profiling.Analysis;
 
@@ -8,7 +9,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public class ProfilingAnalysisTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void TestLoadDmwWithFallback()
     {
         // 1. Create a dummy .dmw zip file
@@ -57,7 +58,7 @@ public class ProfilingAnalysisTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestLoadDtpNoFakeFallback()
     {
         string tempDtp = Path.Combine(Path.GetTempPath(), $"test_{Guid.NewGuid()}.dtp");
@@ -76,7 +77,7 @@ public class ProfilingAnalysisTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TestDmwLoadWithReflection()
     {
         // 1. Create a dummy .dmw zip file
