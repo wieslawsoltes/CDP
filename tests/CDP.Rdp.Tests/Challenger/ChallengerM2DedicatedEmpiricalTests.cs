@@ -218,7 +218,7 @@ public class ChallengerM2DedicatedEmpiricalTests
     // 5. PROFILE CRUD
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileCRUD_AddUpdateDelete_UpdatesCollectionAndStorage()
     {
         string filePath = Path.Combine(_tempTestDir, "crud_profiles.json");
@@ -260,7 +260,7 @@ public class ChallengerM2DedicatedEmpiricalTests
         Assert.Empty(reloadedAfterDelete);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileExportImport_ProtectsPasswordOnExport_UnprotectsPasswordOnImport()
     {
         string exportFilePath = Path.Combine(_tempTestDir, "export_import_test.json");
@@ -296,7 +296,7 @@ public class ChallengerM2DedicatedEmpiricalTests
     // 6. SEARCH FILTERING
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task SearchFiltering_FilterByHostNameDomainUsername_UpdatesFilteredCollection()
     {
         string filePath = Path.Combine(_tempTestDir, "filter_profiles.json");

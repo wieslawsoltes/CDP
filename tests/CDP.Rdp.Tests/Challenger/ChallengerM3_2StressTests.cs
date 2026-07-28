@@ -172,7 +172,7 @@ public class ChallengerM3_2StressTests
 
     #region 2. CDP Server Initialization on Port 9224
 
-    [Fact]
+    [AvaloniaFact]
     public void CdpRdpApp_CdpServerPort_IsConfiguredTo9224()
     {
         // Verify CdpServer port configuration API
@@ -204,7 +204,7 @@ public class ChallengerM3_2StressTests
         Assert.Equal(expectedPort, port);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CdpRdpApp_CdpServerInitialization_EnsuresInitializedWithoutExceptions()
     {
         // Call EnsureInitialized multiple times to test idempotent server setup
@@ -217,7 +217,7 @@ public class ChallengerM3_2StressTests
 
     #region 3. UI Layout Responsiveness and Memory Allocation Safety During Frame Updates
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpControl_FrameUpdates_LayoutResponsivenessUnderHighFrequencyUpdates()
     {
         var control = new RdpControl();
@@ -248,7 +248,7 @@ public class ChallengerM3_2StressTests
         Assert.True(avgMsPerFrame < 2.0, $"Average frame update latency was {avgMsPerFrame:F4} ms, exceeding 2.0 ms budget.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpControl_Render_MemoryAllocationSafetyUnderContinuousRendering()
     {
         var control = new RdpControl();
@@ -295,7 +295,7 @@ public class ChallengerM3_2StressTests
         Assert.True(memoryDelta < 10 * 1024 * 1024, $"Memory grew by {memoryDelta} bytes after {renderCycles} render cycles, exceeding safety threshold.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpControl_WindowResizeAndScaling_LayoutResponsivenessDoesNotCrash()
     {
         var control = new RdpControl();
@@ -324,7 +324,7 @@ public class ChallengerM3_2StressTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RdpView_LayoutAndBindings_InstantiatesWithoutExceptions()
     {
         var rdpView = new RdpView();

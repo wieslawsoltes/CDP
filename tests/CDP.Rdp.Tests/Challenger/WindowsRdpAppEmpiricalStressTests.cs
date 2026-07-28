@@ -28,7 +28,7 @@ public class WindowsRdpAppEmpiricalStressTests
     // 1. Profile Storage Serialization & Persistence Empirical Tests
     // ----------------------------------------------------------------------------------
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_SaveProfilesAsync_WhenFileDoesNotExist_DemonstratesBugOrBehavior()
     {
         string filePath = Path.Combine(_tempTestDir, "non_existent_initial.json");
@@ -60,7 +60,7 @@ public class WindowsRdpAppEmpiricalStressTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_SaveProfilesAsync_WhenFileAlreadyExists_OverwritesSuccessfully()
     {
         string filePath = Path.Combine(_tempTestDir, "existing_file.json");
@@ -82,7 +82,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.Equal(33890, loaded[0].Port);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_LoadProfilesAsync_WithMalformedJson_FallsBackToDefaults()
     {
         string filePath = Path.Combine(_tempTestDir, "malformed.json");
@@ -96,7 +96,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.Equal("Primary Domain Controller", loaded[0].Name);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_LoadProfilesAsync_WithEmptyFile_FallsBackToDefaults()
     {
         string filePath = Path.Combine(_tempTestDir, "empty.json");
@@ -109,7 +109,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.Empty(loaded);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_LoadProfilesAsync_WithEmptyArray_ReturnsEmptyList()
     {
         string filePath = Path.Combine(_tempTestDir, "empty_array.json");
@@ -122,7 +122,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.Empty(loaded);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileStorage_Serialization_PreservesSpecialCharactersAndExtremeDates()
     {
         string filePath = Path.Combine(_tempTestDir, "special_chars.json");
@@ -164,7 +164,7 @@ public class WindowsRdpAppEmpiricalStressTests
     // 2. ProfilesViewModel Creation, Modification & Edge Cases
     // ----------------------------------------------------------------------------------
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfilesViewModel_AddProfile_WithEmptyOrInvalidFields_AppliesDefaults()
     {
         string filePath = Path.Combine(_tempTestDir, "profiles_vm_add.json");
@@ -189,7 +189,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.Equal(vm.SelectedProfile, added);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfilesViewModel_DeleteProfile_UntilEmpty_HandlesNullSelectionSafely()
     {
         string filePath = Path.Combine(_tempTestDir, "profiles_vm_del.json");
@@ -216,7 +216,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.Null(exception);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfilesViewModel_ConnectProfile_WhenNoSelection_DoesNotThrow()
     {
         string filePath = Path.Combine(_tempTestDir, "profiles_vm_conn.json");
@@ -301,7 +301,7 @@ public class WindowsRdpAppEmpiricalStressTests
     // 4. SettingsViewModel Theme Switching & Configuration Options
     // ----------------------------------------------------------------------------------
 
-    [Fact]
+    [AvaloniaFact]
     public void SettingsViewModel_ThemeSwitching_UpdatesPropertiesAndStatusText()
     {
         var vm = new SettingsViewModel();
@@ -324,7 +324,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.Null(ex2);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SettingsViewModel_ConfigurationProperties_UpdateCorrectly()
     {
         var vm = new SettingsViewModel
@@ -347,7 +347,7 @@ public class WindowsRdpAppEmpiricalStressTests
     // 5. MainWindowViewModel & CDP Startup Options Verification
     // ----------------------------------------------------------------------------------
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_Navigation_SwitchesCurrentView()
     {
         string filePath = Path.Combine(_tempTestDir, "mw_nav.json");
@@ -372,7 +372,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.IsType<QuickConnectViewModel>(vm.CurrentView);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_SelectedNavItem_StringTags_SwitchView()
     {
         string filePath = Path.Combine(_tempTestDir, "mw_tags.json");
@@ -397,7 +397,7 @@ public class WindowsRdpAppEmpiricalStressTests
         Assert.IsType<QuickConnectViewModel>(vm.CurrentView);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MainWindowViewModel_RequestConnectEvents_OpenSessionInWorkspace()
     {
         string filePath = Path.Combine(_tempTestDir, "mw_req_conn.json");

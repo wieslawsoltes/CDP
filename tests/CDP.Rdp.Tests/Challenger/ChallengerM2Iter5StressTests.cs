@@ -266,7 +266,7 @@ public class ChallengerM2Iter5StressTests
     // 4. PROFILE IMPORT/EXPORT ENCRYPTION STRESS TESTS
     // ==================================================================================
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileExportImport_EncryptionStress_SpecialCharactersUnicodeAndLongPasswords()
     {
         string exportFile = Path.Combine(_tempTestDir, "stress_export.json");
@@ -310,7 +310,7 @@ public class ChallengerM2Iter5StressTests
         Assert.Equal(string.Empty, imported3.Password);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ProfileImport_CorruptedOrNonEncryptedPasswords_HandlesGracefully()
     {
         string importFile = Path.Combine(_tempTestDir, "corrupted_import.json");
