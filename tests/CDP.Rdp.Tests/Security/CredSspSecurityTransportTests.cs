@@ -61,7 +61,7 @@ public class CredSspSecurityTransportTests
         using RSA rsa = RSA.Create(2048);
         CertificateRequest req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using X509Certificate2 certWithKey = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
-        return new X509Certificate2(certWithKey.Export(X509ContentType.Pkcs12), (string?)null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.MachineKeySet);
+        return X509CertificateLoader.LoadPkcs12(certWithKey.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.MachineKeySet);
     }
 
     [AvaloniaFact]

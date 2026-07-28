@@ -16,6 +16,7 @@ public sealed class DuplexPipeStream : Stream
     private readonly PipeWriter _writer;
     private readonly SemaphoreSlim _readLock = new SemaphoreSlim(1, 1);
     private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
+    private bool _isDisposed;
 
     public DuplexPipeStream(PipeReader reader, PipeWriter writer)
     {
