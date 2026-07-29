@@ -722,32 +722,39 @@ public class NewDomainTests
     [AvaloniaFact]
     public async Task TestAccessibilityDomainPartialTreeAndQuery()
     {
+        var button = new Button { Content = "Target Button" };
         var window = new Window
         {
             Title = "AX Test",
             Width = 400,
             Height = 300,
-            Content = new Button { Content = "Target Button" }
+            Content = button
         };
         window.Show();
 
         using var clientWs = new ClientWebSocket();
         var session = new CdpSession(clientWs, window);
+        var buttonNodeId = session.NodeMap.GetOrAdd(button);
 
         var partialRes = await AccessibilityDomain.HandleAsync(session, "getPartialAXTree", new JsonObject
         {
-            ["nodeId"] = 1,
-            ["fetchRelatives"] = true
+            ["nodeId"] = buttonNodeId,
+            ["fetchRelatives"] = false
         });
         Assert.NotNull(partialRes);
-        Assert.NotNull(partialRes["nodes"] as JsonArray);
+        var partialNodes = partialRes["nodes"] as JsonArray;
+        Assert.NotNull(partialNodes);
+        Assert.NotEmpty(partialNodes);
 
         var queryRes = await AccessibilityDomain.HandleAsync(session, "queryAXTree", new JsonObject
         {
+            ["nodeId"] = buttonNodeId,
             ["accessibleName"] = "Target Button"
         });
         Assert.NotNull(queryRes);
-        Assert.NotNull(queryRes["nodes"] as JsonArray);
+        var queryNodes = queryRes["nodes"] as JsonArray;
+        Assert.NotNull(queryNodes);
+        Assert.NotEmpty(queryNodes);
 
         window.Close();
     }
