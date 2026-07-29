@@ -1,3 +1,4 @@
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using CdpInspectorApp.Views;
@@ -1150,20 +1151,8 @@ public class ViewsLayoutTests
                 eventTab = args.Tab;
             };
 
-            // Simulate the drag state via reflection or internal helper
-            var isTabDraggingField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_isTabDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var draggingTabField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_draggingTab", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var pressedArgsField = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabPressedEventArgs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            Assert.NotNull(isTabDraggingField);
-            Assert.NotNull(draggingTabField);
-            Assert.NotNull(pressedArgsField);
-
-            isTabDraggingField.SetValue(boxControl, true);
-            draggingTabField.SetValue(boxControl, tab1);
-
-            // Retrieve the first tab before creating the pointer events so the same
-            // captured pointer can be used throughout the simulated drag.
+            // Drive the headless window with a real pointer sequence. This preserves
+            // Avalonia's pointer-root and capture invariants across platforms.
             var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.NotNull(fieldPanel);
             var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
@@ -1172,32 +1161,15 @@ public class ViewsLayoutTests
             var tabBorder = tabsPanel.Children[0] as Border;
             Assert.NotNull(tabBorder);
 
-            var pointer = new Pointer(0, PointerType.Mouse, true);
-            pointer.Capture(tabBorder);
-            var dummyPressed = new PointerPressedEventArgs(
-                boxControl,
-                pointer,
-                window,
-                new Point(0, 0),
-                0,
-                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonPressed),
-                KeyModifiers.None
-            );
-            pressedArgsField.SetValue(boxControl, dummyPressed);
+            var tabCenter = tabBorder.TranslatePoint(
+                new Point(tabBorder.Bounds.Width / 2, tabBorder.Bounds.Height / 2),
+                window);
+            Assert.NotNull(tabCenter);
 
-            // Raise a PointerMoved event at position outside the header (e.g. Y = -100)
-            var dummyMoved = new PointerEventArgs(
-                InputElement.PointerMovedEvent,
-                tabBorder,
-                pointer,
-                window,
-                new Point(0, -100),
-                0UL,
-                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
-                KeyModifiers.None
-            );
-            
-            tabBorder.RaiseEvent(dummyMoved);
+            window.MouseDown(tabCenter.Value, MouseButton.Left, RawInputModifiers.None);
+            var outsideHeader = new Point(tabCenter.Value.X, tabCenter.Value.Y - 100);
+            window.MouseMove(outsideHeader, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(outsideHeader, MouseButton.Left, RawInputModifiers.None);
 
             Assert.True(eventFired);
             Assert.Equal(tab1, eventTab);
