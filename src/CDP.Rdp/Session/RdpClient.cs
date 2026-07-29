@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 namespace CDP.Rdp.Session;
 
 using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -23,6 +25,7 @@ public sealed class RdpClient : IRdpSession
 {
     private const int MaxFastPathPacketLength = 16384;
     private const int MaxTpktPacketLength = 32768;
+    private static readonly string[] BaselineStaticChannelNames = ["rdpdr", "cliprdr", "rdpsnd", "drdynvc"];
 
     private readonly RdpSessionOptions _options;
     private readonly Func<RdpSessionOptions, CancellationToken, Task<IRdpSecurityTransport>>? _transportFactory;
@@ -142,6 +145,7 @@ public sealed class RdpClient : IRdpSession
                     _userId = result.UserId;
                     _ioChannelId = result.IoChannelId;
                     _shareId = result.ShareId;
+                    RegisterStaticChannels(result.StaticChannelIds);
                 }
                 else
                 {
@@ -267,6 +271,7 @@ public sealed class RdpClient : IRdpSession
                                 break; // Wait for full TPKT packet
                             }
 
+                            ProcessTpktPacket(buffer.AsMemory(0, tpkt.PacketLength).ToArray());
                             DiscardBytes(buffer, ref bytesInBuffer, tpkt.PacketLength);
                             processedPacket = true;
                         }
@@ -294,6 +299,241 @@ public sealed class RdpClient : IRdpSession
         {
             await HandleUnexpectedDisconnectAsync(ex).ConfigureAwait(false);
         }
+    }
+
+    internal void RegisterStaticChannels(System.Collections.Generic.IReadOnlyList<ushort> channelIds)
+    {
+        if (_svcManager == null)
+        {
+            return;
+        }
+
+        int count = Math.Min(channelIds.Count, BaselineStaticChannelNames.Length);
+        for (int i = 0; i < count; i++)
+        {
+            ushort channelId = channelIds[i];
+            string channelName = BaselineStaticChannelNames[i];
+            _svcManager.RegisterChannel(
+                channelName,
+                channelId,
+                channelName == "drdynvc"
+                    ? (_, payload) => ProcessDynamicVirtualChannelPacket(channelId, payload)
+                    : null);
+        }
+    }
+
+    private void ProcessDynamicVirtualChannelPacket(ushort channelId, ReadOnlySpan<byte> payload)
+    {
+        _dvcManager?.ProcessIncomingPacket(
+            payload,
+            response =>
+            {
+                byte[] ownedResponse = response.ToArray();
+                _ = SendStaticChannelMessageSafelyAsync(channelId, ownedResponse);
+            });
+    }
+
+    private async Task SendStaticChannelMessageSafelyAsync(ushort channelId, byte[] payload)
+    {
+        try
+        {
+            await SendStaticChannelMessageAsync(channelId, payload).ConfigureAwait(false);
+        }
+        catch (Exception) when (
+            Volatile.Read(ref _isDisposed) != 0 ||
+            _state is RdpConnectionState.Disconnecting or RdpConnectionState.Disconnected or RdpConnectionState.Faulted)
+        {
+            // The response became obsolete while the connection was closing.
+        }
+        catch (Exception ex)
+        {
+            await HandleUnexpectedDisconnectAsync(ex).ConfigureAwait(false);
+        }
+    }
+
+    private async Task SendStaticChannelMessageAsync(
+        ushort channelId,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken = default)
+    {
+        if (_state != RdpConnectionState.Connected || _transport == null)
+        {
+            throw new InvalidOperationException("Client is not connected.");
+        }
+
+        var chunks = new List<byte[]>();
+        StaticVirtualChannelManager.ChunkMessage(
+            payload.Span,
+            maxChunkSize: 1600,
+            chunk => chunks.Add(chunk.ToArray()));
+
+        await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_state != RdpConnectionState.Connected || _transport == null)
+            {
+                throw new InvalidOperationException("Client is not connected.");
+            }
+
+            foreach (byte[] chunk in chunks)
+            {
+                byte[] packet = RdpActivationSequence.CreateMcsSendDataPacket(
+                    _userId,
+                    channelId,
+                    chunk);
+                await _transport.TransportStream.WriteAsync(packet, cancellationToken).ConfigureAwait(false);
+            }
+            await _transport.TransportStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    private void ProcessTpktPacket(ReadOnlyMemory<byte> packet)
+    {
+        if (!TryReadMcsSendDataIndication(packet.Span, out ushort channelId, out int userDataOffset, out int userDataLength))
+        {
+            return;
+        }
+
+        ReadOnlyMemory<byte> userData = packet.Slice(userDataOffset, userDataLength);
+        if (channelId != _ioChannelId)
+        {
+            _svcManager?.ProcessIncomingPacket(channelId, userData.Span);
+            return;
+        }
+
+        if (!TryGetShareDataOffset(userData.Span, out int shareDataOffset))
+        {
+            return;
+        }
+
+        ReadOnlyMemory<byte> shareData = userData[shareDataOffset..];
+        if (shareData.Length < 18 ||
+            shareData.Span[14] != 2 || // PDUTYPE2_UPDATE
+            shareData.Span[15] != 0)   // compressedType
+        {
+            return;
+        }
+
+        ushort totalLength = BinaryPrimitives.ReadUInt16LittleEndian(shareData.Span);
+        if (totalLength < 20 || totalLength > shareData.Length)
+        {
+            return;
+        }
+
+        ReadOnlyMemory<byte> graphicsUpdate = shareData.Slice(18, totalLength - 18);
+        var reader = new RdpPacketReader(graphicsUpdate.Span);
+        if (!RdpFastPathFrameReader.TryReadBitmapUpdateData(
+                ref reader,
+                graphicsUpdate,
+                out System.Collections.Generic.List<RdpBitmapUpdate> updates) ||
+            reader.UnreadLength != 0 ||
+            updates.Count == 0)
+        {
+            return;
+        }
+
+        var frameArgs = new RdpFrameUpdateEventArgs(
+            Interlocked.Increment(ref _frameIdCounter),
+            DateTimeOffset.UtcNow,
+            updates);
+        FrameUpdated?.Invoke(this, frameArgs);
+    }
+
+    private static bool TryReadMcsSendDataIndication(
+        ReadOnlySpan<byte> packet,
+        out ushort channelId,
+        out int userDataOffset,
+        out int userDataLength)
+    {
+        channelId = 0;
+        userDataOffset = 0;
+        userDataLength = 0;
+
+        if (packet.Length < 14 ||
+            packet[0] != TpktHeader.ExpectedVersion ||
+            packet[1] != 0 ||
+            BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(2, 2)) != packet.Length ||
+            packet[4] != 2 ||
+            packet[5] != 0xF0 ||
+            packet[6] != 0x80 ||
+            packet[7] != 0x68)
+        {
+            return false;
+        }
+
+        channelId = BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(10, 2));
+        int offset = 13;
+        int length = ReadPerLength(packet, ref offset);
+        if (length < 0 || offset + length > packet.Length)
+        {
+            return false;
+        }
+
+        userDataOffset = offset;
+        userDataLength = length;
+        return true;
+    }
+
+    private static bool TryGetShareDataOffset(ReadOnlySpan<byte> userData, out int offset)
+    {
+        if (IsShareDataPdu(userData))
+        {
+            offset = 0;
+            return true;
+        }
+
+        // Standard RDP Security can prefix a Basic Security Header. This client
+        // does not decrypt encrypted Standard Security payloads, but accepts the
+        // unencrypted header form when legacy RDP was explicitly requested.
+        if (userData.Length >= 4 &&
+            (BinaryPrimitives.ReadUInt16LittleEndian(userData) & 0x0008) == 0 &&
+            IsShareDataPdu(userData[4..]))
+        {
+            offset = 4;
+            return true;
+        }
+
+        offset = 0;
+        return false;
+    }
+
+    private static bool IsShareDataPdu(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 18)
+        {
+            return false;
+        }
+
+        ushort totalLength = BinaryPrimitives.ReadUInt16LittleEndian(data);
+        ushort pduType = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(2, 2));
+        return totalLength is >= 18 &&
+               totalLength <= data.Length &&
+               (pduType & 0x000F) == 0x0007;
+    }
+
+    private static int ReadPerLength(ReadOnlySpan<byte> source, ref int offset)
+    {
+        if (offset >= source.Length)
+        {
+            return -1;
+        }
+
+        byte first = source[offset++];
+        if ((first & 0x80) == 0)
+        {
+            return first;
+        }
+
+        if (offset >= source.Length)
+        {
+            return -1;
+        }
+
+        return ((first & 0x3F) << 8) | source[offset++];
     }
 
     private async Task HandleUnexpectedDisconnectAsync(Exception exception)

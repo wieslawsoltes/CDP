@@ -443,7 +443,7 @@ public class EmpiricalProtocolChallenges
     }
 
     [AvaloniaFact]
-    public async Task NegotiateAsync_LegacyServer_NoNegotiationResponsePdu_NegotiatesPlainRdp()
+    public async Task NegotiateAsync_LegacyServer_NoNegotiationResponsePdu_RejectsUnrequestedPlainRdp()
     {
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
@@ -461,16 +461,15 @@ public class EmpiricalProtocolChallenges
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
-        IRdpSecurityTransport transport = await negotiator.NegotiateAsync(
-            pair.ClientStream,
-            "localhost",
-            performSecurityHandshake: false,
-            cancellationToken: ct);
+        RdpNegotiationException exception = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => negotiator.NegotiateAsync(
+                pair.ClientStream,
+                "localhost",
+                performSecurityHandshake: false,
+                cancellationToken: ct));
 
-        Assert.NotNull(transport);
-        Assert.Equal(RdpSecurityProtocol.Rdp, transport.Protocol);
-        Assert.Equal(RdpSecurityProtocol.Rdp, negotiator.SelectedProtocol);
-        Assert.Equal(RdpNegotiationState.Connected, negotiator.State);
+        Assert.Contains("did not request", exception.Message);
+        Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
         try { await serverTask; } catch { }
     }
 

@@ -90,6 +90,7 @@ public sealed class RdpNegotiator
             {
                 SelectedProtocol = rsp.SelectedProtocol;
                 ResponseFlags = rsp.Flags;
+                ValidateSelectedProtocol(requestedProtocols, SelectedProtocol);
             }
             else
             {
@@ -102,6 +103,7 @@ public sealed class RdpNegotiator
 
                 SelectedProtocol = RdpSecurityProtocol.Rdp;
                 ResponseFlags = 0x00;
+                ValidateSelectedProtocol(requestedProtocols, SelectedProtocol);
             }
 
             State = RdpNegotiationState.SecuringHandshake;
@@ -110,7 +112,9 @@ public sealed class RdpNegotiator
             {
                 RdpSecurityProtocol.Rdp => new PlainRdpSecurityTransport(stream),
                 RdpSecurityProtocol.Ssl => new TlsSecurityTransport(stream, certValidation),
-                RdpSecurityProtocol.Hybrid or RdpSecurityProtocol.HybridEx => new CredSspSecurityTransport(stream, username ?? "", password ?? "", domain, certValidation),
+                RdpSecurityProtocol.Hybrid => new CredSspSecurityTransport(stream, username ?? "", password ?? "", domain, certValidation),
+                RdpSecurityProtocol.HybridEx => throw new RdpNegotiationException(
+                    "The server selected HYBRID_EX, whose Early User Authorization Result exchange is not supported by this client."),
                 RdpSecurityProtocol.RdsTls => throw new RdpNegotiationException(
                     "The server selected RDSTLS, which is not supported by this client."),
                 _ => throw new RdpNegotiationException(
@@ -129,6 +133,32 @@ public sealed class RdpNegotiator
         {
             State = RdpNegotiationState.Failed;
             throw;
+        }
+    }
+
+    private static void ValidateSelectedProtocol(
+        RdpSecurityProtocol requestedProtocols,
+        RdpSecurityProtocol selectedProtocol)
+    {
+        if (selectedProtocol is not (
+                RdpSecurityProtocol.Rdp or
+                RdpSecurityProtocol.Ssl or
+                RdpSecurityProtocol.Hybrid or
+                RdpSecurityProtocol.RdsTls or
+                RdpSecurityProtocol.HybridEx))
+        {
+            throw new RdpNegotiationException(
+                $"The server selected an unsupported security protocol: {selectedProtocol}.");
+        }
+
+        bool wasRequested = selectedProtocol == RdpSecurityProtocol.Rdp
+            ? requestedProtocols == RdpSecurityProtocol.Rdp
+            : (requestedProtocols & selectedProtocol) == selectedProtocol;
+
+        if (!wasRequested)
+        {
+            throw new RdpNegotiationException(
+                $"The server selected security protocol {selectedProtocol}, which the client did not request.");
         }
     }
 

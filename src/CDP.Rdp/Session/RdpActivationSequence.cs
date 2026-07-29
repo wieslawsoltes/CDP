@@ -65,6 +65,7 @@ internal sealed class RdpActivationSequence
             var reader = new RdpPacketReader(joinConfirm);
             if (!McsChannelJoinConfirm.TryRead(ref reader, out McsChannelJoinConfirm confirm) ||
                 confirm.Result != 0 ||
+                !confirm.HasChannelId ||
                 confirm.RequestedChannelId != channelId)
             {
                 throw new InvalidDataException($"The server rejected MCS channel {channelId}.");
@@ -90,8 +91,8 @@ internal sealed class RdpActivationSequence
 
     internal byte[] CreateConnectInitial()
     {
-        // Microsoft MS-RDPBCGR 4.1.3 client template. The request is intentionally
-        // limited to the three baseline static channels advertised by this client.
+        // Microsoft MS-RDPBCGR 4.1.3 client template. The captured three-channel
+        // baseline is extended below with the DRDYNVC transport channel.
         byte[] packet = Convert.FromHexString(
             "030001A002F0807F658201940401010401010101FF30190201220201020201000201010201000201010202FFFF020102" +
             "301902010102010102010102010102010002010102020420020102301C0202FFFF0202FC170202FFFF020101020100" +
@@ -106,6 +107,7 @@ internal sealed class RdpActivationSequence
         // The annotated capture includes six alignment bytes after the fixed-size
         // Client Core Data block which are not part of its declared GCC length.
         packet = RemoveRange(packet, 348, 6);
+        packet = AddDynamicVirtualChannel(packet);
 
         int coreOffset = FindSequence(packet, new byte[] { 0x01, 0xC0, 0xD8, 0x00 });
         if (coreOffset < 0)
@@ -115,7 +117,8 @@ internal sealed class RdpActivationSequence
 
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(coreOffset + 8, 2), _options.Width);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(coreOffset + 10, 2), _options.Height);
-        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(coreOffset + 144, 2), NormalizeColorDepth(_options.ColorDepth));
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(coreOffset + 142, 2), NormalizeHighColorDepth(_options.ColorDepth));
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(coreOffset + 144, 2), GetSupportedColorDepthFlag(_options.ColorDepth));
         BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(coreOffset + 212, 4), (uint)_protocol);
 
         Span<byte> clientName = packet.AsSpan(coreOffset + 24, 32);
@@ -124,7 +127,7 @@ internal sealed class RdpActivationSequence
 
         // Do not negotiate static-channel compression until an MS-RDPBCGR bulk
         // compression history is available for those channels.
-        int networkOffset = FindSequence(packet, new byte[] { 0x03, 0xC0, 0x2C, 0x00 });
+        int networkOffset = FindSequence(packet, new byte[] { 0x03, 0xC0 });
         if (networkOffset >= 0)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(networkOffset + 16, 4), 0x80000000);
@@ -133,7 +136,7 @@ internal sealed class RdpActivationSequence
         return packet;
     }
 
-    private static ushort NormalizeColorDepth(ushort colorDepth)
+    private static ushort NormalizeHighColorDepth(ushort colorDepth)
     {
         return colorDepth switch
         {
@@ -141,6 +144,18 @@ internal sealed class RdpActivationSequence
             16 => 16,
             24 or 32 => 24,
             _ => 24
+        };
+    }
+
+    private static ushort GetSupportedColorDepthFlag(ushort colorDepth)
+    {
+        return colorDepth switch
+        {
+            15 => 0x0001, // RNS_UD_15BPP_SUPPORT
+            16 => 0x0002, // RNS_UD_16BPP_SUPPORT
+            24 => 0x0004, // RNS_UD_24BPP_SUPPORT
+            32 => 0x0008, // RNS_UD_32BPP_SUPPORT
+            _ => 0x0004
         };
     }
 
@@ -324,10 +339,27 @@ internal sealed class RdpActivationSequence
         int bitmap = FindSequence(pdu, new byte[] { 0x02, 0x00, 0x1C, 0x00 });
         if (bitmap >= 0)
         {
+            BinaryPrimitives.WriteUInt16LittleEndian(
+                pdu.AsSpan(bitmap + 4, 2),
+                NormalizeBitmapColorDepth(_options.ColorDepth));
             BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(bitmap + 12, 2), _options.Width);
             BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(bitmap + 14, 2), _options.Height);
         }
+
+        int order = FindSequence(pdu, new byte[] { 0x03, 0x00, 0x58, 0x00 });
+        if (order >= 0)
+        {
+            // This client currently renders bitmap updates only. Advertising an
+            // all-zero orderSupport array makes the server fall back to bitmap
+            // updates instead of emitting drawing orders that cannot be applied.
+            pdu.AsSpan(order + 36, 32).Clear();
+        }
         return pdu;
+    }
+
+    private static ushort NormalizeBitmapColorDepth(ushort colorDepth)
+    {
+        return colorDepth is 15 or 16 or 24 or 32 ? colorDepth : (ushort)24;
     }
 
     private static byte[] CreateSynchronize(ushort userId, uint shareId)
@@ -407,7 +439,7 @@ internal sealed class RdpActivationSequence
         await WriteAsync(CreateMcsSendDataPacket(initiator, channelId, userData), cancellationToken).ConfigureAwait(false);
     }
 
-    private static byte[] CreateMcsSendDataPacket(ushort initiator, ushort channelId, byte[] userData)
+    internal static byte[] CreateMcsSendDataPacket(ushort initiator, ushort channelId, byte[] userData)
     {
         using var stream = new MemoryStream(userData.Length + 16);
         stream.WriteByte(0x64);
@@ -556,6 +588,76 @@ internal sealed class RdpActivationSequence
         source.AsSpan(0, offset).CopyTo(result);
         source.AsSpan(offset + count).CopyTo(result.AsSpan(offset));
         return result;
+    }
+
+    private static byte[] AddDynamicVirtualChannel(byte[] packet)
+    {
+        int networkOffset = FindSequence(packet, new byte[] { 0x03, 0xC0, 0x2C, 0x00 });
+        if (networkOffset < 0)
+        {
+            throw new InvalidDataException("The built-in GCC client network template is invalid.");
+        }
+
+        ushort networkLength = BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(networkOffset + 2, 2));
+        int insertionOffset = checked(networkOffset + networkLength);
+        byte[] channelDefinition =
+        [
+            (byte)'d', (byte)'r', (byte)'d', (byte)'y',
+            (byte)'n', (byte)'v', (byte)'c', 0,
+            0, 0, 0, 0x80 // CHANNEL_OPTION_INITIALIZED
+        ];
+
+        byte[] result = new byte[packet.Length + channelDefinition.Length];
+        packet.AsSpan(0, insertionOffset).CopyTo(result);
+        channelDefinition.CopyTo(result, insertionOffset);
+        packet.AsSpan(insertionOffset).CopyTo(result.AsSpan(insertionOffset + channelDefinition.Length));
+
+        BinaryPrimitives.WriteUInt16BigEndian(result.AsSpan(2, 2), checked((ushort)result.Length));
+        WriteTwoByteBerLength(result, 9, checked(result.Length - 12));
+
+        int gccUserDataOffset = FindSequence(result, new byte[] { 0x04, 0x82, 0x01, 0x33 });
+        if (gccUserDataOffset < 0)
+        {
+            throw new InvalidDataException("The built-in GCC user-data template is invalid.");
+        }
+        WriteTwoByteBerLength(result, gccUserDataOffset + 1, 307 + channelDefinition.Length);
+
+        int gccLengthOffset = FindSequence(result, new byte[] { 0x00, 0x05, 0x00, 0x14, 0x7C, 0x00, 0x01 });
+        if (gccLengthOffset < 0)
+        {
+            throw new InvalidDataException("The built-in GCC conference template is invalid.");
+        }
+        WriteTwoBytePerLength(result, gccLengthOffset + 7, 298 + channelDefinition.Length);
+
+        int coreOffset = FindSequence(result, new byte[] { 0x01, 0xC0, 0xD8, 0x00 });
+        if (coreOffset < 2)
+        {
+            throw new InvalidDataException("The built-in GCC core template is invalid.");
+        }
+        WriteTwoBytePerLength(result, coreOffset - 2, 284 + channelDefinition.Length);
+
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            result.AsSpan(networkOffset + 2, 2),
+            checked((ushort)(networkLength + channelDefinition.Length)));
+        BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(networkOffset + 4, 4), 4);
+        return result;
+    }
+
+    private static void WriteTwoByteBerLength(byte[] destination, int offset, int length)
+    {
+        destination[offset] = 0x82;
+        BinaryPrimitives.WriteUInt16BigEndian(destination.AsSpan(offset + 1, 2), checked((ushort)length));
+    }
+
+    private static void WriteTwoBytePerLength(byte[] destination, int offset, int length)
+    {
+        if (length is < 0x80 or > 0x3FFF)
+        {
+            throw new InvalidDataException("The GCC payload length is outside the two-byte PER range.");
+        }
+
+        destination[offset] = (byte)(0x80 | (length >> 8));
+        destination[offset + 1] = (byte)length;
     }
 
     internal readonly record struct RdpServerNetworkData(ushort IoChannelId, ushort[] StaticChannelIds);

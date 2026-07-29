@@ -10,6 +10,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = new MainWindowViewModel();
-        Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
+        Closed += async (_, _) =>
+        {
+            if (DataContext is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync();
+            }
+            else if (DataContext is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        };
     }
 }

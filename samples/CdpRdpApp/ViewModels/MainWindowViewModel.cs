@@ -76,12 +76,13 @@ public class RecorderStateViewModel : ReactiveObject
     public object TestStudio { get; } = new();
 }
 
-public class MainWindowViewModel : ReactiveObject, IDisposable
+public class MainWindowViewModel : ReactiveObject, IDisposable, IAsyncDisposable
 {
     private readonly Func<RdpSessionOptions, IRdpSession> _sessionFactory;
     public ConnectionStateViewModel Connection { get; } = new();
     public RecorderStateViewModel Recorder { get; } = new();
     private IRdpSession? _session;
+    private int _isDisposed;
 
     public IRdpSession? Session
     {
@@ -215,6 +216,22 @@ public class MainWindowViewModel : ReactiveObject, IDisposable
 
     public void Dispose()
     {
-        DisconnectSessionAsync().GetAwaiter().GetResult();
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            _ = DisposeAsync();
+            return;
+        }
+
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (System.Threading.Interlocked.Exchange(ref _isDisposed, 1) != 0)
+        {
+            return;
+        }
+
+        await DisconnectSessionAsync().ConfigureAwait(false);
     }
 }

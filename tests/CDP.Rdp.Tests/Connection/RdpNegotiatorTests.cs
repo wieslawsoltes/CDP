@@ -73,6 +73,60 @@ public class RdpNegotiatorTests
     }
 
     [AvaloniaFact]
+    public async Task NegotiateAsync_ServerDowngradesTlsRequestToPlainRdp_Throws()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using DuplexStreamPair pair = new DuplexStreamPair();
+        SimulatedRdpServer server = new SimulatedRdpServer(pair.ServerStream)
+        {
+            Behavior = ServerResponseBehavior.ForceProtocol,
+            ForcedProtocol = RdpSecurityProtocol.Rdp
+        };
+
+        Task serverTask = server.ProcessConnectionRequestAsync(ct);
+        RdpNegotiator negotiator = new RdpNegotiator();
+
+        RdpNegotiationException exception = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => negotiator.NegotiateAsync(
+                pair.ClientStream,
+                "localhost",
+                RdpSecurityProtocol.Ssl | RdpSecurityProtocol.Hybrid,
+                performSecurityHandshake: false,
+                cancellationToken: ct));
+        await serverTask;
+
+        Assert.Contains("did not request", exception.Message);
+        Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+    }
+
+    [AvaloniaFact]
+    public async Task NegotiateAsync_ServerSelectsHybridEx_RejectsUnsupportedAuthorizationExchange()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using DuplexStreamPair pair = new DuplexStreamPair();
+        SimulatedRdpServer server = new SimulatedRdpServer(pair.ServerStream)
+        {
+            Behavior = ServerResponseBehavior.ForceProtocol,
+            ForcedProtocol = RdpSecurityProtocol.HybridEx
+        };
+
+        Task serverTask = server.ProcessConnectionRequestAsync(ct);
+        RdpNegotiator negotiator = new RdpNegotiator();
+
+        RdpNegotiationException exception = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => negotiator.NegotiateAsync(
+                pair.ClientStream,
+                "localhost",
+                RdpSecurityProtocol.Ssl | RdpSecurityProtocol.Hybrid | RdpSecurityProtocol.HybridEx,
+                performSecurityHandshake: false,
+                cancellationToken: ct));
+        await serverTask;
+
+        Assert.Contains("Early User Authorization Result", exception.Message);
+        Assert.Equal(RdpNegotiationState.Failed, negotiator.State);
+    }
+
+    [AvaloniaFact]
     public async Task NegotiateAsync_ServerRejectsWithFailure_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;

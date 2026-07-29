@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using ReactiveUI;
@@ -16,6 +17,7 @@ public class ProfilesViewModel : ReactiveObject
 {
     private readonly IProfileStorageService _storageService;
     private readonly ICredentialProtectionService _credentialProtection;
+    private readonly SemaphoreSlim _profileOperationGate = new(1, 1);
     private RdpConnectionProfile? _selectedProfile;
     private string _searchQuery = string.Empty;
     private string _newName = "New Server";
@@ -113,21 +115,29 @@ public class ProfilesViewModel : ReactiveObject
 
     public async Task LoadProfilesAsync()
     {
-        var loaded = await _storageService.LoadProfilesAsync();
-        RunOnUIThread(() =>
+        await _profileOperationGate.WaitAsync();
+        try
         {
-            lock (Profiles)
+            var loaded = await _storageService.LoadProfilesAsync();
+            RunOnUIThread(() =>
             {
-                Profiles.Clear();
-                foreach (var p in loaded)
+                lock (Profiles)
                 {
-                    Profiles.Add(p);
+                    Profiles.Clear();
+                    foreach (var p in loaded)
+                    {
+                        Profiles.Add(p);
+                    }
                 }
-            }
 
-            ApplyFilter();
-            SelectedProfile = FilteredProfiles.FirstOrDefault();
-        });
+                ApplyFilter();
+                SelectedProfile = FilteredProfiles.FirstOrDefault();
+            });
+        }
+        finally
+        {
+            _profileOperationGate.Release();
+        }
     }
 
     private void ApplyFilter()
@@ -245,6 +255,7 @@ public class ProfilesViewModel : ReactiveObject
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
             return;
 
+        await _profileOperationGate.WaitAsync();
         try
         {
             string json = await File.ReadAllTextAsync(filePath);
@@ -281,6 +292,10 @@ public class ProfilesViewModel : ReactiveObject
             {
                 StatusText = $"Import failed: {ex.Message}";
             });
+        }
+        finally
+        {
+            _profileOperationGate.Release();
         }
     }
 

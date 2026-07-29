@@ -350,6 +350,28 @@ public class Milestone2Iteration5EmpiricalStressHarness
         // Unprotect falls back to original string when base64 decode fails
         Assert.Equal("ENC:DefinitelyNotValidBase64!!!", corruptProfile.Password);
     }
+
+    [AvaloniaFact]
+    public async Task ProfileImport_WaitsForInitialLoad_AndIsNotOverwritten()
+    {
+        string importFile = Path.Combine(_tempTestDir, "import_during_initial_load.json");
+        await File.WriteAllTextAsync(
+            importFile,
+            """[{"Id":"imported-1","Name":"Imported","Host":"10.0.0.2","Port":3389}]""");
+
+        var storage = new DelayedProfileStorageService();
+        var vm = new ProfilesViewModel(storage, new CredentialProtectionService());
+        await storage.LoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Task importTask = vm.ExecuteImportProfilesAsync(importFile);
+        Assert.False(importTask.IsCompleted);
+
+        storage.ReleaseLoad.TrySetResult();
+        await importTask;
+
+        Assert.Contains(vm.Profiles, profile => profile.Id == "imported-1");
+        Assert.Contains(storage.SavedProfiles, profile => profile.Id == "imported-1");
+    }
 }
 
 public class DummyTestRdpSession : IRdpSession, IDisposable
@@ -401,4 +423,35 @@ public class DummyTestRdpSession : IRdpSession, IDisposable
     {
         IsDisposed = true;
     }
+}
+
+internal sealed class DelayedProfileStorageService : IProfileStorageService
+{
+    public TaskCompletionSource LoadStarted { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public TaskCompletionSource ReleaseLoad { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public IReadOnlyList<RdpConnectionProfile> SavedProfiles { get; private set; } =
+        Array.Empty<RdpConnectionProfile>();
+
+    public async Task<List<RdpConnectionProfile>> LoadProfilesAsync()
+    {
+        LoadStarted.TrySetResult();
+        await ReleaseLoad.Task;
+        return new List<RdpConnectionProfile>();
+    }
+
+    public Task SaveProfilesAsync(IEnumerable<RdpConnectionProfile> profiles)
+    {
+        SavedProfiles = profiles.ToList();
+        return Task.CompletedTask;
+    }
+
+    public Task AddProfileAsync(RdpConnectionProfile profile) => Task.CompletedTask;
+
+    public Task UpdateProfileAsync(RdpConnectionProfile profile) => Task.CompletedTask;
+
+    public Task DeleteProfileAsync(string profileId) => Task.CompletedTask;
 }

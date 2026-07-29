@@ -25,6 +25,31 @@ public class WindowsRdpAppEmpiricalStressTests
         }
     }
 
+    [AvaloniaTheory]
+    [InlineData(65536, 1080, 32, "Width")]
+    [InlineData(1920, 65536, 32, "Height")]
+    [InlineData(1920, 1080, 65536, "ColorDepth")]
+    [InlineData(1920, 1080, 20, "ColorDepth")]
+    public async Task SessionConnect_InvalidDesktopSettings_AreRejectedBeforeNarrowing(
+        int width,
+        int height,
+        int colorDepth,
+        string parameterName)
+    {
+        using var tab = new RdpSessionTab
+        {
+            Width = width,
+            Height = height,
+            ColorDepth = colorDepth
+        };
+
+        ArgumentOutOfRangeException exception =
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => tab.ConnectSessionAsync());
+
+        Assert.Equal(parameterName, exception.ParamName);
+        Assert.Null(tab.Session);
+    }
+
     // ----------------------------------------------------------------------------------
     // 1. Profile Storage Serialization & Persistence Empirical Tests
     // ----------------------------------------------------------------------------------

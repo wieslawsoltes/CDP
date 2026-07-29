@@ -1,6 +1,7 @@
 namespace CDP.Rdp.Tests.ViewModels;
 
 using CdpRdpApp.ViewModels;
+using CdpRdpApp;
 using CDP.Rdp.Frames;
 using CDP.Rdp.Input;
 using CDP.Rdp.Session;
@@ -21,6 +22,16 @@ public class CdpRdpAppViewModelTests
         Assert.False(vm.Connection.IsConnected);
         Assert.Equal("Disconnected", vm.Connection.StatusText);
         Assert.False(vm.Recorder.IsRecording);
+    }
+
+    [AvaloniaTheory]
+    [InlineData("invalid", 9224)]
+    [InlineData("0", 9224)]
+    [InlineData("65536", 9224)]
+    [InlineData("9225", 9225)]
+    public void ResolveHeadlessPort_InvalidValuesPreserveDefault(string value, int expected)
+    {
+        Assert.Equal(expected, Program.ResolveHeadlessPort(["--headless", "--port", value]));
     }
 
     [AvaloniaFact]

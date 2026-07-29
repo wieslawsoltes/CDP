@@ -86,6 +86,7 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
         using var authentication = new NegotiateAuthentication(authOptions);
         byte[] incomingToken = Array.Empty<byte>();
         TsRequestPdu? bindingResponse = null;
+        int negotiatedVersion = 6;
 
         for (int round = 0; round < 16; round++)
         {
@@ -100,23 +101,26 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
 
             if (status == NegotiateAuthenticationStatusCode.Completed)
             {
-                byte[] bindingHash = ComputeBindingHash(
-                    "CredSSP Client-To-Server Binding Hash\0",
-                    clientNonce,
-                    publicKey);
-                byte[] wrappedBinding = Wrap(authentication, bindingHash);
+                byte[] clientBinding = CreateClientBinding(negotiatedVersion, clientNonce, publicKey);
+                byte[] wrappedBinding = Wrap(authentication, clientBinding);
                 await WriteRequestAsync(
                     stream,
                     new TsRequestPdu
                     {
-                        Version = 6,
+                        Version = negotiatedVersion,
                         NegoToken = outgoingToken is { Length: > 0 } ? outgoingToken : null,
                         PubKeyAuth = wrappedBinding,
-                        ClientNonce = clientNonce
+                        ClientNonce = negotiatedVersion >= 5 ? clientNonce : null
                     },
                     cancellationToken).ConfigureAwait(false);
 
                 bindingResponse = await ReadRequestAsync(stream, cancellationToken).ConfigureAwait(false);
+                int responseVersion = NegotiateVersion(bindingResponse.Version);
+                if (responseVersion != negotiatedVersion)
+                {
+                    throw new RdpNegotiationException(
+                        $"CredSSP server changed the negotiated version from {negotiatedVersion} to {responseVersion} during public-key authentication.");
+                }
                 break;
             }
 
@@ -127,10 +131,11 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
 
             await WriteRequestAsync(
                 stream,
-                new TsRequestPdu { Version = 6, NegoToken = outgoingToken },
+                new TsRequestPdu { Version = negotiatedVersion, NegoToken = outgoingToken },
                 cancellationToken).ConfigureAwait(false);
             TsRequestPdu serverRequest = await ReadRequestAsync(stream, cancellationToken).ConfigureAwait(false);
             ThrowIfServerRejected(serverRequest);
+            negotiatedVersion = Math.Min(negotiatedVersion, NegotiateVersion(serverRequest.Version));
             incomingToken = serverRequest.NegoToken
                 ?? throw new RdpNegotiationException("CredSSP server response omitted the SPNEGO token.");
         }
@@ -144,10 +149,7 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
         byte[] wrappedServerBinding = bindingResponse.PubKeyAuth
             ?? throw new RdpNegotiationException("CredSSP server response omitted public-key authentication.");
         byte[] serverBinding = Unwrap(authentication, wrappedServerBinding);
-        byte[] expectedServerBinding = ComputeBindingHash(
-            "CredSSP Server-To-Client Binding Hash\0",
-            clientNonce,
-            publicKey);
+        byte[] expectedServerBinding = CreateExpectedServerBinding(negotiatedVersion, clientNonce, publicKey);
         if (!CryptographicOperations.FixedTimeEquals(serverBinding, expectedServerBinding))
         {
             throw new RdpNegotiationException("CredSSP server public-key binding validation failed.");
@@ -158,10 +160,57 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
             stream,
             new TsRequestPdu
             {
-                Version = 6,
+                Version = negotiatedVersion,
                 AuthInfo = Wrap(authentication, credentials)
             },
             cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static int NegotiateVersion(int peerVersion)
+    {
+        if (peerVersion < 2)
+        {
+            throw new RdpNegotiationException(
+                $"CredSSP server advertised unsupported protocol version {peerVersion}.");
+        }
+
+        return Math.Min(peerVersion, 6);
+    }
+
+    internal static byte[] CreateClientBinding(
+        int negotiatedVersion,
+        ReadOnlySpan<byte> clientNonce,
+        ReadOnlySpan<byte> publicKey)
+    {
+        return negotiatedVersion >= 5
+            ? ComputeBindingHash(
+                "CredSSP Client-To-Server Binding Hash\0",
+                clientNonce,
+                publicKey)
+            : publicKey.ToArray();
+    }
+
+    internal static byte[] CreateExpectedServerBinding(
+        int negotiatedVersion,
+        ReadOnlySpan<byte> clientNonce,
+        ReadOnlySpan<byte> publicKey)
+    {
+        if (negotiatedVersion >= 5)
+        {
+            return ComputeBindingHash(
+                "CredSSP Server-To-Client Binding Hash\0",
+                clientNonce,
+                publicKey);
+        }
+
+        if (publicKey.IsEmpty)
+        {
+            throw new RdpNegotiationException("CredSSP TLS certificate public key is empty.");
+        }
+
+        byte[] modifiedPublicKey = publicKey.ToArray();
+        modifiedPublicKey[0] = unchecked((byte)(modifiedPublicKey[0] + 1));
+        return modifiedPublicKey;
     }
 
     private static void ThrowIfServerRejected(TsRequestPdu response)

@@ -29,7 +29,41 @@ public sealed class RdpActivationSequenceTests
         Assert.True(coreOffset >= 0);
         Assert.Equal(1440, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 8, 2)));
         Assert.Equal(900, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 10, 2)));
-        Assert.Equal(24, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 144, 2)));
+        Assert.Equal(24, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 142, 2)));
+        Assert.Equal(0x0008, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 144, 2)));
+
+        int networkOffset = packet.AsSpan().IndexOf(new byte[] { 0x03, 0xC0, 0x38, 0x00 });
+        Assert.True(networkOffset >= 0);
+        Assert.Equal(4u, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(networkOffset + 4, 4)));
+        Assert.True(packet.AsSpan(networkOffset + 44, 8).SequenceEqual("drdynvc\0"u8));
+    }
+
+    [AvaloniaTheory]
+    [InlineData((ushort)15, (ushort)15, (ushort)0x0001)]
+    [InlineData((ushort)16, (ushort)16, (ushort)0x0002)]
+    [InlineData((ushort)24, (ushort)24, (ushort)0x0004)]
+    [InlineData((ushort)32, (ushort)24, (ushort)0x0008)]
+    public void CreateConnectInitial_EncodesHighColorDepthAndSupportedDepthFlag(
+        ushort requestedDepth,
+        ushort expectedHighColorDepth,
+        ushort expectedSupportedFlag)
+    {
+        using var stream = new MemoryStream();
+        using var transport = new PlainRdpSecurityTransport(stream);
+        var sequence = new RdpActivationSequence(
+            transport,
+            new RdpSessionOptions { ColorDepth = requestedDepth });
+
+        byte[] packet = sequence.CreateConnectInitial();
+        int coreOffset = packet.AsSpan().IndexOf(new byte[] { 0x01, 0xC0, 0xD8, 0x00 });
+
+        Assert.True(coreOffset >= 0);
+        Assert.Equal(
+            expectedHighColorDepth,
+            BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 142, 2)));
+        Assert.Equal(
+            expectedSupportedFlag,
+            BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 144, 2)));
     }
 
     [AvaloniaFact]
@@ -50,6 +84,10 @@ public sealed class RdpActivationSequenceTests
         Assert.True(bitmapOffset >= 0);
         Assert.Equal(1366, BinaryPrimitives.ReadUInt16LittleEndian(pdu.AsSpan(bitmapOffset + 12, 2)));
         Assert.Equal(768, BinaryPrimitives.ReadUInt16LittleEndian(pdu.AsSpan(bitmapOffset + 14, 2)));
+
+        int orderOffset = pdu.AsSpan().IndexOf(new byte[] { 0x03, 0x00, 0x58, 0x00 });
+        Assert.True(orderOffset >= 0);
+        Assert.True(pdu.AsSpan(orderOffset + 36, 32).SequenceEqual(new byte[32]));
     }
 
     [AvaloniaFact]

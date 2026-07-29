@@ -12,21 +12,14 @@ public class AvaloniaHeadlessPlatformOptions : Avalonia.Headless.AvaloniaHeadles
     public bool UseDotNetSystemFont { get; set; }
 }
 
-class Program
+public class Program
 {
     [STAThread]
     public static void Main(string[] args)
     {
         if (Array.Exists(args, arg => arg.Equals("--headless", StringComparison.OrdinalIgnoreCase)))
         {
-            int port = 9224;
-            for (int i = 0; i < args.Length; i++)
-            {
-                if (args[i].Equals("--port", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-                {
-                    int.TryParse(args[i + 1], out port);
-                }
-            }
+            int port = ResolveHeadlessPort(args);
 
             var builder = AppBuilder.Configure<App>()
                 .UseReactiveUI(_ => { })
@@ -56,6 +49,23 @@ class Program
         {
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
+    }
+
+    public static int ResolveHeadlessPort(string[] args)
+    {
+        int port = 9224;
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i].Equals("--port", StringComparison.OrdinalIgnoreCase) &&
+                i + 1 < args.Length &&
+                int.TryParse(args[i + 1], out int parsedPort) &&
+                parsedPort is >= 1 and <= 65535)
+            {
+                port = parsedPort;
+            }
+        }
+
+        return port;
     }
 
     public static AppBuilder BuildAvaloniaApp()

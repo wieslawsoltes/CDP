@@ -76,5 +76,20 @@ public class ChannelPduHeaderTests
         Assert.Equal(1004, parsed.InitiatorId);
         Assert.Equal(1005, parsed.RequestedChannelId);
         Assert.Equal(1005, parsed.ChannelId);
+        Assert.True(parsed.HasChannelId);
+        Assert.Equal(0x3E, buffer[0]);
+    }
+
+    [AvaloniaFact]
+    public void McsChannelJoinConfirm_WithoutOptionalChannelId_ParsesPresenceBit()
+    {
+        byte[] buffer = [0x3C, 0x00, 0x00, 0x03, 0x03, 0xED];
+        var reader = new RdpPacketReader(buffer);
+
+        Assert.True(McsChannelJoinConfirm.TryRead(ref reader, out McsChannelJoinConfirm parsed));
+        Assert.False(parsed.HasChannelId);
+        Assert.Equal(1004, parsed.InitiatorId);
+        Assert.Equal(1005, parsed.RequestedChannelId);
+        Assert.Equal(parsed.RequestedChannelId, parsed.ChannelId);
     }
 }

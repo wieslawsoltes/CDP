@@ -3,6 +3,7 @@ namespace CDP.Rdp.Tests.Security;
 
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography;
@@ -55,6 +56,47 @@ public class CredSspSecurityTransportTests
         byte[] invalidData = new byte[] { 0x12, 0x34, 0x56, 0x78 };
         bool parsed = TsRequestPdu.TryParse(invalidData, out TsRequestPdu _);
         Assert.False(parsed);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void CredSspBinding_LegacyVersions_UseModifiedPublicKeyProof(int version)
+    {
+        byte[] nonce = Enumerable.Repeat((byte)0x44, 32).ToArray();
+        byte[] publicKey = [0x10, 0x20, 0x30, 0x40];
+
+        Assert.Equal(
+            publicKey,
+            CredSspSecurityTransport.CreateClientBinding(version, nonce, publicKey));
+        Assert.Equal(
+            new byte[] { 0x11, 0x20, 0x30, 0x40 },
+            CredSspSecurityTransport.CreateExpectedServerBinding(version, nonce, publicKey));
+    }
+
+    [AvaloniaTheory]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void CredSspBinding_ModernVersions_UseNonceBoundHashes(int version)
+    {
+        byte[] nonce = Enumerable.Repeat((byte)0x44, 32).ToArray();
+        byte[] publicKey = [0x10, 0x20, 0x30, 0x40];
+
+        byte[] clientBinding = CredSspSecurityTransport.CreateClientBinding(version, nonce, publicKey);
+        byte[] serverBinding = CredSspSecurityTransport.CreateExpectedServerBinding(version, nonce, publicKey);
+
+        Assert.Equal(32, clientBinding.Length);
+        Assert.Equal(32, serverBinding.Length);
+        Assert.NotEqual(clientBinding, serverBinding);
+        Assert.NotEqual(publicKey, clientBinding);
+    }
+
+    [AvaloniaFact]
+    public void CredSspVersion_RejectsVersionsBelowTwoAndCapsFutureVersions()
+    {
+        Assert.Throws<RdpNegotiationException>(() => CredSspSecurityTransport.NegotiateVersion(1));
+        Assert.Equal(6, CredSspSecurityTransport.NegotiateVersion(99));
     }
 
     private static X509Certificate2 CreateTestCertificate()

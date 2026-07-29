@@ -55,30 +55,50 @@ public readonly struct McsChannelJoinRequest
 public readonly struct McsChannelJoinConfirm
 {
     public const byte ChoiceTag = 0x3C;
+    private const byte ChannelIdPresent = 0x02;
 
     public byte Result { get; }
     public ushort InitiatorId { get; }
     public ushort RequestedChannelId { get; }
     public ushort ChannelId { get; }
+    public bool HasChannelId { get; }
 
     public McsChannelJoinConfirm(byte result, ushort initiatorId, ushort requestedChannelId, ushort channelId)
+        : this(result, initiatorId, requestedChannelId, channelId, hasChannelId: true)
+    {
+    }
+
+    private McsChannelJoinConfirm(
+        byte result,
+        ushort initiatorId,
+        ushort requestedChannelId,
+        ushort channelId,
+        bool hasChannelId)
     {
         Result = result;
         InitiatorId = initiatorId;
         RequestedChannelId = requestedChannelId;
         ChannelId = channelId;
+        HasChannelId = hasChannelId;
     }
 
     public static bool TryRead(ref RdpPacketReader reader, out McsChannelJoinConfirm pdu)
     {
-        if (reader.UnreadLength < 8)
+        if (reader.UnreadLength < 6)
         {
             pdu = default;
             return false;
         }
 
         byte tag = reader.ReadByte();
-        if (tag != ChoiceTag)
+        if (tag != ChoiceTag && tag != (ChoiceTag | ChannelIdPresent))
+        {
+            pdu = default;
+            return false;
+        }
+
+        bool hasChannelId = (tag & ChannelIdPresent) != 0;
+        if (hasChannelId && reader.UnreadLength < 7)
         {
             pdu = default;
             return false;
@@ -87,14 +107,14 @@ public readonly struct McsChannelJoinConfirm
         byte result = reader.ReadByte();
         ushort initiator = checked((ushort)(reader.ReadUInt16BE() + McsPerHelper.UserIdBase));
         ushort requested = reader.ReadUInt16BE();
-        ushort channel = reader.ReadUInt16BE();
-        pdu = new McsChannelJoinConfirm(result, initiator, requested, channel);
+        ushort channel = hasChannelId ? reader.ReadUInt16BE() : requested;
+        pdu = new McsChannelJoinConfirm(result, initiator, requested, channel, hasChannelId);
         return true;
     }
 
     public void Write(ref RdpPacketWriter writer)
     {
-        writer.WriteByte(ChoiceTag);
+        writer.WriteByte((byte)(ChoiceTag | ChannelIdPresent));
         writer.WriteByte(Result);
         McsPerHelper.WriteUserId(ref writer, InitiatorId);
         writer.WriteUInt16BE(RequestedChannelId);

@@ -118,6 +118,7 @@ public class RdpControl : Control
     private SKBitmap? _cachedSkiaBitmap;
     private WriteableBitmap? _writeableBitmap;
     private IRdpSession? _subscribedSession;
+    private readonly object _frameGate = new();
 
     public RdpFrameBuffer? FrameBuffer => _frameBuffer;
     public RdpSkiaCanvas? SkiaCanvas => _skiaCanvas;
@@ -140,9 +141,12 @@ public class RdpControl : Control
             throw new ArgumentOutOfRangeException(nameof(width), "Frame-buffer dimensions must be positive.");
         }
 
-        _frameBuffer?.Dispose();
-        _frameBuffer = new RdpFrameBuffer(width, height);
-        _skiaCanvas = new RdpSkiaCanvas(_frameBuffer);
+        lock (_frameGate)
+        {
+            _frameBuffer?.Dispose();
+            _frameBuffer = new RdpFrameBuffer(width, height);
+            _skiaCanvas = new RdpSkiaCanvas(_frameBuffer);
+        }
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -185,24 +189,36 @@ public class RdpControl : Control
         }
 
         UnsubscribeFromSession();
-        session.FrameUpdated += OnFrameUpdated;
-        _subscribedSession = session;
+        lock (_frameGate)
+        {
+            session.FrameUpdated += OnFrameUpdated;
+            _subscribedSession = session;
+        }
     }
 
     private void UnsubscribeFromSession()
     {
-        if (_subscribedSession != null)
+        lock (_frameGate)
         {
-            _subscribedSession.FrameUpdated -= OnFrameUpdated;
-            _subscribedSession = null;
+            if (_subscribedSession != null)
+            {
+                _subscribedSession.FrameUpdated -= OnFrameUpdated;
+                _subscribedSession = null;
+            }
         }
     }
 
     private void OnFrameUpdated(object? sender, RdpFrameUpdateEventArgs e)
     {
-        if (_frameBuffer == null) return;
+        lock (_frameGate)
+        {
+            if (!ReferenceEquals(sender, _subscribedSession) || _frameBuffer == null)
+            {
+                return;
+            }
 
-        _frameBuffer.ApplyFrameUpdate(e);
+            _frameBuffer.ApplyFrameUpdate(e);
+        }
         Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Render);
 
         foreach (var session in Chrome.DevTools.Protocol.CdpServer.Sessions)
@@ -351,23 +367,45 @@ public class RdpControl : Control
         TranslateCoordinates(pos, out ushort xPos, out ushort yPos);
 
         var currentPoint = e.GetCurrentPoint(this);
-        RdpPointerFlags flags = RdpPointerFlags.None;
+        RdpPointerFlags flags = CreatePointerFlags(
+            isDown,
+            isMove,
+            currentPoint.Properties.IsLeftButtonPressed,
+            currentPoint.Properties.IsRightButtonPressed,
+            currentPoint.Properties.IsMiddleButtonPressed,
+            currentPoint.Properties.PointerUpdateKind);
 
+        var mouseEvent = new RdpMouseEvent((uint)Environment.TickCount, flags, xPos, yPos);
+        _ = Session.SendInputEventAsync(new RdpInputEvent((uint)Environment.TickCount, mouseEvent));
+    }
+
+    internal static RdpPointerFlags CreatePointerFlags(
+        bool isDown,
+        bool isMove,
+        bool isLeftButtonPressed,
+        bool isRightButtonPressed,
+        bool isMiddleButtonPressed,
+        PointerUpdateKind updateKind)
+    {
         if (isMove)
         {
-            flags |= RdpPointerFlags.Move;
+            // Button1/2/3 without Down encode releases in RDP. A drag move is
+            // therefore a coordinate-only move; the remote button remains down
+            // until the corresponding explicit release event arrives.
+            return RdpPointerFlags.Move;
         }
 
-        if (currentPoint.Properties.IsLeftButtonPressed)
+        RdpPointerFlags flags = RdpPointerFlags.None;
+        if (isLeftButtonPressed)
             flags |= RdpPointerFlags.Button1;
-        if (currentPoint.Properties.IsRightButtonPressed)
+        if (isRightButtonPressed)
             flags |= RdpPointerFlags.Button2;
-        if (currentPoint.Properties.IsMiddleButtonPressed)
+        if (isMiddleButtonPressed)
             flags |= RdpPointerFlags.Button3;
 
-        if (!isDown && !isMove && e is PointerReleasedEventArgs)
+        if (!isDown)
         {
-            flags |= currentPoint.Properties.PointerUpdateKind switch
+            flags |= updateKind switch
             {
                 PointerUpdateKind.LeftButtonReleased => RdpPointerFlags.Button1,
                 PointerUpdateKind.RightButtonReleased => RdpPointerFlags.Button2,
@@ -381,8 +419,7 @@ public class RdpControl : Control
             flags |= RdpPointerFlags.Down;
         }
 
-        var mouseEvent = new RdpMouseEvent((uint)Environment.TickCount, flags, xPos, yPos);
-        _ = Session.SendInputEventAsync(new RdpInputEvent((uint)Environment.TickCount, mouseEvent));
+        return flags;
     }
 
     public void TranslateCoordinates(Point controlPoint, out ushort xPos, out ushort yPos)

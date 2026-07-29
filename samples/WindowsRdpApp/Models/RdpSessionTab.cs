@@ -233,6 +233,11 @@ public class RdpSessionTab : ReactiveObject, IDisposable
         _connectCts?.Cancel();
         _connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
+        int desktopWidth = Width <= 0 ? 1920 : Width;
+        int desktopHeight = Height <= 0 ? 1080 : Height;
+        int desktopColorDepth = ColorDepth <= 0 ? 32 : ColorDepth;
+        ValidateDesktopSettings(desktopWidth, desktopHeight, desktopColorDepth);
+
         var options = new RdpSessionOptions
         {
             Host = Host,
@@ -240,9 +245,9 @@ public class RdpSessionTab : ReactiveObject, IDisposable
             Username = Username,
             Password = Password,
             Domain = Domain,
-            Width = (ushort)(Width <= 0 ? 1920 : Width),
-            Height = (ushort)(Height <= 0 ? 1080 : Height),
-            ColorDepth = (ushort)(ColorDepth <= 0 ? 32 : ColorDepth),
+            Width = checked((ushort)desktopWidth),
+            Height = checked((ushort)desktopHeight),
+            ColorDepth = checked((ushort)desktopColorDepth),
             AcceptUntrustedCertificates = false
         };
 
@@ -298,6 +303,33 @@ public class RdpSessionTab : ReactiveObject, IDisposable
                 Status = "Faulted";
                 ConnectionState = RdpConnectionState.Faulted;
             });
+        }
+    }
+
+    private static void ValidateDesktopSettings(int width, int height, int colorDepth)
+    {
+        if (width is < 1 or > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(Width),
+                width,
+                $"Desktop width must be in the range 1-{ushort.MaxValue}.");
+        }
+
+        if (height is < 1 or > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(Height),
+                height,
+                $"Desktop height must be in the range 1-{ushort.MaxValue}.");
+        }
+
+        if (colorDepth is not (15 or 16 or 24 or 32))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(ColorDepth),
+                colorDepth,
+                "Desktop color depth must be 15, 16, 24, or 32 bits per pixel.");
         }
     }
 

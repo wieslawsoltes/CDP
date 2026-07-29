@@ -2,16 +2,34 @@ using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Controls;
 
 using System;
-
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Diagnostics.Cdp.Rdp;
+using Avalonia.Input;
 using CDP.Rdp.Frames;
+using CDP.Rdp.Input;
 using CDP.Rdp.Session;
 using Xunit;
 
 [Xunit.Collection("RdpTests")]
 public class RdpControlTests
 {
+    private sealed class TestSession : IRdpSession
+    {
+        public RdpConnectionState State => RdpConnectionState.Connected;
+        public RdpSessionOptions Options { get; } = new() { Width = 2, Height = 2 };
+        public event EventHandler<RdpFrameUpdateEventArgs>? FrameUpdated;
+        public event EventHandler<RdpConnectionStateChangedEventArgs>? StateChanged;
+        public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DisconnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SendInputEventAsync(RdpInputEvent inputEvent, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SendFastPathInputEventAsync(RdpFastPathInputEvent inputEvent, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public void RaiseFrame(RdpFrameUpdateEventArgs args) => FrameUpdated?.Invoke(this, args);
+        public void Dispose() { }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     [AvaloniaFact]
     public void RdpControl_Defaults_InitializedCorrectly()
     {
@@ -92,5 +110,47 @@ public class RdpControlTests
         control.TranslateCoordinates(new Point(double.NaN, double.NaN), out ushort xNan, out ushort yNan);
         Assert.Equal((ushort)0, xNan);
         Assert.Equal((ushort)0, yNan);
+    }
+
+    [AvaloniaFact]
+    public void CreatePointerFlags_DragMoveDoesNotEncodeButtonRelease()
+    {
+        RdpPointerFlags flags = RdpControl.CreatePointerFlags(
+            isDown: false,
+            isMove: true,
+            isLeftButtonPressed: true,
+            isRightButtonPressed: false,
+            isMiddleButtonPressed: false,
+            PointerUpdateKind.Other);
+
+        Assert.Equal(RdpPointerFlags.Move, flags);
+        Assert.False(flags.HasFlag(RdpPointerFlags.Button1));
+        Assert.False(flags.HasFlag(RdpPointerFlags.Down));
+    }
+
+    [AvaloniaFact]
+    public void SessionReplacement_IgnoresInFlightFramesFromPreviousSession()
+    {
+        var control = new RdpControl();
+        using var first = new TestSession();
+        using var second = new TestSession();
+        control.Session = first;
+        control.Session = second;
+
+        var staleUpdate = new RdpBitmapUpdate(
+            0,
+            0,
+            1,
+            1,
+            32,
+            false,
+            new byte[] { 0x10, 0x20, 0x30, 0xFF });
+        first.RaiseFrame(new RdpFrameUpdateEventArgs(41, DateTimeOffset.UtcNow, [staleUpdate]));
+
+        Assert.NotNull(control.FrameBuffer);
+        Assert.Equal(0UL, control.FrameBuffer.CurrentFrameId);
+
+        second.RaiseFrame(new RdpFrameUpdateEventArgs(42, DateTimeOffset.UtcNow, [staleUpdate]));
+        Assert.Equal(42UL, control.FrameBuffer.CurrentFrameId);
     }
 }
