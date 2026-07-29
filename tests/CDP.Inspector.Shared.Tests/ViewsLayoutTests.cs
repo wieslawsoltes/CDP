@@ -1152,7 +1152,12 @@ public class ViewsLayoutTests
             window.MouseDown(tabCenter.Value, MouseButton.Left, RawInputModifiers.None);
             var outsideHeader = new Point(tabCenter.Value.X, tabCenter.Value.Y - 100);
             window.MouseMove(outsideHeader, RawInputModifiers.LeftMouseButton);
-            window.MouseUp(outsideHeader, MouseButton.Left, RawInputModifiers.None);
+            // The drag handler releases capture once the pointer leaves the header.
+            // Release the raw mouse back inside the headless root so every platform
+            // observes the button-up event and the next test cannot inherit a
+            // globally pressed primary pointer.
+            window.MouseMove(tabCenter.Value, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(tabCenter.Value, MouseButton.Left, RawInputModifiers.None);
 
             Assert.True(eventFired);
             Assert.Equal(tab1, eventTab);
