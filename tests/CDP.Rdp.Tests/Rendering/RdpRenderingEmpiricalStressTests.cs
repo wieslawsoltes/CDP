@@ -144,7 +144,7 @@ public class RdpRenderingEmpiricalStressTests
         using var targetBitmap = new SKBitmap(800, 600, SKColorType.Bgra8888, SKAlphaType.Opaque);
         using var targetCanvas = new SKCanvas(targetBitmap);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource();
         var tasks = new List<Task>();
 
         // 4 Writer Threads: ApplyFrameUpdate and ApplyTile
@@ -206,7 +206,14 @@ public class RdpRenderingEmpiricalStressTests
                 TaskScheduler.Default));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        Thread.Sleep(TimeSpan.FromSeconds(2));
+        cts.Cancel();
+
+        Task[] workers = tasks.ToArray();
+        bool workersStopped = Task.WaitAll(workers, TimeSpan.FromSeconds(10));
+        Assert.True(
+            workersStopped,
+            "Concurrent frame-buffer workers did not stop within 10 seconds after cancellation.");
         Assert.True(canvas.RenderedFrameCount > 0);
     }
 
