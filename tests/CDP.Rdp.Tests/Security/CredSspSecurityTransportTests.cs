@@ -4,10 +4,6 @@ namespace CDP.Rdp.Tests.Security;
 using System;
 using System.IO;
 using System.Linq;
-using System.Net.Security;
-using System.Security.Authentication;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using CDP.Rdp.Exceptions;
 using CDP.Rdp.Protocol;
@@ -99,54 +95,19 @@ public class CredSspSecurityTransportTests
         Assert.Equal(6, CredSspSecurityTransport.NegotiateVersion(99));
     }
 
-    private static X509Certificate2 CreateTestCertificate()
-    {
-        using RSA rsa = RSA.Create(2048);
-        CertificateRequest req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using X509Certificate2 certWithKey = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
-        return X509CertificateLoader.LoadPkcs12(certWithKey.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.MachineKeySet);
-    }
-
     [AvaloniaFact]
-    public async Task HandshakeAsync_EchoedClientSpnegoToken_IsRejected()
+    public void ContinuationResponse_EchoedClientSpnegoToken_IsRejected()
     {
-        var ct = TestContext.Current.CancellationToken;
-        using DuplexStreamPair pair = new DuplexStreamPair();
-        using X509Certificate2 cert = CreateTestCertificate();
-
-        Task serverTask = Task.Run(async () =>
+        byte[] clientToken = [0x01, 0x02, 0x03, 0x04];
+        TsRequestPdu serverResponse = new TsRequestPdu
         {
-            using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-            await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+            Version = 2,
+            NegoToken = clientToken,
+            ErrorCode = 0
+        };
 
-            byte[] buf = new byte[1024];
-            int bytesRead = await serverSsl.ReadAsync(buf, ct);
-            Assert.True(bytesRead > 0);
-
-            Assert.True(TsRequestPdu.TryParse(buf.AsSpan(0, bytesRead), out TsRequestPdu clientReq));
-            Assert.NotNull(clientReq.NegoToken);
-
-            TsRequestPdu serverResp = new TsRequestPdu
-            {
-                Version = 2,
-                NegoToken = clientReq.NegoToken,
-                ErrorCode = 0
-            };
-            byte[] respData = serverResp.Encode();
-            await serverSsl.WriteAsync(respData, ct);
-            await serverSsl.FlushAsync(ct);
-        }, ct);
-
-        using CredSspSecurityTransport transport = new CredSspSecurityTransport(
-            pair.ClientStream,
-            "testuser",
-            "testpass",
-            "DOMAIN",
-            certValidation: (s, c, ch, e) => true);
-
-        var exception = await Assert.ThrowsAsync<RdpNegotiationException>(
-            () => transport.HandshakeAsync("localhost", ct));
-        await serverTask;
+        RdpNegotiationException exception = Assert.Throws<RdpNegotiationException>(
+            () => CredSspSecurityTransport.ValidateContinuationResponse(serverResponse, clientToken));
 
         Assert.Contains("SPNEGO authentication failed", exception.Message);
     }
@@ -170,29 +131,15 @@ public class CredSspSecurityTransportTests
     public async Task HandshakeAsync_EmptyUsername_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
-        using DuplexStreamPair pair = new DuplexStreamPair();
-        using X509Certificate2 cert = CreateTestCertificate();
-
-        Task serverTask = Task.Run(async () =>
-        {
-            try
-            {
-                using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-                await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
-            }
-            catch { }
-        }, ct);
+        using MemoryStream stream = new MemoryStream();
 
         using CredSspSecurityTransport transport = new CredSspSecurityTransport(
-            pair.ClientStream,
+            stream,
             "",
             "testpass",
-            "DOMAIN",
-            certValidation: (s, c, ch, e) => true);
+            "DOMAIN");
 
         var ex = await Assert.ThrowsAsync<RdpNegotiationException>(() => transport.HandshakeAsync("localhost", ct));
-        pair.Dispose();
-        try { await serverTask; } catch { }
 
         Assert.Contains("Username credential was not specified", ex.Message);
     }

@@ -3,27 +3,14 @@ namespace CDP.Rdp.Tests.Security;
 
 using System;
 using System.IO;
-using System.Net.Security;
-using System.Security.Authentication;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using CDP.Rdp.Exceptions;
 using CDP.Rdp.Security;
-using CDP.Rdp.Tests.Fixtures;
 using Xunit;
 
 [Xunit.Collection("RdpTests")]
 public class TsRequestPduEmpiricalChallengeTests
 {
-    private static X509Certificate2 CreateTestCertificate()
-    {
-        using RSA rsa = RSA.Create(2048);
-        CertificateRequest req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using X509Certificate2 certWithKey = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(10));
-        return X509CertificateLoader.LoadPkcs12(certWithKey.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.MachineKeySet);
-    }
-
     #region 1. Corrupted ASN.1 DER Tag Sequences
 
     [AvaloniaTheory]
@@ -319,148 +306,61 @@ public class TsRequestPduEmpiricalChallengeTests
     }
 
     [AvaloniaFact]
-    public async Task ExecuteCredSspAuthAsync_ServerSendsTruncatedTsRequest_ThrowsRdpNegotiationException()
+    public async Task ReadRequestAsync_TruncatedTsRequest_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
-        using DuplexStreamPair pair = new DuplexStreamPair();
+        using MemoryStream response = new MemoryStream([0x30, 0x10]);
 
-        using X509Certificate2 cert = CreateTestCertificate();
-
-        Task serverTask = Task.Run(async () =>
-        {
-            using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-            await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
-
-            byte[] buf = new byte[1024];
-            int r = await serverSsl.ReadAsync(buf.AsMemory(), ct);
-            Assert.True(r > 0);
-
-            // Server writes only 2 truncated bytes
-            await serverSsl.WriteAsync(new byte[] { 0x30, 0x10 }, ct);
-            await serverSsl.FlushAsync(ct);
-        }, ct);
-
-        using CredSspSecurityTransport transport = new CredSspSecurityTransport(
-            pair.ClientStream,
-            "testuser",
-            "testpass",
-            certValidation: (s, c, ch, e) => true);
-
-        var ex = await Assert.ThrowsAsync<RdpNegotiationException>(() => transport.HandshakeAsync("localhost", ct));
-        await serverTask;
+        var ex = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => CredSspSecurityTransport.ReadRequestAsync(response, ct));
 
         Assert.Contains("invalid or truncated TSRequest", ex.Message);
     }
 
     [AvaloniaFact]
-    public async Task ExecuteCredSspAuthAsync_ServerSendsJunkBytes_ThrowsRdpNegotiationException()
+    public async Task ReadRequestAsync_JunkBytes_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
-        using DuplexStreamPair pair = new DuplexStreamPair();
+        byte[] junk = new byte[50];
+        Random.Shared.NextBytes(junk);
+        junk[0] = 0xDE;
+        using MemoryStream response = new MemoryStream(junk);
 
-        using X509Certificate2 cert = CreateTestCertificate();
-
-        Task serverTask = Task.Run(async () =>
-        {
-            using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-            await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
-
-            byte[] buf = new byte[1024];
-            int r = await serverSsl.ReadAsync(buf.AsMemory(), ct);
-            Assert.True(r > 0);
-
-            // Server writes 50 bytes of junk
-            byte[] junk = new byte[50];
-            Random.Shared.NextBytes(junk);
-            junk[0] = 0xDE; // Not 0x30
-            await serverSsl.WriteAsync(junk, ct);
-            await serverSsl.FlushAsync(ct);
-        }, ct);
-
-        using CredSspSecurityTransport transport = new CredSspSecurityTransport(
-            pair.ClientStream,
-            "testuser",
-            "testpass",
-            certValidation: (s, c, ch, e) => true);
-
-        var ex = await Assert.ThrowsAsync<RdpNegotiationException>(() => transport.HandshakeAsync("localhost", ct));
-        await serverTask;
+        var ex = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => CredSspSecurityTransport.ReadRequestAsync(response, ct));
 
         Assert.Contains("invalid ASN.1 sequence", ex.Message);
     }
 
     [AvaloniaFact]
-    public async Task ExecuteCredSspAuthAsync_ServerClosesConnectionImmediately_ThrowsException()
+    public async Task ReadRequestAsync_ClosedConnection_ThrowsRdpNegotiationException()
     {
         var ct = TestContext.Current.CancellationToken;
-        using DuplexStreamPair pair = new DuplexStreamPair();
+        using MemoryStream response = new MemoryStream();
 
-        using X509Certificate2 cert = CreateTestCertificate();
+        var ex = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => CredSspSecurityTransport.ReadRequestAsync(response, ct));
 
-        Task serverTask = Task.Run(async () =>
-        {
-            using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-            await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
-
-            byte[] buf = new byte[1024];
-            int r = await serverSsl.ReadAsync(buf.AsMemory(), ct);
-            Assert.True(r > 0);
-            // Server closes stream abruptly without writing any response
-            serverSsl.Close();
-        }, ct);
-
-        using CredSspSecurityTransport transport = new CredSspSecurityTransport(
-            pair.ClientStream,
-            "testuser",
-            "testpass",
-            certValidation: (s, c, ch, e) => true);
-
-        // Abrupt connection close over TLS SslStream throws IOException or RdpNegotiationException
-        await Assert.ThrowsAnyAsync<Exception>(() => transport.HandshakeAsync("localhost", ct));
-        await serverTask;
+        Assert.Contains("invalid or truncated TSRequest", ex.Message);
     }
 
     [AvaloniaFact]
-    public async Task ExecuteCredSspAuthAsync_ServerSendsUnauthenticatedFields_HandshakeRejectsInvalidSpnego()
+    public void ContinuationResponse_UnauthenticatedFields_AreRejected()
     {
-        var ct = TestContext.Current.CancellationToken;
-        using DuplexStreamPair pair = new DuplexStreamPair();
-
-        using X509Certificate2 cert = CreateTestCertificate();
-
-        Task serverTask = Task.Run(async () =>
+        byte[] clientToken = [0x01, 0x02, 0x03, 0x04];
+        TsRequestPdu serverResponse = new TsRequestPdu
         {
-            using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-            await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+            Version = 2,
+            NegoToken = [0x0A, 0x0B, 0x0C],
+            AuthInfo = [0x01, 0x02, 0x03, 0x04],
+            PubKeyAuth = [0xAA, 0xBB, 0xCC, 0xDD],
+            ErrorCode = 0
+        };
 
-            byte[] buf = new byte[1024];
-            int bytesRead = await serverSsl.ReadAsync(buf.AsMemory(), ct);
-            Assert.True(bytesRead > 0);
+        RdpNegotiationException exception = Assert.Throws<RdpNegotiationException>(
+            () => CredSspSecurityTransport.ValidateContinuationResponse(serverResponse, clientToken));
 
-            TsRequestPdu serverResp = new TsRequestPdu
-            {
-                Version = 2,
-                NegoToken = new byte[] { 0x0A, 0x0B, 0x0C },
-                AuthInfo = new byte[] { 0x01, 0x02, 0x03, 0x04 },
-                PubKeyAuth = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD },
-                ErrorCode = 0
-            };
-            byte[] respData = serverResp.Encode();
-            await serverSsl.WriteAsync(respData, ct);
-            await serverSsl.FlushAsync(ct);
-        }, ct);
-
-        using CredSspSecurityTransport transport = new CredSspSecurityTransport(
-            pair.ClientStream,
-            "testuser",
-            "testpass",
-            certValidation: (s, c, ch, e) => true);
-
-        var exception = await Assert.ThrowsAsync<RdpNegotiationException>(
-            () => transport.HandshakeAsync("localhost", ct));
-        await serverTask;
-
-        Assert.Contains("SPNEGO authentication failed", exception.Message);
+        Assert.Contains("unexpected fields", exception.Message);
     }
 
     #endregion

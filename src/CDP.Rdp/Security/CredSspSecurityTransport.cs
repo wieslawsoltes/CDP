@@ -48,6 +48,7 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
 
     public async Task HandshakeAsync(string targetHost, CancellationToken cancellationToken = default)
     {
+        ValidateCredentials(_username);
         _sslStream = new SslStream(_baseStream, false, _userCertValidation);
         SslClientAuthenticationOptions options = new SslClientAuthenticationOptions
         {
@@ -61,11 +62,6 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
 
     private async Task ExecuteCredSspAuthAsync(SslStream stream, string targetHost, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(_username))
-        {
-            throw new RdpNegotiationException("CredSSP authentication failed: Username credential was not specified.");
-        }
-
         if (stream.RemoteCertificate == null)
         {
             throw new RdpNegotiationException("CredSSP handshake failed: TLS did not provide a server certificate.");
@@ -134,10 +130,8 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
                 new TsRequestPdu { Version = negotiatedVersion, NegoToken = outgoingToken },
                 cancellationToken).ConfigureAwait(false);
             TsRequestPdu serverRequest = await ReadRequestAsync(stream, cancellationToken).ConfigureAwait(false);
-            ThrowIfServerRejected(serverRequest);
+            incomingToken = ValidateContinuationResponse(serverRequest, outgoingToken);
             negotiatedVersion = Math.Min(negotiatedVersion, NegotiateVersion(serverRequest.Version));
-            incomingToken = serverRequest.NegoToken
-                ?? throw new RdpNegotiationException("CredSSP server response omitted the SPNEGO token.");
         }
 
         if (!authentication.IsAuthenticated || bindingResponse == null)
@@ -222,6 +216,41 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
         }
     }
 
+    internal static byte[] ValidateContinuationResponse(
+        TsRequestPdu response,
+        ReadOnlySpan<byte> outgoingToken)
+    {
+        ThrowIfServerRejected(response);
+
+        if (response.AuthInfo is not null ||
+            response.PubKeyAuth is not null ||
+            response.ClientNonce is not null)
+        {
+            throw new RdpNegotiationException(
+                "CredSSP server returned unexpected fields during SPNEGO authentication.");
+        }
+
+        byte[] incomingToken = response.NegoToken
+            ?? throw new RdpNegotiationException("CredSSP server response omitted the SPNEGO token.");
+        if (incomingToken.Length == outgoingToken.Length &&
+            CryptographicOperations.FixedTimeEquals(incomingToken, outgoingToken))
+        {
+            throw new RdpNegotiationException(
+                "CredSSP SPNEGO authentication failed because the server echoed the client token.");
+        }
+
+        return incomingToken;
+    }
+
+    private static void ValidateCredentials(string username)
+    {
+        if (string.IsNullOrEmpty(username))
+        {
+            throw new RdpNegotiationException(
+                "CredSSP authentication failed: Username credential was not specified.");
+        }
+    }
+
     private static byte[] Wrap(NegotiateAuthentication authentication, ReadOnlySpan<byte> value)
     {
         var writer = new ArrayBufferWriter<byte>();
@@ -264,7 +293,9 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<TsRequestPdu> ReadRequestAsync(Stream stream, CancellationToken cancellationToken)
+    internal static async Task<TsRequestPdu> ReadRequestAsync(
+        Stream stream,
+        CancellationToken cancellationToken)
     {
         try
         {
