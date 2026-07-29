@@ -11,6 +11,7 @@ using WindowsRdpApp.Services;
 using WindowsRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class WindowsRdpAppViewModelTests
 {
     [AvaloniaFact]

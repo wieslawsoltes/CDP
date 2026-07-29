@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using CdpRdpApp.ViewModels;
 
@@ -9,5 +10,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = new MainWindowViewModel();
+        Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
     }
 }

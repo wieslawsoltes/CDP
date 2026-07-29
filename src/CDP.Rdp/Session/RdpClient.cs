@@ -28,6 +28,7 @@ public sealed class RdpClient : IRdpSession
     private readonly Func<RdpSessionOptions, CancellationToken, Task<IRdpSecurityTransport>>? _transportFactory;
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private readonly RdpFastPathFrameAssembler _fastPathAssembler = new();
     private RdpConnectionState _state = RdpConnectionState.Disconnected;
     private IRdpSecurityTransport? _transport;
     private Stream? _networkStream;
@@ -37,6 +38,9 @@ public sealed class RdpClient : IRdpSession
     private CancellationTokenSource? _cts;
     private Task? _receiveLoopTask;
     private ulong _frameIdCounter;
+    private ushort _userId;
+    private ushort _ioChannelId;
+    private uint _shareId;
     private int _isDisposed;
 
     public RdpConnectionState State => _state;
@@ -90,18 +94,17 @@ public sealed class RdpClient : IRdpSession
             try
             {
                 SetState(RdpConnectionState.Connecting);
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(_options.ConnectTimeout);
 
                 if (_transportFactory != null)
                 {
                     SetState(RdpConnectionState.Negotiating);
-                    _transport = await _transportFactory(_options, cancellationToken).ConfigureAwait(false);
+                    _transport = await _transportFactory(_options, timeoutCts.Token).ConfigureAwait(false);
                 }
                 else
                 {
                     _tcpClient = new TcpClient();
-                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    timeoutCts.CancelAfter(_options.ConnectTimeout);
-
                     await _tcpClient.ConnectAsync(_options.Host, _options.Port, timeoutCts.Token).ConfigureAwait(false);
                     _networkStream = _tcpClient.GetStream();
 
@@ -130,6 +133,24 @@ public sealed class RdpClient : IRdpSession
 
                 _svcManager = new StaticVirtualChannelManager();
                 _dvcManager = new DynamicVirtualChannelManager();
+
+                if (_transportFactory == null)
+                {
+                    SetState(RdpConnectionState.Activating);
+                    var activation = new RdpActivationSequence(_transport, _options);
+                    RdpActivationResult result = await activation.ActivateAsync(timeoutCts.Token).ConfigureAwait(false);
+                    _userId = result.UserId;
+                    _ioChannelId = result.IoChannelId;
+                    _shareId = result.ShareId;
+                }
+                else
+                {
+                    // Injected transports are used by deterministic protocol tests and
+                    // represent an already activated connection.
+                    _userId = 1002;
+                    _ioChannelId = 1003;
+                    _shareId = 0x000103EA;
+                }
 
                 SetState(RdpConnectionState.Connected);
 
@@ -162,7 +183,15 @@ public sealed class RdpClient : IRdpSession
                     buffer.AsMemory(bytesInBuffer, buffer.Length - bytesInBuffer),
                     cancellationToken).ConfigureAwait(false);
 
-                if (read == 0) break; // End of stream
+                if (read == 0)
+                {
+                    if (!cancellationToken.IsCancellationRequested)
+                    {
+                        await HandleUnexpectedDisconnectAsync(
+                            new EndOfStreamException("The RDP server closed the transport stream.")).ConfigureAwait(false);
+                    }
+                    break;
+                }
 
                 bytesInBuffer += read;
 
@@ -199,7 +228,7 @@ public sealed class RdpClient : IRdpSession
 
                             ReadOnlyMemory<byte> pduMemory = buffer.AsMemory(0, header.PacketLength);
 
-                            if (RdpFastPathFrameReader.TryParseFrame(
+                            if (_fastPathAssembler.TryProcessPacket(
                                 pduMemory,
                                 Interlocked.Increment(ref _frameIdCounter),
                                 DateTimeOffset.UtcNow,
@@ -263,8 +292,29 @@ public sealed class RdpClient : IRdpSession
         }
         catch (Exception ex)
         {
-            SetState(RdpConnectionState.Faulted, ex);
+            await HandleUnexpectedDisconnectAsync(ex).ConfigureAwait(false);
         }
+    }
+
+    private async Task HandleUnexpectedDisconnectAsync(Exception exception)
+    {
+        if (_state is RdpConnectionState.Disconnecting or RdpConnectionState.Disconnected)
+        {
+            return;
+        }
+
+        SetState(RdpConnectionState.Faulted, exception);
+
+        IRdpSecurityTransport? transport = Interlocked.Exchange(ref _transport, null);
+        if (transport != null)
+        {
+            try { await transport.DisposeAsync().ConfigureAwait(false); } catch { }
+        }
+
+        try { _networkStream?.Dispose(); } catch { }
+        _networkStream = null;
+        try { _tcpClient?.Dispose(); } catch { }
+        _tcpClient = null;
     }
 
     private static void DiscardBytes(byte[] buffer, ref int bytesInBuffer, int count)
@@ -295,11 +345,32 @@ public sealed class RdpClient : IRdpSession
             if (_state != RdpConnectionState.Connected || _transport == null || Volatile.Read(ref _isDisposed) != 0)
                 throw new InvalidOperationException("Client is not connected.");
 
-            byte[] buffer = new byte[128];
-            Span<byte> span = buffer;
-            RdpPacketWriter writer = new RdpPacketWriter(span);
-            inputEvent.Write(ref writer);
-            await _transport.TransportStream.WriteAsync(buffer.AsMemory(0, writer.WrittenCount), cancellationToken).ConfigureAwait(false);
+            byte[] packet;
+            int packetLength;
+            if (_options.EnableFastPath)
+            {
+                byte[] eventBuffer = new byte[16];
+                var eventWriter = new RdpPacketWriter(eventBuffer);
+                WriteFastPathEquivalent(ref eventWriter, inputEvent);
+
+                packet = new byte[eventWriter.WrittenCount + 3];
+                var packetWriter = new RdpPacketWriter(packet);
+                ushort fastPathLength = checked((ushort)(eventWriter.WrittenCount + 2));
+                RdpInputPduWriter.WriteFastPathHeader(ref packetWriter, numEvents: 1, pduLength: fastPathLength);
+                packetWriter.WriteSpan(eventBuffer.AsSpan(0, eventWriter.WrittenCount));
+                packetLength = packetWriter.WrittenCount;
+            }
+            else
+            {
+                packet = RdpActivationSequence.CreateSlowPathInputPacket(
+                    _userId,
+                    _ioChannelId,
+                    _shareId,
+                    inputEvent);
+                packetLength = packet.Length;
+            }
+
+            await _transport.TransportStream.WriteAsync(packet.AsMemory(0, packetLength), cancellationToken).ConfigureAwait(false);
             await _transport.TransportStream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -332,11 +403,16 @@ public sealed class RdpClient : IRdpSession
             if (_state != RdpConnectionState.Connected || _transport == null || Volatile.Read(ref _isDisposed) != 0)
                 throw new InvalidOperationException("Client is not connected.");
 
-            byte[] buffer = new byte[128];
-            Span<byte> span = buffer;
-            RdpPacketWriter writer = new RdpPacketWriter(span);
-            inputEvent.Write(ref writer);
-            await _transport.TransportStream.WriteAsync(buffer.AsMemory(0, writer.WrittenCount), cancellationToken).ConfigureAwait(false);
+            byte[] eventBuffer = new byte[16];
+            var eventWriter = new RdpPacketWriter(eventBuffer);
+            inputEvent.Write(ref eventWriter);
+
+            byte[] packet = new byte[eventWriter.WrittenCount + 3];
+            var packetWriter = new RdpPacketWriter(packet);
+            ushort packetLength = checked((ushort)(eventWriter.WrittenCount + 2));
+            RdpInputPduWriter.WriteFastPathHeader(ref packetWriter, numEvents: 1, pduLength: packetLength);
+            packetWriter.WriteSpan(eventBuffer.AsSpan(0, eventWriter.WrittenCount));
+            await _transport.TransportStream.WriteAsync(packet.AsMemory(0, packetWriter.WrittenCount), cancellationToken).ConfigureAwait(false);
             await _transport.TransportStream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -348,6 +424,54 @@ public sealed class RdpClient : IRdpSession
             catch (ObjectDisposedException)
             {
             }
+        }
+    }
+
+    private static void WriteFastPathEquivalent(ref RdpPacketWriter writer, in RdpInputEvent inputEvent)
+    {
+        switch (inputEvent.MessageType)
+        {
+            case RdpInputMessageType.ScanCode:
+            {
+                FastPathKeyboardFlags flags = FastPathKeyboardFlags.None;
+                if ((inputEvent.KeyboardEvent.Flags & RdpKeyboardFlags.Release) != 0)
+                    flags |= FastPathKeyboardFlags.Release;
+                if ((inputEvent.KeyboardEvent.Flags & RdpKeyboardFlags.Extended) != 0)
+                    flags |= FastPathKeyboardFlags.Extended;
+                if ((inputEvent.KeyboardEvent.Flags & RdpKeyboardFlags.Extended1) != 0)
+                    flags |= FastPathKeyboardFlags.Extended1;
+                new RdpFastPathInputEvent(flags, checked((byte)inputEvent.KeyboardEvent.KeyCode)).Write(ref writer);
+                break;
+            }
+
+            case RdpInputMessageType.Unicode:
+            {
+                FastPathKeyboardFlags flags = (inputEvent.KeyboardEvent.Flags & RdpKeyboardFlags.Release) != 0
+                    ? FastPathKeyboardFlags.Release
+                    : FastPathKeyboardFlags.None;
+                new RdpFastPathInputEvent(
+                    flags,
+                    checked((ushort)inputEvent.KeyboardEvent.KeyCode)).Write(ref writer);
+                break;
+            }
+
+            case RdpInputMessageType.Mouse:
+            case RdpInputMessageType.MouseX:
+                new RdpFastPathInputEvent(
+                    inputEvent.MessageType == RdpInputMessageType.Mouse
+                        ? FastPathInputEventCode.Mouse
+                        : FastPathInputEventCode.MouseX,
+                    inputEvent.MouseEvent.PointerFlags,
+                    inputEvent.MouseEvent.XPos,
+                    inputEvent.MouseEvent.YPos).Write(ref writer);
+                break;
+
+            case RdpInputMessageType.Sync:
+                new RdpFastPathInputEvent((byte)inputEvent.SyncEvent.ToggleFlags).Write(ref writer);
+                break;
+
+            default:
+                throw new NotSupportedException($"Fast-Path input does not support {inputEvent.MessageType}.");
         }
     }
 

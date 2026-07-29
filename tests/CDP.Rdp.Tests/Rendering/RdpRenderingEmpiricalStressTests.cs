@@ -12,28 +12,21 @@ using CDP.Rdp.Frames;
 using CDP.Rdp.Rendering;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpRenderingEmpiricalStressTests
 {
     [AvaloniaTheory]
     [InlineData(0, 64)]
     [InlineData(64, 0)]
     [InlineData(0, 0)]
-    public void Boundary_ZeroWidthOrHeightTiles_HandledWithoutException(int width, int height)
+    public void Boundary_ZeroWidthOrHeightTiles_AreRejected(int width, int height)
     {
         using var buffer = new RdpFrameBuffer(200, 200);
 
         byte[] rawPixels = new byte[Math.Max(1, width * height * 4)];
         var update = new RdpBitmapUpdate(10, 10, (ushort)width, (ushort)height, 32, compressed: false, rawPixels);
 
-        using var tile = RdpBitmapTile.FromUpdate(update);
-        Assert.Equal(width, tile.Width);
-        Assert.Equal(height, tile.Height);
-
-        // Apply to frame buffer
-        buffer.ApplyTile(tile);
-
-        var dirty = buffer.SwapBuffers();
-        Assert.True(dirty.IsEmpty);
+        Assert.Throws<InvalidDataException>(() => RdpBitmapTile.FromUpdate(update));
     }
 
     [AvaloniaTheory]
@@ -116,12 +109,12 @@ public class RdpRenderingEmpiricalStressTests
     [InlineData(8)]
     [InlineData(48)]
     [InlineData(64)]
-    public void Boundary_ExtremeColorDepthInputs_ThrowsArgumentException(ushort bpp)
+    public void Boundary_ExtremeColorDepthInputs_ThrowsInvalidDataException(ushort bpp)
     {
         byte[] rawPixels = new byte[64 * 64 * 4];
         var update = new RdpBitmapUpdate(0, 0, 64, 64, bpp, compressed: false, rawPixels);
 
-        Assert.Throws<ArgumentException>(() => RdpBitmapTile.FromUpdate(update));
+        Assert.Throws<InvalidDataException>(() => RdpBitmapTile.FromUpdate(update));
     }
 
     [AvaloniaFact]
@@ -134,7 +127,7 @@ public class RdpRenderingEmpiricalStressTests
 
         for (int i = 0; i < 100; i++)
         {
-            Assert.Throws<ArgumentException>(() => RdpBitmapTile.FromUpdate(update));
+            Assert.Throws<InvalidDataException>(() => RdpBitmapTile.FromUpdate(update));
         }
 
         // Check array pool stability by renting and asserting buffer availability

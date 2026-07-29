@@ -96,10 +96,13 @@ public sealed class DynamicVirtualChannelManager
         var reader = new RdpPacketReader(packet);
         if (reader.UnreadLength < 1) return false;
 
-        byte headerByte = reader.ReadByte();
-        var cmd = (DvcCommandCode)(headerByte & 0x0F);
-        byte sp = (byte)((headerByte >> 4) & 0x03);
-        byte pri = (byte)((headerByte >> 6) & 0x03);
+        if (!DvcHeader.TryRead(ref reader, out DvcHeader incomingHeader))
+        {
+            return false;
+        }
+
+        DvcCommandCode cmd = incomingHeader.Command;
+        byte sp = incomingHeader.Sp;
 
         // Reset reader to include header byte for full PDU parsing
         reader = new RdpPacketReader(packet);
@@ -110,6 +113,13 @@ public sealed class DynamicVirtualChannelManager
                 if (DvcCapabilitiesPdu.TryRead(ref reader, out var caps))
                 {
                     NegotiatedVersion = caps.Version;
+                    if (replyCallback != null)
+                    {
+                        byte[] responseBuffer = new byte[16];
+                        var responseWriter = new RdpPacketWriter(responseBuffer);
+                        new DvcCapabilitiesPdu(Math.Min(caps.Version, (ushort)3)).Write(ref responseWriter);
+                        replyCallback(responseBuffer.AsSpan(0, responseWriter.WrittenCount));
+                    }
                     return true;
                 }
                 return false;
@@ -190,8 +200,7 @@ public sealed class DynamicVirtualChannelManager
                         {
                             handler(firstHeader.ChannelId, buf.Buffer.AsSpan(0, buf.CurrentPosition));
                         }
-                        buf.CurrentPosition = 0;
-                        buf.TotalLength = 0;
+                        _reassemblyBuffers.Remove(firstHeader.ChannelId);
                     }
                     return true;
                 }
@@ -222,8 +231,7 @@ public sealed class DynamicVirtualChannelManager
                             {
                                 handler(dataHeader.ChannelId, buf.Buffer.AsSpan(0, buf.CurrentPosition));
                             }
-                            buf.CurrentPosition = 0;
-                            buf.TotalLength = 0;
+                            _reassemblyBuffers.Remove(dataHeader.ChannelId);
                         }
                         return true;
                     }

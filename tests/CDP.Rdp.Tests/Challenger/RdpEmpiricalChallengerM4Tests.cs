@@ -20,6 +20,7 @@ using CdpRdpApp;
 using CdpRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpEmpiricalChallengerM4Tests
 {
     private class DummyRdpSession : IRdpSession
@@ -245,7 +246,7 @@ public class RdpEmpiricalChallengerM4Tests
 
         var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
         Assert.NotNull(control.FrameBuffer);
-        Assert.Equal(1280, control.FrameBuffer.Width);
+        Assert.Equal(dummySession.Options.Width, control.FrameBuffer.Width);
         Assert.True(elapsedMs < 5000, $"2000 frame updates took {elapsedMs:F2}ms");
     }
 

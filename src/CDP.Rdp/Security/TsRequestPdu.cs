@@ -10,7 +10,8 @@ using CDP.Rdp.Exceptions;
 ///     negoTokens  [1] NegoData OPTIONAL,
 ///     authInfo    [2] OCTET STRING OPTIONAL,
 ///     pubKeyAuth  [3] OCTET STRING OPTIONAL,
-///     errorCode   [4] INTEGER OPTIONAL
+///     errorCode   [4] INTEGER OPTIONAL,
+///     clientNonce [5] OCTET STRING OPTIONAL
 /// }
 /// </summary>
 public sealed class TsRequestPdu
@@ -20,6 +21,7 @@ public sealed class TsRequestPdu
     public byte[]? AuthInfo { get; set; }
     public byte[]? PubKeyAuth { get; set; }
     public int? ErrorCode { get; set; }
+    public byte[]? ClientNonce { get; set; }
 
     public byte[] Encode()
     {
@@ -28,12 +30,14 @@ public sealed class TsRequestPdu
         byte[]? authInfoBytes = AuthInfo != null ? EncodeExplicitOctetString(2, AuthInfo) : null;
         byte[]? pubKeyAuthBytes = PubKeyAuth != null ? EncodeExplicitOctetString(3, PubKeyAuth) : null;
         byte[]? errorCodeBytes = ErrorCode.HasValue ? EncodeExplicitInteger(4, ErrorCode.Value) : null;
+        byte[]? clientNonceBytes = ClientNonce != null ? EncodeExplicitOctetString(5, ClientNonce) : null;
 
         int totalPayloadLength = versionBytes.Length
             + (negoTokenBytes?.Length ?? 0)
             + (authInfoBytes?.Length ?? 0)
             + (pubKeyAuthBytes?.Length ?? 0)
-            + (errorCodeBytes?.Length ?? 0);
+            + (errorCodeBytes?.Length ?? 0)
+            + (clientNonceBytes?.Length ?? 0);
 
         byte[] header = EncodeHeader(0x30, totalPayloadLength);
         byte[] result = new byte[header.Length + totalPayloadLength];
@@ -67,6 +71,11 @@ public sealed class TsRequestPdu
         {
             Buffer.BlockCopy(errorCodeBytes, 0, result, offset, errorCodeBytes.Length);
             offset += errorCodeBytes.Length;
+        }
+
+        if (clientNonceBytes != null)
+        {
+            Buffer.BlockCopy(clientNonceBytes, 0, result, offset, clientNonceBytes.Length);
         }
 
         return result;
@@ -113,6 +122,9 @@ public sealed class TsRequestPdu
                         break;
                     case 0xA4: // errorCode [4]
                         pdu.ErrorCode = ParseInteger(elemData);
+                        break;
+                    case 0xA5: // clientNonce [5]
+                        pdu.ClientNonce = ParseOctetString(elemData);
                         break;
                 }
             }

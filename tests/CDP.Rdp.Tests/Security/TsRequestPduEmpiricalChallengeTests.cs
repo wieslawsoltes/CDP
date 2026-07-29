@@ -13,6 +13,7 @@ using CDP.Rdp.Security;
 using CDP.Rdp.Tests.Fixtures;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class TsRequestPduEmpiricalChallengeTests
 {
     private static X509Certificate2 CreateTestCertificate()
@@ -375,7 +376,7 @@ public class TsRequestPduEmpiricalChallengeTests
         var ex = await Assert.ThrowsAsync<RdpNegotiationException>(() => transport.HandshakeAsync("localhost", ct));
         await serverTask;
 
-        Assert.Contains("Invalid TSRequest ASN.1 PDU received from server", ex.Message);
+        Assert.Contains("invalid or truncated TSRequest", ex.Message);
     }
 
     [AvaloniaFact]
@@ -412,7 +413,7 @@ public class TsRequestPduEmpiricalChallengeTests
         var ex = await Assert.ThrowsAsync<RdpNegotiationException>(() => transport.HandshakeAsync("localhost", ct));
         await serverTask;
 
-        Assert.Contains("Invalid TSRequest ASN.1 PDU received from server", ex.Message);
+        Assert.Contains("invalid ASN.1 sequence", ex.Message);
     }
 
     [AvaloniaFact]
@@ -447,7 +448,7 @@ public class TsRequestPduEmpiricalChallengeTests
     }
 
     [AvaloniaFact]
-    public async Task ExecuteCredSspAuthAsync_ServerSendsValidTsRequestWithAuthInfoAndPubKeyAuth_HandshakeSucceeds()
+    public async Task ExecuteCredSspAuthAsync_ServerSendsUnauthenticatedFields_HandshakeRejectsInvalidSpnego()
     {
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
@@ -482,10 +483,11 @@ public class TsRequestPduEmpiricalChallengeTests
             "testpass",
             certValidation: (s, c, ch, e) => true);
 
-        await transport.HandshakeAsync("localhost", ct);
+        var exception = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => transport.HandshakeAsync("localhost", ct));
         await serverTask;
 
-        Assert.True(transport.IsEncrypted);
+        Assert.Contains("SPNEGO authentication failed", exception.Message);
     }
 
     #endregion

@@ -10,6 +10,7 @@ using CDP.Rdp.Protocol;
 using CDP.Rdp.Security;
 using CDP.Rdp.Tests.Fixtures;
 
+[Xunit.Collection("RdpTests")]
 public class ChallengerM11EmpiricalTests
 {
     // Helper Stream wrapper that breaks reads into 1-byte chunks

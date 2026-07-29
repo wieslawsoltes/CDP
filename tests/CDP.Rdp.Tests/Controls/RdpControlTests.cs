@@ -9,6 +9,7 @@ using CDP.Rdp.Frames;
 using CDP.Rdp.Session;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpControlTests
 {
     [AvaloniaFact]

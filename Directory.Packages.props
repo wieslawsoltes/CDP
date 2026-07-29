@@ -58,6 +58,7 @@
     <PackageVersion Include="JetBrains.Profiler.SelfApi" Version="2.5.18" />
     <PackageVersion Include="JetBrains.Profiler.Api" Version="1.4.13" />
     <PackageVersion Include="System.Security.Permissions" Version="10.0.2" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.6.241114003" />
     <PackageVersion Include="PdfPig" Version="0.1.9" />
     <PackageVersion Include="PdfPig.Rendering.Skia" Version="0.1.9.1" />

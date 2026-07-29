@@ -8,6 +8,7 @@ using CDP.Rdp.Frames;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class FastPathFrameReaderTests
 {
     [AvaloniaFact]
@@ -48,7 +49,8 @@ public class FastPathFrameReaderTests
         Assert.Equal(50, update.Height);
         Assert.Equal(32, update.Bpp);
         Assert.False(update.Compressed);
-        Assert.Equal(new byte[] { 0x11, 0x22, 0x33, 0x44 }, update.Data.ToArray());
+        Assert.Equal(20_000, update.Data.Length);
+        Assert.Equal(new byte[] { 0x11, 0x22, 0x33, 0x44 }, update.Data.Span[..4].ToArray());
     }
 
     [AvaloniaFact]
@@ -100,7 +102,8 @@ public class FastPathFrameReaderTests
         Assert.Equal(20, rect1.Height);
         Assert.Equal(16, rect1.Bpp);
         Assert.False(rect1.Compressed);
-        Assert.Equal(new byte[] { 0x01, 0x02 }, rect1.Data.ToArray());
+        Assert.Equal(800, rect1.Data.Length);
+        Assert.Equal(new byte[] { 0x01, 0x02 }, rect1.Data.Span[..2].ToArray());
 
         RdpBitmapUpdate rect2 = args.BitmapUpdates[1];
         Assert.Equal(100, rect2.Left);
@@ -296,11 +299,12 @@ public class FastPathFrameReaderTests
             WriteUInt16LE(ms, r.Width);
             WriteUInt16LE(ms, r.Height);
             WriteUInt16LE(ms, r.Bpp);
-            ushort flags = (ushort)(r.Compressed ? 0x0001 : 0x0000);
+            ushort flags = (ushort)(r.Compressed ? 0x0401 : 0x0000);
             WriteUInt16LE(ms, flags);
-            ushort bitmapLength = (ushort)r.Data.Length;
+            byte[] bitmapData = r.Compressed ? r.Data : BuildUncompressedBitmapData(r);
+            ushort bitmapLength = checked((ushort)bitmapData.Length);
             WriteUInt16LE(ms, bitmapLength);
-            ms.Write(r.Data, 0, r.Data.Length);
+            ms.Write(bitmapData, 0, bitmapData.Length);
         }
 
         long updateDataEndPos = ms.Position;
@@ -318,6 +322,24 @@ public class FastPathFrameReaderTests
         ms.WriteByte((byte)(packetLength & 0xFF));
 
         return ms.ToArray();
+    }
+
+    private static byte[] BuildUncompressedBitmapData(TestRectSpec rect)
+    {
+        int bytesPerPixel = rect.Bpp switch
+        {
+            15 or 16 => 2,
+            24 => 3,
+            32 => 4,
+            _ => throw new InvalidDataException($"Unsupported test bitmap depth {rect.Bpp}.")
+        };
+        int stride = (rect.Width * bytesPerPixel + 3) & ~3;
+        byte[] result = new byte[checked(stride * rect.Height)];
+        for (int i = 0; i < result.Length; i++)
+        {
+            result[i] = rect.Data[i % rect.Data.Length];
+        }
+        return result;
     }
 
     private static void WriteUInt16LE(Stream stream, ushort value)

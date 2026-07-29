@@ -13,6 +13,7 @@ using CDP.Rdp.Protocol;
 using CDP.Rdp.Security;
 using CDP.Rdp.Tests.Fixtures;
 
+[Xunit.Collection("RdpTests")]
 public class CredSspSecurityTransportTests
 {
     [AvaloniaFact]
@@ -65,7 +66,7 @@ public class CredSspSecurityTransportTests
     }
 
     [AvaloniaFact]
-    public async Task HandshakeAsync_SuccessfulTlsAndTsRequestExchange_Succeeds()
+    public async Task HandshakeAsync_EchoedClientSpnegoToken_IsRejected()
     {
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
@@ -101,10 +102,11 @@ public class CredSspSecurityTransportTests
             "DOMAIN",
             certValidation: (s, c, ch, e) => true);
 
-        await transport.HandshakeAsync("localhost", ct);
+        var exception = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => transport.HandshakeAsync("localhost", ct));
         await serverTask;
 
-        Assert.True(transport.IsEncrypted);
+        Assert.Contains("SPNEGO authentication failed", exception.Message);
     }
 
     [AvaloniaFact]

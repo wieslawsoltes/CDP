@@ -1,6 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using System.Windows.Input;
+using Avalonia.Threading;
+using CDP.Rdp.Session;
 using ReactiveUI;
 
 namespace CdpRdpApp.ViewModels;
@@ -73,10 +76,18 @@ public class RecorderStateViewModel : ReactiveObject
     public object TestStudio { get; } = new();
 }
 
-public class MainWindowViewModel : ReactiveObject
+public class MainWindowViewModel : ReactiveObject, IDisposable
 {
+    private readonly Func<RdpSessionOptions, IRdpSession> _sessionFactory;
     public ConnectionStateViewModel Connection { get; } = new();
     public RecorderStateViewModel Recorder { get; } = new();
+    private IRdpSession? _session;
+
+    public IRdpSession? Session
+    {
+        get => _session;
+        private set => this.RaiseAndSetIfChanged(ref _session, value);
+    }
 
     public string Host
     {
@@ -107,24 +118,49 @@ public class MainWindowViewModel : ReactiveObject
     public ICommand RefreshTargetsCommand { get; }
     public ICommand ToggleRecordCommand { get; }
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(Func<RdpSessionOptions, IRdpSession>? sessionFactory = null)
     {
-        ConnectCommand = ReactiveCommand.Create(ExecuteConnect);
-        DisconnectCommand = ReactiveCommand.Create(ExecuteDisconnect);
+        _sessionFactory = sessionFactory ?? (options => new RdpClient(options));
+        ConnectCommand = ReactiveCommand.CreateFromTask(ConnectAsync);
+        DisconnectCommand = ReactiveCommand.CreateFromTask(DisconnectAsync);
         RefreshTargetsCommand = ReactiveCommand.Create(ExecuteRefreshTargets);
         ToggleRecordCommand = ReactiveCommand.Create(ExecuteToggleRecord);
     }
 
-    private void ExecuteConnect()
+    public async Task ConnectAsync()
     {
-        Connection.IsConnected = true;
-        Connection.StatusText = "Connected";
+        if (Port is < 1 or > 65535)
+        {
+            Connection.StatusText = "Port must be in the range 1-65535";
+            return;
+        }
+
+        await DisconnectSessionAsync();
+        var options = new RdpSessionOptions
+        {
+            Host = Host,
+            Port = Port,
+            Username = Username,
+            Password = Password
+        };
+        IRdpSession client = _sessionFactory(options);
+        client.StateChanged += OnSessionStateChanged;
+        Session = client;
+
+        try
+        {
+            await client.ConnectAsync();
+        }
+        catch (Exception ex)
+        {
+            Connection.IsConnected = false;
+            Connection.StatusText = $"Connection failed: {ex.Message}";
+        }
     }
 
-    private void ExecuteDisconnect()
+    public async Task DisconnectAsync()
     {
-        Connection.IsConnected = false;
-        Connection.StatusText = "Disconnected";
+        await DisconnectSessionAsync();
     }
 
     private void ExecuteRefreshTargets()
@@ -134,5 +170,51 @@ public class MainWindowViewModel : ReactiveObject
     private void ExecuteToggleRecord()
     {
         Recorder.IsRecording = !Recorder.IsRecording;
+    }
+
+    private void OnSessionStateChanged(object? sender, RdpConnectionStateChangedEventArgs e)
+    {
+        void ApplyState()
+        {
+            Connection.IsConnected = e.NewState == RdpConnectionState.Connected;
+            Connection.StatusText = e.Exception == null
+                ? e.NewState.ToString()
+                : $"{e.NewState}: {e.Exception.Message}";
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            ApplyState();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(ApplyState);
+        }
+    }
+
+    private async Task DisconnectSessionAsync()
+    {
+        IRdpSession? session = Session;
+        Session = null;
+        if (session != null)
+        {
+            session.StateChanged -= OnSessionStateChanged;
+            try
+            {
+                await session.DisconnectAsync();
+            }
+            finally
+            {
+                await session.DisposeAsync();
+            }
+        }
+
+        Connection.IsConnected = false;
+        Connection.StatusText = "Disconnected";
+    }
+
+    public void Dispose()
+    {
+        DisconnectSessionAsync().GetAwaiter().GetResult();
     }
 }

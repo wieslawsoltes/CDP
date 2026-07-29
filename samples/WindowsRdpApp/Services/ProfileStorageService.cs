@@ -43,32 +43,7 @@ public class ProfileStorageService : IProfileStorageService
         await _fileLock.WaitAsync();
         try
         {
-            if (File.Exists(_filePath))
-            {
-                string json = await File.ReadAllTextAsync(_filePath);
-                if (string.IsNullOrWhiteSpace(json))
-                {
-                    return _isCustomPath ? new List<RdpConnectionProfile>() : GetDefaultProfiles();
-                }
-                var profiles = JsonSerializer.Deserialize<List<RdpConnectionProfile>>(json, JsonOptions);
-                if (profiles == null) return _isCustomPath ? new List<RdpConnectionProfile>() : GetDefaultProfiles();
-
-                foreach (var profile in profiles)
-                {
-                    if (profile != null && !string.IsNullOrEmpty(profile.Password))
-                    {
-                        profile.Password = _credentialProtection.Unprotect(profile.Password);
-                    }
-                }
-                return profiles;
-            }
-            else
-            {
-                if (_isCustomPath)
-                {
-                    return new List<RdpConnectionProfile>();
-                }
-            }
+            return await LoadProfilesCoreAsync();
         }
         catch (Exception ex)
         {
@@ -79,48 +54,14 @@ public class ProfileStorageService : IProfileStorageService
         {
             _fileLock.Release();
         }
-
-        return GetDefaultProfiles();
     }
 
     public async Task SaveProfilesAsync(IEnumerable<RdpConnectionProfile> profiles)
     {
         await _fileLock.WaitAsync();
-        string? tmpPath = null;
         try
         {
-            string? dir = Path.GetDirectoryName(_filePath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-
-            var copyList = new List<RdpConnectionProfile>();
-            foreach (var p in profiles)
-            {
-                var copy = new RdpConnectionProfile
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Host = p.Host,
-                    Port = p.Port,
-                    Username = p.Username,
-                    Password = string.IsNullOrEmpty(p.Password) ? string.Empty : _credentialProtection.Protect(p.Password),
-                    Domain = p.Domain,
-                    Width = p.Width,
-                    Height = p.Height,
-                    ColorDepth = p.ColorDepth,
-                    IsAutoConnect = p.IsAutoConnect,
-                    LastConnected = p.LastConnected
-                };
-                copyList.Add(copy);
-            }
-
-            string json = JsonSerializer.Serialize(copyList, JsonOptions);
-            tmpPath = _filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            await File.WriteAllTextAsync(tmpPath, json);
-            File.Move(tmpPath, _filePath, overwrite: true);
-            tmpPath = null;
+            await SaveProfilesCoreAsync(profiles);
         }
         catch (Exception ex)
         {
@@ -129,41 +70,106 @@ public class ProfileStorageService : IProfileStorageService
         }
         finally
         {
-            if (tmpPath != null && File.Exists(tmpPath))
-            {
-                try { File.Delete(tmpPath); } catch { }
-            }
             _fileLock.Release();
         }
     }
 
     public async Task AddProfileAsync(RdpConnectionProfile profile)
     {
-        var profiles = await LoadProfilesAsync();
-        profiles.Add(profile);
-        await SaveProfilesAsync(profiles);
+        await MutateProfilesAsync(profiles => profiles.Add(profile));
     }
 
     public async Task UpdateProfileAsync(RdpConnectionProfile profile)
     {
-        var profiles = await LoadProfilesAsync();
-        int idx = profiles.FindIndex(p => p.Id == profile.Id);
-        if (idx >= 0)
+        await MutateProfilesAsync(profiles =>
         {
-            profiles[idx] = profile;
-        }
-        else
-        {
-            profiles.Add(profile);
-        }
-        await SaveProfilesAsync(profiles);
+            int idx = profiles.FindIndex(p => p.Id == profile.Id);
+            if (idx >= 0)
+                profiles[idx] = profile;
+            else
+                profiles.Add(profile);
+        });
     }
 
     public async Task DeleteProfileAsync(string profileId)
     {
-        var profiles = await LoadProfilesAsync();
-        profiles.RemoveAll(p => p.Id == profileId);
-        await SaveProfilesAsync(profiles);
+        await MutateProfilesAsync(profiles => profiles.RemoveAll(p => p.Id == profileId));
+    }
+
+    private async Task MutateProfilesAsync(Action<List<RdpConnectionProfile>> mutation)
+    {
+        await _fileLock.WaitAsync();
+        try
+        {
+            List<RdpConnectionProfile> profiles = await LoadProfilesCoreAsync();
+            mutation(profiles);
+            await SaveProfilesCoreAsync(profiles);
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
+    }
+
+    private async Task<List<RdpConnectionProfile>> LoadProfilesCoreAsync()
+    {
+        if (!File.Exists(_filePath))
+            return _isCustomPath ? new List<RdpConnectionProfile>() : GetDefaultProfiles();
+
+        string json = await File.ReadAllTextAsync(_filePath);
+        if (string.IsNullOrWhiteSpace(json))
+            return _isCustomPath ? new List<RdpConnectionProfile>() : GetDefaultProfiles();
+
+        List<RdpConnectionProfile?>? loaded =
+            JsonSerializer.Deserialize<List<RdpConnectionProfile?>>(json, JsonOptions);
+        if (loaded == null)
+            return _isCustomPath ? new List<RdpConnectionProfile>() : GetDefaultProfiles();
+
+        List<RdpConnectionProfile> profiles = loaded.OfType<RdpConnectionProfile>().ToList();
+        foreach (RdpConnectionProfile profile in profiles)
+        {
+            if (!string.IsNullOrEmpty(profile.Password))
+                profile.Password = _credentialProtection.Unprotect(profile.Password);
+        }
+        return profiles;
+    }
+
+    private async Task SaveProfilesCoreAsync(IEnumerable<RdpConnectionProfile> profiles)
+    {
+        string? directory = Path.GetDirectoryName(_filePath);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+
+        List<RdpConnectionProfile> copies = profiles.Select(p => new RdpConnectionProfile
+        {
+            Id = p.Id,
+            Name = p.Name,
+            Host = p.Host,
+            Port = p.Port,
+            Username = p.Username,
+            Password = string.IsNullOrEmpty(p.Password) ? string.Empty : _credentialProtection.Protect(p.Password),
+            Domain = p.Domain,
+            Width = p.Width,
+            Height = p.Height,
+            ColorDepth = p.ColorDepth,
+            IsAutoConnect = p.IsAutoConnect,
+            LastConnected = p.LastConnected
+        }).ToList();
+
+        string json = JsonSerializer.Serialize(copies, JsonOptions);
+        string temporaryPath = _filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, json);
+            File.Move(temporaryPath, _filePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                try { File.Delete(temporaryPath); } catch { }
+            }
+        }
     }
 
     public static List<RdpConnectionProfile> GetDefaultProfiles()

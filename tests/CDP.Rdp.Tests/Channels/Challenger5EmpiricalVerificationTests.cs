@@ -7,6 +7,7 @@ using CDP.Rdp.Channels;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class Challenger5EmpiricalVerificationTests
 {
     // =========================================================================
@@ -206,7 +207,7 @@ public class Challenger5EmpiricalVerificationTests
         header.Write(ref writer);
 
         byte firstByte = buffer[0];
-        byte lenSpInHeader = (byte)((firstByte >> 6) & 0x03);
+        byte lenSpInHeader = (byte)((firstByte >> 2) & 0x03);
         Assert.Equal(expectedLenSp, lenSpInHeader);
 
         var reader = new RdpPacketReader(buffer.AsSpan(0, writer.WrittenCount));
@@ -385,8 +386,7 @@ public class Challenger5EmpiricalVerificationTests
         // DvcCreateResponsePdu.TryRead succeeds by interpreting 'D','V',0x05,0x00 as CreationStatus 0x00055644.
         bool result = manager.ProcessIncomingPacket(invalidNameBuf);
 
-        // We empirically document this fallthrough behavior:
-        Assert.True(result, "Empirical Finding: Invalid 3-char name payload (4 bytes) falls through and parses as CreateResponse.");
+        Assert.False(result, "Invalid create requests must not fall through and parse as create responses.");
     }
 
     [AvaloniaFact]

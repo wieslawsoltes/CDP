@@ -13,6 +13,7 @@ using WindowsRdpApp.Services;
 using WindowsRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class WindowsRdpAppProfileStorageServiceTests
 {
     private readonly string _tempDir;

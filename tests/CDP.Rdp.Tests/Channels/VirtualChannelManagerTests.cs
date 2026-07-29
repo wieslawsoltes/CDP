@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using CDP.Rdp.Channels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class VirtualChannelManagerTests
 {
     [AvaloniaFact]

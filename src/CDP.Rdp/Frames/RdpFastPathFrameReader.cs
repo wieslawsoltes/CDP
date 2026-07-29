@@ -2,6 +2,7 @@ namespace CDP.Rdp.Frames;
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using CDP.Rdp.Protocol;
 
 public enum FastPathUpdateCode : byte
@@ -194,13 +195,48 @@ public static class RdpFastPathFrameReader
             if (reader.UnreadLength < bitmapLength)
                 return false;
 
+            if (width == 0 || height == 0 || bpp is not (15 or 16 or 24 or 32))
+                return false;
+
             int currentOffset = reader.Position;
-            ReadOnlyMemory<byte> bitmapData = packetBuffer.Slice(currentOffset, bitmapLength);
+            int bitmapDataOffset = currentOffset;
+            int bitmapDataLength = bitmapLength;
+            bool isCompressed = (flags & 0x0001) != 0;
+            bool compressionHeaderOmitted = (flags & 0x0400) != 0;
+
+            if (isCompressed && !compressionHeaderOmitted)
+            {
+                if (bitmapLength < 8)
+                    return false;
+
+                RdpPacketReader compressionHeaderReader =
+                    new RdpPacketReader(packetBuffer.Span.Slice(currentOffset, 8));
+                _ = compressionHeaderReader.ReadUInt16LE(); // cbCompFirstRowSize
+                ushort mainBodySize = compressionHeaderReader.ReadUInt16LE();
+                _ = compressionHeaderReader.ReadUInt16LE(); // cbScanWidth
+                _ = compressionHeaderReader.ReadUInt16LE(); // cbUncompressedSize
+                if (mainBodySize == 0 || mainBodySize > bitmapLength - 8)
+                    return false;
+
+                bitmapDataOffset += 8;
+                bitmapDataLength = mainBodySize;
+            }
+
+            ReadOnlyMemory<byte> bitmapData = packetBuffer.Slice(bitmapDataOffset, bitmapDataLength);
             reader.Advance(bitmapLength);
 
             ushort calcWidth = (destRight >= destLeft) ? (ushort)(destRight - destLeft + 1) : width;
             ushort calcHeight = (destBottom >= destTop) ? (ushort)(destBottom - destTop + 1) : height;
-            bool isCompressed = (flags & 0x0001) != 0;
+            if (calcWidth == 0 || calcHeight == 0 || calcWidth != width || calcHeight != height)
+                return false;
+
+            if (!isCompressed)
+            {
+                int bytesPerPixel = bpp is 15 or 16 ? 2 : bpp / 8;
+                int stride = checked((width * bytesPerPixel + 3) & ~3);
+                if (bitmapDataLength < checked(stride * height))
+                    return false;
+            }
 
             updates.Add(new RdpBitmapUpdate(destLeft, destTop, calcWidth, calcHeight, bpp, isCompressed, bitmapData));
         }
@@ -215,7 +251,9 @@ public static class RdpFastPathFrameReader
         out RdpFrameUpdateEventArgs? eventArgs)
     {
         RdpPacketReader reader = new RdpPacketReader(packetBuffer.Span);
-        if (!TryReadFastPathHeader(ref reader, out _))
+        if (!TryReadFastPathHeader(ref reader, out FastPathServerHeader serverHeader) ||
+            serverHeader.EncryptionFlags != 0 ||
+            serverHeader.CompressionFlags != 0)
         {
             eventArgs = null;
             return false;
@@ -230,9 +268,25 @@ public static class RdpFastPathFrameReader
                 break;
             }
 
+            if (reader.UnreadLength < updateHeader.UpdateSize)
+            {
+                break;
+            }
+
+            ReadOnlyMemory<byte> updatePayload =
+                packetBuffer.Slice(reader.Position, updateHeader.UpdateSize);
+            reader.Advance(updateHeader.UpdateSize);
+
+            if (updateHeader.Fragmentation != FastPathFragmentation.Single || updateHeader.IsCompressed)
+            {
+                break;
+            }
+
             if (updateHeader.UpdateCode == FastPathUpdateCode.Bitmap)
             {
-                if (TryReadBitmapUpdateData(ref reader, packetBuffer, out List<RdpBitmapUpdate> updates))
+                RdpPacketReader updateReader = new RdpPacketReader(updatePayload.Span);
+                if (TryReadBitmapUpdateData(ref updateReader, updatePayload, out List<RdpBitmapUpdate> updates) &&
+                    updateReader.UnreadLength == 0)
                 {
                     allUpdates.AddRange(updates);
                 }
@@ -240,12 +294,6 @@ public static class RdpFastPathFrameReader
                 {
                     break;
                 }
-            }
-            else
-            {
-                if (reader.UnreadLength < updateHeader.UpdateSize)
-                    break;
-                reader.Advance(updateHeader.UpdateSize);
             }
         }
 
@@ -257,5 +305,156 @@ public static class RdpFastPathFrameReader
 
         eventArgs = new RdpFrameUpdateEventArgs(frameId, timestamp, allUpdates);
         return true;
+    }
+}
+
+/// <summary>
+/// Stateful Fast-Path update assembler. It reassembles First/Next/Last update
+/// fragments across transport packets before handing a complete update to the
+/// bitmap parser.
+/// </summary>
+public sealed class RdpFastPathFrameAssembler
+{
+    private const int MaxReassembledUpdateBytes = 16 * 1024 * 1024;
+    private readonly List<byte> _fragmentBuffer = new();
+    private FastPathUpdateCode _fragmentCode;
+    private bool _hasFragment;
+
+    public bool TryProcessPacket(
+        ReadOnlyMemory<byte> packet,
+        ulong frameId,
+        DateTimeOffset timestamp,
+        out RdpFrameUpdateEventArgs? eventArgs)
+    {
+        eventArgs = null;
+        RdpPacketReader reader = new(packet.Span);
+        if (!RdpFastPathFrameReader.TryReadFastPathHeader(ref reader, out FastPathServerHeader header) ||
+            header.PacketLength != packet.Length ||
+            header.EncryptionFlags != 0 ||
+            header.CompressionFlags != 0)
+        {
+            ResetFragments();
+            return false;
+        }
+
+        List<RdpBitmapUpdate> updates = new();
+        while (reader.UnreadLength > 0)
+        {
+            if (!RdpFastPathFrameReader.TryReadUpdateHeader(ref reader, out FastPathUpdateHeader updateHeader) ||
+                reader.UnreadLength < updateHeader.UpdateSize)
+            {
+                ResetFragments();
+                return false;
+            }
+
+            ReadOnlySpan<byte> payload = reader.ReadSpan(updateHeader.UpdateSize);
+            if (updateHeader.IsCompressed)
+            {
+                // Bulk-compressed Fast-Path data requires the negotiated MPPC
+                // history. Never parse compressed bytes as bitmap structures.
+                ResetFragments();
+                return false;
+            }
+
+            switch (updateHeader.Fragmentation)
+            {
+                case FastPathFragmentation.Single:
+                    if (_hasFragment || !TryParseCompleteUpdate(updateHeader.UpdateCode, payload, updates))
+                    {
+                        ResetFragments();
+                        return false;
+                    }
+                    break;
+
+                case FastPathFragmentation.First:
+                    ResetFragments();
+                    _fragmentCode = updateHeader.UpdateCode;
+                    _hasFragment = true;
+                    if (!AppendFragment(payload))
+                    {
+                        ResetFragments();
+                        return false;
+                    }
+                    break;
+
+                case FastPathFragmentation.Next:
+                    if (!_hasFragment || _fragmentCode != updateHeader.UpdateCode || !AppendFragment(payload))
+                    {
+                        ResetFragments();
+                        return false;
+                    }
+                    break;
+
+                case FastPathFragmentation.Last:
+                    if (!_hasFragment || _fragmentCode != updateHeader.UpdateCode || !AppendFragment(payload))
+                    {
+                        ResetFragments();
+                        return false;
+                    }
+
+                    byte[] completePayload = _fragmentBuffer.ToArray();
+                    FastPathUpdateCode completeCode = _fragmentCode;
+                    ResetFragments();
+                    if (!TryParseCompleteUpdate(completeCode, completePayload, updates))
+                    {
+                        return false;
+                    }
+                    break;
+            }
+        }
+
+        if (updates.Count == 0)
+        {
+            return false;
+        }
+
+        eventArgs = new RdpFrameUpdateEventArgs(frameId, timestamp, updates);
+        return true;
+    }
+
+    private bool AppendFragment(ReadOnlySpan<byte> payload)
+    {
+        if (_fragmentBuffer.Count > MaxReassembledUpdateBytes - payload.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < payload.Length; i++)
+        {
+            _fragmentBuffer.Add(payload[i]);
+        }
+        return true;
+    }
+
+    private static bool TryParseCompleteUpdate(
+        FastPathUpdateCode updateCode,
+        ReadOnlySpan<byte> payload,
+        List<RdpBitmapUpdate> destination)
+    {
+        if (updateCode != FastPathUpdateCode.Bitmap)
+        {
+            return true;
+        }
+
+        byte[] ownedPayload = payload.ToArray();
+        RdpPacketReader updateReader = new(ownedPayload);
+        if (!RdpFastPathFrameReader.TryReadBitmapUpdateData(
+                ref updateReader,
+                ownedPayload,
+                out List<RdpBitmapUpdate> parsed) ||
+            updateReader.UnreadLength != 0)
+        {
+            return false;
+        }
+
+        destination.AddRange(parsed);
+        return true;
+    }
+
+    private void ResetFragments()
+    {
+        _fragmentBuffer.Clear();
+        _hasFragment = false;
+        _fragmentCode = default;
     }
 }

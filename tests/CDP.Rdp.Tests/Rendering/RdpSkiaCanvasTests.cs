@@ -7,6 +7,7 @@ using CDP.Rdp.Frames;
 using CDP.Rdp.Rendering;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpSkiaCanvasTests
 {
     [AvaloniaFact]

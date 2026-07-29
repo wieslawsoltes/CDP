@@ -11,6 +11,7 @@ using Xunit;
 /// <summary>
 /// Empirical challenge test suite for FastPath and Bitmap Update PDU parsing in <see cref="RdpFastPathFrameReader"/>.
 /// </summary>
+[Xunit.Collection("RdpTests")]
 public class FastPathFrameReaderChallengerTests
 {
     #region Category A: FastPath Server Header Parsing
@@ -262,8 +263,8 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 9, DestBottom = 9,
-                Width = 10, Height = 10, Bpp = 32, Compressed = false,
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 32, Compressed = false,
                 Data = new byte[] { 0x01, 0x02, 0x03, 0x04 }
             },
             new TestRectSpec
@@ -274,9 +275,9 @@ public class FastPathFrameReaderChallengerTests
             },
             new TestRectSpec
             {
-                DestLeft = 100, DestTop = 100, DestRight = 104, DestBottom = 104,
-                Width = 5, Height = 5, Bpp = 24, Compressed = false,
-                Data = new byte[] { 0x11, 0x22, 0x33 }
+                DestLeft = 100, DestTop = 100, DestRight = 100, DestBottom = 100,
+                Width = 1, Height = 1, Bpp = 24, Compressed = false,
+                Data = new byte[] { 0x11, 0x22, 0x33, 0x00 }
             }
         };
 
@@ -292,8 +293,8 @@ public class FastPathFrameReaderChallengerTests
         // Rect 0
         Assert.Equal(0, updates[0].Left);
         Assert.Equal(0, updates[0].Top);
-        Assert.Equal(10, updates[0].Width);
-        Assert.Equal(10, updates[0].Height);
+        Assert.Equal(1, updates[0].Width);
+        Assert.Equal(1, updates[0].Height);
         Assert.Equal(32, updates[0].Bpp);
         Assert.False(updates[0].Compressed);
         Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x04 }, updates[0].Data.ToArray());
@@ -310,15 +311,15 @@ public class FastPathFrameReaderChallengerTests
         // Rect 2
         Assert.Equal(100, updates[2].Left);
         Assert.Equal(100, updates[2].Top);
-        Assert.Equal(5, updates[2].Width);
-        Assert.Equal(5, updates[2].Height);
+        Assert.Equal(1, updates[2].Width);
+        Assert.Equal(1, updates[2].Height);
         Assert.Equal(24, updates[2].Bpp);
         Assert.False(updates[2].Compressed);
-        Assert.Equal(new byte[] { 0x11, 0x22, 0x33 }, updates[2].Data.ToArray());
+        Assert.Equal(new byte[] { 0x11, 0x22, 0x33, 0x00 }, updates[2].Data.ToArray());
     }
 
     [AvaloniaFact]
-    public void TryReadBitmapUpdateData_ZeroWidthAndHeightEdgeCases_CalculatesOrFallsBack()
+    public void TryReadBitmapUpdateData_ZeroWidthAndHeight_IsRejected()
     {
         // Rect A: destRight < destLeft, destBottom < destTop, Width = 0, Height = 0 -> calcWidth = 0, calcHeight = 0
         // Rect B: destLeft = 10, destTop = 20, destRight = 10, destBottom = 20 -> calcWidth = 1, calcHeight = 1
@@ -351,17 +352,8 @@ public class FastPathFrameReaderChallengerTests
 
         bool success = RdpFastPathFrameReader.TryReadBitmapUpdateData(ref reader, mem, out List<RdpBitmapUpdate> updates);
 
-        Assert.True(success);
-        Assert.Equal(3, updates.Count);
-
-        Assert.Equal(0, updates[0].Width);
-        Assert.Equal(0, updates[0].Height);
-
-        Assert.Equal(1, updates[1].Width);
-        Assert.Equal(1, updates[1].Height);
-
-        Assert.Equal(15, updates[2].Width);
-        Assert.Equal(11, updates[2].Height);
+        Assert.False(success);
+        Assert.Empty(updates);
     }
 
     [AvaloniaTheory]
@@ -376,9 +368,9 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 9, DestBottom = 9,
-                Width = 10, Height = 10, Bpp = 16, CustomFlags = flags,
-                Data = new byte[] { 0x55, 0xAA }
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 16, CustomFlags = flags,
+                Data = new byte[] { 0x55, 0xAA, 0x00, 0x00 }
             }
         };
 
@@ -400,8 +392,8 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 4, DestBottom = 4,
-                Width = 5, Height = 5, Bpp = 32, Compressed = false,
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 32, Compressed = false,
                 Data = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF }
             }
         };
@@ -469,15 +461,15 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 9, DestBottom = 9,
-                Width = 10, Height = 10, Bpp = 32, Compressed = false,
-                Data = new byte[] { 0x01, 0x02 }
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 32, Compressed = false,
+                Data = new byte[] { 0x01, 0x02, 0x00, 0x00 }
             },
             new TestRectSpec
             {
-                DestLeft = 10, DestTop = 10, DestRight = 19, DestBottom = 19,
-                Width = 10, Height = 10, Bpp = 32, Compressed = false,
-                Data = new byte[] { 0x03, 0x04 }
+                DestLeft = 10, DestTop = 10, DestRight = 10, DestBottom = 10,
+                Width = 1, Height = 1, Bpp = 32, Compressed = false,
+                Data = new byte[] { 0x03, 0x04, 0x00, 0x00 }
             }
         };
 
@@ -500,8 +492,8 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 9, DestBottom = 9,
-                Width = 10, Height = 10, Bpp = 32, Compressed = false,
+                DestLeft = 0, DestTop = 0, DestRight = 1, DestBottom = 0,
+                Width = 2, Height = 1, Bpp = 32, Compressed = false,
                 Data = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }
             }
         };
@@ -549,9 +541,9 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 9, DestBottom = 9,
-                Width = 10, Height = 10, Bpp = 32, Compressed = false,
-                Data = new byte[] { 0x77, 0x88 }
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 32, Compressed = false,
+                Data = new byte[] { 0x77, 0x88, 0x00, 0x00 }
             }
         });
         ms.Write(bitmapPayload);
@@ -580,7 +572,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.NotNull(args);
         Assert.Equal(101u, args!.FrameId);
         Assert.Single(args.BitmapUpdates);
-        Assert.Equal(new byte[] { 0x77, 0x88 }, args.BitmapUpdates[0].Data.ToArray());
+        Assert.Equal(new byte[] { 0x77, 0x88, 0x00, 0x00 }, args.BitmapUpdates[0].Data.ToArray());
     }
 
     [AvaloniaFact]
@@ -600,9 +592,9 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 4, DestBottom = 4,
-                Width = 5, Height = 5, Bpp = 16, Compressed = false,
-                Data = new byte[] { 0x11 }
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 16, Compressed = false,
+                Data = new byte[] { 0x11, 0x00, 0x00, 0x00 }
             }
         });
         ms.Write(b1);
@@ -620,15 +612,15 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 10, DestTop = 10, DestRight = 14, DestBottom = 14,
-                Width = 5, Height = 5, Bpp = 16, Compressed = false,
-                Data = new byte[] { 0x22 }
+                DestLeft = 10, DestTop = 10, DestRight = 10, DestBottom = 10,
+                Width = 1, Height = 1, Bpp = 16, Compressed = false,
+                Data = new byte[] { 0x22, 0x00, 0x00, 0x00 }
             },
             new TestRectSpec
             {
-                DestLeft = 20, DestTop = 20, DestRight = 24, DestBottom = 24,
-                Width = 5, Height = 5, Bpp = 16, Compressed = false,
-                Data = new byte[] { 0x33 }
+                DestLeft = 20, DestTop = 20, DestRight = 20, DestBottom = 20,
+                Width = 1, Height = 1, Bpp = 16, Compressed = false,
+                Data = new byte[] { 0x33, 0x00, 0x00, 0x00 }
             }
         });
         ms.Write(b2);
@@ -654,9 +646,9 @@ public class FastPathFrameReaderChallengerTests
         Assert.True(success);
         Assert.NotNull(args);
         Assert.Equal(3, args!.BitmapUpdates.Count);
-        Assert.Equal(new byte[] { 0x11 }, args.BitmapUpdates[0].Data.ToArray());
-        Assert.Equal(new byte[] { 0x22 }, args.BitmapUpdates[1].Data.ToArray());
-        Assert.Equal(new byte[] { 0x33 }, args.BitmapUpdates[2].Data.ToArray());
+        Assert.Equal(new byte[] { 0x11, 0x00, 0x00, 0x00 }, args.BitmapUpdates[0].Data.ToArray());
+        Assert.Equal(new byte[] { 0x22, 0x00, 0x00, 0x00 }, args.BitmapUpdates[1].Data.ToArray());
+        Assert.Equal(new byte[] { 0x33, 0x00, 0x00, 0x00 }, args.BitmapUpdates[2].Data.ToArray());
     }
 
     [AvaloniaFact]
@@ -680,9 +672,9 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 1, DestBottom = 1,
-                Width = 2, Height = 2, Bpp = 32, Compressed = false,
-                Data = new byte[] { 0x99 }
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 32, Compressed = false,
+                Data = new byte[] { 0x99, 0x00, 0x00, 0x00 }
             }
         });
         ms.Write(bitmapPayload);
@@ -707,7 +699,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.True(success);
         Assert.NotNull(args);
         Assert.Single(args!.BitmapUpdates);
-        Assert.Equal(new byte[] { 0x99 }, args.BitmapUpdates[0].Data.ToArray());
+        Assert.Equal(new byte[] { 0x99, 0x00, 0x00, 0x00 }, args.BitmapUpdates[0].Data.ToArray());
     }
 
     [AvaloniaFact]
@@ -739,7 +731,7 @@ public class FastPathFrameReaderChallengerTests
     }
 
     [AvaloniaFact]
-    public void TryParseFrame_EncryptedAndCompressedServerHeaderFlags_ParsesPayload()
+    public void TryParseFrame_EncryptedAndCompressedServerHeaderFlags_RejectsUnprocessedPayload()
     {
         using MemoryStream ms = new MemoryStream();
 
@@ -754,9 +746,9 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 1, DestBottom = 1,
-                Width = 2, Height = 2, Bpp = 32, Compressed = false,
-                Data = new byte[] { 0xAB }
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 32, Compressed = false,
+                Data = new byte[] { 0xAB, 0x00, 0x00, 0x00 }
             }
         });
         ms.Write(bitmapPayload);
@@ -779,10 +771,8 @@ public class FastPathFrameReaderChallengerTests
             timestamp: DateTimeOffset.UtcNow,
             out RdpFrameUpdateEventArgs? args);
 
-        Assert.True(success);
-        Assert.NotNull(args);
-        Assert.Single(args!.BitmapUpdates);
-        Assert.Equal(new byte[] { 0xAB }, args.BitmapUpdates[0].Data.ToArray());
+        Assert.False(success);
+        Assert.Null(args);
     }
 
     [AvaloniaFact]
@@ -828,9 +818,9 @@ public class FastPathFrameReaderChallengerTests
         {
             new TestRectSpec
             {
-                DestLeft = 0, DestTop = 0, DestRight = 1, DestBottom = 1,
-                Width = 2, Height = 2, Bpp = 32, Compressed = false,
-                Data = new byte[] { 0xEF }
+                DestLeft = 0, DestTop = 0, DestRight = 0, DestBottom = 0,
+                Width = 1, Height = 1, Bpp = 32, Compressed = false,
+                Data = new byte[] { 0xEF, 0x00, 0x00, 0x00 }
             }
         });
         ms.Write(bitmapPayload);
@@ -859,7 +849,7 @@ public class FastPathFrameReaderChallengerTests
         Assert.True(success);
         Assert.NotNull(args);
         Assert.Single(args!.BitmapUpdates);
-        Assert.Equal(new byte[] { 0xEF }, args.BitmapUpdates[0].Data.ToArray());
+        Assert.Equal(new byte[] { 0xEF, 0x00, 0x00, 0x00 }, args.BitmapUpdates[0].Data.ToArray());
     }
 
     [AvaloniaFact]
@@ -914,8 +904,16 @@ public class FastPathFrameReaderChallengerTests
             ushort flags = r.CustomFlags ?? (ushort)(r.Compressed ? 0x0001 : 0x0000);
             WriteUInt16LE(ms, flags);
 
-            ushort bitmapLength = (ushort)r.Data.Length;
+            bool includeCompressionHeader = (flags & 0x0001) != 0 && (flags & 0x0400) == 0;
+            ushort bitmapLength = checked((ushort)(r.Data.Length + (includeCompressionHeader ? 8 : 0)));
             WriteUInt16LE(ms, bitmapLength);
+            if (includeCompressionHeader)
+            {
+                WriteUInt16LE(ms, 0);
+                WriteUInt16LE(ms, checked((ushort)r.Data.Length));
+                WriteUInt16LE(ms, checked((ushort)(r.Width * (r.Bpp is 15 or 16 ? 2 : r.Bpp / 8))));
+                WriteUInt16LE(ms, 0);
+            }
             ms.Write(r.Data, 0, r.Data.Length);
         }
 

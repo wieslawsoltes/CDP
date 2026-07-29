@@ -110,6 +110,11 @@ public sealed class StaticVirtualChannelManager
 
         if (isFirst && isLast)
         {
+            if (header.Length != chunkPayload.Length)
+            {
+                return false;
+            }
+
             // Single chunk message
             if (_callbacks.TryGetValue(channelId, out var callback))
             {
@@ -150,12 +155,17 @@ public sealed class StaticVirtualChannelManager
         {
             if (_reassemblyBuffers.TryGetValue(channelId, out var buf))
             {
+                if (buf.CurrentPosition != buf.ExpectedLength)
+                {
+                    _reassemblyBuffers.Remove(channelId);
+                    return false;
+                }
+
                 if (_callbacks.TryGetValue(channelId, out var callback))
                 {
                     callback(channelId, buf.Buffer.AsSpan(0, buf.CurrentPosition));
                 }
-                buf.CurrentPosition = 0;
-                buf.ExpectedLength = 0;
+                _reassemblyBuffers.Remove(channelId);
             }
         }
 

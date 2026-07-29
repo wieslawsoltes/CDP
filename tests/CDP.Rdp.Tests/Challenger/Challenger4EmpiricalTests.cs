@@ -11,6 +11,7 @@ using CDP.Rdp.Security;
 using CDP.Rdp.Tests.Fixtures;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class Challenger4EmpiricalTests
 {
     private class ThrowOnWriteStream : Stream

@@ -2,6 +2,7 @@ namespace CDP.Rdp.Rendering;
 
 using System;
 using System.Buffers;
+using System.IO;
 using SkiaSharp;
 using CDP.Rdp.Frames;
 
@@ -11,6 +12,8 @@ using CDP.Rdp.Frames;
 /// </summary>
 public sealed class RdpBitmapTile : IDisposable
 {
+    private const int MaxBitmapDimension = 16_384;
+    private const int MaxDecodedBitmapBytes = 256 * 1024 * 1024;
     private readonly ArrayPool<byte>? _pool;
     private byte[]? _pooledBuffer;
     private bool _disposed;
@@ -52,8 +55,30 @@ public sealed class RdpBitmapTile : IDisposable
         var targetPool = pool ?? ArrayPool<byte>.Shared;
         int width = update.Width;
         int height = update.Height;
-        int pixelCount = width * height;
-        int bgraByteCount = pixelCount * 4;
+        if (width <= 0 || height <= 0 || width > MaxBitmapDimension || height > MaxBitmapDimension)
+        {
+            throw new InvalidDataException($"Invalid RDP bitmap dimensions: {width}x{height}.");
+        }
+
+        int bytesPerInputPixel = GetBytesPerPixel(update.Bpp);
+        int pixelCount;
+        int bgraByteCount;
+        int tightSourceByteCount;
+        try
+        {
+            pixelCount = checked(width * height);
+            bgraByteCount = checked(pixelCount * 4);
+            tightSourceByteCount = checked(pixelCount * bytesPerInputPixel);
+        }
+        catch (OverflowException ex)
+        {
+            throw new InvalidDataException("RDP bitmap dimensions overflow the decode buffer size.", ex);
+        }
+
+        if (bgraByteCount > MaxDecodedBitmapBytes || tightSourceByteCount > MaxDecodedBitmapBytes)
+        {
+            throw new InvalidDataException("RDP bitmap exceeds the maximum decoded size.");
+        }
 
         byte[] bgraBuffer = targetPool.Rent(bgraByteCount);
         bool success = false;
@@ -61,37 +86,51 @@ public sealed class RdpBitmapTile : IDisposable
         try
         {
             ReadOnlySpan<byte> rawSource = update.Data.Span;
-            ReadOnlySpan<byte> uncompressedPixels;
-            byte[]? decompressedPoolBuffer = null;
+            byte[]? normalizedPoolBuffer = null;
 
             try
             {
+                normalizedPoolBuffer = targetPool.Rent(tightSourceByteCount);
+                Span<byte> normalizedPixels = normalizedPoolBuffer.AsSpan(0, tightSourceByteCount);
+                normalizedPixels.Clear();
+
                 if (update.Compressed)
                 {
-                    int bytesPerInputPixel = update.Bpp switch
+                    byte[] encodedOrderBuffer = targetPool.Rent(tightSourceByteCount);
+                    try
                     {
-                        15 or 16 => 2,
-                        24 => 3,
-                        32 => 4,
-                        _ => 4
-                    };
-                    int decompressedSize = pixelCount * bytesPerInputPixel;
-                    decompressedPoolBuffer = targetPool.Rent(decompressedSize);
-                    DecompressRle(rawSource, decompressedPoolBuffer.AsSpan(0, decompressedSize), width, height, update.Bpp);
-                    uncompressedPixels = decompressedPoolBuffer.AsSpan(0, decompressedSize);
+                        Span<byte> encodedOrderPixels = encodedOrderBuffer.AsSpan(0, tightSourceByteCount);
+                        encodedOrderPixels.Clear();
+                        DecompressRle(rawSource, encodedOrderPixels, width, height, update.Bpp);
+                        CopyRowsTopDown(encodedOrderPixels, normalizedPixels, width * bytesPerInputPixel, height);
+                    }
+                    finally
+                    {
+                        targetPool.Return(encodedOrderBuffer, clearArray: true);
+                    }
                 }
                 else
                 {
-                    uncompressedPixels = rawSource;
+                    int sourceStride = checked((width * bytesPerInputPixel + 3) & ~3);
+                    int requiredSourceBytes = checked(sourceStride * height);
+                    if (rawSource.Length < requiredSourceBytes)
+                    {
+                        throw new InvalidDataException(
+                            $"Uncompressed RDP bitmap is truncated. Expected {requiredSourceBytes} bytes, received {rawSource.Length}.");
+                    }
+
+                    CopyPaddedRowsTopDown(rawSource, normalizedPixels, sourceStride, width * bytesPerInputPixel, height);
                 }
 
-                ConvertPixelsToBgra32(uncompressedPixels, bgraBuffer.AsSpan(0, bgraByteCount), width, height, update.Bpp);
+                Span<byte> bgraPixels = bgraBuffer.AsSpan(0, bgraByteCount);
+                bgraPixels.Clear();
+                ConvertPixelsToBgra32(normalizedPixels, bgraPixels, width, height, update.Bpp);
             }
             finally
             {
-                if (decompressedPoolBuffer != null)
+                if (normalizedPoolBuffer != null)
                 {
-                    targetPool.Return(decompressedPoolBuffer);
+                    targetPool.Return(normalizedPoolBuffer, clearArray: true);
                 }
             }
 
@@ -114,91 +153,336 @@ public sealed class RdpBitmapTile : IDisposable
     /// </summary>
     public static int DecompressRle(ReadOnlySpan<byte> src, Span<byte> dst, int width, int height, ushort bpp)
     {
-        int bytesPerPixel = bpp switch
+        int bytesPerPixel = GetBytesPerPixel(bpp);
+        int pixelCount = checked(width * height);
+        int expectedLength = checked(pixelCount * bytesPerPixel);
+        if (width <= 0 || height <= 0 || dst.Length < expectedLength)
+        {
+            throw new ArgumentException("Destination buffer is too small for the decoded RDP bitmap.", nameof(dst));
+        }
+
+        dst[..expectedLength].Clear();
+        var decoder = new RleDecoder(src, dst, width, pixelCount, bytesPerPixel, bpp);
+        decoder.Decode();
+        return expectedLength;
+    }
+
+    private ref struct RleDecoder
+    {
+        private readonly ReadOnlySpan<byte> _source;
+        private readonly Span<byte> _destination;
+        private readonly int _width;
+        private readonly int _pixelCount;
+        private readonly int _bytesPerPixel;
+        private readonly ushort _bpp;
+        private int _sourceOffset;
+        private int _destinationPixel;
+        private uint _foreground;
+        private bool _insertForeground;
+
+        public RleDecoder(
+            ReadOnlySpan<byte> source,
+            Span<byte> destination,
+            int width,
+            int pixelCount,
+            int bytesPerPixel,
+            ushort bpp)
+        {
+            _source = source;
+            _destination = destination;
+            _width = width;
+            _pixelCount = pixelCount;
+            _bytesPerPixel = bytesPerPixel;
+            _bpp = bpp;
+            _sourceOffset = 0;
+            _destinationPixel = 0;
+            _foreground = GetWhitePixel(bpp);
+            _insertForeground = false;
+        }
+
+        private uint ReadSourcePixel()
+        {
+            if (_sourceOffset + _bytesPerPixel > _source.Length)
+            {
+                throw new InvalidDataException("RDP bitmap compression stream is truncated.");
+            }
+
+            uint value = 0;
+            for (int i = 0; i < _bytesPerPixel; i++)
+            {
+                value |= (uint)_source[_sourceOffset++] << (8 * i);
+            }
+            return value;
+        }
+
+        private uint ReadPreviousPixel()
+        {
+            return _destinationPixel >= _width
+                ? ReadDestinationPixel(_destination, _destinationPixel - _width, _bytesPerPixel)
+                : 0;
+        }
+
+        private void WritePixel(uint value)
+        {
+            if (_destinationPixel >= _pixelCount)
+            {
+                throw new InvalidDataException("RDP bitmap compression stream expands past the declared dimensions.");
+            }
+
+            WriteDestinationPixel(_destination, _destinationPixel++, _bytesPerPixel, value);
+        }
+
+        public void Decode()
+        {
+            while (_sourceOffset < _source.Length && _destinationPixel < _pixelCount)
+            {
+                byte orderHeader = _source[_sourceOffset++];
+                int code = ExtractCompressionCode(orderHeader);
+                int runLength = ReadRunLength(code, orderHeader, _source, ref _sourceOffset);
+
+                if (code is 0x00 or 0xF0)
+                {
+                    if (_insertForeground && runLength > 0)
+                    {
+                        WritePixel(ReadPreviousPixel() ^ _foreground);
+                        runLength--;
+                    }
+
+                    while (runLength-- > 0)
+                    {
+                        WritePixel(ReadPreviousPixel());
+                    }
+
+                    _insertForeground = true;
+                    continue;
+                }
+
+                _insertForeground = false;
+
+                if (code is 0x01 or 0xF1 or 0x0C or 0xF6)
+                {
+                    if (code is 0x0C or 0xF6)
+                    {
+                        _foreground = ReadSourcePixel();
+                    }
+
+                    while (runLength-- > 0)
+                    {
+                        WritePixel(ReadPreviousPixel() ^ _foreground);
+                    }
+                    continue;
+                }
+
+                if (code is 0x0E or 0xF8)
+                {
+                    uint pixelA = ReadSourcePixel();
+                    uint pixelB = ReadSourcePixel();
+                    while (runLength-- > 0)
+                    {
+                        WritePixel(pixelA);
+                        WritePixel(pixelB);
+                    }
+                    continue;
+                }
+
+                if (code is 0x03 or 0xF3)
+                {
+                    uint color = ReadSourcePixel();
+                    while (runLength-- > 0)
+                    {
+                        WritePixel(color);
+                    }
+                    continue;
+                }
+
+                if (code is 0x02 or 0xF2 or 0x0D or 0xF7)
+                {
+                    if (code is 0x0D or 0xF7)
+                    {
+                        _foreground = ReadSourcePixel();
+                    }
+
+                    while (runLength > 0)
+                    {
+                        if (_sourceOffset >= _source.Length)
+                        {
+                            throw new InvalidDataException("RDP foreground/background image bitmask is truncated.");
+                        }
+
+                        byte bitmask = _source[_sourceOffset++];
+                        int bits = Math.Min(runLength, 8);
+                        for (int bit = 0; bit < bits; bit++)
+                        {
+                            uint previous = ReadPreviousPixel();
+                            WritePixel((bitmask & (1 << bit)) != 0 ? previous ^ _foreground : previous);
+                        }
+                        runLength -= bits;
+                    }
+                    continue;
+                }
+
+                if (code is 0x04 or 0xF4)
+                {
+                    while (runLength-- > 0)
+                    {
+                        WritePixel(ReadSourcePixel());
+                    }
+                    continue;
+                }
+
+                if (code is 0xF9 or 0xFA)
+                {
+                    byte bitmask = code == 0xF9 ? (byte)0x03 : (byte)0x05;
+                    for (int bit = 0; bit < 8; bit++)
+                    {
+                        uint previous = ReadPreviousPixel();
+                        WritePixel((bitmask & (1 << bit)) != 0 ? previous ^ _foreground : previous);
+                    }
+                    continue;
+                }
+
+                if (code == 0xFD)
+                {
+                    WritePixel(GetWhitePixel(_bpp));
+                    continue;
+                }
+
+                if (code == 0xFE)
+                {
+                    WritePixel(0);
+                    continue;
+                }
+
+                throw new InvalidDataException($"Unsupported RDP bitmap compression order 0x{code:X2}.");
+            }
+
+            if (_destinationPixel != _pixelCount)
+            {
+                throw new InvalidDataException(
+                    $"RDP bitmap compression stream produced {_destinationPixel} of {_pixelCount} declared pixels.");
+            }
+        }
+    }
+
+    private static int GetBytesPerPixel(ushort bpp)
+    {
+        return bpp switch
         {
             15 or 16 => 2,
             24 => 3,
             32 => 4,
-            _ => 4
+            _ => throw new InvalidDataException($"Unsupported RDP bitmap color depth: {bpp}.")
         };
-        int expectedLength = width * height * bytesPerPixel;
-        if (src.IsEmpty)
+    }
+
+    private static int ExtractCompressionCode(byte header)
+    {
+        if (header >= 0xF0)
         {
-            dst[..Math.Min(dst.Length, expectedLength)].Clear();
-            return expectedLength;
+            return header;
         }
 
-        int srcIdx = 0;
-        int dstIdx = 0;
+        return header >= 0xC0 ? header >> 4 : header >> 5;
+    }
 
-        while (srcIdx < src.Length && dstIdx < expectedLength)
+    private static int ReadRunLength(int code, byte header, ReadOnlySpan<byte> source, ref int offset)
+    {
+        if (code is 0xF9 or 0xFA or 0xFD or 0xFE)
         {
-            byte control = src[srcIdx++];
-            bool isRun = (control & 0x80) != 0;
-            int count = control & 0x7F;
-
-            if (count == 0 && isRun)
-            {
-                if (srcIdx < src.Length)
-                {
-                    count = src[srcIdx++] + 128;
-                }
-            }
-            else if (count == 0)
-            {
-                if (srcIdx < src.Length)
-                {
-                    count = src[srcIdx++];
-                }
-            }
-
-            if (count <= 0) count = 1;
-
-            if (isRun)
-            {
-                if (srcIdx + bytesPerPixel <= src.Length)
-                {
-                    ReadOnlySpan<byte> pixel = src.Slice(srcIdx, bytesPerPixel);
-                    srcIdx += bytesPerPixel;
-
-                    for (int r = 0; r < count && dstIdx + bytesPerPixel <= dst.Length; r++)
-                    {
-                        pixel.CopyTo(dst.Slice(dstIdx, bytesPerPixel));
-                        dstIdx += bytesPerPixel;
-                    }
-                }
-                else
-                {
-                    break;
-                }
-            }
-            else
-            {
-                int maxBytesToCopy = Math.Min(count * bytesPerPixel, src.Length - srcIdx);
-                maxBytesToCopy = Math.Min(maxBytesToCopy, dst.Length - dstIdx);
-                if (maxBytesToCopy > 0)
-                {
-                    src.Slice(srcIdx, maxBytesToCopy).CopyTo(dst.Slice(dstIdx, maxBytesToCopy));
-                    srcIdx += maxBytesToCopy;
-                    dstIdx += maxBytesToCopy;
-                }
-                else
-                {
-                    break;
-                }
-            }
+            return code is 0xF9 or 0xFA ? 8 : 1;
         }
 
-        if (dstIdx < expectedLength && dstIdx < dst.Length)
+        if (code >= 0xF0)
         {
-            int remaining = Math.Min(dst.Length - dstIdx, expectedLength - dstIdx);
-            if (remaining > 0)
+            if (offset + 2 > source.Length)
             {
-                dst.Slice(dstIdx, remaining).Clear();
+                throw new InvalidDataException("RDP MEGA_MEGA compression order is truncated.");
             }
+
+            return source[offset++] | (source[offset++] << 8);
         }
 
-        return expectedLength;
+        bool lite = code >= 0x0C;
+        int encoded = header & (lite ? 0x0F : 0x1F);
+        bool foregroundBackground = code is 0x02 or 0x0D;
+        if (encoded != 0)
+        {
+            return foregroundBackground ? checked(encoded * 8) : encoded;
+        }
+
+        if (offset >= source.Length)
+        {
+            throw new InvalidDataException("RDP compression run length is truncated.");
+        }
+
+        int extension = source[offset++];
+        if (foregroundBackground)
+        {
+            return extension + 1;
+        }
+
+        return extension + (lite ? 16 : 32);
+    }
+
+    private static uint ReadDestinationPixel(Span<byte> buffer, int pixelIndex, int bytesPerPixel)
+    {
+        int offset = checked(pixelIndex * bytesPerPixel);
+        uint value = 0;
+        for (int i = 0; i < bytesPerPixel; i++)
+        {
+            value |= (uint)buffer[offset + i] << (8 * i);
+        }
+        return value;
+    }
+
+    private static void WriteDestinationPixel(Span<byte> buffer, int pixelIndex, int bytesPerPixel, uint value)
+    {
+        int offset = checked(pixelIndex * bytesPerPixel);
+        for (int i = 0; i < bytesPerPixel; i++)
+        {
+            buffer[offset + i] = (byte)(value >> (8 * i));
+        }
+    }
+
+    private static uint GetWhitePixel(ushort bpp)
+    {
+        return bpp switch
+        {
+            15 => 0x7FFF,
+            16 => 0xFFFF,
+            24 => 0xFFFFFF,
+            32 => 0xFFFFFFFF,
+            _ => 0
+        };
+    }
+
+    private static void CopyRowsTopDown(
+        ReadOnlySpan<byte> bottomUpSource,
+        Span<byte> topDownDestination,
+        int rowBytes,
+        int height)
+    {
+        for (int destinationRow = 0; destinationRow < height; destinationRow++)
+        {
+            int sourceRow = height - destinationRow - 1;
+            bottomUpSource.Slice(sourceRow * rowBytes, rowBytes)
+                .CopyTo(topDownDestination.Slice(destinationRow * rowBytes, rowBytes));
+        }
+    }
+
+    private static void CopyPaddedRowsTopDown(
+        ReadOnlySpan<byte> bottomUpSource,
+        Span<byte> topDownDestination,
+        int sourceStride,
+        int destinationRowBytes,
+        int height)
+    {
+        for (int destinationRow = 0; destinationRow < height; destinationRow++)
+        {
+            int sourceRow = height - destinationRow - 1;
+            bottomUpSource.Slice(sourceRow * sourceStride, destinationRowBytes)
+                .CopyTo(topDownDestination.Slice(destinationRow * destinationRowBytes, destinationRowBytes));
+        }
     }
 
     /// <summary>

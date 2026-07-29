@@ -19,11 +19,12 @@ using CdpRdpApp;
 using CdpRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class CdpRdpInputDomainTests
 {
     private class DummyRdpSession : IRdpSession
     {
-        public RdpConnectionState State { get; set; } = RdpConnectionState.Connected;
+        public RdpConnectionState State { get; set; } = RdpConnectionState.Disconnected;
         public RdpSessionOptions Options { get; } = new RdpSessionOptions();
 
         public event EventHandler<RdpFrameUpdateEventArgs>? FrameUpdated;
@@ -32,8 +33,24 @@ public class CdpRdpInputDomainTests
         public List<RdpInputEvent> SentInputEvents { get; } = new();
         public List<RdpFastPathInputEvent> SentFastPathEvents { get; } = new();
 
-        public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task DisconnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ConnectAsync(CancellationToken cancellationToken = default)
+        {
+            SetState(RdpConnectionState.Connected);
+            return Task.CompletedTask;
+        }
+
+        public Task DisconnectAsync(CancellationToken cancellationToken = default)
+        {
+            SetState(RdpConnectionState.Disconnected);
+            return Task.CompletedTask;
+        }
+
+        private void SetState(RdpConnectionState state)
+        {
+            RdpConnectionState oldState = State;
+            State = state;
+            StateChanged?.Invoke(this, new RdpConnectionStateChangedEventArgs(oldState, state));
+        }
 
         public Task SendInputEventAsync(RdpInputEvent inputEvent, CancellationToken cancellationToken = default)
         {
@@ -71,6 +88,8 @@ public class CdpRdpInputDomainTests
     public async Task DispatchMouseEvent_ClickConnectButton_UpdatesConnectionState()
     {
         var window = new MainWindow();
+        var dummy = new DummyRdpSession();
+        window.DataContext = new MainWindowViewModel(_ => dummy);
         window.Show();
 
         var vm = (MainWindowViewModel)window.DataContext!;
@@ -120,9 +139,10 @@ public class CdpRdpInputDomainTests
             ["clickCount"] = 1
         });
 
-        if (!vm.Connection.IsConnected)
+        DateTime timeout = DateTime.UtcNow.AddSeconds(1);
+        while (!vm.Connection.IsConnected && DateTime.UtcNow < timeout)
         {
-            vm.ConnectCommand.Execute(null);
+            await Task.Delay(10);
         }
 
         Assert.True(vm.Connection.IsConnected);

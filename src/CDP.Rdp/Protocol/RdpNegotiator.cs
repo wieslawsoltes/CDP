@@ -108,9 +108,13 @@ public sealed class RdpNegotiator
 
             IRdpSecurityTransport transport = SelectedProtocol switch
             {
+                RdpSecurityProtocol.Rdp => new PlainRdpSecurityTransport(stream),
                 RdpSecurityProtocol.Ssl => new TlsSecurityTransport(stream, certValidation),
                 RdpSecurityProtocol.Hybrid or RdpSecurityProtocol.HybridEx => new CredSspSecurityTransport(stream, username ?? "", password ?? "", domain, certValidation),
-                _ => new PlainRdpSecurityTransport(stream)
+                RdpSecurityProtocol.RdsTls => throw new RdpNegotiationException(
+                    "The server selected RDSTLS, which is not supported by this client."),
+                _ => throw new RdpNegotiationException(
+                    $"The server selected an unsupported security protocol: {SelectedProtocol}.")
             };
 
             if (performSecurityHandshake)

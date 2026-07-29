@@ -4,11 +4,11 @@ using System;
 using CDP.Rdp.Protocol;
 
 /// <summary>
-/// SlowPath 14-byte Input Event container and reader/writer (MS-RDPBCGR Section 2.2.8.1.1.3.1.1).
+/// SlowPath 12-byte Input Event container and reader/writer (MS-RDPBCGR Section 2.2.8.1.1.3.1.1).
 /// </summary>
 public readonly struct RdpInputEvent
 {
-    public const int EventLength = 14;
+    public const int EventLength = 12;
 
     public uint EventTime { get; }
     public RdpInputMessageType MessageType { get; }
@@ -68,13 +68,6 @@ public readonly struct RdpInputEvent
         RdpPacketReader localReader = reader;
         uint time = localReader.ReadUInt32LE();
         ushort typeRaw = localReader.ReadUInt16LE();
-        ushort pad1 = localReader.ReadUInt16LE();
-
-        if (pad1 != 0x0000)
-        {
-            inputEvent = default;
-            return false;
-        }
 
         RdpInputMessageType type = (RdpInputMessageType)typeRaw;
 
@@ -119,7 +112,6 @@ public readonly struct RdpInputEvent
     {
         writer.WriteUInt32LE(EventTime);
         writer.WriteUInt16LE((ushort)MessageType);
-        writer.WriteUInt16LE(0x0000); // pad2Octets
 
         switch (MessageType)
         {
@@ -132,7 +124,8 @@ public readonly struct RdpInputEvent
 
             case RdpInputMessageType.Unicode:
                 writer.WriteUInt16LE((ushort)KeyboardEvent.Flags);
-                writer.WriteUInt32LE(KeyboardEvent.KeyCode);
+                writer.WriteUInt16LE(checked((ushort)KeyboardEvent.KeyCode));
+                writer.WriteUInt16LE(0x0000); // pad2Octets
                 break;
 
             case RdpInputMessageType.Mouse:

@@ -6,6 +6,7 @@ using CDP.Rdp.Input;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpFastPathInputEventTests
 {
     [AvaloniaFact]
@@ -93,11 +94,11 @@ public class RdpFastPathInputEventTests
     {
         var fpEvent = new RdpFastPathInputEvent((byte)RdpSyncToggleFlags.CapsLock);
 
-        byte[] buffer = new byte[2];
+        byte[] buffer = new byte[1];
         var writer = new RdpPacketWriter(buffer);
         fpEvent.Write(ref writer);
 
-        Assert.Equal(2, writer.WrittenCount);
+        Assert.Equal(1, writer.WrittenCount);
 
         var reader = new RdpPacketReader(buffer);
         bool success = RdpFastPathInputEvent.TryRead(ref reader, out var parsed);

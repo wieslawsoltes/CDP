@@ -4,7 +4,8 @@ using System;
 using CDP.Rdp.Protocol;
 
 /// <summary>
-/// MCS Channel Join Request (CJrq 0x38) and Channel Join Confirm (CJcf 0x3C) BER PDU serializer (MS-RDPBCGR Section 2.2.1.8).
+/// MCS Channel Join Request (CJrq 0x38) and Channel Join Confirm (CJcf 0x3C)
+/// aligned-PER PDU serializer (MS-RDPBCGR Section 2.2.1.8).
 /// </summary>
 public readonly struct McsChannelJoinRequest
 {
@@ -34,27 +35,22 @@ public readonly struct McsChannelJoinRequest
             return false;
         }
 
-        if (!McsBerHelper.TryReadBerInteger(ref reader, out uint initiator) ||
-            !McsBerHelper.TryReadBerInteger(ref reader, out uint channel))
-        {
-            pdu = default;
-            return false;
-        }
-
-        pdu = new McsChannelJoinRequest((ushort)initiator, (ushort)channel);
+        ushort initiator = checked((ushort)(reader.ReadUInt16BE() + McsPerHelper.UserIdBase));
+        ushort channel = reader.ReadUInt16BE();
+        pdu = new McsChannelJoinRequest(initiator, channel);
         return true;
     }
 
     public void Write(ref RdpPacketWriter writer)
     {
         writer.WriteByte(ChoiceTag);
-        McsBerHelper.WriteBerInteger(ref writer, InitiatorId);
-        McsBerHelper.WriteBerInteger(ref writer, ChannelId);
+        McsPerHelper.WriteUserId(ref writer, InitiatorId);
+        writer.WriteUInt16BE(ChannelId);
     }
 }
 
 /// <summary>
-/// MCS Channel Join Confirm (CJcf 0x3C) BER PDU (MS-RDPBCGR Section 2.2.1.8).
+/// MCS Channel Join Confirm (CJcf 0x3C) aligned-PER PDU (MS-RDPBCGR Section 2.2.1.8).
 /// </summary>
 public readonly struct McsChannelJoinConfirm
 {
@@ -75,7 +71,7 @@ public readonly struct McsChannelJoinConfirm
 
     public static bool TryRead(ref RdpPacketReader reader, out McsChannelJoinConfirm pdu)
     {
-        if (reader.UnreadLength < 7)
+        if (reader.UnreadLength < 8)
         {
             pdu = default;
             return false;
@@ -88,115 +84,38 @@ public readonly struct McsChannelJoinConfirm
             return false;
         }
 
-        if (!McsBerHelper.TryReadBerEnum(ref reader, out byte result) ||
-            !McsBerHelper.TryReadBerInteger(ref reader, out uint initiator) ||
-            !McsBerHelper.TryReadBerInteger(ref reader, out uint requested) ||
-            !McsBerHelper.TryReadBerInteger(ref reader, out uint channel))
-        {
-            pdu = default;
-            return false;
-        }
-
-        pdu = new McsChannelJoinConfirm(result, (ushort)initiator, (ushort)requested, (ushort)channel);
+        byte result = reader.ReadByte();
+        ushort initiator = checked((ushort)(reader.ReadUInt16BE() + McsPerHelper.UserIdBase));
+        ushort requested = reader.ReadUInt16BE();
+        ushort channel = reader.ReadUInt16BE();
+        pdu = new McsChannelJoinConfirm(result, initiator, requested, channel);
         return true;
     }
 
     public void Write(ref RdpPacketWriter writer)
     {
         writer.WriteByte(ChoiceTag);
-        McsBerHelper.WriteBerEnum(ref writer, Result);
-        McsBerHelper.WriteBerInteger(ref writer, InitiatorId);
-        McsBerHelper.WriteBerInteger(ref writer, RequestedChannelId);
-        McsBerHelper.WriteBerInteger(ref writer, ChannelId);
+        writer.WriteByte(Result);
+        McsPerHelper.WriteUserId(ref writer, InitiatorId);
+        writer.WriteUInt16BE(RequestedChannelId);
+        writer.WriteUInt16BE(ChannelId);
     }
 }
 
 /// <summary>
 /// Internal BER encoding helper for MCS PDUs.
 /// </summary>
-internal static class McsBerHelper
+internal static class McsPerHelper
 {
-    public static bool TryReadBerInteger(ref RdpPacketReader reader, out uint value)
+    internal const ushort UserIdBase = 1001;
+
+    public static void WriteUserId(ref RdpPacketWriter writer, ushort userId)
     {
-        value = 0;
-        if (reader.UnreadLength < 2) return false;
-
-        byte tag = reader.ReadByte();
-        if (tag != 0x02) return false; // BER Integer tag
-
-        byte len = reader.ReadByte();
-        if (reader.UnreadLength < len) return false;
-
-        uint val = 0;
-        for (int i = 0; i < len; i++)
+        if (userId < UserIdBase)
         {
-            val = (val << 8) | reader.ReadByte();
+            throw new ArgumentOutOfRangeException(nameof(userId));
         }
-        value = val;
-        return true;
-    }
 
-    public static void WriteBerInteger(ref RdpPacketWriter writer, uint value)
-    {
-        writer.WriteByte(0x02); // BER Integer tag
-
-        if (value <= 0x7F)
-        {
-            writer.WriteByte(1);
-            writer.WriteByte((byte)value);
-        }
-        else if (value <= 0x7FFF)
-        {
-            writer.WriteByte(2);
-            writer.WriteByte((byte)((value >> 8) & 0xFF));
-            writer.WriteByte((byte)(value & 0xFF));
-        }
-        else if (value <= 0xFFFF)
-        {
-            // Pad 0x00 for unsigned 16-bit values with high bit set
-            writer.WriteByte(3);
-            writer.WriteByte(0x00);
-            writer.WriteByte((byte)((value >> 8) & 0xFF));
-            writer.WriteByte((byte)(value & 0xFF));
-        }
-        else if (value <= 0x7FFFFFFF)
-        {
-            writer.WriteByte(4);
-            writer.WriteByte((byte)((value >> 24) & 0xFF));
-            writer.WriteByte((byte)((value >> 16) & 0xFF));
-            writer.WriteByte((byte)((value >> 8) & 0xFF));
-            writer.WriteByte((byte)(value & 0xFF));
-        }
-        else
-        {
-            writer.WriteByte(5);
-            writer.WriteByte(0x00);
-            writer.WriteByte((byte)((value >> 24) & 0xFF));
-            writer.WriteByte((byte)((value >> 16) & 0xFF));
-            writer.WriteByte((byte)((value >> 8) & 0xFF));
-            writer.WriteByte((byte)(value & 0xFF));
-        }
-    }
-
-    public static bool TryReadBerEnum(ref RdpPacketReader reader, out byte enumVal)
-    {
-        enumVal = 0;
-        if (reader.UnreadLength < 3) return false;
-
-        byte tag = reader.ReadByte();
-        if (tag != 0x0A) return false; // BER Enumerated tag
-
-        byte len = reader.ReadByte();
-        if (len != 1 || reader.UnreadLength < 1) return false;
-
-        enumVal = reader.ReadByte();
-        return true;
-    }
-
-    public static void WriteBerEnum(ref RdpPacketWriter writer, byte enumVal)
-    {
-        writer.WriteByte(0x0A); // BER Enumerated tag
-        writer.WriteByte(1);
-        writer.WriteByte(enumVal);
+        writer.WriteUInt16BE((ushort)(userId - UserIdBase));
     }
 }

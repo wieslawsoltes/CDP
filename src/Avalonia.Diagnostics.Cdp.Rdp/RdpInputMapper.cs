@@ -55,6 +55,47 @@ public static class RdpInputMapper
         { Key.LWin, 0x5B }, { Key.RWin, 0x5C }, { Key.Apps, 0x5D }
     };
 
+    private static readonly Dictionary<PhysicalKey, (ushort ScanCode, bool Extended)> PhysicalKeyToScanCodeMap = new()
+    {
+        [PhysicalKey.Escape] = (0x01, false),
+        [PhysicalKey.Digit1] = (0x02, false), [PhysicalKey.Digit2] = (0x03, false),
+        [PhysicalKey.Digit3] = (0x04, false), [PhysicalKey.Digit4] = (0x05, false),
+        [PhysicalKey.Digit5] = (0x06, false), [PhysicalKey.Digit6] = (0x07, false),
+        [PhysicalKey.Digit7] = (0x08, false), [PhysicalKey.Digit8] = (0x09, false),
+        [PhysicalKey.Digit9] = (0x0A, false), [PhysicalKey.Digit0] = (0x0B, false),
+        [PhysicalKey.Minus] = (0x0C, false), [PhysicalKey.Equal] = (0x0D, false),
+        [PhysicalKey.Backspace] = (0x0E, false), [PhysicalKey.Tab] = (0x0F, false),
+        [PhysicalKey.Q] = (0x10, false), [PhysicalKey.W] = (0x11, false),
+        [PhysicalKey.E] = (0x12, false), [PhysicalKey.R] = (0x13, false),
+        [PhysicalKey.T] = (0x14, false), [PhysicalKey.Y] = (0x15, false),
+        [PhysicalKey.U] = (0x16, false), [PhysicalKey.I] = (0x17, false),
+        [PhysicalKey.O] = (0x18, false), [PhysicalKey.P] = (0x19, false),
+        [PhysicalKey.BracketLeft] = (0x1A, false), [PhysicalKey.BracketRight] = (0x1B, false),
+        [PhysicalKey.Enter] = (0x1C, false), [PhysicalKey.ControlLeft] = (0x1D, false),
+        [PhysicalKey.A] = (0x1E, false), [PhysicalKey.S] = (0x1F, false),
+        [PhysicalKey.D] = (0x20, false), [PhysicalKey.F] = (0x21, false),
+        [PhysicalKey.G] = (0x22, false), [PhysicalKey.H] = (0x23, false),
+        [PhysicalKey.J] = (0x24, false), [PhysicalKey.K] = (0x25, false),
+        [PhysicalKey.L] = (0x26, false), [PhysicalKey.Semicolon] = (0x27, false),
+        [PhysicalKey.Quote] = (0x28, false), [PhysicalKey.Backquote] = (0x29, false),
+        [PhysicalKey.ShiftLeft] = (0x2A, false), [PhysicalKey.Backslash] = (0x2B, false),
+        [PhysicalKey.Z] = (0x2C, false), [PhysicalKey.X] = (0x2D, false),
+        [PhysicalKey.C] = (0x2E, false), [PhysicalKey.V] = (0x2F, false),
+        [PhysicalKey.B] = (0x30, false), [PhysicalKey.N] = (0x31, false),
+        [PhysicalKey.M] = (0x32, false), [PhysicalKey.Comma] = (0x33, false),
+        [PhysicalKey.Period] = (0x34, false), [PhysicalKey.Slash] = (0x35, false),
+        [PhysicalKey.ShiftRight] = (0x36, false), [PhysicalKey.AltLeft] = (0x38, false),
+        [PhysicalKey.Space] = (0x39, false),
+        [PhysicalKey.ArrowUp] = (0x48, true), [PhysicalKey.ArrowDown] = (0x50, true),
+        [PhysicalKey.ArrowLeft] = (0x4B, true), [PhysicalKey.ArrowRight] = (0x4D, true),
+        [PhysicalKey.Insert] = (0x52, true), [PhysicalKey.Delete] = (0x53, true),
+        [PhysicalKey.Home] = (0x47, true), [PhysicalKey.End] = (0x4F, true),
+        [PhysicalKey.PageUp] = (0x49, true), [PhysicalKey.PageDown] = (0x51, true),
+        [PhysicalKey.AltRight] = (0x38, true), [PhysicalKey.ControlRight] = (0x1D, true),
+        [PhysicalKey.MetaLeft] = (0x5B, true), [PhysicalKey.MetaRight] = (0x5C, true),
+        [PhysicalKey.ContextMenu] = (0x5D, true)
+    };
+
     public static bool TryMapKey(Key key, bool isDown, out RdpKeyboardEvent kbEvent)
     {
         return TryMapKey(key, PhysicalKey.None, isDown, out kbEvent);
@@ -63,6 +104,22 @@ public static class RdpInputMapper
     public static bool TryMapKey(Key key, PhysicalKey physicalKey, bool isDown, out RdpKeyboardEvent kbEvent)
     {
         RdpKeyboardFlags flags = isDown ? RdpKeyboardFlags.Down : RdpKeyboardFlags.Release;
+
+        if (physicalKey != PhysicalKey.None &&
+            PhysicalKeyToScanCodeMap.TryGetValue(physicalKey, out var physicalMapping))
+        {
+            if (physicalMapping.Extended)
+            {
+                flags |= RdpKeyboardFlags.Extended;
+            }
+
+            kbEvent = new RdpKeyboardEvent(
+                (uint)Environment.TickCount,
+                flags,
+                physicalMapping.ScanCode,
+                isVirtualKey: false);
+            return true;
+        }
 
         if (ExtendedKeys.Contains(key) && ExtendedKeyScanCodeMap.TryGetValue(key, out ushort extCode))
         {

@@ -18,6 +18,7 @@ using WindowsRdpApp.Services;
 using WindowsRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class EmpiricalMilestone2ChallengeTests
 {
     private readonly string _tempTestDir;
@@ -114,9 +115,8 @@ public class EmpiricalMilestone2ChallengeTests
         var storage = new ProfileStorageService(path);
         var profiles = await storage.LoadProfilesAsync();
 
-        // NullReferenceException when accessing null profile in unprotect loop should be caught
         Assert.NotNull(profiles);
-        Assert.Equal(2, profiles.Count);
+        Assert.Single(profiles);
     }
 
     [AvaloniaFact]

@@ -11,6 +11,7 @@ using WindowsRdpApp.Services;
 using WindowsRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class WindowsRdpAppEmpiricalStressTests
 {
     private readonly string _tempTestDir;
@@ -178,7 +179,7 @@ public class WindowsRdpAppEmpiricalStressTests
         vm.NewPort = -1;
         vm.NewUsername = "admin_user";
 
-        vm.AddProfileCommand.Execute(null);
+        await vm.ExecuteAddProfileAsync();
 
         var added = vm.Profiles.LastOrDefault();
         Assert.NotNull(added);
@@ -198,13 +199,13 @@ public class WindowsRdpAppEmpiricalStressTests
         await vm.LoadProfilesAsync();
 
         vm.NewName = "Test Server";
-        vm.AddProfileCommand.Execute(null);
+        await vm.ExecuteAddProfileAsync();
 
         // Delete all items repeatedly
         while (vm.Profiles.Count > 0)
         {
             vm.SelectedProfile = vm.Profiles[0];
-            vm.DeleteProfileCommand.Execute(null);
+            await vm.ExecuteDeleteProfileAsync();
         }
 
         Assert.Empty(vm.Profiles);
@@ -244,7 +245,7 @@ public class WindowsRdpAppEmpiricalStressTests
         var vm = new SessionWorkspaceViewModel();
         // Clear default initial session
         await vm.ExecuteDisconnectAllAsync();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Empty(vm.Sessions);
 
         // Open 3 sessions
@@ -262,7 +263,7 @@ public class WindowsRdpAppEmpiricalStressTests
 
         // Close tab 2 (the currently selected tab)
         await vm.ExecuteCloseSessionAsync(tab2);
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal(2, vm.Sessions.Count);
         Assert.DoesNotContain(tab2, vm.Sessions);
         Assert.Equal("Disconnected", tab2.Status);
@@ -271,13 +272,13 @@ public class WindowsRdpAppEmpiricalStressTests
 
         // Close inactive tab 1
         await vm.ExecuteCloseSessionAsync(tab1);
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Single(vm.Sessions);
         Assert.Equal(tab3, vm.SelectedSession);
 
         // Close remaining tab 3
         await vm.ExecuteCloseSessionAsync(tab3);
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Empty(vm.Sessions);
         Assert.Null(vm.SelectedSession);
     }

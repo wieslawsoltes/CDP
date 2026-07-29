@@ -7,6 +7,7 @@ using CDP.Rdp.Protocol;
 using CDP.Rdp.Security;
 using CDP.Rdp.Tests.Fixtures;
 
+[Xunit.Collection("RdpTests")]
 public class PlainRdpSecurityTransportTests
 {
     [AvaloniaFact]

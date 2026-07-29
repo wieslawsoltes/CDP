@@ -17,5 +17,5 @@ public sealed record RdpSessionOptions
     public bool EnableFastPath { get; init; } = true;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(15);
     public System.Net.Security.RemoteCertificateValidationCallback? ServerCertificateValidationCallback { get; init; }
-    public bool AcceptUntrustedCertificates { get; init; } = true;
+    public bool AcceptUntrustedCertificates { get; init; }
 }

@@ -6,6 +6,7 @@ using CDP.Rdp.Input;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpInputTruncationAndBoundaryTests
 {
     [AvaloniaTheory]
@@ -29,7 +30,7 @@ public class RdpInputTruncationAndBoundaryTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(5)]
-    [InlineData(13)]
+    [InlineData(11)]
     public void SlowPathInputEvent_TruncatedBuffer_ReturnsFalse(int length)
     {
         byte[] buffer = new byte[length];
@@ -44,13 +45,12 @@ public class RdpInputTruncationAndBoundaryTests
     [AvaloniaFact]
     public void SlowPathInputEvent_UnknownMessageType_ReturnsFalse()
     {
-        byte[] buffer = new byte[14];
+        byte[] buffer = new byte[RdpInputEvent.EventLength];
         var writer = new RdpPacketWriter(buffer);
         writer.WriteUInt32LE(100); // EventTime
         writer.WriteUInt16LE(0x9999); // Unknown MessageType
         writer.WriteUInt16LE(0); // Pad
         writer.WriteUInt32LE(0); // Payload
-        writer.WriteUInt16LE(0); // Payload
 
         var reader = new RdpPacketReader(buffer);
         bool success = RdpInputEvent.TryRead(ref reader, out _);
@@ -107,7 +107,7 @@ public class RdpInputTruncationAndBoundaryTests
     {
         // Header byte indicates FastPath Mouse (code = 0x01)
         byte[] buffer = new byte[totalBufferLength];
-        buffer[0] = 0x01; // Code = Mouse (0x01)
+        buffer[0] = 0x20; // Code = Mouse (0x01) in the high three bits
 
         var reader = new RdpPacketReader(buffer);
         bool success = RdpFastPathInputEvent.TryRead(ref reader, out _);
@@ -116,22 +116,21 @@ public class RdpInputTruncationAndBoundaryTests
     }
 
     [AvaloniaFact]
-    public void FastPathEvent_Sync_TruncatedPayload_ReturnsFalse()
+    public void FastPathEvent_Sync_HeaderContainsToggleFlags()
     {
-        // Header byte indicates FastPath Sync (code = 0x03), but toggle flags byte is missing
-        byte[] buffer = new byte[1] { 0x03 };
+        byte[] buffer = new byte[1] { 0x63 };
         var reader = new RdpPacketReader(buffer);
 
         bool success = RdpFastPathInputEvent.TryRead(ref reader, out _);
 
-        Assert.False(success);
+        Assert.True(success);
     }
 
     [AvaloniaFact]
     public void FastPathEvent_UnknownEventCode_ReturnsFalse()
     {
-        // Header byte with code = 0x1F (unknown/unassigned fastpath code)
-        byte[] buffer = new byte[4] { 0x1F, 0x00, 0x00, 0x00 };
+        // Header byte with code = 0x07 (unknown/unassigned fastpath code).
+        byte[] buffer = new byte[4] { 0xE0, 0x00, 0x00, 0x00 };
         var reader = new RdpPacketReader(buffer);
 
         bool success = RdpFastPathInputEvent.TryRead(ref reader, out _);

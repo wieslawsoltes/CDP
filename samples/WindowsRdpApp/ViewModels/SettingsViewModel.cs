@@ -16,6 +16,8 @@ public class SettingsViewModel : ReactiveObject
     private bool _autoReconnect = true;
     private string _statusText = "Settings active";
 
+    public event Action<bool>? AutoReconnectChanged;
+
     public string SelectedTheme
     {
         get => _selectedTheme;
@@ -53,7 +55,16 @@ public class SettingsViewModel : ReactiveObject
     public bool AutoReconnect
     {
         get => _autoReconnect;
-        set => this.RaiseAndSetIfChanged(ref _autoReconnect, value);
+        set
+        {
+            if (_autoReconnect == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _autoReconnect, value);
+            AutoReconnectChanged?.Invoke(value);
+        }
     }
 
     public string StatusText

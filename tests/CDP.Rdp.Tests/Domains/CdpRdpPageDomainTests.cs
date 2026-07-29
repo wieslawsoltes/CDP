@@ -13,6 +13,7 @@ using CDP.Rdp.Frames;
 using CdpRdpApp;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class CdpRdpPageDomainTests
 {
     [AvaloniaFact]

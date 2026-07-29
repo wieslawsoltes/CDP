@@ -105,6 +105,7 @@ public sealed class RdpSkiaCanvas
                 }
                 else
                 {
+                    FrameBuffer.SwapBuffers();
                     SKRect srcBounds = SKRect.Create(0, 0, FrameBuffer.Width, FrameBuffer.Height);
                     FrameBuffer.RenderToCanvas(canvas, srcBounds, targetBounds);
                 }

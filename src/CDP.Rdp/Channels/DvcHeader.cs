@@ -9,8 +9,8 @@ using CDP.Rdp.Protocol;
 public readonly struct DvcHeader
 {
     public DvcCommandCode Command { get; }
-    public byte Sp { get; }       // 0 = 1 byte, 1 = 2 bytes, 2 = 4 bytes
-    public byte Priority { get; } // 0..3
+    public byte Sp { get; }       // cbId: 0 = 1 byte, 1 = 2 bytes, 2 = 4 bytes
+    public byte Priority { get; } // command-specific Sp/priority/length field
 
     public DvcHeader(DvcCommandCode command, byte sp, byte priority = 0)
     {
@@ -28,9 +28,9 @@ public readonly struct DvcHeader
         }
 
         byte b = reader.ReadByte();
-        DvcCommandCode cmd = (DvcCommandCode)(b & 0x0F);
-        byte sp = (byte)((b >> 4) & 0x03);
-        byte pri = (byte)((b >> 6) & 0x03);
+        DvcCommandCode cmd = (DvcCommandCode)((b >> 4) & 0x0F);
+        byte sp = (byte)(b & 0x03);
+        byte pri = (byte)((b >> 2) & 0x03);
 
         header = new DvcHeader(cmd, sp, pri);
         return true;
@@ -38,9 +38,9 @@ public readonly struct DvcHeader
 
     public void Write(ref RdpPacketWriter writer)
     {
-        byte b = (byte)((byte)Command & 0x0F);
-        b |= (byte)((Sp & 0x03) << 4);
-        b |= (byte)((Priority & 0x03) << 6);
+        byte b = (byte)(((byte)Command & 0x0F) << 4);
+        b |= (byte)(Sp & 0x03);
+        b |= (byte)((Priority & 0x03) << 2);
         writer.WriteByte(b);
     }
 }

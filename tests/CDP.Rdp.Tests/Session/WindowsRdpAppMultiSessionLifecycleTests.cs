@@ -17,6 +17,7 @@ using Xunit;
 
 namespace CDP.Rdp.Tests.Session;
 
+[Xunit.Collection("RdpTests")]
 public class WindowsRdpAppMultiSessionLifecycleTests
 {
     private static Func<RdpSessionOptions, CancellationToken, Task<IRdpSecurityTransport>> CreateMockTransportFactory()
@@ -75,7 +76,7 @@ public class WindowsRdpAppMultiSessionLifecycleTests
 
         // Close selected tab 3
         await workspaceVM.ExecuteCloseSessionAsync(tab3);
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(2, workspaceVM.Sessions.Count);
         Assert.DoesNotContain(tab3, workspaceVM.Sessions);
@@ -136,7 +137,7 @@ public class WindowsRdpAppMultiSessionLifecycleTests
             client.RaiseFrameUpdatedForTesting(frameUpdate);
         }
 
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(1L, tab.TotalFrames);
         Assert.Equal(1, tab.DirtyRectCount);

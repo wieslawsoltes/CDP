@@ -22,6 +22,7 @@ using CdpRdpApp.ViewModels;
 using SkiaSharp;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpDomainIntegrationEmpiricalTests
 {
     private class DummyRdpSession : IRdpSession
@@ -221,8 +222,9 @@ public class RdpDomainIntegrationEmpiricalTests
 
         rdpControl.RaiseEvent(args);
 
-        // EnumerateRunes produces 1 Rune scalar (1 Down + 1 Release = 2 events total) preventing surrogate pair splitting
-        Assert.Equal(2, dummySession.SentInputEvents.Count);
+        // RDP Unicode input carries one UTF-16 code unit, so a supplementary
+        // scalar is sent as high- and low-surrogate down/up pairs.
+        Assert.Equal(4, dummySession.SentInputEvents.Count);
 
         // Verify all emitted events are Unicode type
         foreach (var evt in dummySession.SentInputEvents)
@@ -230,9 +232,10 @@ public class RdpDomainIntegrationEmpiricalTests
             Assert.Equal(RdpInputMessageType.Unicode, evt.MessageType);
         }
 
-        uint scalarVal = (uint)new System.Text.Rune(0x1F680).Value;
-        Assert.Equal(scalarVal, dummySession.SentInputEvents[0].KeyboardEvent.KeyCode);
-        Assert.Equal(scalarVal, dummySession.SentInputEvents[1].KeyboardEvent.KeyCode);
+        Assert.Equal(0xD83Du, dummySession.SentInputEvents[0].KeyboardEvent.KeyCode);
+        Assert.Equal(0xD83Du, dummySession.SentInputEvents[1].KeyboardEvent.KeyCode);
+        Assert.Equal(0xDE80u, dummySession.SentInputEvents[2].KeyboardEvent.KeyCode);
+        Assert.Equal(0xDE80u, dummySession.SentInputEvents[3].KeyboardEvent.KeyCode);
     }
 
     [AvaloniaFact]

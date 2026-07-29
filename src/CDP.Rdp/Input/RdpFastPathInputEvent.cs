@@ -11,6 +11,8 @@ public readonly struct RdpFastPathInputEvent
     public FastPathInputEventCode Code { get; }
     public FastPathKeyboardFlags KeyboardFlags { get; }
     public byte KeyCode { get; }
+    public ushort UnicodeCode { get; }
+    public uint QoeTimestamp { get; }
     public RdpPointerFlags PointerFlags { get; }
     public ushort XPos { get; }
     public ushort YPos { get; }
@@ -21,6 +23,8 @@ public readonly struct RdpFastPathInputEvent
         Code = FastPathInputEventCode.ScanCode;
         KeyboardFlags = keyboardFlags;
         KeyCode = keyCode;
+        UnicodeCode = 0;
+        QoeTimestamp = 0;
         PointerFlags = default;
         XPos = 0;
         YPos = 0;
@@ -32,6 +36,8 @@ public readonly struct RdpFastPathInputEvent
         Code = code;
         KeyboardFlags = default;
         KeyCode = 0;
+        UnicodeCode = 0;
+        QoeTimestamp = 0;
         PointerFlags = pointerFlags;
         XPos = xPos;
         YPos = yPos;
@@ -43,6 +49,8 @@ public readonly struct RdpFastPathInputEvent
         Code = FastPathInputEventCode.Sync;
         KeyboardFlags = default;
         KeyCode = 0;
+        UnicodeCode = 0;
+        QoeTimestamp = 0;
         PointerFlags = default;
         XPos = 0;
         YPos = 0;
@@ -54,6 +62,34 @@ public readonly struct RdpFastPathInputEvent
         Code = code;
         KeyboardFlags = default;
         KeyCode = 0;
+        UnicodeCode = 0;
+        QoeTimestamp = 0;
+        PointerFlags = default;
+        XPos = 0;
+        YPos = 0;
+        ToggleFlags = 0;
+    }
+
+    public RdpFastPathInputEvent(FastPathKeyboardFlags keyboardFlags, ushort unicodeCode)
+    {
+        Code = FastPathInputEventCode.Unicode;
+        KeyboardFlags = keyboardFlags;
+        KeyCode = 0;
+        UnicodeCode = unicodeCode;
+        QoeTimestamp = 0;
+        PointerFlags = default;
+        XPos = 0;
+        YPos = 0;
+        ToggleFlags = 0;
+    }
+
+    public RdpFastPathInputEvent(uint qoeTimestamp)
+    {
+        Code = FastPathInputEventCode.QoeTimestamp;
+        KeyboardFlags = default;
+        KeyCode = 0;
+        UnicodeCode = 0;
+        QoeTimestamp = qoeTimestamp;
         PointerFlags = default;
         XPos = 0;
         YPos = 0;
@@ -72,6 +108,8 @@ public readonly struct RdpFastPathInputEvent
         Code = code;
         KeyboardFlags = keyboardFlags;
         KeyCode = keyCode;
+        UnicodeCode = 0;
+        QoeTimestamp = 0;
         PointerFlags = pointerFlags;
         XPos = xPos;
         YPos = yPos;
@@ -87,8 +125,8 @@ public readonly struct RdpFastPathInputEvent
         }
 
         byte header = reader.ReadByte();
-        FastPathInputEventCode code = (FastPathInputEventCode)(header & 0x1F);
-        byte flags = (byte)((header >> 5) & 0x07);
+        FastPathInputEventCode code = (FastPathInputEventCode)((header >> 5) & 0x07);
+        byte flags = (byte)(header & 0x1F);
 
         switch (code)
         {
@@ -112,9 +150,19 @@ public readonly struct RdpFastPathInputEvent
                 return true;
 
             case FastPathInputEventCode.Sync:
-                if (reader.UnreadLength < 1) { fpEvent = default; return false; }
-                byte syncFlags = reader.ReadByte();
-                fpEvent = new RdpFastPathInputEvent(syncFlags);
+                fpEvent = new RdpFastPathInputEvent(flags);
+                return true;
+
+            case FastPathInputEventCode.Unicode:
+                if (reader.UnreadLength < 2) { fpEvent = default; return false; }
+                fpEvent = new RdpFastPathInputEvent(
+                    (FastPathKeyboardFlags)flags,
+                    reader.ReadUInt16LE());
+                return true;
+
+            case FastPathInputEventCode.QoeTimestamp:
+                if (reader.UnreadLength < 4) { fpEvent = default; return false; }
+                fpEvent = new RdpFastPathInputEvent(reader.ReadUInt32LE());
                 return true;
 
             default:
@@ -125,12 +173,12 @@ public readonly struct RdpFastPathInputEvent
 
     public void Write(ref RdpPacketWriter writer)
     {
-        byte header = (byte)((byte)Code & 0x1F);
+        byte header = (byte)(((byte)Code & 0x07) << 5);
 
         switch (Code)
         {
             case FastPathInputEventCode.ScanCode:
-                header |= (byte)(((byte)KeyboardFlags & 0x07) << 5);
+                header |= (byte)((byte)KeyboardFlags & 0x1F);
                 writer.WriteByte(header);
                 writer.WriteByte(KeyCode);
                 break;
@@ -148,8 +196,19 @@ public readonly struct RdpFastPathInputEvent
                 break;
 
             case FastPathInputEventCode.Sync:
+                header |= (byte)(ToggleFlags & 0x1F);
                 writer.WriteByte(header);
-                writer.WriteByte(ToggleFlags);
+                break;
+
+            case FastPathInputEventCode.Unicode:
+                header |= (byte)((byte)KeyboardFlags & 0x1F);
+                writer.WriteByte(header);
+                writer.WriteUInt16LE(UnicodeCode);
+                break;
+
+            case FastPathInputEventCode.QoeTimestamp:
+                writer.WriteByte(header);
+                writer.WriteUInt32LE(QoeTimestamp);
                 break;
 
             default:

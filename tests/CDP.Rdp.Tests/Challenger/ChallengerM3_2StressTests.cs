@@ -13,7 +13,9 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using CdpRdpApp.ViewModels;
 using CDP.Rdp.Frames;
+using CDP.Rdp.Input;
 using CDP.Rdp.Rendering;
+using CDP.Rdp.Session;
 using SkiaSharp;
 using Xunit;
 
@@ -26,6 +28,7 @@ using Avalonia.Headless.XUnit;
 /// 2. CDP server initialization on port 9224 in CdpRdpApp
 /// 3. UI layout responsiveness and memory allocation safety during frame updates
 /// </summary>
+[Xunit.Collection("RdpTests")]
 public class ChallengerM3_2StressTests
 {
     #region 1. ViewModel State Transitions
@@ -47,26 +50,26 @@ public class ChallengerM3_2StressTests
     }
 
     [AvaloniaFact]
-    public void MainWindowViewModel_ConnectCommand_TransitionsStateToConnected()
+    public async Task MainWindowViewModel_ConnectAsync_TransitionsStateToConnected()
     {
-        var vm = new MainWindowViewModel();
+        using var vm = CreateConnectedViewModel();
         Assert.False(vm.Connection.IsConnected);
         Assert.Equal("Disconnected", vm.Connection.StatusText);
 
-        vm.ConnectCommand.Execute(null);
+        await vm.ConnectAsync();
 
         Assert.True(vm.Connection.IsConnected);
         Assert.Equal("Connected", vm.Connection.StatusText);
     }
 
     [AvaloniaFact]
-    public void MainWindowViewModel_DisconnectCommand_TransitionsStateToDisconnected()
+    public async Task MainWindowViewModel_DisconnectAsync_TransitionsStateToDisconnected()
     {
-        var vm = new MainWindowViewModel();
-        vm.ConnectCommand.Execute(null);
+        using var vm = CreateConnectedViewModel();
+        await vm.ConnectAsync();
         Assert.True(vm.Connection.IsConnected);
 
-        vm.DisconnectCommand.Execute(null);
+        await vm.DisconnectAsync();
 
         Assert.False(vm.Connection.IsConnected);
         Assert.Equal("Disconnected", vm.Connection.StatusText);
@@ -89,9 +92,9 @@ public class ChallengerM3_2StressTests
     }
 
     [AvaloniaFact]
-    public void MainWindowViewModel_PropertyChangeNotifications_FiresPropertyChangedEvents()
+    public async Task MainWindowViewModel_PropertyChangeNotifications_FiresPropertyChangedEvents()
     {
-        var vm = new MainWindowViewModel();
+        using var vm = CreateConnectedViewModel();
         var changedProps = new List<string>();
 
         vm.Connection.PropertyChanged += (sender, e) =>
@@ -110,7 +113,7 @@ public class ChallengerM3_2StressTests
         vm.Port = 3390;
         vm.Username = "operator";
         vm.Password = "Secret123!";
-        vm.ConnectCommand.Execute(null);
+        await vm.ConnectAsync();
         vm.ToggleRecordCommand.Execute(null);
 
         Assert.Contains(nameof(ConnectionStateViewModel.Host), changedProps);
@@ -146,20 +149,20 @@ public class ChallengerM3_2StressTests
     }
 
     [AvaloniaFact]
-    public void MainWindowViewModel_RapidStateTransitionsStress_MaintainsStateConsistency()
+    public async Task MainWindowViewModel_RapidStateTransitionsStress_MaintainsStateConsistency()
     {
-        var vm = new MainWindowViewModel();
+        using var vm = CreateConnectedViewModel();
 
         for (int i = 0; i < 1000; i++)
         {
-            vm.ConnectCommand.Execute(null);
+            await vm.ConnectAsync();
             Assert.True(vm.Connection.IsConnected);
             Assert.Equal("Connected", vm.Connection.StatusText);
 
             vm.ToggleRecordCommand.Execute(null);
             Assert.True(vm.Recorder.IsRecording);
 
-            vm.DisconnectCommand.Execute(null);
+            await vm.DisconnectAsync();
             Assert.False(vm.Connection.IsConnected);
             Assert.Equal("Disconnected", vm.Connection.StatusText);
 
@@ -169,6 +172,49 @@ public class ChallengerM3_2StressTests
     }
 
     #endregion
+
+    private static MainWindowViewModel CreateConnectedViewModel()
+        => new(_ => new TestSession());
+
+    private sealed class TestSession : IRdpSession
+    {
+        public RdpConnectionState State { get; private set; }
+        public RdpSessionOptions Options { get; } = new();
+
+        public event EventHandler<RdpFrameUpdateEventArgs>? FrameUpdated;
+        public event EventHandler<RdpConnectionStateChangedEventArgs>? StateChanged;
+
+        public Task ConnectAsync(CancellationToken cancellationToken = default)
+        {
+            SetState(RdpConnectionState.Connected);
+            return Task.CompletedTask;
+        }
+
+        public Task DisconnectAsync(CancellationToken cancellationToken = default)
+        {
+            SetState(RdpConnectionState.Disconnected);
+            return Task.CompletedTask;
+        }
+
+        public Task SendInputEventAsync(RdpInputEvent inputEvent, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SendFastPathInputEventAsync(RdpFastPathInputEvent inputEvent, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        private void SetState(RdpConnectionState state)
+        {
+            RdpConnectionState oldState = State;
+            State = state;
+            StateChanged?.Invoke(this, new RdpConnectionStateChangedEventArgs(oldState, state));
+        }
+
+        public void Dispose()
+        {
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 
     #region 2. CDP Server Initialization on Port 9224
 

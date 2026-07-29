@@ -26,6 +26,8 @@ public sealed class TlsSecurityTransport : IRdpSecurityTransport
     public RdpSecurityProtocol Protocol => RdpSecurityProtocol.Ssl;
     public Stream TransportStream => _sslStream ?? _baseStream;
     public bool IsEncrypted => _sslStream?.IsEncrypted ?? false;
+    public X509Certificate2? RemoteCertificate =>
+        _sslStream?.RemoteCertificate is { } certificate ? new X509Certificate2(certificate) : null;
 
     public async Task HandshakeAsync(string targetHost, CancellationToken cancellationToken = default)
     {

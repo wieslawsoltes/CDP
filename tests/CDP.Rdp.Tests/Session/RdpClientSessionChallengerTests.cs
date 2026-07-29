@@ -17,6 +17,7 @@ using CDP.Rdp.Session;
 using CDP.Rdp.Tests.Fixtures;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpClientSessionChallengerTests
 {
     #region 1. Stress-Test Concurrent Input Operations
@@ -59,43 +60,37 @@ public class RdpClientSessionChallengerTests
                 {
                     bool parsedAny = false;
 
-                    // Try standard RdpInputEvent (14 bytes) first
-                    if (bytesInBuf >= 14)
-                    {
-                        RdpPacketReader inputReader = new RdpPacketReader(readBuf.AsSpan(0, bytesInBuf));
-                        if (RdpInputEvent.TryRead(ref inputReader, out _))
-                        {
-                            Interlocked.Increment(ref standardInputCount);
-                            Interlocked.Increment(ref totalReadPackets);
-                            int consumed = inputReader.Position;
-                            int remaining = bytesInBuf - consumed;
-                            if (remaining > 0)
-                            {
-                                Array.Copy(readBuf, consumed, readBuf, 0, remaining);
-                            }
-                            bytesInBuf = remaining;
-                            parsedAny = true;
-                            continue;
-                        }
-                    }
-
-                    // Try FastPath input event (2 bytes for scancode)
+                    // Both public send paths write a complete Fast-Path input PDU
+                    // when Fast-Path is enabled. Parse the envelope before the event.
                     if (bytesInBuf >= 2)
                     {
-                        RdpPacketReader fpReader = new RdpPacketReader(readBuf.AsSpan(0, bytesInBuf));
-                        if (RdpFastPathInputEvent.TryRead(ref fpReader, out _))
+                        int packetLength = (readBuf[1] & 0x80) == 0
+                            ? readBuf[1]
+                            : bytesInBuf >= 3
+                                ? ((readBuf[1] & 0x7F) << 8) | readBuf[2]
+                                : 0;
+                        int headerLength = (readBuf[1] & 0x80) == 0 ? 2 : 3;
+                        if (packetLength >= headerLength && bytesInBuf >= packetLength)
                         {
-                            Interlocked.Increment(ref fastPathInputCount);
-                            Interlocked.Increment(ref totalReadPackets);
-                            int consumed = fpReader.Position;
-                            int remaining = bytesInBuf - consumed;
-                            if (remaining > 0)
+                            RdpPacketReader inputReader = new RdpPacketReader(
+                                readBuf.AsSpan(headerLength, packetLength - headerLength));
+                            if (RdpFastPathInputEvent.TryRead(ref inputReader, out RdpFastPathInputEvent parsed))
                             {
-                                Array.Copy(readBuf, consumed, readBuf, 0, remaining);
+                                if (parsed.KeyCode == 0x1E)
+                                    Interlocked.Increment(ref standardInputCount);
+                                else if (parsed.KeyCode == 0x2A)
+                                    Interlocked.Increment(ref fastPathInputCount);
+
+                                Interlocked.Increment(ref totalReadPackets);
+                                int remaining = bytesInBuf - packetLength;
+                                if (remaining > 0)
+                                {
+                                    Array.Copy(readBuf, packetLength, readBuf, 0, remaining);
+                                }
+                                bytesInBuf = remaining;
+                                parsedAny = true;
+                                continue;
                             }
-                            bytesInBuf = remaining;
-                            parsedAny = true;
-                            continue;
                         }
                     }
 
@@ -606,7 +601,7 @@ public class RdpClientSessionChallengerTests
 
         await client.ConnectAsync();
 
-        byte[] framePdu = BuildFastPathBitmapPdu2ByteHeader(5, 5, 20, 20, 32, new byte[] { 0x11, 0x22 });
+        byte[] framePdu = BuildFastPathBitmapPdu2ByteHeader(5, 5, 1, 1, 32, new byte[] { 0x11, 0x22, 0x00, 0x00 });
 
         for (int i = 0; i < framePdu.Length; i++)
         {
@@ -905,8 +900,9 @@ public class RdpClientSessionChallengerTests
         WriteUInt16LE(ms, height);
         WriteUInt16LE(ms, bpp);
         WriteUInt16LE(ms, 0x0000); // flags = uncompressed
-        WriteUInt16LE(ms, (ushort)pixelData.Length);
-        ms.Write(pixelData, 0, pixelData.Length);
+        byte[] wirePixels = CreatePaddedBitmapData(width, height, bpp, pixelData);
+        WriteUInt16LE(ms, checked((ushort)wirePixels.Length));
+        ms.Write(wirePixels, 0, wirePixels.Length);
 
         ushort updateSize = (ushort)(ms.Position - dataStart);
         ms.Position = 4;
@@ -950,8 +946,9 @@ public class RdpClientSessionChallengerTests
         WriteUInt16LE(ms, height);
         WriteUInt16LE(ms, bpp);
         WriteUInt16LE(ms, 0x0000); // flags = uncompressed
-        WriteUInt16LE(ms, (ushort)pixelData.Length);
-        ms.Write(pixelData, 0, pixelData.Length);
+        byte[] wirePixels = CreatePaddedBitmapData(width, height, bpp, pixelData);
+        WriteUInt16LE(ms, checked((ushort)wirePixels.Length));
+        ms.Write(wirePixels, 0, wirePixels.Length);
 
         ushort updateSize = (ushort)(ms.Position - dataStart);
         ms.Position = 3;
@@ -971,6 +968,19 @@ public class RdpClientSessionChallengerTests
     {
         stream.WriteByte((byte)(value & 0xFF));
         stream.WriteByte((byte)(value >> 8));
+    }
+
+    private static byte[] CreatePaddedBitmapData(
+        ushort width,
+        ushort height,
+        ushort bpp,
+        byte[] source)
+    {
+        int bytesPerPixel = bpp is 15 or 16 ? 2 : bpp / 8;
+        int stride = ((width * bytesPerPixel) + 3) & ~3;
+        byte[] result = new byte[checked(stride * height)];
+        source.AsSpan(0, Math.Min(source.Length, result.Length)).CopyTo(result);
+        return result;
     }
 
     private sealed class FailingTransportStream : Stream

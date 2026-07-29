@@ -7,6 +7,7 @@ using Avalonia.Diagnostics.Cdp.Rdp;
 using CDP.Rdp.Input;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpInputMapperTests
 {
     [AvaloniaTheory]

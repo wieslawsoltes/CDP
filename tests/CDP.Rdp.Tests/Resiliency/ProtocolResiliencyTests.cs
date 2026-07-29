@@ -8,6 +8,7 @@ using CDP.Rdp.Exceptions;
 using CDP.Rdp.Protocol;
 using CDP.Rdp.Tests.Fixtures;
 
+[Xunit.Collection("RdpTests")]
 public class ProtocolResiliencyTests
 {
     [AvaloniaFact]

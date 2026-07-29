@@ -7,6 +7,7 @@ using CDP.Rdp.Channels;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class Challenger3EmpiricalVerificationTests
 {
     // =========================================================================

@@ -217,6 +217,18 @@ public class RdpSessionTab : ReactiveObject, IDisposable
         Func<RdpSessionOptions, CancellationToken, Task<IRdpSecurityTransport>>? customTransportFactory = null,
         CancellationToken cancellationToken = default)
     {
+        if (Port is < 1 or > 65535)
+        {
+            var exception = new ArgumentOutOfRangeException(nameof(Port), Port, "RDP port must be in the range 1-65535.");
+            RunOnUIThread(() =>
+            {
+                ErrorMessage = exception.Message;
+                Status = "Faulted";
+                ConnectionState = RdpConnectionState.Faulted;
+            });
+            throw exception;
+        }
+
         _lastCustomTransportFactory = customTransportFactory;
         _connectCts?.Cancel();
         _connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -224,14 +236,14 @@ public class RdpSessionTab : ReactiveObject, IDisposable
         var options = new RdpSessionOptions
         {
             Host = Host,
-            Port = (ushort)(Port <= 0 ? 3389 : Port),
+            Port = Port,
             Username = Username,
             Password = Password,
             Domain = Domain,
             Width = (ushort)(Width <= 0 ? 1920 : Width),
             Height = (ushort)(Height <= 0 ? 1080 : Height),
             ColorDepth = (ushort)(ColorDepth <= 0 ? 32 : ColorDepth),
-            AcceptUntrustedCertificates = true
+            AcceptUntrustedCertificates = false
         };
 
         if (Session != null)
@@ -388,7 +400,7 @@ public class RdpSessionTab : ReactiveObject, IDisposable
         }
         else
         {
-            Dispatcher.UIThread.Post(action);
+            Dispatcher.UIThread.InvokeAsync(action).GetAwaiter().GetResult();
         }
     }
 
@@ -431,7 +443,7 @@ public class RdpSessionTab : ReactiveObject, IDisposable
 
     public async Task SendKeyPassthroughAsync(RdpKeyCombination combination)
     {
-        if (Session == null || !IsKeyPassthroughEnabled)
+        if (Session == null || Session.State != RdpConnectionState.Connected || !IsKeyPassthroughEnabled)
             return;
 
         switch (combination)
@@ -477,13 +489,22 @@ public class RdpSessionTab : ReactiveObject, IDisposable
 
     private async Task SendKeyAsync(ushort scancode, bool isDown, bool isExtended)
     {
-        if (Session == null) return;
+        if (Session == null || Session.State != RdpConnectionState.Connected) return;
         RdpKeyboardFlags flags = isDown ? RdpKeyboardFlags.Down : RdpKeyboardFlags.Release;
         if (isExtended) flags |= RdpKeyboardFlags.Extended;
 
         var kbEvent = new RdpKeyboardEvent((uint)Environment.TickCount, flags, scancode, isVirtualKey: false);
         var inputEvent = new RdpInputEvent((uint)Environment.TickCount, kbEvent);
-        await Session.SendInputEventAsync(inputEvent);
+        IRdpSession session = Session;
+        try
+        {
+            await session.SendInputEventAsync(inputEvent);
+        }
+        catch (InvalidOperationException) when (session.State != RdpConnectionState.Connected)
+        {
+            // The receive loop can observe an EOF between the state check and
+            // dispatch. Treat that connection-loss race as a dropped input.
+        }
     }
 
     public void Dispose()
@@ -506,7 +527,7 @@ public class RdpSessionTab : ReactiveObject, IDisposable
             s.FrameUpdated -= OnFrameUpdated;
             try
             {
-                _ = s.DisconnectAsync();
+                s.DisconnectAsync().GetAwaiter().GetResult();
             }
             catch { }
             if (s is IDisposable disposable)

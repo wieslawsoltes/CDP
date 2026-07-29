@@ -6,6 +6,7 @@ using CDP.Rdp.Input;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpKeyboardEmpiricalTests
 {
     [AvaloniaTheory]
@@ -91,10 +92,10 @@ public class RdpKeyboardEmpiricalTests
         // Inspect header byte bit layout
         byte headerByte = buffer[0];
         byte expectedEventCode = (byte)FastPathInputEventCode.ScanCode; // 0x00
-        Assert.Equal(expectedEventCode, headerByte & 0x1F); // bits 0-4 must be event code
+        Assert.Equal(expectedEventCode, (headerByte >> 5) & 0x07); // bits 5-7 carry the event code
 
-        byte expectedFlagBits = (byte)(((byte)flags & 0x07) << 5); // bits 5-7
-        Assert.Equal(expectedFlagBits, headerByte & 0xE0);
+        byte expectedFlagBits = (byte)((byte)flags & 0x1F); // bits 0-4 carry flags
+        Assert.Equal(expectedFlagBits, headerByte & 0x1F);
 
         var reader = new RdpPacketReader(buffer);
         bool success = RdpFastPathInputEvent.TryRead(ref reader, out var parsed);

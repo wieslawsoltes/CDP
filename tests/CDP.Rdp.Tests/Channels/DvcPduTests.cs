@@ -6,6 +6,7 @@ using CDP.Rdp.Channels;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class DvcPduTests
 {
     [AvaloniaTheory]
@@ -180,9 +181,9 @@ public class DvcPduTests
         var writer = new RdpPacketWriter(buffer);
         header.Write(ref writer);
 
-        // Verify first header byte has bits 6-7 equal to 1 (0x40)
+        // MS-RDPEDYC packs Len into header bits 2-3.
         byte headerByte = buffer[0];
-        byte lenSpBits = (byte)((headerByte >> 6) & 0x03);
+        byte lenSpBits = (byte)((headerByte >> 2) & 0x03);
         Assert.Equal(1, lenSpBits);
 
         // Verify TryRead with small packet buffer (50 bytes) correctly reads totalLength = 500
@@ -205,7 +206,7 @@ public class DvcPduTests
         header.Write(ref writer);
 
         byte headerByte = buffer[0];
-        byte lenSpBits = (byte)((headerByte >> 6) & 0x03);
+        byte lenSpBits = (byte)((headerByte >> 2) & 0x03);
         Assert.Equal(2, lenSpBits);
 
         var reader = new RdpPacketReader(buffer.AsSpan(0, writer.WrittenCount));

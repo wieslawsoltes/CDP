@@ -16,6 +16,7 @@ public class SessionWorkspaceViewModel : ReactiveObject
     private RdpSessionTab? _selectedSession;
     private string _statusText = "Workspace ready";
     private bool _isFullScreen;
+    private bool _autoReconnect = true;
 
     public ObservableCollection<RdpSessionTab> Sessions { get; } = new();
 
@@ -43,6 +44,12 @@ public class SessionWorkspaceViewModel : ReactiveObject
     {
         get => _isFullScreen;
         set => this.RaiseAndSetIfChanged(ref _isFullScreen, value);
+    }
+
+    public bool AutoReconnect
+    {
+        get => _autoReconnect;
+        private set => this.RaiseAndSetIfChanged(ref _autoReconnect, value);
     }
 
     public ICommand CloseSessionCommand { get; }
@@ -84,6 +91,7 @@ public class SessionWorkspaceViewModel : ReactiveObject
             Width = profile.Width <= 0 ? 1920 : profile.Width,
             Height = profile.Height <= 0 ? 1080 : profile.Height,
             ColorDepth = profile.ColorDepth <= 0 ? 32 : profile.ColorDepth,
+            AutoReconnect = AutoReconnect,
             Status = "Connected",
             IsActive = true
         };
@@ -96,6 +104,17 @@ public class SessionWorkspaceViewModel : ReactiveObject
         _ = tab.ConnectSessionAsync(customTransportFactory);
 
         return tab;
+    }
+
+    public void SetAutoReconnect(bool enabled)
+    {
+        AutoReconnect = enabled;
+        foreach (RdpSessionTab session in Sessions)
+        {
+            session.AutoReconnect = enabled;
+        }
+
+        StatusText = enabled ? "Automatic reconnect enabled" : "Automatic reconnect disabled";
     }
 
     public async Task ExecuteCloseSessionAsync(RdpSessionTab? tab)

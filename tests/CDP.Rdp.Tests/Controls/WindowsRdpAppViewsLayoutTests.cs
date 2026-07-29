@@ -7,6 +7,7 @@ using WindowsRdpApp.ViewModels;
 using WindowsRdpApp.Views;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class WindowsRdpAppViewsLayoutTests
 {
     [AvaloniaFact]

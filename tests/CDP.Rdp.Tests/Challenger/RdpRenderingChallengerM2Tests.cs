@@ -9,6 +9,7 @@ using CDP.Rdp.Frames;
 using CDP.Rdp.Rendering;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpRenderingChallengerM2Tests
 {
     [AvaloniaFact]
@@ -148,7 +149,8 @@ public class RdpRenderingChallengerM2Tests
     public void ArrayPool_CompressedRleDecompression_RecyclesTempBuffers()
     {
         // RLE compressed: run of 16 32bpp pixels
-        byte[] compressedData = new byte[] { 0x90, 0x00, 0xFF, 0x00, 0xFF }; // 16 pixels of Green
+        // Regular color-run order for 16 pixels, followed by one BGRA color.
+        byte[] compressedData = new byte[] { 0x70, 0x00, 0xFF, 0x00, 0xFF };
         var update = new RdpBitmapUpdate(0, 0, 4, 4, 32, compressed: true, compressedData);
 
         using (var tile = RdpBitmapTile.FromUpdate(update))

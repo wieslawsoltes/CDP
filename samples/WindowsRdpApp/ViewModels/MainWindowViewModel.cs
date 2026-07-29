@@ -66,6 +66,8 @@ public class MainWindowViewModel : ReactiveObject
         // Wire quick connect & profiles request events to open session in workspace
         QuickConnectVM.RequestConnect += OnConnectRequested;
         ProfilesVM.RequestConnect += OnConnectRequested;
+        SettingsVM.AutoReconnectChanged += SessionWorkspaceVM.SetAutoReconnect;
+        SessionWorkspaceVM.SetAutoReconnect(SettingsVM.AutoReconnect);
 
         // Default view
         CurrentView = QuickConnectVM;

@@ -6,6 +6,7 @@ using CDP.Rdp.Input;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpInputEventTests
 {
     [AvaloniaFact]
@@ -15,17 +16,17 @@ public class RdpInputEventTests
         var kb = new RdpKeyboardEvent(eventTime, RdpKeyboardFlags.Release | RdpKeyboardFlags.Extended, 0x1C, isVirtualKey: false);
         var originalEvent = new RdpInputEvent(eventTime, kb);
 
-        byte[] buffer = new byte[14];
+        byte[] buffer = new byte[12];
         var writer = new RdpPacketWriter(buffer);
         originalEvent.Write(ref writer);
 
-        Assert.Equal(14, writer.WrittenCount);
+        Assert.Equal(12, writer.WrittenCount);
 
         var reader = new RdpPacketReader(buffer);
         bool success = RdpInputEvent.TryRead(ref reader, out var parsedEvent);
 
         Assert.True(success);
-        Assert.Equal(14, reader.Position);
+        Assert.Equal(12, reader.Position);
         Assert.Equal(eventTime, parsedEvent.EventTime);
         Assert.Equal(RdpInputMessageType.ScanCode, parsedEvent.MessageType);
         Assert.False(parsedEvent.KeyboardEvent.IsVirtualKey);
@@ -41,11 +42,11 @@ public class RdpInputEventTests
         var kb = new RdpKeyboardEvent(eventTime, RdpKeyboardFlags.Down, 0x41, isVirtualKey: true);
         var originalEvent = new RdpInputEvent(eventTime, kb);
 
-        byte[] buffer = new byte[14];
+        byte[] buffer = new byte[12];
         var writer = new RdpPacketWriter(buffer);
         originalEvent.Write(ref writer);
 
-        Assert.Equal(14, writer.WrittenCount);
+        Assert.Equal(12, writer.WrittenCount);
 
         var reader = new RdpPacketReader(buffer);
         bool success = RdpInputEvent.TryRead(ref reader, out var parsedEvent);
@@ -63,11 +64,11 @@ public class RdpInputEventTests
         var mouse = new RdpMouseEvent(eventTime, RdpPointerFlags.Move | RdpPointerFlags.Button1 | RdpPointerFlags.Down, 800, 600);
         var originalEvent = new RdpInputEvent(eventTime, mouse, isExtendedMouse: false);
 
-        byte[] buffer = new byte[14];
+        byte[] buffer = new byte[12];
         var writer = new RdpPacketWriter(buffer);
         originalEvent.Write(ref writer);
 
-        Assert.Equal(14, writer.WrittenCount);
+        Assert.Equal(12, writer.WrittenCount);
 
         var reader = new RdpPacketReader(buffer);
         bool success = RdpInputEvent.TryRead(ref reader, out var parsedEvent);
@@ -88,7 +89,7 @@ public class RdpInputEventTests
         var mouse = new RdpMouseEvent(eventTime, flags, 400, 300);
         var originalEvent = new RdpInputEvent(eventTime, mouse, isExtendedMouse: false);
 
-        byte[] buffer = new byte[14];
+        byte[] buffer = new byte[12];
         var writer = new RdpPacketWriter(buffer);
         originalEvent.Write(ref writer);
 
@@ -107,11 +108,11 @@ public class RdpInputEventTests
         var sync = new RdpSyncEvent(eventTime, RdpSyncToggleFlags.CapsLock | RdpSyncToggleFlags.NumLock);
         var originalEvent = new RdpInputEvent(eventTime, sync);
 
-        byte[] buffer = new byte[14];
+        byte[] buffer = new byte[12];
         var writer = new RdpPacketWriter(buffer);
         originalEvent.Write(ref writer);
 
-        Assert.Equal(14, writer.WrittenCount);
+        Assert.Equal(12, writer.WrittenCount);
 
         var reader = new RdpPacketReader(buffer);
         bool success = RdpInputEvent.TryRead(ref reader, out var parsedEvent);

@@ -9,6 +9,7 @@ using CDP.Rdp.Protocol;
 using CDP.Rdp.Security;
 using CDP.Rdp.Tests.Fixtures;
 
+[Xunit.Collection("RdpTests")]
 public class EmpiricalProtocolChallenges
 {
     #region RdpPacketReader Edge Cases
@@ -474,7 +475,7 @@ public class EmpiricalProtocolChallenges
     }
 
     [AvaloniaFact]
-    public async Task NegotiateAsync_ServerReturnsUnknownSelectedProtocol_FallsBackToPlainTransport()
+    public async Task NegotiateAsync_ServerReturnsUnknownSelectedProtocol_IsRejected()
     {
         var ct = TestContext.Current.CancellationToken;
         using DuplexStreamPair pair = new DuplexStreamPair();
@@ -496,16 +497,14 @@ public class EmpiricalProtocolChallenges
         }, ct);
 
         RdpNegotiator negotiator = new RdpNegotiator();
-        IRdpSecurityTransport transport = await negotiator.NegotiateAsync(
-            pair.ClientStream,
-            "localhost",
-            performSecurityHandshake: false,
-            cancellationToken: ct);
+        RdpNegotiationException exception = await Assert.ThrowsAsync<RdpNegotiationException>(
+            () => negotiator.NegotiateAsync(
+                pair.ClientStream,
+                "localhost",
+                performSecurityHandshake: false,
+                cancellationToken: ct));
 
-        Assert.NotNull(transport);
-        Assert.IsType<PlainRdpSecurityTransport>(transport);
-        Assert.Equal((RdpSecurityProtocol)0x99, negotiator.SelectedProtocol);
-        Assert.Equal(RdpNegotiationState.Connected, negotiator.State);
+        Assert.Contains("unsupported security protocol", exception.Message);
         try { await serverTask; } catch { }
     }
 

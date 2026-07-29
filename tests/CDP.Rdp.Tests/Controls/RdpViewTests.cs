@@ -3,6 +3,7 @@ namespace CDP.Rdp.Tests.Controls;
 using Avalonia.Diagnostics.Cdp.Rdp;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpViewTests
 {
     [AvaloniaFact]

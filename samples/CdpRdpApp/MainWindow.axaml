@@ -69,6 +69,7 @@
                                     Port="{Binding Port}"
                                     Username="{Binding Username}"
                                     Password="{Binding Password}"
+                                    Session="{Binding Session}"
                                     IsConnected="{Binding Connection.IsConnected}"
                                     ConnectCommand="{Binding ConnectCommand}" />
                     <Image Name="imgScreenshot" 

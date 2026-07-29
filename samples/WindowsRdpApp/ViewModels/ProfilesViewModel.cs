@@ -101,10 +101,10 @@ public class ProfilesViewModel : ReactiveObject
         _storageService = storageService ?? new ProfileStorageService();
         _credentialProtection = credentialProtection ?? new CredentialProtectionService();
 
-        ConnectProfileCommand = ReactiveCommand.Create(ExecuteConnectProfile);
-        AddProfileCommand = ReactiveCommand.Create(ExecuteAddProfile);
-        DeleteProfileCommand = ReactiveCommand.Create(ExecuteDeleteProfile);
-        SaveProfileCommand = ReactiveCommand.Create(ExecuteSaveProfile);
+        ConnectProfileCommand = ReactiveCommand.CreateFromTask(ExecuteConnectProfileAsync);
+        AddProfileCommand = ReactiveCommand.CreateFromTask(ExecuteAddProfileAsync);
+        DeleteProfileCommand = ReactiveCommand.CreateFromTask(ExecuteDeleteProfileAsync);
+        SaveProfileCommand = ReactiveCommand.CreateFromTask(ExecuteSaveProfileAsync);
         ImportProfilesCommand = ReactiveCommand.CreateFromTask<string>(ExecuteImportProfilesAsync);
         ExportProfilesCommand = ReactiveCommand.CreateFromTask<string>(ExecuteExportProfilesAsync);
 
@@ -114,70 +114,69 @@ public class ProfilesViewModel : ReactiveObject
     public async Task LoadProfilesAsync()
     {
         var loaded = await _storageService.LoadProfilesAsync();
-        lock (Profiles)
+        RunOnUIThread(() =>
         {
-            Profiles.Clear();
-            foreach (var p in loaded)
+            lock (Profiles)
             {
-                Profiles.Add(p);
+                Profiles.Clear();
+                foreach (var p in loaded)
+                {
+                    Profiles.Add(p);
+                }
             }
-        }
-        ApplyFilter();
 
-        if (FilteredProfiles.Count > 0)
-        {
-            SelectedProfile = FilteredProfiles[0];
-        }
-        else
-        {
-            SelectedProfile = null;
-        }
+            ApplyFilter();
+            SelectedProfile = FilteredProfiles.FirstOrDefault();
+        });
     }
 
     private void ApplyFilter()
     {
-        FilteredProfiles.Clear();
-        var query = SearchQuery?.Trim() ?? string.Empty;
-
-        List<RdpConnectionProfile> snapshot;
-        lock (Profiles)
+        RunOnUIThread(() =>
         {
-            snapshot = Profiles.ToList();
-        }
+            FilteredProfiles.Clear();
+            var query = SearchQuery?.Trim() ?? string.Empty;
 
-        var items = string.IsNullOrEmpty(query)
-            ? snapshot
-            : snapshot.Where(p =>
-                p.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                p.Host.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                p.Username.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                p.Domain.Contains(query, StringComparison.OrdinalIgnoreCase));
+            List<RdpConnectionProfile> snapshot;
+            lock (Profiles)
+            {
+                snapshot = Profiles.ToList();
+            }
 
-        foreach (var p in items)
-        {
-            FilteredProfiles.Add(p);
-        }
+            var items = string.IsNullOrEmpty(query)
+                ? snapshot
+                : snapshot.Where(p =>
+                    p.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    p.Host.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    p.Username.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    p.Domain.Contains(query, StringComparison.OrdinalIgnoreCase));
 
-        if (SelectedProfile != null && !FilteredProfiles.Contains(SelectedProfile))
-        {
-            SelectedProfile = FilteredProfiles.FirstOrDefault();
-        }
+            foreach (var p in items)
+            {
+                FilteredProfiles.Add(p);
+            }
+
+            if (SelectedProfile != null && !FilteredProfiles.Contains(SelectedProfile))
+            {
+                SelectedProfile = FilteredProfiles.FirstOrDefault();
+            }
+        });
     }
 
-    private void ExecuteConnectProfile()
+    private async Task ExecuteConnectProfileAsync()
     {
         if (SelectedProfile != null)
         {
             SelectedProfile.LastConnected = DateTime.UtcNow;
             StatusText = $"Connecting to profile '{SelectedProfile.Name}'...";
-            RequestConnect?.Invoke(SelectedProfile);
             List<RdpConnectionProfile> snapshot;
             lock (Profiles) { snapshot = Profiles.ToList(); }
-            _ = _storageService.SaveProfilesAsync(snapshot);
+            await _storageService.SaveProfilesAsync(snapshot);
+            RequestConnect?.Invoke(SelectedProfile);
         }
     }
 
-    private void ExecuteAddProfile()
+    public async Task ExecuteAddProfileAsync()
     {
         var profile = new RdpConnectionProfile
         {
@@ -197,21 +196,21 @@ public class ProfilesViewModel : ReactiveObject
         StatusText = $"Added profile '{profile.Name}'";
         List<RdpConnectionProfile> snapshot;
         lock (Profiles) { snapshot = Profiles.ToList(); }
-        _ = _storageService.SaveProfilesAsync(snapshot);
+        await _storageService.SaveProfilesAsync(snapshot);
     }
 
-    private void ExecuteSaveProfile()
+    private async Task ExecuteSaveProfileAsync()
     {
         if (SelectedProfile != null)
         {
-            StatusText = $"Saved profile '{SelectedProfile.Name}'";
             List<RdpConnectionProfile> snapshot;
             lock (Profiles) { snapshot = Profiles.ToList(); }
-            _ = _storageService.SaveProfilesAsync(snapshot);
+            await _storageService.SaveProfilesAsync(snapshot);
+            StatusText = $"Saved profile '{SelectedProfile.Name}'";
         }
     }
 
-    private void ExecuteDeleteProfile()
+    public async Task ExecuteDeleteProfileAsync()
     {
         if (SelectedProfile != null)
         {
@@ -222,10 +221,22 @@ public class ProfilesViewModel : ReactiveObject
             }
             ApplyFilter();
             SelectedProfile = FilteredProfiles.FirstOrDefault();
-            StatusText = $"Deleted profile '{name}'";
             List<RdpConnectionProfile> snapshot;
             lock (Profiles) { snapshot = Profiles.ToList(); }
-            _ = _storageService.SaveProfilesAsync(snapshot);
+            await _storageService.SaveProfilesAsync(snapshot);
+            StatusText = $"Deleted profile '{name}'";
+        }
+    }
+
+    private static void RunOnUIThread(Action action)
+    {
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action).GetAwaiter().GetResult();
         }
     }
 
@@ -244,23 +255,32 @@ public class ProfilesViewModel : ReactiveObject
                 {
                     p.Password = _credentialProtection.Unprotect(p.Password);
                 }
-                lock (Profiles)
+                RunOnUIThread(() =>
                 {
-                    foreach (var p in imported)
+                    lock (Profiles)
                     {
-                        Profiles.Add(p);
+                        foreach (var p in imported)
+                        {
+                            Profiles.Add(p);
+                        }
                     }
-                }
-                ApplyFilter();
+                    ApplyFilter();
+                });
                 List<RdpConnectionProfile> snapshot;
                 lock (Profiles) { snapshot = Profiles.ToList(); }
                 await _storageService.SaveProfilesAsync(snapshot);
-                StatusText = $"Imported {imported.Count} profiles from '{Path.GetFileName(filePath)}'";
+                RunOnUIThread(() =>
+                {
+                    StatusText = $"Imported {imported.Count} profiles from '{Path.GetFileName(filePath)}'";
+                });
             }
         }
         catch (Exception ex)
         {
-            StatusText = $"Import failed: {ex.Message}";
+            RunOnUIThread(() =>
+            {
+                StatusText = $"Import failed: {ex.Message}";
+            });
         }
     }
 

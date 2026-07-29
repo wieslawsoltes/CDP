@@ -7,6 +7,7 @@ using CDP.Rdp.Input;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpFastPathMultiEventTests
 {
     [AvaloniaTheory]
@@ -53,7 +54,7 @@ public class RdpFastPathMultiEventTests
                 case FastPathInputEventCode.ScanCode: totalPayloadBytes += 2; break;
                 case FastPathInputEventCode.Mouse:
                 case FastPathInputEventCode.MouseX: totalPayloadBytes += 7; break;
-                case FastPathInputEventCode.Sync: totalPayloadBytes += 2; break;
+                case FastPathInputEventCode.Sync: totalPayloadBytes += 1; break;
                 case FastPathInputEventCode.ReleaseAll: totalPayloadBytes += 1; break;
                 default: totalPayloadBytes += 1; break;
             }
@@ -130,9 +131,8 @@ public class RdpFastPathMultiEventTests
         };
 
         // Event payload bytes calculation:
-        // 6 * 2B + 6 * 7B + 2B + 1B + 2B = 12 + 42 + 2 + 1 + 2 = 59 bytes.
-        // Total PDU length = 2 bytes (header) + 59 = 61 bytes.
-        ushort expectedPduLength = 61;
+        // 6 * 2B + 6 * 7B + 1B + 1B + 2B = 58 payload bytes.
+        ushort expectedPduLength = 60;
 
         byte[] buffer = new byte[128];
         var writer = new RdpPacketWriter(buffer);

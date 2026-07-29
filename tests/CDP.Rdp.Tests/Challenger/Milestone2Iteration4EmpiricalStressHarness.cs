@@ -22,6 +22,7 @@ using WindowsRdpApp.Services;
 using WindowsRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class Milestone2Iteration4EmpiricalStressHarness
 {
     private readonly string _tempTestDir;
@@ -148,7 +149,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
 
         // Trigger frame update before disposal
         mockSession.RaiseFrameUpdated(new RdpFrameUpdateEventArgs(1, DateTimeOffset.UtcNow, new List<RdpBitmapUpdate>()));
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal(1L, tab.TotalFrames);
 
         // Disconnect and dispose tab
@@ -159,7 +160,7 @@ public class Milestone2Iteration4EmpiricalStressHarness
 
         // Trigger frame update on old session object — disposed tab should NOT receive it
         mockSession.RaiseFrameUpdated(new RdpFrameUpdateEventArgs(2, DateTimeOffset.UtcNow, new List<RdpBitmapUpdate>()));
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         // TotalFrames must remain 1
         Assert.Equal(1L, tab.TotalFrames);

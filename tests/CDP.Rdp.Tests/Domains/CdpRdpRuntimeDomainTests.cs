@@ -11,6 +11,7 @@ using CdpRdpApp;
 using CdpRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class CdpRdpRuntimeDomainTests
 {
     [AvaloniaFact]

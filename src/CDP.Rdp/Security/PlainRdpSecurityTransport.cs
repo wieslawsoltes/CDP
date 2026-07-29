@@ -2,6 +2,7 @@ namespace CDP.Rdp.Security;
 
 using System;
 using System.IO;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using CDP.Rdp.Protocol;
@@ -21,6 +22,7 @@ public sealed class PlainRdpSecurityTransport : IRdpSecurityTransport
     public RdpSecurityProtocol Protocol => RdpSecurityProtocol.Rdp;
     public Stream TransportStream => _baseStream;
     public bool IsEncrypted => false;
+    public X509Certificate2? RemoteCertificate => null;
 
     public Task HandshakeAsync(string targetHost, CancellationToken cancellationToken = default)
     {

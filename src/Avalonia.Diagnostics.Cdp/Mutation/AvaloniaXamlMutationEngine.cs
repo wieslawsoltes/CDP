@@ -394,9 +394,20 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
                 try
                 {
                     var root = FindWorkspaceRoot();
-                    var fallbackFile = Directory.EnumerateFiles(root, $"{type.Name}.axaml", SearchOption.AllDirectories)
-                        .FirstOrDefault(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") &&
-                                              !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"));
+                    var candidates = Directory.EnumerateFiles(root, $"{type.Name}.axaml", SearchOption.AllDirectories)
+                        .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") &&
+                                    !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+                        .ToList();
+                    string? fallbackFile = fullName == null
+                        ? null
+                        : candidates.SingleOrDefault(candidate => HasMatchingXClass(candidate, fullName));
+
+                    // A class-less XAML file is safe only when the basename is unique in the workspace.
+                    if (fallbackFile == null && candidates.Count == 1 && !HasXClass(candidates[0]))
+                    {
+                        fallbackFile = candidates[0];
+                    }
+
                     if (!string.IsNullOrEmpty(fallbackFile))
                     {
                         if (fullName != null)
@@ -414,6 +425,34 @@ public class AvaloniaXamlMutationEngine : IMutationEngine
             current = current.LogicalParent;
         }
         return (null, null);
+    }
+
+    private static bool HasMatchingXClass(string filePath, string fullName)
+    {
+        try
+        {
+            XDocument document = XDocument.Load(filePath, LoadOptions.None);
+            XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+            return string.Equals(document.Root?.Attribute(xaml + "Class")?.Value, fullName, StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool HasXClass(string filePath)
+    {
+        try
+        {
+            XDocument document = XDocument.Load(filePath, LoadOptions.None);
+            XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+            return document.Root?.Attribute(xaml + "Class") != null;
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     private XElement? LocateXmlElementInDoc(XDocument doc, Control target, Control xamlRoot)

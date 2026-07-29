@@ -22,6 +22,7 @@ using Xunit;
 
 namespace CDP.Rdp.Tests.Challenger;
 
+[Xunit.Collection("RdpTests")]
 public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
 {
     private readonly string _tempDir;
@@ -101,7 +102,7 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
             await workspaceVM.ExecuteCloseSessionAsync(createdTabs[i]);
         }
 
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(25, workspaceVM.Sessions.Count);
 
@@ -167,7 +168,7 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
         for (int i = 0; i < 30; i++)
         {
             workspaceVM.SelectedSession = (i % 3 == 0) ? tab1 : (i % 3 == 1) ? tab2 : tab3;
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             await Task.Delay(5);
         }
 
@@ -410,12 +411,12 @@ public class RdpEmpiricalStressHarnessM2_4Tests : IDisposable
         var timeout = DateTime.UtcNow.AddSeconds(10);
         while (tab.TotalFrames < frameCount && DateTime.UtcNow < timeout)
         {
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             await Task.Delay(10);
         }
         for (int i = 0; i < 25; i++)
         {
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             await Task.Delay(10);
         }
 

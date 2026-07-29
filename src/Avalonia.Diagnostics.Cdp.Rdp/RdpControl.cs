@@ -117,6 +117,7 @@ public class RdpControl : Control
     private RdpSkiaCanvas? _skiaCanvas;
     private SKBitmap? _cachedSkiaBitmap;
     private WriteableBitmap? _writeableBitmap;
+    private IRdpSession? _subscribedSession;
 
     public RdpFrameBuffer? FrameBuffer => _frameBuffer;
     public RdpSkiaCanvas? SkiaCanvas => _skiaCanvas;
@@ -134,6 +135,11 @@ public class RdpControl : Control
 
     public void InitFrameBuffer(int width, int height)
     {
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "Frame-buffer dimensions must be positive.");
+        }
+
         _frameBuffer?.Dispose();
         _frameBuffer = new RdpFrameBuffer(width, height);
         _skiaCanvas = new RdpSkiaCanvas(_frameBuffer);
@@ -145,15 +151,50 @@ public class RdpControl : Control
 
         if (change.Property == SessionProperty)
         {
-            if (change.OldValue is IRdpSession oldSession)
-            {
-                oldSession.FrameUpdated -= OnFrameUpdated;
-            }
-
+            UnsubscribeFromSession();
             if (change.NewValue is IRdpSession newSession)
             {
-                newSession.FrameUpdated += OnFrameUpdated;
+                InitFrameBuffer(newSession.Options.Width, newSession.Options.Height);
+                SubscribeToSession(newSession);
             }
+        }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        if (_frameBuffer == null)
+        {
+            int width = Session?.Options.Width ?? 1280;
+            int height = Session?.Options.Height ?? 720;
+            InitFrameBuffer(width, height);
+        }
+
+        if (Session is { } session)
+        {
+            SubscribeToSession(session);
+        }
+    }
+
+    private void SubscribeToSession(IRdpSession session)
+    {
+        if (ReferenceEquals(_subscribedSession, session))
+        {
+            return;
+        }
+
+        UnsubscribeFromSession();
+        session.FrameUpdated += OnFrameUpdated;
+        _subscribedSession = session;
+    }
+
+    private void UnsubscribeFromSession()
+    {
+        if (_subscribedSession != null)
+        {
+            _subscribedSession.FrameUpdated -= OnFrameUpdated;
+            _subscribedSession = null;
         }
     }
 
@@ -174,17 +215,12 @@ public class RdpControl : Control
     {
         base.OnDetachedFromVisualTree(e);
 
-        if (Session != null)
-        {
-            Session.FrameUpdated -= OnFrameUpdated;
-        }
+        UnsubscribeFromSession();
 
         _cachedSkiaBitmap?.Dispose();
         _cachedSkiaBitmap = null;
         _writeableBitmap?.Dispose();
         _writeableBitmap = null;
-        _frameBuffer?.Dispose();
-        _frameBuffer = null;
     }
 
     public override void Render(DrawingContext context)
@@ -219,7 +255,11 @@ public class RdpControl : Control
 
         using (var canvas = new SKCanvas(_cachedSkiaBitmap))
         {
-            var targetBounds = new SKRect(0, 0, pixelWidth, pixelHeight);
+            double requestedScale = ScaleFactor;
+            float contentScale = requestedScale > 0 && !double.IsNaN(requestedScale) && !double.IsInfinity(requestedScale)
+                ? (float)requestedScale
+                : 1f;
+            var targetBounds = new SKRect(0, 0, pixelWidth * contentScale, pixelHeight * contentScale);
             if (isNewBitmap)
             {
                 canvas.Clear(SKColors.Black);
@@ -291,6 +331,8 @@ public class RdpControl : Control
         TranslateCoordinates(pos, out ushort xPos, out ushort yPos);
 
         RdpPointerFlags flags = RdpPointerFlags.Wheel;
+        int magnitude = Math.Clamp((int)Math.Round(Math.Abs(e.Delta.Y) * 120.0), 1, 0xFF);
+        flags |= (RdpPointerFlags)magnitude;
         if (e.Delta.Y < 0)
         {
             flags |= RdpPointerFlags.WheelNegative;
@@ -322,6 +364,17 @@ public class RdpControl : Control
             flags |= RdpPointerFlags.Button2;
         if (currentPoint.Properties.IsMiddleButtonPressed)
             flags |= RdpPointerFlags.Button3;
+
+        if (!isDown && !isMove && e is PointerReleasedEventArgs)
+        {
+            flags |= currentPoint.Properties.PointerUpdateKind switch
+            {
+                PointerUpdateKind.LeftButtonReleased => RdpPointerFlags.Button1,
+                PointerUpdateKind.RightButtonReleased => RdpPointerFlags.Button2,
+                PointerUpdateKind.MiddleButtonReleased => RdpPointerFlags.Button3,
+                _ => RdpPointerFlags.None
+            };
+        }
 
         if (isDown)
         {
@@ -377,12 +430,20 @@ public class RdpControl : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (IsPrintableTextKey(e.Key) && !HasCommandModifier(e.KeyModifiers))
+        {
+            return;
+        }
         SendKeyEvent(e.Key, e.PhysicalKey, isDown: true);
     }
 
     protected override void OnKeyUp(KeyEventArgs e)
     {
         base.OnKeyUp(e);
+        if (IsPrintableTextKey(e.Key) && !HasCommandModifier(e.KeyModifiers))
+        {
+            return;
+        }
         SendKeyEvent(e.Key, e.PhysicalKey, isDown: false);
     }
 
@@ -393,17 +454,54 @@ public class RdpControl : Control
         if (Session == null || string.IsNullOrEmpty(e.Text))
             return;
 
+        Span<char> utf16 = stackalloc char[2];
         foreach (var rune in e.Text.EnumerateRunes())
         {
-            uint codePoint = (uint)rune.Value;
-            var kbEvent = new RdpKeyboardEvent((uint)Environment.TickCount, RdpKeyboardFlags.Down, codePoint, isVirtualKey: false);
-            var inputEvent = new RdpInputEvent((uint)Environment.TickCount, RdpInputMessageType.Unicode, kbEvent, default, default);
-            _ = Session.SendInputEventAsync(inputEvent);
-
-            var releaseEvent = new RdpKeyboardEvent((uint)Environment.TickCount, RdpKeyboardFlags.Release, codePoint, isVirtualKey: false);
-            var releaseInputEvent = new RdpInputEvent((uint)Environment.TickCount, RdpInputMessageType.Unicode, releaseEvent, default, default);
-            _ = Session.SendInputEventAsync(releaseInputEvent);
+            int codeUnitCount = rune.EncodeToUtf16(utf16);
+            for (int i = 0; i < codeUnitCount; i++)
+            {
+                SendUnicodeCodeUnit(utf16[i]);
+            }
         }
+    }
+
+    private void SendUnicodeCodeUnit(char codeUnit)
+    {
+        if (Session == null)
+        {
+            return;
+        }
+
+        uint timestamp = (uint)Environment.TickCount;
+        var press = new RdpKeyboardEvent(timestamp, RdpKeyboardFlags.Down, codeUnit, isVirtualKey: false);
+        _ = Session.SendInputEventAsync(new RdpInputEvent(timestamp, RdpInputMessageType.Unicode, press, default, default));
+
+        var release = new RdpKeyboardEvent(timestamp, RdpKeyboardFlags.Release, codeUnit, isVirtualKey: false);
+        _ = Session.SendInputEventAsync(new RdpInputEvent(timestamp, RdpInputMessageType.Unicode, release, default, default));
+    }
+
+    private static bool HasCommandModifier(KeyModifiers modifiers)
+    {
+        const KeyModifiers commandModifiers = KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Meta;
+        return (modifiers & commandModifiers) != 0;
+    }
+
+    private static bool IsPrintableTextKey(Key key)
+    {
+        return key is >= Key.A and <= Key.Z
+            or >= Key.D0 and <= Key.D9
+            or Key.Space
+            or Key.OemMinus
+            or Key.OemPlus
+            or Key.OemOpenBrackets
+            or Key.OemCloseBrackets
+            or Key.OemSemicolon
+            or Key.OemQuotes
+            or Key.OemTilde
+            or Key.OemPipe
+            or Key.OemComma
+            or Key.OemPeriod
+            or Key.OemQuestion;
     }
 
     private void SendKeyEvent(Key key, PhysicalKey physicalKey, bool isDown)

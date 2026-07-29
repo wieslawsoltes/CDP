@@ -1,8 +1,14 @@
 namespace CDP.Rdp.Security;
 
 using System;
+using System.Buffers;
 using System.IO;
+using System.Net;
 using System.Net.Security;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Security.Principal;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CDP.Rdp.Exceptions;
@@ -37,6 +43,8 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
     public RdpSecurityProtocol Protocol => RdpSecurityProtocol.Hybrid;
     public Stream TransportStream => _sslStream ?? _baseStream;
     public bool IsEncrypted => _sslStream?.IsEncrypted ?? false;
+    public X509Certificate2? RemoteCertificate =>
+        _sslStream?.RemoteCertificate is { } certificate ? new X509Certificate2(certificate) : null;
 
     public async Task HandshakeAsync(string targetHost, CancellationToken cancellationToken = default)
     {
@@ -48,43 +56,297 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
         };
 
         await _sslStream.AuthenticateAsClientAsync(options, cancellationToken).ConfigureAwait(false);
-        await ExecuteCredSspAuthAsync(_sslStream, cancellationToken).ConfigureAwait(false);
+        await ExecuteCredSspAuthAsync(_sslStream, targetHost, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task ExecuteCredSspAuthAsync(SslStream stream, CancellationToken cancellationToken)
+    private async Task ExecuteCredSspAuthAsync(SslStream stream, string targetHost, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(_username))
         {
             throw new RdpNegotiationException("CredSSP authentication failed: Username credential was not specified.");
         }
 
-        byte[] ntlmNegotiateToken = System.Text.Encoding.ASCII.GetBytes("NTLMSSP\0\x01\x00\x00\x00\x07\x82\x08\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
-        TsRequestPdu clientReq = new TsRequestPdu
+        if (stream.RemoteCertificate == null)
         {
-            Version = 2,
-            NegoToken = ntlmNegotiateToken
+            throw new RdpNegotiationException("CredSSP handshake failed: TLS did not provide a server certificate.");
+        }
+
+        byte[] publicKey = stream.RemoteCertificate.GetPublicKey();
+        byte[] clientNonce = RandomNumberGenerator.GetBytes(32);
+        var authOptions = new NegotiateAuthenticationClientOptions
+        {
+            Package = "Negotiate",
+            Credential = new NetworkCredential(_username, _password, _domain),
+            TargetName = $"TERMSRV/{targetHost}",
+            RequiredProtectionLevel = ProtectionLevel.EncryptAndSign,
+            AllowedImpersonationLevel = TokenImpersonationLevel.Delegation,
+            RequireMutualAuthentication = false
         };
 
-        byte[] encodedReq = clientReq.Encode();
-        await stream.WriteAsync(encodedReq, cancellationToken).ConfigureAwait(false);
+        using var authentication = new NegotiateAuthentication(authOptions);
+        byte[] incomingToken = Array.Empty<byte>();
+        TsRequestPdu? bindingResponse = null;
+
+        for (int round = 0; round < 16; round++)
+        {
+            byte[]? outgoingToken = authentication.GetOutgoingBlob(
+                incomingToken,
+                out NegotiateAuthenticationStatusCode status);
+
+            if (status is not (NegotiateAuthenticationStatusCode.ContinueNeeded or NegotiateAuthenticationStatusCode.Completed))
+            {
+                throw new RdpNegotiationException($"CredSSP SPNEGO authentication failed with status {status}.");
+            }
+
+            if (status == NegotiateAuthenticationStatusCode.Completed)
+            {
+                byte[] bindingHash = ComputeBindingHash(
+                    "CredSSP Client-To-Server Binding Hash\0",
+                    clientNonce,
+                    publicKey);
+                byte[] wrappedBinding = Wrap(authentication, bindingHash);
+                await WriteRequestAsync(
+                    stream,
+                    new TsRequestPdu
+                    {
+                        Version = 6,
+                        NegoToken = outgoingToken is { Length: > 0 } ? outgoingToken : null,
+                        PubKeyAuth = wrappedBinding,
+                        ClientNonce = clientNonce
+                    },
+                    cancellationToken).ConfigureAwait(false);
+
+                bindingResponse = await ReadRequestAsync(stream, cancellationToken).ConfigureAwait(false);
+                break;
+            }
+
+            if (outgoingToken is not { Length: > 0 })
+            {
+                throw new RdpNegotiationException("CredSSP SPNEGO requested continuation without an output token.");
+            }
+
+            await WriteRequestAsync(
+                stream,
+                new TsRequestPdu { Version = 6, NegoToken = outgoingToken },
+                cancellationToken).ConfigureAwait(false);
+            TsRequestPdu serverRequest = await ReadRequestAsync(stream, cancellationToken).ConfigureAwait(false);
+            ThrowIfServerRejected(serverRequest);
+            incomingToken = serverRequest.NegoToken
+                ?? throw new RdpNegotiationException("CredSSP server response omitted the SPNEGO token.");
+        }
+
+        if (!authentication.IsAuthenticated || bindingResponse == null)
+        {
+            throw new RdpNegotiationException("CredSSP SPNEGO authentication did not complete.");
+        }
+
+        ThrowIfServerRejected(bindingResponse);
+        byte[] wrappedServerBinding = bindingResponse.PubKeyAuth
+            ?? throw new RdpNegotiationException("CredSSP server response omitted public-key authentication.");
+        byte[] serverBinding = Unwrap(authentication, wrappedServerBinding);
+        byte[] expectedServerBinding = ComputeBindingHash(
+            "CredSSP Server-To-Client Binding Hash\0",
+            clientNonce,
+            publicKey);
+        if (!CryptographicOperations.FixedTimeEquals(serverBinding, expectedServerBinding))
+        {
+            throw new RdpNegotiationException("CredSSP server public-key binding validation failed.");
+        }
+
+        byte[] credentials = EncodePasswordCredentials(_domain ?? string.Empty, _username, _password);
+        await WriteRequestAsync(
+            stream,
+            new TsRequestPdu
+            {
+                Version = 6,
+                AuthInfo = Wrap(authentication, credentials)
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void ThrowIfServerRejected(TsRequestPdu response)
+    {
+        if (response.ErrorCode.HasValue && response.ErrorCode.Value != 0)
+        {
+            throw new RdpNegotiationException(
+                $"CredSSP authentication rejected by server with error code: 0x{response.ErrorCode.Value:X8}");
+        }
+    }
+
+    private static byte[] Wrap(NegotiateAuthentication authentication, ReadOnlySpan<byte> value)
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        NegotiateAuthenticationStatusCode status = authentication.Wrap(value, writer, requestEncryption: true, out bool encrypted);
+        if (status != NegotiateAuthenticationStatusCode.Completed || !encrypted)
+        {
+            throw new RdpNegotiationException($"CredSSP message encryption failed with status {status}.");
+        }
+        return writer.WrittenSpan.ToArray();
+    }
+
+    private static byte[] Unwrap(NegotiateAuthentication authentication, ReadOnlySpan<byte> value)
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        NegotiateAuthenticationStatusCode status = authentication.Unwrap(value, writer, out bool encrypted);
+        if (status != NegotiateAuthenticationStatusCode.Completed || !encrypted)
+        {
+            throw new RdpNegotiationException($"CredSSP message decryption failed with status {status}.");
+        }
+        return writer.WrittenSpan.ToArray();
+    }
+
+    private static byte[] ComputeBindingHash(string label, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> publicKey)
+    {
+        byte[] labelBytes = Encoding.ASCII.GetBytes(label);
+        byte[] input = new byte[labelBytes.Length + nonce.Length + publicKey.Length];
+        labelBytes.CopyTo(input, 0);
+        nonce.CopyTo(input.AsSpan(labelBytes.Length));
+        publicKey.CopyTo(input.AsSpan(labelBytes.Length + nonce.Length));
+        return SHA256.HashData(input);
+    }
+
+    private static async Task WriteRequestAsync(
+        Stream stream,
+        TsRequestPdu request,
+        CancellationToken cancellationToken)
+    {
+        byte[] encoded = request.Encode();
+        await stream.WriteAsync(encoded, cancellationToken).ConfigureAwait(false);
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
 
-        byte[] responseBuffer = new byte[1024];
-        int bytesRead = await stream.ReadAsync(responseBuffer, cancellationToken).ConfigureAwait(false);
-        if (bytesRead == 0)
+    private static async Task<TsRequestPdu> ReadRequestAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        try
         {
-            throw new RdpNegotiationException("CredSSP handshake failed: Server closed connection during TSRequest exchange.");
+            return await ReadRequestCoreAsync(stream, cancellationToken).ConfigureAwait(false);
+        }
+        catch (RdpNegotiationException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException or EndOfStreamException or OverflowException)
+        {
+            throw new RdpNegotiationException(
+                "CredSSP server returned an invalid or truncated TSRequest.",
+                ex);
+        }
+    }
+
+    private static async Task<TsRequestPdu> ReadRequestCoreAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        byte[] prefix = new byte[2];
+        await ReadExactAsync(stream, prefix, cancellationToken).ConfigureAwait(false);
+        if (prefix[0] != 0x30)
+        {
+            throw new RdpNegotiationException("CredSSP server returned an invalid ASN.1 sequence.");
         }
 
-        if (!TsRequestPdu.TryParse(responseBuffer.AsSpan(0, bytesRead), out TsRequestPdu serverResp))
+        int length;
+        byte[] lengthBytes;
+        if (prefix[1] < 0x80)
         {
-            throw new RdpNegotiationException("CredSSP handshake failed: Invalid TSRequest ASN.1 PDU received from server.");
+            length = prefix[1];
+            lengthBytes = Array.Empty<byte>();
+        }
+        else
+        {
+            int lengthByteCount = prefix[1] & 0x7F;
+            if (lengthByteCount is <= 0 or > 4)
+            {
+                throw new RdpNegotiationException("CredSSP server returned an invalid ASN.1 length.");
+            }
+
+            lengthBytes = new byte[lengthByteCount];
+            await ReadExactAsync(stream, lengthBytes, cancellationToken).ConfigureAwait(false);
+            length = 0;
+            for (int i = 0; i < lengthBytes.Length; i++)
+            {
+                length = checked((length << 8) | lengthBytes[i]);
+            }
         }
 
-        if (serverResp.ErrorCode.HasValue && serverResp.ErrorCode.Value != 0)
+        if (length is <= 0 or > 1024 * 1024)
         {
-            throw new RdpNegotiationException($"CredSSP authentication rejected by server with error code: 0x{serverResp.ErrorCode.Value:X8}");
+            throw new RdpNegotiationException("CredSSP server response exceeds the allowed size.");
         }
+
+        byte[] payload = new byte[length];
+        await ReadExactAsync(stream, payload, cancellationToken).ConfigureAwait(false);
+        byte[] encoded = new byte[prefix.Length + lengthBytes.Length + payload.Length];
+        prefix.CopyTo(encoded, 0);
+        lengthBytes.CopyTo(encoded, prefix.Length);
+        payload.CopyTo(encoded, prefix.Length + lengthBytes.Length);
+        if (!TsRequestPdu.TryParse(encoded, out TsRequestPdu response))
+        {
+            throw new RdpNegotiationException("CredSSP server returned an invalid TSRequest.");
+        }
+        return response;
+    }
+
+    private static async Task ReadExactAsync(Stream stream, Memory<byte> destination, CancellationToken cancellationToken)
+    {
+        int readTotal = 0;
+        while (readTotal < destination.Length)
+        {
+            int read = await stream.ReadAsync(destination[readTotal..], cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                throw new EndOfStreamException("CredSSP server closed the transport during authentication.");
+            }
+            readTotal += read;
+        }
+    }
+
+    private static byte[] EncodePasswordCredentials(string domain, string username, string password)
+    {
+        byte[] passwordCredentials = EncodeSequence(
+            EncodeExplicitOctetString(0, Encoding.Unicode.GetBytes(domain)),
+            EncodeExplicitOctetString(1, Encoding.Unicode.GetBytes(username)),
+            EncodeExplicitOctetString(2, Encoding.Unicode.GetBytes(password)));
+
+        return EncodeSequence(
+            EncodeExplicitInteger(0, 1),
+            EncodeExplicitOctetString(1, passwordCredentials));
+    }
+
+    private static byte[] EncodeExplicitInteger(byte index, int value)
+    {
+        return EncodeTagged((byte)(0xA0 | index), new byte[] { 0x02, 0x01, checked((byte)value) });
+    }
+
+    private static byte[] EncodeExplicitOctetString(byte index, byte[] value)
+    {
+        return EncodeTagged((byte)(0xA0 | index), EncodeTagged(0x04, value));
+    }
+
+    private static byte[] EncodeSequence(params byte[][] values)
+    {
+        int length = 0;
+        foreach (byte[] value in values)
+            length = checked(length + value.Length);
+        byte[] payload = new byte[length];
+        int offset = 0;
+        foreach (byte[] value in values)
+        {
+            value.CopyTo(payload, offset);
+            offset += value.Length;
+        }
+        return EncodeTagged(0x30, payload);
+    }
+
+    private static byte[] EncodeTagged(byte tag, byte[] value)
+    {
+        byte[] length = value.Length < 0x80
+            ? new byte[] { (byte)value.Length }
+            : value.Length <= byte.MaxValue
+                ? new byte[] { 0x81, (byte)value.Length }
+                : new byte[] { 0x82, (byte)(value.Length >> 8), (byte)value.Length };
+        byte[] result = new byte[1 + length.Length + value.Length];
+        result[0] = tag;
+        length.CopyTo(result, 1);
+        value.CopyTo(result, 1 + length.Length);
+        return result;
     }
 
     public void Dispose()
@@ -105,4 +367,3 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
         }
     }
 }
-

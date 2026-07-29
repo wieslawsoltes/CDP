@@ -8,6 +8,7 @@ using CDP.Rdp.Frames;
 using CDP.Rdp.Rendering;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpFrameBufferTests
 {
     [AvaloniaFact]
@@ -67,12 +68,18 @@ public class RdpFrameBufferTests
         using var buffer = new RdpFrameBuffer(100, 100);
 
         // 24 bpp BGR pixel: Green (B=0, G=255, R=0)
-        byte[] rawPixels = new byte[2 * 2 * 3];
-        for (int i = 0; i < 4; i++)
+        // RDP bitmap scanlines are DWORD aligned: two 24-bpp pixels occupy
+        // six payload bytes followed by two padding bytes on each row.
+        byte[] rawPixels = new byte[2 * 8];
+        for (int row = 0; row < 2; row++)
         {
-            rawPixels[i * 3 + 0] = 0x00; // B
-            rawPixels[i * 3 + 1] = 0xFF; // G
-            rawPixels[i * 3 + 2] = 0x00; // R
+            for (int column = 0; column < 2; column++)
+            {
+                int offset = (row * 8) + (column * 3);
+                rawPixels[offset + 0] = 0x00; // B
+                rawPixels[offset + 1] = 0xFF; // G
+                rawPixels[offset + 2] = 0x00; // R
+            }
         }
 
         var update = new RdpBitmapUpdate(0, 0, 2, 2, 24, compressed: false, rawPixels);
@@ -92,7 +99,7 @@ public class RdpFrameBufferTests
         using var buffer = new RdpFrameBuffer(100, 100);
 
         // RGB565 Pure Blue: B=31 (0x1F), G=0, R=0 -> 0x001F (little endian: 0x1F, 0x00)
-        byte[] rawPixels = new byte[] { 0x1F, 0x00 };
+        byte[] rawPixels = new byte[] { 0x1F, 0x00, 0x00, 0x00 };
 
         var update = new RdpBitmapUpdate(5, 5, 1, 1, 16, compressed: false, rawPixels);
         using var tile = RdpBitmapTile.FromUpdate(update);
@@ -111,7 +118,7 @@ public class RdpFrameBufferTests
         using var buffer = new RdpFrameBuffer(100, 100);
 
         // RGB555 Pure Red: R=31 (0x1F) at bits 10-14 -> 0x7C00 (little endian: 0x00, 0x7C)
-        byte[] rawPixels = new byte[] { 0x00, 0x7C };
+        byte[] rawPixels = new byte[] { 0x00, 0x7C, 0x00, 0x00 };
 
         var update = new RdpBitmapUpdate(0, 0, 1, 1, 15, compressed: false, rawPixels);
         using var tile = RdpBitmapTile.FromUpdate(update);
@@ -130,8 +137,9 @@ public class RdpFrameBufferTests
         using var buffer = new RdpFrameBuffer(100, 100);
 
         // RLE compressed: run of 4 24bpp pixels (B=255, G=0, R=0)
-        // Control byte: 0x80 | 4 = 0x84, followed by 3 bytes (B=0xFF, G=0x00, R=0x00)
-        byte[] compressedData = new byte[] { 0x84, 0xFF, 0x00, 0x00 };
+        // Regular color-run order: high three bits are 3 and the low five
+        // bits carry the run length, followed by one BGR color.
+        byte[] compressedData = new byte[] { 0x64, 0xFF, 0x00, 0x00 };
 
         var update = new RdpBitmapUpdate(20, 20, 2, 2, 24, compressed: true, compressedData);
         using var tile = RdpBitmapTile.FromUpdate(update);

@@ -18,6 +18,7 @@ using WindowsRdpApp.Services;
 using WindowsRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class Milestone2Iteration5EmpiricalStressHarness
 {
     private readonly string _tempTestDir;
@@ -51,7 +52,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
 
         var mockSession = new DummyTestRdpSession();
         tab.Session = mockSession;
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.NotNull(tab.Session);
         Assert.False(mockSession.IsDisposed);
@@ -59,7 +60,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
 
         // Act: Dispose tab directly
         tab.Dispose();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         // Empirical assertion check:
         bool sessionWasCleanedUp = mockSession.IsDisposed || mockSession.IsDisconnected;
@@ -141,7 +142,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
             mockSession.RaiseStateChanged(RdpConnectionState.Connected);
         });
 
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         // Under test context, stateChangedHandled should execute without throwing thread marshaling errors
         Assert.True(stateChangedHandled);
@@ -173,10 +174,10 @@ public class Milestone2Iteration5EmpiricalStressHarness
         var timeout = DateTime.UtcNow.AddSeconds(5);
         while (tab.TotalFrames < 100 && DateTime.UtcNow < timeout)
         {
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             await Task.Delay(5);
         }
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(100, tab.TotalFrames);
     }
@@ -264,7 +265,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
     }
 
     [AvaloniaFact]
-    public void CredentialProtection_XorEncryption_TriviallyReversibleWithKnownKey()
+    public void CredentialProtection_IsNotReversibleWithLegacyStaticXorKey()
     {
         var service = new CredentialProtectionService();
         string secret = "MySuperSecretPassword2026!";
@@ -284,7 +285,8 @@ public class Milestone2Iteration5EmpiricalStressHarness
         }
         string manuallyDecrypted = System.Text.Encoding.UTF8.GetString(recoveredBytes);
 
-        Assert.Equal(secret, manuallyDecrypted);
+        Assert.NotEqual(secret, manuallyDecrypted);
+        Assert.Equal(secret, service.Unprotect(protectedText));
     }
 
     [AvaloniaFact]
@@ -340,6 +342,7 @@ public class Milestone2Iteration5EmpiricalStressHarness
         var vm = new ProfilesViewModel(storage, protection);
 
         var ex = await Record.ExceptionAsync(() => vm.ExecuteImportProfilesAsync(corruptedImportFile));
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Null(ex);
 
         var corruptProfile = vm.Profiles.FirstOrDefault(p => p.Id == "corrupt-1");

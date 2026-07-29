@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Session;
 
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -14,6 +15,7 @@ using CDP.Rdp.Session;
 using CDP.Rdp.Tests.Fixtures;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpClientSessionTests
 {
     [AvaloniaFact]
@@ -83,7 +85,7 @@ public class RdpClientSessionTests
 
         await client.ConnectAsync();
 
-        byte[] framePdu = BuildFastPathBitmapPdu(10, 20, 100, 50, 32, new byte[] { 0xAA, 0xBB, 0xCC, 0xDD });
+        byte[] framePdu = BuildFastPathBitmapPdu(10, 20, 1, 1, 32, new byte[] { 0xAA, 0xBB, 0xCC, 0xDD });
 
         await streams.ServerStream.WriteAsync(framePdu);
         await streams.ServerStream.FlushAsync();
@@ -98,8 +100,8 @@ public class RdpClientSessionTests
         RdpBitmapUpdate rect = receivedArgs.BitmapUpdates[0];
         Assert.Equal(10, rect.Left);
         Assert.Equal(20, rect.Top);
-        Assert.Equal(100, rect.Width);
-        Assert.Equal(50, rect.Height);
+        Assert.Equal(1, rect.Width);
+        Assert.Equal(1, rect.Height);
         Assert.Equal(32, rect.Bpp);
         Assert.Equal(new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }, rect.Data.ToArray());
     }
@@ -121,15 +123,46 @@ public class RdpClientSessionTests
 
         await client.SendInputEventAsync(inputEvent);
 
-        byte[] readBuffer = new byte[14];
-        int read = await streams.ServerStream.ReadAsync(readBuffer, 0, 14);
+        byte[] readBuffer = new byte[16];
+        int read = await streams.ServerStream.ReadAsync(readBuffer);
 
-        Assert.Equal(14, read);
+        Assert.Equal(4, read);
+        Assert.Equal(4, readBuffer[1]);
 
-        RdpPacketReader reader = new RdpPacketReader(readBuffer);
-        bool readSuccess = RdpInputEvent.TryRead(ref reader, out RdpInputEvent parsedInput);
+        RdpPacketReader reader = new RdpPacketReader(readBuffer.AsSpan(2, 2));
+        bool readSuccess = RdpFastPathInputEvent.TryRead(ref reader, out RdpFastPathInputEvent parsedInput);
 
         Assert.True(readSuccess);
+        Assert.Equal(FastPathInputEventCode.ScanCode, parsedInput.Code);
+        Assert.Equal(0x1E, parsedInput.KeyCode);
+    }
+
+    [AvaloniaFact]
+    public async Task SendInputEventAsync_WhenFastPathDisabled_WritesSlowPathInputPdu()
+    {
+        using DuplexStreamPair streams = new DuplexStreamPair();
+        RdpSessionOptions options = new RdpSessionOptions { EnableFastPath = false };
+
+        using RdpClient client = new RdpClient(
+            options,
+            transportFactory: (opts, cancel) => Task.FromResult<IRdpSecurityTransport>(new PlainRdpSecurityTransport(streams.ClientStream)));
+
+        await client.ConnectAsync();
+
+        var inputEvent = new RdpInputEvent(
+            1000,
+            new RdpKeyboardEvent(1000, RdpKeyboardFlags.Down, 0x1E, isVirtualKey: false));
+        await client.SendInputEventAsync(inputEvent);
+
+        byte[] packet = new byte[64];
+        int read = await streams.ServerStream.ReadAsync(packet);
+
+        Assert.Equal(read, BinaryPrimitives.ReadUInt16BigEndian(packet.AsSpan(2, 2)));
+        Assert.Equal(0x64, packet[7]); // MCS SendDataRequest
+        Assert.Equal(28, packet[28]); // PDUTYPE2_INPUT
+
+        var reader = new RdpPacketReader(packet.AsSpan(36, RdpInputEvent.EventLength));
+        Assert.True(RdpInputEvent.TryRead(ref reader, out RdpInputEvent parsedInput));
         Assert.Equal(1000u, parsedInput.EventTime);
         Assert.Equal(RdpInputMessageType.ScanCode, parsedInput.MessageType);
         Assert.Equal(0x1Eu, parsedInput.KeyboardEvent.KeyCode);
@@ -156,7 +189,8 @@ public class RdpClientSessionTests
 
         Assert.True(read >= 2);
 
-        RdpPacketReader reader = new RdpPacketReader(readBuffer.AsSpan(0, read));
+        Assert.Equal(read, readBuffer[1]);
+        RdpPacketReader reader = new RdpPacketReader(readBuffer.AsSpan(2, read - 2));
         bool readSuccess = RdpFastPathInputEvent.TryRead(ref reader, out RdpFastPathInputEvent parsedFp);
 
         Assert.True(readSuccess);

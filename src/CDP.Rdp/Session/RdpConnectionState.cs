@@ -8,6 +8,7 @@ public enum RdpConnectionState
     Connecting,
     Negotiating,
     Authenticating,
+    Activating,
     Connected,
     Disconnecting,
     Faulted

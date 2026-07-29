@@ -12,6 +12,7 @@ using Avalonia.Headless.XUnit;
 using CdpRdpApp;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class CdpRdpDomDomainTests
 {
     [AvaloniaFact]

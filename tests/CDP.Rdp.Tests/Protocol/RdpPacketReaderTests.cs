@@ -4,6 +4,7 @@ namespace CDP.Rdp.Tests.Protocol;
 using System;
 using CDP.Rdp.Protocol;
 
+[Xunit.Collection("RdpTests")]
 public class RdpPacketReaderTests
 {
     [AvaloniaFact]

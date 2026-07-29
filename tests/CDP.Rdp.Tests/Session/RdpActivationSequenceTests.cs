@@ -1,0 +1,67 @@
+using Avalonia.Headless.XUnit;
+
+namespace CDP.Rdp.Tests.Session;
+
+using System.Buffers.Binary;
+using System.IO;
+using CDP.Rdp.Protocol;
+using CDP.Rdp.Security;
+using CDP.Rdp.Session;
+using Xunit;
+
+[Xunit.Collection("RdpTests")]
+public sealed class RdpActivationSequenceTests
+{
+    [AvaloniaFact]
+    public void CreateConnectInitial_WritesRequestedDesktopAndValidTpktLength()
+    {
+        using var stream = new MemoryStream();
+        using var transport = new PlainRdpSecurityTransport(stream);
+        var sequence = new RdpActivationSequence(
+            transport,
+            new RdpSessionOptions { Width = 1440, Height = 900, ColorDepth = 32 });
+
+        byte[] packet = sequence.CreateConnectInitial();
+
+        Assert.Equal(3, packet[0]);
+        Assert.Equal(packet.Length, BinaryPrimitives.ReadUInt16BigEndian(packet.AsSpan(2, 2)));
+        int coreOffset = packet.AsSpan().IndexOf(new byte[] { 0x01, 0xC0, 0xD8, 0x00 });
+        Assert.True(coreOffset >= 0);
+        Assert.Equal(1440, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 8, 2)));
+        Assert.Equal(900, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 10, 2)));
+        Assert.Equal(24, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(coreOffset + 144, 2)));
+    }
+
+    [AvaloniaFact]
+    public void CreateConfirmActive_WritesIdentityDesktopAndDeclaredLength()
+    {
+        using var stream = new MemoryStream();
+        using var transport = new PlainRdpSecurityTransport(stream);
+        var sequence = new RdpActivationSequence(
+            transport,
+            new RdpSessionOptions { Width = 1366, Height = 768 });
+
+        byte[] pdu = sequence.CreateConfirmActive(1002, 0x000103EA);
+
+        Assert.Equal(pdu.Length, BinaryPrimitives.ReadUInt16LittleEndian(pdu.AsSpan(0, 2)));
+        Assert.Equal(1002, BinaryPrimitives.ReadUInt16LittleEndian(pdu.AsSpan(4, 2)));
+        Assert.Equal(0x000103EAu, BinaryPrimitives.ReadUInt32LittleEndian(pdu.AsSpan(6, 4)));
+        int bitmapOffset = pdu.AsSpan().IndexOf(new byte[] { 0x02, 0x00, 0x1C, 0x00 });
+        Assert.True(bitmapOffset >= 0);
+        Assert.Equal(1366, BinaryPrimitives.ReadUInt16LittleEndian(pdu.AsSpan(bitmapOffset + 12, 2)));
+        Assert.Equal(768, BinaryPrimitives.ReadUInt16LittleEndian(pdu.AsSpan(bitmapOffset + 14, 2)));
+    }
+
+    [AvaloniaFact]
+    public void ParseConnectResponse_RejectsMissingServerNetworkData()
+    {
+        byte[] packet = new byte[]
+        {
+            3, 0, 0, 11,
+            2, 0xF0, 0x80,
+            0x7F, 0x66, 0, 0
+        };
+
+        Assert.Throws<InvalidDataException>(() => RdpActivationSequence.ParseConnectResponse(packet));
+    }
+}

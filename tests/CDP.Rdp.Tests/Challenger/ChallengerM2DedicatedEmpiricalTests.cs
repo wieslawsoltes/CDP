@@ -19,6 +19,7 @@ using WindowsRdpApp.Services;
 using WindowsRdpApp.ViewModels;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class ChallengerM2DedicatedEmpiricalTests
 {
     private readonly string _tempTestDir;

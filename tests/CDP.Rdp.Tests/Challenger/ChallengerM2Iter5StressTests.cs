@@ -20,6 +20,7 @@ using WindowsRdpApp.ViewModels;
 using Xunit;
 using Avalonia.Headless.XUnit;
 
+[Xunit.Collection("RdpTests")]
 public class ChallengerM2Iter5StressTests
 {
     private readonly string _tempTestDir;
@@ -55,7 +56,7 @@ public class ChallengerM2Iter5StressTests
             mockSession.TriggerStateChanged(RdpConnectionState.Connected);
             mockSession.TriggerFrameUpdated(1);
 
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
             Assert.Equal(RdpConnectionState.Connected, tab.ConnectionState);
             Assert.Equal(1, tab.TotalFrames);
@@ -68,7 +69,7 @@ public class ChallengerM2Iter5StressTests
 
             // After disposal, firing event should not update tab or throw
             mockSession.TriggerFrameUpdated(1);
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
             await Task.CompletedTask;
         };
@@ -138,14 +139,14 @@ public class ChallengerM2Iter5StressTests
             weakTabs.Add(new WeakReference(tab));
         }
 
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal(50, vm.Sessions.Count);
 
         // Close all sessions and clear workspace references
         vm.ExecuteDisconnectAllAsync().GetAwaiter().GetResult();
         vm.Sessions.Clear();
         vm.SelectedSession = null;
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
     }
 
     [AvaloniaFact]
@@ -201,10 +202,10 @@ public class ChallengerM2Iter5StressTests
         var timeout = DateTime.UtcNow.AddSeconds(5);
         while (tab.TotalFrames < tasksCount * eventsPerTask && DateTime.UtcNow < timeout)
         {
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             await Task.Delay(5);
         }
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(tasksCount * eventsPerTask, tab.TotalFrames);
         Assert.Equal(RdpConnectionState.Connected, tab.ConnectionState);

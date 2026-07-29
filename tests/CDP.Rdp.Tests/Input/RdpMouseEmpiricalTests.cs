@@ -6,6 +6,7 @@ using CDP.Rdp.Input;
 using CDP.Rdp.Protocol;
 using Xunit;
 
+[Xunit.Collection("RdpTests")]
 public class RdpMouseEmpiricalTests
 {
     [AvaloniaTheory]
