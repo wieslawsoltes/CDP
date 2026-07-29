@@ -14,6 +14,7 @@ using Avalonia.Styling;
 using Xunit;
 using Avalonia.VisualTree;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using CdpInspectorApp.ViewModels;
 using CdpInspectorApp.Services;
@@ -30,7 +31,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // 1. Get Workspace Files
         var result = await SourcesDomain.HandleAsync(session, "getWorkspaceFiles", new JsonObject());
@@ -118,7 +119,7 @@ public class CdpChromeFeatureTests
         CdpServer.Register(window, "Memory Test Window");
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // 1. getLiveControls
         var liveResult = await MemoryDomain.HandleAsync(session, "getLiveControls", new JsonObject());
@@ -160,7 +161,7 @@ public class CdpChromeFeatureTests
         ControlTracker.Register(button);
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         int hashCode = button.GetHashCode();
 
@@ -188,7 +189,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // Add a resource directly in Avalonia
         string testKey = "TestCdpResourceKey";
@@ -237,7 +238,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // Create a temporary database in the current directory
         string dbName = $"temp_test_{Guid.NewGuid():N}.db";
@@ -338,7 +339,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // Enable network domain
         var enableResult = await NetworkDomain.HandleAsync(session, "enable", new JsonObject());
@@ -383,7 +384,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // 1. Assert selector generation
         string buttonSelector = SelectorEngine.GetSelector(button);
@@ -421,7 +422,7 @@ public class CdpChromeFeatureTests
             window.Show();
 
             using var clientWs = new ClientWebSocket();
-            var session = new CdpSession(clientWs, window);
+            using var session = new CdpSession(clientWs, window);
 
             var getDocParams = new JsonObject { ["depth"] = -1 };
             var docResult = await DomDomain.HandleAsync(session, "getDocument", getDocParams);
@@ -1093,7 +1094,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // 1. Start Screencast
         var startResult = await PageDomain.HandleAsync(session, "startScreencast", new JsonObject());
@@ -1116,7 +1117,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         var @params = new JsonObject
         {
@@ -1171,7 +1172,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         var @params = new JsonObject
         {
@@ -1232,7 +1233,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         var @params = new JsonObject
         {
@@ -1308,7 +1309,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         var startResult = await PageDomain.HandleAsync(session, "startScreencast", new JsonObject());
         Assert.NotNull(startResult);
@@ -1343,9 +1344,16 @@ public class CdpChromeFeatureTests
     {
         var window = new Window { Title = "Screencast Duplicate Frame Window", Width = 300, Height = 200 };
         window.Show();
+        window.Measure(new Size(300, 200));
+        window.Arrange(new Rect(0, 0, 300, 200));
+        for (int i = 0; i < 10; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         // 1. Start Screencast
         var startResult = await PageDomain.HandleAsync(session, "startScreencast", new JsonObject());
@@ -1401,7 +1409,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         await DomDomain.HandleAsync(session, "enable", new JsonObject());
 
@@ -1440,7 +1448,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         await DomDomain.HandleAsync(session, "enable", new JsonObject());
 
@@ -1465,7 +1473,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         await RuntimeDomain.HandleAsync(session, "enable", new JsonObject());
 
@@ -1483,7 +1491,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         var treeResult = await PageDomain.HandleAsync(session, "getResourceTree", new JsonObject());
         Assert.NotNull(treeResult);
@@ -1515,7 +1523,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         // 1. Test setEmulatedColorSchemeOverride
         var colorSchemeParams = new JsonObject { ["colorScheme"] = "dark" };
@@ -1554,7 +1562,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         // 1. Test Runtime.discardConsoleEntries
         var discardRes = await RuntimeDomain.HandleAsync(session, "discardConsoleEntries", new JsonObject());
@@ -1600,7 +1608,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // 1. Get document with pierce: false (Logical Tree Mode)
         var docParams = new JsonObject { ["depth"] = -1, ["pierce"] = false };
@@ -1688,7 +1696,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         // Start observing in Visual Tree Mode (default)
         await DomDomain.HandleAsync(session, "enable", new JsonObject());
@@ -1729,7 +1737,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         window.UpdateLayout();
 
@@ -1795,7 +1803,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
         session.UseLogicalTree = true;
         session.StartObservingVisualTree();
 
@@ -1834,7 +1842,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         // 0. Enable Network domain
         await NetworkDomain.HandleAsync(session, "enable", new JsonObject());
@@ -1894,7 +1902,8 @@ public class CdpChromeFeatureTests
         }
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
+        session.TargetViewMode = "main";
 
         // 1. Enable inspect mode
         var setInspectParams = new JsonObject
@@ -1991,7 +2000,7 @@ public class CdpChromeFeatureTests
         Assert.True(textBox.IsFocused, "TextBox IsFocused should be true");
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         // Simulate typing "a" using CDP standard sequence
         var keyDownParams = new JsonObject
@@ -2072,7 +2081,7 @@ public class CdpChromeFeatureTests
         }
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         var touchParams = new JsonObject
         {
@@ -2130,7 +2139,7 @@ public class CdpChromeFeatureTests
         }
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         var tapParams = new JsonObject
         {
@@ -2157,6 +2166,7 @@ public class CdpChromeFeatureTests
     public async Task TestSynthesizeScrollGesture()
     {
         double scrollDeltaY = 0;
+        double wheelDeltaY = 0;
         var scrollViewer = new ScrollViewer
         {
             Width = 200,
@@ -2169,6 +2179,10 @@ public class CdpChromeFeatureTests
         {
             scrollDeltaY = scrollViewer.Offset.Y;
         };
+        scrollViewer.AddHandler(
+            InputElement.PointerWheelChangedEvent,
+            (_, e) => wheelDeltaY = e.Delta.Y,
+            RoutingStrategies.Tunnel);
 
         var window = new Window
         {
@@ -2190,7 +2204,7 @@ public class CdpChromeFeatureTests
         }
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         // Test with Mouse Wheel
         var scrollParamsMouse = new JsonObject
@@ -2210,7 +2224,9 @@ public class CdpChromeFeatureTests
             await Task.Delay(20);
         }
 
-        Assert.True(Math.Abs(scrollDeltaY) > 0, $"Expected non-zero Y offset, got Y={scrollDeltaY}");
+        Assert.True(
+            Math.Abs(wheelDeltaY) > 0,
+            $"Expected a non-zero synthesized wheel delta; wheel={wheelDeltaY}, offset={scrollDeltaY}");
 
         window.Close();
     }
@@ -2252,7 +2268,7 @@ public class CdpChromeFeatureTests
         }
 
         using var fakeWs = new FakeWebSocket();
-        var session = new CdpSession(fakeWs, window);
+        using var session = new CdpSession(fakeWs, window);
 
         var pinchParams = new JsonObject
         {
@@ -2282,7 +2298,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // 1. Get initial cookies (should be empty)
         var resultGet = await PageDomain.HandleAsync(session, "getCookies", new JsonObject());
@@ -2343,7 +2359,7 @@ public class CdpChromeFeatureTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // 1. Get initial cookies (should be empty)
         var resultGet = await Chrome.DevTools.Protocol.Domains.NetworkDomain.HandleAsync(session, "getCookies", new JsonObject());
