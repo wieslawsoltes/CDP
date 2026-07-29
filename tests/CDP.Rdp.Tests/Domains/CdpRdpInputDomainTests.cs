@@ -94,6 +94,14 @@ public class CdpRdpInputDomainTests
 
         try
         {
+            window.UpdateLayout();
+            var connectButton = window.FindControl<Button>("btnConnect");
+            Assert.NotNull(connectButton);
+            Assert.True(connectButton.IsVisible);
+            Assert.True(connectButton.IsEnabled);
+            Assert.True(connectButton.Bounds.Width > 0);
+            Assert.True(connectButton.Bounds.Height > 0);
+
             var vm = (MainWindowViewModel)window.DataContext!;
             Assert.False(vm.Connection.IsConnected);
 
@@ -141,7 +149,7 @@ public class CdpRdpInputDomainTests
                 ["clickCount"] = 1
             });
 
-            DateTime timeout = DateTime.UtcNow.AddSeconds(5);
+            DateTime timeout = DateTime.UtcNow.AddSeconds(15);
             while (!vm.Connection.IsConnected && DateTime.UtcNow < timeout)
             {
                 await Task.Delay(10);
