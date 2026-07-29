@@ -530,7 +530,7 @@ public class RdpClientSessionChallengerTests
 
         await client.ConnectAsync();
 
-        byte[] framePdu = BuildFastPathBitmapPdu(5, 5, 50, 50, 32, new byte[] { 0xAA, 0xBB, 0xCC, 0xDD });
+        byte[] framePdu = BuildFastPathBitmapPdu(5, 5, 3, 3, 32, new byte[] { 0xAA, 0xBB, 0xCC, 0xDD });
 
         for (int i = 0; i < framePdu.Length; i += 2)
         {
@@ -548,7 +548,7 @@ public class RdpClientSessionChallengerTests
         Assert.NotNull(receivedArgs);
         Assert.Single(receivedArgs.BitmapUpdates);
         Assert.Equal(5, receivedArgs.BitmapUpdates[0].Left);
-        Assert.Equal(50, receivedArgs.BitmapUpdates[0].Width);
+        Assert.Equal(3, receivedArgs.BitmapUpdates[0].Width);
     }
 
     [AvaloniaFact]
@@ -566,7 +566,7 @@ public class RdpClientSessionChallengerTests
 
         await client.ConnectAsync();
 
-        byte[] framePdu = BuildFastPathBitmapPdu(5, 5, 50, 50, 32, new byte[] { 0xAA, 0xBB, 0xCC, 0xDD });
+        byte[] framePdu = BuildFastPathBitmapPdu(5, 5, 3, 3, 32, new byte[] { 0xAA, 0xBB, 0xCC, 0xDD });
 
         for (int i = 0; i < framePdu.Length; i++)
         {
@@ -583,7 +583,7 @@ public class RdpClientSessionChallengerTests
         Assert.NotNull(receivedArgs);
         Assert.Single(receivedArgs.BitmapUpdates);
         Assert.Equal(5, receivedArgs.BitmapUpdates[0].Left);
-        Assert.Equal(50, receivedArgs.BitmapUpdates[0].Width);
+        Assert.Equal(3, receivedArgs.BitmapUpdates[0].Width);
     }
 
     [AvaloniaFact]
