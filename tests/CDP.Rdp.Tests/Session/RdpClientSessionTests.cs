@@ -221,6 +221,8 @@ public class RdpClientSessionTests
             channelHeader.Flags & (ChannelPduFlags.First | ChannelPduFlags.Last));
         Assert.True(DvcCapabilitiesPdu.TryRead(ref responseReader, out DvcCapabilitiesPdu responseCapabilities));
         Assert.Equal(3, responseCapabilities.Version);
+        Assert.Equal(0, responseReader.UnreadLength);
+        Assert.Equal(4u, channelHeader.Length);
         Assert.Equal(3, client.DynamicVirtualChannels!.NegotiatedVersion);
     }
 

@@ -78,4 +78,22 @@ public readonly struct DvcCapabilitiesPdu
             writer.WriteUInt16LE(Priority3Charge);
         }
     }
+
+    /// <summary>
+    /// Writes a DYNVC_CAPS_RSP. Unlike the server request, the response never
+    /// includes priority-charge fields, including for protocol versions 2 and 3.
+    /// </summary>
+    public void WriteResponse(ref RdpPacketWriter writer)
+    {
+        if (Version is < 1 or > 3)
+        {
+            throw new InvalidOperationException(
+                $"DRDYNVC capability response version {Version} is outside the supported range 1-3.");
+        }
+
+        var header = new DvcHeader(DvcCommandCode.Capabilities, sp: 0, priority: 0);
+        header.Write(ref writer);
+        writer.WriteByte(0x00);
+        writer.WriteUInt16LE(Version);
+    }
 }

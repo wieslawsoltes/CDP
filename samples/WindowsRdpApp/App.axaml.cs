@@ -23,18 +23,8 @@ public partial class App : Application
                 DataContext = mainWindowVM
             };
 
-            int port = 9225;
             var args = desktop.Args ?? Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length; i++)
-            {
-                if (args[i].Equals("--port", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-                {
-                    if (int.TryParse(args[i + 1], out int parsedPort))
-                    {
-                        port = parsedPort;
-                    }
-                }
-            }
+            int port = Program.ParsePort(args);
 
             mainWindowVM.CdpPort = port;
             CdpServer.Start(port);

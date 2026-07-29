@@ -112,12 +112,17 @@ public sealed class DynamicVirtualChannelManager
             case DvcCommandCode.Capabilities:
                 if (DvcCapabilitiesPdu.TryRead(ref reader, out var caps))
                 {
-                    NegotiatedVersion = caps.Version;
+                    if (caps.Version == 0)
+                    {
+                        return false;
+                    }
+
+                    NegotiatedVersion = Math.Min(caps.Version, (ushort)3);
                     if (replyCallback != null)
                     {
-                        byte[] responseBuffer = new byte[16];
+                        byte[] responseBuffer = new byte[4];
                         var responseWriter = new RdpPacketWriter(responseBuffer);
-                        new DvcCapabilitiesPdu(Math.Min(caps.Version, (ushort)3)).Write(ref responseWriter);
+                        new DvcCapabilitiesPdu(NegotiatedVersion).WriteResponse(ref responseWriter);
                         replyCallback(responseBuffer.AsSpan(0, responseWriter.WrittenCount));
                     }
                     return true;

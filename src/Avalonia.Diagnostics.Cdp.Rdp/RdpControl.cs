@@ -414,14 +414,10 @@ public class RdpControl : Control
         Point pos = e.GetPosition(this);
         TranslateCoordinates(pos, out ushort xPos, out ushort yPos);
 
-        var currentPoint = e.GetCurrentPoint(this);
         RdpPointerFlags flags = CreatePointerFlags(
             isDown,
             isMove,
-            currentPoint.Properties.IsLeftButtonPressed,
-            currentPoint.Properties.IsRightButtonPressed,
-            currentPoint.Properties.IsMiddleButtonPressed,
-            currentPoint.Properties.PointerUpdateKind);
+            e.GetCurrentPoint(this).Properties.PointerUpdateKind);
 
         var mouseEvent = new RdpMouseEvent((uint)Environment.TickCount, flags, xPos, yPos);
         _ = Session.SendInputEventAsync(new RdpInputEvent((uint)Environment.TickCount, mouseEvent));
@@ -430,9 +426,6 @@ public class RdpControl : Control
     internal static RdpPointerFlags CreatePointerFlags(
         bool isDown,
         bool isMove,
-        bool isLeftButtonPressed,
-        bool isRightButtonPressed,
-        bool isMiddleButtonPressed,
         PointerUpdateKind updateKind)
     {
         if (isMove)
@@ -443,24 +436,19 @@ public class RdpControl : Control
             return RdpPointerFlags.Move;
         }
 
-        RdpPointerFlags flags = RdpPointerFlags.None;
-        if (isLeftButtonPressed)
-            flags |= RdpPointerFlags.Button1;
-        if (isRightButtonPressed)
-            flags |= RdpPointerFlags.Button2;
-        if (isMiddleButtonPressed)
-            flags |= RdpPointerFlags.Button3;
-
-        if (!isDown)
+        // PointerPointProperties describes the entire current button chord.
+        // RDP button flags instead describe one transition, so encode only the
+        // button named by PointerUpdateKind for both presses and releases.
+        RdpPointerFlags flags = updateKind switch
         {
-            flags |= updateKind switch
-            {
-                PointerUpdateKind.LeftButtonReleased => RdpPointerFlags.Button1,
-                PointerUpdateKind.RightButtonReleased => RdpPointerFlags.Button2,
-                PointerUpdateKind.MiddleButtonReleased => RdpPointerFlags.Button3,
-                _ => RdpPointerFlags.None
-            };
-        }
+            PointerUpdateKind.LeftButtonPressed or PointerUpdateKind.LeftButtonReleased =>
+                RdpPointerFlags.Button1,
+            PointerUpdateKind.RightButtonPressed or PointerUpdateKind.RightButtonReleased =>
+                RdpPointerFlags.Button2,
+            PointerUpdateKind.MiddleButtonPressed or PointerUpdateKind.MiddleButtonReleased =>
+                RdpPointerFlags.Button3,
+            _ => RdpPointerFlags.None
+        };
 
         if (isDown)
         {

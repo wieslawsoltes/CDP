@@ -86,6 +86,21 @@ public class DvcPduTests
         Assert.Equal(40, parsed.Priority3Charge);
     }
 
+    [AvaloniaTheory]
+    [InlineData((ushort)2)]
+    [InlineData((ushort)3)]
+    public void DvcCapabilities_ResponseOmitsRequestPriorityCharges(ushort version)
+    {
+        var caps = new DvcCapabilitiesPdu(version);
+        byte[] buffer = new byte[4];
+        var writer = new RdpPacketWriter(buffer);
+
+        caps.WriteResponse(ref writer);
+
+        Assert.Equal(4, writer.WrittenCount);
+        Assert.Equal(new byte[] { 0x50, 0x00, (byte)version, 0x00 }, buffer);
+    }
+
     [AvaloniaFact]
     public void DvcCreateRequest_RoundTrip()
     {

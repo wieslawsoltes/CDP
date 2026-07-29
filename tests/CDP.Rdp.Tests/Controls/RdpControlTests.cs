@@ -139,12 +139,22 @@ public class RdpControlTests
         RdpPointerFlags flags = RdpControl.CreatePointerFlags(
             isDown: false,
             isMove: true,
-            isLeftButtonPressed: true,
-            isRightButtonPressed: false,
-            isMiddleButtonPressed: false,
             PointerUpdateKind.Other);
 
         Assert.Equal(RdpPointerFlags.Move, flags);
+        Assert.False(flags.HasFlag(RdpPointerFlags.Button1));
+        Assert.False(flags.HasFlag(RdpPointerFlags.Down));
+    }
+
+    [AvaloniaFact]
+    public void CreatePointerFlags_ReleaseEmitsOnlyTransitionedButton()
+    {
+        RdpPointerFlags flags = RdpControl.CreatePointerFlags(
+            isDown: false,
+            isMove: false,
+            PointerUpdateKind.RightButtonReleased);
+
+        Assert.Equal(RdpPointerFlags.Button2, flags);
         Assert.False(flags.HasFlag(RdpPointerFlags.Button1));
         Assert.False(flags.HasFlag(RdpPointerFlags.Down));
     }
