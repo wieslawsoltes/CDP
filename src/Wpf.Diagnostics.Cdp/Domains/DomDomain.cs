@@ -430,7 +430,13 @@ public static class DomDomain
                             ["baseURL"] = $"http://localhost:{CdpServer.Port}/"
                         };
                         flatList.Add(docNode);
-                        FlattenDomNode(session.Window, session, 1, depth, flatList);
+                        FlattenDomNode(
+                            session.Window,
+                            session,
+                            1,
+                            depth,
+                            flatList,
+                            new HashSet<Visual>());
                     }
 
                     var nodesJson = new JsonArray();
@@ -534,8 +540,19 @@ public static class DomDomain
         }
     }
 
-    private static void FlattenDomNode(Visual visual, CdpSession session, int currentDepth, int maxDepth, List<JsonObject> flatList)
+    private static void FlattenDomNode(
+        Visual visual,
+        CdpSession session,
+        int currentDepth,
+        int maxDepth,
+        List<JsonObject> flatList,
+        HashSet<Visual> visited)
     {
+        if (!visited.Add(visual))
+        {
+            return;
+        }
+
         int nodeId = session.NodeMap.GetOrAdd(visual);
         var children = GetChildren(visual, session).ToList();
         var childIds = new JsonArray();
@@ -571,7 +588,7 @@ public static class DomDomain
         {
             foreach (var child in children)
             {
-                FlattenDomNode(child, session, currentDepth + 1, maxDepth, flatList);
+                FlattenDomNode(child, session, currentDepth + 1, maxDepth, flatList, visited);
             }
         }
     }
