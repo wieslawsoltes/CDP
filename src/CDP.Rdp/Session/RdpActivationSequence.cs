@@ -75,18 +75,28 @@ internal sealed class RdpActivationSequence
         byte[] clientInfo = CreateClientInfo();
         await WriteMcsSendDataAsync(userId, network.IoChannelId, clientInfo, cancellationToken).ConfigureAwait(false);
 
-        uint shareId = await WaitForDemandActiveAsync(
+        RdpDemandActiveInfo demandActive = await WaitForDemandActiveAsync(
             userId,
             network.IoChannelId,
             cancellationToken).ConfigureAwait(false);
-        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateConfirmActive(userId, shareId), cancellationToken).ConfigureAwait(false);
-        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateSynchronize(userId, shareId), cancellationToken).ConfigureAwait(false);
-        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateControl(userId, shareId, action: 4), cancellationToken).ConfigureAwait(false);
-        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateControl(userId, shareId, action: 1), cancellationToken).ConfigureAwait(false);
-        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateFontList(userId, shareId), cancellationToken).ConfigureAwait(false);
+        await WriteMcsSendDataAsync(
+            userId,
+            network.IoChannelId,
+            CreateConfirmActive(userId, demandActive.ShareId, demandActive.DesktopWidth, demandActive.DesktopHeight),
+            cancellationToken).ConfigureAwait(false);
+        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateSynchronize(userId, demandActive.ShareId), cancellationToken).ConfigureAwait(false);
+        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateControl(userId, demandActive.ShareId, action: 4), cancellationToken).ConfigureAwait(false);
+        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateControl(userId, demandActive.ShareId, action: 1), cancellationToken).ConfigureAwait(false);
+        await WriteMcsSendDataAsync(userId, network.IoChannelId, CreateFontList(userId, demandActive.ShareId), cancellationToken).ConfigureAwait(false);
         await WaitForFontMapAsync(cancellationToken).ConfigureAwait(false);
 
-        return new RdpActivationResult(userId, network.IoChannelId, shareId, network.StaticChannelIds);
+        return new RdpActivationResult(
+            userId,
+            network.IoChannelId,
+            demandActive.ShareId,
+            network.StaticChannelIds,
+            demandActive.DesktopWidth,
+            demandActive.DesktopHeight);
     }
 
     internal byte[] CreateConnectInitial()
@@ -260,7 +270,7 @@ internal sealed class RdpActivationSequence
         WriteUnicodeString(writer, value);
     }
 
-    private async Task<uint> WaitForDemandActiveAsync(
+    private async Task<RdpDemandActiveInfo> WaitForDemandActiveAsync(
         ushort userId,
         ushort ioChannelId,
         CancellationToken cancellationToken)
@@ -301,9 +311,76 @@ internal sealed class RdpActivationSequence
                     throw new InvalidDataException(
                         "The server sent Demand Active before completing the RDP licensing exchange.");
                 }
-                return BinaryPrimitives.ReadUInt32LittleEndian(userData.Slice(6, 4));
+                return ParseDemandActive(userData);
             }
         }
+    }
+
+    internal static RdpDemandActiveInfo ParseDemandActive(ReadOnlySpan<byte> pdu)
+    {
+        if (pdu.Length < 18)
+        {
+            throw new InvalidDataException("The Demand Active PDU is truncated.");
+        }
+
+        uint shareId = BinaryPrimitives.ReadUInt32LittleEndian(pdu.Slice(6, 4));
+        int sourceDescriptorLength = BinaryPrimitives.ReadUInt16LittleEndian(pdu.Slice(10, 2));
+        int combinedCapabilitiesLength = BinaryPrimitives.ReadUInt16LittleEndian(pdu.Slice(12, 2));
+        int combinedCapabilitiesOffset = checked(14 + sourceDescriptorLength);
+        int combinedCapabilitiesEnd = checked(combinedCapabilitiesOffset + combinedCapabilitiesLength);
+        if (combinedCapabilitiesLength < 4 ||
+            combinedCapabilitiesOffset > pdu.Length - 4 ||
+            combinedCapabilitiesEnd > pdu.Length)
+        {
+            throw new InvalidDataException("The Demand Active combined capability set is truncated.");
+        }
+
+        ushort capabilityCount = BinaryPrimitives.ReadUInt16LittleEndian(
+            pdu.Slice(combinedCapabilitiesOffset, 2));
+        int capabilityOffset = combinedCapabilitiesOffset + 4;
+        ushort desktopWidth = 0;
+        ushort desktopHeight = 0;
+        for (int i = 0; i < capabilityCount; i++)
+        {
+            if (capabilityOffset > combinedCapabilitiesEnd - 4)
+            {
+                throw new InvalidDataException("The Demand Active capability list is truncated.");
+            }
+
+            ushort capabilityType = BinaryPrimitives.ReadUInt16LittleEndian(
+                pdu.Slice(capabilityOffset, 2));
+            int capabilityLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                pdu.Slice(capabilityOffset + 2, 2));
+            if (capabilityLength < 4 || capabilityOffset > combinedCapabilitiesEnd - capabilityLength)
+            {
+                throw new InvalidDataException("The Demand Active capability has an invalid length.");
+            }
+
+            if (capabilityType == 2)
+            {
+                if (capabilityLength < 28)
+                {
+                    throw new InvalidDataException("The server Bitmap Capability Set is truncated.");
+                }
+
+                desktopWidth = BinaryPrimitives.ReadUInt16LittleEndian(
+                    pdu.Slice(capabilityOffset + 12, 2));
+                desktopHeight = BinaryPrimitives.ReadUInt16LittleEndian(
+                    pdu.Slice(capabilityOffset + 14, 2));
+                if (desktopWidth == 0 || desktopHeight == 0)
+                {
+                    throw new InvalidDataException(
+                        "The server Bitmap Capability Set contains an invalid desktop size.");
+                }
+
+            }
+
+            capabilityOffset += capabilityLength;
+        }
+
+        return desktopWidth != 0 && desktopHeight != 0
+            ? new RdpDemandActiveInfo(shareId, desktopWidth, desktopHeight)
+            : throw new InvalidDataException("The Demand Active PDU omitted the Bitmap Capability Set.");
     }
 
     private System.Security.Cryptography.X509Certificates.X509Certificate2? GetRemoteCertificate()
@@ -312,6 +389,15 @@ internal sealed class RdpActivationSequence
     }
 
     internal byte[] CreateConfirmActive(ushort userId, uint shareId)
+    {
+        return CreateConfirmActive(userId, shareId, _options.Width, _options.Height);
+    }
+
+    internal byte[] CreateConfirmActive(
+        ushort userId,
+        uint shareId,
+        ushort desktopWidth,
+        ushort desktopHeight)
     {
         byte[] pdu = Convert.FromHexString(
             "EC011300EF03EA030100EA030600D6014D53545343001200000001001800010003000002000000001D040000000000000000" +
@@ -342,8 +428,8 @@ internal sealed class RdpActivationSequence
             BinaryPrimitives.WriteUInt16LittleEndian(
                 pdu.AsSpan(bitmap + 4, 2),
                 NormalizeBitmapColorDepth(_options.ColorDepth));
-            BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(bitmap + 12, 2), _options.Width);
-            BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(bitmap + 14, 2), _options.Height);
+            BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(bitmap + 12, 2), desktopWidth);
+            BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(bitmap + 14, 2), desktopHeight);
         }
 
         int order = FindSequence(pdu, new byte[] { 0x03, 0x00, 0x58, 0x00 });
@@ -667,4 +753,11 @@ internal sealed record RdpActivationResult(
     ushort UserId,
     ushort IoChannelId,
     uint ShareId,
-    IReadOnlyList<ushort> StaticChannelIds);
+    IReadOnlyList<ushort> StaticChannelIds,
+    ushort DesktopWidth,
+    ushort DesktopHeight);
+
+internal readonly record struct RdpDemandActiveInfo(
+    uint ShareId,
+    ushort DesktopWidth,
+    ushort DesktopHeight);

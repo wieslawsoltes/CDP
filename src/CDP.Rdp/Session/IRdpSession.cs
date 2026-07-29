@@ -10,6 +10,8 @@ public interface IRdpSession : IAsyncDisposable, IDisposable
 {
     RdpConnectionState State { get; }
     RdpSessionOptions Options { get; }
+    ushort DesktopWidth => Options.Width;
+    ushort DesktopHeight => Options.Height;
 
     event EventHandler<RdpFrameUpdateEventArgs>? FrameUpdated;
     event EventHandler<RdpConnectionStateChangedEventArgs>? StateChanged;

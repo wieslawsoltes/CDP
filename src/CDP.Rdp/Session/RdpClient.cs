@@ -44,10 +44,14 @@ public sealed class RdpClient : IRdpSession
     private ushort _userId;
     private ushort _ioChannelId;
     private uint _shareId;
+    private ushort _desktopWidth;
+    private ushort _desktopHeight;
     private int _isDisposed;
 
     public RdpConnectionState State => _state;
     public RdpSessionOptions Options => _options;
+    public ushort DesktopWidth => _desktopWidth;
+    public ushort DesktopHeight => _desktopHeight;
     public StaticVirtualChannelManager? StaticVirtualChannels => _svcManager;
     public DynamicVirtualChannelManager? DynamicVirtualChannels => _dvcManager;
 
@@ -65,6 +69,8 @@ public sealed class RdpClient : IRdpSession
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _transportFactory = transportFactory;
+        _desktopWidth = options.Width;
+        _desktopHeight = options.Height;
     }
 
     private void SetState(RdpConnectionState newState, Exception? exception = null)
@@ -97,6 +103,8 @@ public sealed class RdpClient : IRdpSession
             try
             {
                 SetState(RdpConnectionState.Connecting);
+                _desktopWidth = _options.Width;
+                _desktopHeight = _options.Height;
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeoutCts.CancelAfter(_options.ConnectTimeout);
 
@@ -145,6 +153,8 @@ public sealed class RdpClient : IRdpSession
                     _userId = result.UserId;
                     _ioChannelId = result.IoChannelId;
                     _shareId = result.ShareId;
+                    _desktopWidth = result.DesktopWidth;
+                    _desktopHeight = result.DesktopHeight;
                     RegisterStaticChannels(result.StaticChannelIds);
                 }
                 else

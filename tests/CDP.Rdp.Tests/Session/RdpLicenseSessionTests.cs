@@ -6,6 +6,7 @@ using System;
 using System.Buffers.Binary;
 using System.IO;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using CDP.Rdp.Session;
 using Xunit;
@@ -88,7 +89,36 @@ public sealed class RdpLicenseSessionTests
             () => session.ProcessServerPacket(CreatePacket(0x02, body)));
     }
 
+    [AvaloniaFact]
+    public void ProcessServerPacket_X509CertificateChain_ConsumesDefinedPadding()
+    {
+        using RSA rsa = RSA.Create(2048);
+        var request = new CertificateRequest(
+            "CN=RDP Licensing Test",
+            rsa,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        using X509Certificate2 certificate = request.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            DateTimeOffset.UtcNow.AddMinutes(10));
+        byte[] encodedCertificate = certificate.Export(X509ContentType.Cert);
+        byte[] certificateChain = CreateX509CertificateChain(encodedCertificate);
+        byte[] serverRandom = Enumerable.Range(1, 32).Select(value => (byte)value).ToArray();
+        var session = new RdpLicenseSession(new RdpSessionOptions { Username = "alice" }, null);
+
+        byte[]? response = session.ProcessServerPacket(
+            CreateServerLicenseRequest(certificateChain, serverRandom));
+
+        Assert.NotNull(response);
+        Assert.Equal(0x13, response[4]);
+    }
+
     private static byte[] CreateServerLicenseRequest(RSA rsa, byte[] serverRandom)
+    {
+        return CreateServerLicenseRequest(CreateProprietaryCertificate(rsa), serverRandom);
+    }
+
+    private static byte[] CreateServerLicenseRequest(byte[] serverCertificate, byte[] serverRandom)
     {
         using var body = new MemoryStream();
         using var writer = new BinaryWriter(body, Encoding.UTF8, leaveOpen: true);
@@ -99,9 +129,25 @@ public sealed class RdpLicenseSessionTests
         writer.Write(2u);
         writer.Write(new byte[] { (byte)'A', 0 });
         writer.Write(CreateBlob(0x000D, BitConverter.GetBytes(1u)));
-        writer.Write(CreateBlob(0x0003, CreateProprietaryCertificate(rsa)));
+        writer.Write(CreateBlob(0x0003, serverCertificate));
         writer.Write(0u);
         return CreatePacket(0x01, body.ToArray());
+    }
+
+    private static byte[] CreateX509CertificateChain(byte[] encodedCertificate)
+    {
+        const int certificateCount = 2;
+        using var chain = new MemoryStream();
+        using var writer = new BinaryWriter(chain, Encoding.UTF8, leaveOpen: true);
+        writer.Write(2u);
+        writer.Write((uint)certificateCount);
+        for (int i = 0; i < certificateCount; i++)
+        {
+            writer.Write((uint)encodedCertificate.Length);
+            writer.Write(encodedCertificate);
+        }
+        writer.Write(new byte[8 + (4 * certificateCount)]);
+        return chain.ToArray();
     }
 
     private static byte[] CreateProprietaryCertificate(RSA rsa)

@@ -91,6 +91,45 @@ public sealed class RdpActivationSequenceTests
     }
 
     [AvaloniaFact]
+    public void ParseDemandActive_ReadsServerDesktopDimensions()
+    {
+        byte[] pdu = new byte[46];
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu, checked((ushort)pdu.Length));
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(2), 0x0011);
+        BinaryPrimitives.WriteUInt32LittleEndian(pdu.AsSpan(6), 0x000103EA);
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(10), 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(12), 32);
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(14), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(18), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(20), 28);
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(30), 1600);
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(32), 900);
+
+        RdpDemandActiveInfo result = RdpActivationSequence.ParseDemandActive(pdu);
+
+        Assert.Equal(0x000103EAu, result.ShareId);
+        Assert.Equal(1600, result.DesktopWidth);
+        Assert.Equal(900, result.DesktopHeight);
+    }
+
+    [AvaloniaFact]
+    public void CreateConfirmActive_UsesActivatedDesktopDimensions()
+    {
+        using var stream = new MemoryStream();
+        using var transport = new PlainRdpSecurityTransport(stream);
+        var sequence = new RdpActivationSequence(
+            transport,
+            new RdpSessionOptions { Width = 1920, Height = 1080 });
+
+        byte[] pdu = sequence.CreateConfirmActive(1002, 0x000103EA, 1600, 900);
+        int bitmapOffset = pdu.AsSpan().IndexOf(new byte[] { 0x02, 0x00, 0x1C, 0x00 });
+
+        Assert.True(bitmapOffset >= 0);
+        Assert.Equal(1600, BinaryPrimitives.ReadUInt16LittleEndian(pdu.AsSpan(bitmapOffset + 12, 2)));
+        Assert.Equal(900, BinaryPrimitives.ReadUInt16LittleEndian(pdu.AsSpan(bitmapOffset + 14, 2)));
+    }
+
+    [AvaloniaFact]
     public void ParseConnectResponse_RejectsMissingServerNetworkData()
     {
         byte[] packet = new byte[]

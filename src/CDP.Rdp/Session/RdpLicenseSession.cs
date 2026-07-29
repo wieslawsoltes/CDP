@@ -292,7 +292,7 @@ internal sealed class RdpLicenseSession
         var reader = new LicenseReader(certificate);
         _ = reader.ReadUInt32("certificate version");
         int count = reader.ReadLength("certificate count");
-        if (count is <= 0 or > 256)
+        if (count is < 2 or > 200)
         {
             throw new InvalidDataException("The RDP certificate chain count is invalid.");
         }
@@ -310,6 +310,10 @@ internal sealed class RdpLicenseSession
                 result = publicKey;
             }
         }
+
+        // MS-RDPELE X509_CERTIFICATE_CHAIN appends exactly
+        // 8 + (4 * NumCertBlobs) padding bytes after CertBlobArray.
+        reader.Skip(checked(8 + (4 * count)), "X.509 certificate chain padding");
         reader.EnsureConsumed("X.509 certificate chain");
         return result ?? throw new InvalidDataException("The RDP certificate chain has no RSA public key.");
     }

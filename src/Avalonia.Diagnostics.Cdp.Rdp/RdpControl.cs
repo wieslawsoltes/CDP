@@ -143,10 +143,17 @@ public class RdpControl : Control
 
         lock (_frameGate)
         {
-            _frameBuffer?.Dispose();
-            _frameBuffer = new RdpFrameBuffer(width, height);
-            _skiaCanvas = new RdpSkiaCanvas(_frameBuffer);
+            InitFrameBufferCore(width, height);
         }
+    }
+
+    private void InitFrameBufferCore(int width, int height)
+    {
+        _frameBuffer?.Dispose();
+        _frameBuffer = new RdpFrameBuffer(width, height);
+        _skiaCanvas = new RdpSkiaCanvas(_frameBuffer);
+        _cachedSkiaBitmap?.Dispose();
+        _cachedSkiaBitmap = null;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -158,7 +165,7 @@ public class RdpControl : Control
             UnsubscribeFromSession();
             if (change.NewValue is IRdpSession newSession)
             {
-                InitFrameBuffer(newSession.Options.Width, newSession.Options.Height);
+                InitFrameBuffer(newSession.DesktopWidth, newSession.DesktopHeight);
                 SubscribeToSession(newSession);
             }
         }
@@ -170,8 +177,8 @@ public class RdpControl : Control
 
         if (_frameBuffer == null)
         {
-            int width = Session?.Options.Width ?? 1280;
-            int height = Session?.Options.Height ?? 720;
+            int width = Session?.DesktopWidth ?? 1280;
+            int height = Session?.DesktopHeight ?? 720;
             InitFrameBuffer(width, height);
         }
 
@@ -192,7 +199,13 @@ public class RdpControl : Control
         lock (_frameGate)
         {
             session.FrameUpdated += OnFrameUpdated;
+            session.StateChanged += OnSessionStateChanged;
             _subscribedSession = session;
+        }
+
+        if (session.State == RdpConnectionState.Connected)
+        {
+            InitializeActivatedDesktop(session);
         }
     }
 
@@ -203,9 +216,33 @@ public class RdpControl : Control
             if (_subscribedSession != null)
             {
                 _subscribedSession.FrameUpdated -= OnFrameUpdated;
+                _subscribedSession.StateChanged -= OnSessionStateChanged;
                 _subscribedSession = null;
             }
         }
+    }
+
+    private void OnSessionStateChanged(object? sender, RdpConnectionStateChangedEventArgs e)
+    {
+        if (e.NewState == RdpConnectionState.Connected && sender is IRdpSession session)
+        {
+            InitializeActivatedDesktop(session);
+        }
+    }
+
+    private void InitializeActivatedDesktop(IRdpSession session)
+    {
+        lock (_frameGate)
+        {
+            if (!ReferenceEquals(session, _subscribedSession))
+            {
+                return;
+            }
+
+            InitFrameBufferCore(session.DesktopWidth, session.DesktopHeight);
+        }
+
+        Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Render);
     }
 
     private void OnFrameUpdated(object? sender, RdpFrameUpdateEventArgs e)
@@ -233,13 +270,24 @@ public class RdpControl : Control
 
         UnsubscribeFromSession();
 
-        _cachedSkiaBitmap?.Dispose();
-        _cachedSkiaBitmap = null;
-        _writeableBitmap?.Dispose();
-        _writeableBitmap = null;
+        lock (_frameGate)
+        {
+            _cachedSkiaBitmap?.Dispose();
+            _cachedSkiaBitmap = null;
+            _writeableBitmap?.Dispose();
+            _writeableBitmap = null;
+        }
     }
 
     public override void Render(DrawingContext context)
+    {
+        lock (_frameGate)
+        {
+            RenderCore(context);
+        }
+    }
+
+    private void RenderCore(DrawingContext context)
     {
         if (_frameBuffer == null || _skiaCanvas == null) return;
 

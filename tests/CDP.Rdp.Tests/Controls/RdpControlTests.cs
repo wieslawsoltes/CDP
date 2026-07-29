@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Controls;
 
 using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -10,6 +11,7 @@ using Avalonia.Input;
 using CDP.Rdp.Frames;
 using CDP.Rdp.Input;
 using CDP.Rdp.Session;
+using SkiaSharp;
 using Xunit;
 
 [Xunit.Collection("RdpTests")]
@@ -17,8 +19,17 @@ public class RdpControlTests
 {
     private sealed class TestSession : IRdpSession
     {
-        public RdpConnectionState State => RdpConnectionState.Connected;
+        private RdpConnectionState _state;
+
+        public TestSession(RdpConnectionState state = RdpConnectionState.Connected)
+        {
+            _state = state;
+        }
+
+        public RdpConnectionState State => _state;
         public RdpSessionOptions Options { get; } = new() { Width = 2, Height = 2 };
+        public ushort DesktopWidth { get; private set; } = 2;
+        public ushort DesktopHeight { get; private set; } = 2;
         public event EventHandler<RdpFrameUpdateEventArgs>? FrameUpdated;
         public event EventHandler<RdpConnectionStateChangedEventArgs>? StateChanged;
         public Task ConnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -26,6 +37,16 @@ public class RdpControlTests
         public Task SendInputEventAsync(RdpInputEvent inputEvent, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SendFastPathInputEventAsync(RdpFastPathInputEvent inputEvent, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public void RaiseFrame(RdpFrameUpdateEventArgs args) => FrameUpdated?.Invoke(this, args);
+        public void RaiseConnected(ushort desktopWidth, ushort desktopHeight)
+        {
+            RdpConnectionState oldState = _state;
+            DesktopWidth = desktopWidth;
+            DesktopHeight = desktopHeight;
+            _state = RdpConnectionState.Connected;
+            StateChanged?.Invoke(
+                this,
+                new RdpConnectionStateChangedEventArgs(oldState, RdpConnectionState.Connected));
+        }
         public void Dispose() { }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -152,5 +173,38 @@ public class RdpControlTests
 
         second.RaiseFrame(new RdpFrameUpdateEventArgs(42, DateTimeOffset.UtcNow, [staleUpdate]));
         Assert.Equal(42UL, control.FrameBuffer.CurrentFrameId);
+    }
+
+    [AvaloniaFact]
+    public void InitFrameBuffer_ClearsCachedRenderTarget()
+    {
+        var control = new RdpControl();
+        FieldInfo cacheField = typeof(RdpControl).GetField(
+            "_cachedSkiaBitmap",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        using var cachedBitmap = new SKBitmap(2, 2);
+        cacheField.SetValue(control, cachedBitmap);
+
+        control.InitFrameBuffer(4, 3);
+
+        Assert.Null(cacheField.GetValue(control));
+        Assert.Equal(4, control.FrameBuffer!.Width);
+        Assert.Equal(3, control.FrameBuffer.Height);
+    }
+
+    [AvaloniaFact]
+    public void ConnectedSession_ResizesFramebufferToActivatedDesktop()
+    {
+        var control = new RdpControl();
+        using var session = new TestSession(RdpConnectionState.Activating);
+        control.Session = session;
+
+        Assert.Equal(2, control.FrameBuffer!.Width);
+        Assert.Equal(2, control.FrameBuffer.Height);
+
+        session.RaiseConnected(4, 3);
+
+        Assert.Equal(4, control.FrameBuffer.Width);
+        Assert.Equal(3, control.FrameBuffer.Height);
     }
 }
