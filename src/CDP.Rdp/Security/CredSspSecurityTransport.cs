@@ -213,7 +213,7 @@ public sealed class CredSspSecurityTransport : IRdpSecurityTransport
         return modifiedPublicKey;
     }
 
-    private static void ThrowIfServerRejected(TsRequestPdu response)
+    internal static void ThrowIfServerRejected(TsRequestPdu response)
     {
         if (response.ErrorCode.HasValue && response.ErrorCode.Value != 0)
         {

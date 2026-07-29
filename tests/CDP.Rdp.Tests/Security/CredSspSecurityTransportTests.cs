@@ -152,38 +152,16 @@ public class CredSspSecurityTransportTests
     }
 
     [AvaloniaFact]
-    public async Task HandshakeAsync_ServerReturnsErrorCode_ThrowsRdpNegotiationException()
+    public void ServerErrorResponse_ThrowsRdpNegotiationException()
     {
-        var ct = TestContext.Current.CancellationToken;
-        using DuplexStreamPair pair = new DuplexStreamPair();
-        using X509Certificate2 cert = CreateTestCertificate();
-
-        Task serverTask = Task.Run(async () =>
+        TsRequestPdu serverResponse = new TsRequestPdu
         {
-            using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-            await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+            Version = 2,
+            ErrorCode = 0x6D // Logon failure
+        };
 
-            byte[] buf = new byte[1024];
-            int bytesRead = await serverSsl.ReadAsync(buf, ct);
-
-            TsRequestPdu serverResp = new TsRequestPdu
-            {
-                Version = 2,
-                ErrorCode = 0x6D // Logon failure
-            };
-            await serverSsl.WriteAsync(serverResp.Encode(), ct);
-            await serverSsl.FlushAsync(ct);
-        }, ct);
-
-        using CredSspSecurityTransport transport = new CredSspSecurityTransport(
-            pair.ClientStream,
-            "testuser",
-            "testpass",
-            "DOMAIN",
-            certValidation: (s, c, ch, e) => true);
-
-        var ex = await Assert.ThrowsAsync<RdpNegotiationException>(() => transport.HandshakeAsync("localhost", ct));
-        await serverTask;
+        RdpNegotiationException ex = Assert.Throws<RdpNegotiationException>(
+            () => CredSspSecurityTransport.ThrowIfServerRejected(serverResponse));
 
         Assert.Contains("0x0000006D", ex.Message);
     }

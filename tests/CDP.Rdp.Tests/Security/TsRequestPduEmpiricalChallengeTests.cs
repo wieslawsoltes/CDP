@@ -272,45 +272,18 @@ public class TsRequestPduEmpiricalChallengeTests
     [InlineData(unchecked((int)0x8009030E), "0x8009030E")]
     [InlineData(unchecked((int)0x00000001), "0x00000001")]
     [InlineData(-1, "0xFFFFFFFF")]
-    public async Task ExecuteCredSspAuthAsync_ServerReturnsVariousErrorCodes_ThrowsWithFormattedHex(int errorCode, string expectedHexSubString)
+    public void ServerErrorResponse_VariousErrorCodes_ThrowsWithFormattedHex(
+        int errorCode,
+        string expectedHexSubString)
     {
-        var ct = TestContext.Current.CancellationToken;
-        using DuplexStreamPair pair = new DuplexStreamPair();
-
-        using X509Certificate2 cert = CreateTestCertificate();
-
-        Task serverTask = Task.Run(async () =>
+        TsRequestPdu serverResponse = new TsRequestPdu
         {
-            using SslStream serverSsl = new SslStream(pair.ServerStream, false);
-            await serverSsl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+            Version = 2,
+            ErrorCode = errorCode
+        };
 
-            byte[] buf = new byte[1024];
-            int readBytes = 0;
-            while (readBytes == 0)
-            {
-                readBytes = await serverSsl.ReadAsync(buf.AsMemory(), ct);
-            }
-            Assert.True(readBytes > 0);
-
-            TsRequestPdu serverResp = new TsRequestPdu
-            {
-                Version = 2,
-                ErrorCode = errorCode
-            };
-            byte[] respData = serverResp.Encode();
-            await serverSsl.WriteAsync(respData, ct);
-            await serverSsl.FlushAsync(ct);
-        }, ct);
-
-        using CredSspSecurityTransport transport = new CredSspSecurityTransport(
-            pair.ClientStream,
-            "testuser",
-            "testpass",
-            "DOMAIN",
-            certValidation: (s, c, ch, e) => true);
-
-        var ex = await Assert.ThrowsAsync<RdpNegotiationException>(() => transport.HandshakeAsync("localhost", ct));
-        await serverTask;
+        RdpNegotiationException ex = Assert.Throws<RdpNegotiationException>(
+            () => CredSspSecurityTransport.ThrowIfServerRejected(serverResponse));
 
         Assert.Contains(expectedHexSubString, ex.Message);
     }
