@@ -932,11 +932,11 @@ public class NewDomainTests
         CdpServer.Unregister(win);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestRound5ComplianceDomains()
     {
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, null!);
+        using var session = new CdpSession(clientWs, null);
 
         Assert.NotNull(await InspectorDomain.HandleAsync(session, "enable", new JsonObject()));
         Assert.NotNull(await MediaDomain.HandleAsync(session, "enable", new JsonObject()));
@@ -963,11 +963,11 @@ public class NewDomainTests
         Assert.NotNull(await PerformanceTimelineDomain.HandleAsync(session, "enable", new JsonObject()));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestRound6ComplianceDomains()
     {
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, null!);
+        using var session = new CdpSession(clientWs, null);
 
         Assert.NotNull(await AuditsDomain.HandleAsync(session, "enable", new JsonObject()));
         Assert.NotNull(await DOMSnapshotDomain.HandleAsync(session, "enable", new JsonObject()));
