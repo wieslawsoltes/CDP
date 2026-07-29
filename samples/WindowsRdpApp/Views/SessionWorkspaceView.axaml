@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WindowsRdpApp.ViewModels"
+             xmlns:models="clr-namespace:WindowsRdpApp.Models"
+             xmlns:rdp="clr-namespace:Avalonia.Diagnostics.Cdp.Rdp;assembly=Avalonia.Diagnostics.Cdp.Rdp"
+             x:Class="WindowsRdpApp.Views.SessionWorkspaceView"
+             x:DataType="vm:SessionWorkspaceViewModel"
+             x:CompileBindings="True">
+
+    <Grid RowDefinitions="Auto, *">
+        <!-- Workspace Main Toolbar -->
+        <Border Grid.Row="0"
+                Background="#1e1e1e"
+                BorderBrush="#2d2d2d"
+                BorderThickness="0,0,0,1"
+                Padding="12,8"
+                IsVisible="{Binding !IsFullScreen}">
+            <Grid ColumnDefinitions="Auto, *, Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="Multi-Session Workspace"
+                               FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               FontSize="14"
+                               Foreground="#ffffff"/>
+
+                    <Button Command="{Binding NewSessionCommand}" Padding="8,4">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource PlusIcon}" Width="12" Height="12"/>
+                            <TextBlock Text="New Session" FontSize="11" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Key Passthrough Actions & Fullscreen Controls -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <!-- Key Combinations Bar -->
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button Command="{Binding SendKeyComboCommand}" CommandParameter="AltTab" ToolTip.Tip="Send Alt+Tab" Padding="6,4">
+                            <TextBlock Text="Alt+Tab" FontSize="10" FontWeight="SemiBold"/>
+                        </Button>
+                        <Button Command="{Binding SendKeyComboCommand}" CommandParameter="CtrlAltDel" ToolTip.Tip="Send Ctrl+Alt+Del" Padding="6,4">
+                            <TextBlock Text="Ctrl+Alt+Del" FontSize="10" FontWeight="SemiBold"/>
+                        </Button>
+                        <Button Command="{Binding SendKeyComboCommand}" CommandParameter="WinKey" ToolTip.Tip="Send Win Key" Padding="6,4">
+                            <TextBlock Text="WinKey" FontSize="10" FontWeight="SemiBold"/>
+                        </Button>
+                        <Button Command="{Binding SendKeyComboCommand}" CommandParameter="AltF4" ToolTip.Tip="Send Alt+F4" Padding="6,4">
+                            <TextBlock Text="Alt+F4" FontSize="10" FontWeight="SemiBold"/>
+                        </Button>
+                        <Button Command="{Binding SendKeyComboCommand}" CommandParameter="CtrlShiftEsc" ToolTip.Tip="Send Task Manager (Ctrl+Shift+Esc)" Padding="6,4">
+                            <TextBlock Text="Ctrl+Shift+Esc" FontSize="10" FontWeight="SemiBold"/>
+                        </Button>
+                    </StackPanel>
+
+                    <Separator Width="1" Height="16" Background="#2d2d2d" Margin="4,0"/>
+
+                    <Button Command="{Binding ToggleFullScreenCommand}" ToolTip.Tip="Toggle Fullscreen Mode" Padding="8,4">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <PathIcon Data="{StaticResource WindowMultipleIcon}" Width="12" Height="12"/>
+                            <TextBlock Text="Fullscreen" FontSize="11" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Command="{Binding DisconnectAllCommand}" Padding="8,4">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource DisconnectIcon}" Width="12" Height="12" Foreground="#ff5252"/>
+                            <TextBlock Text="Disconnect All" FontSize="11" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Tabbed Workspace Container -->
+        <TabControl Name="tabWorkspace"
+                    AutomationProperties.AutomationId="tabWorkspace"
+                    Grid.Row="1"
+                    ItemsSource="{Binding Sessions}"
+                    SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
+                    Background="#121212">
+            <TabControl.ItemTemplate>
+                <DataTemplate x:DataType="models:RdpSessionTab">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="{StaticResource MonitorIcon}" Width="14" Height="14" Foreground="#8ab4f8"/>
+                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding Status, StringFormat='({0})'}" FontSize="10" Foreground="#9aa0a6" VerticalAlignment="Center"/>
+                        <Button Command="{Binding $parent[UserControl].((vm:SessionWorkspaceViewModel)DataContext).CloseSessionCommand}"
+                                CommandParameter="{Binding}"
+                                Name="CloseTabButton"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="4,2"
+                                Margin="4,0,0,0">
+                            <PathIcon Data="{StaticResource TrashIcon}" Width="10" Height="10" Foreground="#888888"/>
+                        </Button>
+                    </StackPanel>
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate x:DataType="models:RdpSessionTab">
+                    <Grid RowDefinitions="Auto, *">
+                        <!-- Session Metrics & Status Toolbar -->
+                        <Border Grid.Row="0" Background="#252526" Padding="12,6">
+                            <Grid ColumnDefinitions="Auto, *, Auto">
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16">
+                                    <TextBlock Text="{Binding Host, StringFormat='Host: {0}'}" FontSize="11" Foreground="#cccccc" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Port, StringFormat='Port: {0}'}" FontSize="11" Foreground="#cccccc" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Username, StringFormat='User: {0}'}" FontSize="11" Foreground="#cccccc" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Width, StringFormat='Res: {0}x'}" FontSize="11" Foreground="#8ab4f8" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Height}" FontSize="11" Foreground="#8ab4f8" VerticalAlignment="Center" Margin="-12,0,0,0"/>
+                                    <TextBlock Text="{Binding ColorDepth, StringFormat='{}{0}-bit'}" FontSize="11" Foreground="#8ab4f8" VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <!-- Performance Metrics & Status Badge -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="16">
+                                    <TextBlock Text="{Binding Fps, StringFormat='FPS: {0:F1}'}" FontSize="11" Foreground="#4caf50" VerticalAlignment="Center" FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding TotalFrames, StringFormat='Frames: {0}'}" FontSize="11" Foreground="#cccccc" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding DirtyRectCount, StringFormat='Dirty Rects: {0}'}" FontSize="11" Foreground="#ffca28" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Status}" FontSize="11" Foreground="#4caf50" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Main RDP Canvas Viewport -->
+                        <Border Name="rdpViewport"
+                                AutomationProperties.AutomationId="rdpViewport"
+                                Grid.Row="1"
+                                Background="#1e1e1e">
+                            <rdp:RdpControl Host="{Binding Host}"
+                                            Port="{Binding Port}"
+                                            Username="{Binding Username}"
+                                            Password="{Binding Password}"
+                                            Domain="{Binding Domain}"
+                                            Session="{Binding Session}"
+                                            ScaleFactor="{Binding ScaleFactor}"/>
+                        </Border>
+                    </Grid>
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+    </Grid>
+</UserControl>

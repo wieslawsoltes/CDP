@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WindowsRdpApp.ViewModels"
+             x:Class="WindowsRdpApp.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel"
+             x:CompileBindings="True">
+
+    <ScrollViewer Padding="24">
+        <StackPanel MaxWidth="600" HorizontalAlignment="Left" Spacing="16">
+            <!-- Page Header -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Application Settings" FontSize="24" FontWeight="Bold"/>
+                <TextBlock Text="Configure user experience themes, CDP diagnostic server options, and RDP rendering parameters."
+                           Foreground="#9aa0a6" FontSize="13"/>
+            </StackPanel>
+
+            <Separator Height="1" Background="#2d2d2d" Margin="0,4"/>
+
+            <!-- Appearance Theme Card -->
+            <Border Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Appearance &amp; Theme" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8"/>
+
+                    <Grid RowDefinitions="Auto, Auto" ColumnDefinitions="*, Auto">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Theme Variant" FontWeight="SemiBold"/>
+                            <TextBlock Text="Switch between Dark and Light UI themes dynamically." Foreground="#9aa0a6" FontSize="11"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Command="{Binding SwitchThemeDarkCommand}" Padding="8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Data="{StaticResource MoonIcon}" Width="14" Height="14" Foreground="#8ab4f8"/>
+                                    <TextBlock Text="Dark" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding SwitchThemeLightCommand}" Padding="8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Data="{StaticResource SunIcon}" Width="14" Height="14" Foreground="#ffca28"/>
+                                    <TextBlock Text="Light" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Diagnostic & CDP Server Options -->
+            <Border Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Chrome DevTools Protocol (CDP) Server" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8"/>
+
+                    <Grid RowDefinitions="Auto, Auto" ColumnDefinitions="140, *">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="CDP Port:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding CdpPort, Mode=TwoWay}" Width="120" HorizontalAlignment="Left"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                   Text="WebSocket CDP Server listens on http://127.0.0.1:9225 (override with --port CLI arg)."
+                                   Foreground="#9aa0a6" FontSize="11" Margin="0,8,0,0"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- SkiaSharp RDP Rendering Parameters -->
+            <Border Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="SkiaSharp RDP Engine Configuration" FontSize="16" FontWeight="Bold" Foreground="#8ab4f8"/>
+
+                    <CheckBox IsChecked="{Binding EnableDoubleBuffering, Mode=TwoWay}" Content="Enable SkiaSharp Double-Buffering"/>
+                    <CheckBox IsChecked="{Binding ShowDirtyRectangles, Mode=TwoWay}" Content="Show Dirty Rectangle Debug Overlays"/>
+                    <CheckBox IsChecked="{Binding AutoReconnect, Mode=TwoWay}" Content="Automatic Network Reconnection"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Status Banner -->
+            <Border Background="#252526" BorderBrush="#3c3c3c" BorderThickness="1" CornerRadius="6" Padding="12">
+                <TextBlock Text="{Binding StatusText}" Foreground="#cccccc" FontSize="12"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

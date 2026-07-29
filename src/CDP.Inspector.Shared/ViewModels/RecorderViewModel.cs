@@ -32,6 +32,14 @@ public class RecorderViewModel : ViewModelBase
     private ObservableCollection<RecordedStepModel> _recordedSteps = new();
     private bool _isRecording;
     private bool _isClientSideRecording;
+    private string? _lastServerStepSignature;
+    private string? _lastServerStepSignatureWithoutSelector;
+    private string _lastServerStepSelector = "";
+    private DateTimeOffset _lastServerStepAt;
+    private string? _lastPreviewStepSignature;
+    private string? _lastPreviewStepSignatureWithoutSelector;
+    private string _lastPreviewStepSelector = "";
+    private DateTimeOffset _lastPreviewStepAt;
     public bool IsClientSideRecording
     {
         get => _isClientSideRecording;
@@ -441,7 +449,7 @@ public class RecorderViewModel : ViewModelBase
                 {
                     try
                     {
-                        await _cdpService.SendCommandAsync("Recorder.stop");
+                        await _cdpService.SendCommandAsync("Recorder.stop").WaitAsync(TimeSpan.FromSeconds(2));
                     }
                     catch {}
                 }
@@ -455,11 +463,11 @@ public class RecorderViewModel : ViewModelBase
         }
     }
 
-    public void AddRecordedStepLocal(JsonObject step)
+    public void AddRecordedStepLocal(JsonObject step, bool wasRecordingAtDispatch = false)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            if (!IsRecording || !IsClientSideRecording) return;
+            if (TestStudio.IsExecuting || (!IsRecording && !wasRecordingAtDispatch)) return;
             
             if (step["type"]?.GetValue<string>() == "change")
             {
@@ -494,7 +502,7 @@ public class RecorderViewModel : ViewModelBase
                 }
             }
 
-            AddRecordedStep(step);
+            AddRecordedStep(step, isPreviewStep: true);
         });
     }
 
@@ -531,7 +539,7 @@ public class RecorderViewModel : ViewModelBase
         return 0;
     }
 
-    private void AddRecordedStep(JsonObject stepJson)
+    private void AddRecordedStep(JsonObject stepJson, bool isPreviewStep = false)
     {
         string type = stepJson["type"]?.GetValue<string>() ?? "";
         Logger.LogDebug("AddRecordedStep: type={Type}, IsTestStudioActive={IsTestStudioActive}", type, IsTestStudioActive);
@@ -562,6 +570,68 @@ public class RecorderViewModel : ViewModelBase
             {
                 selector = firstSelectorGroup[0]?.GetValue<string>() ?? "";
             }
+        }
+
+        string stepSignature = string.Join(
+            '\u001F',
+            type,
+            selector,
+            value,
+            button,
+            clickCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            keyVal);
+        string stepSignatureWithoutSelector = string.Join(
+            '\u001F',
+            type,
+            value,
+            button,
+            clickCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            keyVal);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        // Preview selector resolution may complete several seconds after the target
+        // Recorder event, especially while screencasting and generating assertions.
+        TimeSpan duplicateWindow = TimeSpan.FromSeconds(10);
+        if (isPreviewStep)
+        {
+            bool matchesServer = _lastServerStepSignature == stepSignature ||
+                (_lastServerStepSignatureWithoutSelector == stepSignatureWithoutSelector &&
+                 (string.IsNullOrEmpty(selector) || string.IsNullOrEmpty(_lastServerStepSelector)));
+            if (matchesServer && now - _lastServerStepAt <= duplicateWindow)
+            {
+                if (!string.IsNullOrEmpty(selector) && string.IsNullOrEmpty(_lastServerStepSelector))
+                {
+                    var recordedStep = RecordedSteps.LastOrDefault();
+                    if (recordedStep != null && recordedStep.Type == type && string.IsNullOrEmpty(recordedStep.Selector))
+                    {
+                        recordedStep.Selector = selector;
+                    }
+
+                    var testStudioStep = TestStudio.Steps.LastOrDefault();
+                    if (testStudioStep != null && string.IsNullOrEmpty(testStudioStep.Selector))
+                    {
+                        testStudioStep.Selector = selector;
+                    }
+                }
+                return;
+            }
+            _lastPreviewStepSignature = stepSignature;
+            _lastPreviewStepSignatureWithoutSelector = stepSignatureWithoutSelector;
+            _lastPreviewStepSelector = selector;
+            _lastPreviewStepAt = now;
+        }
+        else
+        {
+            bool matchesPreview = _lastPreviewStepSignature == stepSignature ||
+                (_lastPreviewStepSignatureWithoutSelector == stepSignatureWithoutSelector &&
+                 (string.IsNullOrEmpty(selector) || string.IsNullOrEmpty(_lastPreviewStepSelector)));
+            if (matchesPreview && now - _lastPreviewStepAt <= duplicateWindow)
+            {
+                return;
+            }
+            _lastServerStepSignature = stepSignature;
+            _lastServerStepSignatureWithoutSelector = stepSignatureWithoutSelector;
+            _lastServerStepSelector = selector;
+            _lastServerStepAt = now;
         }
 
         string targetSelector = "";
@@ -1144,6 +1214,7 @@ public class RecorderViewModel : ViewModelBase
             step.PropertyChanged -= OnStepPropertyChanged;
         }
         RecordedSteps.Clear();
+        ResetStepDeduplication();
         IsReplayEnabled = false;
         ((RelayCommand)ReplayCommand).RaiseCanExecuteChanged();
         UpdateGeneratedCode();
@@ -1277,6 +1348,7 @@ public class RecorderViewModel : ViewModelBase
                 step.PropertyChanged -= OnStepPropertyChanged;
             }
             RecordedSteps.Clear();
+            ResetStepDeduplication();
             if (resetRecordingState)
             {
                 IsRecording = false;
@@ -1298,6 +1370,18 @@ public class RecorderViewModel : ViewModelBase
     private void OnStepPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         UpdateGeneratedCode();
+    }
+
+    private void ResetStepDeduplication()
+    {
+        _lastServerStepSignature = null;
+        _lastServerStepSignatureWithoutSelector = null;
+        _lastServerStepSelector = "";
+        _lastServerStepAt = default;
+        _lastPreviewStepSignature = null;
+        _lastPreviewStepSignatureWithoutSelector = null;
+        _lastPreviewStepSelector = "";
+        _lastPreviewStepAt = default;
     }
 
     private void DeleteStep(RecordedStepModel? step)

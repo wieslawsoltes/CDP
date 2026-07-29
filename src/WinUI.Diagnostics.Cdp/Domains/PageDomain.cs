@@ -227,15 +227,10 @@ public static class PageDomain
                         throw;
                     }
 
-                    using var ms = new MemoryStream();
-                    using (var wstream = new SkiaSharp.SKManagedWStream(ms))
+                    using var data = skBitmap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+                    if (data != null)
                     {
-                        SkiaSharp.SKPixmap.Encode(wstream, skBitmap, SkiaSharp.SKEncodedImageFormat.Png, 100);
-                    }
-                    var bytes = ms.ToArray();
-                    if (bytes.Length > 0)
-                    {
-                        return Convert.ToBase64String(bytes);
+                        return Convert.ToBase64String(data.ToArray());
                     }
                 }
             }

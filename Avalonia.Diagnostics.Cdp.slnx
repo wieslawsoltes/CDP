@@ -13,8 +13,13 @@
     <Project Path="samples/WpfAotIntegrationApp/WpfAotIntegrationApp.csproj" />
     <Project Path="samples/WinUiAotIntegrationApp/WinUiAotIntegrationApp.csproj" />
     <Project Path="samples/UnoAotIntegrationApp/UnoAotIntegrationApp.csproj" />
+    <Project Path="samples/CdpRdpApp/CdpRdpApp.csproj" />
+    <Project Path="samples/WindowsRdpApp/WindowsRdpApp.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/CDP.Rdp/CDP.Rdp.csproj" />
+    <Project Path="src/CDP.Rdp.Rendering/CDP.Rdp.Rendering.csproj" />
+    <Project Path="src/Avalonia.Diagnostics.Cdp.Rdp/Avalonia.Diagnostics.Cdp.Rdp.csproj" />
     <Project Path="src/CDP.Integration.Core/CDP.Integration.Core.csproj" />
     <Project Path="src/CDP.Integration.TestMo/CDP.Integration.TestMo.csproj" />
     <Project Path="src/CDP.Integration.TestRail/CDP.Integration.TestRail.csproj" />
@@ -81,5 +86,6 @@
     <Project Path="tests/CDP.Xaml.LanguageServer.Tests/CDP.Xaml.LanguageServer.Tests.csproj" />
     <Project Path="tests/CDP.Rendering.Comparison.Tests/CDP.Rendering.Comparison.Tests.csproj" />
     <Project Path="tests/CDP.Pdf.Editor.Tests/CDP.Pdf.Editor.Tests.csproj" />
+    <Project Path="tests/CDP.Rdp.Tests/CDP.Rdp.Tests.csproj" />
   </Folder>
 </Solution>

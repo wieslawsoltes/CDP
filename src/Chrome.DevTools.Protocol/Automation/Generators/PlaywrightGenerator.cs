@@ -81,7 +81,9 @@ public class PlaywrightGenerator : ICodeGenerator
             {
                 sb.AppendLine($"    await test.step('Tap on element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
                 sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
-                sb.AppendLine($"      await element_{i}.tap();");
+                // A YAML tap is the framework-neutral primary-pointer action.
+                // Use click so generated desktop tests do not require a touch-enabled context.
+                sb.AppendLine($"      await element_{i}.click();");
                 sb.AppendLine("    });");
             }
             else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")

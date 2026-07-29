@@ -1,0 +1,74 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:WindowsRdpApp.ViewModels"
+        xmlns:views="clr-namespace:WindowsRdpApp.Views"
+        xmlns:nav="clr-namespace:CDP.FluentNavigation;assembly=CDP.FluentNavigation"
+        x:Class="WindowsRdpApp.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="True"
+        Title="Windows RDP App — CDP Diagnostic Target"
+        Width="1280" Height="800"
+        WindowStartupLocation="CenterScreen"
+        Background="#121212">
+
+    <Window.DataTemplates>
+        <DataTemplate DataType="vm:QuickConnectViewModel">
+            <views:QuickConnectView/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:ProfilesViewModel">
+            <views:ProfilesView/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:SessionWorkspaceViewModel">
+            <views:SessionWorkspaceView/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:SettingsViewModel">
+            <views:SettingsView/>
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <Grid RowDefinitions="*, Auto">
+        <!-- Main WinUI-Style Fluent Navigation Shell -->
+        <nav:NavigationView Name="navSidebar"
+                            AutomationProperties.AutomationId="navSidebar"
+                            Grid.Row="0"
+                            Header="Windows RDP App — CDP Diagnostic Target"
+                            SelectedItem="{Binding SelectedNavItem, Mode=TwoWay}"
+                            PaneDisplayMode="Expanded"
+                            IsPaneOpen="True"
+                            IsSettingsVisible="True"
+                            Background="#121212"
+                            Content="{Binding CurrentView}">
+
+            <!-- Sidebar Menu Items -->
+            <nav:NavigationView.MenuItems>
+                <nav:NavigationViewItem Content="Quick Connect" Tag="QuickConnect" Icon="{StaticResource PlayIcon}" IsSelected="True"/>
+                <nav:NavigationViewItem Content="Profiles" Tag="Profiles" Icon="{StaticResource FolderIcon}"/>
+                <nav:NavigationViewItem Content="Workspace" Tag="Workspace" Icon="{StaticResource WindowMultipleIcon}"/>
+            </nav:NavigationView.MenuItems>
+
+            <!-- Sidebar Header Brand -->
+            <nav:NavigationView.PaneHeader>
+                <Border Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="{StaticResource ServerIcon}" Width="16" Height="16" Foreground="#8ab4f8"/>
+                        <TextBlock Text="RDP Manager" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" Foreground="#e8eaed"/>
+                    </StackPanel>
+                </Border>
+            </nav:NavigationView.PaneHeader>
+        </nav:NavigationView>
+
+        <!-- Status Bar Footer -->
+        <Border Grid.Row="1" Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="0,1,0,0" Padding="12,4">
+            <Grid ColumnDefinitions="*, Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                    <PathIcon Data="{StaticResource PlugIcon}" Width="12" Height="12" Foreground="#4caf50" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="#cccccc" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
+                    <TextBlock Text="{Binding CdpPort, StringFormat='CDP: http://127.0.0.1:{0}'}" FontSize="11" Foreground="#8ab4f8" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

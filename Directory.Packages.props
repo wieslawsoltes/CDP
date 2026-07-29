@@ -14,8 +14,11 @@
     <PackageVersion Include="Avalonia.Markup.Xaml.Loader" Version="12.0.5" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.2.0" />
     <PackageVersion Include="Jint" Version="4.10.1" />
-    <PackageVersion Include="SkiaSharp" Version="2.88.9" />
-    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.9" />
+    <PackageVersion Include="SkiaSharp" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.macOS" Version="3.119.4" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
@@ -55,6 +58,7 @@
     <PackageVersion Include="JetBrains.Profiler.SelfApi" Version="2.5.18" />
     <PackageVersion Include="JetBrains.Profiler.Api" Version="1.4.13" />
     <PackageVersion Include="System.Security.Permissions" Version="10.0.2" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.6.241114003" />
     <PackageVersion Include="PdfPig" Version="0.1.9" />
     <PackageVersion Include="PdfPig.Rendering.Skia" Version="0.1.9.1" />

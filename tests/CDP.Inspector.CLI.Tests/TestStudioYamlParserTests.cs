@@ -514,7 +514,7 @@ description: ""E2E Flow""
         // 2. Playwright code generation verification
         var playwrightGen = new PlaywrightGenerator();
         string pwCode = playwrightGen.Generate(recordedSteps, "localhost:9222");
-        Assert.Contains("await element_0.tap();", pwCode);
+        Assert.Contains("await element_0.click();", pwCode);
         Assert.Contains("await element_1.dblclick();", pwCode);
         Assert.Contains("await element_2.click({ delay: 1000 });", pwCode);
         Assert.Contains("await page.goBack();", pwCode);
@@ -615,4 +615,3 @@ description: ""E2E Flow""
         }
     }
 }
-

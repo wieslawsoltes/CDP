@@ -22,7 +22,8 @@
       "tests/CDP.Automation.OS.Tests/CDP.Automation.OS.Tests.csproj",
       "tests/CDP.Xaml.LanguageServer.Tests/CDP.Xaml.LanguageServer.Tests.csproj",
       "tests/CDP.Rendering.Comparison.Tests/CDP.Rendering.Comparison.Tests.csproj",
-      "tests/CDP.Pdf.Editor.Tests/CDP.Pdf.Editor.Tests.csproj"
+      "tests/CDP.Pdf.Editor.Tests/CDP.Pdf.Editor.Tests.csproj",
+      "tests/CDP.Rdp.Tests/CDP.Rdp.Tests.csproj"
     ]
   }
 }

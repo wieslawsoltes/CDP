@@ -7,7 +7,7 @@ jobs:
   run-unit-tests:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -27,20 +27,38 @@ jobs:
       shell: bash
       run: dotnet build samples/CdpSampleApp/CdpSampleApp.csproj -c Release
 
-    - name: Prebuild Solution for Tests
+    - name: Prebuild Full Solution for Tests
       shell: bash
       run: |
-        dotnet restore CDP.Tests.slnf
-        dotnet build CDP.Tests.slnf -c Release --no-restore -m
+        dotnet restore Avalonia.Diagnostics.Cdp.slnx
+        dotnet build Avalonia.Diagnostics.Cdp.slnx -c Release --no-restore -m
 
     - name: Run Unit Tests
       shell: bash
       run: |
-        if [ "${{ matrix.os }}" = "macos-latest" ]; then
-          dotnet test CDP.Tests.slnf -c Release --no-build -m:1 --verbosity normal --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation'
-        else
-          dotnet test CDP.Tests.slnf -c Release --no-build --verbosity normal --filter 'Category!=Appium&Category!=Selenium&Category!=OSAutomation'
-        fi
+        FILTER="Category!=Appium&Category!=Selenium&Category!=OSAutomation"
+        for proj in tests/*/*.csproj; do
+          echo "=== Executing tests for $proj ==="
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            xvfb-run --auto-servernum dotnet test "$proj" -c Release --no-build --no-restore \
+              --verbosity normal \
+              --filter "$FILTER" \
+              --blame-hang \
+              --blame-hang-timeout 60s \
+              --blame-hang-dump-type none \
+              --results-directory TestResults \
+              --logger "console;verbosity=detailed" || exit 1
+          else
+            dotnet test "$proj" -c Release --no-build --no-restore \
+              --verbosity normal \
+              --filter "$FILTER" \
+              --blame-hang \
+              --blame-hang-timeout 60s \
+              --blame-hang-dump-type none \
+              --results-directory TestResults \
+              --logger "console;verbosity=detailed" || exit 1
+          fi
+        done
 
     - name: Upload Logs on Failure
       if: failure()
@@ -51,6 +69,7 @@ jobs:
           **/*.log
           **/*.png
           **/*.html
+          **/TestResults/**
 
   aot-validate-avalonia:
     name: AOT Integration (Avalonia)

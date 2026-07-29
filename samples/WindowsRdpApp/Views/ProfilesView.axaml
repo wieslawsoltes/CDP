@@ -1,0 +1,148 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WindowsRdpApp.ViewModels"
+             xmlns:models="clr-namespace:WindowsRdpApp.Models"
+             x:Class="WindowsRdpApp.Views.ProfilesView"
+             x:DataType="vm:ProfilesViewModel"
+             x:CompileBindings="True">
+
+    <Grid RowDefinitions="Auto, *" Margin="24">
+        <!-- Page Header -->
+        <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,16">
+            <TextBlock Text="Saved RDP Profiles" FontSize="24" FontWeight="Bold"/>
+            <TextBlock Text="Manage, search, and quick launch saved connection profiles for remote servers and virtual machines."
+                       Foreground="#9aa0a6" FontSize="13"/>
+        </StackPanel>
+
+        <!-- Main Content Split -->
+        <Grid Grid.Row="1" ColumnDefinitions="340, 16, *">
+            <!-- Left: Profiles List & Search -->
+            <Border Grid.Column="0" Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="8" Padding="12">
+                <Grid RowDefinitions="Auto, Auto, *, Auto">
+                    <TextBlock Grid.Row="0" Text="Saved Connections" FontWeight="Bold" Margin="0,0,0,8" Foreground="#8ab4f8"/>
+
+                    <!-- Search Filter Box -->
+                    <TextBox Grid.Row="1"
+                             Text="{Binding SearchQuery, Mode=TwoWay}"
+                             PlaceholderText="Search profiles..."
+                             Margin="0,0,0,8"/>
+
+                    <!-- Mandatory Selector Contract: #lstProfiles -->
+                    <ListBox Name="lstProfiles"
+                             AutomationProperties.AutomationId="lstProfiles"
+                             Grid.Row="2"
+                             ItemsSource="{Binding FilteredProfiles}"
+                             SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                             Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:RdpConnectionProfile">
+                                <Border Padding="4">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock Text="{Binding DisplaySubtitle}" Foreground="#9aa0a6" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Profile List Footer Actions -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" HorizontalAlignment="Right">
+                        <Button Command="{Binding DeleteProfileCommand}" ToolTip.Tip="Delete Selected Profile" Padding="8,6">
+                            <PathIcon Data="{StaticResource TrashIcon}" Width="14" Height="14" Foreground="#ff5252"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Right: Details Editor & Add Profile Form -->
+            <ScrollViewer Grid.Column="2">
+                <StackPanel Spacing="16">
+                    <!-- Connect & Details Card for Selected Profile -->
+                    <Border Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="8" Padding="20">
+                        <StackPanel Spacing="12">
+                            <Grid ColumnDefinitions="*, Auto">
+                                <TextBlock Grid.Column="0" Text="Selected Profile Details" FontSize="16" FontWeight="Bold"/>
+                                <Button Grid.Column="1" Command="{Binding ConnectProfileCommand}" Classes="accent" Width="140" Height="32">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <PathIcon Data="{StaticResource PlayIcon}" Width="14" Height="14" Foreground="#4caf50"/>
+                                        <TextBlock Text="Connect Profile" VerticalAlignment="Center" FontSize="12"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <Separator Height="1" Background="#2d2d2d"/>
+
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="110,*">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Profile Name:" VerticalAlignment="Center" Foreground="#9aa0a6"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedProfile.Name, Mode=TwoWay}" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Host / IP:" VerticalAlignment="Center" Foreground="#9aa0a6"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedProfile.Host, Mode=TwoWay}" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Port:" VerticalAlignment="Center" Foreground="#9aa0a6"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedProfile.Port, Mode=TwoWay}" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Username:" VerticalAlignment="Center" Foreground="#9aa0a6"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SelectedProfile.Username, Mode=TwoWay}" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Password:" VerticalAlignment="Center" Foreground="#9aa0a6"/>
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SelectedProfile.Password, Mode=TwoWay}" PasswordChar="*" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Domain:" VerticalAlignment="Center" Foreground="#9aa0a6"/>
+                                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding SelectedProfile.Domain, Mode=TwoWay}" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Resolution:" VerticalAlignment="Center" Foreground="#9aa0a6"/>
+                                <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,2">
+                                    <TextBox Text="{Binding SelectedProfile.Width, Mode=TwoWay}" Width="80" PlaceholderText="Width"/>
+                                    <TextBlock Text="x" VerticalAlignment="Center" Foreground="#888888"/>
+                                    <TextBox Text="{Binding SelectedProfile.Height, Mode=TwoWay}" Width="80" PlaceholderText="Height"/>
+                                    <TextBlock Text="Color:" VerticalAlignment="Center" Foreground="#9aa0a6" Margin="12,0,0,0"/>
+                                    <TextBox Text="{Binding SelectedProfile.ColorDepth, Mode=TwoWay}" Width="60" PlaceholderText="32"/>
+                                    <TextBlock Text="bit" VerticalAlignment="Center" Foreground="#888888"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0" HorizontalAlignment="Right">
+                                <Button Command="{Binding SaveProfileCommand}" Width="120" Height="32">
+                                    <TextBlock Text="Save Changes" VerticalAlignment="Center" FontSize="12"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Add New Profile Form -->
+                    <Border Background="#1e1e1e" BorderBrush="#2d2d2d" BorderThickness="1" CornerRadius="8" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Add New Connection Profile" FontSize="16" FontWeight="Bold"/>
+
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="110,*">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding NewName, Mode=TwoWay}" PlaceholderText="Profile Name" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Host:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NewHost, Mode=TwoWay}" PlaceholderText="Host or IP" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Port:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding NewPort, Mode=TwoWay}" PlaceholderText="3389" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Username:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding NewUsername, Mode=TwoWay}" PlaceholderText="Username" Margin="0,2"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Domain:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding NewDomain, Mode=TwoWay}" PlaceholderText="Domain" Margin="0,2"/>
+                            </Grid>
+
+                            <Button Command="{Binding AddProfileCommand}" Width="140" Height="34" Margin="0,4,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Data="{StaticResource PlusIcon}" Width="14" Height="14"/>
+                                    <TextBlock Text="Add Profile" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

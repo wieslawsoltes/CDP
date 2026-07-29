@@ -1,0 +1,113 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CdpRdpApp.ViewModels"
+        xmlns:rdp="using:Avalonia.Diagnostics.Cdp.Rdp"
+        x:Class="CdpRdpApp.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="True"
+        Title="CDP Remote Desktop Target (CdpRdpApp)"
+        Width="1024" Height="768">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <DockPanel LastChildFill="True">
+        <!-- Connection Toolbar -->
+        <Border DockPanel.Dock="Top" Background="#2d2d2d" Padding="8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Host:" VerticalAlignment="Center" Foreground="#cccccc"/>
+                <TextBox Name="txtHost" 
+                         AutomationProperties.AutomationId="txtHost"
+                         Text="{Binding Host}" Width="120"/>
+
+                <TextBlock Text="Port:" VerticalAlignment="Center" Foreground="#cccccc"/>
+                <TextBox Name="txtPort" 
+                         AutomationProperties.AutomationId="txtPort"
+                         Text="{Binding Port}" Width="60"/>
+
+                <TextBlock Text="User:" VerticalAlignment="Center" Foreground="#cccccc"/>
+                <TextBox Name="txtUsername" 
+                         AutomationProperties.AutomationId="txtUsername"
+                         Text="{Binding Username}" Width="100"/>
+
+                <TextBlock Text="Pass:" VerticalAlignment="Center" Foreground="#cccccc"/>
+                <TextBox Name="txtPassword" 
+                         AutomationProperties.AutomationId="txtPassword"
+                         Text="{Binding Password}" PasswordChar="*" Width="100"/>
+
+                <Button Name="btnConnect" 
+                        AutomationProperties.AutomationId="btnConnect"
+                        Command="{Binding ConnectCommand}" 
+                        Content="Connect"/>
+
+                <Button Name="btnDisconnect" 
+                        AutomationProperties.AutomationId="btnDisconnect"
+                        Command="{Binding DisconnectCommand}" 
+                        Content="Disconnect"/>
+
+                <Button Name="btnRefreshTargets" 
+                        AutomationProperties.AutomationId="btnRefreshTargets"
+                        Command="{Binding RefreshTargetsCommand}" 
+                        Content="Refresh Targets"/>
+
+                <TextBlock Text="{Binding Connection.StatusText}" 
+                           VerticalAlignment="Center" 
+                           Foreground="#4caf50" 
+                           Margin="12,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Tab Control -->
+        <TabControl Name="MainTabControl" AutomationProperties.AutomationId="MainTabControl">
+            <!-- Tab 1: RDP Preview -->
+            <TabItem Name="TabPreview" AutomationProperties.AutomationId="TabPreview" Header="Preview">
+                <Grid>
+                    <rdp:RdpControl Name="rdpPreviewControl"
+                                    AutomationProperties.AutomationId="rdpPreviewControl"
+                                    Host="{Binding Host}"
+                                    Port="{Binding Port}"
+                                    Username="{Binding Username}"
+                                    Password="{Binding Password}"
+                                    Session="{Binding Session}"
+                                    IsConnected="{Binding Connection.IsConnected}"
+                                    ConnectCommand="{Binding ConnectCommand}" />
+                    <Image Name="imgScreenshot" 
+                           AutomationProperties.AutomationId="imgScreenshot" 
+                           Stretch="Uniform"/>
+                </Grid>
+            </TabItem>
+
+            <!-- Tab 2: Visual Tree & Control Inspection -->
+            <TabItem Name="TabElements" AutomationProperties.AutomationId="TabElements" Header="Elements">
+                <Grid ColumnDefinitions="*,*">
+                    <ListBox Name="lstVisualTree" 
+                             AutomationProperties.AutomationId="lstVisualTree" 
+                             Grid.Column="0"/>
+                    <Border Name="panelSelectedElementProps" 
+                            AutomationProperties.AutomationId="panelSelectedElementProps" 
+                            Grid.Column="1" 
+                            Background="#1e1e1e" 
+                            Padding="8">
+                        <TextBlock Text="Selected Control Properties" Foreground="#cccccc"/>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Tab 3: Test Studio / Recorder -->
+            <TabItem Name="TabRecorder" AutomationProperties.AutomationId="TabRecorder" Header="Recorder">
+                <StackPanel Spacing="8">
+                    <Button Name="btnTestStudioToggleRecord" 
+                            AutomationProperties.AutomationId="btnTestStudioToggleRecord"
+                            Command="{Binding ToggleRecordCommand}"
+                            Content="Toggle Record"/>
+                    <Button Name="btnTestStudioPlay" 
+                            AutomationProperties.AutomationId="btnTestStudioPlay"
+                            Content="Play"/>
+                    <ListBox Name="lstSteps" 
+                             AutomationProperties.AutomationId="lstSteps"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

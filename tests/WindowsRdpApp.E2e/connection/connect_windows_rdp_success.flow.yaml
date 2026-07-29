@@ -1,0 +1,8 @@
+appId: "WindowsRdpApp"
+description: "Tier 1: Verify Windows App RDP quick connect on port 9225"
+tags:
+  - "connection"
+  - "windows_rdp"
+---
+- runFlow: "shared/connect_profile.subflow"
+- assertTrue: "document.querySelector('#navSidebar') != null"

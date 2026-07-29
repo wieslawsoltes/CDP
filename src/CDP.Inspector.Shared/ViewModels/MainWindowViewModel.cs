@@ -103,6 +103,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         Memory = new MemoryViewModel(CdpService);
         Application = new ApplicationViewModel(CdpService);
         Audits = new AuditsViewModel(CdpService, nodeId => Elements.SelectNodeById(nodeId));
+        Recorder = new RecorderViewModel(CdpService, () => Connection.GeneratorHostAddress, () => Connection.UseAutomationSelectors);
         Simulation = new SimulationViewModel(
             CdpService,
             getSelectedNodeFunc: () => Elements.SelectedNode,
@@ -110,9 +111,9 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
             getAxDetailsFunc: nodeId => Elements.FindAxDetails(nodeId),
             isInspectModeActiveFunc: () => Connection.IsInspectModeActive,
             getDomNodeFunc: nodeId => Elements.FindDomNode(nodeId),
-            useAutomationSelectorsFunc: () => Connection.UseAutomationSelectors
+            useAutomationSelectorsFunc: () => Connection.UseAutomationSelectors,
+            isRecordingFunc: () => Recorder.IsRecording
         );
-        Recorder = new RecorderViewModel(CdpService, () => Connection.GeneratorHostAddress, () => Connection.UseAutomationSelectors);
         Events = new EventsViewModel(CdpService);
         Mvvm = new MvvmViewModel(CdpService);
         Diff = new DiffViewModel();
@@ -166,9 +167,9 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
 
         Simulation.InteractionDispatched += (sender, args) =>
         {
-            if (Recorder.IsRecording && Recorder.IsClientSideRecording)
+            if (args.WasRecordingAtDispatch && !Recorder.TestStudio.IsExecuting)
             {
-                Recorder.AddRecordedStepLocal(args.Step);
+                Recorder.AddRecordedStepLocal(args.Step, wasRecordingAtDispatch: true);
             }
         };
 
