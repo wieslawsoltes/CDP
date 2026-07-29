@@ -151,51 +151,59 @@ public class RdpRenderingEmpiricalStressTests
         for (int t = 0; t < 4; t++)
         {
             int threadId = t;
-            tasks.Add(Task.Run(() =>
-            {
-                byte[] tilePixels = new byte[32 * 32 * 4];
-                Array.Fill(tilePixels, (byte)(threadId * 50));
-                ulong frameId = 0;
-
-                while (!cts.Token.IsCancellationRequested)
+            tasks.Add(Task.Factory.StartNew(
+                () =>
                 {
-                    ushort x = (ushort)((frameId * 16 + (ulong)threadId * 50) % 750);
-                    ushort y = (ushort)((frameId * 8 + (ulong)threadId * 30) % 550);
+                    byte[] tilePixels = new byte[32 * 32 * 4];
+                    Array.Fill(tilePixels, (byte)(threadId * 50));
+                    ulong frameId = 0;
 
-                    var update = new RdpBitmapUpdate(x, y, 32, 32, 32, compressed: false, tilePixels);
-                    buffer.ApplyFrameUpdate(new RdpFrameUpdateEventArgs(frameId++, DateTimeOffset.UtcNow, new[] { update }));
-                    Thread.Sleep(1);
-                }
-            }));
+                    while (!cts.Token.IsCancellationRequested)
+                    {
+                        ushort x = (ushort)((frameId * 16 + (ulong)threadId * 50) % 750);
+                        ushort y = (ushort)((frameId * 8 + (ulong)threadId * 30) % 550);
+
+                        var update = new RdpBitmapUpdate(x, y, 32, 32, 32, compressed: false, tilePixels);
+                        buffer.ApplyFrameUpdate(new RdpFrameUpdateEventArgs(frameId++, DateTimeOffset.UtcNow, new[] { update }));
+                        Thread.Sleep(1);
+                    }
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default));
         }
 
         // 4 Reader Threads: SwapBuffers, RenderToCanvas, GetFrontBufferSnapshot, Resize
         for (int t = 0; t < 4; t++)
         {
             int threadId = t;
-            tasks.Add(Task.Run(() =>
-            {
-                using var localBitmap = new SKBitmap(800, 600, SKColorType.Bgra8888, SKAlphaType.Opaque);
-                using var localCanvas = new SKCanvas(localBitmap);
-
-                while (!cts.Token.IsCancellationRequested)
+            tasks.Add(Task.Factory.StartNew(
+                () =>
                 {
-                    if (threadId % 2 == 0)
+                    using var localBitmap = new SKBitmap(800, 600, SKColorType.Bgra8888, SKAlphaType.Opaque);
+                    using var localCanvas = new SKCanvas(localBitmap);
+
+                    while (!cts.Token.IsCancellationRequested)
                     {
-                        lock (canvas)
+                        if (threadId % 2 == 0)
                         {
-                            var dirty = buffer.SwapBuffers();
-                            canvas.Render(localCanvas, SKRect.Create(0, 0, 800, 600), drawDirtyOnly: true);
+                            lock (canvas)
+                            {
+                                var dirty = buffer.SwapBuffers();
+                                canvas.Render(localCanvas, SKRect.Create(0, 0, 800, 600), drawDirtyOnly: true);
+                            }
                         }
+                        else
+                        {
+                            using var snapshot = buffer.GetFrontBufferSnapshot();
+                            Assert.NotNull(snapshot);
+                        }
+                        Thread.Sleep(1);
                     }
-                    else
-                    {
-                        using var snapshot = buffer.GetFrontBufferSnapshot();
-                        Assert.NotNull(snapshot);
-                    }
-                    Thread.Sleep(1);
-                }
-            }));
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default));
         }
 
         Task.WaitAll(tasks.ToArray());
