@@ -246,11 +246,16 @@ public class ViewsLayoutTests
     [AvaloniaFact]
     public void Test_SuperSplit_Drag_And_Drop_DataContext()
     {
-        var vm = new MainWindowViewModel();
+        var paneA = new BoxNode();
+        paneA.AddTab("Pane A", "FolderIcon", "A");
+        var paneB = new BoxNode();
+        paneB.AddTab("Pane B", "PlayIcon", "B");
+        var root = new SplitContainerNode(Avalonia.Layout.Orientation.Horizontal, paneA, paneB);
+
         var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
         {
-            Root = vm.LayoutRoot,
-            SelectedNode = vm.SelectedPane
+            Root = root,
+            SelectedNode = paneA
         };
 
         var window = new Window { Width = 1000, Height = 800, Content = superSplit };
