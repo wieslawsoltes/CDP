@@ -175,7 +175,7 @@ public class ViewsLayoutTests
         Assert.NotNull(app);
 
         // Instantiate view model and test default layout structure
-        var vm = new MainWindowViewModel();
+        var vm = new MainWindowViewModel(new MemoryViewModelTests.MockCdpService());
         Assert.NotNull(vm.LayoutRoot);
         Assert.NotNull(vm.SelectedPane);
 
@@ -211,7 +211,6 @@ public class ViewsLayoutTests
             SelectedNode = vm.SelectedPane
         };
         Assert.NotNull(superSplit);
-        superSplit.Rebuild();
         Assert.NotNull(superSplit.Content);
     }
 
