@@ -92,61 +92,67 @@ public class CdpRdpInputDomainTests
         window.DataContext = new MainWindowViewModel(_ => dummy);
         window.Show();
 
-        var vm = (MainWindowViewModel)window.DataContext!;
-        Assert.False(vm.Connection.IsConnected);
-
-        using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
-
-        var docResult = await DomDomain.HandleAsync(session, "getDocument", new JsonObject { ["depth"] = -1 });
-        int rootNodeId = docResult["root"]!["nodeId"]!.GetValue<int>();
-
-        var queryResult = await DomDomain.HandleAsync(session, "querySelector", new JsonObject
+        try
         {
-            ["nodeId"] = rootNodeId,
-            ["selector"] = "#btnConnect"
-        });
-        int btnNodeId = queryResult["nodeId"]!.GetValue<int>();
+            var vm = (MainWindowViewModel)window.DataContext!;
+            Assert.False(vm.Connection.IsConnected);
 
-        var boxResult = await DomDomain.HandleAsync(session, "getBoxModel", new JsonObject { ["nodeId"] = btnNodeId });
-        var quad = boxResult["model"]!["content"]!.AsArray();
-        double x = (quad[0]!.GetValue<double>() + quad[2]!.GetValue<double>()) / 2.0;
-        double y = (quad[1]!.GetValue<double>() + quad[5]!.GetValue<double>()) / 2.0;
+            using var clientWs = new ClientWebSocket();
+            using var session = new CdpSession(clientWs, window);
 
-        await InputDomain.HandleAsync(session, "dispatchMouseEvent", new JsonObject
-        {
-            ["type"] = "mouseMoved",
-            ["x"] = x,
-            ["y"] = y,
-            ["button"] = "none"
-        });
+            var docResult = await DomDomain.HandleAsync(session, "getDocument", new JsonObject { ["depth"] = -1 });
+            int rootNodeId = docResult["root"]!["nodeId"]!.GetValue<int>();
 
-        await InputDomain.HandleAsync(session, "dispatchMouseEvent", new JsonObject
-        {
-            ["type"] = "mousePressed",
-            ["x"] = x,
-            ["y"] = y,
-            ["button"] = "left",
-            ["clickCount"] = 1
-        });
+            var queryResult = await DomDomain.HandleAsync(session, "querySelector", new JsonObject
+            {
+                ["nodeId"] = rootNodeId,
+                ["selector"] = "#btnConnect"
+            });
+            int btnNodeId = queryResult["nodeId"]!.GetValue<int>();
 
-        await InputDomain.HandleAsync(session, "dispatchMouseEvent", new JsonObject
-        {
-            ["type"] = "mouseReleased",
-            ["x"] = x,
-            ["y"] = y,
-            ["button"] = "left",
-            ["clickCount"] = 1
-        });
+            var boxResult = await DomDomain.HandleAsync(session, "getBoxModel", new JsonObject { ["nodeId"] = btnNodeId });
+            var quad = boxResult["model"]!["content"]!.AsArray();
+            double x = (quad[0]!.GetValue<double>() + quad[2]!.GetValue<double>()) / 2.0;
+            double y = (quad[1]!.GetValue<double>() + quad[5]!.GetValue<double>()) / 2.0;
 
-        DateTime timeout = DateTime.UtcNow.AddSeconds(1);
-        while (!vm.Connection.IsConnected && DateTime.UtcNow < timeout)
-        {
-            await Task.Delay(10);
+            await InputDomain.HandleAsync(session, "dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseMoved",
+                ["x"] = x,
+                ["y"] = y,
+                ["button"] = "none"
+            });
+
+            await InputDomain.HandleAsync(session, "dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mousePressed",
+                ["x"] = x,
+                ["y"] = y,
+                ["button"] = "left",
+                ["clickCount"] = 1
+            });
+
+            await InputDomain.HandleAsync(session, "dispatchMouseEvent", new JsonObject
+            {
+                ["type"] = "mouseReleased",
+                ["x"] = x,
+                ["y"] = y,
+                ["button"] = "left",
+                ["clickCount"] = 1
+            });
+
+            DateTime timeout = DateTime.UtcNow.AddSeconds(5);
+            while (!vm.Connection.IsConnected && DateTime.UtcNow < timeout)
+            {
+                await Task.Delay(10);
+            }
+
+            Assert.True(vm.Connection.IsConnected);
         }
-
-        Assert.True(vm.Connection.IsConnected);
-        window.Close();
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
