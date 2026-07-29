@@ -239,7 +239,7 @@ public class NewDomainTests
         Assert.False(getFeatureResult["featureEnabled"]?.GetValue<bool>());
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task TestTargetDomain()
     {
         using var clientWs = new ClientWebSocket();
