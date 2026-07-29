@@ -1948,6 +1948,15 @@ public class CdpChromeFeatureTests
             ["clickCount"] = 1,
             ["modifiers"] = 0
         };
+        var releaseParams = new JsonObject
+        {
+            ["type"] = "mouseReleased",
+            ["x"] = 150.0,
+            ["y"] = 100.0,
+            ["button"] = "left",
+            ["clickCount"] = 1,
+            ["modifiers"] = 0
+        };
         
         // Force layout
         window.Measure(new Size(300, 200));
@@ -1959,6 +1968,7 @@ public class CdpChromeFeatureTests
         {
             await InputDomain.HandleAsync(session, "dispatchMouseEvent", moveParams);
             await InputDomain.HandleAsync(session, "dispatchMouseEvent", clickParams);
+            await InputDomain.HandleAsync(session, "dispatchMouseEvent", releaseParams);
 
             // Give dispatcher some time to process
             for (int i = 0; i < 5; i++)
@@ -1983,6 +1993,10 @@ public class CdpChromeFeatureTests
         var backendNodeId = node["params"]?["backendNodeId"]?.GetValue<int>();
         Assert.True(backendNodeId > 0);
 
+        await OverlayDomain.HandleAsync(session, "setInspectMode", new JsonObject
+        {
+            ["mode"] = "none"
+        });
         window.Close();
     }
 
