@@ -1120,7 +1120,12 @@ public class ViewsLayoutTests
             DataContext = boxNode
         };
 
-        var window = new Window { Content = boxControl };
+        var window = new Window
+        {
+            Width = 400,
+            Height = 300,
+            Content = boxControl
+        };
         try
         {
             window.Show();
@@ -1150,14 +1155,12 @@ public class ViewsLayoutTests
             Assert.NotNull(tabCenter);
 
             window.MouseDown(tabCenter.Value, MouseButton.Left, RawInputModifiers.None);
-            var outsideHeader = new Point(tabCenter.Value.X, tabCenter.Value.Y - 100);
+            // Leave the header while staying inside the headless root. Sending raw
+            // pointer input outside a zero/default-sized root is platform-sensitive
+            // and can stall the macOS headless input pump.
+            var outsideHeader = new Point(tabCenter.Value.X, tabCenter.Value.Y + 100);
             window.MouseMove(outsideHeader, RawInputModifiers.LeftMouseButton);
-            // The drag handler releases capture once the pointer leaves the header.
-            // Release the raw mouse back inside the headless root so every platform
-            // observes the button-up event and the next test cannot inherit a
-            // globally pressed primary pointer.
-            window.MouseMove(tabCenter.Value, RawInputModifiers.LeftMouseButton);
-            window.MouseUp(tabCenter.Value, MouseButton.Left, RawInputModifiers.None);
+            window.MouseUp(outsideHeader, MouseButton.Left, RawInputModifiers.None);
 
             Assert.True(eventFired);
             Assert.Equal(tab1, eventTab);
