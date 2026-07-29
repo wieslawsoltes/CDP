@@ -203,6 +203,21 @@ public class RdpControlTests
     }
 
     [AvaloniaFact]
+    public void ScaleFactorChange_ClearsCachedRenderTarget()
+    {
+        var control = new RdpControl();
+        FieldInfo cacheField = typeof(RdpControl).GetField(
+            "_cachedSkiaBitmap",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        using var cachedBitmap = new SKBitmap(2, 2);
+        cacheField.SetValue(control, cachedBitmap);
+
+        control.ScaleFactor = 1.5;
+
+        Assert.Null(cacheField.GetValue(control));
+    }
+
+    [AvaloniaFact]
     public void ConnectedSession_ResizesFramebufferToActivatedDesktop()
     {
         var control = new RdpControl();

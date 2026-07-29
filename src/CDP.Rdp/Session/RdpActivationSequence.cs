@@ -285,6 +285,18 @@ internal sealed class RdpActivationSequence
                 continue;
             }
 
+            if (IsDemandActivePdu(userData))
+            {
+                if (!licensing.IsComplete)
+                {
+                    throw new InvalidDataException(
+                        "The server sent Demand Active before completing the RDP licensing exchange.");
+                }
+
+                int demandActiveLength = BinaryPrimitives.ReadUInt16LittleEndian(userData);
+                return ParseDemandActive(userData[..demandActiveLength]);
+            }
+
             ushort securityFlags = BinaryPrimitives.ReadUInt16LittleEndian(userData);
             if ((securityFlags & 0x0080) != 0)
             {
@@ -299,21 +311,21 @@ internal sealed class RdpActivationSequence
                 }
                 continue;
             }
-
-            if ((BinaryPrimitives.ReadUInt16LittleEndian(userData.Slice(2, 2)) & 0x000F) == 0x0001)
-            {
-                if (userData.Length < 10)
-                {
-                    throw new InvalidDataException("The Demand Active PDU is truncated.");
-                }
-                if (!licensing.IsComplete)
-                {
-                    throw new InvalidDataException(
-                        "The server sent Demand Active before completing the RDP licensing exchange.");
-                }
-                return ParseDemandActive(userData);
-            }
         }
+    }
+
+    internal static bool IsDemandActivePdu(ReadOnlySpan<byte> userData)
+    {
+        if (userData.Length < 6)
+        {
+            return false;
+        }
+
+        int totalLength = BinaryPrimitives.ReadUInt16LittleEndian(userData);
+        ushort pduType = BinaryPrimitives.ReadUInt16LittleEndian(userData.Slice(2, 2));
+        return totalLength >= 18 &&
+               totalLength <= userData.Length &&
+               (pduType & 0x000F) == 0x0001;
     }
 
     internal static RdpDemandActiveInfo ParseDemandActive(ReadOnlySpan<byte> pdu)

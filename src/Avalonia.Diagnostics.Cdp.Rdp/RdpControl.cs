@@ -126,7 +126,7 @@ public class RdpControl : Control
     static RdpControl()
     {
         FocusableProperty.OverrideDefaultValue<RdpControl>(true);
-        AffectsRender<RdpControl>(SessionProperty);
+        AffectsRender<RdpControl>(SessionProperty, ScaleFactorProperty);
     }
 
     public RdpControl()
@@ -159,6 +159,17 @@ public class RdpControl : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+
+        if (change.Property == ScaleFactorProperty)
+        {
+            lock (_frameGate)
+            {
+                _cachedSkiaBitmap?.Dispose();
+                _cachedSkiaBitmap = null;
+            }
+
+            InvalidateVisual();
+        }
 
         if (change.Property == SessionProperty)
         {

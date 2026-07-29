@@ -113,6 +113,26 @@ public sealed class RdpActivationSequenceTests
     }
 
     [AvaloniaFact]
+    public void IsDemandActivePdu_LengthWithLicenseFlagBitIsStillShareControl()
+    {
+        byte[] pdu = new byte[0x0080];
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu, checked((ushort)pdu.Length));
+        BinaryPrimitives.WriteUInt16LittleEndian(pdu.AsSpan(2), 0x0011);
+
+        Assert.True(RdpActivationSequence.IsDemandActivePdu(pdu));
+    }
+
+    [AvaloniaFact]
+    public void IsDemandActivePdu_LicenseSecurityHeaderIsNotShareControl()
+    {
+        byte[] licensingPacket = new byte[0x0080];
+        BinaryPrimitives.WriteUInt16LittleEndian(licensingPacket, 0x0080);
+        BinaryPrimitives.WriteUInt16LittleEndian(licensingPacket.AsSpan(2), 0);
+
+        Assert.False(RdpActivationSequence.IsDemandActivePdu(licensingPacket));
+    }
+
+    [AvaloniaFact]
     public void CreateConfirmActive_UsesActivatedDesktopDimensions()
     {
         using var stream = new MemoryStream();
