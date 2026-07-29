@@ -830,67 +830,83 @@ public class ViewsLayoutTests
             Height = 600
         };
 
-        superSplit.Rebuild();
+        var window = new Window
+        {
+            Width = 800,
+            Height = 600,
+            Content = superSplit
+        };
 
-        var panelField = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetField("_flatPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(panelField);
-        var panel = panelField.GetValue(superSplit) as Avalonia.Controls.Panel;
-        Assert.NotNull(panel);
+        try
+        {
+            window.Show();
+            superSplit.Rebuild();
+            window.UpdateLayout();
 
-        // First layout pass with size 800x600
-        panel.Measure(new Avalonia.Size(800, 600));
-        panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
+            var panelField = typeof(CDP.Editor.Splits.Controls.SuperSplit).GetField("_flatPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(panelField);
+            var panel = panelField.GetValue(superSplit) as Avalonia.Controls.Panel;
+            Assert.NotNull(panel);
 
-        // Get the internal layout dictionaries of FlatSplitPanel
-        var nodeBoundsField = panel.GetType().GetField("_nodeBounds", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Assert.NotNull(nodeBoundsField);
-        var nodeBounds = nodeBoundsField.GetValue(panel) as System.Collections.Generic.Dictionary<SplitNode, Avalonia.Rect>;
-        Assert.NotNull(nodeBounds);
+            // First layout pass with size 800x600
+            panel.Measure(new Avalonia.Size(800, 600));
+            panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
 
-        // Verify normal layout split sizes: each gets roughly 400 width
-        Assert.True(nodeBounds.TryGetValue(paneA, out var rectA));
-        Assert.True(nodeBounds.TryGetValue(paneB, out var rectB));
-        Assert.Equal(0, rectA.X);
-        Assert.Equal(396, rectA.Width); // 800 - 8 (splitter) = 792 / 2 = 396
-        Assert.Equal(404, rectB.X);
-        Assert.Equal(396, rectB.Width);
+            // Get the internal layout dictionaries of FlatSplitPanel
+            var nodeBoundsField = panel.GetType().GetField("_nodeBounds", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(nodeBoundsField);
+            var nodeBounds = nodeBoundsField.GetValue(panel) as System.Collections.Generic.Dictionary<SplitNode, Avalonia.Rect>;
+            Assert.NotNull(nodeBounds);
 
-        // Zoom paneA
-        superSplit.ToggleZoomNode(paneA);
-        Assert.Equal(paneA, superSplit.ZoomedNode);
-        Assert.True(superSplit.IsZoomTransitionPending);
+            // Verify normal layout split sizes: each gets roughly 400 width
+            Assert.True(nodeBounds.TryGetValue(paneA, out var rectA));
+            Assert.True(nodeBounds.TryGetValue(paneB, out var rectB));
+            Assert.Equal(0, rectA.X);
+            Assert.Equal(396, rectA.Width); // 800 - 8 (splitter) = 792 / 2 = 396
+            Assert.Equal(404, rectB.X);
+            Assert.Equal(396, rectB.Width);
 
-        // Re-arrange layout with zoom active
-        panel.Measure(new Avalonia.Size(800, 600));
-        panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
+            // Zoom paneA
+            superSplit.ToggleZoomNode(paneA);
+            Assert.Equal(paneA, superSplit.ZoomedNode);
+            Assert.True(superSplit.IsZoomTransitionPending);
 
-        // Verify zoomed bounds: paneA fills entire screen, paneB is translated out-of-bounds to the right
-        Assert.True(nodeBounds.TryGetValue(paneA, out rectA));
-        Assert.True(nodeBounds.TryGetValue(paneB, out rectB));
+            // Re-arrange layout with zoom active
+            panel.Measure(new Avalonia.Size(800, 600));
+            panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
 
-        Assert.Equal(0, rectA.X);
-        Assert.Equal(0, rectA.Y);
-        Assert.Equal(800, rectA.Width);
-        Assert.Equal(600, rectA.Height);
+            // Verify zoomed bounds: paneA fills entire screen, paneB is translated out-of-bounds to the right
+            Assert.True(nodeBounds.TryGetValue(paneA, out rectA));
+            Assert.True(nodeBounds.TryGetValue(paneB, out rectB));
 
-        // paneB touches the right edge, so it should translate to the right
-        Assert.True(rectB.X >= 800);
+            Assert.Equal(0, rectA.X);
+            Assert.Equal(0, rectA.Y);
+            Assert.Equal(800, rectA.Width);
+            Assert.Equal(600, rectA.Height);
 
-        // Unzoom
-        superSplit.ToggleZoomNode(paneA);
-        Assert.Null(superSplit.ZoomedNode);
+            // paneB touches the right edge, so it should translate to the right
+            Assert.True(rectB.X >= 800);
 
-        // Re-arrange layout to unzoomed state
-        panel.Measure(new Avalonia.Size(800, 600));
-        panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
+            // Unzoom
+            superSplit.ToggleZoomNode(paneA);
+            Assert.Null(superSplit.ZoomedNode);
 
-        // Verify bounds restored
-        Assert.True(nodeBounds.TryGetValue(paneA, out rectA));
-        Assert.True(nodeBounds.TryGetValue(paneB, out rectB));
-        Assert.Equal(0, rectA.X);
-        Assert.Equal(396, rectA.Width);
-        Assert.Equal(404, rectB.X);
-        Assert.Equal(396, rectB.Width);
+            // Re-arrange layout to unzoomed state
+            panel.Measure(new Avalonia.Size(800, 600));
+            panel.Arrange(new Avalonia.Rect(0, 0, 800, 600));
+
+            // Verify bounds restored
+            Assert.True(nodeBounds.TryGetValue(paneA, out rectA));
+            Assert.True(nodeBounds.TryGetValue(paneB, out rectB));
+            Assert.Equal(0, rectA.X);
+            Assert.Equal(396, rectA.Width);
+            Assert.Equal(404, rectB.X);
+            Assert.Equal(396, rectB.Width);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
