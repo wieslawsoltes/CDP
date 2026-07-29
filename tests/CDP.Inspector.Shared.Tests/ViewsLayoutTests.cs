@@ -1161,19 +1161,9 @@ public class ViewsLayoutTests
 
             isTabDraggingField.SetValue(boxControl, true);
             draggingTabField.SetValue(boxControl, tab1);
-            
-            var dummyPressed = new PointerPressedEventArgs(
-                boxControl,
-                new Pointer(0, PointerType.Mouse, true),
-                boxControl,
-                new Point(0, 0),
-                0,
-                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonPressed),
-                KeyModifiers.None
-            );
-            pressedArgsField.SetValue(boxControl, dummyPressed);
 
-            // Retrieve tabBorder of the first tab to raise PointerMoved
+            // Retrieve the first tab before creating the pointer events so the same
+            // captured pointer can be used throughout the simulated drag.
             var fieldPanel = typeof(CDP.Editor.Splits.Controls.SuperSplitBox).GetField("_tabsPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.NotNull(fieldPanel);
             var tabsPanel = fieldPanel.GetValue(boxControl) as StackPanel;
@@ -1182,12 +1172,25 @@ public class ViewsLayoutTests
             var tabBorder = tabsPanel.Children[0] as Border;
             Assert.NotNull(tabBorder);
 
+            var pointer = new Pointer(0, PointerType.Mouse, true);
+            pointer.Capture(tabBorder);
+            var dummyPressed = new PointerPressedEventArgs(
+                boxControl,
+                pointer,
+                window,
+                new Point(0, 0),
+                0,
+                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonPressed),
+                KeyModifiers.None
+            );
+            pressedArgsField.SetValue(boxControl, dummyPressed);
+
             // Raise a PointerMoved event at position outside the header (e.g. Y = -100)
             var dummyMoved = new PointerEventArgs(
                 InputElement.PointerMovedEvent,
                 tabBorder,
-                new Pointer(0, PointerType.Mouse, true),
-                tabBorder,
+                pointer,
+                window,
                 new Point(0, -100),
                 0UL,
                 new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
