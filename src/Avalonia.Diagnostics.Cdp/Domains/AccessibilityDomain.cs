@@ -171,13 +171,16 @@ public static class AccessibilityDomain
                         {
                             var addedNodeIds = new HashSet<string>();
 
-                            void AddNode(AutomationPeer p)
+                            bool AddNode(AutomationPeer p)
                             {
                                 string id = GetPeerId(session, p);
-                                if (addedNodeIds.Add(id))
+                                if (!addedNodeIds.Add(id))
                                 {
-                                    nodes.Add(BuildAXNode(session, p));
+                                    return false;
                                 }
+
+                                nodes.Add(BuildAXNode(session, p));
+                                return true;
                             }
 
                             AddNode(peer);
@@ -198,7 +201,10 @@ public static class AccessibilityDomain
                                 var parent = peer.GetParent();
                                 while (parent != null)
                                 {
-                                    AddNode(parent);
+                                    if (!AddNode(parent))
+                                    {
+                                        break;
+                                    }
 
                                     var siblings = parent.GetChildren();
                                     if (siblings != null)
@@ -217,14 +223,17 @@ public static class AccessibilityDomain
                         {
                             var addedNodeIds = new HashSet<string>();
 
-                            void AddNode(Visual v)
+                            bool AddNode(Visual v)
                             {
                                 int id = session.NodeMap.GetOrAdd(v);
                                 string idStr = id.ToString();
-                                if (addedNodeIds.Add(idStr))
+                                if (!addedNodeIds.Add(idStr))
                                 {
-                                    nodes.Add(BuildAXNodeFromVisualFallback(session, v));
+                                    return false;
                                 }
+
+                                nodes.Add(BuildAXNodeFromVisualFallback(session, v));
+                                return true;
                             }
 
                             AddNode(targetVisual);
@@ -241,7 +250,10 @@ public static class AccessibilityDomain
                                 var parent = targetVisual.GetVisualParent();
                                 while (parent != null)
                                 {
-                                    AddNode(parent);
+                                    if (!AddNode(parent))
+                                    {
+                                        break;
+                                    }
 
                                     foreach (var sibling in parent.GetVisualChildren())
                                     {

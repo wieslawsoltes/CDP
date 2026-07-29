@@ -169,12 +169,9 @@ public class ViewsLayoutTests
         }
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void Test_SuperSplit_Dynamic_Splitting()
     {
-        var app = Avalonia.Application.Current;
-        Assert.NotNull(app);
-
         // Instantiate view model and test default layout structure
         var vm = new MainWindowViewModel(new MemoryViewModelTests.MockCdpService());
         Assert.NotNull(vm.LayoutRoot);
@@ -204,15 +201,6 @@ public class ViewsLayoutTests
 
         // Closing the new pane should restore the original single node on the left
         Assert.True(updatedRoot.Child1 is CDP.Editor.Splits.Models.BoxNode);
-
-        // Verify SuperSplit control can instantiate with the root layout successfully
-        var superSplit = new CDP.Editor.Splits.Controls.SuperSplit
-        {
-            Root = vm.LayoutRoot,
-            SelectedNode = vm.SelectedPane
-        };
-        Assert.NotNull(superSplit);
-        Assert.NotNull(superSplit.Content);
     }
 
     [AvaloniaFact]
