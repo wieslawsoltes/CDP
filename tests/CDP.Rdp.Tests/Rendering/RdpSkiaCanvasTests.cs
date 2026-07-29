@@ -1,4 +1,3 @@
-using Avalonia.Headless.XUnit;
 namespace CDP.Rdp.Tests.Rendering;
 
 using System;
@@ -10,7 +9,7 @@ using Xunit;
 [Xunit.Collection("RdpTests")]
 public class RdpSkiaCanvasTests
 {
-    [AvaloniaFact]
+    [Fact]
     public void Canvas_Initialization_SetsFrameBuffer()
     {
         using var buffer = new RdpFrameBuffer(200, 150);
@@ -20,7 +19,7 @@ public class RdpSkiaCanvasTests
         Assert.Equal(0, canvas.RenderedFrameCount);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void Render_DirectOffset_DrawsToTargetCanvas()
     {
         using var buffer = new RdpFrameBuffer(50, 50);
@@ -45,7 +44,7 @@ public class RdpSkiaCanvasTests
         Assert.Equal(0xFF, targetPixel.Red);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void Render_ScaledTargetBounds_ScalesImage()
     {
         using var buffer = new RdpFrameBuffer(50, 50);
@@ -75,7 +74,7 @@ public class RdpSkiaCanvasTests
         Assert.Equal(0xFF, scaledPixel.Green);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void Render_DirtyOnly_RepaintsOnlyDirtyRectangles()
     {
         using var buffer = new RdpFrameBuffer(100, 100);
@@ -97,7 +96,7 @@ public class RdpSkiaCanvasTests
         Assert.Equal(0xFF, dirtyPixel.Green);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void FpsTracking_IncrementsFrameCount()
     {
         using var buffer = new RdpFrameBuffer(10, 10);

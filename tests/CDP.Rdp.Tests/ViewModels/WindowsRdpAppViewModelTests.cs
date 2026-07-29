@@ -103,6 +103,7 @@ public class WindowsRdpAppViewModelTests
     {
         var vm = new SessionWorkspaceViewModel();
         await vm.ExecuteDisconnectAllAsync();
+        vm.SetAutoReconnect(false);
         int initialCount = vm.Sessions.Count;
 
         var profile = new RdpConnectionProfile
@@ -128,6 +129,7 @@ public class WindowsRdpAppViewModelTests
     {
         var vm = new SessionWorkspaceViewModel();
         await vm.ExecuteDisconnectAllAsync();
+        vm.SetAutoReconnect(false);
 
         var transportFactory = CreateCancelledTransportFactory();
         vm.OpenSession(new RdpConnectionProfile { Name = "Session 1" }, transportFactory);

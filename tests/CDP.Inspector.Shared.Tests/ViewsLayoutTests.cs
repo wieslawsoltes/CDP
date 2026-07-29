@@ -258,35 +258,25 @@ public class ViewsLayoutTests
             SelectedNode = paneA
         };
 
-        var window = new Window { Width = 1000, Height = 800, Content = superSplit };
-        try
+        superSplit.Rebuild();
+
+        // Rebuild creates the split controls synchronously; inspect the
+        // generated panel directly without opening an unrelated top-level.
+        var wrapper = Assert.IsType<Grid>(superSplit.Content);
+        var panel = Assert.IsType<CDP.Editor.Splits.Controls.FlatSplitPanel>(wrapper.Children[0]);
+        var boxes = panel.Children
+            .OfType<CDP.Editor.Splits.Controls.SuperSplitBox>()
+            .ToList();
+
+        Assert.NotEmpty(boxes);
+
+        foreach (var boxControl in boxes)
         {
-            window.Show();
+            Assert.NotNull(boxControl.DataContext);
+            Assert.IsType<CDP.Editor.Splits.Models.BoxNode>(boxControl.DataContext);
 
-            superSplit.Rebuild();
-            superSplit.UpdateLayout();
-
-            // Find all SuperSplitBox elements inside the SuperSplit Content
-            var boxes = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(superSplit)
-                .OfType<CDP.Editor.Splits.Controls.SuperSplitBox>()
-                .ToList();
-
-            Assert.NotEmpty(boxes);
-
-            foreach (var boxControl in boxes)
-            {
-                // Verify that each SuperSplitBox has its DataContext correctly set to a BoxNode
-                Assert.NotNull(boxControl.DataContext);
-                Assert.IsType<CDP.Editor.Splits.Models.BoxNode>(boxControl.DataContext);
-                
-                // Check that the node properties match
-                var nodeModel = (CDP.Editor.Splits.Models.BoxNode)boxControl.DataContext;
-                Assert.Equal(nodeModel.Title, boxControl.HeaderTitle);
-            }
-        }
-        finally
-        {
-            window.Close();
+            var nodeModel = (CDP.Editor.Splits.Models.BoxNode)boxControl.DataContext;
+            Assert.Equal(nodeModel.Title, boxControl.HeaderTitle);
         }
     }
 
