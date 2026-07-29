@@ -1231,16 +1231,12 @@ public class NewDomainTests
         Assert.Equal("id-a", service.ConnectedTargetId);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestTargetAttachToTargetFlattenValidation()
     {
-        var window = new Window { Title = "Test Window" };
-        window.Show();
-
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new Chrome.DevTools.Protocol.CdpSession(clientWs, null);
 
-        // 1. Attempt attach with flatten=false (should throw exception)
         var attachParams1 = new JsonObject
         {
             ["targetId"] = "dummy-target-id",
@@ -1249,8 +1245,6 @@ public class NewDomainTests
 
         var ex = await Assert.ThrowsAsync<Exception>(() => TargetDomain.HandleAsync(session, "attachToTarget", attachParams1));
         Assert.Contains("Only flattened target attachments are supported", ex.Message);
-
-        window.Close();
     }
 
     [AvaloniaFact]
@@ -2113,4 +2107,3 @@ public class NewDomainTests
         public int SomeValue { get; set; }
     }
 }
-

@@ -42,11 +42,36 @@ public class MarkdownEditorStressTests
 
     private bool IsAutoSaveTimerEnabled(MarkdownEditor editor)
     {
+        return GetAutoSaveTimer(editor).IsEnabled;
+    }
+
+    private DispatcherTimer GetAutoSaveTimer(MarkdownEditor editor)
+    {
         var field = typeof(MarkdownEditor)
             .GetField("_autoSaveTimer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         Assert.NotNull(field);
-        var timer = (DispatcherTimer)field.GetValue(editor)!;
-        return timer.IsEnabled;
+        return (DispatcherTimer)field.GetValue(editor)!;
+    }
+
+    private async Task WaitForAutoSaveTimerTickAsync(MarkdownEditor editor)
+    {
+        var timer = GetAutoSaveTimer(editor);
+        if (!timer.IsEnabled)
+        {
+            return;
+        }
+
+        var ticked = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler handler = (_, _) => ticked.TrySetResult(true);
+        timer.Tick += handler;
+        try
+        {
+            await ticked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            timer.Tick -= handler;
+        }
     }
 
     private List<ListItemLayoutBlock> FindAllListItemLayoutBlocks(IEnumerable<ILayoutBlock> blocks)
@@ -151,8 +176,9 @@ public class MarkdownEditorStressTests
         var publicText = editor.Text.TrimEnd('\r', '\n');
         var internalText = GetInternalText(editor);
 
-        // State 3: Transition to Saved (Wait for timer to tick and save)
-        await Task.Delay(600);
+        // State 3: Transition to Saved (wait for the dispatcher timer rather than
+        // assuming it will run within 100 ms of its interval on a loaded CI host).
+        await WaitForAutoSaveTimerTickAsync(editor);
 
         // State 4: Saved state (timer stopped, public text updated)
         Assert.False(IsAutoSaveTimerEnabled(editor));

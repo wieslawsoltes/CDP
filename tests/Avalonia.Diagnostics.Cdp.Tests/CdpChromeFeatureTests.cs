@@ -1372,25 +1372,43 @@ public class CdpChromeFeatureTests
         }
 
         Assert.NotNull(firstFrameMsg);
-        
-        // Clear sent messages to make checking the next one easy
-        lock (fakeWs.SentMessages)
+
+        var previousFrame = JsonNode.Parse(firstFrameMsg)?["params"]?["data"]?.GetValue<string>();
+        Assert.NotNull(previousFrame);
+
+        // A newly shown Avalonia window can emit a small number of settling renders,
+        // especially after other rendering tests have run. Each emitted frame must be
+        // different, and once rendering settles the duplicate must be skipped.
+        var duplicateSkipped = false;
+        for (var attempt = 0; attempt < 10 && !duplicateSkipped; attempt++)
         {
-            fakeWs.SentMessages.Clear();
+            lock (fakeWs.SentMessages)
+            {
+                fakeWs.SentMessages.Clear();
+            }
+
+            session.AcknowledgeScreencastFrame(attempt + 1);
+            await Task.Delay(200);
+
+            string? nextFrameMsg;
+            lock (fakeWs.SentMessages)
+            {
+                nextFrameMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
+            }
+
+            if (nextFrameMsg == null)
+            {
+                duplicateSkipped = true;
+                continue;
+            }
+
+            var nextFrame = JsonNode.Parse(nextFrameMsg)?["params"]?["data"]?.GetValue<string>();
+            Assert.NotNull(nextFrame);
+            Assert.NotEqual(previousFrame, nextFrame);
+            previousFrame = nextFrame;
         }
 
-        // Acknowledge the frame (this triggers a request for the next frame and releases the backpressure semaphore)
-        session.AcknowledgeScreencastFrame(1);
-
-        // Wait a bit to let the loop run and perform change detection (delta compression).
-        // Since there are no visual changes, the second frame should be skipped.
-        await Task.Delay(200);
-
-        lock (fakeWs.SentMessages)
-        {
-            var duplicateMsg = fakeWs.SentMessages.FirstOrDefault(m => m.Contains("Page.screencastFrame"));
-            Assert.Null(duplicateMsg); // Should be skipped!
-        }
+        Assert.True(duplicateSkipped, "Screencast never settled to a duplicate frame that could be skipped.");
 
         var stopResult = await PageDomain.HandleAsync(session, "stopScreencast", new JsonObject());
         Assert.NotNull(stopResult);
