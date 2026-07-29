@@ -40,7 +40,14 @@ jobs:
         for proj in tests/*/*.csproj; do
           echo "=== Executing tests for $proj ==="
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            xvfb-run --auto-servernum dotnet test "$proj" -c Release --no-build --no-restore --verbosity minimal --filter "$FILTER" || exit 1
+            xvfb-run --auto-servernum dotnet test "$proj" -c Release --no-build --no-restore \
+              --verbosity normal \
+              --filter "$FILTER" \
+              --blame-hang \
+              --blame-hang-timeout 60s \
+              --blame-hang-dump-type none \
+              --results-directory TestResults \
+              --logger "console;verbosity=detailed" || exit 1
           else
             dotnet test "$proj" -c Release --no-build --no-restore --verbosity minimal --filter "$FILTER" || exit 1
           fi
@@ -55,6 +62,7 @@ jobs:
           **/*.log
           **/*.png
           **/*.html
+          **/TestResults/**
 
   aot-validate-avalonia:
     name: AOT Integration (Avalonia)
