@@ -696,40 +696,23 @@ public class ViewsLayoutTests
     [AvaloniaFact]
     public void Test_SuperSplit_Cross_Window_Drag_Drop_MoveNode()
     {
-        var vm1 = new MainWindowViewModel();
+        var sourceNode = new BoxNode();
+        sourceNode.AddTab("Source", "FolderIcon", "Source");
         var superSplit1 = new CDP.Editor.Splits.Controls.SuperSplit
         {
-            Root = vm1.LayoutRoot,
-            SelectedNode = vm1.SelectedPane
+            Root = sourceNode,
+            SelectedNode = sourceNode
         };
         superSplit1.Rebuild();
 
-        var vm2 = new MainWindowViewModel();
+        var targetNode = new BoxNode();
+        targetNode.AddTab("Target", "PlayIcon", "Target");
         var superSplit2 = new CDP.Editor.Splits.Controls.SuperSplit
         {
-            Root = vm2.LayoutRoot,
-            SelectedNode = vm2.SelectedPane
+            Root = targetNode,
+            SelectedNode = targetNode
         };
         superSplit2.Rebuild();
-
-        // Grab boxes
-        var boxNodes1 = new System.Collections.Generic.List<BoxNode>();
-        void Collect(SplitNode? node, System.Collections.Generic.List<BoxNode> list)
-        {
-            if (node is BoxNode box) list.Add(box);
-            else if (node is SplitContainerNode container)
-            {
-                Collect(container.Child1, list);
-                Collect(container.Child2, list);
-            }
-        }
-        Collect(superSplit1.Root, boxNodes1);
-
-        var boxNodes2 = new System.Collections.Generic.List<BoxNode>();
-        Collect(superSplit2.Root, boxNodes2);
-
-        var sourceNode = boxNodes1[0];
-        var targetNode = boxNodes2[0];
 
         int initialTabs1 = sourceNode.Tabs.Count;
         int initialTabs2 = targetNode.Tabs.Count;
