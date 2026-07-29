@@ -1,7 +1,7 @@
-# RDP Connection, SkiaSharp Rendering & Standalone Windows App — Work Summary & Remaining Work
+# RDP Connection, SkiaSharp Rendering & Standalone Windows App — Completion Report
 
 ## Executive Summary
-This document provides a detailed breakdown of all completed work (libraries, rendering engine, Avalonia RDP controls, target apps, CDP domain handlers, PR #108 commits) and outlines the remaining tasks to complete the standalone Windows App RDP Client verification.
+This document records the completed RDP protocol, rendering, Avalonia controls, target applications, CDP automation, and standalone Windows App verification work delivered in PR #108.
 
 ---
 
@@ -19,6 +19,9 @@ This document provides a detailed breakdown of all completed work (libraries, re
   - `RdpInputPduWriter.cs`, `RdpMouseEvent.cs`, `RdpKeyboardEvent.cs`: FastPath and SlowPath mouse click, movement, drag, scroll, and keyboard scancode event serialization.
 - **Frame Receiver & Defenses**:
   - `RdpFastPathFrameReader.cs`, `RdpClient.cs`: FastPath bitmap frame update receiver with packet size caps (`16384` / `32768` bytes) and thread-safe cancellation defenses.
+- **Connection Activation & Licensing**:
+  - `RdpActivationSequence.cs`: MCS attach/join, security exchange, client info, licensing, Demand Active, Confirm Active, synchronize/control/font-list activation, and transition to the active session.
+  - `RdpLicenseSession.cs`: MS-RDPELE new-license request, RSA pre-master secret exchange, protocol key derivation, RC4/MAC processing, platform challenge response, issued-license validation, and valid-client alerts.
 
 ### B. SkiaSharp Hardware-Accelerated Rendering Engine (`src/CDP.Rdp.Rendering/`)
 - **Offscreen Double-Buffering**:
@@ -48,7 +51,7 @@ This document provides a detailed breakdown of all completed work (libraries, re
 - **`samples/CdpRdpApp`**: Standalone Avalonia target app on CDP port `9224` supporting interactive desktop and `--headless` test execution modes.
 - **`samples/WindowsRdpApp`**: Standalone Avalonia application implementing official Microsoft Windows App design guidelines with Fluent navigation sidebar (Home/Dashboard, Devices, Connections, Settings, Recents), multi-session tabbed viewports (`#tabWorkspace`, `#rdpViewport`), DPAPI credential encryption store, auto-reconnection backoff loop, display scaling controls, and Dark/Light theme switching.
 
-### F. GitHub Pull Request & PR Comments Resolution
+### F. GitHub Pull Request
 - **Pull Request**: **https://github.com/wieslawsoltes/CDP/pull/108** (`feature/rdp-skiasharp-support`).
 - **Granular Commits Pushed**:
   - `708442d`: `feat(rdp): add core RDP client protocol library in src/CDP.Rdp`
@@ -60,34 +63,33 @@ This document provides a detailed breakdown of all completed work (libraries, re
   - `e675292`: `feat(windows-rdp): add standalone Windows App RDP client app in samples/WindowsRdpApp`
   - `a1a258f`: `feat(rdp): refine pointer scale mapping and multi-session RDP viewport rendering`
   - `d9b1b2d`: `test(windows-rdp): add unit and empirical challenger tests for WindowsRdpApp`
-- **PR Review Comments**: 100% processed, replied, and resolved on GitHub.
+- **Review resolution**: Current review feedback is tracked and resolved through commit-linked PR thread replies.
 
 ---
 
-## 2. Detailed Remaining Work Items
+## 2. Planned Work Completion
 
-### Item 1: Complete WindowsRdpApp CDP Port 9225 Listener & CLI Flags
-- **Target File**: `samples/WindowsRdpApp/Program.cs`
-- **Task**: Finalize `--port` CLI argument parsing to default to port `9225` and initialize `CdpServer` listening on `http://127.0.0.1:9225/json` when launched interactively or in `--headless` mode.
-- **Verification**: Run `dotnet run --project samples/WindowsRdpApp/WindowsRdpApp.csproj -- --headless --port 9225` and query `http://127.0.0.1:9225/json`.
+### WindowsRdpApp CDP target
+- `WindowsRdpApp` accepts `--port`, defaults to `9225`, starts the CDP listener, and exposes discovery through `http://127.0.0.1:9225/json`.
 
-### Item 2: Create Dedicated `tests/WindowsRdpApp.E2e` Flow Suite
-- **Target Folder**: `tests/WindowsRdpApp.E2e/`
-- **Task**: Add structured `.flow.yaml` E2E test files covering `WindowsRdpApp`:
-  - `connection/connect_profile_success.flow.yaml`
-  - `workspace/multi_session_tab_switch.flow.yaml`
-  - `display/scale_resolution_change.flow.yaml`
-  - `screencast/window_rdp_screencast_stream.flow.yaml`
-- **Verification**: Run `dotnet run --project src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj -- -p 9225 run tests/WindowsRdpApp.E2e/` to generate HTML & PDF reports.
+### Dedicated WindowsRdpApp E2E suite
+- `tests/WindowsRdpApp.E2e/` contains independent connection, workspace, display, and screencast flows plus a reusable connection sub-flow.
+- The complete suite passes with four flows and zero failures while generating HTML/PDF reports, screenshots, and video frames.
 
-### Item 3: Generate Playwright Code Specs & CI Integration
-- **Target Folder**: `tests/playwright/`
-- **Task**: Run Playwright codegen via `CDP.Inspector.CLI` for `tests/WindowsRdpApp.E2e` flows to export JS test scripts.
-- **Verification**: Run `npx playwright test tests/playwright/` in headless CI/CD pipeline.
+### Playwright export and execution
+- The CLI `codegen` command accepts an explicit endpoint and exports the Windows RDP flows to `tests/playwright/windows-rdp/`.
+- YAML `tapOn` actions generate primary-pointer `click()` calls so the specs execute on desktop targets without requiring a touch-enabled browser context.
+- All four generated Playwright specs pass against the live `WindowsRdpApp` CDP target.
 
-### Item 4: Run Victory Auditor Final Verification Pass
-- **Task**: Execute full solution build (`dotnet build Avalonia.Diagnostics.Cdp.slnx`), unit tests (`dotnet test`), and E2E runner against `WindowsRdpApp` on port `9225`.
-- **Target Output**: Receive final `VICTORY CONFIRMED` signoff report for `samples/WindowsRdpApp`.
+### Inspector preview recording/replay
+- `tests/CdpInspectorApp.E2e/recorder/preview_record_replay_rdp_changes.flow.yaml` records `#btnClickMe` by dispatching the interaction through inspector preview `#imgScreenshot`.
+- Preview/server recorder events are correlated without duplicate steps, late selector resolution is retained, and replay input is excluded from live recording.
+- Replay passes the recorded click and inferred assertion with zero failures and generates HTML/PDF reports, four video frames, and two step screenshots.
+
+### Final protocol and application verification
+- The full RDP test project covers negotiation, MCS joins, activation, licensing, CredSSP, input, bitmap decoding, channel fragmentation/reassembly, lifecycle, settings, storage, and CDP domains.
+- The solution build and CI workflow execute tests from built outputs on each job rather than relying on missing cross-job artifacts.
+- The Windows test host initializes Avalonia/ReactiveUI correctly and serializes UI-sensitive test collections.
 
 ---
 
@@ -106,4 +108,11 @@ dotnet test tests/CDP.Rdp.Tests/CDP.Rdp.Tests.csproj
 ### Launch Standalone Windows App RDP Client (CDP Port 9225)
 ```bash
 dotnet run --project samples/WindowsRdpApp/WindowsRdpApp.csproj -- --port 9225
+```
+
+### Run WindowsRdpApp E2E and generated Playwright specs
+```bash
+dotnet run --project src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj -c Release --no-build -- -p 9225 run tests/WindowsRdpApp.E2e/ --report --video
+dotnet run --project src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj -c Release --no-build -- codegen tests/WindowsRdpApp.E2e/ --playwright-out tests/playwright/windows-rdp --endpoint http://127.0.0.1:9225
+npx playwright test tests/playwright/windows-rdp --workers=1
 ```

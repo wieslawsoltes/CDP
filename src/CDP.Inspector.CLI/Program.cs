@@ -247,14 +247,19 @@ public class Program
         // codegen command
         var codegenTestPathArg = new Argument<string>("test-path", "Path to a YAML test flow file or directory containing a suite of YAML files");
         var codegenOutDirOption = new Option<string>(new[] { "--playwright-out", "-p" }, () => "tests/playwright", "Directory to write generated Playwright tests");
+        var codegenEndpointOption = new Option<string>(
+            "--endpoint",
+            () => "http://localhost:9222",
+            "CDP endpoint embedded in generated Playwright tests");
         var codegenCommand = new Command("codegen", "Generate Playwright tests from YAML test flows")
         {
-            codegenTestPathArg, codegenOutDirOption
+            codegenTestPathArg, codegenOutDirOption, codegenEndpointOption
         };
         codegenCommand.SetHandler(async (context) =>
         {
             var testPath = context.ParseResult.GetValueForArgument(codegenTestPathArg);
             var playwrightOut = context.ParseResult.GetValueForOption(codegenOutDirOption) ?? "tests/playwright";
+            var endpoint = context.ParseResult.GetValueForOption(codegenEndpointOption) ?? "http://localhost:9222";
 
             try
             {
@@ -289,7 +294,7 @@ public class Program
                     var steps = TestStudioStepConverter.ConvertYamlToRecordedSteps(content, file, new Dictionary<string, string>());
                     if (steps == null || steps.Count == 0) continue;
 
-                    var code = generator.Generate(steps, "http://localhost:9222");
+                    var code = generator.Generate(steps, endpoint);
                     var name = Path.GetFileNameWithoutExtension(file);
                     var outFile = Path.Combine(playwrightOut, $"{name}.spec.js");
                     await File.WriteAllTextAsync(outFile, code);

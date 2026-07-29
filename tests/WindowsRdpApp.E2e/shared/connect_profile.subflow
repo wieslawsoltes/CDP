@@ -1,0 +1,5 @@
+- delay: "500"
+- assertTrue: "document.querySelector('#btnQuickConnect') != null"
+- tapOn: "#btnQuickConnect"
+- delay: "500"
+- assertTrue: "document.querySelector('#tabWorkspace') != null"

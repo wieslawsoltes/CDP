@@ -23,6 +23,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     private readonly Func<bool> _isInspectModeActiveFunc;
     private readonly Func<int, DomNodeModel?> _getDomNodeFunc;
     private readonly Func<bool> _useAutomationSelectorsFunc;
+    private readonly Func<bool> _isRecordingFunc;
     private string _lastClickedSelector = "";
 
     public event EventHandler<InteractionEventArgs>? InteractionDispatched;
@@ -578,7 +579,8 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         Func<int, (string? Role, string? Name)> getAxDetailsFunc,
         Func<bool> isInspectModeActiveFunc,
         Func<int, DomNodeModel?> getDomNodeFunc,
-        Func<bool> useAutomationSelectorsFunc)
+        Func<bool> useAutomationSelectorsFunc,
+        Func<bool>? isRecordingFunc = null)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _getSelectedNodeFunc = getSelectedNodeFunc ?? throw new ArgumentNullException(nameof(getSelectedNodeFunc));
@@ -587,6 +589,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
         _isInspectModeActiveFunc = isInspectModeActiveFunc ?? throw new ArgumentNullException(nameof(isInspectModeActiveFunc));
         _getDomNodeFunc = getDomNodeFunc ?? throw new ArgumentNullException(nameof(getDomNodeFunc));
         _useAutomationSelectorsFunc = useAutomationSelectorsFunc ?? (() => false);
+        _isRecordingFunc = isRecordingFunc ?? (() => false);
 
         _selectedDevicePreset = _devicePresets[0];
 
@@ -1421,6 +1424,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     public async Task SendMouseEventAsync(string type, double x, double y, string button, int modifiers, int buttons = 0)
     {
         if (!_cdpService.IsConnected) return;
+        bool wasRecordingAtDispatch = _isRecordingFunc();
 
         if (type == "mouseMoved" && _isInspectModeActiveFunc())
         {
@@ -1463,7 +1467,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                         step["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(selector) } };
                     }
                     _lastClickedSelector = selector;
-                    InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
+                    InteractionDispatched?.Invoke(this, new InteractionEventArgs(step, wasRecordingAtDispatch));
                 });
             }
         }
@@ -1476,6 +1480,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     public async Task SendWheelEventAsync(double x, double y, double deltaY)
     {
         if (!_cdpService.IsConnected) return;
+        bool wasRecordingAtDispatch = _isRecordingFunc();
         try
         {
             await _cdpService.SendCommandAsync("Input.dispatchMouseEvent", new JsonObject
@@ -1501,7 +1506,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                 {
                     step["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(selector) } };
                 }
-                InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
+                InteractionDispatched?.Invoke(this, new InteractionEventArgs(step, wasRecordingAtDispatch));
             });
         }
         catch (Exception ex)
@@ -1513,6 +1518,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     public async Task SendTextInputAsync(string text)
     {
         if (!_cdpService.IsConnected) return;
+        bool wasRecordingAtDispatch = _isRecordingFunc();
         try
         {
             await _cdpService.SendCommandAsync("Input.insertText", new JsonObject { ["text"] = text });
@@ -1526,7 +1532,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
             {
                 step["selectors"] = new JsonArray { (JsonNode)new JsonArray { (JsonNode?)JsonValue.Create(_lastClickedSelector) } };
             }
-            InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
+            InteractionDispatched?.Invoke(this, new InteractionEventArgs(step, wasRecordingAtDispatch));
         }
         catch (Exception ex)
         {
@@ -1537,6 +1543,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     public async Task SendKeyboardEventAsync(string type, string key, int modifiers)
     {
         if (!_cdpService.IsConnected) return;
+        bool wasRecordingAtDispatch = _isRecordingFunc();
         try
         {
             await _cdpService.SendCommandAsync("Input.dispatchKeyEvent", new JsonObject
@@ -1554,7 +1561,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
                     ["key"] = key,
                     ["modifiers"] = modifiers
                 };
-                InteractionDispatched?.Invoke(this, new InteractionEventArgs(step));
+                InteractionDispatched?.Invoke(this, new InteractionEventArgs(step, wasRecordingAtDispatch));
             }
         }
         catch (Exception ex)
@@ -1977,9 +1984,12 @@ public class DevicePreset
 public class InteractionEventArgs : EventArgs
 {
     public JsonObject Step { get; }
-    public InteractionEventArgs(JsonObject step)
+    public bool WasRecordingAtDispatch { get; }
+
+    public InteractionEventArgs(JsonObject step, bool wasRecordingAtDispatch = false)
     {
         Step = step;
+        WasRecordingAtDispatch = wasRecordingAtDispatch;
     }
 }
 

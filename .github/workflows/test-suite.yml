@@ -40,9 +40,9 @@ jobs:
         for proj in tests/*/*.csproj; do
           echo "=== Executing tests for $proj ==="
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            xvfb-run --auto-servernum dotnet test "$proj" -c Release --no-build --verbosity minimal --filter "$FILTER" || exit 1
+            xvfb-run --auto-servernum dotnet test "$proj" -c Release --verbosity minimal --filter "$FILTER" || exit 1
           else
-            dotnet test "$proj" -c Release --no-build --verbosity minimal --filter "$FILTER" || exit 1
+            dotnet test "$proj" -c Release --verbosity minimal --filter "$FILTER" || exit 1
           fi
         done
 

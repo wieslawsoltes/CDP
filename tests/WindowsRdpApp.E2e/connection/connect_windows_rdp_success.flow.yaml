@@ -4,5 +4,5 @@ tags:
   - "connection"
   - "windows_rdp"
 ---
-- runFlow: "shared/connect_profile.yaml"
+- runFlow: "shared/connect_profile.subflow"
 - assertTrue: "document.querySelector('#navSidebar') != null"

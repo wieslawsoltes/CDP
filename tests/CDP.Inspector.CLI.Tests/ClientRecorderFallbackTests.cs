@@ -26,16 +26,22 @@ public class ClientRecorderFallbackTests
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<CdpEventEventArgs>? EventReceived;
 
+        public void RaiseRecorderStep(JsonObject step)
+        {
+            EventReceived?.Invoke(this, new CdpEventEventArgs("Recorder.stepAdded", new JsonObject { ["step"] = step }));
+        }
+
         public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
         public Task ConnectAsync(string host, TargetItem target) => Task.CompletedTask;
         public Task DisconnectAsync() => Task.CompletedTask;
 
         public string? NavigationHistoryUrl { get; set; }
         public string? DocumentUrl { get; set; }
+        public bool SupportsRecorderDomain { get; set; }
 
         public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
         {
-            if (method == "Recorder.start")
+            if (method == "Recorder.start" && !SupportsRecorderDomain)
             {
                 // Simulate domain not supported error from Chrome
                 throw new Exception("Method Recorder.start not found");
@@ -74,6 +80,77 @@ public class ClientRecorderFallbackTests
             }
             return Task.FromResult(new JsonObject());
         }
+    }
+
+    [AvaloniaFact]
+    public async Task PreviewStepDispatchedBeforeStopIsNotLost()
+    {
+        var fakeCdp = new FakeCdpService { SupportsRecorderDomain = true };
+        var recorder = new RecorderViewModel(fakeCdp, () => "localhost:9222");
+
+        await recorder.ToggleRecordAsync();
+        Assert.True(recorder.IsRecording);
+        Assert.False(recorder.IsClientSideRecording);
+
+        bool wasRecordingAtDispatch = recorder.IsRecording;
+        await recorder.ToggleRecordAsync();
+        Assert.False(recorder.IsRecording);
+
+        recorder.AddRecordedStepLocal(new JsonObject
+        {
+            ["type"] = "click",
+            ["selectors"] = new JsonArray { new JsonArray { "#previewButton" } },
+            ["button"] = "left",
+            ["clickCount"] = 1
+        }, wasRecordingAtDispatch);
+        Dispatcher.UIThread.RunJobs();
+
+        var step = Assert.Single(recorder.RecordedSteps);
+        Assert.Equal("click", step.Type);
+        Assert.Equal("#previewButton", step.Selector);
+    }
+
+    [AvaloniaFact]
+    public async Task PreviewAndServerCopiesAreDeduplicatedAndRetainPreviewSelector()
+    {
+        static JsonObject CreateStep(string? selector = null)
+        {
+            var step = new JsonObject
+            {
+                ["type"] = "click",
+                ["button"] = "left",
+                ["clickCount"] = 1
+            };
+            if (selector != null)
+            {
+                step["selectors"] = new JsonArray { new JsonArray { selector } };
+            }
+            return step;
+        }
+
+        var serverFirstCdp = new FakeCdpService { SupportsRecorderDomain = true };
+        var serverFirst = new RecorderViewModel(serverFirstCdp, () => "localhost:9222");
+        await serverFirst.ToggleRecordAsync();
+        serverFirstCdp.RaiseRecorderStep(CreateStep());
+        Dispatcher.UIThread.RunJobs();
+        serverFirst.AddRecordedStepLocal(CreateStep("#previewButton"));
+        Dispatcher.UIThread.RunJobs();
+
+        var serverFirstStep = Assert.Single(serverFirst.RecordedSteps);
+        Assert.Equal("#previewButton", serverFirstStep.Selector);
+        Assert.Equal("#previewButton", Assert.Single(serverFirst.TestStudio.Steps).Selector);
+
+        var previewFirstCdp = new FakeCdpService { SupportsRecorderDomain = true };
+        var previewFirst = new RecorderViewModel(previewFirstCdp, () => "localhost:9222");
+        await previewFirst.ToggleRecordAsync();
+        previewFirst.AddRecordedStepLocal(CreateStep("#previewButton"));
+        Dispatcher.UIThread.RunJobs();
+        previewFirstCdp.RaiseRecorderStep(CreateStep());
+        Dispatcher.UIThread.RunJobs();
+
+        var previewFirstStep = Assert.Single(previewFirst.RecordedSteps);
+        Assert.Equal("#previewButton", previewFirstStep.Selector);
+        Assert.Equal("#previewButton", Assert.Single(previewFirst.TestStudio.Steps).Selector);
     }
 
     [AvaloniaFact]

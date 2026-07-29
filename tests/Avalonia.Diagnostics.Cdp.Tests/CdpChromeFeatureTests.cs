@@ -800,7 +800,7 @@ public class CdpChromeFeatureTests
         var generator = new PlaywrightGenerator();
         string generated = generator.Generate(steps.Select(s => s.ToCoreStep()), "localhost:9222");
 
-        Assert.Contains("await element_0.tap();", generated);
+        Assert.Contains("await element_0.click();", generated);
         Assert.Contains("await element_1.dblclick();", generated);
         Assert.Contains("await element_2.click({ delay: 1000 });", generated);
         Assert.Contains("await page.goBack();", generated);
