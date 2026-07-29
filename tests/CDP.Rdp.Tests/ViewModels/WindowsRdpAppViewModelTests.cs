@@ -4,8 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
+using CDP.Rdp.Security;
+using CDP.Rdp.Session;
 using WindowsRdpApp.Models;
 using WindowsRdpApp.Services;
 using WindowsRdpApp.ViewModels;
@@ -96,9 +99,10 @@ public class WindowsRdpAppViewModelTests
     }
 
     [AvaloniaFact]
-    public void SessionWorkspaceViewModel_OpenSession_AddsSessionTab()
+    public async Task SessionWorkspaceViewModel_OpenSession_AddsSessionTab()
     {
         var vm = new SessionWorkspaceViewModel();
+        await vm.ExecuteDisconnectAllAsync();
         int initialCount = vm.Sessions.Count;
 
         var profile = new RdpConnectionProfile
@@ -109,24 +113,29 @@ public class WindowsRdpAppViewModelTests
             Username = "qauser"
         };
 
-        var tab = vm.OpenSession(profile);
+        var tab = vm.OpenSession(profile, CreateCancelledTransportFactory());
 
         Assert.Equal(initialCount + 1, vm.Sessions.Count);
         Assert.Equal("QA VM", tab.Title);
         Assert.Equal("10.0.1.20", tab.Host);
         Assert.Equal(vm.SelectedSession, tab);
+
+        await vm.ExecuteDisconnectAllAsync();
     }
 
     [AvaloniaFact]
-    public void SessionWorkspaceViewModel_DisconnectAll_ClearsAllSessions()
+    public async Task SessionWorkspaceViewModel_DisconnectAll_ClearsAllSessions()
     {
         var vm = new SessionWorkspaceViewModel();
-        vm.OpenSession(new RdpConnectionProfile { Name = "Session 1" });
-        vm.OpenSession(new RdpConnectionProfile { Name = "Session 2" });
+        await vm.ExecuteDisconnectAllAsync();
 
-        Assert.True(vm.Sessions.Count >= 2);
+        var transportFactory = CreateCancelledTransportFactory();
+        vm.OpenSession(new RdpConnectionProfile { Name = "Session 1" }, transportFactory);
+        vm.OpenSession(new RdpConnectionProfile { Name = "Session 2" }, transportFactory);
 
-        vm.DisconnectAllCommand.Execute(null);
+        Assert.Equal(2, vm.Sessions.Count);
+
+        await vm.ExecuteDisconnectAllAsync();
 
         Assert.Empty(vm.Sessions);
         Assert.Null(vm.SelectedSession);
@@ -188,5 +197,12 @@ public class WindowsRdpAppViewModelTests
                 Directory.Delete(tempDir, true);
             }
         }
+    }
+
+    private static Func<RdpSessionOptions, CancellationToken, Task<IRdpSecurityTransport>>
+        CreateCancelledTransportFactory()
+    {
+        return static (_, _) =>
+            Task.FromException<IRdpSecurityTransport>(new OperationCanceledException());
     }
 }
