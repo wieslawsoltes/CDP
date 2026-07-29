@@ -132,7 +132,7 @@ public class NewDomainTests
         window.Close();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestSchemaDomain()
     {
         using var clientWs = new ClientWebSocket();
@@ -147,7 +147,7 @@ public class NewDomainTests
         Assert.Contains(domains, d => d?["name"]?.GetValue<string>() == "Accessibility");
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestDynamicSchemaGenerationAndDiscovery()
     {
         var customDomainName = "CustomTest";
@@ -196,7 +196,7 @@ public class NewDomainTests
         Assert.DoesNotContain(finalDomains, d => d?["name"]?.GetValue<string>() == customDomainName);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestDynamicSchemaBroadcast()
     {
         using var clientWs = new ClientWebSocket();
@@ -227,7 +227,7 @@ public class NewDomainTests
     }
 
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestSystemInfoDomain()
     {
         using var clientWs = new ClientWebSocket();
@@ -239,7 +239,7 @@ public class NewDomainTests
         Assert.False(getFeatureResult["featureEnabled"]?.GetValue<bool>());
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestTargetDomain()
     {
         using var clientWs = new ClientWebSocket();
@@ -253,7 +253,7 @@ public class NewDomainTests
         Assert.NotNull(getInfoResult);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestLogDomainStubs()
     {
         using var clientWs = new ClientWebSocket();
@@ -345,7 +345,7 @@ public class NewDomainTests
         window.Close();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestRuntimeDomainNewMethods()
     {
         using var clientWs = new ClientWebSocket();
@@ -626,7 +626,7 @@ public class NewDomainTests
         window.Close();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestDomDebuggerNewStubs()
     {
         using var clientWs = new ClientWebSocket();
@@ -663,7 +663,7 @@ public class NewDomainTests
         window.Close();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestNetworkDomainNewStubs()
     {
         using var clientWs = new ClientWebSocket();
@@ -677,7 +677,7 @@ public class NewDomainTests
         Assert.NotNull(clearRes);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestEmulationDomainNewStubs()
     {
         using var clientWs = new ClientWebSocket();
@@ -759,7 +759,7 @@ public class NewDomainTests
         window.Close();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TestBrowserDomainCommandLineAndCrash()
     {
         using var clientWs = new ClientWebSocket();
