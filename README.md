@@ -10,7 +10,12 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 
 | Package Name | Target | Version | Downloads |
 | :--- | :--- | :--- | :--- |
-| **Chrome.DevTools.Protocol** | Core Protocol & Client Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) |
+| **Chrome.DevTools.Protocol** | Lightweight CDP contracts, discovery, and transport | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Protocol.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Protocol/) |
+| **Chrome.DevTools.Protocol.Automation** | Optional client, OS automation, YAML, and reporting | — | — |
+| **Chrome.DevTools.Protocol.Jint** | Optional Jint evaluation and remote-object adapter | — | — |
+| **Chrome.DevTools.Protocol.Profiling** | Optional EventPipe and JetBrains profiling domains | — | — |
+| **Chrome.DevTools.Protocol.Skia** | Optional Skia screencast processing | — | — |
+| **Chrome.DevTools.Protocol.Extensions** | Compatibility bundle for all optional protocol extensions | — | — |
 | **Chrome.DevTools.Rdp** | Core RDP Client Library | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Rdp.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Rdp/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Rdp.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Rdp/) |
 | **Chrome.DevTools.Rdp.Rendering** | SkiaSharp RDP Rendering Engine | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Rdp.Rendering.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Rdp.Rendering/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Rdp.Rendering.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Rdp.Rendering/) |
 | **Chrome.DevTools.Avalonia** | Avalonia Server Support | [![NuGet](https://img.shields.io/nuget/v/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) | [![NuGet Downloads](https://img.shields.io/nuget/dt/Chrome.DevTools.Avalonia.svg?style=flat-square)](https://www.nuget.org/packages/Chrome.DevTools.Avalonia/) |
@@ -59,6 +64,9 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 ---
 
 ## Features
+
+- **Raw V8 Inspector host**: Exposes authenticated `/json/version`, `/json`, `/json/list`, and raw `/devtools/page/{targetId}` WebSockets without parsing or redispatching V8 messages. See [WebScene V8 Inspector integration](docs/webscene-v8-inspector-integration.md).
+- **Lightweight core**: `Chrome.DevTools.Protocol` no longer pulls Jint, SkiaSharp, YAML, profiling engines, diagnostics clients, or XAML tooling into runtime consumers. Optional capabilities are independently composable packages.
 
 - **DOM Domain**: Converts Avalonia's visual tree to a CDP-compliant DOM document tree structure.
 - **CSS Domain**: Exposes computed and inline styles for Avalonia controls, and allows live modification of control properties (e.g. background color, margin, size) using C# reflection.

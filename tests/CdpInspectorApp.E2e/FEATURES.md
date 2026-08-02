@@ -5,6 +5,7 @@ This document matches every major inspector feature and sub-feature to its corre
 | Feature Area | Sub-Feature | YAML Test Flow Path | Status |
 | --- | --- | --- | --- |
 | **Connection** | Connect to target | `connection/connect.flow.yaml` | Active |
+| | Composable protocol packages with preview interaction | `connection/composable_protocol_packages.flow.yaml` | Active |
 | | Connect then disconnect | `connection/disconnect.flow.yaml` | Active |
 | | Connect invalid port fallback | `connection/connect_invalid_port.flow.yaml` | Active |
 | | Reconnection cycle | `connection/reconnect.flow.yaml` | Active |
