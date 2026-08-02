@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Protocol.Jint</PackageId>
+    <Title>Chrome.DevTools.Protocol.Jint</Title>
+    <Description>Optional Jint evaluation and remote-object adapter for Chrome.DevTools.Protocol.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup><None Include="../../README.md" Pack="true" PackagePath="" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Jint" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Chrome.DevTools.Protocol/Jint/CdpJintEvaluator.cs" Link="CdpJintEvaluator.cs" />
+  </ItemGroup>
+</Project>

@@ -26,5 +26,6 @@
 
 <ItemGroup>
     <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+    <ProjectReference Include="../Chrome.DevTools.Protocol.Extensions/Chrome.DevTools.Protocol.Extensions.csproj" />
   </ItemGroup>
 </Project>

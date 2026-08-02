@@ -9,8 +9,6 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Jint;
-using Xaml.Compiler.Mutation;
 
 namespace Chrome.DevTools.Protocol;
 
@@ -47,7 +45,7 @@ public class CdpSession : IDisposable
     public bool DiscoverTargetsEnabled { get; set; }
     public bool AutoAttachEnabled { get; set; }
     public bool WaitForDebuggerOnStart { get; set; }
-    public IMutationEngine? MutationEngine { get; set; }
+    public ICdpMutationEngine? MutationEngine { get; set; }
     public bool IsDomEnabled => CurrentTargetSession?.IsDomEnabled ?? false;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument => CurrentTargetSession?.ScriptsToEvaluateOnNewDocument ?? _dummyScripts;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocumentWorlds => CurrentTargetSession?.ScriptsToEvaluateOnNewDocumentWorlds ?? _dummyScripts;
@@ -297,34 +295,7 @@ public class CdpSession : IDisposable
     {
         if (RemoteObjects.TryGetValue(id, out var obj) && obj != null)
         {
-            if (obj is JintObjectWrapper wrapper)
-            {
-                obj = wrapper.Value;
-            }
-
-            if (obj is Jint.Native.JsValue jsVal)
-            {
-                if (jsVal.IsObject())
-                {
-                    try
-                    {
-                        var unwrapped = jsVal.ToObject();
-                        if (unwrapped != null)
-                        {
-                            var typeName = unwrapped.GetType().FullName ?? "";
-                            if (typeName.StartsWith("Avalonia.") || typeName.Contains("CdpRuntime") || typeName.Contains("Mock"))
-                            {
-                                return unwrapped;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore
-                    }
-                }
-            }
-            return obj;
+            return CdpRemoteObjectAdapters.Unwrap(obj);
         }
         return null;
     }
@@ -606,7 +577,7 @@ public class CdpSession : IDisposable
         Chrome.DevTools.Protocol.Domains.NetworkDomain.RemoveSession(this);
         Chrome.DevTools.Protocol.Domains.FetchDomain.RemoveSession(this);
         Chrome.DevTools.Protocol.Domains.TracingDomain.CleanupSession(this);
-        Chrome.DevTools.Protocol.Domains.ProfilerDomain.CleanupSession(this);
+        CdpSessionCleanupRegistry.Cleanup(this);
         Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.RemoveSession(this);
 
         OnCleanup();
@@ -632,16 +603,5 @@ public class CdpSession : IDisposable
     public void StopObservingVisualTree()
     {
         CurrentTargetSession?.StopObservingVisualTree();
-    }
-}
-
-public class JintObjectWrapper
-{
-    public Jint.Native.JsValue Value { get; }
-    public Jint.Engine Engine { get; }
-    public JintObjectWrapper(Jint.Native.JsValue value, Jint.Engine engine)
-    {
-        Value = value;
-        Engine = engine;
     }
 }
