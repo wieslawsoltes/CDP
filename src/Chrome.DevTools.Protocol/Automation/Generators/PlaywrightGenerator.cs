@@ -80,10 +80,17 @@ public class PlaywrightGenerator : ICodeGenerator
             else if (step.Type == "tap" || step.Type == "tapOn")
             {
                 sb.AppendLine($"    await test.step('Tap on element {EscapeJsString(TranslatePlaywrightSelector(step.Selector))}', async () => {{");
-                sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
-                // A YAML tap is the framework-neutral primary-pointer action.
-                // Use click so generated desktop tests do not require a touch-enabled context.
-                sb.AppendLine($"      await element_{i}.click();");
+                if (step.PointX.HasValue && step.PointY.HasValue)
+                {
+                    sb.AppendLine($"      await page.mouse.click({FormatNumber(step.PointX.Value)}, {FormatNumber(step.PointY.Value)});");
+                }
+                else
+                {
+                    sb.AppendLine($"      const element_{i} = page.locator('{EscapeJsString(TranslatePlaywrightSelector(step.Selector))}');");
+                    // A YAML tap is the framework-neutral primary-pointer action.
+                    // Use click so generated desktop tests do not require a touch-enabled context.
+                    sb.AppendLine($"      await element_{i}.click();");
+                }
                 sb.AppendLine("    });");
             }
             else if (step.Type == "doubleTap" || step.Type == "doubleTapOn")
@@ -278,5 +285,10 @@ public class PlaywrightGenerator : ICodeGenerator
             .Replace("\n", "\\n")
             .Replace("\r", "\\r")
             .Replace("\t", "\\t");
+    }
+
+    private static string FormatNumber(double value)
+    {
+        return value.ToString("0.################", System.Globalization.CultureInfo.InvariantCulture);
     }
 }

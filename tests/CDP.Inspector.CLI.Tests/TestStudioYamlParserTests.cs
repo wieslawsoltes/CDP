@@ -549,6 +549,26 @@ description: ""E2E Flow""
     }
 
     [Fact]
+    public void PlaywrightGeneratorPreservesTapPointCoordinates()
+    {
+        const string yaml = """
+appId: "CdpInspectorApp"
+---
+- tapOn:
+    selector: "#imgScreenshot"
+    point: "126,509"
+""";
+
+        var recordedStep = Assert.Single(TestStudioStepConverter.ConvertYamlToRecordedSteps(yaml));
+        Assert.Equal(126, recordedStep.PointX);
+        Assert.Equal(509, recordedStep.PointY);
+
+        var generated = new PlaywrightGenerator().Generate(new[] { recordedStep }, "http://127.0.0.1:9223");
+        Assert.Contains("await page.mouse.click(126, 509);", generated);
+        Assert.DoesNotContain("await element_0.click();", generated);
+    }
+
+    [Fact]
     public void TestCdpInspectorAppE2eFlows()
     {
         var e2eDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "../../../../../tests/CdpInspectorApp.E2e");
