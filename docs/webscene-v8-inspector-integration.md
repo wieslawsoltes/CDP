@@ -114,12 +114,12 @@ await server.StartAsync();
 
 The host exposes:
 
-- `GET /json/version?token=...`
-- `GET /json?token=...`
-- `GET /json/list?token=...`
+- `GET /json/version`
+- `GET /json`
+- `GET /json/list`
 - `WS /devtools/page/{targetId}?token=...`
 
-Authentication also accepts `Authorization: Bearer ...`. Target ids, titles, URLs, browser version, and V8 version come from WebScene rather than hardcoded Chrome values.
+Chrome's discovery polling cannot add a token, so HTTP discovery is available without authentication by default and returns token-bearing WebSocket URLs. Set `RequireAuthenticationForDiscovery = true` for non-Chrome clients that can authenticate discovery requests. WebSocket authentication always remains mandatory and also accepts `Authorization: Bearer ...`. Target ids, titles, URLs, browser version, and V8 version come from WebScene rather than hardcoded Chrome values.
 
 ## Native V8 requirements
 
@@ -150,11 +150,12 @@ With those pieces, Chrome DevTools can set source-mapped breakpoints, inspect sc
 ## Security and failure behavior
 
 - The server is disabled by default and binds to `127.0.0.1` by default.
+- Loopback discovery is unauthenticated by default for `chrome://inspect` compatibility; only target metadata is exposed, and every debugger WebSocket still requires its generated/configured token.
 - Non-loopback binds require `AllowRemoteConnections = true` and a token at least 32 characters long.
 - Tokens are compared in constant time. The host does not log tokens or protocol messages.
 - The default origin policy permits missing origins and Chrome DevTools schemes; other origins require an explicit allow-list.
 - Browser and runtime messages are bounded by `MaxMessageBytes`.
 - Concurrent sessions are bounded by `MaxConcurrentSessions`, and `RawCdpTransportBase` bounds queued native notifications.
-- Unknown targets return 404, unauthorized requests return 401, disallowed origins return 403, excess sessions return 503, binary messages close with `InvalidMessageType`, and oversized messages close with `MessageTooBig`.
+- Unknown targets return 404, unauthorized WebSockets (and strict discovery requests) return 401, disallowed origins return 403, excess sessions return 503, binary messages close with `InvalidMessageType`, and oversized messages close with `MessageTooBig`.
 
 Treat enabling Inspector access as equivalent to granting code-execution access to the V8 context. Never enable it silently in production.

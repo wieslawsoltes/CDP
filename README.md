@@ -65,7 +65,7 @@ By embedding a lightweight HTTP and WebSocket server inside an Avalonia applicat
 
 ## Features
 
-- **Raw V8 Inspector host**: Exposes authenticated `/json/version`, `/json`, `/json/list`, and raw `/devtools/page/{targetId}` WebSockets without parsing or redispatching V8 messages. See [WebScene V8 Inspector integration](docs/webscene-v8-inspector-integration.md).
+- **Raw V8 Inspector host**: Exposes Chrome-compatible `/json/version`, `/json`, `/json/list`, and authenticated raw `/devtools/page/{targetId}` WebSockets without parsing or redispatching V8 messages. See [WebScene V8 Inspector integration](docs/webscene-v8-inspector-integration.md).
 - **Lightweight core**: `Chrome.DevTools.Protocol` no longer pulls Jint, SkiaSharp, YAML, profiling engines, diagnostics clients, or XAML tooling into runtime consumers. Optional capabilities are independently composable packages.
 
 - **DOM Domain**: Converts Avalonia's visual tree to a CDP-compliant DOM document tree structure.

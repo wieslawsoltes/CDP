@@ -16,6 +16,13 @@ public sealed class CdpInspectorServerOptions
     public bool AllowRemoteConnections { get; set; }
 
     /// <summary>
+    /// Requires the access token on HTTP discovery requests. This is disabled by default because
+    /// <c>chrome://inspect</c> cannot add authentication to its discovery polling. WebSocket
+    /// connections always require the token.
+    /// </summary>
+    public bool RequireAuthenticationForDiscovery { get; set; }
+
+    /// <summary>
     /// Authentication token accepted as a Bearer token or a <c>token</c> query parameter.
     /// A cryptographically random value is generated when omitted.
     /// </summary>

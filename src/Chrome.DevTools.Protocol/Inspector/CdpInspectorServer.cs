@@ -178,7 +178,8 @@ public sealed class CdpInspectorServer : IAsyncDisposable
     {
         try
         {
-            if (!IsAuthorized(context.Request))
+            if ((context.Request.IsWebSocketRequest || _options.RequireAuthenticationForDiscovery) &&
+                !IsAuthorized(context.Request))
             {
                 context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
                 context.Response.Headers["WWW-Authenticate"] = "Bearer";

@@ -28,14 +28,14 @@ public class CdpInspectorServerTests
     }
 
     [Fact]
-    public async Task Discovery_requires_auth_and_reports_runtime_metadata()
+    public async Task Discovery_is_chrome_compatible_and_reports_authenticated_socket_metadata()
     {
         await using var fixture = await InspectorFixture.StartAsync();
         using var client = new HttpClient();
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        var unauthorized = await client.GetAsync(new Uri(fixture.Server.DiscoveryUri, "json/version"), cancellationToken);
-        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+        var discovery = await client.GetAsync(new Uri(fixture.Server.DiscoveryUri, "json/version"), cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, discovery.StatusCode);
 
         var version = await client.GetStringAsync(fixture.AuthenticatedUri("json/version"), cancellationToken);
         var versionJson = JsonNode.Parse(version)!.AsObject();
@@ -49,6 +49,20 @@ public class CdpInspectorServerTests
         Assert.Equal("WebScene React app", target["title"]?.GetValue<string>());
         Assert.Equal("file:///app/index.html", target["url"]?.GetValue<string>());
         Assert.Contains(fixture.Token, target["devtoolsFrontendUrl"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Discovery_authentication_can_be_required_explicitly()
+    {
+        await using var fixture = await InspectorFixture.StartAsync(requireDiscoveryAuthentication: true);
+        using var client = new HttpClient();
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var unauthorized = await client.GetAsync(new Uri(fixture.Server.DiscoveryUri, "json/list"), cancellationToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+
+        var authorized = await client.GetAsync(fixture.AuthenticatedUri("json/list"), cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, authorized.StatusCode);
     }
 
     [Fact]
@@ -72,6 +86,11 @@ public class CdpInspectorServerTests
     {
         await using var fixture = await InspectorFixture.StartAsync();
         var cancellationToken = TestContext.Current.CancellationToken;
+
+        using var unauthorizedSocket = new ClientWebSocket();
+        var unauthorized = new Uri($"ws://127.0.0.1:{fixture.Port}/devtools/page/webscene-main");
+        var unauthorizedError = await Assert.ThrowsAnyAsync<WebSocketException>(() => unauthorizedSocket.ConnectAsync(unauthorized, cancellationToken));
+        Assert.Contains("401", unauthorizedError.Message);
 
         using var missingSocket = new ClientWebSocket();
         var missing = new Uri($"ws://127.0.0.1:{fixture.Port}/devtools/page/missing?token={fixture.Token}");
@@ -181,7 +200,8 @@ public class CdpInspectorServerTests
 
         public static async Task<InspectorFixture> StartAsync(
             int maxMessageBytes = 16 * 1024 * 1024,
-            int maxConcurrentSessions = 4)
+            int maxConcurrentSessions = 4,
+            bool requireDiscoveryAuthentication = false)
         {
             var port = GetFreePort();
             const string token = "67b20765654d4743b745181433c82d78";
@@ -198,7 +218,8 @@ public class CdpInspectorServerTests
                     AccessToken = token,
                     MaxMessageBytes = maxMessageBytes,
                     ReceiveBufferBytes = Math.Min(16 * 1024, maxMessageBytes),
-                    MaxConcurrentSessions = maxConcurrentSessions
+                    MaxConcurrentSessions = maxConcurrentSessions,
+                    RequireAuthenticationForDiscovery = requireDiscoveryAuthentication
                 });
             await server.StartAsync(TestContext.Current.CancellationToken);
             return new InspectorFixture(port, token, target, server);
