@@ -2,6 +2,7 @@ namespace CDP.Rdp.Tests.Domains;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -150,9 +151,17 @@ public class CdpRdpInputDomainTests
                 ["clickCount"] = 1
             });
 
-            // Raw pointer dispatch schedules the button command through Avalonia's
-            // dispatcher. Pump it explicitly so this headless assertion does not
-            // depend on a platform runner's ambient dispatcher cadence.
+            // Raw pointer dispatch schedules the button command and its async
+            // continuation through Avalonia's dispatcher. Keep pumping until the
+            // observable connection transition completes so a loaded CI runner
+            // cannot leave the continuation queued after a single drain.
+            var transition = Stopwatch.StartNew();
+            while (!vm.Connection.IsConnected &&
+                   transition.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                Dispatcher.UIThread.RunJobs();
+                await Task.Delay(10);
+            }
             Dispatcher.UIThread.RunJobs();
 
             Assert.True(vm.Connection.IsConnected);
