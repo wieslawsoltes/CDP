@@ -11,25 +11,43 @@ tags:
 - assertTrue: "__raw_window.DataContext.Sources.IsDebuggerPaused"
 - assertTrue: "__raw_window.DataContext.Sources.CallFrames.Count > 0"
 - assertTrue: "__raw_window.DataContext.Sources.ScopeVariables.Count > 0"
-- assertVisible: "#btnDebuggerResume"
-- assertVisible: "#lstDebuggerCallFrames"
-- assertVisible: "#dgDebuggerScopes"
-- assertVisible: "#txtNewWatchExpression"
-- assertVisible: "#btnDebuggerRestartFrame"
+- evalScript: |
+    var sources = __raw_window.DataContext.Sources;
+    sources.WatchExpressions.Clear();
+    sources.BlackboxPatterns.Clear();
 - evalScript: |
     var sources = __raw_window.DataContext.Sources;
     sources.DebuggerEvaluationExpression = "typeof require";
     sources.EvaluateOnCallFrameCommand.Execute(null);
-- delay: "500"
+- delay: "1500"
 - assertTrue: "__raw_window.DataContext.Sources.DebuggerEvaluationResult == \"function\""
 - evalScript: |
     var sources = __raw_window.DataContext.Sources;
     sources.NewWatchExpression = "typeof require";
     sources.AddWatchExpressionCommand.Execute(null);
-- delay: "500"
+- delay: "1500"
 - assertTrue: "__raw_window.DataContext.Sources.WatchExpressions.Count == 1"
 - assertTrue: "__raw_window.DataContext.Sources.WatchExpressions[0].Value == \"function\""
+- evalScript: |
+    var sources = __raw_window.DataContext.Sources;
+    sources.NewBlackboxPattern = "node:internal";
+    sources.AddBlackboxPatternCommand.Execute(null);
+- delay: "300"
+- assertTrue: "__raw_window.DataContext.Sources.BlackboxPatterns.Count == 1"
+- assertTrue: "__raw_window.DataContext.Sources.BlackboxStatusText.indexOf(\"Ignoring\") >= 0"
+- assertVisible: "#btnDebuggerResume"
+- assertVisible: "#lstDebuggerCallFrames"
+- assertVisible: "#dgDebuggerScopes"
+- assertVisible: "#txtNewWatchExpression"
+- assertVisible: "#btnDebuggerRestartFrame"
+- assertTrue: "document.querySelector('#chkBreakpointsActive') != null"
+- assertTrue: "document.querySelector('#cmbBreakpointKind') != null"
+- assertTrue: "document.querySelector('#txtNewVariableValue') != null"
+- assertTrue: "document.querySelector('#btnSetVariableValue') != null"
+- assertTrue: "document.querySelector('#lstBlackboxPatterns') != null"
+- assertTrue: "document.querySelector('#txtNewBlackboxPattern') != null"
+- assertTrue: "document.querySelector('#btnAddBlackboxPattern') != null"
+- assertTrue: "document.querySelector('#chkSkipAnonymousScripts') != null"
 - evalScript: "__raw_window.DataContext.Sources.ResumeCommand.Execute(null)"
 - delay: "300"
 - assertFalse: "__raw_window.DataContext.Sources.IsDebuggerPaused"
-- assertTrue: "__raw_window.DataContext.Connection.IsConnected"

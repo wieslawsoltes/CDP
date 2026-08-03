@@ -9,9 +9,6 @@ test.describe('CDP Recorded Tests', () => {
     await test.step('Set viewport size', async () => {
       await page.setViewportSize({ width: 800, height: 600 });
     });
-    await test.step('Navigate to application', async () => {
-      await page.goto('http://127.0.0.1:9223/');
-    });
 
     await test.step('Evaluate Script: __raw_window.DataContext.Connection.DisconnectCommand.Execute(null)', async () => {
       await page.evaluate('__raw_window.DataContext.Connection.DisconnectCommand.Execute(null)');
@@ -129,8 +126,101 @@ test.describe('CDP Recorded Tests', () => {
       await expect(page.locator('#lstV8Breakpoints')).toBeVisible();
     });
 
+    await test.step('Assert True: document.querySelector(\'#chkBreakpointsActive\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#chkBreakpointsActive\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#cmbBreakpointKind\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#cmbBreakpointKind\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#txtBreakpointLogMessage\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#txtBreakpointLogMessage\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#btnUpdateBreakpoint\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#btnUpdateBreakpoint\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#btnToggleBreakpointEnabled\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#btnToggleBreakpointEnabled\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#btnRemoveBreakpoint\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#btnRemoveBreakpoint\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#txtNewVariableValue\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#txtNewVariableValue\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#btnSetVariableValue\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#btnSetVariableValue\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#lstBlackboxPatterns\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#lstBlackboxPatterns\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#txtNewBlackboxPattern\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#txtNewBlackboxPattern\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#btnAddBlackboxPattern\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#btnAddBlackboxPattern\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#chkSkipAnonymousScripts\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#chkSkipAnonymousScripts\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#btnApplyBlackboxPatterns\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#btnApplyBlackboxPatterns\') != null');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: document.querySelector(\'#btnRemoveBlackboxPattern\') != null', async () => {
+      const result = await page.evaluate('document.querySelector(\'#btnRemoveBlackboxPattern\') != null');
+      await expect(result).toBeTruthy();
+    });
+
     await test.step('Assert True: ((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Sources.PauseOnExceptionsStates.Count == 4', async () => {
       const result = await page.evaluate('((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Sources.PauseOnExceptionsStates.Count == 4');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: __raw_window.DataContext.Sources.BreakpointKinds.Count == 3', async () => {
+      const result = await page.evaluate('__raw_window.DataContext.Sources.BreakpointKinds.Count == 3');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Assert True: __raw_window.DataContext.Sources.AreBreakpointsActive', async () => {
+      const result = await page.evaluate('__raw_window.DataContext.Sources.AreBreakpointsActive');
+      await expect(result).toBeTruthy();
+    });
+
+    await test.step('Evaluate Script: var sources = __raw_window.DataContext.Sources;\nsources.NewBlackboxPattern = ".*[/\\\\\\\\]node_modules[/\\\\\\\\].*";\nsources.AddBlackboxPatternCommand.Execute(null);\n', async () => {
+      await page.evaluate('var sources = __raw_window.DataContext.Sources;\nsources.NewBlackboxPattern = ".*[/\\\\\\\\]node_modules[/\\\\\\\\].*";\nsources.AddBlackboxPatternCommand.Execute(null);\n');
+    });
+
+    await test.step('Delay 300ms', async () => {
+      await page.waitForTimeout(300);
+    });
+
+    await test.step('Assert True: __raw_window.DataContext.Sources.BlackboxPatterns.Count == 1', async () => {
+      const result = await page.evaluate('__raw_window.DataContext.Sources.BlackboxPatterns.Count == 1');
       await expect(result).toBeTruthy();
     });
 

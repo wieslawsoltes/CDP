@@ -1,5 +1,5 @@
 appId: "CdpInspectorApp"
-description: "Verify the V8 debugger Sources UI exposes runtime scripts, pause controls, call frames, scopes, evaluation, exception mode, and breakpoints"
+description: "Verify the V8 debugger Sources UI exposes IDE-style pause, evaluation, rich breakpoint, variable editing, and blackboxing controls"
 tags:
   - "sources"
   - "v8"
@@ -32,4 +32,26 @@ tags:
 - assertVisible: "#lstDebuggerCallFrames"
 - assertVisible: "#dgDebuggerScopes"
 - assertVisible: "#lstV8Breakpoints"
+- assertTrue: "document.querySelector('#chkBreakpointsActive') != null"
+- assertTrue: "document.querySelector('#cmbBreakpointKind') != null"
+- assertTrue: "document.querySelector('#txtBreakpointLogMessage') != null"
+- assertTrue: "document.querySelector('#btnUpdateBreakpoint') != null"
+- assertTrue: "document.querySelector('#btnToggleBreakpointEnabled') != null"
+- assertTrue: "document.querySelector('#btnRemoveBreakpoint') != null"
+- assertTrue: "document.querySelector('#txtNewVariableValue') != null"
+- assertTrue: "document.querySelector('#btnSetVariableValue') != null"
+- assertTrue: "document.querySelector('#lstBlackboxPatterns') != null"
+- assertTrue: "document.querySelector('#txtNewBlackboxPattern') != null"
+- assertTrue: "document.querySelector('#btnAddBlackboxPattern') != null"
+- assertTrue: "document.querySelector('#chkSkipAnonymousScripts') != null"
+- assertTrue: "document.querySelector('#btnApplyBlackboxPatterns') != null"
+- assertTrue: "document.querySelector('#btnRemoveBlackboxPattern') != null"
 - assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Sources.PauseOnExceptionsStates.Count == 4"
+- assertTrue: "__raw_window.DataContext.Sources.BreakpointKinds.Count == 3"
+- assertTrue: "__raw_window.DataContext.Sources.AreBreakpointsActive"
+- evalScript: |
+    var sources = __raw_window.DataContext.Sources;
+    sources.NewBlackboxPattern = ".*[/\\\\]node_modules[/\\\\].*";
+    sources.AddBlackboxPatternCommand.Execute(null);
+- delay: "300"
+- assertTrue: "__raw_window.DataContext.Sources.BlackboxPatterns.Count == 1"
