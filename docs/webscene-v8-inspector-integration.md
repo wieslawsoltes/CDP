@@ -198,6 +198,10 @@ mock transport. It verifies that no document bundle is parsed before
 `Runtime.runIfWaitingForDebugger`, loads the external source map and embedded
 `main.jsx`, maps and hits the React `increment` breakpoint, reads the `Counter`
 closure, evaluates `count`, steps, resumes, and observes the committed count.
+It then removes the breakpoint, creates a mapping-preserving patch from edited
+original React source, dry-runs and applies it through
+`Debugger.setScriptSource`, triggers the handler again, and verifies that the
+rendered count follows the authored-source edit.
 
 Start the WebScene Uno showcase with its arbitrary-document lane and the 7GUIs
 React development bundle, then run:
@@ -215,9 +219,10 @@ The test skips when `WEBSCENE_V8_ENDPOINT` is not set, so the ordinary CDP test
 matrix remains independent of a separately built native WebScene runtime. The
 optional report is machine-readable and records the target, generated script,
 source map, original source, mapped lines, paused function, closure state, and
-final React result. The script name, original-source suffix, marker, trigger,
-and result expressions can also be overridden with the corresponding
-`WEBSCENE_V8_*` environment variables declared by the test.
+initial and post-mutation React results. The script name, original-source
+suffix, original and mutated markers, trigger, and result expressions can also
+be overridden with the corresponding `WEBSCENE_V8_*` environment variables
+declared by the test.
 
 ## Security and failure behavior
 

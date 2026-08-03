@@ -25,6 +25,8 @@ public sealed class WebSceneV8InspectorAcceptanceTests
             ?? "/src/main.jsx";
         var breakpointMarker = Environment.GetEnvironmentVariable("WEBSCENE_V8_BREAKPOINT_MARKER")
             ?? "setCount(count + 1);";
+        var mutatedBreakpointMarker = Environment.GetEnvironmentVariable("WEBSCENE_V8_MUTATED_BREAKPOINT_MARKER")
+            ?? "setCount(count + 2);";
         var triggerExpression = Environment.GetEnvironmentVariable("WEBSCENE_V8_TRIGGER_EXPRESSION")
             ?? "document.querySelector('.counter-row button').click()";
         var resultExpression = Environment.GetEnvironmentVariable("WEBSCENE_V8_RESULT_EXPRESSION")
@@ -176,6 +178,62 @@ public sealed class WebSceneV8InspectorAcceptanceTests
         }
         Assert.Equal("1", completedResult["result"]?["value"]?.GetValue<string>());
 
+        await inspector.SendCommandAsync("Debugger.removeBreakpoint", new JsonObject
+        {
+            ["breakpointId"] = breakpoint["breakpointId"]!.GetValue<string>()
+        }, cancellationToken);
+        var generatedSourceResult = await inspector.SendCommandAsync("Debugger.getScriptSource", new JsonObject
+        {
+            ["scriptId"] = generatedScript["scriptId"]!.GetValue<string>()
+        }, cancellationToken);
+        var generatedSource = generatedSourceResult["scriptSource"]!.GetValue<string>();
+        var editedOriginal = originalSource.Replace(
+            breakpointMarker,
+            mutatedBreakpointMarker,
+            StringComparison.Ordinal);
+        Assert.NotEqual(originalSource, editedOriginal);
+        var mutation = new V8SourceMutationEngine().CreatePatch(
+            sourceMap,
+            sourceIndex,
+            originalSource,
+            editedOriginal,
+            generatedSource);
+        Assert.True(mutation.CanApply, mutation.Message);
+        var dryRun = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+        {
+            ["scriptId"] = generatedScript["scriptId"]!.GetValue<string>(),
+            ["scriptSource"] = mutation.GeneratedSource,
+            ["dryRun"] = true,
+            ["allowTopFrameEditing"] = true
+        }, cancellationToken);
+        Assert.Equal("Ok", dryRun["status"]?.GetValue<string>());
+        var applied = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+        {
+            ["scriptId"] = generatedScript["scriptId"]!.GetValue<string>(),
+            ["scriptSource"] = mutation.GeneratedSource,
+            ["dryRun"] = false,
+            ["allowTopFrameEditing"] = true
+        }, cancellationToken);
+        Assert.Equal("Ok", applied["status"]?.GetValue<string>());
+
+        await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+        {
+            ["expression"] = triggerExpression,
+            ["returnByValue"] = true
+        }, cancellationToken);
+        JsonObject mutatedResult = new();
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            mutatedResult = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = resultExpression,
+                ["returnByValue"] = true
+            }, cancellationToken);
+            if (mutatedResult["result"]?["value"]?.GetValue<string>() == "3") break;
+            await Task.Delay(25, cancellationToken);
+        }
+        Assert.Equal("3", mutatedResult["result"]?["value"]?.GetValue<string>());
+
         await WriteReportAsync(
             Environment.GetEnvironmentVariable("WEBSCENE_V8_REPORT_PATH"),
             new JsonObject
@@ -191,7 +249,10 @@ public sealed class WebSceneV8InspectorAcceptanceTests
                 ["functionName"] = frame["functionName"]?.GetValue<string>(),
                 ["additionalPauses"] = additionalPauses,
                 ["closureCount"] = 0,
-                ["result"] = "1"
+                ["result"] = "1",
+                ["liveEditStatus"] = applied["status"]?.GetValue<string>(),
+                ["mutatedMarker"] = mutatedBreakpointMarker,
+                ["mutatedResult"] = "3"
             },
             cancellationToken);
     }
