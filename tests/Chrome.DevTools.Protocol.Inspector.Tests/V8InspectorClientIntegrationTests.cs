@@ -938,6 +938,139 @@ public sealed class V8InspectorClientIntegrationTests
         }
     }
 
+    [Fact(Timeout = 30_000)]
+    public async Task NodeInspectorStreamsWasmDisassemblyAndStopsAtBytecodeBreakpoint()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var port = GetAvailablePort();
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "v8-wasm-debug-target.js");
+        Assert.True(File.Exists(fixture), $"Missing V8 Wasm fixture: {fixture}");
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "node",
+            ArgumentList = { $"--inspect-brk=127.0.0.1:{port}", fixture },
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+        Assert.NotNull(process);
+
+        try
+        {
+            var target = Assert.Single(await WaitForTargetsAsync(new Uri($"http://127.0.0.1:{port}")));
+            await using var inspector = new V8InspectorClient();
+            var scripts = Channel.CreateUnbounded<JsonObject>();
+            var pauses = Channel.CreateUnbounded<JsonObject>();
+            inspector.EventReceived += (_, args) =>
+            {
+                if (args.Method == "Debugger.scriptParsed") scripts.Writer.TryWrite(args.Params);
+                if (args.Method == "Debugger.paused") pauses.Writer.TryWrite(args.Params);
+            };
+            await inspector.ConnectAsync(new Uri(target.WebSocketDebuggerUrl), cancellationToken);
+            await inspector.SendCommandAsync("Runtime.enable", cancellationToken: cancellationToken);
+            await inspector.SendCommandAsync("Debugger.enable", cancellationToken: cancellationToken);
+            await inspector.SendCommandAsync("Runtime.runIfWaitingForDebugger", cancellationToken: cancellationToken);
+
+            _ = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            await inspector.SendCommandAsync("Debugger.resume", cancellationToken: cancellationToken);
+
+            JsonObject wasmScript;
+            do
+            {
+                wasmScript = await scripts.Reader.ReadAsync(cancellationToken).AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+            while (wasmScript["scriptLanguage"]?.GetValue<string>() != "WebAssembly");
+            Assert.True((wasmScript["codeOffset"]?.GetValue<int>() ?? -1) >= 0);
+            var scriptId = wasmScript["scriptId"]!.GetValue<string>();
+
+            var fixturePause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            Assert.NotEmpty(Assert.IsType<JsonArray>(fixturePause["callFrames"]));
+
+            var source = await inspector.SendCommandAsync("Debugger.getScriptSource", new JsonObject
+            {
+                ["scriptId"] = scriptId
+            }, cancellationToken);
+            Assert.True(string.IsNullOrEmpty(source["scriptSource"]?.GetValue<string>()));
+            Assert.False(string.IsNullOrWhiteSpace(source["bytecode"]?.GetValue<string>()));
+
+            var initial = await inspector.SendCommandAsync("Debugger.disassembleWasmModule", new JsonObject
+            {
+                ["scriptId"] = scriptId
+            }, cancellationToken);
+            var builder = V8WasmDisassemblyBuilder.FromInitialResponse(initial);
+            while (builder.NeedsMoreChunks)
+            {
+                var next = await inspector.SendCommandAsync("Debugger.nextWasmDisassemblyChunk", new JsonObject
+                {
+                    ["streamId"] = builder.StreamId
+                }, cancellationToken);
+                builder.AppendNextResponse(next);
+            }
+            var disassembly = builder.Build();
+            Assert.NotEmpty(disassembly.Lines);
+            Assert.Contains(disassembly.Lines, line => line.Contains("i32.add", StringComparison.Ordinal));
+            Assert.Equal(disassembly.TotalNumberOfLines, disassembly.BytecodeOffsets.Count);
+
+            var bodyStart = disassembly.FunctionBodyOffsets[0];
+            var bodyEnd = disassembly.FunctionBodyOffsets[1];
+            var possible = await inspector.SendCommandAsync("Debugger.getPossibleBreakpoints", new JsonObject
+            {
+                ["start"] = new JsonObject
+                {
+                    ["scriptId"] = scriptId,
+                    ["lineNumber"] = 0,
+                    ["columnNumber"] = bodyStart
+                },
+                ["end"] = new JsonObject
+                {
+                    ["scriptId"] = scriptId,
+                    ["lineNumber"] = 0,
+                    ["columnNumber"] = bodyEnd
+                },
+                ["restrictToFunction"] = true
+            }, cancellationToken);
+            var breakpointLocation = Assert.IsType<JsonObject>(
+                Assert.IsType<JsonArray>(possible["locations"]).OfType<JsonObject>().FirstOrDefault());
+            var breakpoint = await inspector.SendCommandAsync("Debugger.setBreakpoint", new JsonObject
+            {
+                ["location"] = breakpointLocation.DeepClone()
+            }, cancellationToken);
+            Assert.False(string.IsNullOrWhiteSpace(breakpoint["breakpointId"]?.GetValue<string>()));
+
+            await inspector.SendCommandAsync("Debugger.resume", cancellationToken: cancellationToken);
+            var wasmPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            var wasmFrame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(wasmPause["callFrames"])[0]);
+            var wasmLocation = Assert.IsType<JsonObject>(wasmFrame["location"]);
+            Assert.Equal(scriptId, wasmLocation["scriptId"]?.GetValue<string>());
+            Assert.Contains(Assert.IsType<JsonArray>(wasmFrame["scopeChain"]).OfType<JsonObject>(), scope =>
+                scope["type"]?.GetValue<string>() == "wasm-expression-stack");
+
+            await inspector.SendCommandAsync("Debugger.resume", cancellationToken: cancellationToken);
+            JsonObject result = new();
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                result = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+                {
+                    ["expression"] = "globalThis.wasmResult",
+                    ["returnByValue"] = true
+                }, cancellationToken);
+                if (result["result"]?["value"]?.GetValue<int>() == 5) break;
+                await Task.Delay(25, cancellationToken);
+            }
+            Assert.Equal(5, result["result"]?["value"]?.GetValue<int>());
+        }
+        finally
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+    }
+
     private static int GetAvailablePort()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
