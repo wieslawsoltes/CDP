@@ -72,15 +72,16 @@ public sealed class V8InspectorAppIntegrationTests
             }
             await WaitUntilAsync(() => sources.IsDebuggerPaused && sources.SelectedCallFrame?.FunctionName == "compute",
                 cancellationToken);
-
             // Cross ClientWebSocket's otherwise-default 30-second heartbeat boundary.
             await Task.Delay(TimeSpan.FromSeconds(32), cancellationToken);
             Assert.True(service.IsConnected);
 
             var localScope = Assert.Single(sources.ScopeVariables, variable => variable.ScopeType == "local");
-            await localScope.EnsureChildrenLoadedAsync();
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => localScope.IsExpanded = true);
+            await WaitUntilAsync(() => localScope.Children.Any(variable => !variable.IsPlaceholder), cancellationToken);
             var state = Assert.Single(localScope.Children, variable => variable.Name == "state");
-            await state.EnsureChildrenLoadedAsync();
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => state.IsExpanded = true);
+            await WaitUntilAsync(() => state.Children.Any(variable => !variable.IsPlaceholder), cancellationToken);
             Assert.Contains(state.Children, variable => variable.Name == "nested");
 
             await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);

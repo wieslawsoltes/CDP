@@ -289,34 +289,33 @@
 
             <Border Name="pnlDebuggerVariables" Classes="sources-section" Padding="4">
                 <Grid RowDefinitions="*,Auto">
-                    <DataGrid Name="dgDebuggerScopes"
-                              HierarchicalModel="{Binding Sources.HierarchicalScopeVariables}"
-                              SelectedItem="{Binding Sources.SelectedScopeVariableNode, Mode=TwoWay}"
-                              HierarchicalRowsEnabled="True"
-                              AutoGenerateColumns="False" IsReadOnly="True"
-                              GridLinesVisibility="None" HeadersVisibility="None"
-                              Background="Transparent" BorderBrush="{DynamicResource Brush.Sources.Border}"
+                    <TreeView Name="treeDebuggerScopes"
+                              ItemsSource="{Binding Sources.ScopeVariables}"
+                              SelectedItem="{Binding Sources.SelectedScopeVariable, Mode=TwoWay}"
+                              Background="Transparent"
+                              BorderBrush="{DynamicResource Brush.Sources.Border}"
                               BorderThickness="1" FontSize="11" Margin="0,0,0,4">
-                        <DataGrid.Columns>
-                            <DataGridHierarchicalColumn Width="*">
-                                <DataGridHierarchicalColumn.CellTemplate>
-                                    <DataTemplate x:DataType="tree:HierarchicalNode">
-                                        <Grid ColumnDefinitions="2*,3*,Auto" ColumnSpacing="5" Margin="2,0">
-                                            <TextBlock Text="{Binding ((models:V8ScopeVariableModel)Item).DisplayName}"
-                                                       Foreground="{DynamicResource Brush.Sources.Accent}"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding ((models:V8ScopeVariableModel)Item).Value}"
-                                                       Foreground="{DynamicResource Brush.Sources.Text}"
-                                                       FontFamily="Consolas,Monaco,Courier New,monospace"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding ((models:V8ScopeVariableModel)Item).TypeDisplay}"
-                                                       Classes="sources-meta" FontSize="9"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridHierarchicalColumn.CellTemplate>
-                            </DataGridHierarchicalColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                        <TreeView.Styles>
+                            <Style Selector="TreeViewItem">
+                                <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}"/>
+                            </Style>
+                        </TreeView.Styles>
+                        <TreeView.DataTemplates>
+                            <TreeDataTemplate x:DataType="models:V8ScopeVariableModel" ItemsSource="{Binding Children}">
+                                <Grid ColumnDefinitions="2*,3*,Auto" ColumnSpacing="5" Margin="2,0">
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               Foreground="{DynamicResource Brush.Sources.Accent}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                               Foreground="{DynamicResource Brush.Sources.Text}"
+                                               FontFamily="Consolas,Monaco,Courier New,monospace"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding TypeDisplay}"
+                                               Classes="sources-meta" FontSize="9"/>
+                                </Grid>
+                            </TreeDataTemplate>
+                        </TreeView.DataTemplates>
+                    </TreeView>
                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
                         <TextBox Name="txtNewVariableValue" Text="{Binding Sources.NewVariableValueExpression, Mode=TwoWay}" PlaceholderText="Set selected variable" FontSize="11" Height="25"/>
                         <Button Name="btnSetVariableValue" Classes="sources-compact" Grid.Column="1" Command="{Binding Sources.SetVariableValueCommand}" Content="Set" Margin="4,0,0,0"/>

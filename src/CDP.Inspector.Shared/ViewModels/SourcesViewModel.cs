@@ -1441,7 +1441,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             ["accessorPropertiesOnly"] = false,
             ["generatePreview"] = true,
             ["nonIndexedPropertiesOnly"] = false
-        });
+        }).ConfigureAwait(false);
         if (parent.PauseGeneration != Volatile.Read(ref _pauseGeneration)) return Array.Empty<V8ScopeVariableModel>();
         return await CreateVariableNodesAsync(
             response,
@@ -1451,7 +1451,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             parent.Depth + 1,
             canSetVariables: parent.IsScopeGroup,
             parent.PauseGeneration,
-            parent.AncestorObjectIds);
+            parent.AncestorObjectIds).ConfigureAwait(false);
     }
 
     private Task<IReadOnlyList<V8ScopeVariableModel>> CreateVariableNodesAsync(

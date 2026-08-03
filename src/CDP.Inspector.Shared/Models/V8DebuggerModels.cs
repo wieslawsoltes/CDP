@@ -78,6 +78,7 @@ public sealed class V8ScopeModel
 public sealed class V8ScopeVariableModel : ViewModelBase
 {
     private string _value = "undefined";
+    private bool _isExpanded;
     private Func<V8ScopeVariableModel, Task<IReadOnlyList<V8ScopeVariableModel>>>? _childrenLoader;
     private Task<IReadOnlyList<V8ScopeVariableModel>>? _childrenLoadTask;
 
@@ -113,8 +114,33 @@ public sealed class V8ScopeVariableModel : ViewModelBase
         set => RaiseAndSetIfChanged(ref _value, value);
     }
 
-    public void ConfigureChildrenLoader(Func<V8ScopeVariableModel, Task<IReadOnlyList<V8ScopeVariableModel>>> loader) =>
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isExpanded, value) && value)
+            {
+                _ = EnsureChildrenLoadedAsync();
+            }
+        }
+    }
+
+    public void ConfigureChildrenLoader(Func<V8ScopeVariableModel, Task<IReadOnlyList<V8ScopeVariableModel>>> loader)
+    {
         _childrenLoader = loader;
+        if (Children.Count == 0)
+        {
+            Children.Add(new V8ScopeVariableModel
+            {
+                Name = "Loading…",
+                Value = "",
+                IsNested = true,
+                IsPlaceholder = true,
+                PauseGeneration = PauseGeneration
+            });
+        }
+    }
 
     public IEnumerable<V8ScopeVariableModel> GetChildren()
         => Children;
@@ -134,7 +160,7 @@ public sealed class V8ScopeVariableModel : ViewModelBase
         {
             var children = _childrenLoader is null
                 ? Array.Empty<V8ScopeVariableModel>()
-                : await _childrenLoader(this);
+                : await _childrenLoader(this).ConfigureAwait(false);
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 Children.Clear();
