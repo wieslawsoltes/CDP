@@ -13,7 +13,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public sealed class V8InspectorAppIntegrationTests
 {
-    [AvaloniaFact(Timeout = 45_000)]
+    [AvaloniaFact(Timeout = 60_000)]
     public async Task FullInspectorMaintainsPausedNodeSessionAndExpandsVariables()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -73,8 +73,8 @@ public sealed class V8InspectorAppIntegrationTests
             await WaitUntilAsync(() => sources.IsDebuggerPaused && sources.SelectedCallFrame?.FunctionName == "compute",
                 cancellationToken);
 
-            // Cross the configured 15-second PING boundary while V8 remains paused.
-            await Task.Delay(TimeSpan.FromSeconds(18), cancellationToken);
+            // Cross ClientWebSocket's otherwise-default 30-second heartbeat boundary.
+            await Task.Delay(TimeSpan.FromSeconds(32), cancellationToken);
             Assert.True(service.IsConnected);
 
             var localScope = Assert.Single(sources.ScopeVariables, variable => variable.ScopeType == "local");

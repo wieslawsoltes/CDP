@@ -327,8 +327,8 @@ public sealed class V8InspectorClientOptions
     public int ReceiveBufferSize { get; init; } = 16 * 1024;
     public int MaxIncomingMessageSize { get; init; } = 64 * 1024 * 1024;
     public int MaxOutgoingMessageSize { get; init; } = 64 * 1024 * 1024;
-    public TimeSpan KeepAliveInterval { get; init; } = TimeSpan.FromSeconds(15);
-    public TimeSpan KeepAliveTimeout { get; init; } = TimeSpan.FromSeconds(5);
+    public TimeSpan KeepAliveInterval { get; init; } = Timeout.InfiniteTimeSpan;
+    public TimeSpan KeepAliveTimeout { get; init; } = Timeout.InfiniteTimeSpan;
     public Action<ClientWebSocketOptions>? ConfigureWebSocket { get; init; }
 }
 

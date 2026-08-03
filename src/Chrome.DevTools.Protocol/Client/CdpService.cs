@@ -343,7 +343,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
 
         _ws = new ClientWebSocket();
-        ConfigureInspectorKeepAlive(_ws.Options);
+        DisableInspectorKeepAlive(_ws.Options);
         _cts = new CancellationTokenSource();
         _pendingRequests.Clear();
 
@@ -399,14 +399,14 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
     }
 
-    private static void ConfigureInspectorKeepAlive(ClientWebSocketOptions options)
+    private static void DisableInspectorKeepAlive(ClientWebSocketOptions options)
     {
         // ClientWebSocket defaults to an unsolicited PONG every 30 seconds.
-        // Standalone V8 inspector endpoints can treat that unsolicited control
-        // frame as a protocol error and abruptly close an otherwise healthy
-        // debugging session. Use the standard PING/PONG exchange instead.
-        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
-        options.KeepAliveTimeout = TimeSpan.FromSeconds(5);
+        // Standalone V8 inspector endpoints close on both unsolicited PONG and
+        // PING control frames, so keep this transport protocol-message-only.
+        // Normal commands and ReceiveAsync still detect a closed peer.
+        options.KeepAliveInterval = Timeout.InfiniteTimeSpan;
+        options.KeepAliveTimeout = Timeout.InfiniteTimeSpan;
     }
 
     private readonly object _disconnectLock = new();

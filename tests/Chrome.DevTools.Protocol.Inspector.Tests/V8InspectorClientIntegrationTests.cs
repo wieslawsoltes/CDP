@@ -10,7 +10,7 @@ namespace Chrome.DevTools.Protocol.Inspector.Tests;
 
 public sealed class V8InspectorClientIntegrationTests
 {
-    [Fact(Timeout = 45_000)]
+    [Fact(Timeout = 60_000)]
     public async Task CdpServiceMaintainsPausedNodeInspectorSession()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -62,8 +62,8 @@ public sealed class V8InspectorClientIntegrationTests
             }
 
             Assert.True(service.IsConnected);
-            // Cross the configured 15-second PING boundary while V8 remains paused.
-            await Task.Delay(TimeSpan.FromSeconds(18), cancellationToken);
+            // Cross ClientWebSocket's otherwise-default 30-second heartbeat boundary.
+            await Task.Delay(TimeSpan.FromSeconds(32), cancellationToken);
             Assert.True(service.IsConnected);
 
             var computeFrame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(computePause["callFrames"])[0]);
@@ -232,7 +232,7 @@ public sealed class V8InspectorClientIntegrationTests
         }
     }
 
-    [Fact(Timeout = 50_000)]
+    [Fact(Timeout = 65_000)]
     public async Task NodeInspectorSupportsFullDebuggingSession()
     {
         var port = GetAvailablePort();
@@ -319,7 +319,8 @@ public sealed class V8InspectorClientIntegrationTests
             var callFrame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(pauseEvent["callFrames"])[0]);
             Assert.Equal("compute", callFrame["functionName"]?.GetValue<string>());
             Assert.NotNull(pauseEvent["asyncStackTrace"]);
-            await Task.Delay(TimeSpan.FromSeconds(18), TestContext.Current.CancellationToken);
+            // Cross ClientWebSocket's otherwise-default 30-second heartbeat boundary.
+            await Task.Delay(TimeSpan.FromSeconds(32), TestContext.Current.CancellationToken);
             Assert.True(inspector.IsConnected);
             var location = Assert.IsType<JsonObject>(callFrame["location"]);
             var source = await inspector.SendCommandAsync("Debugger.getScriptSource", new JsonObject
