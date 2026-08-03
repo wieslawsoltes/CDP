@@ -369,17 +369,47 @@
             </Border>
 
             <Border Name="pnlDebuggerIgnoreList" Classes="sources-section" Padding="5">
-                <Grid RowDefinitions="Auto,*,Auto,Auto">
-                    <TextBlock Text="{Binding Sources.BlackboxStatusText}" Classes="sources-meta" Margin="0,0,0,4"/>
-                    <ListBox Name="lstBlackboxPatterns" Grid.Row="1" ItemsSource="{Binding Sources.BlackboxPatterns}" SelectedItem="{Binding Sources.SelectedBlackboxPattern, Mode=TwoWay}" MinHeight="32" FontSize="10" Margin="0,0,0,4"/>
-                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,0,0,4">
-                        <TextBox Name="txtNewBlackboxPattern" Text="{Binding Sources.NewBlackboxPattern, Mode=TwoWay}" PlaceholderText="URL regex, e.g. /node_modules/" FontSize="10" Height="25"/>
-                        <Button Name="btnAddBlackboxPattern" Classes="sources-compact" Grid.Column="1" Command="{Binding Sources.AddBlackboxPatternCommand}" Content="Add" Margin="4,0,0,0"/>
+                <Grid RowDefinitions="Auto,5,*">
+                    <Grid RowDefinitions="Auto,*,Auto,Auto" MinHeight="112" MaxHeight="240">
+                        <Grid ColumnDefinitions="Auto,*" Margin="1,0,0,4">
+                            <TextBlock Text="URL PATTERNS" Classes="sources-meta" FontSize="9" FontWeight="SemiBold"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Sources.BlackboxStatusText}" Classes="sources-meta" FontSize="9" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <ListBox Name="lstBlackboxPatterns" Grid.Row="1" ItemsSource="{Binding Sources.BlackboxPatterns}" SelectedItem="{Binding Sources.SelectedBlackboxPattern, Mode=TwoWay}" MinHeight="32" FontSize="10" Margin="0,0,0,4"/>
+                        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                            <TextBox Name="txtNewBlackboxPattern" Text="{Binding Sources.NewBlackboxPattern, Mode=TwoWay}" PlaceholderText="URL regex, e.g. /node_modules/" FontSize="10" Height="25"/>
+                            <Button Name="btnAddBlackboxPattern" Classes="sources-compact" Grid.Column="1" Command="{Binding Sources.AddBlackboxPatternCommand}" Content="Add" Margin="4,0,0,0"/>
+                        </Grid>
+                        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto">
+                            <CheckBox Name="chkSkipAnonymousScripts" Content="Skip anonymous" IsChecked="{Binding Sources.SkipAnonymousScripts, Mode=TwoWay}" FontSize="10"/>
+                            <Button Name="btnApplyBlackboxPatterns" Classes="sources-compact" Grid.Column="1" Command="{Binding Sources.ApplyBlackboxPatternsCommand}" Content="Apply"/>
+                            <Button Name="btnRemoveBlackboxPattern" Classes="sources-compact" Grid.Column="2" Command="{Binding Sources.RemoveBlackboxPatternCommand}" Content="Remove" Margin="3,0,0,0"/>
+                        </Grid>
                     </Grid>
-                    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto">
-                        <CheckBox Name="chkSkipAnonymousScripts" Content="Skip anonymous" IsChecked="{Binding Sources.SkipAnonymousScripts, Mode=TwoWay}" FontSize="10"/>
-                        <Button Name="btnApplyBlackboxPatterns" Classes="sources-compact" Grid.Column="1" Command="{Binding Sources.ApplyBlackboxPatternsCommand}" Content="Apply"/>
-                        <Button Name="btnRemoveBlackboxPattern" Classes="sources-compact" Grid.Column="2" Command="{Binding Sources.RemoveBlackboxPatternCommand}" Content="Remove" Margin="3,0,0,0"/>
+                    <GridSplitter Name="splitIgnoreListSections" Grid.Row="1" Height="5" Margin="0,2" HorizontalAlignment="Stretch" Background="{DynamicResource Brush.Sources.Border}"/>
+                    <Grid Grid.Row="2" RowDefinitions="Auto,*,Auto" MinHeight="84">
+                        <Grid ColumnDefinitions="Auto,*" Margin="1,3,0,4">
+                            <TextBlock Text="EXECUTION CONTEXTS" Classes="sources-meta" FontSize="9" FontWeight="SemiBold"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Sources.ExecutionContextStatusText}" Classes="sources-meta" FontSize="9" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <ListBox Name="lstExecutionContexts" Grid.Row="1" ItemsSource="{Binding Sources.ExecutionContexts}" SelectedItem="{Binding Sources.SelectedExecutionContext, Mode=TwoWay}" MinHeight="32" FontSize="10" Margin="0,0,0,4">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:V8ExecutionContextModel">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="5" Margin="1">
+                                        <TextBlock Text="⊘" IsVisible="{Binding IsBlackboxed}" Foreground="{DynamicResource Brush.Sources.Accent}" FontSize="12"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Detail}" Classes="sources-meta" FontSize="9" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Button Name="btnToggleExecutionContextBlackboxed" Grid.Row="2" Classes="sources-compact"
+                                Command="{Binding Sources.ToggleSelectedExecutionContextBlackboxedCommand}"
+                                Content="Toggle selected context" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                ToolTip.Tip="Ignore or restore all scripts in the selected V8 execution context"
+                                AutomationProperties.Name="Toggle selected execution context blackboxing"/>
                     </Grid>
                 </Grid>
             </Border>

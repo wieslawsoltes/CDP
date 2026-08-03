@@ -65,6 +65,9 @@ public class ViewsLayoutTests
             Assert.NotNull(sourcesView.FindControl<Button>("btnAddFunctionBreakpoint"));
             Assert.NotNull(sourcesView.FindControl<Button>("btnAddInstrumentationBreakpoint"));
             Assert.NotNull(sourcesView.FindControl<ToggleButton>("tglDebuggerSkipAllPauses"));
+            Assert.NotNull(sourcesView.FindControl<GridSplitter>("splitIgnoreListSections"));
+            Assert.NotNull(sourcesView.FindControl<ListBox>("lstExecutionContexts"));
+            Assert.NotNull(sourcesView.FindControl<Button>("btnToggleExecutionContextBlackboxed"));
 
             var applicationView = new ApplicationView();
             Assert.NotNull(applicationView);

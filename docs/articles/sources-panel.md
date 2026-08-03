@@ -58,6 +58,7 @@ When execution hits a breakpoint on the target application, the target pauses an
 - **Resume (Play)**: Sends `Debugger.resume` to continue running the application until the next breakpoint or exception.
 - **Run to Cursor (`Ctrl+F10`)**: Maps an original source position through its source map, asks V8 for the nearest executable location with `Debugger.getPossibleBreakpoints`, then resumes with `Debugger.continueToLocation`.
 - **Skip all pauses (`⊘`)**: Temporarily suppresses every V8 pause, including breakpoints, exceptions, and `debugger` statements, through `Debugger.setSkipAllPauses`. The setting is restored with the Sources workspace state.
+- **Ignore execution contexts**: The Ignore List split panel tracks V8 runtime contexts and can suppress stepping and pauses for a selected context through `Debugger.setBlackboxExecutionContexts`. Contexts use V8's process-unique IDs and are removed automatically when the runtime destroys or clears them.
 - **Step Over**: Steps past the current line of code, staying within the active function block.
 - **Step Into**: Steps inside the function call present on the active line.
 - **Step Out**: Executes the remainder of the current function and pauses immediately upon returning to the calling block.

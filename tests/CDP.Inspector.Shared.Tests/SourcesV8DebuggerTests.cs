@@ -257,6 +257,8 @@ public sealed class SourcesV8DebuggerTests
         Assert.Contains(service.Commands, command => command.Method == "Debugger.setAsyncCallStackDepth");
         Assert.Contains(service.Commands, command => command.Method == "Debugger.setPauseOnExceptions");
         Assert.Contains(service.Commands, command => command.Method == "Debugger.setSkipAllPauses");
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.setBlackboxExecutionContexts");
+        Assert.Equal("Context blackboxing unsupported", viewModel.ExecutionContextStatusText);
     }
 
     [AvaloniaFact]
@@ -355,6 +357,56 @@ public sealed class SourcesV8DebuggerTests
         await WaitUntilAsync(() => service.Commands.Last(item => item.Method == "Debugger.setBlackboxPatterns")
             .Parameters?["skipAnonymous"]?.GetValue<bool>() == true);
         Assert.Contains("anonymous", viewModel.BlackboxStatusText);
+    }
+
+    [AvaloniaFact]
+    public async Task ExecutionContextsCanBeBlackboxedAndRestoredByUniqueId()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        service.Raise("Runtime.executionContextCreated", new JsonObject
+        {
+            ["context"] = new JsonObject
+            {
+                ["id"] = 7,
+                ["uniqueId"] = "context-unique-7",
+                ["name"] = "Main world",
+                ["origin"] = "file:///app/example.js",
+                ["auxData"] = new JsonObject { ["type"] = "default", ["isDefault"] = true }
+            }
+        });
+        await WaitUntilAsync(() => viewModel.ExecutionContexts.Count == 1);
+
+        var context = Assert.Single(viewModel.ExecutionContexts);
+        Assert.Equal("Main world", context.DisplayName);
+        Assert.Contains("default", context.Detail);
+        viewModel.SelectedExecutionContext = context;
+        Assert.True(viewModel.ToggleSelectedExecutionContextBlackboxedCommand.CanExecute(null));
+        viewModel.ToggleSelectedExecutionContextBlackboxedCommand.Execute(null);
+        await WaitUntilAsync(() => service.Commands.Last(command =>
+            command.Method == "Debugger.setBlackboxExecutionContexts").Parameters?["uniqueIds"] is JsonArray ids && ids.Count == 1);
+
+        var apply = service.Commands.Last(command => command.Method == "Debugger.setBlackboxExecutionContexts");
+        Assert.Equal("context-unique-7", Assert.Single(Assert.IsType<JsonArray>(apply.Parameters?["uniqueIds"]))?.GetValue<string>());
+        Assert.True(context.IsBlackboxed);
+        Assert.Contains("Ignoring 1", viewModel.ExecutionContextStatusText);
+
+        viewModel.ToggleSelectedExecutionContextBlackboxedCommand.Execute(null);
+        await WaitUntilAsync(() => service.Commands.Last(command =>
+            command.Method == "Debugger.setBlackboxExecutionContexts").Parameters?["uniqueIds"] is JsonArray ids && ids.Count == 0);
+        Assert.False(context.IsBlackboxed);
+
+        service.Raise("Runtime.executionContextDestroyed", new JsonObject
+        {
+            ["executionContextId"] = 7,
+            ["executionContextUniqueId"] = "context-unique-7"
+        });
+        await WaitUntilAsync(() => viewModel.ExecutionContexts.Count == 0);
+        Assert.Null(viewModel.SelectedExecutionContext);
+        Assert.Equal("No execution contexts", viewModel.ExecutionContextStatusText);
     }
 
     [AvaloniaFact]
@@ -730,7 +782,8 @@ public sealed class SourcesV8DebuggerTests
             if (RejectOptionalDebuggerCommands &&
                 method is "Debugger.setAsyncCallStackDepth" or "Debugger.setPauseOnExceptions" or
                     "Debugger.setBreakpointsActive" or "Debugger.setBlackboxPatterns" or
-                    "Debugger.setBlackboxedRanges" or "Debugger.setSkipAllPauses")
+                    "Debugger.setBlackboxedRanges" or "Debugger.setSkipAllPauses" or
+                    "Debugger.setBlackboxExecutionContexts")
             {
                 return Task.FromException<JsonObject>(new InvalidOperationException($"Action {method} is not supported."));
             }

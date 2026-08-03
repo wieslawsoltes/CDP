@@ -474,6 +474,87 @@ public sealed class V8InspectorClientIntegrationTests
     }
 
     [Fact(Timeout = 30_000)]
+    public async Task NodeInspectorCanBlackboxAndRestoreAnExecutionContext()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var port = GetAvailablePort();
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "v8-instrumentation-target.js");
+        Assert.True(File.Exists(fixture), $"Missing context-blackboxing fixture: {fixture}");
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "node",
+            ArgumentList = { $"--inspect-brk=127.0.0.1:{port}", fixture },
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+        Assert.NotNull(process);
+
+        try
+        {
+            var target = Assert.Single(await WaitForTargetsAsync(new Uri($"http://127.0.0.1:{port}")));
+            await using var inspector = new V8InspectorClient();
+            var pauses = Channel.CreateUnbounded<JsonObject>();
+            var executionContext = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
+            inspector.EventReceived += (_, e) =>
+            {
+                if (e.Method == "Debugger.paused") pauses.Writer.TryWrite(e.Params);
+                if (e.Method == "Runtime.executionContextCreated" && e.Params["context"] is JsonObject context)
+                {
+                    executionContext.TrySetResult(context);
+                }
+            };
+
+            await inspector.ConnectAsync(new Uri(target.WebSocketDebuggerUrl));
+            await inspector.SendCommandAsync("Runtime.enable");
+            await inspector.SendCommandAsync("Debugger.enable");
+            var context = await executionContext.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            var uniqueId = context["uniqueId"]?.GetValue<string>();
+            Assert.False(string.IsNullOrWhiteSpace(uniqueId));
+
+            await inspector.SendCommandAsync("Runtime.runIfWaitingForDebugger");
+            await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+
+            await inspector.SendCommandAsync("Debugger.setBlackboxExecutionContexts", new JsonObject
+            {
+                ["uniqueIds"] = new JsonArray { uniqueId }
+            });
+            await inspector.SendCommandAsync("Debugger.resume");
+            var skipped = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "debugger; globalThis.contextBlackboxResult = 1",
+                ["returnByValue"] = true
+            }).WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            Assert.Equal(1, skipped["result"]?["value"]?.GetValue<int>());
+
+            await inspector.SendCommandAsync("Debugger.setBlackboxExecutionContexts", new JsonObject
+            {
+                ["uniqueIds"] = new JsonArray()
+            });
+            var pausingEvaluation = inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "debugger; globalThis.contextBlackboxResult = 2",
+                ["returnByValue"] = true
+            });
+            var restoredPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            Assert.Equal("other", restoredPause["reason"]?.GetValue<string>());
+
+            await inspector.SendCommandAsync("Debugger.resume");
+            var restored = await pausingEvaluation.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            Assert.Equal(2, restored["result"]?["value"]?.GetValue<int>());
+        }
+        finally
+        {
+            if (!process!.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+    }
+
+    [Fact(Timeout = 30_000)]
     public async Task NodeInspectorBreaksBeforeSourceMappedScriptExecution()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

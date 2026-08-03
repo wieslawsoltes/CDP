@@ -76,8 +76,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private V8BreakpointModel? _selectedBreakpoint;
     private string _newBlackboxPattern = "";
     private string? _selectedBlackboxPattern;
+    private V8ExecutionContextModel? _selectedExecutionContext;
     private bool _skipAnonymousScripts;
     private string _blackboxStatusText = "";
+    private string _executionContextStatusText = "No execution contexts";
+    private bool? _isExecutionContextBlackboxingSupported;
     private ObservableCollection<SearchResultModel> _searchResults = new();
     private bool _isMarkdownPreviewMode;
     private bool _isDocumentPreviewMode;
@@ -228,6 +231,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         V8InstrumentationBreakpoints.BeforeScriptDisplayName
     };
     public ObservableCollection<string> BlackboxPatterns { get; } = new();
+    public ObservableCollection<V8ExecutionContextModel> ExecutionContexts { get; } = new();
 
     public V8ScriptModel? SelectedRuntimeScript
     {
@@ -399,6 +403,24 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public V8ExecutionContextModel? SelectedExecutionContext
+    {
+        get => _selectedExecutionContext;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedExecutionContext, value))
+            {
+                ((RelayCommand)ToggleSelectedExecutionContextBlackboxedCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string ExecutionContextStatusText
+    {
+        get => _executionContextStatusText;
+        set => RaiseAndSetIfChanged(ref _executionContextStatusText, value);
+    }
+
     public string BlackboxStatusText
     {
         get => _blackboxStatusText;
@@ -428,6 +450,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public System.Windows.Input.ICommand AddBlackboxPatternCommand { get; }
     public System.Windows.Input.ICommand RemoveBlackboxPatternCommand { get; }
     public System.Windows.Input.ICommand ApplyBlackboxPatternsCommand { get; }
+    public System.Windows.Input.ICommand ToggleSelectedExecutionContextBlackboxedCommand { get; }
 
     public HierarchicalModel<WorkspaceFileNode> HierarchicalWorkspaceFiles { get; }
 
@@ -842,6 +865,20 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             () => _cdpService.IsConnected && IsDebuggerEnabled
         );
 
+        ToggleSelectedExecutionContextBlackboxedCommand = new RelayCommand(
+            async () =>
+            {
+                if (SelectedExecutionContext is null) return;
+                var wasBlackboxed = SelectedExecutionContext.IsBlackboxed;
+                SelectedExecutionContext.IsBlackboxed = !SelectedExecutionContext.IsBlackboxed;
+                if (!await ApplyExecutionContextBlackboxingAsync())
+                {
+                    SelectedExecutionContext.IsBlackboxed = wasBlackboxed;
+                }
+            },
+            () => SelectedExecutionContext?.CanBlackbox == true && _cdpService.IsConnected && IsDebuggerEnabled
+        );
+
         var scopeOptions = new HierarchicalOptions<V8ScopeVariableModel>
         {
             ChildrenSelectorAsync = async (node, cancellationToken) =>
@@ -915,6 +952,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (AddInstrumentationBreakpointCommand != null) ((RelayCommand)AddInstrumentationBreakpointCommand).RaiseCanExecuteChanged();
         if (SetVariableValueCommand != null) ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
         if (ApplyBlackboxPatternsCommand != null) ((RelayCommand)ApplyBlackboxPatternsCommand).RaiseCanExecuteChanged();
+        if (ToggleSelectedExecutionContextBlackboxedCommand != null) ((RelayCommand)ToggleSelectedExecutionContextBlackboxedCommand).RaiseCanExecuteChanged();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -967,6 +1005,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 "Debugger.setBreakpointsActive",
                 new JsonObject { ["active"] = AreBreakpointsActive });
             await ApplyBlackboxPatternsAsync();
+            await ApplyExecutionContextBlackboxingAsync();
             await RestoreBreakpointBindingsAsync();
             if (!IsDebuggerPaused)
             {
@@ -1029,6 +1068,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             SelectedScopeVariable = null;
             NewVariableValueExpression = "";
             RuntimeScripts.Clear();
+            ExecutionContexts.Clear();
+            SelectedExecutionContext = null;
+            _isExecutionContextBlackboxingSupported = null;
+            ExecutionContextStatusText = "No execution contexts";
             SelectedRuntimeScript = null;
             SelectedCallFrame = null;
             IsDebuggerPaused = false;
@@ -1081,10 +1124,68 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             case "Debugger.breakpointResolved" when e.Params is not null:
                 HandleBreakpointResolved(e.Params);
                 break;
+            case "Runtime.executionContextCreated" when e.Params is not null:
+                HandleExecutionContextCreated(e.Params);
+                break;
+            case "Runtime.executionContextDestroyed" when e.Params is not null:
+                HandleExecutionContextDestroyed(e.Params);
+                break;
             case "Runtime.executionContextsCleared":
-                Dispatcher.UIThread.Post(RuntimeScripts.Clear);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    RuntimeScripts.Clear();
+                    ExecutionContexts.Clear();
+                    SelectedExecutionContext = null;
+                    ExecutionContextStatusText = "No execution contexts";
+                });
                 break;
         }
+    }
+
+    private void HandleExecutionContextCreated(JsonObject parameters)
+    {
+        if (parameters["context"] is not JsonObject context) return;
+        var id = context["id"]?.GetValue<int>() ?? 0;
+        var uniqueId = context["uniqueId"]?.GetValue<string>() ?? "";
+        var auxData = context["auxData"] as JsonObject;
+        var executionContext = new V8ExecutionContextModel
+        {
+            Id = id,
+            UniqueId = uniqueId,
+            Name = context["name"]?.GetValue<string>() ?? "",
+            Origin = context["origin"]?.GetValue<string>() ?? "",
+            Type = auxData?["type"]?.GetValue<string>() ?? "",
+            IsDefault = auxData?["isDefault"]?.GetValue<bool>() ?? false
+        };
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            var existing = ExecutionContexts.FirstOrDefault(item =>
+                uniqueId.Length > 0 ? item.UniqueId == uniqueId : item.Id == id);
+            if (existing is not null)
+            {
+                executionContext.IsBlackboxed = existing.IsBlackboxed;
+                if (ReferenceEquals(SelectedExecutionContext, existing)) SelectedExecutionContext = executionContext;
+                ExecutionContexts.Remove(existing);
+            }
+            ExecutionContexts.Add(executionContext);
+            UpdateExecutionContextStatus();
+        });
+    }
+
+    private void HandleExecutionContextDestroyed(JsonObject parameters)
+    {
+        var id = parameters["executionContextId"]?.GetValue<int>() ?? 0;
+        var uniqueId = parameters["executionContextUniqueId"]?.GetValue<string>() ?? "";
+        Dispatcher.UIThread.Post(() =>
+        {
+            var existing = ExecutionContexts.FirstOrDefault(item =>
+                uniqueId.Length > 0 ? item.UniqueId == uniqueId : item.Id == id);
+            if (existing is null) return;
+            if (ReferenceEquals(SelectedExecutionContext, existing)) SelectedExecutionContext = null;
+            ExecutionContexts.Remove(existing);
+            UpdateExecutionContextStatus();
+        });
     }
 
     private void HandleScriptParsed(JsonObject parameters)
@@ -1867,6 +1968,49 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             BlackboxStatusText = "Blackboxing unsupported by target";
             Logger.LogDebug(ex, "Target does not support Debugger.setBlackboxPatterns");
         }
+    }
+
+    private async Task<bool> ApplyExecutionContextBlackboxingAsync()
+    {
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled) return false;
+        var uniqueIds = new JsonArray();
+        foreach (var context in ExecutionContexts.Where(item => item.IsBlackboxed && item.CanBlackbox))
+        {
+            uniqueIds.Add((JsonNode?)JsonValue.Create(context.UniqueId));
+        }
+
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.setBlackboxExecutionContexts", new JsonObject
+            {
+                ["uniqueIds"] = uniqueIds
+            });
+            _isExecutionContextBlackboxingSupported = true;
+            UpdateExecutionContextStatus();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _isExecutionContextBlackboxingSupported = false;
+            ExecutionContextStatusText = "Context blackboxing unsupported";
+            Logger.LogDebug(ex, "Target does not support Debugger.setBlackboxExecutionContexts");
+            return false;
+        }
+    }
+
+    private void UpdateExecutionContextStatus()
+    {
+        if (_isExecutionContextBlackboxingSupported == false)
+        {
+            ExecutionContextStatusText = "Context blackboxing unsupported";
+            return;
+        }
+        var ignored = ExecutionContexts.Count(item => item.IsBlackboxed);
+        ExecutionContextStatusText = ExecutionContexts.Count == 0
+            ? "No execution contexts"
+            : ignored == 0
+                ? $"{ExecutionContexts.Count} execution context(s)"
+                : $"Ignoring {ignored} of {ExecutionContexts.Count} context(s)";
     }
 
     private async Task AddWatchExpressionAsync()

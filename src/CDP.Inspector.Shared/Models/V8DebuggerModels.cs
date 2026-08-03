@@ -35,6 +35,38 @@ public sealed class V8ScriptModel
     public override string ToString() => DisplayName;
 }
 
+public sealed class V8ExecutionContextModel : ViewModelBase
+{
+    private bool _isBlackboxed;
+
+    public int Id { get; init; }
+    public string UniqueId { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Origin { get; init; } = "";
+    public string Type { get; init; } = "";
+    public bool IsDefault { get; init; }
+    public bool CanBlackbox => !string.IsNullOrWhiteSpace(UniqueId);
+    public string DisplayName => !string.IsNullOrWhiteSpace(Name)
+        ? Name
+        : !string.IsNullOrWhiteSpace(Origin)
+            ? Origin
+            : $"Execution context {Id}";
+    public string Detail => string.Join(" · ", new[]
+        {
+            string.IsNullOrWhiteSpace(Type) ? null : Type,
+            IsDefault ? "default" : null,
+            $"id {Id}"
+        }.Where(value => value is not null));
+
+    public bool IsBlackboxed
+    {
+        get => _isBlackboxed;
+        set => RaiseAndSetIfChanged(ref _isBlackboxed, value);
+    }
+
+    public override string ToString() => DisplayName;
+}
+
 public sealed class V8CallFrameModel
 {
     public string CallFrameId { get; init; } = "";
