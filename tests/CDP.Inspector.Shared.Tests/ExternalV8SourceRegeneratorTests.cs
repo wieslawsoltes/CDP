@@ -6,7 +6,7 @@ namespace CDP.Inspector.Shared.Tests;
 
 public sealed class ExternalV8SourceRegeneratorTests
 {
-    [Fact(Timeout = 30_000)]
+    [Fact(Timeout = 60_000)]
     public async Task RegeneratesCoffeeScriptThroughManifestConfiguredJsonProtocol()
     {
         var node = FindOnPath(OperatingSystem.IsWindows() ? "node.exe" : "node");
@@ -58,7 +58,9 @@ public sealed class ExternalV8SourceRegeneratorTests
                         ["arguments"] = new JsonArray("coffee-regenerator.mjs"),
                         ["extensions"] = new JsonArray("coffee"),
                         ["workingDirectory"] = ".",
-                        ["timeoutSeconds"] = 10
+                        // Windows GitHub runners can take more than ten seconds to cold-start
+                        // Node while the repository's test matrix is under heavy process load.
+                        ["timeoutSeconds"] = 30
                     }
                 }
             };
